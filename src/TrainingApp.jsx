@@ -1,6 +1,6 @@
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useEffect } from "react";
 import * as XLSX from "xlsx";
-import { signIn, signOut } from "aws-amplify/auth";
+import { signIn, signOut, getCurrentUser } from "aws-amplify/auth";
 import {
   LayoutDashboard, FileText, ClipboardCheck, Clock, NotebookPen, Users,
   Building2, BookOpen, Settings, GraduationCap, Search, Upload, Download,
@@ -384,6 +384,7 @@ function Login({ onLogin }) {
     if (!email || !password) { setErr("メールアドレスとパスワードを入力してください。"); return; }
     setBusy(true);
     try {
+      try { await signOut(); } catch (e) {}
       const { isSignedIn, nextStep } = await signIn({ username: email.trim(), password });
       if (isSignedIn || nextStep?.signInStep === "DONE") {
         onLogin(sel);
@@ -2099,6 +2100,13 @@ export default function App() {
   const [goals, setGoals] = useState(GOALS);
   const [dailyMessage, setDailyMessage] = useState("本日はJavaの「条件分岐・反復」です。前回の配列の復習をしておいてください。提出物の締切は17時です。");
   const [drawerOpen, setDrawerOpen] = useState(false);
+  const [authChecked, setAuthChecked] = useState(false);
+  useEffect(() => {
+    getCurrentUser()
+      .then(() => setLoggedIn(true))
+      .catch(() => {})
+      .finally(() => setAuthChecked(true));
+  }, []);
   const me = ROLES[role]; const nav = NAV[role];
   const notif = Object.values(BADGES[role] || {}).reduce((a, b) => a + b, 0);
 
@@ -2108,6 +2116,7 @@ export default function App() {
   function go(v) { setKarte(null); setView(v); setDrawerOpen(false); }
   function toggle(id) { setTaskDone(d => ({ ...d, [id]: !d[id] })); }
 
+  if (!authChecked) return null;
   if (!loggedIn) return <Login onLogin={login} />;
 
   const screen = (() => {
