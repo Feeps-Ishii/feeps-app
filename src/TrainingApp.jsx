@@ -815,8 +815,36 @@ function Tests({ role }) {
   const [building, setBuilding] = useState(false);
   const [buildFocus, setBuildFocus] = useState(null);
   const [buildStudent, setBuildStudent] = useState(null);
-  if (taking) return <TestTaking test={taking} back={() => setTaking(null)}
-    onDone={(score) => setTests(ts => ts.map(t => t.id === taking.id ? { ...t, status: "graded", score } : t))} />;
+  const [results, setResults] = useState(null);
+
+  useEffect(() => {
+    if (role === "trainee") {
+      apiGet("/tests/me")
+        .then(items => {
+          const byId = {};
+          (items || []).forEach(r => { byId[String(r.testId)] = r; });
+          setTests(TESTS.map(t => byId[String(t.id)] ? { ...t, status: "graded", score: byId[String(t.id)].score } : t));
+        })
+        .catch(() => {});
+    }
+  }, [role]);
+
+  async function handleDone(score) {
+    const id = taking?.id;
+    setTests(ts => ts.map(t => t.id === id ? { ...t, status: "graded", score } : t));
+    try { await apiPut(`/tests/${id}/results/me`, { score, total: 100 }); } catch (e) {}
+  }
+  async function showResults(t) {
+    setResults({ test: t, rows: null });
+    try {
+      const items = await apiGet(`/tests/${t.id}/results`);
+      setResults({ test: t, rows: (items || []).map(r => ({ name: "受講生 " + String(r.traineeId).slice(0, 6), score: r.score })) });
+    } catch (e) {
+      setResults({ test: t, rows: [], err: "結果の取得に失敗しました（講師権限・再ログインをご確認ください）。" });
+    }
+  }
+
+  if (taking) return <TestTaking test={taking} back={() => setTaking(null)} onDone={handleDone} />;
   if (building) return <TestBuilder back={() => setBuilding(false)} focus={buildFocus} student={buildStudent} />;
   if (role === "instructor") return (
     <div>
@@ -827,8 +855,26 @@ function Tests({ role }) {
           <div><div className="text-sm font-semibold" style={{ color: C.ink }}>{t.title}</div><div className="text-xs" style={{ color: C.muted }}>{t.q}問 ・ 制限 {t.limit} ・ 自動採点</div></div>
           <div className="flex items-center gap-4">
             <div className="hidden text-right sm:block"><div className="text-sm font-bold" style={{ color: C.ink }}>{t.avg ? `平均 ${t.avg}点` : "未実施"}</div><div className="text-xs" style={{ color: C.muted }}>提出 {t.submitted}/5</div></div>
-            <Btn kind="soft" size="sm" icon={Eye}>結果</Btn></div></div>
+            <Btn kind="soft" size="sm" icon={Eye} onClick={() => showResults(t)}>結果</Btn></div></div>
       ))}</Card>
+      {results && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: "rgba(0,0,0,.4)" }} onClick={() => setResults(null)}>
+          <div className="w-full max-w-md rounded-2xl p-5" style={{ background: "#fff", border: `1px solid ${C.line2}` }} onClick={e => e.stopPropagation()}>
+            <div className="mb-3 flex items-center justify-between gap-3">
+              <h3 className="font-bold leading-snug" style={{ color: C.ink }}>{results.test.title} の結果</h3>
+              <button onClick={() => setResults(null)} aria-label="閉じる"><X size={18} style={{ color: C.muted }} /></button>
+            </div>
+            {results.rows === null ? <div className="py-6 text-center text-sm" style={{ color: C.muted }}>読み込み中…</div>
+              : results.err ? <div className="text-xs" style={{ color: "#C8385F" }}>{results.err}</div>
+              : results.rows.length === 0 ? <div className="py-6 text-center text-sm" style={{ color: C.muted }}>まだ受験者がいません。</div>
+              : <div>{results.rows.slice().sort((a, b) => b.score - a.score).map((r, i, arr) => (
+                  <div key={i} className="flex items-center justify-between py-2 text-sm" style={{ borderBottom: i < arr.length - 1 ? `1px solid ${C.line}` : "none", color: C.ink }}>
+                    <span>{r.name}</span><span className="font-bold" style={{ color: r.score >= 70 ? C.green : C.amber }}>{r.score}点</span>
+                  </div>
+                ))}</div>}
+          </div>
+        </div>
+      )}
     </div>
   );
   return (
