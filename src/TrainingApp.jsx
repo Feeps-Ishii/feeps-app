@@ -1081,31 +1081,59 @@ function Attendance({ role }) {
   return <AttendanceManage />;
 }
 function TraineeAttendance() {
-  const [att, setAtt] = useState({ in: "09:52", out: "" });
+  const today = todayStr();
+  const [att, setAtt] = useState({ in: "", out: "" });
   const [editToday, setEditToday] = useState(false);
-  const [hist, setHist] = useState([
-    { d: "04/15（水）", in: "09:52", out: "", s: "出勤" },
-    { d: "04/14（火）", in: "09:55", out: "17:00", s: "出勤" },
-    { d: "04/13（月）", in: "10:12", out: "17:03", s: "遅刻" },
-  ]);
+  const [hist, setHist] = useState([]);
   const [eIdx, setEIdx] = useState(-1);
   const [draft, setDraft] = useState({});
+  const [err, setErr] = useState("");
+
+  function load() {
+    apiGet("/attendance/me")
+      .then(items => {
+        const rows = (items || []).slice().sort((a, b) => (a.date < b.date ? 1 : -1));
+        const t = rows.find(r => r.date === today);
+        setAtt({ in: t?.clockIn || "", out: t?.clockOut || "" });
+        setHist(rows.map(r => ({ date: r.date, d: fmtAttDate(r.date), in: r.clockIn || "", out: r.clockOut || "", s: r.status || "出勤" })));
+      })
+      .catch(() => setErr("勤怠の読み込みに失敗しました。再ログインをお試しください。"));
+  }
+  useEffect(() => { load(); }, []);
+
+  async function saveToday(next) {
+    setErr("");
+    try {
+      await apiPut("/attendance/me", { date: today, clockIn: next.in, clockOut: next.out, status: "出勤" });
+      load();
+    } catch (e) { setErr("保存に失敗しました：" + (e?.message || e)); }
+  }
+  function doClockIn() { const n = { in: att.in || nowHM(), out: att.out }; setAtt(n); saveToday(n); }
+  function doClockOut() { const n = { in: att.in, out: nowHM() }; setAtt(n); saveToday(n); }
+  function saveTodayEdit() { setEditToday(false); saveToday(att); }
   function startEdit(i) { setEIdx(i); setDraft({ ...hist[i] }); }
-  function saveEdit() { setHist(hist.map((h, i) => i === eIdx ? { ...draft } : h)); setEIdx(-1); }
+  async function saveEdit() {
+    const row = hist[eIdx]; setErr("");
+    try {
+      await apiPut("/attendance/me", { date: row.date, clockIn: draft.in, clockOut: draft.out, status: row.s });
+      setEIdx(-1); load();
+    } catch (e) { setErr("保存に失敗しました：" + (e?.message || e)); }
+  }
   return (
     <div>
       <SectionHead title="勤怠" desc="出退勤の打刻・修正と履歴" />
+      {err && <div className="mb-4 rounded-lg px-3 py-2 text-xs" style={{ background: "#FCEAEF", color: "#C8385F" }}>{err}</div>}
       <Card className="mb-6 p-6">
         <div className="flex flex-col items-center gap-5 sm:flex-row sm:justify-between">
           <div>
-            <div className="text-sm" style={{ color: C.muted }}>2026年4月15日（水）</div>
+            <div className="text-sm" style={{ color: C.muted }}>{fmtLongDate(today)}</div>
             <div className="text-2xl font-bold" style={{ color: C.ink }}>15日目 ｜ Java</div>
             {editToday ? (
               <div className="mt-3 flex items-center gap-2">
                 <input value={att.in} onChange={e => setAtt({ ...att, in: e.target.value })} className="w-20 rounded-lg px-2 py-1.5 text-sm outline-none" style={{ border: `1px solid ${C.line2}`, color: C.ink }} />
                 <span style={{ color: C.muted }}>–</span>
                 <input value={att.out} onChange={e => setAtt({ ...att, out: e.target.value })} placeholder="退勤" className="w-20 rounded-lg px-2 py-1.5 text-sm outline-none" style={{ border: `1px solid ${C.line2}`, color: C.ink }} />
-                <Btn size="sm" icon={Check} onClick={() => setEditToday(false)}>保存</Btn>
+                <Btn size="sm" icon={Check} onClick={saveTodayEdit}>保存</Btn>
               </div>
             ) : (
               <div className="mt-2 flex flex-wrap items-center gap-4 text-sm" style={{ color: C.body }}>
@@ -1116,8 +1144,8 @@ function TraineeAttendance() {
             )}
           </div>
           <div className="flex gap-3">
-            <button onClick={() => setAtt({ ...att, in: att.in || "09:52" })} className="flex h-24 w-24 flex-col items-center justify-center rounded-2xl font-bold" style={{ background: att.in ? C.line : GRAD, color: att.in ? C.muted : "#fff" }}><Clock size={22} /><span className="mt-1 text-sm">出勤</span></button>
-            <button onClick={() => setAtt({ ...att, out: "17:05" })} disabled={!att.in || !!att.out} className="flex h-24 w-24 flex-col items-center justify-center rounded-2xl font-bold disabled:opacity-50" style={{ background: att.out ? C.line : C.ink, color: att.out ? C.muted : "#fff" }}><LogOut size={22} /><span className="mt-1 text-sm">退勤</span></button>
+            <button onClick={doClockIn} className="flex h-24 w-24 flex-col items-center justify-center rounded-2xl font-bold" style={{ background: att.in ? C.line : GRAD, color: att.in ? C.muted : "#fff" }}><Clock size={22} /><span className="mt-1 text-sm">出勤</span></button>
+            <button onClick={doClockOut} disabled={!att.in || !!att.out} className="flex h-24 w-24 flex-col items-center justify-center rounded-2xl font-bold disabled:opacity-50" style={{ background: att.out ? C.line : C.ink, color: att.out ? C.muted : "#fff" }}><LogOut size={22} /><span className="mt-1 text-sm">退勤</span></button>
           </div>
         </div>
       </Card>
@@ -1148,16 +1176,35 @@ function TraineeAttendance() {
   );
 }
 function AttendanceManage() {
-  const [rows, setRows] = useState(ATT_ROWS);
+  const today = todayStr();
+  const [rows, setRows] = useState([]);
   const [eIdx, setEIdx] = useState(-1);
   const [draft, setDraft] = useState({});
+  const [err, setErr] = useState("");
+  function load() {
+    apiGet("/attendance?date=" + today)
+      .then(items => setRows((items || []).map(r => ({
+        traineeId: r.traineeId, date: r.date,
+        name: "受講生 " + String(r.traineeId).slice(0, 6),
+        in: r.clockIn || "", out: r.clockOut || "", s: r.status || "出勤", note: r.note || "",
+      }))))
+      .catch(() => setErr("勤怠の読み込みに失敗しました。講師権限と再ログインをご確認ください。"));
+  }
+  useEffect(() => { load(); }, []);
   function startEdit(i) { setEIdx(i); setDraft({ ...rows[i] }); }
-  function save() { setRows(rows.map((r, i) => i === eIdx ? { ...draft } : r)); setEIdx(-1); }
+  async function save() {
+    const row = rows[eIdx]; setErr("");
+    try {
+      await apiPut("/attendance/" + row.traineeId, { date: row.date, clockIn: draft.in, clockOut: draft.out, status: draft.s, note: draft.note });
+      setRows(rows.map((r, i) => i === eIdx ? { ...draft } : r)); setEIdx(-1);
+    } catch (e) { setErr("保存に失敗しました：" + (e?.message || e)); }
+  }
   const present = rows.filter(r => r.s === "出勤").length, late = rows.filter(r => r.s === "遅刻").length, absent = rows.filter(r => r.s === "欠席").length;
   return (
     <div>
-      <SectionHead title="勤怠管理" desc="2026/04/15（15日目・Java）の出席状況・修正"
+      <SectionHead title="勤怠管理" desc={`${fmtLongDate(today)}の出席状況・修正`}
         action={<Btn kind="ghost" icon={FileSpreadsheet} onClick={() => exportAttendanceExcel(rows)}>Excelで出力</Btn>} />
+      {err && <div className="mb-4 rounded-lg px-3 py-2 text-xs" style={{ background: "#FCEAEF", color: "#C8385F" }}>{err}</div>}
       <div className="mb-5 grid gap-4 sm:grid-cols-3"><Stat icon={CheckCircle2} label="出勤" value={`${present}名`} tone="green" /><Stat icon={AlertCircle} label="遅刻" value={`${late}名`} tone="amber" /><Stat icon={X} label="欠席" value={`${absent}名`} tone="muted" /></div>
       <Card>
         <div className="overflow-x-auto">
@@ -1261,7 +1308,11 @@ function mapReport(r) {
     comments: r.comment ? [{ by: "講師", role: "講師", text: r.comment, at: "" }] : [],
   };
 }
-const todayStr = () => new Date().toISOString().slice(0, 10);
+const todayStr = () => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`; };
+const nowHM = () => { const d = new Date(); return `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`; };
+const WD = ["日", "月", "火", "水", "木", "金", "土"];
+const fmtAttDate = (d) => { const dt = new Date(d + "T00:00:00"); return `${d.slice(5, 7)}/${d.slice(8, 10)}（${WD[dt.getDay()]}）`; };
+const fmtLongDate = (d) => { const dt = new Date(d + "T00:00:00"); return `${dt.getFullYear()}年${dt.getMonth() + 1}月${dt.getDate()}日（${WD[dt.getDay()]}）`; };
 
 /* 講師ビュー: traineeId を保持しコメント投稿に使う */
 function mapReportInstructor(r) {
