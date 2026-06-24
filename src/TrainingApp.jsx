@@ -1923,6 +1923,23 @@ function TraineePortfolio({ done, goals }) {
   const [skErr, setSkErr] = useState("");
   const [skSaved, setSkSaved] = useState(false);
   const [skBusy, setSkBusy] = useState(false);
+  const [profileName, setProfileName] = useState("");
+  const [editName, setEditName] = useState(false);
+  const [nameDraft, setNameDraft] = useState("");
+  const [nameBusy, setNameBusy] = useState(false);
+
+  useEffect(() => {
+    apiGet("/profile/me").then(p => { if (p?.name) setProfileName(p.name); }).catch(() => {});
+  }, []);
+
+  async function saveName() {
+    if (nameBusy) return;
+    setNameBusy(true);
+    try {
+      await apiPut("/profile/me", { name: nameDraft, course: COURSE });
+      setProfileName(nameDraft); setEditName(false);
+    } catch (e) {} finally { setNameBusy(false); }
+  }
 
   useEffect(() => {
     apiGet("/skills/me")
@@ -1948,8 +1965,22 @@ function TraineePortfolio({ done, goals }) {
         <div className="relative p-6 text-white" style={{ background: GRAD2 }}>
           <div className="absolute inset-0" style={{ backgroundImage: DOTS }} />
           <div className="relative flex flex-wrap items-center gap-4">
-            <div className="flex h-16 w-16 items-center justify-center rounded-2xl text-2xl font-bold" style={{ background: "rgba(255,255,255,.2)", boxShadow: "0 0 0 3px rgba(255,255,255,.25)" }}>{me.who.slice(0, 1)}</div>
-            <div><div className="text-xl font-bold">{me.who}</div><div className="text-sm opacity-90">{me.org} ・ {COURSE}</div><div className="text-xs opacity-80">{PERIOD}</div></div>
+            <div className="flex h-16 w-16 items-center justify-center rounded-2xl text-2xl font-bold" style={{ background: "rgba(255,255,255,.2)", boxShadow: "0 0 0 3px rgba(255,255,255,.25)" }}>{(profileName || me.who).slice(0, 1)}</div>
+            <div>
+              {editName ? (
+                <div className="flex items-center gap-2">
+                  <input value={nameDraft} onChange={e => setNameDraft(e.target.value)} placeholder="氏名" autoFocus className="rounded-lg px-2 py-1 text-sm outline-none" style={{ color: C.ink }} />
+                  <button onClick={saveName} className="rounded-lg bg-white/20 px-2 py-1 text-xs font-semibold">{nameBusy ? "保存中…" : "保存"}</button>
+                  <button onClick={() => setEditName(false)} className="text-xs opacity-80">取消</button>
+                </div>
+              ) : (
+                <div className="flex items-center gap-2">
+                  <div className="text-xl font-bold">{profileName || me.who}</div>
+                  <button onClick={() => { setNameDraft(profileName || ""); setEditName(true); }} aria-label="氏名を編集" className="opacity-80 transition hover:opacity-100"><Pencil size={14} /></button>
+                </div>
+              )}
+              <div className="text-sm opacity-90">{me.org} ・ {COURSE}</div><div className="text-xs opacity-80">{PERIOD}</div>
+            </div>
             <div className="ml-auto text-right"><div className="text-3xl font-bold">{overall}%</div><div className="text-xs opacity-90">研修進捗</div></div>
           </div>
         </div>
