@@ -1874,6 +1874,28 @@ function TraineePortfolio({ done, goals }) {
   const gp = goalProgress(goals, done);
   const acquired = flatTasks(goals).filter(t => done[t.id]);
   const [skills, setSkills] = useState(PORTFOLIO_SKILLS);
+  const [skErr, setSkErr] = useState("");
+  const [skSaved, setSkSaved] = useState(false);
+  const [skBusy, setSkBusy] = useState(false);
+
+  useEffect(() => {
+    apiGet("/skills/me")
+      .then(item => { if (item && Array.isArray(item.skills)) setSkills(item.skills); })
+      .catch(() => {});
+  }, []);
+
+  async function saveSkills() {
+    if (skBusy) return;
+    setSkErr(""); setSkBusy(true);
+    try {
+      await apiPut("/skills/me", { skills });
+      setSkSaved(true); setTimeout(() => setSkSaved(false), 2000);
+    } catch (e) {
+      setSkErr("保存に失敗しました：" + (e?.message || e));
+    } finally {
+      setSkBusy(false);
+    }
+  }
   return (
     <div>
       <Card className="mb-6 overflow-hidden">
@@ -1905,6 +1927,11 @@ function TraineePortfolio({ done, goals }) {
         <div className="mb-3 flex items-center gap-2"><Briefcase size={16} style={{ color: C.cyan }} /><h3 className="font-bold" style={{ color: C.ink }}>保有スキル・資格</h3>
           <span className="text-xs" style={{ color: C.muted }}>研修外のスキルも登録できます</span></div>
         <SkillEditor skills={skills} setSkills={setSkills} defaultCat="資格" />
+        <div className="mt-4 flex items-center justify-end gap-3">
+          {skErr && <span className="text-xs" style={{ color: "#C8385F" }}>{skErr}</span>}
+          {skSaved && <span className="inline-flex items-center gap-1 text-xs font-semibold" style={{ color: C.green }}><Check size={13} />保存しました</span>}
+          <Btn icon={Check} onClick={saveSkills}>{skBusy ? "保存中…" : "スキルを保存"}</Btn>
+        </div>
       </Card>
     </div>
   );
