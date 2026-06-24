@@ -1263,6 +1263,22 @@ function mapReport(r) {
 }
 const todayStr = () => new Date().toISOString().slice(0, 10);
 
+/* 講師ビュー: traineeId を保持しコメント投稿に使う */
+function mapReportInstructor(r) {
+  return {
+    id: r.traineeId,
+    traineeId: r.traineeId,
+    name: "受講生 " + String(r.traineeId).slice(0, 6),
+    org: "",
+    date: String(r.date).replace(/-/g, "/"),
+    rawDate: r.date,
+    learned: r.learned || "",
+    question: r.question || "",
+    nextday: r.nextday || "",
+    comments: r.comment ? [{ by: "講師", role: "講師", text: r.comment, at: "" }] : [],
+  };
+}
+
 function Reports({ role }) {
   const [reports, setReports] = useState([]);
   const [draft, setDraft] = useState({ learned: "", question: "", nextday: "" });
@@ -1278,6 +1294,10 @@ function Reports({ role }) {
       apiGet("/reports/me")
         .then(items => setReports((items || []).map(mapReport)))
         .catch(() => setSaveErr("日報の読み込みに失敗しました。再ログインをお試しください。"));
+    } else if (role === "instructor") {
+      apiGet("/reports?date=" + todayStr())
+        .then(items => setReports((items || []).map(mapReportInstructor)))
+        .catch(() => setSaveErr("日報の読み込みに失敗しました。講師権限と再ログインをご確認ください。"));
     } else {
       setReports(REPORTS_SEED);
     }
@@ -1300,8 +1320,18 @@ function Reports({ role }) {
       setSaving(false);
     }
   }
-  function addC(id) { const t = (cText[id] || "").trim(); if (!t) return;
-    setReports(reports.map(r => r.id === id ? { ...r, comments: [...r.comments, { by: "石井 啓輔", role: "講師", text: t, at: "04/15 18:45" }] } : r)); setCText({ ...cText, [id]: "" }); }
+  async function addC(id) {
+    const t = (cText[id] || "").trim(); if (!t) return;
+    const rep = reports.find(r => r.id === id);
+    if (!rep) return;
+    try {
+      await apiPut("/reports/" + rep.traineeId + "/comment", { date: rep.rawDate, comment: t });
+      setReports(reports.map(r => r.id === id ? { ...r, comments: [{ by: "石井 啓輔", role: "講師", text: t, at: "" }] } : r));
+      setCText({ ...cText, [id]: "" });
+    } catch (e) {
+      setSaveErr("コメント送信に失敗しました：" + (e?.message || e));
+    }
+  }
   function aiComment(id) { aiC.draft(() => setCText({ ...cText, [id]: "良い気づきです。止め時の目安は「打ち手が具体的に見えたら」。なぜを重ねても抽象的なままなら、一段戻して論点を分け直すと整理しやすいですよ。" }), id); }
   return (
     <div>
@@ -2136,8 +2166,8 @@ function SideNav({ groups, view, karte, go, role }) {
 }
 export default function App() {
   const [loggedIn, setLoggedIn] = useState(false);
-  const [role, setRole] = useState("trainee");
-  const [view, setView] = useState("home");
+  const [role, setRole] = useState(() => localStorage.getItem("feeps.role") || "trainee");
+  const [view, setView] = useState(() => localStorage.getItem("feeps.view") || "home");
   const [karte, setKarte] = useState(null);
   const [taskDone, setTaskDone] = useState(SEED_DONE);
   const [goals, setGoals] = useState(GOALS);
@@ -2150,6 +2180,8 @@ export default function App() {
       .catch(() => {})
       .finally(() => setAuthChecked(true));
   }, []);
+  useEffect(() => { localStorage.setItem("feeps.role", role); }, [role]);
+  useEffect(() => { localStorage.setItem("feeps.view", view); }, [view]);
   const me = ROLES[role]; const nav = NAV[role];
   const notif = Object.values(BADGES[role] || {}).reduce((a, b) => a + b, 0);
 
