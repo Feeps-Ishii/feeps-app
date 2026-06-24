@@ -1,7 +1,7 @@
 import React, { useState, useMemo, useEffect } from "react";
 import * as XLSX from "xlsx";
-import { signIn, signOut, getCurrentUser } from "aws-amplify/auth";
-import { apiGet, apiPut } from "./api.js";
+import { signIn, signOut, getCurrentUser, confirmSignIn } from "aws-amplify/auth";
+import { apiGet, apiPut, apiPost } from "./api.js";
 import {
   LayoutDashboard, FileText, ClipboardCheck, Clock, NotebookPen, Users,
   Building2, BookOpen, Settings, GraduationCap, Search, Upload, Download,
@@ -378,6 +378,8 @@ function Login({ onLogin }) {
   const [password, setPassword] = useState("");
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState("");
+  const [needNewPw, setNeedNewPw] = useState(false);
+  const [newPw, setNewPw] = useState("");
 
   async function handleLogin() {
     if (busy) return;
@@ -390,7 +392,8 @@ function Login({ onLogin }) {
       if (isSignedIn || nextStep?.signInStep === "DONE") {
         onLogin(sel);
       } else if (nextStep?.signInStep === "CONFIRM_SIGN_IN_WITH_NEW_PASSWORD_REQUIRED") {
-        setErr("初回ログインのためパスワード変更が必要です。管理者側で確定パスワードを設定してから再度お試しください。");
+        setNeedNewPw(true);
+        setErr("初回ログインです。新しいパスワードを設定してください。");
       } else if (nextStep?.signInStep === "CONFIRM_SIGN_UP") {
         setErr("メールアドレスの確認が未完了です。確認コードでの認証が必要です。");
       } else {
@@ -401,6 +404,25 @@ function Login({ onLogin }) {
       if (n === "UserNotFoundException" || n === "NotAuthorizedException") setErr("メールアドレスまたはパスワードが正しくありません。");
       else if (n === "UserNotConfirmedException") setErr("メールアドレスの確認が未完了です。");
       else setErr(e?.message || "ログインに失敗しました。");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function handleNewPassword() {
+    if (busy) return;
+    setErr("");
+    if (!newPw) { setErr("新しいパスワードを入力してください。"); return; }
+    setBusy(true);
+    try {
+      const { isSignedIn, nextStep } = await confirmSignIn({ challengeResponse: newPw });
+      if (isSignedIn || nextStep?.signInStep === "DONE") {
+        onLogin(sel);
+      } else {
+        setErr("パスワード設定後、追加のステップが必要です：" + (nextStep?.signInStep || "不明"));
+      }
+    } catch (e) {
+      setErr(e?.message || "パスワード設定に失敗しました（8文字以上・大小英字・数字・記号が必要です）。");
     } finally {
       setBusy(false);
     }
@@ -451,8 +473,16 @@ function Login({ onLogin }) {
               <label className="flex items-center gap-1.5"><input type="checkbox" defaultChecked /> ログイン状態を保持</label>
               <span style={{ color: C.cyanDeep }}>パスワードを忘れた方</span>
             </div>
-            {err && <div className="rounded-lg px-3 py-2 text-xs" style={{ background: "#FCEAEF", color: "#C8385F" }}>{err}</div>}
-            <Btn kind="grad" full size="lg" icon={LogIn} onClick={handleLogin}>{busy ? "ログイン中…" : "ログイン"}</Btn>
+            {err && <div className="rounded-lg px-3 py-2 text-xs" style={{ background: needNewPw ? C.amberW : "#FCEAEF", color: needNewPw ? C.amber : "#C8385F" }}>{err}</div>}
+            {needNewPw && (
+              <div className="flex items-center gap-2 rounded-xl px-3" style={{ border: `1px solid ${C.line2}`, background: "#fff" }}>
+                <Lock size={16} style={{ color: C.muted }} />
+                <input type="password" value={newPw} onChange={e => setNewPw(e.target.value)} onKeyDown={e => { if (e.key === "Enter") handleNewPassword(); }} placeholder="新しいパスワード" autoComplete="new-password" className="w-full bg-transparent py-3 text-sm outline-none" style={{ color: C.ink }} />
+              </div>
+            )}
+            {needNewPw
+              ? <Btn kind="grad" full size="lg" icon={LogIn} onClick={handleNewPassword}>{busy ? "設定中…" : "パスワードを設定して続行"}</Btn>
+              : <Btn kind="grad" full size="lg" icon={LogIn} onClick={handleLogin}>{busy ? "ログイン中…" : "ログイン"}</Btn>}
           </div>
 
           <div className="mt-7">
@@ -1748,13 +1778,89 @@ function AdminCourses() {
         <div className="mb-3 text-xs" style={{ color: C.muted }}>{c[1]} ・ 受講 {c[2]}名</div><div className="flex flex-wrap gap-1.5">{c[4].map(t => <Badge key={t} tone="cyan">{t}</Badge>)}</div></Card>
     ))}</div></div>);
 }
+const ROLE_OPTS = [["trainee", "受講生"], ["instructor", "講師"], ["client", "企業担当者"], ["admin", "管理者"]];
+const roleLabel = (r) => (ROLE_OPTS.find(o => o[0] === r)?.[1]) || r || "—";
+const roleTone = (r) => r === "instructor" ? "cyan" : r === "admin" ? "red" : r === "client" ? "amber" : "muted";
+
 function AdminUsers() {
-  const rows = [["田中 翔太", "受講生", "株式会社アクシス"], ["佐藤 美咲", "受講生", "株式会社アクシス"], ["石井 啓輔", "講師", "株式会社Feeps"], ["高橋 由美", "企業担当者", "株式会社アクシス"], ["寺田 正哉", "管理者", "株式会社Feeps"]];
-  const tone = r => r === "講師" ? "cyan" : r === "管理者" ? "red" : r === "企業担当者" ? "amber" : "muted";
-  return (<div><SectionHead title="ユーザー管理" desc="アカウントとロールの管理" action={<Btn icon={Plus}>ユーザーを追加</Btn>} />
-    <Card>{rows.map((u, i) => (<div key={i} className="flex items-center justify-between px-4 py-3" style={{ borderBottom: i < rows.length - 1 ? `1px solid ${C.line}` : "none" }}>
-      <div className="flex items-center gap-3"><Avatar name={u[0]} /><div><div className="text-sm font-semibold" style={{ color: C.ink }}>{u[0]}</div><div className="text-xs" style={{ color: C.muted }}>{u[2]}</div></div></div>
-      <div className="flex items-center gap-3"><Badge tone={tone(u[1])}>{u[1]}</Badge><Pencil size={15} style={{ color: C.muted }} /></div></div>))}</Card></div>);
+  const [users, setUsers] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [open, setOpen] = useState(false);
+  const [form, setForm] = useState({ email: "", name: "", role: "trainee", tempPassword: "Feeps#1234" });
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState("");
+  const [err, setErr] = useState("");
+
+  function load() {
+    setLoading(true);
+    apiGet("/admin/users")
+      .then(list => setUsers(list || []))
+      .catch(() => setErr("ユーザー一覧の取得に失敗しました（管理者権限・再ログインをご確認ください）。"))
+      .finally(() => setLoading(false));
+  }
+  useEffect(() => { load(); }, []);
+
+  async function create() {
+    setErr(""); setMsg("");
+    if (!form.email.trim() || !form.tempPassword.trim()) { setErr("メールと仮パスワードは必須です。"); return; }
+    setBusy(true);
+    try {
+      await apiPost("/admin/users", { email: form.email.trim(), name: form.name.trim(), role: form.role, tempPassword: form.tempPassword });
+      setMsg(`${form.email.trim()} を作成しました（ロール：${roleLabel(form.role)}）。初回ログイン時にパスワード変更が必要です。`);
+      setForm({ email: "", name: "", role: "trainee", tempPassword: "Feeps#1234" });
+      setOpen(false);
+      load();
+    } catch (e) {
+      const m = String(e?.message || e);
+      setErr(m.includes("409") ? "このメールアドレスは既に登録済みです。" : "作成に失敗しました：" + m);
+    } finally { setBusy(false); }
+  }
+
+  return (
+    <div>
+      <SectionHead title="ユーザー管理" desc="アカウントとロールの管理・追加"
+        action={<Btn icon={Plus} onClick={() => { setOpen(true); setErr(""); setMsg(""); }}>ユーザーを追加</Btn>} />
+      {msg && <div className="mb-4 rounded-lg px-3 py-2 text-xs" style={{ background: C.greenW, color: C.green }}>{msg}</div>}
+      {err && !open && <div className="mb-4 rounded-lg px-3 py-2 text-xs" style={{ background: "#FCEAEF", color: "#C8385F" }}>{err}</div>}
+      <Card>
+        {loading ? <div className="px-4 py-8 text-center text-sm" style={{ color: C.muted }}>読み込み中…</div>
+          : users.length === 0 ? <div className="px-4 py-8 text-center text-sm" style={{ color: C.muted }}>まだユーザーがいません。「ユーザーを追加」から作成できます。</div>
+          : users.map((u, i) => (
+            <div key={u.userId || i} className="flex items-center justify-between px-4 py-3" style={{ borderBottom: i < users.length - 1 ? `1px solid ${C.line}` : "none" }}>
+              <div className="flex items-center gap-3"><Avatar name={u.name || u.email} /><div><div className="text-sm font-semibold" style={{ color: C.ink }}>{u.name || "（氏名未設定）"}</div><div className="text-xs" style={{ color: C.muted }}>{u.email}</div></div></div>
+              <Badge tone={roleTone(u.role)}>{roleLabel(u.role)}</Badge>
+            </div>
+          ))}
+      </Card>
+
+      {open && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: "rgba(0,0,0,.4)" }} onClick={() => !busy && setOpen(false)}>
+          <div className="w-full max-w-md rounded-2xl p-5" style={{ background: "#fff", border: `1px solid ${C.line2}` }} onClick={e => e.stopPropagation()}>
+            <div className="mb-4 flex items-center justify-between">
+              <h3 className="font-bold" style={{ color: C.ink }}>ユーザーを追加</h3>
+              <button onClick={() => setOpen(false)} aria-label="閉じる"><X size={18} style={{ color: C.muted }} /></button>
+            </div>
+            <div className="space-y-3">
+              <label className="block"><span className="mb-1 block text-xs font-semibold" style={{ color: C.muted }}>メールアドレス</span>
+                <input value={form.email} onChange={e => setForm({ ...form, email: e.target.value })} type="email" placeholder="user@example.com" className="w-full rounded-lg px-3 py-2 text-sm outline-none" style={{ border: `1px solid ${C.line2}`, color: C.ink }} /></label>
+              <label className="block"><span className="mb-1 block text-xs font-semibold" style={{ color: C.muted }}>氏名</span>
+                <input value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} placeholder="山田 太郎" className="w-full rounded-lg px-3 py-2 text-sm outline-none" style={{ border: `1px solid ${C.line2}`, color: C.ink }} /></label>
+              <label className="block"><span className="mb-1 block text-xs font-semibold" style={{ color: C.muted }}>ロール</span>
+                <select value={form.role} onChange={e => setForm({ ...form, role: e.target.value })} className="w-full rounded-lg px-3 py-2 text-sm outline-none" style={{ border: `1px solid ${C.line2}`, color: C.ink }}>
+                  {ROLE_OPTS.map(([v, l]) => <option key={v} value={v}>{l}</option>)}</select></label>
+              <label className="block"><span className="mb-1 block text-xs font-semibold" style={{ color: C.muted }}>仮パスワード（初回ログイン時に変更されます）</span>
+                <input value={form.tempPassword} onChange={e => setForm({ ...form, tempPassword: e.target.value })} className="w-full rounded-lg px-3 py-2 text-sm outline-none" style={{ border: `1px solid ${C.line2}`, color: C.ink }} /></label>
+              {err && <div className="rounded-lg px-3 py-2 text-xs" style={{ background: "#FCEAEF", color: "#C8385F" }}>{err}</div>}
+            </div>
+            <div className="mt-5 flex justify-end gap-2">
+              <Btn kind="ghost" onClick={() => setOpen(false)}>キャンセル</Btn>
+              <Btn icon={Check} onClick={create}>{busy ? "作成中…" : "作成する"}</Btn>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
 }
 
 /* ===== スキルマップ / ポートフォリオ / リスク分析 ===== */
