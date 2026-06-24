@@ -1,6 +1,7 @@
 import React, { useState, useMemo, useEffect } from "react";
 import * as XLSX from "xlsx";
 import { signIn, signOut, getCurrentUser } from "aws-amplify/auth";
+import { apiGet, apiPut } from "./api.js";
 import {
   LayoutDashboard, FileText, ClipboardCheck, Clock, NotebookPen, Users,
   Building2, BookOpen, Settings, GraduationCap, Search, Upload, Download,
@@ -1247,16 +1248,58 @@ function ReportStatusBoard() {
     </Card>
   );
 }
+/* API日報(traineeId,date,learned,question,nextday,comment) を画面表示形に変換 */
+function mapReport(r) {
+  return {
+    id: r.date,
+    name: "あなた",
+    org: "",
+    date: String(r.date).replace(/-/g, "/"),
+    learned: r.learned || "",
+    question: r.question || "",
+    nextday: r.nextday || "",
+    comments: r.comment ? [{ by: "講師", role: "講師", text: r.comment, at: "" }] : [],
+  };
+}
+const todayStr = () => new Date().toISOString().slice(0, 10);
+
 function Reports({ role }) {
-  const [reports, setReports] = useState(REPORTS_SEED);
+  const [reports, setReports] = useState([]);
   const [draft, setDraft] = useState({ learned: "", question: "", nextday: "" });
   const [cText, setCText] = useState({});
-  const [open, setOpen] = useState(reports[0]?.id ?? null);
+  const [open, setOpen] = useState(null);
+  const [saveErr, setSaveErr] = useState("");
+  const [saving, setSaving] = useState(false);
   const aiC = useAIDraft();
   const canComment = role === "instructor", canWrite = role === "trainee";
-  function submit() { if (!draft.learned.trim()) return;
-    const r = { id: Date.now(), name: "田中 翔太", org: "株式会社アクシス", date: "2026/04/15", ...draft, comments: [] };
-    setReports([r, ...reports]); setDraft({ learned: "", question: "", nextday: "" }); setOpen(r.id); }
+
+  useEffect(() => {
+    if (role === "trainee") {
+      apiGet("/reports/me")
+        .then(items => setReports((items || []).map(mapReport)))
+        .catch(() => setSaveErr("日報の読み込みに失敗しました。再ログインをお試しください。"));
+    } else {
+      setReports(REPORTS_SEED);
+    }
+  }, [role]);
+
+  async function submit() {
+    if (!draft.learned.trim() || saving) return;
+    setSaveErr(""); setSaving(true);
+    try {
+      const date = todayStr();
+      await apiPut("/reports/me", { date, learned: draft.learned, question: draft.question, nextday: draft.nextday });
+      const items = await apiGet("/reports/me");
+      const mapped = (items || []).map(mapReport);
+      setReports(mapped);
+      setDraft({ learned: "", question: "", nextday: "" });
+      setOpen(date);
+    } catch (e) {
+      setSaveErr("保存に失敗しました：" + (e?.message || e));
+    } finally {
+      setSaving(false);
+    }
+  }
   function addC(id) { const t = (cText[id] || "").trim(); if (!t) return;
     setReports(reports.map(r => r.id === id ? { ...r, comments: [...r.comments, { by: "石井 啓輔", role: "講師", text: t, at: "04/15 18:45" }] } : r)); setCText({ ...cText, [id]: "" }); }
   function aiComment(id) { aiC.draft(() => setCText({ ...cText, [id]: "良い気づきです。止め時の目安は「打ち手が具体的に見えたら」。なぜを重ねても抽象的なままなら、一段戻して論点を分け直すと整理しやすいですよ。" }), id); }
@@ -1270,7 +1313,7 @@ function Reports({ role }) {
           <div key={k}><label className="mb-1 block text-sm font-semibold" style={{ color: C.ink }}>{lab}</label>
             <textarea value={draft[k]} onChange={e => setDraft({ ...draft, [k]: e.target.value })} placeholder={ph} rows={2} className="w-full resize-none rounded-xl px-3 py-2.5 text-sm outline-none focus:border-cyan-400" style={{ border: `1px solid ${C.line2}`, color: C.ink }} /></div>
         ))}</div>
-        <div className="mt-4 flex justify-end"><Btn icon={Send} onClick={submit}>日報を提出</Btn></div></Card>}
+        <div className="mt-4 flex items-center justify-end gap-3">{saveErr && <span className="text-xs" style={{ color: "#C8385F" }}>{saveErr}</span>}<Btn icon={Send} onClick={submit}>{saving ? "保存中…" : "日報を提出"}</Btn></div></Card>}
       <div className="space-y-4">{reports.map(r => (
         <Card key={r.id} className="overflow-hidden">
           <button onClick={() => setOpen(open === r.id ? null : r.id)} className="flex w-full items-center justify-between px-5 py-4 text-left">
