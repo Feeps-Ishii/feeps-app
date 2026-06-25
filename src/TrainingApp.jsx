@@ -1390,6 +1390,7 @@ const todayStr = () => { const d = new Date(); return `${d.getFullYear()}-${Stri
 
 const fallbackName = (id) => "受講生 " + String(id || "").slice(0, 6);
 const fmtTs = (iso) => { try { return new Date(iso).toLocaleString("ja-JP", { month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit" }); } catch (e) { return iso || ""; } };
+const SAMPLE_VIEWS = new Set(["curriculum", "materials", "matching", "risk", "companies", "courses"]);
 function useNameMap() {
   const [map, setMap] = useState({});
   useEffect(() => {
@@ -2565,7 +2566,14 @@ export default function App() {
             </div>
           )}
           <main className="mx-auto p-4 sm:p-6 lg:p-8" style={{ maxWidth: 1120 }}>
-            <div key={role + view + (karte ? karte.id : "")} className="view-anim">{screen}</div>
+            <div key={role + view + (karte ? karte.id : "")} className="view-anim">
+              {!karte && SAMPLE_VIEWS.has(view) && (
+                <div className="mb-4 flex items-center gap-2 rounded-xl px-3 py-2 text-xs font-semibold" style={{ background: C.amberW, color: C.amber }}>
+                  <AlertCircle size={14} />この画面はサンプルデータです（DB未連携）。今後の実装で本物のデータに置き換わります。
+                </div>
+              )}
+              {screen}
+            </div>
             <div className="mt-12 pt-4 text-center text-xs" style={{ borderTop: `1px solid ${C.line}`, color: C.faint }}>{FOOTER}</div></main>
         </div>
       </div>
