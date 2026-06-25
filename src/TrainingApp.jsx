@@ -1390,7 +1390,7 @@ const todayStr = () => { const d = new Date(); return `${d.getFullYear()}-${Stri
 
 const fallbackName = (id) => "受講生 " + String(id || "").slice(0, 6);
 const fmtTs = (iso) => { try { return new Date(iso).toLocaleString("ja-JP", { month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit" }); } catch (e) { return iso || ""; } };
-const SAMPLE_VIEWS = new Set(["curriculum", "materials", "matching", "risk", "companies", "courses"]);
+const SAMPLE_VIEWS = new Set(["curriculum", "materials", "matching", "risk"]);
 function useNameMap() {
   const [map, setMap] = useState({});
   useEffect(() => {
@@ -1792,21 +1792,105 @@ function AdminHome({ go }) {
     </div>
   );
 }
+function Modal({ title, onClose, children, footer }) {
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: "rgba(0,0,0,.4)" }} onClick={onClose}>
+      <div className="w-full max-w-md rounded-2xl p-5" style={{ background: "#fff", border: `1px solid ${C.line2}` }} onClick={e => e.stopPropagation()}>
+        <div className="mb-4 flex items-center justify-between"><h3 className="font-bold" style={{ color: C.ink }}>{title}</h3><button onClick={onClose} aria-label="閉じる"><X size={18} style={{ color: C.muted }} /></button></div>
+        {children}
+        {footer && <div className="mt-5 flex justify-end gap-2">{footer}</div>}
+      </div>
+    </div>
+  );
+}
+const fieldCls = "w-full rounded-lg px-3 py-2 text-sm outline-none";
+function Field({ label, children }) {
+  return <label className="block"><span className="mb-1 block text-xs font-semibold" style={{ color: C.muted }}>{label}</span>{children}</label>;
+}
+const COURSE_KINDS = [["shinjin", "新人研修"], ["regular", "定常"]];
+const kindLabel = (k) => (COURSE_KINDS.find(o => o[0] === k)?.[1]) || "新人研修";
+const kindTone = (k) => k === "regular" ? "green" : "cyan";
+
 function AdminCompanies() {
-  const rows = [["株式会社アクシス", 2, 3, "契約中"], ["サン・エム・システム株式会社", 1, 8, "契約中"], ["株式会社テクノカルチャー", 1, 4, "契約中"], ["株式会社エヌステージ", 0, 0, "商談中"]];
-  return (<div><SectionHead title="企業管理" desc="契約企業とアカウントの管理" action={<Btn icon={Plus}>企業を追加</Btn>} />
-    <Card><div className="grid grid-cols-12 px-4 py-2.5 text-xs font-semibold" style={{ background: C.canvas, color: C.muted }}><div className="col-span-5">企業名</div><div className="col-span-2">コース</div><div className="col-span-2">受講者</div><div className="col-span-2">状態</div><div className="col-span-1" /></div>
-      {rows.map((r, i) => (<div key={i} className="grid grid-cols-12 items-center px-4 py-3 text-sm" style={{ borderTop: `1px solid ${C.line}`, color: C.ink }}>
-        <div className="col-span-5 flex items-center gap-2"><div className="flex h-9 w-9 items-center justify-center rounded-xl" style={{ background: C.wash }}><Building2 size={15} style={{ color: C.cyan }} /></div>{r[0]}</div>
-        <div className="col-span-2" style={{ color: C.muted }}>{r[1]}件</div><div className="col-span-2" style={{ color: C.muted }}>{r[2]}名</div>
-        <div className="col-span-2"><Badge tone={r[3] === "契約中" ? "green" : "amber"}>{r[3]}</Badge></div><div className="col-span-1 text-right"><Eye size={16} style={{ color: C.muted }} /></div></div>))}</Card></div>);
+  const [rows, setRows] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [open, setOpen] = useState(false);
+  const [form, setForm] = useState({ name: "", note: "" });
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState("");
+  function load() { setLoading(true); apiGet("/companies").then(l => setRows(l || [])).catch(() => setErr("企業一覧の取得に失敗しました。")).finally(() => setLoading(false)); }
+  useEffect(() => { load(); }, []);
+  async function create() {
+    if (!form.name.trim() || busy) return;
+    setBusy(true); setErr("");
+    try { await apiPost("/companies", { name: form.name.trim(), note: form.note.trim() }); setForm({ name: "", note: "" }); setOpen(false); load(); }
+    catch (e) { setErr("作成に失敗しました：" + (e?.message || e)); } finally { setBusy(false); }
+  }
+  return (
+    <div>
+      <SectionHead title="企業管理" desc="契約企業の管理" action={<Btn icon={Plus} onClick={() => { setOpen(true); setErr(""); }}>企業を追加</Btn>} />
+      <Card>
+        {loading ? <div className="px-4 py-8 text-center text-sm" style={{ color: C.muted }}>読み込み中…</div>
+          : rows.length === 0 ? <EmptyState title="企業がありません" desc="「企業を追加」から登録できます" />
+          : rows.map((r, i) => (
+            <div key={r.companyId || i} className="flex items-center gap-3 px-4 py-3" style={{ borderTop: i ? `1px solid ${C.line}` : "none" }}>
+              <div className="flex h-9 w-9 items-center justify-center rounded-xl" style={{ background: C.wash }}><Building2 size={15} style={{ color: C.cyan }} /></div>
+              <div className="min-w-0 flex-1"><div className="text-sm font-semibold" style={{ color: C.ink }}>{r.name}</div>{r.note && <div className="truncate text-xs" style={{ color: C.muted }}>{r.note}</div>}</div>
+            </div>
+          ))}
+      </Card>
+      {open && (
+        <Modal title="企業を追加" onClose={() => setOpen(false)}
+          footer={<><Btn kind="ghost" onClick={() => setOpen(false)}>キャンセル</Btn><Btn icon={Check} onClick={create}>{busy ? "作成中…" : "作成する"}</Btn></>}>
+          <div className="space-y-3">
+            <Field label="企業名"><input value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} placeholder="株式会社アクシス" className={fieldCls} style={{ border: `1px solid ${C.line2}`, color: C.ink }} /></Field>
+            <Field label="メモ（任意）"><input value={form.note} onChange={e => setForm({ ...form, note: e.target.value })} className={fieldCls} style={{ border: `1px solid ${C.line2}`, color: C.ink }} /></Field>
+            {err && <div className="rounded-lg px-3 py-2 text-xs" style={{ background: "#FCEAEF", color: "#C8385F" }}>{err}</div>}
+          </div>
+        </Modal>
+      )}
+    </div>
+  );
 }
 function AdminCourses() {
-  return (<div><SectionHead title="コース管理" desc="研修コースの設定" action={<Btn icon={Plus}>コースを作成</Btn>} />
-    <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">{[[COURSE, "49日間 / 約365h", 50, "開講中", ["Java", "Spring", "React"]], ["Linux サーバー構築 基礎", "3日間 / 18時間", 8, "開講中", ["Linux", "インフラ"]], ["ビジネスマナー研修", "1日間 / 6時間", 0, "下書き", ["新人", "マナー"]]].map((c, i) => (
-      <Card key={i} className="p-5"><div className="mb-2 flex items-start justify-between"><h3 className="font-bold leading-snug" style={{ color: C.ink }}>{c[0]}</h3><Badge tone={c[3] === "開講中" ? "green" : "muted"}>{c[3]}</Badge></div>
-        <div className="mb-3 text-xs" style={{ color: C.muted }}>{c[1]} ・ 受講 {c[2]}名</div><div className="flex flex-wrap gap-1.5">{c[4].map(t => <Badge key={t} tone="cyan">{t}</Badge>)}</div></Card>
-    ))}</div></div>);
+  const [rows, setRows] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [open, setOpen] = useState(false);
+  const [form, setForm] = useState({ name: "", kind: "shinjin", description: "" });
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState("");
+  function load() { setLoading(true); apiGet("/courses").then(l => setRows(l || [])).catch(() => setErr("コース一覧の取得に失敗しました。")).finally(() => setLoading(false)); }
+  useEffect(() => { load(); }, []);
+  async function create() {
+    if (!form.name.trim() || busy) return;
+    setBusy(true); setErr("");
+    try { await apiPost("/courses", { name: form.name.trim(), kind: form.kind, description: form.description.trim() }); setForm({ name: "", kind: "shinjin", description: "" }); setOpen(false); load(); }
+    catch (e) { setErr("作成に失敗しました：" + (e?.message || e)); } finally { setBusy(false); }
+  }
+  return (
+    <div>
+      <SectionHead title="コース管理" desc="研修コースの設定（種別で新人研修／定常を区別）" action={<Btn icon={Plus} onClick={() => { setOpen(true); setErr(""); }}>コースを作成</Btn>} />
+      {loading ? <Card><div className="px-4 py-8 text-center text-sm" style={{ color: C.muted }}>読み込み中…</div></Card>
+        : rows.length === 0 ? <Card><EmptyState title="コースがありません" desc="「コースを作成」から登録できます" /></Card>
+        : <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">{rows.map((c, i) => (
+            <Card key={c.courseId || i} className="p-5">
+              <div className="mb-2 flex items-start justify-between gap-2"><h3 className="font-bold leading-snug" style={{ color: C.ink }}>{c.name}</h3><Badge tone={kindTone(c.kind)}>{kindLabel(c.kind)}</Badge></div>
+              {c.description && <div className="text-xs leading-relaxed" style={{ color: C.muted }}>{c.description}</div>}
+            </Card>
+          ))}</div>}
+      {open && (
+        <Modal title="コースを作成" onClose={() => setOpen(false)}
+          footer={<><Btn kind="ghost" onClick={() => setOpen(false)}>キャンセル</Btn><Btn icon={Check} onClick={create}>{busy ? "作成中…" : "作成する"}</Btn></>}>
+          <div className="space-y-3">
+            <Field label="コース名"><input value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} placeholder="Javaエンジニア育成コース" className={fieldCls} style={{ border: `1px solid ${C.line2}`, color: C.ink }} /></Field>
+            <Field label="種別"><select value={form.kind} onChange={e => setForm({ ...form, kind: e.target.value })} className={fieldCls} style={{ border: `1px solid ${C.line2}`, color: C.ink }}>{COURSE_KINDS.map(([v, l]) => <option key={v} value={v}>{l}</option>)}</select></Field>
+            <Field label="説明（任意）"><textarea value={form.description} onChange={e => setForm({ ...form, description: e.target.value })} rows={2} className={fieldCls + " resize-none"} style={{ border: `1px solid ${C.line2}`, color: C.ink }} /></Field>
+            {err && <div className="rounded-lg px-3 py-2 text-xs" style={{ background: "#FCEAEF", color: "#C8385F" }}>{err}</div>}
+          </div>
+        </Modal>
+      )}
+    </div>
+  );
 }
 const ROLE_OPTS = [["trainee", "受講生"], ["instructor", "講師"], ["client", "企業担当者"], ["admin", "管理者"]];
 const roleLabel = (r) => (ROLE_OPTS.find(o => o[0] === r)?.[1]) || r || "—";
@@ -1816,10 +1900,17 @@ function AdminUsers() {
   const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [open, setOpen] = useState(false);
-  const [form, setForm] = useState({ email: "", name: "", role: "trainee", tempPassword: "Feeps#1234" });
+  const [form, setForm] = useState({ email: "", name: "", role: "trainee", tempPassword: "Feeps#1234", companyId: "", courseId: "" });
+  const [companies, setCompanies] = useState([]);
+  const [courses, setCourses] = useState([]);
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState("");
   const [err, setErr] = useState("");
+
+  useEffect(() => {
+    apiGet("/companies").then(l => setCompanies(l || [])).catch(() => {});
+    apiGet("/courses").then(l => setCourses(l || [])).catch(() => {});
+  }, []);
 
   function load() {
     setLoading(true);
@@ -1835,9 +1926,9 @@ function AdminUsers() {
     if (!form.email.trim() || !form.tempPassword.trim()) { setErr("メールと仮パスワードは必須です。"); return; }
     setBusy(true);
     try {
-      await apiPost("/admin/users", { email: form.email.trim(), name: form.name.trim(), role: form.role, tempPassword: form.tempPassword });
+      await apiPost("/admin/users", { email: form.email.trim(), name: form.name.trim(), role: form.role, tempPassword: form.tempPassword, companyId: form.companyId, courseId: form.role === "trainee" ? form.courseId : "" });
       setMsg(`${form.email.trim()} を作成しました（ロール：${roleLabel(form.role)}）。初回ログイン時にパスワード変更が必要です。`);
-      setForm({ email: "", name: "", role: "trainee", tempPassword: "Feeps#1234" });
+      setForm({ email: "", name: "", role: "trainee", tempPassword: "Feeps#1234", companyId: "", courseId: "" });
       setOpen(false);
       load();
     } catch (e) {
@@ -1878,6 +1969,12 @@ function AdminUsers() {
               <label className="block"><span className="mb-1 block text-xs font-semibold" style={{ color: C.muted }}>ロール</span>
                 <select value={form.role} onChange={e => setForm({ ...form, role: e.target.value })} className="w-full rounded-lg px-3 py-2 text-sm outline-none" style={{ border: `1px solid ${C.line2}`, color: C.ink }}>
                   {ROLE_OPTS.map(([v, l]) => <option key={v} value={v}>{l}</option>)}</select></label>
+              <label className="block"><span className="mb-1 block text-xs font-semibold" style={{ color: C.muted }}>所属企業（任意）</span>
+                <select value={form.companyId} onChange={e => setForm({ ...form, companyId: e.target.value })} className="w-full rounded-lg px-3 py-2 text-sm outline-none" style={{ border: `1px solid ${C.line2}`, color: C.ink }}>
+                  <option value="">（未選択）</option>{companies.map(c => <option key={c.companyId} value={c.companyId}>{c.name}</option>)}</select></label>
+              {form.role === "trainee" && <label className="block"><span className="mb-1 block text-xs font-semibold" style={{ color: C.muted }}>所属コース（任意）</span>
+                <select value={form.courseId} onChange={e => setForm({ ...form, courseId: e.target.value })} className="w-full rounded-lg px-3 py-2 text-sm outline-none" style={{ border: `1px solid ${C.line2}`, color: C.ink }}>
+                  <option value="">（未選択）</option>{courses.map(c => <option key={c.courseId} value={c.courseId}>{c.name}（{kindLabel(c.kind)}）</option>)}</select></label>}
               <label className="block"><span className="mb-1 block text-xs font-semibold" style={{ color: C.muted }}>仮パスワード（初回ログイン時に変更されます）</span>
                 <input value={form.tempPassword} onChange={e => setForm({ ...form, tempPassword: e.target.value })} className="w-full rounded-lg px-3 py-2 text-sm outline-none" style={{ border: `1px solid ${C.line2}`, color: C.ink }} /></label>
               {err && <div className="rounded-lg px-3 py-2 text-xs" style={{ background: "#FCEAEF", color: "#C8385F" }}>{err}</div>}
