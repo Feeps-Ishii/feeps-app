@@ -5,7 +5,7 @@ import { apiGet, apiPut, apiPost } from "./api.js";
 import {
   LayoutDashboard, FileText, ClipboardCheck, Clock, NotebookPen, Users,
   Building2, BookOpen, Settings, GraduationCap, Search, Upload, Download,
-  CheckCircle2, Circle, AlertCircle, ChevronRight, ChevronLeft, LogOut,
+  CheckCircle2, Circle, AlertCircle, ChevronRight, ChevronLeft, ChevronUp, ChevronDown, Trash2, LogOut,
   Bell, Plus, Send, MessageSquare, TrendingUp, Calendar, PlayCircle, Award,
   Sparkles, Flame, X, Eye, Pencil, StickyNote, Megaphone, ArrowUpRight,
   MoreHorizontal, Check, Filter, Target, ListChecks, Lock, Mail, Lightbulb,
@@ -676,51 +676,97 @@ function GoalsView({ done, toggle, goals, setGoals }) {
   );
 }
 function Curriculum({ role }) {
-  const [open, setOpen] = useState(() => CURRICULUM.findIndex(u => u.status === "current"));
-  const doneN = CURRICULUM.filter(u => u.status === "done").length;
-  const pct = Math.round((doneN / CURRICULUM.length) * 100);
-  const sc = { done: C.green, current: C.cyan, upcoming: C.faint };
-  const sl = { done: "完了", current: "進行中", upcoming: "予定" };
-  const st = { done: "green", current: "cyan", upcoming: "muted" };
+  const canEdit = role === "instructor" || role === "admin";
+  const [courses, setCourses] = useState([]);
+  const [courseId, setCourseId] = useState("");
+  const [sessions, setSessions] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState("");
+  const [err, setErr] = useState("");
+
+  useEffect(() => {
+    const ep = canEdit ? "/courses" : "/me/courses";
+    apiGet(ep)
+      .then(list => { const cs = list || []; setCourses(cs); if (cs.length) setCourseId(cs[0].courseId); else setLoading(false); })
+      .catch(() => { setErr("コースの取得に失敗しました。"); setLoading(false); });
+  }, [role]);
+
+  useEffect(() => {
+    if (!courseId) return;
+    setLoading(true); setMsg(""); setErr("");
+    apiGet(`/courses/${courseId}/curriculum`)
+      .then(item => setSessions(item?.sessions || []))
+      .catch(() => setErr("カリキュラムの取得に失敗しました。"))
+      .finally(() => setLoading(false));
+  }, [courseId]);
+
+  function update(i, key, val) { setSessions(s => s.map((x, j) => j === i ? { ...x, [key]: val } : x)); }
+  function addRow() { setSessions(s => [...s, { title: "", date: "", content: "", materialRef: "" }]); }
+  function removeRow(i) { setSessions(s => s.filter((_, j) => j !== i)); }
+  function move(i, d) { setSessions(s => { const n = [...s]; const j = i + d; if (j < 0 || j >= n.length) return n; [n[i], n[j]] = [n[j], n[i]]; return n; }); }
+  async function save() {
+    if (busy) return; setBusy(true); setMsg(""); setErr("");
+    try { await apiPut(`/courses/${courseId}/curriculum`, { sessions }); setMsg("保存しました。"); setTimeout(() => setMsg(""), 2000); }
+    catch (e) { setErr("保存に失敗しました：" + (e?.message || e)); } finally { setBusy(false); }
+  }
+
   return (
     <div>
-      <SectionHead title="カリキュラム" desc="全49日間・13単元の研修スケジュール" />
-      <Card className="mb-6 overflow-hidden">
-        <div className="relative overflow-hidden p-6 text-white" style={{ background: GRAD2 }}>
-          <div className="absolute inset-0" style={{ backgroundImage: DOTS }} />
-          <div className="relative flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-            <div>
-              <div className="text-lg font-bold leading-snug">{COURSE_FULL}</div>
-              <div className="mt-3 grid grid-cols-1 gap-x-8 gap-y-1 text-sm opacity-95 sm:grid-cols-2">
-                <span>期間：{PERIOD}</span><span>総訓練時間：{TOTAL_HOURS}</span>
-                <span>会場：{VENUE}</span><span>担当講師：石井 啓輔</span>
-              </div>
-            </div>
-            <Ring value={pct} size={96} color="#fff" track="rgba(255,255,255,.3)">
-              <div className="text-xl font-bold">{pct}%</div><div className="text-xs opacity-90">{doneN}/{CURRICULUM.length}単元</div></Ring>
+      <SectionHead title="カリキュラム" desc={canEdit ? "コースの回を編集（各回に資料リンクを設定可）" : "あなたの所属コースの研修スケジュール"}
+        action={canEdit && courseId ? <Btn icon={Check} onClick={save}>{busy ? "保存中…" : "保存"}</Btn> : null} />
+      {msg && <div className="mb-4 rounded-lg px-3 py-2 text-xs" style={{ background: C.greenW, color: C.green }}>{msg}</div>}
+      {err && <div className="mb-4 rounded-lg px-3 py-2 text-xs" style={{ background: "#FCEAEF", color: "#C8385F" }}>{err}</div>}
+
+      {courses.length === 0 && !loading ? (
+        <Card><EmptyState title={canEdit ? "コースがありません" : "所属コースがありません"} desc={canEdit ? "コース管理からコースを作成してください" : "管理者にコースへの登録を依頼してください"} /></Card>
+      ) : (
+        <>
+          <div className="mb-5 flex items-center gap-3">
+            <span className="text-xs font-semibold" style={{ color: C.muted }}>コース</span>
+            <select value={courseId} onChange={e => setCourseId(e.target.value)} className="rounded-lg px-3 py-2 text-sm outline-none" style={{ border: `1px solid ${C.line2}`, color: C.ink, background: "#fff" }}>
+              {courses.map(c => <option key={c.courseId} value={c.courseId}>{c.name}（{kindLabel(c.kind)}）</option>)}
+            </select>
           </div>
-        </div>
-      </Card>
-      <div className="relative pl-6">
-        <div className="absolute bottom-3 left-2 top-3 w-px" style={{ background: C.line2 }} />
-        {CURRICULUM.map((u, i) => (
-          <div key={i} className="relative mb-3">
-            <div className="absolute -left-6 top-4 flex h-5 w-5 items-center justify-center rounded-full" style={{ background: "#fff", border: `2px solid ${sc[u.status]}` }}>
-              {u.status === "done" && <Check size={11} style={{ color: C.green }} />}
-              {u.status === "current" && <span className="h-2 w-2 rounded-full" style={{ background: C.cyan }} />}</div>
-            <Card hover onClick={() => setOpen(open === i ? -1 : i)} className="p-4" style={u.status === "current" ? { borderColor: C.cyan } : {}}>
-              <div className="flex items-center justify-between">
-                <div><div className="text-sm font-bold" style={{ color: C.ink }}>{u.unit}</div>
-                  <div className="text-xs" style={{ color: C.muted }}>{u.range}</div></div>
-                <div className="flex items-center gap-2"><Badge tone={st[u.status]}>{sl[u.status]}</Badge>
-                  <ChevronRight size={16} style={{ color: C.muted, transform: open === i ? "rotate(90deg)" : "none", transition: "transform .2s" }} /></div>
+
+          {loading ? <Card><div className="px-4 py-8 text-center text-sm" style={{ color: C.muted }}>読み込み中…</div></Card>
+            : sessions.length === 0 && !canEdit ? <Card><EmptyState title="まだ登録がありません" desc="講師がカリキュラムを準備中です" /></Card>
+            : (
+              <div className="space-y-3">
+                {sessions.map((s, i) => (
+                  <Card key={i} className="p-4">
+                    {canEdit ? (
+                      <div className="space-y-2">
+                        <div className="flex items-center gap-2">
+                          <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-xs font-bold" style={{ background: C.wash, color: C.cyan }}>{i + 1}</span>
+                          <input value={s.title || ""} onChange={e => update(i, "title", e.target.value)} placeholder="単元タイトル（例：条件分岐・反復）" className="flex-1 rounded-lg px-3 py-2 text-sm outline-none" style={{ border: `1px solid ${C.line2}`, color: C.ink }} />
+                          <input value={s.date || ""} onChange={e => update(i, "date", e.target.value)} placeholder="日付/期間" className="w-32 rounded-lg px-3 py-2 text-sm outline-none" style={{ border: `1px solid ${C.line2}`, color: C.ink }} />
+                        </div>
+                        <textarea value={s.content || ""} onChange={e => update(i, "content", e.target.value)} rows={2} placeholder="学習内容" className="w-full resize-none rounded-lg px-3 py-2 text-sm outline-none" style={{ border: `1px solid ${C.line2}`, color: C.ink }} />
+                        <div className="flex items-center gap-2">
+                          <input value={s.materialRef || ""} onChange={e => update(i, "materialRef", e.target.value)} placeholder="資料リンク（後でPDFと連携）" className="flex-1 rounded-lg px-3 py-2 text-xs outline-none" style={{ border: `1px solid ${C.line2}`, color: C.muted }} />
+                          <button onClick={() => move(i, -1)} title="上へ" className="rounded-lg p-1.5 hover:bg-black/5" style={{ color: C.muted }}><ChevronUp size={15} /></button>
+                          <button onClick={() => move(i, 1)} title="下へ" className="rounded-lg p-1.5 hover:bg-black/5" style={{ color: C.muted }}><ChevronDown size={15} /></button>
+                          <button onClick={() => removeRow(i)} title="削除" className="rounded-lg p-1.5 hover:bg-black/5" style={{ color: "#C8385F" }}><Trash2 size={15} /></button>
+                        </div>
+                      </div>
+                    ) : (
+                      <div>
+                        <div className="flex items-center justify-between gap-2">
+                          <div className="flex items-center gap-2"><span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-xs font-bold" style={{ background: C.wash, color: C.cyan }}>{i + 1}</span><div className="text-sm font-bold" style={{ color: C.ink }}>{s.title || "（無題）"}</div></div>
+                          {s.date && <div className="text-xs" style={{ color: C.muted }}>{s.date}</div>}
+                        </div>
+                        {s.content && <p className="mt-2 pl-8 text-sm leading-relaxed" style={{ color: C.body }}>{s.content}</p>}
+                        {s.materialRef && <div className="mt-2 pl-8 text-xs" style={{ color: C.cyanDeep }}>資料：{s.materialRef}</div>}
+                      </div>
+                    )}
+                  </Card>
+                ))}
+                {canEdit && <button onClick={addRow} className="flex w-full items-center justify-center gap-2 rounded-xl py-3 text-sm font-semibold" style={{ border: `1.5px dashed ${C.line2}`, color: C.cyan }}><Plus size={16} />回を追加</button>}
               </div>
-              {open === i && <div className="mt-3 flex flex-wrap gap-1.5" style={{ borderTop: `1px solid ${C.line}`, paddingTop: 12 }}>
-                {u.topics.map(t => <span key={t} className="rounded-full px-2.5 py-1 text-xs" style={{ background: C.canvas, color: C.body }}>{t}</span>)}</div>}
-            </Card>
-          </div>
-        ))}
-      </div>
+            )}
+        </>
+      )}
     </div>
   );
 }
@@ -1390,7 +1436,7 @@ const todayStr = () => { const d = new Date(); return `${d.getFullYear()}-${Stri
 
 const fallbackName = (id) => "受講生 " + String(id || "").slice(0, 6);
 const fmtTs = (iso) => { try { return new Date(iso).toLocaleString("ja-JP", { month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit" }); } catch (e) { return iso || ""; } };
-const SAMPLE_VIEWS = new Set(["curriculum", "materials", "matching", "risk"]);
+const SAMPLE_VIEWS = new Set(["materials", "matching", "risk"]);
 function useNameMap() {
   const [map, setMap] = useState({});
   useEffect(() => {
