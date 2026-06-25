@@ -720,6 +720,14 @@ function Curriculum({ role }) {
       if (tab) tab.location.href = r.url; else window.open(r.url, "_blank");
     } catch (e) { if (tab) tab.close(); setErr("資料を開けませんでした：" + (e?.message || e)); }
   }
+  const sessMids = (s) => s.materialIds || (s.materialId ? [s.materialId] : []);
+  function addMaterial(i, id) {
+    if (!id) return;
+    setSessions(s => s.map((x, j) => { if (j !== i) return x; const cur = sessMids(x); if (cur.includes(id)) return x; return { ...x, materialIds: [...cur, id], materialId: undefined }; }));
+  }
+  function removeMaterial(i, id) {
+    setSessions(s => s.map((x, j) => { if (j !== i) return x; return { ...x, materialIds: sessMids(x).filter(m => m !== id), materialId: undefined }; }));
+  }
 
   return (
     <div>
@@ -753,12 +761,21 @@ function Curriculum({ role }) {
                           <input value={s.date || ""} onChange={e => update(i, "date", e.target.value)} placeholder="日付/期間" className="w-32 rounded-lg px-3 py-2 text-sm outline-none" style={{ border: `1px solid ${C.line2}`, color: C.ink }} />
                         </div>
                         <textarea value={s.content || ""} onChange={e => update(i, "content", e.target.value)} rows={2} placeholder="学習内容" className="w-full resize-none rounded-lg px-3 py-2 text-sm outline-none" style={{ border: `1px solid ${C.line2}`, color: C.ink }} />
+                        {sessMids(s).length > 0 && (
+                          <div className="flex flex-wrap gap-1.5 pl-8">
+                            {sessMids(s).map(mid => materialsById[mid] && (
+                              <span key={mid} className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs" style={{ background: C.wash, color: C.cyanDeep }}>
+                                <button onClick={() => openMaterialById(mid)} className="inline-flex items-center gap-1" title="開く"><FileText size={11} />{materialsById[mid].title}</button>
+                                <button onClick={() => removeMaterial(i, mid)} title="外す" style={{ color: C.muted }}><X size={11} /></button>
+                              </span>
+                            ))}
+                          </div>
+                        )}
                         <div className="flex items-center gap-2">
-                          <select value={s.materialId || ""} onChange={e => update(i, "materialId", e.target.value)} className="flex-1 rounded-lg px-3 py-2 text-xs outline-none" style={{ border: `1px solid ${C.line2}`, color: C.muted, background: "#fff" }}>
-                            <option value="">資料を紐づけ（任意）</option>
-                            {materials.map(m => <option key={m.materialId} value={m.materialId}>{m.title}</option>)}
+                          <select value="" onChange={e => { addMaterial(i, e.target.value); e.target.value = ""; }} className="flex-1 rounded-lg px-3 py-2 text-xs outline-none" style={{ border: `1px solid ${C.line2}`, color: C.muted, background: "#fff" }}>
+                            <option value="">＋ 資料を追加（任意・複数可）</option>
+                            {materials.filter(m => !sessMids(s).includes(m.materialId)).map(m => <option key={m.materialId} value={m.materialId}>{m.title}</option>)}
                           </select>
-                          {s.materialId && materialsById[s.materialId] && <button onClick={() => openMaterialById(s.materialId)} title="資料を開く" className="rounded-lg p-1.5 hover:bg-black/5" style={{ color: C.cyanDeep }}><FileText size={15} /></button>}
                           <button onClick={() => move(i, -1)} title="上へ" className="rounded-lg p-1.5 hover:bg-black/5" style={{ color: C.muted }}><ChevronUp size={15} /></button>
                           <button onClick={() => move(i, 1)} title="下へ" className="rounded-lg p-1.5 hover:bg-black/5" style={{ color: C.muted }}><ChevronDown size={15} /></button>
                           <button onClick={() => removeRow(i)} title="削除" className="rounded-lg p-1.5 hover:bg-black/5" style={{ color: "#C8385F" }}><Trash2 size={15} /></button>
@@ -771,7 +788,13 @@ function Curriculum({ role }) {
                           {s.date && <div className="text-xs" style={{ color: C.muted }}>{s.date}</div>}
                         </div>
                         {s.content && <p className="mt-2 pl-8 text-sm leading-relaxed" style={{ color: C.body }}>{s.content}</p>}
-                        {s.materialId && materialsById[s.materialId] && <button onClick={() => openMaterialById(s.materialId)} className="mt-2 ml-8 inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-semibold" style={{ background: C.wash, color: C.cyanDeep }}><FileText size={13} />資料を開く：{materialsById[s.materialId].title}</button>}
+                        {sessMids(s).length > 0 && (
+                          <div className="mt-2 ml-8 flex flex-wrap gap-1.5">
+                            {sessMids(s).map(mid => materialsById[mid] && (
+                              <button key={mid} onClick={() => openMaterialById(mid)} className="inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-semibold" style={{ background: C.wash, color: C.cyanDeep }}><FileText size={13} />{materialsById[mid].title}</button>
+                            ))}
+                          </div>
+                        )}
                       </div>
                     )}
                   </Card>
