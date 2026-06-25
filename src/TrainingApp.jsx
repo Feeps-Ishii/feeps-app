@@ -680,10 +680,12 @@ function Curriculum({ role }) {
   const [courses, setCourses] = useState([]);
   const [courseId, setCourseId] = useState("");
   const [sessions, setSessions] = useState([]);
+  const [materials, setMaterials] = useState([]);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState("");
   const [err, setErr] = useState("");
+  const materialsById = useMemo(() => Object.fromEntries(materials.map(m => [m.materialId, m])), [materials]);
 
   useEffect(() => {
     const ep = canEdit ? "/courses" : "/me/courses";
@@ -699,16 +701,24 @@ function Curriculum({ role }) {
       .then(item => setSessions(item?.sessions || []))
       .catch(() => setErr("カリキュラムの取得に失敗しました。"))
       .finally(() => setLoading(false));
+    apiGet(`/materials?courseId=${courseId}`).then(l => setMaterials(l || [])).catch(() => setMaterials([]));
   }, [courseId]);
 
   function update(i, key, val) { setSessions(s => s.map((x, j) => j === i ? { ...x, [key]: val } : x)); }
-  function addRow() { setSessions(s => [...s, { title: "", date: "", content: "", materialRef: "" }]); }
+  function addRow() { setSessions(s => [...s, { title: "", date: "", content: "", materialId: "" }]); }
   function removeRow(i) { setSessions(s => s.filter((_, j) => j !== i)); }
   function move(i, d) { setSessions(s => { const n = [...s]; const j = i + d; if (j < 0 || j >= n.length) return n; [n[i], n[j]] = [n[j], n[i]]; return n; }); }
   async function save() {
     if (busy) return; setBusy(true); setMsg(""); setErr("");
     try { await apiPut(`/courses/${courseId}/curriculum`, { sessions }); setMsg("保存しました。"); setTimeout(() => setMsg(""), 2000); }
     catch (e) { setErr("保存に失敗しました：" + (e?.message || e)); } finally { setBusy(false); }
+  }
+  async function openMaterialById(id) {
+    const tab = window.open("", "_blank");
+    try {
+      const r = await apiGet(`/materials/view?courseId=${courseId}&materialId=${id}`);
+      if (tab) tab.location.href = r.url; else window.open(r.url, "_blank");
+    } catch (e) { if (tab) tab.close(); setErr("資料を開けませんでした：" + (e?.message || e)); }
   }
 
   return (
@@ -744,7 +754,11 @@ function Curriculum({ role }) {
                         </div>
                         <textarea value={s.content || ""} onChange={e => update(i, "content", e.target.value)} rows={2} placeholder="学習内容" className="w-full resize-none rounded-lg px-3 py-2 text-sm outline-none" style={{ border: `1px solid ${C.line2}`, color: C.ink }} />
                         <div className="flex items-center gap-2">
-                          <input value={s.materialRef || ""} onChange={e => update(i, "materialRef", e.target.value)} placeholder="資料リンク（後でPDFと連携）" className="flex-1 rounded-lg px-3 py-2 text-xs outline-none" style={{ border: `1px solid ${C.line2}`, color: C.muted }} />
+                          <select value={s.materialId || ""} onChange={e => update(i, "materialId", e.target.value)} className="flex-1 rounded-lg px-3 py-2 text-xs outline-none" style={{ border: `1px solid ${C.line2}`, color: C.muted, background: "#fff" }}>
+                            <option value="">資料を紐づけ（任意）</option>
+                            {materials.map(m => <option key={m.materialId} value={m.materialId}>{m.title}</option>)}
+                          </select>
+                          {s.materialId && materialsById[s.materialId] && <button onClick={() => openMaterialById(s.materialId)} title="資料を開く" className="rounded-lg p-1.5 hover:bg-black/5" style={{ color: C.cyanDeep }}><FileText size={15} /></button>}
                           <button onClick={() => move(i, -1)} title="上へ" className="rounded-lg p-1.5 hover:bg-black/5" style={{ color: C.muted }}><ChevronUp size={15} /></button>
                           <button onClick={() => move(i, 1)} title="下へ" className="rounded-lg p-1.5 hover:bg-black/5" style={{ color: C.muted }}><ChevronDown size={15} /></button>
                           <button onClick={() => removeRow(i)} title="削除" className="rounded-lg p-1.5 hover:bg-black/5" style={{ color: "#C8385F" }}><Trash2 size={15} /></button>
@@ -757,7 +771,7 @@ function Curriculum({ role }) {
                           {s.date && <div className="text-xs" style={{ color: C.muted }}>{s.date}</div>}
                         </div>
                         {s.content && <p className="mt-2 pl-8 text-sm leading-relaxed" style={{ color: C.body }}>{s.content}</p>}
-                        {s.materialRef && <div className="mt-2 pl-8 text-xs" style={{ color: C.cyanDeep }}>資料：{s.materialRef}</div>}
+                        {s.materialId && materialsById[s.materialId] && <button onClick={() => openMaterialById(s.materialId)} className="mt-2 ml-8 inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-semibold" style={{ background: C.wash, color: C.cyanDeep }}><FileText size={13} />資料を開く：{materialsById[s.materialId].title}</button>}
                       </div>
                     )}
                   </Card>
