@@ -1389,6 +1389,7 @@ function mapReport(r) {
 const todayStr = () => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`; };
 
 const fallbackName = (id) => "受講生 " + String(id || "").slice(0, 6);
+const fmtTs = (iso) => { try { return new Date(iso).toLocaleString("ja-JP", { month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit" }); } catch (e) { return iso || ""; } };
 function useNameMap() {
   const [map, setMap] = useState({});
   useEffect(() => {
@@ -1555,60 +1556,74 @@ function InstructorHome({ go, openKarte, dailyMessage, setDailyMessage }) {
 
 /* ===== 受講生一覧 → カルテ ===== */
 function TraineeList({ role, openKarte }) {
-  const data = role === "client" ? TRAINEES.filter(t => t.org === "株式会社アクシス") : TRAINEES;
+  const [data, setData] = useState([]);
+  const [loading, setLoading] = useState(true);
+  useEffect(() => {
+    apiGet("/trainees")
+      .then(list => setData((list || []).map(p => ({ id: p.userId, name: p.name || "（氏名未設定）", email: p.email || "" }))))
+      .catch(() => {})
+      .finally(() => setLoading(false));
+  }, []);
   return (
     <div>
-      <SectionHead title="受講生" desc={role === "client" ? "自社受講生の状況" : "担当受講生の状況・カルテ"} action={<Btn kind="ghost" size="sm" icon={Filter}>絞り込み</Btn>} />
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">{data.map(t => (
-        <Card key={t.id} hover onClick={() => openKarte(t)} className="p-5">
-          <div className="flex items-center gap-3"><Avatar name={t.name} size={44} ring />
-            <div className="min-w-0 flex-1"><div className="truncate text-sm font-bold" style={{ color: C.ink }}>{t.name}</div><div className="truncate text-xs" style={{ color: C.muted }}>{t.org}</div></div>
-            {t.flag && <Badge tone="amber">要フォロー</Badge>}</div>
-          <div className="mt-4 grid grid-cols-3 gap-2 text-center">{[["進捗", `${t.progress}%`], ["出席", `${t.attend}%`], ["平均", `${t.avg}点`]].map(([l, v]) => (
-            <div key={l} className="rounded-xl py-2" style={{ background: C.canvas }}><div className="text-sm font-bold" style={{ color: C.ink }}>{v}</div><div className="text-xs" style={{ color: C.muted }}>{l}</div></div>
-          ))}</div>
-          <div className="mt-3 flex items-center justify-between"><span className="inline-flex items-center gap-1 text-xs font-semibold" style={{ color: C.amber }}><Flame size={13} />{t.streak}日連続</span>
-            <span className="inline-flex items-center gap-1 text-xs font-semibold" style={{ color: C.cyanDeep }}>カルテを開く<ChevronRight size={13} /></span></div></Card>
-      ))}</div>
+      <SectionHead title="受講生" desc={role === "client" ? "自社受講生の状況" : "担当受講生の状況・カルテ"} />
+      {loading ? <Card><div className="px-4 py-8 text-center text-sm" style={{ color: C.muted }}>読み込み中…</div></Card>
+        : data.length === 0 ? <Card><EmptyState title="受講生がいません" desc="管理者のユーザー管理から受講生ロールで追加できます" /></Card>
+        : <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">{data.map(t => (
+            <Card key={t.id} hover onClick={() => openKarte(t)} className="p-5">
+              <div className="flex items-center gap-3"><Avatar name={t.name} size={44} ring />
+                <div className="min-w-0 flex-1"><div className="truncate text-sm font-bold" style={{ color: C.ink }}>{t.name}</div><div className="truncate text-xs" style={{ color: C.muted }}>{t.email}</div></div></div>
+              <div className="mt-4 flex items-center justify-end"><span className="inline-flex items-center gap-1 text-xs font-semibold" style={{ color: C.cyanDeep }}>カルテを開く<ChevronRight size={13} /></span></div>
+            </Card>
+          ))}</div>}
     </div>
   );
 }
 function Karte({ trainee, back, role }) {
-  const [memos, setMemos] = useState((KARTE[trainee.id] || []).filter(x => x.type === "memo"));
-  const timeline = KARTE[trainee.id] || KARTE[1];
-  const [note, setNote] = useState(""); const ai = useAIDraft();
-  const canMemo = role === "instructor";
-  const icon = { memo: StickyNote, test: Award, attend: Clock, report: NotebookPen };
-  const tone = { memo: C.cyan, test: C.green, attend: C.muted, report: C.cyanDeep };
-  function addMemo() { if (!note.trim()) return; setMemos([{ type: "memo", at: "今", who: "石井 啓輔", text: note }, ...memos]); setNote(""); }
+  const [memos, setMemos] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [note, setNote] = useState("");
+  const [busy, setBusy] = useState(false);
+  const canMemo = role === "instructor" || role === "admin";
+
+  function load() {
+    setLoading(true);
+    apiGet("/karte/" + trainee.id)
+      .then(items => setMemos(items || []))
+      .catch(() => {})
+      .finally(() => setLoading(false));
+  }
+  useEffect(() => { load(); }, [trainee.id]);
+
+  async function addMemo() {
+    if (!note.trim() || busy) return;
+    setBusy(true);
+    try {
+      await apiPost("/karte/" + trainee.id, { text: note.trim() });
+      setNote(""); load();
+    } catch (e) {} finally { setBusy(false); }
+  }
   return (
     <div>
       <Btn kind="ghost" size="sm" icon={ChevronLeft} onClick={back}>受講生一覧へ</Btn>
       <Card className="mb-6 mt-4 overflow-hidden">
         <div className="relative overflow-hidden p-6" style={{ background: GRAD2 }}>
           <div className="absolute inset-0" style={{ backgroundImage: DOTS }} />
-          <div className="relative flex flex-col gap-4 text-white sm:flex-row sm:items-center sm:justify-between">
-            <div className="flex items-center gap-4"><div className="flex h-16 w-16 items-center justify-center rounded-full bg-white/20 text-2xl font-bold">{trainee.name.slice(0, 1)}</div>
-              <div><div className="text-xl font-bold">{trainee.name}</div><div className="text-sm opacity-90">{trainee.org}</div>
-                <div className="mt-1 inline-flex items-center gap-1 text-xs"><Flame size={13} />{trainee.streak}日連続学習</div></div></div>
-            <div className="flex gap-6">{[["進捗", `${trainee.progress}%`], ["出席", `${trainee.attend}%`], ["平均", `${trainee.avg}点`]].map(([l, v]) => (
-              <div key={l} className="text-center"><div className="text-2xl font-bold">{v}</div><div className="text-xs opacity-90">{l}</div></div>
-            ))}</div></div></div>
-        {trainee.flag && <div className="flex items-center gap-2 px-6 py-3 text-sm font-medium" style={{ background: C.amberW, color: C.amber }}><AlertCircle size={16} />{trainee.flag}</div>}
+          <div className="relative flex items-center gap-4 text-white">
+            <div className="flex h-16 w-16 items-center justify-center rounded-full bg-white/20 text-2xl font-bold">{(trainee.name || "?").slice(0, 1)}</div>
+            <div><div className="text-xl font-bold">{trainee.name}</div><div className="text-sm opacity-90">{trainee.email}</div></div>
+          </div>
+        </div>
       </Card>
-      <div className="grid gap-6 lg:grid-cols-5">
-        <div className="lg:col-span-3"><h3 className="mb-3 font-bold" style={{ color: C.ink }}>アクティビティ</h3>
-          <div className="relative pl-6"><div className="absolute bottom-2 left-2 top-2 w-px" style={{ background: C.line2 }} />
-            {timeline.map((e, i) => { const I = icon[e.type]; return (
-              <div key={i} className="relative mb-4"><div className="absolute -left-6 flex h-5 w-5 items-center justify-center rounded-full" style={{ background: "#fff", border: `2px solid ${tone[e.type]}` }}><I size={10} style={{ color: tone[e.type] }} /></div>
-                <Card className="p-3.5"><div className="mb-1 flex items-center justify-between"><span className="text-xs font-semibold" style={{ color: tone[e.type] }}>{e.type === "memo" ? "講師メモ" : e.type === "test" ? "テスト" : e.type === "attend" ? "勤怠" : "日報"}</span><span className="text-xs" style={{ color: C.faint }}>{e.at}</span></div>
-                  <p className="text-sm leading-relaxed" style={{ color: C.body }}>{e.text}</p>{e.who && <div className="mt-1 text-xs" style={{ color: C.muted }}>— {e.who}</div>}</Card></div>
-            ); })}</div></div>
-        <div className="lg:col-span-2"><div className="mb-3 flex items-center gap-2"><StickyNote size={16} style={{ color: C.cyan }} /><h3 className="font-bold" style={{ color: C.ink }}>講師メモ</h3></div>
-          {canMemo && <Card className="mb-3 p-3.5"><textarea value={note} onChange={e => setNote(e.target.value)} rows={3} placeholder="この受講生の気づき・指導方針をメモ…" className="w-full resize-none rounded-lg px-3 py-2 text-sm outline-none" style={{ border: `1px solid ${C.line2}`, color: C.ink }} />
-            <div className="mt-2 flex justify-between"><Btn kind="soft" size="sm" icon={Sparkles} onClick={() => ai.draft(() => setNote("基礎の取りこぼしが見られるため、RAGの全体像を図解で再共有。理解後に演習を再トライさせる。前向きな姿勢は維持できている。"))}>{ai.busy ? "生成中…" : "AI補助"}</Btn><Btn size="sm" icon={Plus} onClick={addMemo}>メモを追加</Btn></div></Card>}
-          <div className="space-y-2">{memos.map((m, i) => (<Card key={i} className="p-3.5"><p className="text-sm leading-relaxed" style={{ color: C.body }}>{m.text}</p><div className="mt-1.5 text-xs" style={{ color: C.muted }}>{m.who} ・ {m.at}</div></Card>))}
-            {!memos.length && <Card><EmptyState title="メモはまだありません" desc="気づきや指導方針を残しましょう" /></Card>}</div></div>
+      <div className="mx-auto max-w-2xl">
+        <div className="mb-3 flex items-center gap-2"><StickyNote size={16} style={{ color: C.cyan }} /><h3 className="font-bold" style={{ color: C.ink }}>講師メモ</h3></div>
+        {canMemo && <Card className="mb-3 p-3.5"><textarea value={note} onChange={e => setNote(e.target.value)} rows={3} placeholder="この受講生の気づき・指導方針をメモ…" className="w-full resize-none rounded-lg px-3 py-2 text-sm outline-none" style={{ border: `1px solid ${C.line2}`, color: C.ink }} />
+          <div className="mt-2 flex justify-end"><Btn size="sm" icon={Plus} onClick={addMemo}>{busy ? "追加中…" : "メモを追加"}</Btn></div></Card>}
+        <div className="space-y-2">
+          {loading ? <Card><div className="px-4 py-6 text-center text-sm" style={{ color: C.muted }}>読み込み中…</div></Card>
+            : memos.map((m, i) => (<Card key={m.memoId || i} className="p-3.5"><p className="text-sm leading-relaxed" style={{ color: C.body }}>{m.text}</p><div className="mt-1.5 text-xs" style={{ color: C.muted }}>{m.who} ・ {fmtTs(m.at)}</div></Card>))}
+          {!loading && !memos.length && <Card><EmptyState title="メモはまだありません" desc="気づきや指導方針を残しましょう" /></Card>}
+        </div>
       </div>
     </div>
   );
