@@ -780,7 +780,7 @@ function Materials({ role }) {
   const [loading, setLoading] = useState(true);
   const [uploading, setUploading] = useState(false);
   const [err, setErr] = useState("");
-  const [viewer, setViewer] = useState(null);
+  const [mode, setMode] = useState("view");
   const fileRef = React.useRef(null);
 
   useEffect(() => {
@@ -800,29 +800,37 @@ function Materials({ role }) {
     if (!file || !courseId) return;
     setUploading(true); setErr("");
     try {
-      const ct = file.type || "application/pdf";
+      const ct = file.type || "application/octet-stream";
       const { uploadUrl, materialId, s3key } = await apiPost("/materials/upload-url", { courseId, filename: file.name, contentType: ct });
       const put = await fetch(uploadUrl, { method: "PUT", headers: { "content-type": ct }, body: file });
       if (!put.ok) throw new Error("S3アップロード失敗 " + put.status);
-      await apiPost("/materials", { courseId, materialId, s3key, title: file.name });
+      await apiPost("/materials", { courseId, materialId, s3key, title: file.name, filename: file.name, mode });
       loadMaterials();
     } catch (e) { setErr("アップロードに失敗しました：" + (e?.message || e)); }
     finally { setUploading(false); if (fileRef.current) fileRef.current.value = ""; }
   }
 
   async function openMaterial(m) {
-    setViewer({ loading: true, title: m.title });
+    // ポップアップブロック回避のため、クリック直後に空タブを開いてから遷移
+    const tab = window.open("", "_blank");
     try {
       const r = await apiGet(`/materials/view?courseId=${courseId}&materialId=${m.materialId}`);
-      setViewer({ loading: false, url: r.url, title: m.title });
-    } catch (e) { setViewer({ loading: false, title: m.title, err: "閲覧URLの取得に失敗しました。" }); }
+      if (tab) tab.location.href = r.url; else window.open(r.url, "_blank");
+    } catch (e) { if (tab) tab.close(); setErr("URLの取得に失敗しました：" + (e?.message || e)); }
   }
 
   return (
     <div>
-      <SectionHead title="研修資料" desc={canEdit ? "コース単位のPDF資料（アップロード・閲覧）" : "あなたの所属コースの資料"}
-        action={canEdit && courseId ? <Btn icon={Upload} onClick={() => fileRef.current?.click()}>{uploading ? "アップロード中…" : "PDFを追加"}</Btn> : null} />
-      <input ref={fileRef} type="file" accept="application/pdf" className="hidden" onChange={e => upload(e.target.files?.[0])} />
+      <SectionHead title="研修資料" desc={canEdit ? "コース単位の資料（閲覧可はブラウザで表示、DLのみは保存）" : "あなたの所属コースの資料"}
+        action={canEdit && courseId ? (
+          <div className="flex items-center gap-2">
+            <select value={mode} onChange={e => setMode(e.target.value)} title="アップロード時の公開方法" className="rounded-lg px-2 py-2 text-xs outline-none" style={{ border: `1px solid ${C.line2}`, color: C.ink, background: "#fff" }}>
+              <option value="view">閲覧可</option><option value="download">DLのみ</option>
+            </select>
+            <Btn icon={Upload} onClick={() => fileRef.current?.click()}>{uploading ? "アップロード中…" : "ファイルを追加"}</Btn>
+          </div>
+        ) : null} />
+      <input ref={fileRef} type="file" className="hidden" onChange={e => upload(e.target.files?.[0])} />
       {err && <div className="mb-4 rounded-lg px-3 py-2 text-xs" style={{ background: "#FCEAEF", color: "#C8385F" }}>{err}</div>}
 
       {courses.length === 0 && !loading ? (
@@ -836,31 +844,17 @@ function Materials({ role }) {
             </select>
           </div>
           {loading ? <Card><div className="px-4 py-8 text-center text-sm" style={{ color: C.muted }}>読み込み中…</div></Card>
-            : items.length === 0 ? <Card><EmptyState title="資料がありません" desc={canEdit ? "「PDFを追加」からアップロードできます" : "講師が資料を準備中です"} /></Card>
+            : items.length === 0 ? <Card><EmptyState title="資料がありません" desc={canEdit ? "「ファイルを追加」からアップロードできます" : "講師が資料を準備中です"} /></Card>
             : <Card>{items.map((m, i) => (
                 <div key={m.materialId} className="flex items-center justify-between px-4 py-3" style={{ borderBottom: i < items.length - 1 ? `1px solid ${C.line}` : "none" }}>
                   <div className="flex min-w-0 items-center gap-3">
                     <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl" style={{ background: C.wash }}><FileText size={17} style={{ color: C.cyan }} /></div>
-                    <div className="min-w-0"><div className="truncate text-sm font-semibold" style={{ color: C.ink }}>{m.title}</div><div className="text-xs" style={{ color: C.muted }}>{fmtTs(m.uploadedAt)}</div></div>
+                    <div className="min-w-0"><div className="truncate text-sm font-semibold" style={{ color: C.ink }}>{m.title}</div><div className="text-xs" style={{ color: C.muted }}>{m.mode === "download" ? "ダウンロード専用" : "閲覧可"} ・ {fmtTs(m.uploadedAt)}</div></div>
                   </div>
-                  <Btn kind="ghost" size="sm" icon={Eye} onClick={() => openMaterial(m)}>開く</Btn>
+                  <Btn kind="ghost" size="sm" icon={m.mode === "download" ? Download : Eye} onClick={() => openMaterial(m)}>{m.mode === "download" ? "DL" : "開く"}</Btn>
                 </div>
               ))}</Card>}
         </>
-      )}
-
-      {viewer && (
-        <div className="fixed inset-0 z-50 flex flex-col" style={{ background: "rgba(0,0,0,.7)" }}>
-          <div className="flex items-center justify-between px-4 py-3" style={{ background: C.ink }}>
-            <div className="truncate text-sm font-semibold text-white">{viewer.title}</div>
-            <button onClick={() => setViewer(null)} className="rounded-lg p-1.5 text-white/80 hover:text-white" aria-label="閉じる"><X size={18} /></button>
-          </div>
-          <div className="flex-1">
-            {viewer.loading ? <div className="flex h-full items-center justify-center text-sm text-white/80">読み込み中…</div>
-              : viewer.err ? <div className="flex h-full items-center justify-center text-sm text-white/80">{viewer.err}</div>
-              : <iframe title={viewer.title} src={viewer.url} className="h-full w-full" style={{ border: "none", background: "#fff" }} />}
-          </div>
-        </div>
       )}
     </div>
   );
