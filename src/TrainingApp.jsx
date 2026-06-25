@@ -840,6 +840,7 @@ function Seg({ value, onChange, options }) {
   );
 }
 function Tests({ role }) {
+  const nameMap = useNameMap();
   const [tests, setTests] = useState(TESTS);
   const [taking, setTaking] = useState(null);
   const [building, setBuilding] = useState(false);
@@ -868,7 +869,7 @@ function Tests({ role }) {
     setResults({ test: t, rows: null });
     try {
       const items = await apiGet(`/tests/${t.id}/results`);
-      setResults({ test: t, rows: (items || []).map(r => ({ name: "受講生 " + String(r.traineeId).slice(0, 6), score: r.score })) });
+      setResults({ test: t, rows: (items || []).map(r => ({ name: nameMap[r.traineeId] || fallbackName(r.traineeId), score: r.score })) });
     } catch (e) {
       setResults({ test: t, rows: [], err: "結果の取得に失敗しました（講師権限・再ログインをご確認ください）。" });
     }
@@ -1252,6 +1253,7 @@ function TraineeAttendance() {
   );
 }
 function AttendanceManage() {
+  const nameMap = useNameMap();
   const today = todayStr();
   const [rows, setRows] = useState([]);
   const [eIdx, setEIdx] = useState(-1);
@@ -1289,7 +1291,7 @@ function AttendanceManage() {
               <div className="w-40">受講生</div><div className="w-16">出勤</div><div className="w-16">退勤</div><div className="w-20">状態</div><div className="flex-1">備考</div><div className="w-12" /></div>
             {rows.map((a, i) => (
               <div key={i} className="flex items-center gap-3 px-4 py-3 text-sm" style={{ borderTop: `1px solid ${C.line}`, color: C.ink }}>
-                <div className="flex w-40 items-center gap-2"><Avatar name={a.name} size={28} /><span className="truncate">{a.name}</span></div>
+                <div className="flex w-40 items-center gap-2"><Avatar name={nameMap[a.traineeId] || a.name} size={28} /><span className="truncate">{nameMap[a.traineeId] || a.name}</span></div>
                 {eIdx === i ? (
                   <>
                     <input value={draft.in} onChange={e => setDraft({ ...draft, in: e.target.value })} className="w-16 rounded-lg px-1.5 py-1 text-sm outline-none" style={{ border: `1px solid ${C.line2}`, color: C.ink }} />
@@ -1385,6 +1387,17 @@ function mapReport(r) {
   };
 }
 const todayStr = () => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`; };
+
+const fallbackName = (id) => "受講生 " + String(id || "").slice(0, 6);
+function useNameMap() {
+  const [map, setMap] = useState({});
+  useEffect(() => {
+    apiGet("/trainees")
+      .then(list => { const m = {}; (list || []).forEach(p => { if (p.userId) m[p.userId] = p.name; }); setMap(m); })
+      .catch(() => {});
+  }, []);
+  return map;
+}
 const nowHM = () => { const d = new Date(); return `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`; };
 const WD = ["日", "月", "火", "水", "木", "金", "土"];
 const fmtAttDate = (d) => { const dt = new Date(d + "T00:00:00"); return `${d.slice(5, 7)}/${d.slice(8, 10)}（${WD[dt.getDay()]}）`; };
@@ -1407,6 +1420,7 @@ function mapReportInstructor(r) {
 }
 
 function Reports({ role }) {
+  const nameMap = useNameMap();
   const [reports, setReports] = useState([]);
   const [draft, setDraft] = useState({ learned: "", question: "", nextday: "" });
   const [cText, setCText] = useState({});
@@ -1474,8 +1488,8 @@ function Reports({ role }) {
       <div className="space-y-4">{reports.map(r => (
         <Card key={r.id} className="overflow-hidden">
           <button onClick={() => setOpen(open === r.id ? null : r.id)} className="flex w-full items-center justify-between px-5 py-4 text-left">
-            <div className="flex items-center gap-3"><Avatar name={r.name} />
-              <div><div className="text-sm font-bold" style={{ color: C.ink }}>{r.name}<span className="ml-2 text-xs font-normal" style={{ color: C.muted }}>{r.org}</span></div><div className="text-xs" style={{ color: C.muted }}>{r.date} の日報</div></div></div>
+            <div className="flex items-center gap-3"><Avatar name={nameMap[r.traineeId] || r.name} />
+              <div><div className="text-sm font-bold" style={{ color: C.ink }}>{nameMap[r.traineeId] || r.name}<span className="ml-2 text-xs font-normal" style={{ color: C.muted }}>{r.org}</span></div><div className="text-xs" style={{ color: C.muted }}>{r.date} の日報</div></div></div>
             <div className="flex items-center gap-3">{r.comments.length ? <Badge tone="cyan"><MessageSquare size={12} />{r.comments.length}</Badge> : <Badge tone="amber">未コメント</Badge>}
               <ChevronRight size={16} style={{ color: C.muted, transform: open === r.id ? "rotate(90deg)" : "none", transition: "transform .2s" }} /></div></button>
           {open === r.id && <div className="px-5 pb-5" style={{ borderTop: `1px solid ${C.line}` }}>
