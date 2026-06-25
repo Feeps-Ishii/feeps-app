@@ -773,29 +773,95 @@ function Curriculum({ role }) {
 
 /* ===== 教材 ===== */
 function Materials({ role }) {
-  const isI = role === "instructor";
+  const canEdit = role === "instructor" || role === "admin";
+  const [courses, setCourses] = useState([]);
+  const [courseId, setCourseId] = useState("");
+  const [items, setItems] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [uploading, setUploading] = useState(false);
+  const [err, setErr] = useState("");
+  const [viewer, setViewer] = useState(null);
+  const fileRef = React.useRef(null);
+
+  useEffect(() => {
+    const ep = canEdit ? "/courses" : "/me/courses";
+    apiGet(ep).then(list => { const cs = list || []; setCourses(cs); if (cs.length) setCourseId(cs[0].courseId); else setLoading(false); })
+      .catch(() => { setErr("コースの取得に失敗しました。"); setLoading(false); });
+  }, [role]);
+
+  function loadMaterials() {
+    if (!courseId) return;
+    setLoading(true); setErr("");
+    apiGet(`/materials?courseId=${courseId}`).then(l => setItems(l || [])).catch(() => setErr("資料一覧の取得に失敗しました。")).finally(() => setLoading(false));
+  }
+  useEffect(() => { loadMaterials(); }, [courseId]);
+
+  async function upload(file) {
+    if (!file || !courseId) return;
+    setUploading(true); setErr("");
+    try {
+      const ct = file.type || "application/pdf";
+      const { uploadUrl, materialId, s3key } = await apiPost("/materials/upload-url", { courseId, filename: file.name, contentType: ct });
+      const put = await fetch(uploadUrl, { method: "PUT", headers: { "content-type": ct }, body: file });
+      if (!put.ok) throw new Error("S3アップロード失敗 " + put.status);
+      await apiPost("/materials", { courseId, materialId, s3key, title: file.name });
+      loadMaterials();
+    } catch (e) { setErr("アップロードに失敗しました：" + (e?.message || e)); }
+    finally { setUploading(false); if (fileRef.current) fileRef.current.value = ""; }
+  }
+
+  async function openMaterial(m) {
+    setViewer({ loading: true, title: m.title });
+    try {
+      const r = await apiGet(`/materials/view?courseId=${courseId}&materialId=${m.materialId}`);
+      setViewer({ loading: false, url: r.url, title: m.title });
+    } catch (e) { setViewer({ loading: false, title: m.title, err: "閲覧URLの取得に失敗しました。" }); }
+  }
+
   return (
     <div>
-      <SectionHead title="研修資料" desc={`${COURSE} の格納資料`} action={isI ? <Btn icon={Upload}>教材を追加</Btn> : null} />
-      {isI && <Card className="mb-6 p-6" style={{ border: `1.5px dashed ${C.line2}`, background: C.canvas }}>
-        <div className="flex flex-col items-center text-center">
-          <div className="flex h-12 w-12 items-center justify-center rounded-2xl" style={{ background: C.wash }}><Upload size={22} style={{ color: C.cyan }} /></div>
-          <div className="mt-2 text-sm font-semibold" style={{ color: C.ink }}>ここにドラッグ＆ドロップ</div>
-          <div className="text-xs" style={{ color: C.muted }}>PDF / ZIP / 動画リンク を1ステップで登録</div></div></Card>}
-      {[...new Set(MATERIALS.map(m => m.cat))].map(day => (
-        <div key={day} className="mb-6">
-          <div className="mb-2 flex items-center gap-2"><Calendar size={15} style={{ color: C.cyan }} /><span className="text-sm font-bold" style={{ color: C.ink }}>{day}</span></div>
-          <Card>{MATERIALS.filter(m => m.cat === day).map((m, i, a) => (
-            <div key={m.id} className="flex items-center justify-between px-4 py-3" style={{ borderBottom: i < a.length - 1 ? `1px solid ${C.line}` : "none" }}>
-              <div className="flex items-center gap-3">
-                <div className="flex h-10 w-10 items-center justify-center rounded-xl" style={{ background: m.type === "ZIP" ? C.amberW : C.wash }}><FileText size={17} style={{ color: m.type === "ZIP" ? C.amber : C.cyan }} /></div>
-                <div><div className="flex items-center gap-2 text-sm font-semibold" style={{ color: C.ink }}>{m.title}{m.done && role === "trainee" && <Check size={14} style={{ color: C.green }} />}</div>
-                  <div className="text-xs" style={{ color: C.muted }}>{m.type} ・ {m.size}</div></div></div>
-              <div className="flex items-center gap-2"><Btn kind="ghost" size="sm" icon={Download}>{role === "trainee" ? "開く" : "DL"}</Btn>
-                {isI && <button className="rounded-lg p-1.5 hover:bg-gray-50"><MoreHorizontal size={16} style={{ color: C.muted }} /></button>}</div></div>
-          ))}</Card>
+      <SectionHead title="研修資料" desc={canEdit ? "コース単位のPDF資料（アップロード・閲覧）" : "あなたの所属コースの資料"}
+        action={canEdit && courseId ? <Btn icon={Upload} onClick={() => fileRef.current?.click()}>{uploading ? "アップロード中…" : "PDFを追加"}</Btn> : null} />
+      <input ref={fileRef} type="file" accept="application/pdf" className="hidden" onChange={e => upload(e.target.files?.[0])} />
+      {err && <div className="mb-4 rounded-lg px-3 py-2 text-xs" style={{ background: "#FCEAEF", color: "#C8385F" }}>{err}</div>}
+
+      {courses.length === 0 && !loading ? (
+        <Card><EmptyState title={canEdit ? "コースがありません" : "所属コースがありません"} desc={canEdit ? "コース管理からコースを作成してください" : "管理者にコース登録を依頼してください"} /></Card>
+      ) : (
+        <>
+          <div className="mb-5 flex items-center gap-3">
+            <span className="text-xs font-semibold" style={{ color: C.muted }}>コース</span>
+            <select value={courseId} onChange={e => setCourseId(e.target.value)} className="rounded-lg px-3 py-2 text-sm outline-none" style={{ border: `1px solid ${C.line2}`, color: C.ink, background: "#fff" }}>
+              {courses.map(c => <option key={c.courseId} value={c.courseId}>{c.name}（{kindLabel(c.kind)}）</option>)}
+            </select>
+          </div>
+          {loading ? <Card><div className="px-4 py-8 text-center text-sm" style={{ color: C.muted }}>読み込み中…</div></Card>
+            : items.length === 0 ? <Card><EmptyState title="資料がありません" desc={canEdit ? "「PDFを追加」からアップロードできます" : "講師が資料を準備中です"} /></Card>
+            : <Card>{items.map((m, i) => (
+                <div key={m.materialId} className="flex items-center justify-between px-4 py-3" style={{ borderBottom: i < items.length - 1 ? `1px solid ${C.line}` : "none" }}>
+                  <div className="flex min-w-0 items-center gap-3">
+                    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl" style={{ background: C.wash }}><FileText size={17} style={{ color: C.cyan }} /></div>
+                    <div className="min-w-0"><div className="truncate text-sm font-semibold" style={{ color: C.ink }}>{m.title}</div><div className="text-xs" style={{ color: C.muted }}>{fmtTs(m.uploadedAt)}</div></div>
+                  </div>
+                  <Btn kind="ghost" size="sm" icon={Eye} onClick={() => openMaterial(m)}>開く</Btn>
+                </div>
+              ))}</Card>}
+        </>
+      )}
+
+      {viewer && (
+        <div className="fixed inset-0 z-50 flex flex-col" style={{ background: "rgba(0,0,0,.7)" }}>
+          <div className="flex items-center justify-between px-4 py-3" style={{ background: C.ink }}>
+            <div className="truncate text-sm font-semibold text-white">{viewer.title}</div>
+            <button onClick={() => setViewer(null)} className="rounded-lg p-1.5 text-white/80 hover:text-white" aria-label="閉じる"><X size={18} /></button>
+          </div>
+          <div className="flex-1">
+            {viewer.loading ? <div className="flex h-full items-center justify-center text-sm text-white/80">読み込み中…</div>
+              : viewer.err ? <div className="flex h-full items-center justify-center text-sm text-white/80">{viewer.err}</div>
+              : <iframe title={viewer.title} src={viewer.url} className="h-full w-full" style={{ border: "none", background: "#fff" }} />}
+          </div>
         </div>
-      ))}
+      )}
     </div>
   );
 }
@@ -1436,7 +1502,7 @@ const todayStr = () => { const d = new Date(); return `${d.getFullYear()}-${Stri
 
 const fallbackName = (id) => "受講生 " + String(id || "").slice(0, 6);
 const fmtTs = (iso) => { try { return new Date(iso).toLocaleString("ja-JP", { month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit" }); } catch (e) { return iso || ""; } };
-const SAMPLE_VIEWS = new Set(["materials", "matching", "risk"]);
+const SAMPLE_VIEWS = new Set(["matching", "risk"]);
 function useNameMap() {
   const [map, setMap] = useState({});
   useEffect(() => {
