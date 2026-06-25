@@ -2457,6 +2457,10 @@ export default function App() {
   }, []);
   useEffect(() => { localStorage.setItem("feeps.role", role); }, [role]);
   useEffect(() => { localStorage.setItem("feeps.view", view); }, [view]);
+  useEffect(() => {
+    if (!loggedIn) return;
+    apiGet("/tasks/me").then(item => { if (item && item.done) setTaskDone(item.done); }).catch(() => {});
+  }, [loggedIn]);
   const me = ROLES[role]; const nav = NAV[role];
   const notif = Object.values(BADGES[role] || {}).reduce((a, b) => a + b, 0);
 
@@ -2464,7 +2468,11 @@ export default function App() {
   async function logout() { try { await signOut(); } catch (e) {} setLoggedIn(false); }
   function switchRole(r) { setRole(r); setView("home"); setKarte(null); }
   function go(v) { setKarte(null); setView(v); setDrawerOpen(false); }
-  function toggle(id) { setTaskDone(d => ({ ...d, [id]: !d[id] })); }
+  async function toggle(id) {
+    const next = { ...taskDone, [id]: !taskDone[id] };
+    setTaskDone(next);
+    try { await apiPut("/tasks/me", { done: next }); } catch (e) {}
+  }
 
   if (!authChecked) return null;
   if (!loggedIn) return <Login onLogin={login} />;
