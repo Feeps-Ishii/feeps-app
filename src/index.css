@@ -5,3 +5,180 @@ body,
 #root {
   height: 100%;
 }
+
+/* Shared modal open animation (fade + slight scale). */
+@keyframes feepsModalFade {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+@keyframes feepsModalPop {
+  from { opacity: 0; transform: scale(0.98); }
+  to { opacity: 1; transform: none; }
+}
+.feeps-modal-overlay { animation: feepsModalFade 0.16s ease both; }
+.feeps-modal-panel { animation: feepsModalPop 0.18s ease both; }
+@media (prefers-reduced-motion: reduce) {
+  .feeps-modal-overlay,
+  .feeps-modal-panel { animation: none; }
+}
+
+/* Product-home entrance animations (mount-once; delays set inline). */
+@keyframes feepsRiseIn {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: none; }
+}
+.feeps-hero-in { animation: feepsRiseIn 0.45s ease both; }
+.feeps-stagger-in { animation: feepsRiseIn 0.4s ease both; }
+
+/* Product nav card hover: border to product accent + 1px lift. */
+.feeps-navcard {
+  transition: border-color 0.15s ease, transform 0.15s ease;
+}
+.feeps-navcard:hover {
+  border-color: var(--pa-accent) !important;
+  transform: translateY(-1px);
+}
+
+/* Hero CTA hover: slight sink of the white surface + 1px lift. */
+.feeps-hero-cta {
+  transition: background 0.15s ease, transform 0.15s ease;
+}
+.feeps-hero-cta:hover {
+  background: #F1F1EE !important;
+  transform: translateY(-1px);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .feeps-hero-in,
+  .feeps-stagger-in { animation: none; }
+  .feeps-navcard,
+  .feeps-navcard:hover,
+  .feeps-hero-cta,
+  .feeps-hero-cta:hover { transition: none; transform: none; }
+}
+
+/* Login showcase (mini-dashboard) animations.
+   The ONLY approved infinite loops in the product are feepsFloat and feepsShimmer. */
+@keyframes feepsFadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+.feeps-fade-in { animation: feepsFadeIn 0.4s ease both; }
+
+@keyframes feepsFloat {
+  from { transform: translateY(-3px); }
+  to { transform: translateY(4px); }
+}
+.feeps-float { animation: feepsFloat 7s ease-in-out infinite alternate; }
+
+/* Canonical shimmer for "AI generating" progress states. */
+@keyframes feepsShimmer {
+  from { background-position: -200% 0; }
+  to { background-position: 200% 0; }
+}
+.feeps-shimmer {
+  background: linear-gradient(90deg, rgba(139, 124, 246, 0.25) 25%, rgba(139, 124, 246, 0.6) 50%, rgba(139, 124, 246, 0.25) 75%);
+  background-size: 200% 100%;
+  animation: feepsShimmer 1.6s linear infinite;
+}
+
+/* Shell polish: sidebar collapse width + sticky-header elevation. */
+.feeps-sidebar { transition: width 0.2s ease; }
+.feeps-header { transition: box-shadow 0.15s ease, border-color 0.15s ease; }
+@media (prefers-reduced-motion: reduce) {
+  .feeps-sidebar,
+  .feeps-header { transition: none; }
+}
+
+/* Login primary CTA hover (accent -> accentHover + 1px lift). */
+.feeps-login-cta {
+  transition: background 0.15s ease, transform 0.15s ease;
+}
+.feeps-login-cta:hover:not(:disabled) {
+  background: #2F56D9 !important;
+  transform: translateY(-1px);
+}
+
+/* Line-chart draw-in (uses pathLength="1" on the SVG path). */
+@keyframes feepsDraw {
+  to { stroke-dashoffset: 0; }
+}
+.feeps-draw {
+  stroke-dasharray: 1;
+  stroke-dashoffset: 1;
+  animation: feepsDraw 0.8s ease-out both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .feeps-fade-in,
+  .feeps-float,
+  .feeps-shimmer,
+  .feeps-draw { animation: none; }
+  .feeps-draw { stroke-dashoffset: 0; }
+  .feeps-login-cta,
+  .feeps-login-cta:hover:not(:disabled) { transition: none; transform: none; }
+}
+
+/* Sidebar inner scroll: thin scrollbar. */
+.feeps-sidebar nav { scrollbar-width: thin; }
+.feeps-sidebar nav::-webkit-scrollbar { width: 6px; }
+.feeps-sidebar nav::-webkit-scrollbar-thumb { background: rgba(26, 28, 32, 0.15); border-radius: 3px; }
+
+/* App frame: while a modal is open, freeze the main scroll container too. */
+body.feeps-modal-open .feeps-main-scroll { overflow: hidden !important; }
+
+/* Floating Canvas (Phase 4, lg+ only). All actual color/shadow/margin VALUES are
+   passed in as CSS custom properties from theme.js tokens (see TrainingApp.jsx) —
+   this stylesheet only decides WHEN they apply (the media query), never what they are. */
+.feeps-canvas { overflow: visible; }
+@media (min-width: 1024px) {
+  .feeps-canvas {
+    background: var(--canvas-bg);
+    border: var(--canvas-border);
+    border-radius: var(--canvas-radius);
+    box-shadow: var(--canvas-shadow);
+    margin: var(--canvas-margin);
+    overflow: hidden;
+  }
+}
+
+/* Product segment switcher: sliding pill (position driven by JS-measured offsetLeft/
+   offsetWidth; reduced-motion is already covered by the blanket .app-root rule). */
+.feeps-segment-pill { transition: left 0.3s cubic-bezier(.3,.9,.4,1), width 0.3s cubic-bezier(.3,.9,.4,1); }
+
+/* Sidebar active pill: slides between menu items (position driven by JS-measured
+   offsetTop/offsetHeight; reduced-motion covered by the blanket .app-root rule). */
+.feeps-sidebar-pill { transition: top 0.28s cubic-bezier(.3,.9,.4,1), height 0.28s cubic-bezier(.3,.9,.4,1); }
+
+/* Page-title row: sits flush (transparent) at the top of the white canvas until the
+   canvas scrolls, at which point it elevates. Mobile keeps its default (see .is-flush). */
+.feeps-pagehead { background: var(--ph-bg); border-bottom: var(--ph-border); box-shadow: var(--ph-shadow); }
+@media (min-width: 1024px) {
+  .feeps-pagehead.is-flush { background: transparent; border-bottom: none; box-shadow: none; }
+}
+
+/* Glass dropdown panel (notification panel, Phase 4 desktop-only surfaces).
+   Falls back to an opaque white panel when backdrop-filter isn't supported. */
+.feeps-glass-panel {
+  background: rgba(255, 255, 255, 0.75);
+  -webkit-backdrop-filter: blur(18px) saturate(160%);
+  backdrop-filter: blur(18px) saturate(160%);
+  border: 1px solid rgba(255, 255, 255, 0.65);
+  box-shadow: 0 24px 56px rgba(21, 23, 28, 0.18);
+}
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  .feeps-glass-panel { background: #FFFFFF; }
+}
+
+/* Shared success checkmark micro-animation (~400ms draw via stroke-dashoffset). */
+@keyframes feepsCheckDraw {
+  to { stroke-dashoffset: 0; }
+}
+.feeps-check-draw {
+  stroke-dasharray: 1;
+  stroke-dashoffset: 1;
+  animation: feepsCheckDraw 0.4s ease-out 0.05s both;
+}
+@media (prefers-reduced-motion: reduce) {
+  .feeps-check-draw { animation: none; stroke-dashoffset: 0; }
+}
