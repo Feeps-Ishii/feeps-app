@@ -7,6 +7,7 @@ import LessonManager from "./LessonManager.jsx";
 import MaterialManager from "./MaterialManager.jsx";
 import QuizManager from "./QuizManager.jsx";
 import AiCurriculumDesignerModal from "./aiDesigner/AiCurriculumDesignerModal.jsx";
+import AiLessonDesigner from "./aiDesigner/AiLessonDesigner.jsx";
 
 const VIEW_TABS = [
   { value: "courses", label: "コース管理" },
@@ -14,6 +15,7 @@ const VIEW_TABS = [
   { value: "materials", label: "教材管理" },
   { value: "enrollments", label: "受講状況" },
   { value: "quizzes", label: "理解度・問題" },
+  { value: "ai-lesson-designer", label: "AI Lesson Designer" },
 ];
 
 export default function LearningAdminProduct() {
@@ -37,6 +39,7 @@ export default function LearningAdminProduct() {
       {view === "enrollments" && <EnrollmentManager />}
       {view === "quizzes" && <QuizManager />}
       {view === "courses" && <CourseManager onOpenLessons={openLessons} />}
+      {view === "ai-lesson-designer" && <AiLessonDesigner />}
       {/* Mounted only while open: the modal's useLearningAdmin() fires admin API
           fetches on mount, which would otherwise duplicate every manager's own
           fetches on each Learning-admin page view. */}

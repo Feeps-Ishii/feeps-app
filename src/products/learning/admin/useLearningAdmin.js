@@ -149,6 +149,9 @@ function normalizeLesson(lesson, index = 0) {
     points: Array.isArray(lesson.points) ? lesson.points : [],
     body: lesson.body || "",
     questions: Array.isArray(lesson.questions) ? lesson.questions.map(normalizeQuestion) : [],
+    slides: Array.isArray(lesson.slides) ? lesson.slides : [],
+    goal: lesson.goal || "",
+    teacherMemo: lesson.teacherMemo || "",
     published: lesson.status ? lesson.status === "published" : lesson.published !== false,
     deleted: lesson.deleted === true || lesson.status === "deleted",
     order: Number.isFinite(Number(lesson.order)) ? Number(lesson.order) : index,
@@ -216,6 +219,9 @@ function toLessonPayload(form) {
     points: String(form.pointsText || "").split("\n").map(s => s.trim()).filter(Boolean),
     body: form.body || "",
     questions: parseQuestions(form.questionsText),
+    slides: Array.isArray(form.slides) ? form.slides : [],
+    goal: form.goal || "",
+    teacherMemo: form.teacherMemo || "",
     published: Boolean(form.published),
     updatedAt: new Date().toISOString(),
   };
@@ -236,6 +242,9 @@ function toLessonApiPayload(lesson) {
     points: lesson.points || [],
     body: lesson.body || "",
     questions: lesson.questions || [],
+    goal: lesson.goal || "",
+    teacherMemo: lesson.teacherMemo || "",
+    slides: lesson.slides || [],
   };
 }
 
@@ -273,6 +282,14 @@ function normalizeMaterial(material, index = 0) {
     status: material.status === "published" ? "published" : "draft",
     memo: material.memo || "",
     deleted: material.deleted === true || material.status === "deleted",
+    // s3key があればS3実ファイル教材、無ければ従来どおり url の外部リンク教材。
+    s3key: material.s3key || "",
+    originalFilename: material.originalFilename || "",
+    contentType: material.contentType || "",
+    fileSize: Number.isFinite(Number(material.fileSize)) ? Number(material.fileSize) : 0,
+    uploadMode: material.uploadMode === "download" ? "download" : "view",
+    uploadedAt: material.uploadedAt || null,
+    uploadedBy: material.uploadedBy || null,
     createdAt: material.createdAt || now,
     updatedAt: material.updatedAt || now,
   };
@@ -315,6 +332,13 @@ function toMaterialPayload(form) {
     tags: String(form.tagsText || "").split(",").map(tag => tag.trim()).filter(Boolean),
     status: form.status === "published" ? "published" : "draft",
     memo: form.memo || "",
+    // S3実ファイル教材の項目。既存のURL教材フォームにはこれらのキーが無いため、
+    // その場合は空文字/0/"view"のデフォルトになるだけで挙動は変わらない。
+    s3key: form.s3key || "",
+    originalFilename: form.originalFilename || "",
+    contentType: form.contentType || "",
+    fileSize: Number(form.fileSize || 0),
+    uploadMode: form.uploadMode === "download" ? "download" : "view",
     updatedAt: new Date().toISOString(),
   };
 }
@@ -335,7 +359,30 @@ function toMaterialApiPayload(material) {
     status: material.status === "published" ? "published" : "draft",
     memo: material.memo || "",
     deleted: material.deleted === true,
+    s3key: material.s3key || "",
+    originalFilename: material.originalFilename || "",
+    contentType: material.contentType || "",
+    fileSize: Number(material.fileSize || 0),
+    uploadMode: material.uploadMode === "download" ? "download" : "view",
   };
+}
+
+// POST /learning/admin/materials/upload-url を呼び、S3への署名付きPUT URLを取得する。
+// フックの状態に依存しないため materialToForm と同様にモジュールレベルでexportする。
+export async function requestMaterialUploadUrl({ courseId, filename, contentType }) {
+  return apiPost("/learning/admin/materials/upload-url", { courseId, filename, contentType });
+}
+
+// 発行された署名付きURLへ実ファイルを直接PUTする。S3への直PUTのため認証ヘッダ・JSON化を
+// 行う api.js の apiPut は使わず、素の fetch で実装する。
+export async function uploadMaterialFile(uploadUrl, file) {
+  const res = await fetch(uploadUrl, {
+    method: "PUT",
+    headers: { "Content-Type": file.type || "application/octet-stream" },
+    body: file,
+  });
+  if (!res.ok) throw new Error(`S3 upload failed: ${res.status}`);
+  return true;
 }
 
 export function materialToForm(material, fallback = {}) {
@@ -352,6 +399,11 @@ export function materialToForm(material, fallback = {}) {
     tagsText: (material.tags || []).join(", "),
     status: material.status === "published" ? "published" : "draft",
     memo: material.memo || "",
+    s3key: material.s3key || "",
+    originalFilename: material.originalFilename || "",
+    contentType: material.contentType || "",
+    fileSize: String(material.fileSize || ""),
+    uploadMode: material.uploadMode === "download" ? "download" : "view",
   };
 }
 
@@ -387,6 +439,7 @@ function normalizeEnrollment(enrollment, index = 0) {
     skills: Array.isArray(enrollment.skills) ? enrollment.skills : (course.skills || []),
     learningMinutes: Number(enrollment.learningMinutes || 0),
     recentHistory: Array.isArray(enrollment.recentHistory) ? enrollment.recentHistory : [],
+    lessonCompletion: enrollment.lessonCompletion || {},
     memo: enrollment.memo || "",
   };
 }
@@ -701,6 +754,35 @@ export function useLearningAdmin() {
     return () => { alive = false; };
   }, []);
 
+  useEffect(() => {
+    let alive = true;
+    Promise.all([
+      apiGet("/learning/admin/enrollments").catch(() => null),
+      apiGet("/admin/users").catch(() => null),
+    ]).then(([enrollmentItems, userItems]) => {
+      if (!alive || !Array.isArray(enrollmentItems) || enrollmentItems.length === 0) return;
+      // /admin/users の正確なフィールド名は未確認のため、想定される候補を防御的に試す。
+      // 一致しなければ traineeName/companyName は空のまま（normalizeEnrollment側でフォールバック済み）。
+      const usersById = new Map();
+      (Array.isArray(userItems) ? userItems : []).forEach(user => {
+        const key = user?.userId || user?.id || user?.sub;
+        if (key) usersById.set(key, user);
+      });
+      const normalized = enrollmentItems.map((item, index) => {
+        const user = usersById.get(item.traineeId);
+        return normalizeEnrollment({
+          ...item,
+          id: `enr_${item.traineeId}_${item.courseId}`, // 再取得のたびにIDが変わらないよう固定
+          traineeName: user?.name || item.traineeName || "",
+          companyName: user?.companyName || user?.company || item.companyName || "",
+        }, index);
+      });
+      setEnrollments(normalized);
+      saveEnrollments(normalized);
+    });
+    return () => { alive = false; };
+  }, []);
+
   function commit(next) {
     setCourses(next);
     saveCourses(next);
@@ -928,9 +1010,16 @@ export function useLearningAdmin() {
   }
 
   function updateEnrollmentMemo(enrollmentId, memo) {
-    commitEnrollments(enrollments.map(enrollment => (
-      enrollment.id === enrollmentId ? { ...enrollment, memo } : enrollment
-    )));
+    let target = null;
+    commitEnrollments(enrollments.map(enrollment => {
+      if (enrollment.id !== enrollmentId) return enrollment;
+      target = { ...enrollment, memo };
+      return target;
+    }));
+    if (target?.traineeId && target?.courseId) {
+      apiPut(`/learning/admin/enrollments/${encodeURIComponent(target.traineeId)}/${encodeURIComponent(target.courseId)}/memo`, { memo })
+        .catch(() => {});
+    }
   }
 
   function commitQuizQuestions(next) {
