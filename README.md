@@ -39,22 +39,14 @@ feeps-app/
 ├─ index.html          # Vite エントリ
 ├─ vite.config.js      # React + Tailwind v4 プラグイン
 ├─ package.json
-├─ .gitignore
+├─ deploy.bat          # build → S3 sync → CloudFront invalidation
 └─ src/
    ├─ main.jsx         # React マウント
-   ├─ index.css        # @import "tailwindcss";
-   └─ TrainingApp.jsx  # アプリ本体（モック）
+   ├─ TrainingApp.jsx  # App shell / Product Router
+   ├─ api.js / aws.js  # API通信 / Cognito認証
+   ├─ components/common/  # 共通UI + theme.js
+   └─ products/        # Product別実装（learning/analytics/matching/talent/training/admin）
 ```
 
-## Git（初回）
-
-```bash
-git init
-git add .
-git commit -m "chore: initial project setup (Vite + React + Tailwind)"
-git branch -M main
-git remote add origin <あなたのリポジトリURL>
-git push -u origin main
-```
-
-> 補足: 現状はバックエンド未接続のモックです。今後 Cognito 認証・API Gateway + Lambda・DynamoDB を段階的に接続していきます。
+> 詳細な構成・開発ルール・AI向けガイドは [AGENTS.md](AGENTS.md) と `../../docs/START_HERE.md` を参照。
+> Backend（Cognito認証・API Gateway + Lambda・DynamoDB）と接続済みの本番稼働アプリです。
