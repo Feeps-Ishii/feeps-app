@@ -146,6 +146,7 @@ export default function LessonManager({ initialCourseId }) {
     deleteLesson,
     toggleLessonPublish,
     moveLesson,
+    createMaterialAwaitingApi,
   } = useLearningAdmin();
   const [selectedCourseId, setSelectedCourseId] = useState(initialCourseId || courses[0]?.id || "");
   const [query, setQuery] = useState("");
@@ -342,6 +343,7 @@ export default function LessonManager({ initialCourseId }) {
         course={selectedCourse}
         lesson={slideEditingLesson}
         updateLesson={updateLesson}
+        createMaterialAwaitingApi={createMaterialAwaitingApi}
         onClose={() => setSlideEditingLesson(null)}
       />
     </div>

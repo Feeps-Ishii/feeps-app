@@ -1,13 +1,15 @@
 import React, { useEffect, useState } from "react";
-import { ArrowDown, ArrowUp, FileText, Image as ImageIcon, Plus, Save, Trash2, Video, X } from "lucide-react";
+import { ArrowDown, ArrowUp, FileText, FileUp, Image as ImageIcon, Plus, Save, Trash2, Video, X } from "lucide-react";
 import { Btn, Field, fieldStyle, T } from "../../../../components/common";
 import AdminModal from "../AdminModal.jsx";
 import { lessonToForm } from "../useLearningAdmin.js";
+import SlideDeckImporter from "./SlideDeckImporter.jsx";
 
 // (e)最小版: Lessonのslides配列に対する追加・並べ替え・削除のみのシンプルなUI。
 // 対応kindはtext(concept)/image/video の3種のみ(diagram/table/terminal/quiz/summaryは
 // AI生成(STEP2, ADR 0005)側で扱う予定のため今回スコープ外)。既存の他kindのslideが
 // 混在していても、追加/並べ替え/削除の対象として扱う(内容編集はできないが削除・移動は可能)。
+// (f) PDFインポート(SlideDeckImporter.jsx)は新kindを作らず既存imageスライドを追加する形。
 
 const C = { ink: T.textPrimary, body: T.textSecondary, muted: T.textMuted, line: T.border, canvas: T.bgBase };
 
@@ -93,16 +95,18 @@ function SlideRow({ slide, index, total, onMove, onDelete }) {
   );
 }
 
-export default function LessonSlideEditor({ open, course, lesson, updateLesson, onClose }) {
+export default function LessonSlideEditor({ open, course, lesson, updateLesson, createMaterialAwaitingApi, onClose }) {
   const [slides, setSlides] = useState(() => lesson?.slides || []);
   const [addingKind, setAddingKind] = useState(null);
   const [draft, setDraft] = useState({ ...EMPTY_DRAFT });
+  const [importerOpen, setImporterOpen] = useState(false);
 
   useEffect(() => {
     if (open) {
       setSlides(lesson?.slides || []);
       setAddingKind(null);
       setDraft({ ...EMPTY_DRAFT });
+      setImporterOpen(false);
     }
   }, [open, lesson]);
 
@@ -178,6 +182,7 @@ export default function LessonSlideEditor({ open, course, lesson, updateLesson, 
                 {option.label}を追加
               </Btn>
             ))}
+            <Btn kind="ghost" size="sm" icon={FileUp} onClick={() => setImporterOpen(true)}>PDFからインポート</Btn>
           </div>
         )}
 
@@ -186,6 +191,16 @@ export default function LessonSlideEditor({ open, course, lesson, updateLesson, 
           <Btn icon={Save} onClick={handleSave}>保存する</Btn>
         </div>
       </div>
+
+      <SlideDeckImporter
+        open={importerOpen}
+        course={course}
+        lesson={lesson}
+        createMaterialAwaitingApi={createMaterialAwaitingApi}
+        existingSlideCount={slides.length}
+        onImported={newSlides => setSlides(prev => [...prev, ...newSlides])}
+        onClose={() => setImporterOpen(false)}
+      />
     </AdminModal>
   );
 }

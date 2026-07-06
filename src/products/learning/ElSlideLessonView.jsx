@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import {
   ChevronLeft, ChevronRight, Lightbulb, FileText, Download, Check, X,
   Play, PlayCircle, Circle, CheckCircle2, Loader2, Sparkles,
@@ -328,7 +328,36 @@ function VideoSlideBody({ slide }) {
 }
 
 // ---- 中央: メインスライドの中身。kindごとに描画を出し分ける ----
-function SlideRenderer({ slide, accent }) {
+// content.materialId(PDFインポート等でMaterialとして登録された画像)があれば
+// lrn.getMaterialViewUrlで署名付き閲覧URLを解決する。content.url(手入力の外部URL等)は
+// 従来どおりそのまま使う(materialIdが無ければ何も変わらない、後方互換)。
+function ImageSlideBody({ slide, content, lrn }) {
+  const [resolvedUrl, setResolvedUrl] = useState(content.url || "");
+  const [resolveError, setResolveError] = useState(false);
+
+  useEffect(() => {
+    if (!content.materialId || !lrn?.getMaterialViewUrl) return;
+    let alive = true;
+    setResolveError(false);
+    lrn.getMaterialViewUrl(content.materialId)
+      .then(res => { if (alive && res?.url) setResolvedUrl(res.url); })
+      .catch(() => { if (alive) setResolveError(true); });
+    return () => { alive = false; };
+  }, [content.materialId, lrn]);
+
+  return (
+    <div>
+      <h3 className="mb-3 text-xl font-bold" style={{ color: C.ink, letterSpacing: "-0.02em" }}>{slide.title}</h3>
+      {resolvedUrl && (
+        <img src={resolvedUrl} alt={content.alt || slide.title} className="max-h-[420px] w-full rounded-xl object-contain" style={{ background: T.bgBase }} />
+      )}
+      {resolveError && <p className="text-xs" style={{ color: "#ef4444" }}>画像を読み込めませんでした。</p>}
+      {content.caption && <p className="mt-3 text-sm leading-relaxed" style={{ color: C.muted }}>{content.caption}</p>}
+    </div>
+  );
+}
+
+function SlideRenderer({ slide, accent, lrn }) {
   if (!slide) return null;
   const content = slide.content || {};
   switch (slide.kind) {
@@ -340,15 +369,7 @@ function SlideRenderer({ slide, accent }) {
         </div>
       );
     case "image":
-      return (
-        <div>
-          <h3 className="mb-3 text-xl font-bold" style={{ color: C.ink, letterSpacing: "-0.02em" }}>{slide.title}</h3>
-          {content.url && (
-            <img src={content.url} alt={content.alt || slide.title} className="max-h-[420px] w-full rounded-xl object-contain" style={{ background: T.bgBase }} />
-          )}
-          {content.caption && <p className="mt-3 text-sm leading-relaxed" style={{ color: C.muted }}>{content.caption}</p>}
-        </div>
-      );
+      return <ImageSlideBody key={slide.id} slide={slide} content={content} lrn={lrn} />;
     case "diagram":
       return (
         <div>
@@ -413,13 +434,13 @@ function SlideRenderer({ slide, accent }) {
   }
 }
 
-function MainSlidePanel({ slides, index, setIndex, accent }) {
+function MainSlidePanel({ slides, index, setIndex, accent, lrn }) {
   const slide = slides[index];
   return (
     <div className="min-w-0 flex-1">
       <div className="rounded-2xl p-8" style={{ background: "#fff", border: `1px solid ${C.line}` }}>
         <div className="flex min-h-[300px] flex-col justify-center">
-          <SlideRenderer slide={slide} accent={accent} />
+          <SlideRenderer slide={slide} accent={accent} lrn={lrn} />
         </div>
       </div>
 
@@ -584,7 +605,7 @@ export default function ElSlideLessonView({ course, lesson, lrn, onBack, onNavig
 
       <div className="flex flex-col gap-8 lg:flex-row lg:items-start">
         <LeftSlideNav slides={slides} current={slideIndex} onSelect={setSlideIndex} accent={accent} />
-        <MainSlidePanel slides={slides} index={slideIndex} setIndex={setSlideIndex} accent={accent} />
+        <MainSlidePanel slides={slides} index={slideIndex} setIndex={setSlideIndex} accent={accent} lrn={lrn} />
         <RightSidebar course={course} lesson={lesson} lrn={lrn} idx={idx} lessons={lessons} accent={accent} />
       </div>
 

@@ -968,6 +968,23 @@ export function useLearningAdmin() {
     saveMaterials(normalized);
   }
 
+  // (f) PDFインポート等、materialIdが確定してから使う呼び出し元向け: createMaterialと同じ
+  // 正規化・楽観的ローカル反映を行うが、API呼び出しの結果をawaitし失敗時は例外を呼び出し元に
+  // 伝える(黙殺しない)。createMaterial自体・他の呼び出し元の挙動は変更しない。
+  async function createMaterialAwaitingApi(form) {
+    const material = normalizeMaterial({
+      ...toMaterialPayload(form),
+      id: `mat_${Date.now()}`,
+      createdAt: new Date().toISOString(),
+    }, materials.length);
+    const nextLocal = [...materials, material];
+    commitMaterials(nextLocal);
+    const res = await apiPost("/learning/admin/materials", toMaterialApiPayload(material));
+    const saved = res?.material ? normalizeMaterial(res.material) : material;
+    commitMaterials(nextLocal.map(item => (item.id === material.id ? saved : item)));
+    return saved;
+  }
+
   function createMaterial(form) {
     const material = normalizeMaterial({
       ...toMaterialPayload(form),
@@ -1176,6 +1193,7 @@ export function useLearningAdmin() {
     materials,
     materialStats,
     createMaterial,
+    createMaterialAwaitingApi,
     updateMaterial,
     deleteMaterial,
     toggleMaterialPublish,
