@@ -86,11 +86,12 @@ export function useAiLessonDesigner() {
   }
 
   // 生成結果(コース設計+Lesson構成+講師メモ)をそのまま下書きコースとして保存する。
-  // 既存のcreateCourse/createLessonを呼ぶだけで、新しい保存API・保存の仕組みは作らない。
+  // 既存のcreateCourse/createLessonではなく、API呼び出し結果をawaitして失敗を黙殺しない
+  // createCourseAwaitingApi/createLessonAwaitingApiに委譲する(useLearningAdmin.js参照)。
   // slidesは持たせない(このSTEPでは生成していないため)。estimatedMinutesは既存のduration
   // 文字列フィールドにマッピングする(Lesson側に分単位の数値フィールドが無いため)。
   // 公開(published)は行わず、管理画面での確認を前提とする。
-  function saveGenerated(learningAdmin) {
+  async function saveGenerated(learningAdmin) {
     if (!result) {
       setSaveState("error");
       setSaveNotice("保存する生成結果がありません。先にコースを設計してください。");
@@ -99,7 +100,7 @@ export function useAiLessonDesigner() {
     setSaveState("saving");
     setSaveNotice("");
     try {
-      const course = learningAdmin.createCourse({
+      const course = await learningAdmin.createCourseAwaitingApi({
         title: result.course.title || "AI生成コース",
         category: "",
         color: PRODUCT_ACCENT.learning.accent,
@@ -110,8 +111,9 @@ export function useAiLessonDesigner() {
         desc: result.course.desc || "",
         published: false,
       });
-      result.lessons.forEach((lesson, i) => {
-        learningAdmin.createLesson(course.id, {
+      for (let i = 0; i < result.lessons.length; i += 1) {
+        const lesson = result.lessons[i];
+        await learningAdmin.createLessonAwaitingApi(course.id, {
           title: lesson.title || `レッスン${i + 1}`,
           type: "text",
           duration: lesson.estimatedMinutes ? `${lesson.estimatedMinutes}分` : "",
@@ -123,14 +125,15 @@ export function useAiLessonDesigner() {
           teacherMemo: lesson.teacherMemo || "",
           published: false,
         });
-      });
+      }
       setSaveState("done");
       setSaveNotice(`「${course.title}」を下書きコースとして保存しました。管理画面から確認・公開してください。`);
       return { ok: true, courseId: course.id };
     } catch (e) {
       setSaveState("error");
-      setSaveNotice(e?.message || "保存に失敗しました。");
-      return { ok: false, error: e?.message || String(e) };
+      const msg = [e?.errorMessage, e?.message].filter(Boolean).join(" / ");
+      setSaveNotice(msg || "保存に失敗しました。管理画面で内容を確認してください。");
+      return { ok: false, error: msg || String(e) };
     }
   }
 

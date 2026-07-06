@@ -801,6 +801,18 @@ export function useLearningAdmin() {
     return course;
   }
 
+  // AI Lesson Designer保存専用: createCourseと同じ正規化・楽観的ローカル反映を行うが、
+  // API呼び出しの結果をawaitし失敗時は例外を呼び出し元に伝える(黙殺しない)。
+  // createCourse自体・他の呼び出し元の挙動は変更しない。
+  async function createCourseAwaitingApi(form) {
+    const course = normalizeCourse({ ...toCoursePayload(form), id: makeId() });
+    commit([course, ...courses]);
+    const res = await apiPost("/learning/admin/courses", toCourseApiPayload(course));
+    const saved = res?.course ? normalizeCourse(res.course) : course;
+    commit([saved, ...courses.filter(item => item.id !== course.id && item.id !== saved.id)]);
+    return saved;
+  }
+
   function updateCourse(courseId, form) {
     let updated = null;
     const next = courses.map(course => (
@@ -867,6 +879,21 @@ export function useLearningAdmin() {
       })
       .catch(() => {});
     return lesson;
+  }
+
+  // AI Lesson Designer保存専用: createLessonと同じ正規化・楽観的ローカル反映を行うが、
+  // API呼び出しの結果をawaitし失敗時は例外を呼び出し元に伝える(黙殺しない)。
+  // createLesson自体・他の呼び出し元の挙動は変更しない。
+  async function createLessonAwaitingApi(courseId, form) {
+    const current = lessonsForCourse(courseId);
+    const lesson = normalizeLesson({ ...toLessonPayload(form), id: `${courseId}-admin-${Date.now()}`, order: current.length }, current.length);
+    const nextLocal = { ...lessonsByCourse, [courseId]: [...current, lesson] };
+    commitLessons(nextLocal);
+    const res = await apiPost(`/learning/admin/courses/${encodeURIComponent(courseId)}/lessons`, toLessonApiPayload(lesson));
+    const saved = res?.lesson ? normalizeLesson(res.lesson) : lesson;
+    const synced = (nextLocal[courseId] || []).map(item => (item.id === lesson.id ? saved : item));
+    commitLessons({ ...nextLocal, [courseId]: synced.sort((a, b) => a.order - b.order) });
+    return saved;
   }
 
   function updateLesson(courseId, lessonId, form) {
@@ -1131,12 +1158,14 @@ export function useLearningAdmin() {
     courses,
     stats,
     createCourse,
+    createCourseAwaitingApi,
     updateCourse,
     togglePublish,
     deleteCourse,
     lessonsByCourse,
     lessonsForCourse,
     createLesson,
+    createLessonAwaitingApi,
     updateLesson,
     deleteLesson,
     toggleLessonPublish,
