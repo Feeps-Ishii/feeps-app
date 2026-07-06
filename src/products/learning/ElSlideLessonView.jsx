@@ -4,6 +4,7 @@ import {
   Play, PlayCircle, Circle, CheckCircle2,
 } from "lucide-react";
 import { Btn, T, PRODUCT_ACCENT } from "../../components/common";
+import { LessonBodyText } from "./LearningComponents.jsx";
 
 // slidesを持つLesson専用の「メインスライド中心」表示。lesson.slides?.length > 0 の場合のみ
 // ElLessonView.jsx からこのコンポーネントへ分岐する（既存のvideo/text/quiz Lessonはこのファイルを
@@ -23,6 +24,21 @@ const REACTIONS = [
 
 function orderedSlides(lesson) {
   return [...(lesson.slides || [])].sort((a, b) => Number(a.order || 0) - Number(b.order || 0));
+}
+
+// YouTube URL(watch/youtu.be/embed の各形式)ならembed用URLを返す。それ以外(S3動画URL等)はnull。
+function youtubeEmbedUrl(url) {
+  if (!url) return null;
+  const patterns = [
+    /youtube\.com\/watch\?v=([\w-]{11})/,
+    /youtu\.be\/([\w-]{11})/,
+    /youtube\.com\/embed\/([\w-]{11})/,
+  ];
+  for (const pattern of patterns) {
+    const match = url.match(pattern);
+    if (match) return `https://www.youtube.com/embed/${match[1]}`;
+  }
+  return null;
 }
 
 function SectionLabel({ children }) {
@@ -177,6 +193,24 @@ function QuizSlideBody({ slide }) {
 function VideoSlideBody({ slide }) {
   const [playing, setPlaying] = useState(false);
   const content = slide.content || {};
+  const embedUrl = youtubeEmbedUrl(content.url);
+  if (embedUrl) {
+    return (
+      <div>
+        <h3 className="mb-3 text-xl font-bold" style={{ color: C.ink, letterSpacing: "-0.02em" }}>{slide.title}</h3>
+        <div className="overflow-hidden rounded-xl" style={{ aspectRatio: "16 / 9" }}>
+          <iframe
+            src={embedUrl}
+            title={slide.title}
+            className="h-full w-full"
+            style={{ border: 0 }}
+            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+            allowFullScreen
+          />
+        </div>
+      </div>
+    );
+  }
   if (content.url) {
     return (
       <div>
@@ -217,7 +251,17 @@ function SlideRenderer({ slide, accent }) {
       return (
         <div>
           <h3 className="mb-3 text-xl font-bold" style={{ color: C.ink, letterSpacing: "-0.02em" }}>{slide.title}</h3>
-          <p className="text-[16px] leading-[1.85]" style={{ color: C.body }}>{content.body}</p>
+          <LessonBodyText body={content.body} />
+        </div>
+      );
+    case "image":
+      return (
+        <div>
+          <h3 className="mb-3 text-xl font-bold" style={{ color: C.ink, letterSpacing: "-0.02em" }}>{slide.title}</h3>
+          {content.url && (
+            <img src={content.url} alt={content.alt || slide.title} className="max-h-[420px] w-full rounded-xl object-contain" style={{ background: T.bgBase }} />
+          )}
+          {content.caption && <p className="mt-3 text-sm leading-relaxed" style={{ color: C.muted }}>{content.caption}</p>}
         </div>
       );
     case "diagram":

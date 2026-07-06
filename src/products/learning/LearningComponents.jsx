@@ -1722,4 +1722,5 @@ export {
   ElCourseDetail,
   ElFinalTestView,
   ElLessonView,
+  LessonBodyText,
 };
