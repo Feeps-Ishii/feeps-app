@@ -262,6 +262,9 @@ export function lessonToForm(lesson) {
       ...(q.options || ["", "", "", ""]).slice(0, 4),
       Number(q.answer || 0) + 1,
     ].join(" | ")).join("\n"),
+    goal: lesson.goal || "",
+    teacherMemo: lesson.teacherMemo || "",
+    slides: Array.isArray(lesson.slides) ? lesson.slides : [],
     published: lesson.published !== false,
   };
 }

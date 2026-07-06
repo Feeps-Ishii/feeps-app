@@ -8,6 +8,7 @@ import {
   EyeOff,
   FileText,
   HelpCircle,
+  Layers,
   Pencil,
   PlayCircle,
   Plus,
@@ -20,6 +21,7 @@ import { Badge, Btn, Card, EmptyState, Field, SectionHead, Stat, fieldStyle, T, 
 import { EMPTY_LESSON_FORM, LESSON_TYPE_OPTIONS } from "./LearningAdminCatalog.js";
 import { lessonToForm, useLearningAdmin } from "./useLearningAdmin.js";
 import AdminModal from "./AdminModal.jsx";
+import LessonSlideEditor from "./slideEditor/LessonSlideEditor.jsx";
 
 const C = { ink: T.textPrimary, body: T.textSecondary, muted: T.textMuted, line: T.border, canvas: T.bgBase, green: PRODUCT_ACCENT.learning.accent, red: T.danger };
 
@@ -93,9 +95,10 @@ function LessonForm({ mode, form, onChange, onSubmit, onCancel }) {
   );
 }
 
-function LessonRow({ lesson, index, total, onEdit, onTogglePublish, onMove, onDeleteRequest }) {
+function LessonRow({ lesson, index, total, onEdit, onEditSlides, onTogglePublish, onMove, onDeleteRequest }) {
   const published = lesson.published !== false;
   const Icon = typeIcon[lesson.type] || BookOpen;
+  const slideCount = (lesson.slides || []).length;
   return (
     <Card className="p-4">
       <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
@@ -109,6 +112,7 @@ function LessonRow({ lesson, index, total, onEdit, onTogglePublish, onMove, onDe
               <h3 className="truncate text-sm font-bold" style={{ color: C.ink }}>{lesson.title}</h3>
               <Badge tone="cyan">{lesson.type}</Badge>
               <Badge tone={published ? "green" : "muted"}>{published ? "公開中" : "非公開"}</Badge>
+              {slideCount > 0 && <Badge tone="muted">{slideCount} slides</Badge>}
             </div>
             <p className="mt-1 line-clamp-2 text-xs" style={{ color: C.body }}>{lesson.summary}</p>
             <div className="mt-2 flex flex-wrap items-center gap-2 text-xs" style={{ color: C.muted }}>
@@ -122,6 +126,7 @@ function LessonRow({ lesson, index, total, onEdit, onTogglePublish, onMove, onDe
           <Btn kind="ghost" size="sm" icon={ArrowUp} onClick={() => onMove(lesson.id, -1)} disabled={index === 0}>上へ</Btn>
           <Btn kind="ghost" size="sm" icon={ArrowDown} onClick={() => onMove(lesson.id, 1)} disabled={index === total - 1}>下へ</Btn>
           <Btn kind="ghost" size="sm" icon={Pencil} onClick={() => onEdit(lesson)}>編集</Btn>
+          <Btn kind="ghost" size="sm" icon={Layers} onClick={() => onEditSlides(lesson)}>スライド編集</Btn>
           <Btn kind="ghost" size="sm" icon={published ? EyeOff : Eye} onClick={() => onTogglePublish(lesson.id)}>
             {published ? "非公開" : "公開"}
           </Btn>
@@ -148,6 +153,7 @@ export default function LessonManager({ initialCourseId }) {
   const [form, setForm] = useState({ ...EMPTY_LESSON_FORM });
   const [deleteTarget, setDeleteTarget] = useState(null);
   const [formOpen, setFormOpen] = useState(false);
+  const [slideEditingLesson, setSlideEditingLesson] = useState(null);
 
   const selectedCourse = courses.find(course => course.id === selectedCourseId) || courses[0];
   const lessons = selectedCourse ? lessonsForCourse(selectedCourse.id) : [];
@@ -258,6 +264,7 @@ export default function LessonManager({ initialCourseId }) {
                   index={lessons.findIndex(item => item.id === lesson.id)}
                   total={lessons.length}
                   onEdit={startEdit}
+                  onEditSlides={setSlideEditingLesson}
                   onTogglePublish={(lessonId) => selectedCourse && toggleLessonPublish(selectedCourse.id, lessonId)}
                   onMove={(lessonId, direction) => selectedCourse && moveLesson(selectedCourse.id, lessonId, direction)}
                   onDeleteRequest={setDeleteTarget}
@@ -329,6 +336,14 @@ export default function LessonManager({ initialCourseId }) {
           </div>
         </div>
       </AdminModal>
+
+      <LessonSlideEditor
+        open={Boolean(slideEditingLesson)}
+        course={selectedCourse}
+        lesson={slideEditingLesson}
+        updateLesson={updateLesson}
+        onClose={() => setSlideEditingLesson(null)}
+      />
     </div>
   );
 }
