@@ -1,16 +1,20 @@
 import React, { useState } from "react";
 import {
   ChevronLeft, ChevronRight, Lightbulb, FileText, Download, Check, X,
-  Play, PlayCircle, Circle, CheckCircle2,
+  Play, PlayCircle, Circle, CheckCircle2, Loader2, Sparkles,
 } from "lucide-react";
 import { Btn, T, PRODUCT_ACCENT } from "../../components/common";
 import { LessonBodyText } from "./LearningComponents.jsx";
+import { apiPost } from "../../api.js";
 
 // slidesを持つLesson専用の「メインスライド中心」表示。lesson.slides?.length > 0 の場合のみ
 // ElLessonView.jsx からこのコンポーネントへ分岐する（既存のvideo/text/quiz Lessonはこのファイルを
 // 一切経由しない）。UIモック(products/learning/mock/LessonPreviewMock.jsx)で検証した構成を踏襲しつつ、
 // 実データ（course.color, lrn の各種Hook）に接続している。
-// terminal/quiz の interaction はPhase1では本物のコード実行・採点を行わないフロント内デモ動作のまま。
+// terminalの interaction はPhase1では本物のコード実行を行わないフロント内デモ動作のまま。
+// quizのinteraction.type: "choice"(デフォルト、選択式、フロント内で完結) / "descriptive"(自由記述、
+// Training製品で既に本番稼働中のPOST /ai/tests/evaluateをそのまま流用してAI採点。Backend新規実装
+// なし。回答・スコアは永続化しない、フロント内デモのまま。2026-07-07追加)。
 
 const C = {
   ink: T.textPrimary, body: T.textSecondary, muted: T.textMuted, line: T.border, canvas: T.bgBase,
@@ -144,8 +148,7 @@ function TerminalSlideBody({ slide, accent }) {
   );
 }
 
-function QuizSlideBody({ slide }) {
-  const interaction = slide.interaction || {};
+function ChoiceQuizBody({ slide, interaction }) {
   const [selected, setSelected] = useState(null);
   const answered = selected !== null;
   const isCorrect = answered && selected === interaction.answerIndex;
@@ -188,6 +191,88 @@ function QuizSlideBody({ slide }) {
       )}
     </div>
   );
+}
+
+// 自由記述式quiz。Training製品で既に本番稼働中のPOST /ai/tests/evaluate(questionType: "descriptive")
+// をそのまま流用してBedrockでAI採点する。Backend側の新規実装は無い。回答・スコアは永続化しない
+// (terminal/quizと同じくフロント内デモで完結、ページ離脱で消える)。
+function DescriptiveQuizBody({ slide, interaction, accent }) {
+  const [answer, setAnswer] = useState("");
+  const [state, setState] = useState("idle"); // idle | grading | done | error
+  const [result, setResult] = useState(null);
+  const [errorMsg, setErrorMsg] = useState("");
+
+  async function handleGrade() {
+    if (!answer.trim() || state === "grading") return;
+    setState("grading");
+    setErrorMsg("");
+    try {
+      const data = await apiPost("/ai/tests/evaluate", {
+        questionId: slide.id || "",
+        questionType: "descriptive",
+        answerMode: "explanation",
+        question: interaction.question || "",
+        studentAnswer: answer.trim(),
+        modelAnswer: interaction.modelAnswer || "",
+        explanation: interaction.rubric || "",
+        points: 10,
+      });
+      setResult(data);
+      setState("done");
+    } catch (e) {
+      setErrorMsg(e?.errorMessage || e?.message || "採点に失敗しました。時間をおいて再度お試しください。");
+      setState("error");
+    }
+  }
+
+  return (
+    <div>
+      <h3 className="mb-1 text-xl font-bold" style={{ color: C.ink, letterSpacing: "-0.02em" }}>{slide.title}</h3>
+      {slide.content?.intro && <p className="mb-4 text-xs" style={{ color: C.muted }}>{slide.content.intro}</p>}
+      <p className="mb-4 text-[16px] font-bold leading-relaxed" style={{ color: C.ink }}>{interaction.question}</p>
+      <textarea
+        value={answer}
+        onChange={e => setAnswer(e.target.value)}
+        disabled={state === "done"}
+        rows={5}
+        placeholder="ここに回答を入力してください"
+        className="w-full resize-y rounded-xl px-3 py-2.5 text-sm outline-none disabled:opacity-70"
+        style={{ border: `1px solid ${C.line}`, color: C.ink }}
+      />
+      {state !== "done" && (
+        <button
+          type="button"
+          onClick={handleGrade}
+          disabled={state === "grading" || !answer.trim()}
+          className="mt-3 flex items-center gap-1.5 rounded-full px-4 py-2 text-sm font-bold text-white transition hover:opacity-90 disabled:opacity-60"
+          style={{ background: accent }}
+        >
+          {state === "grading" ? <Loader2 size={14} className="animate-spin" /> : <Sparkles size={14} />}
+          {state === "grading" ? "採点しています..." : "採点する"}
+        </button>
+      )}
+      {state === "error" && (
+        <p className="mt-3 text-xs font-semibold" style={{ color: "#ef4444" }}>{errorMsg}</p>
+      )}
+      {state === "done" && result && (
+        <div className="mt-4 rounded-xl p-4" style={{ background: result.correct ? "#f0fdf4" : "#fffbeb", border: `1px solid ${result.correct ? "#bbf7d0" : "#fde68a"}` }}>
+          <div className="mb-1 text-sm font-bold" style={{ color: result.correct ? "#15803d" : "#b45309" }}>
+            AI採点: {Number(result.score) || 0}点{result.correct ? "（正解）" : ""}
+          </div>
+          {result.comment && <p className="text-sm leading-relaxed" style={{ color: C.body }}>{result.comment}</p>}
+          {result.advice && <p className="mt-2 text-xs leading-relaxed" style={{ color: C.muted }}>アドバイス: {result.advice}</p>}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function QuizSlideBody({ slide, accent }) {
+  const interaction = slide.interaction || {};
+  if (interaction.type === "descriptive") {
+    return <DescriptiveQuizBody slide={slide} interaction={interaction} accent={accent} />;
+  }
+  return <ChoiceQuizBody slide={slide} interaction={interaction} />;
 }
 
 function VideoSlideBody({ slide }) {
@@ -310,7 +395,7 @@ function SlideRenderer({ slide, accent }) {
     case "terminal":
       return <TerminalSlideBody slide={slide} accent={accent} />;
     case "quiz":
-      return <QuizSlideBody slide={slide} />;
+      return <QuizSlideBody slide={slide} accent={accent} />;
     case "summary":
     default:
       return (
