@@ -1,4 +1,5 @@
 ﻿import React, { useState, useEffect } from "react";
+import ReactMarkdown from "react-markdown";
 import {
   BookOpen, FileText, Settings, Users, Search, PlayCircle, Award,
   Sparkles, Flame, ChevronRight, ChevronLeft, Check, CheckCircle2,
@@ -6,6 +7,7 @@ import {
 } from "lucide-react";
 import { LearningCatalog } from "./LearningCatalog.js";
 import { Card, Badge, Btn, SectionHead, PageHeader, ProductNavCard, T, PRODUCT_ACCENT } from "../../components/common";
+import ElSlideLessonView from "./ElSlideLessonView.jsx";
 
 // Learner-side palette: legacy key names kept, values sourced from tokens.
 // "green" is the Learning product identity -> PRODUCT_ACCENT.learning.
@@ -1133,6 +1135,16 @@ function ElCourseDetail({ course, lrn, onBack, onOpenLesson, onStartFinalTest, o
   );
 }
 
+// レッスン本文(Markdown)。text/video 両方の Lesson タイプで共通に使う。
+function LessonBodyText({ body }) {
+  if (!body) return null;
+  return (
+    <div className="mb-5 text-sm leading-relaxed" style={{ color: C.body }}>
+      <ReactMarkdown>{body}</ReactMarkdown>
+    </div>
+  );
+}
+
 function ElVideoLesson({ lesson, completed, onComplete }) {
   const [playing, setPlaying] = useState(false);
   const [elapsed, setElapsed] = useState(0);
@@ -1167,6 +1179,11 @@ function ElVideoLesson({ lesson, completed, onComplete }) {
           <span className="tabular-nums text-xs" style={{ color: "rgba(255,255,255,.7)" }}>{fmt(elapsed)} / {lesson.duration}</span>
         </div>
       </div>
+      {lesson.body && (
+        <Card className="p-5">
+          <LessonBodyText body={lesson.body} />
+        </Card>
+      )}
       <Card className="p-5">
         <h3 className="mb-3 font-bold" style={{ color: C.ink }}>学習ポイント</h3>
         <ul className="space-y-2">
@@ -1194,8 +1211,7 @@ function ElTextLesson({ lesson, completed, onComplete }) {
   return (
     <div className="space-y-5">
       <Card className="p-6">
-        <h3 className="mb-4 text-lg font-bold" style={{ color: C.ink }}>{lesson.title}</h3>
-        <p className="mb-5 text-sm leading-relaxed" style={{ color: C.body }}>{lesson.body}</p>
+        <LessonBodyText body={lesson.body} />
         <div className="rounded-2xl p-4" style={{ background: C.wash, border: `1px solid ${C.washDeep}` }}>
           <div className="mb-2 flex items-center gap-2">
             <Lightbulb size={14} style={{ color: C.cyanDeep }} />
@@ -1478,36 +1494,143 @@ function ElFinalTestView({ course, lrn, lessons, onBack, onOpenLesson, initialMo
   );
 }
 
-function LessonMaterialsCard({ materials }) {
-  if (!materials?.length) return null;
+// S3教材(s3keyあり)のうち、ページ内プレビュー対象にする種別だけ判定する。
+// それ以外(PPTX/DOCX等)・外部URL教材はダウンロード/従来通りの「開く」導線のまま。
+function materialPreviewKind(material) {
+  const contentType = String(material.contentType || "").toLowerCase();
+  const type = String(material.type || "").toLowerCase();
+  if (contentType === "application/pdf" || type === "pdf") return "pdf";
+  if (contentType.startsWith("image/")) return "image";
+  if (contentType === "video/mp4" || type === "video") return "video";
+  return "other";
+}
+
+function LessonMaterialsCard({ materials, onOpenMaterial }) {
   const TYPE_LABEL = { video: "動画", pdf: "PDF", slide: "スライド", text: "テキスト", link: "リンク", file: "ファイル" };
+  const [previewUrls, setPreviewUrls] = useState({});
+  const [previewErrors, setPreviewErrors] = useState({});
+  const [downloadingId, setDownloadingId] = useState(null);
+  const [downloadErrorId, setDownloadErrorId] = useState(null);
+
+  // 依存配列は materials 配列そのもの(毎レンダー新規生成される)ではなく、内容から作った
+  // 安定な文字列にする。加えて「取得済み/失敗済みならスキップ」するガードも入れることで、
+  // 親の再レンダーだけで再取得や無限ループが起きないようにする。
+  const previewKey = (materials || [])
+    .filter(material => material.s3key && materialPreviewKind(material) !== "other")
+    .map(material => material.id || material.materialId)
+    .join("|");
+
+  useEffect(() => {
+    if (!previewKey) return;
+    let alive = true;
+    (materials || []).forEach(material => {
+      const id = material.id || material.materialId;
+      if (!material.s3key || materialPreviewKind(material) === "other") return;
+      if (previewUrls[id] || previewErrors[id]) return;
+      onOpenMaterial(id)
+        .then(res => {
+          if (!alive) return;
+          if (res?.url) setPreviewUrls(prev => ({ ...prev, [id]: res.url }));
+          else setPreviewErrors(prev => ({ ...prev, [id]: true }));
+        })
+        .catch(() => {
+          if (alive) setPreviewErrors(prev => ({ ...prev, [id]: true }));
+        });
+    });
+    return () => { alive = false; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [previewKey]);
+
+  if (!materials?.length) return null;
+
+  function handleDownload(material) {
+    const id = material.id || material.materialId;
+    setDownloadErrorId(null);
+    if (material.s3key) {
+      // ポップアップブロック対策: クリック直後(同期)に空タブを開いてから、非同期で
+      // 署名付きURLを取得してそのタブへ遷移させる。
+      const win = window.open("", "_blank", "noopener,noreferrer");
+      setDownloadingId(id);
+      onOpenMaterial(id)
+        .then(res => {
+          if (res?.url) {
+            if (win) win.location.href = res.url;
+          } else {
+            if (win) win.close();
+            setDownloadErrorId(id);
+          }
+        })
+        .catch(() => {
+          if (win) win.close();
+          setDownloadErrorId(id);
+        })
+        .finally(() => setDownloadingId(null));
+    } else if (material.url) {
+      window.open(material.url, "_blank", "noopener,noreferrer");
+    }
+  }
+
   return (
     <Card className="mb-5 p-5">
       <div className="mb-3 flex items-center gap-2">
         <FileText size={16} style={{ color: C.green }} />
         <h3 className="text-sm font-bold" style={{ color: C.ink }}>関連教材</h3>
       </div>
-      <div className="space-y-2">
-        {materials.map(material => (
-          <div key={material.id || material.materialId} className="flex flex-col gap-2 rounded-xl p-3 sm:flex-row sm:items-center sm:justify-between" style={{ background: C.canvas, border: `1px solid ${C.line}` }}>
-            <div className="min-w-0">
-              <div className="flex flex-wrap items-center gap-2">
-                <Badge tone="green">{TYPE_LABEL[material.type] || material.type}</Badge>
-                <span className="text-sm font-bold" style={{ color: C.ink }}>{material.title}</span>
+      <div className="space-y-3">
+        {materials.map(material => {
+          const id = material.id || material.materialId;
+          const kind = materialPreviewKind(material);
+          const previewable = Boolean(material.s3key) && kind !== "other";
+          const downloadable = !previewable && Boolean(material.s3key || material.url);
+          const url = previewUrls[id];
+          return (
+            <div key={id} className="rounded-xl p-3" style={{ background: C.canvas, border: `1px solid ${C.line}` }}>
+              <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                <div className="min-w-0">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <Badge tone="green">{TYPE_LABEL[material.type] || material.type}</Badge>
+                    <span className="text-sm font-bold" style={{ color: C.ink }}>{material.title}</span>
+                  </div>
+                  {material.description && <p className="mt-1 text-xs" style={{ color: C.muted }}>{material.description}</p>}
+                  {previewable && previewErrors[id] && <p className="mt-1 text-xs" style={{ color: C.red }}>プレビューを表示できませんでした。</p>}
+                  {downloadErrorId === id && <p className="mt-1 text-xs" style={{ color: C.red }}>教材を開けませんでした。もう一度お試しください。</p>}
+                </div>
+                {downloadable && (
+                  <Btn size="sm" kind="ghost" icon={ChevronRight} disabled={downloadingId === id} onClick={() => handleDownload(material)}>
+                    {downloadingId === id ? "開いています..." : (material.s3key ? "ダウンロード" : "開く")}
+                  </Btn>
+                )}
               </div>
-              {material.description && <p className="mt-1 text-xs" style={{ color: C.muted }}>{material.description}</p>}
+              {previewable && (
+                url ? (
+                  <>
+                    {kind === "pdf" && <iframe title={material.title} src={url} className="mt-3 h-96 w-full rounded-lg" style={{ border: `1px solid ${C.line}` }} />}
+                    {kind === "image" && <img src={url} alt={material.title} className="mt-3 max-h-96 w-full rounded-lg object-contain" />}
+                    {kind === "video" && <video src={url} controls className="mt-3 w-full rounded-lg" />}
+                  </>
+                ) : !previewErrors[id] && (
+                  <p className="mt-3 text-xs" style={{ color: C.muted }}>プレビューを読み込み中...</p>
+                )
+              )}
             </div>
-            {material.url && (
-              <Btn size="sm" kind="ghost" icon={ChevronRight} onClick={() => window.open(material.url, "_blank", "noopener,noreferrer")}>開く</Btn>
-            )}
-          </div>
-        ))}
+          );
+        })}
       </div>
     </Card>
   );
 }
 
 function ElLessonView({ course, lesson, lrn, onBack, onNavigate, onComplete, lessons }) {
+  // slidesを持つLessonだけ「メインスライド中心UI」へ分岐する。既存Lesson(slidesなし)はこの下の
+  // 既存実装をそのまま通る。
+  if (lesson.slides?.length > 0) {
+    return (
+      <ElSlideLessonView
+        course={course} lesson={lesson} lrn={lrn}
+        onBack={onBack} onNavigate={onNavigate} onComplete={onComplete} lessons={lessons}
+      />
+    );
+  }
   const lessonsDone = lrn.getLessonsDone(course.id);
   const completed = !!lessonsDone[lesson.id]?.completed;
   const materials = lrn.materialsForLesson ? lrn.materialsForLesson(course.id, lesson.id) : [];
@@ -1548,7 +1671,7 @@ function ElLessonView({ course, lesson, lrn, onBack, onNavigate, onComplete, les
         )}
       </div>
       <LessonReviewCheck course={course} lesson={lesson} lrn={lrn} />
-      <LessonMaterialsCard materials={materials} />
+      <LessonMaterialsCard materials={materials} onOpenMaterial={lrn.getMaterialViewUrl} />
       {lesson.type === "video" && <ElVideoLesson lesson={lesson} completed={completed} onComplete={handleComplete} />}
       {lesson.type === "text"  && <ElTextLesson  lesson={lesson} completed={completed} onComplete={handleComplete} />}
       {lesson.type === "quiz"  && <ElQuizLesson  lesson={lesson} completed={completed} onComplete={handleComplete} onNext={() => next && onNavigate(next)} onPrev={() => prev && onNavigate(prev)} hasNext={!!next} />}

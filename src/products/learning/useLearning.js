@@ -1,6 +1,6 @@
-﻿import { useEffect, useState } from "react";
+﻿import { useEffect, useRef, useState } from "react";
 import { LearningCatalog, LESSON_CATALOG } from "./LearningCatalog.js";
-import { apiGet, apiPost } from "../../api.js";
+import { apiGet, apiPost, apiPut } from "../../api.js";
 // useLearning - Repository層（将来 GET/PUT /learning/me へ差し替え可能）
 export function useLearning() {
   const PROGRESS_KEY = "feeps.el.progress";
@@ -111,6 +111,7 @@ export function useLearning() {
   const [apiCourses, setApiCourses] = useState(null);
   const [apiLessonsByCourse, setApiLessonsByCourse] = useState({});
   const [apiMaterialsByCourse, setApiMaterialsByCourse] = useState({});
+  const lastProgressPushRef = useRef({});
   useEffect(() => {
     let alive = true;
     apiGet("/learning/final-tests/results")
@@ -119,6 +120,62 @@ export function useLearning() {
         const normalized = items.map(item => ({ ...item, id: item.id || item.resultId }));
         setFinalTestResults(normalized);
         localStorage.setItem(FINAL_RESULTS_KEY, JSON.stringify(normalized));
+      })
+      .catch(() => {});
+    return () => { alive = false; };
+  }, []);
+  // サーバーに保存された受講進捗を取得し、あるコースぶんだけローカル値を上書きする
+  // （サーバーに記録が無いコースはローカル値をそのまま維持する）。
+  useEffect(() => {
+    let alive = true;
+    apiGet("/learning/progress/me")
+      .then(items => {
+        if (!alive || !Array.isArray(items) || items.length === 0) return;
+        const nextProgress = { ...progress };
+        const nextLessons = { ...lessonProgress };
+        const nextReviews = [...lessonReviews];
+        items.forEach(item => {
+          const courseId = item?.courseId;
+          if (!courseId) return;
+          // server: "not_started" | "in_progress" | "completed" -> frontend: "" (未設定) | "inprogress" | "completed"
+          const status = item.status === "completed" ? "completed" : item.status === "in_progress" ? "inprogress" : null;
+          if (status) {
+            nextProgress[courseId] = {
+              ...(nextProgress[courseId] || {}),
+              status,
+              progress: Number(item.progress || 0),
+              startedAt: item.startedAt || null,
+              completedAt: item.completedAt || null,
+              lastAccessedAt: item.lastStudiedAt || nextProgress[courseId]?.lastAccessedAt || null,
+            };
+          }
+          const completionMap = item.lessonCompletion && typeof item.lessonCompletion === "object" ? item.lessonCompletion : {};
+          const doneMap = { ...(nextLessons[courseId] || {}) };
+          Object.entries(completionMap).forEach(([lessonId, entry]) => {
+            if (entry?.completed) doneMap[lessonId] = { completed: true, completedAt: entry.completedAt || null };
+          });
+          nextLessons[courseId] = doneMap;
+          Object.entries(completionMap).forEach(([lessonId, entry]) => {
+            if (!entry?.understanding) return;
+            const idx = nextReviews.findIndex(r => r.courseId === courseId && r.lessonId === lessonId);
+            const reviewItem = {
+              id: `${courseId}_${lessonId}`,
+              courseId,
+              lessonId,
+              pageId: "lesson",
+              status: entry.understanding,
+              understood: entry.understanding === "understood",
+              reviewLater: entry.understanding === "review_later",
+              reviewed: idx >= 0 ? nextReviews[idx].reviewed === true : false,
+              updatedAt: item.updatedAt || new Date().toISOString(),
+            };
+            if (idx >= 0) nextReviews[idx] = { ...nextReviews[idx], ...reviewItem };
+            else nextReviews.push(reviewItem);
+          });
+        });
+        _save(nextProgress);
+        _saveLessons(nextLessons);
+        _saveReviews(nextReviews);
       })
       .catch(() => {});
     return () => { alive = false; };
@@ -162,31 +219,72 @@ export function useLearning() {
   function _saveReviews(next) { setLessonReviews(next);   localStorage.setItem(REVIEW_KEY,   JSON.stringify(next)); }
   function _saveFinalPlans(next) { setFinalTestPlans(next); localStorage.setItem(FINAL_PLAN_KEY, JSON.stringify(next)); }
   function _saveFinalResults(next) { setFinalTestResults(next); localStorage.setItem(FINAL_RESULTS_KEY, JSON.stringify(next)); }
+  // 対象コースの現在の状態をサーバーへ丸ごと保存する（fire-and-forget）。呼び出し元が直前に
+  // _save/_saveLessons/_saveReviews したばかりの値は setState が非同期のため progress/lessonProgress/
+  // lessonReviews からは読めない。呼び出し元が実際に変更したフィールドだけ overrides で渡してもらう。
+  // learningMinutes は現状トラッキングしていないため送信しない（サーバー側は未送信時に既存値を維持する）。
+  function _pushProgressToServer(courseId, overrides = {}) {
+    const course = courseById(courseId);
+    const cp = overrides.courseProgress || progress[courseId] || {};
+    const doneMap = overrides.courseLessons || lessonProgress[courseId] || {};
+    const reviews = overrides.courseReviews || lessonReviews.filter(r => r.courseId === courseId);
+    const lessonCompletion = {};
+    new Set([...Object.keys(doneMap), ...reviews.map(r => r.lessonId)]).forEach(lessonId => {
+      const done = doneMap[lessonId] || {};
+      const review = reviews.find(r => r.lessonId === lessonId);
+      lessonCompletion[lessonId] = {
+        completed: done.completed === true,
+        completedAt: done.completedAt || null,
+        understanding: review ? review.status : null,
+      };
+    });
+    apiPut("/learning/progress", {
+      courseId,
+      courseTitle: course?.title || courseId,
+      totalLessons: lessonsForCourse(courseId).length,
+      skills: course?.skills || [],
+      startedAt: cp.startedAt || null,
+      lastStudiedAt: cp.lastAccessedAt || new Date().toISOString(),
+      completedAt: cp.completedAt || null,
+      lessonCompletion,
+    }).catch(() => {});
+  }
+  // touchLesson はレッスン閲覧のたびに呼ばれ得るため、コースごとに60秒間隔へ間引く。
+  function _pushProgressToServerThrottled(courseId, overrides) {
+    const now = Date.now();
+    const last = lastProgressPushRef.current[courseId] || 0;
+    if (now - last < 60000) return;
+    lastProgressPushRef.current[courseId] = now;
+    _pushProgressToServer(courseId, overrides);
+  }
   function startCourse(courseId) {
     if (progress[courseId]?.status) return;
-    _save({ ...progress, [courseId]: { status: "inprogress", progress: 0, startedAt: new Date().toISOString(), completedAt: null } });
+    const nextEntry = { status: "inprogress", progress: 0, startedAt: new Date().toISOString(), completedAt: null };
+    _save({ ...progress, [courseId]: nextEntry });
+    _pushProgressToServer(courseId, { courseProgress: nextEntry });
   }
   function touchLesson(courseId, lessonId) {
     const now = new Date().toISOString();
     const cur = progress[courseId] || {};
     const keepStatus = ["lessons_completed", "review_recommended", "final_test_failed"].includes(cur.status) || (cur.status === "completed" && hasPassedFinalTest(courseId));
-    _save({
-      ...progress,
-      [courseId]: {
-        ...cur,
-        status: keepStatus ? cur.status : "inprogress",
-        progress: cur.progress ?? 0,
-        startedAt: cur.startedAt || now,
-        completedAt: cur.completedAt || null,
-        lastLessonId: lessonId,
-        lastAccessedAt: now,
-      }
-    });
+    const nextEntry = {
+      ...cur,
+      status: keepStatus ? cur.status : "inprogress",
+      progress: cur.progress ?? 0,
+      startedAt: cur.startedAt || now,
+      completedAt: cur.completedAt || null,
+      lastLessonId: lessonId,
+      lastAccessedAt: now,
+    };
+    _save({ ...progress, [courseId]: nextEntry });
+    _pushProgressToServerThrottled(courseId, { courseProgress: nextEntry });
   }
   function completeCourse(courseId) {
     const now = new Date().toISOString();
     const cur = progress[courseId];
-    _save({ ...progress, [courseId]: { status: "completed", progress: 100, startedAt: cur?.startedAt || now, completedAt: now } });
+    const nextEntry = { status: "completed", progress: 100, startedAt: cur?.startedAt || now, completedAt: now };
+    _save({ ...progress, [courseId]: nextEntry });
+    _pushProgressToServer(courseId, { courseProgress: nextEntry });
     const course = courseById(courseId);
     const events = _loadEvents().filter(e => !(e.type === "el_completed" && e.courseId === courseId));
     events.unshift({ id: "ela-" + Date.now(), type: "el_completed", courseId, courseTitle: course?.title || courseId, earnedSkills: course?.skills || [], completedAt: now });
@@ -209,20 +307,19 @@ export function useLearning() {
     const nextStatus = allDone
       ? (reviewRecommended ? "review_recommended" : "lessons_completed")
       : "inprogress";
-    _save({
-      ...progress,
-      [courseId]: {
-        ...cur,
-        status: cur?.status === "completed" && hasPassedFinalTest(courseId) ? "completed" : nextStatus,
-        progress: pct,
-        startedAt: cur?.startedAt || now,
-        completedAt: cur?.status === "completed" && hasPassedFinalTest(courseId) ? cur.completedAt : null,
-        lessonsCompletedAt: allDone ? (cur?.lessonsCompletedAt || now) : cur?.lessonsCompletedAt || null,
-        readyForFinalTest: allDone,
-        lastLessonId: lessonId,
-        lastAccessedAt: now,
-      }
-    });
+    const nextEntry = {
+      ...cur,
+      status: cur?.status === "completed" && hasPassedFinalTest(courseId) ? "completed" : nextStatus,
+      progress: pct,
+      startedAt: cur?.startedAt || now,
+      completedAt: cur?.status === "completed" && hasPassedFinalTest(courseId) ? cur.completedAt : null,
+      lessonsCompletedAt: allDone ? (cur?.lessonsCompletedAt || now) : cur?.lessonsCompletedAt || null,
+      readyForFinalTest: allDone,
+      lastLessonId: lessonId,
+      lastAccessedAt: now,
+    };
+    _save({ ...progress, [courseId]: nextEntry });
+    _pushProgressToServer(courseId, { courseProgress: nextEntry, courseLessons: nextCourseData });
     return allDone;
   }
   function getLessonsDone(courseId) { return lessonProgress[courseId] || {}; }
@@ -238,6 +335,10 @@ export function useLearning() {
       ))
       .slice()
       .sort((a, b) => Number(a.order || 0) - Number(b.order || 0));
+  }
+  // S3実ファイル教材(s3keyあり)の閲覧/ダウンロード用に、都度サーバーから署名付きURLを取得する。
+  async function getMaterialViewUrl(materialId) {
+    return apiGet(`/learning/materials/view?materialId=${encodeURIComponent(materialId)}`);
   }
   function getLessonReview(courseId, lessonId) {
     return lessonReviews.find(r => r.courseId === courseId && r.lessonId === lessonId) || null;
@@ -261,6 +362,7 @@ export function useLearning() {
       ? lessonReviews.map(r => (r.courseId === courseId && r.lessonId === lessonId ? { ...r, ...nextItem } : r))
       : [...lessonReviews, nextItem];
     _saveReviews(next);
+    _pushProgressToServer(courseId, { courseReviews: next.filter(r => r.courseId === courseId) });
     return nextItem;
   }
   function getCourseReviewItems(courseId) {
@@ -283,6 +385,7 @@ export function useLearning() {
       ? lessonReviews.map(r => (r.courseId === courseId && r.lessonId === lessonId ? nextItem : r))
       : [...lessonReviews, { id: `${courseId}_${lessonId}`, ...nextItem }];
     _saveReviews(next);
+    _pushProgressToServer(courseId, { courseReviews: next.filter(r => r.courseId === courseId) });
   }
   function allocateQuestions(items, total) {
     if (!items.length || total <= 0) return items.map(item => ({ ...item, questionCount: 0 }));
@@ -623,6 +726,7 @@ export function useLearning() {
     completeLesson,
     getLessonsDone,
     materialsForLesson,
+    getMaterialViewUrl,
     getLessonReview,
     setLessonReview,
     getCourseReviewItems,

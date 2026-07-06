@@ -1,5 +1,6 @@
 import React, { useMemo, useState } from "react";
 import {
+  AlertCircle,
   BookOpen,
   Clock,
   Eye,
@@ -7,6 +8,8 @@ import {
   File,
   FileText,
   Link,
+  Loader2,
+  Paperclip,
   Pencil,
   PlayCircle,
   Plus,
@@ -15,12 +18,23 @@ import {
   Search,
   Tag,
   Trash2,
+  Upload,
   X,
 } from "lucide-react";
 import { Badge, Btn, Card, EmptyState, Field, SectionHead, Stat, fieldStyle, T, PRODUCT_ACCENT } from "../../../components/common";
 import { EMPTY_MATERIAL_FORM, MATERIAL_TYPE_OPTIONS } from "./LearningAdminCatalog.js";
-import { materialToForm, useLearningAdmin } from "./useLearningAdmin.js";
+import { materialToForm, requestMaterialUploadUrl, uploadMaterialFile, useLearningAdmin } from "./useLearningAdmin.js";
 import AdminModal from "./AdminModal.jsx";
+
+// Backendの MATERIAL_ALLOWED_CONTENT_TYPES と同じ許可リスト（クライアント側の選択肢を絞るためのみに使用）。
+const MATERIAL_UPLOAD_ACCEPT = [
+  "application/pdf",
+  "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+  "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+  "video/mp4",
+  "image/png",
+  "image/jpeg",
+].join(",");
 
 const C = { ink: T.textPrimary, body: T.textSecondary, muted: T.textMuted, line: T.border, canvas: T.bgBase, green: PRODUCT_ACCENT.learning.accent, red: T.danger };
 
@@ -34,10 +48,45 @@ const typeIcon = {
 };
 
 function MaterialForm({ mode, form, courses, lessons, onChange, onSubmit, onCancel }) {
+  const [uploading, setUploading] = useState(false);
+  const [uploadError, setUploadError] = useState("");
+
   function set(key, value) {
     const next = { ...form, [key]: value };
     if (key === "courseId") next.lessonId = "";
     onChange(next);
+  }
+
+  async function handleFileChange(e) {
+    const file = e.target.files?.[0];
+    e.target.value = ""; // 同じファイルを選び直せるようにリセット
+    if (!file) return;
+    setUploadError("");
+    setUploading(true);
+    try {
+      const { uploadUrl, s3key } = await requestMaterialUploadUrl({
+        courseId: form.courseId,
+        filename: file.name,
+        contentType: file.type,
+      });
+      await uploadMaterialFile(uploadUrl, file);
+      onChange({
+        ...form,
+        s3key,
+        originalFilename: file.name,
+        contentType: file.type,
+        fileSize: file.size,
+      });
+    } catch (err) {
+      setUploadError("アップロードに失敗しました。もう一度お試しください。");
+    } finally {
+      setUploading(false);
+    }
+  }
+
+  function clearUpload() {
+    onChange({ ...form, s3key: "", originalFilename: "", contentType: "", fileSize: 0 });
+    setUploadError("");
   }
 
   return (
@@ -45,7 +94,7 @@ function MaterialForm({ mode, form, courses, lessons, onChange, onSubmit, onCanc
       <div className="mb-4 flex items-center justify-between gap-3">
         <div>
           <h3 className="text-base font-bold" style={{ color: C.ink }}>{mode === "edit" ? "教材編集" : "教材新規作成"}</h3>
-          <p className="text-xs" style={{ color: C.muted }}>教材URLや管理メモを登録します。実ファイル保存はまだ行いません。</p>
+          <p className="text-xs" style={{ color: C.muted }}>外部URLの登録、またはファイルをアップロードして教材を登録できます。</p>
         </div>
         {mode === "edit" && <Btn kind="ghost" size="sm" icon={X} onClick={onCancel}>閉じる</Btn>}
       </div>
@@ -86,6 +135,45 @@ function MaterialForm({ mode, form, courses, lessons, onChange, onSubmit, onCanc
         </Field>
         <Field label="教材URL">
           <input style={fieldStyle} value={form.url} onChange={e => set("url", e.target.value)} placeholder="https://example.com/material.pdf" />
+        </Field>
+        <Field label="教材ファイル（アップロード）">
+          <div className="space-y-2">
+            {form.s3key ? (
+              <div className="flex items-center justify-between gap-2 rounded-lg px-3 py-2" style={{ background: C.canvas }}>
+                <span className="inline-flex min-w-0 items-center gap-1.5 truncate text-xs" style={{ color: C.ink }}>
+                  <Paperclip size={13} />{form.originalFilename || "アップロード済みファイル"}
+                </span>
+                <Btn kind="ghost" size="sm" icon={X} onClick={clearUpload}>解除</Btn>
+              </div>
+            ) : (
+              <label
+                className="flex items-center gap-2 rounded-lg border px-3 py-2 text-xs"
+                style={{ borderColor: C.line, color: form.courseId ? C.body : C.muted, cursor: form.courseId ? "pointer" : "not-allowed" }}
+              >
+                {uploading ? <Loader2 size={14} className="animate-spin" /> : <Upload size={14} />}
+                {uploading ? "アップロード中..." : "ファイルを選択（PDF / PPTX / DOCX / MP4 / PNG / JPG）"}
+                <input
+                  type="file"
+                  accept={MATERIAL_UPLOAD_ACCEPT}
+                  onChange={handleFileChange}
+                  disabled={!form.courseId || uploading}
+                  className="hidden"
+                />
+              </label>
+            )}
+            {!form.courseId && <p className="text-[11px]" style={{ color: C.muted }}>コースを選択するとファイルをアップロードできます。</p>}
+            {uploadError && (
+              <p className="flex items-center gap-1 text-[11px]" style={{ color: C.red }}><AlertCircle size={12} />{uploadError}</p>
+            )}
+            {form.s3key && (
+              <Field label="表示方法">
+                <select style={fieldStyle} value={form.uploadMode} onChange={e => set("uploadMode", e.target.value)}>
+                  <option value="view">プレビュー表示</option>
+                  <option value="download">ダウンロードのみ</option>
+                </select>
+              </Field>
+            )}
+          </div>
         </Field>
         <div className="grid gap-3 md:grid-cols-2">
           <Field label="想定学習時間（分）">
@@ -327,7 +415,7 @@ export default function MaterialManager() {
       <AdminModal
         open={formOpen}
         title={editingMaterial ? "Material edit" : "New material"}
-        desc="Material metadata is saved to localStorage. Files are not uploaded in this phase."
+        desc="Register a material by URL, or upload a file (PDF / PPTX / DOCX / MP4 / PNG / JPG)."
         onClose={closeForm}
       >
         <MaterialForm

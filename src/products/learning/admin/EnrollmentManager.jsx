@@ -1,6 +1,6 @@
 import React, { useMemo, useState } from "react";
 import { BookOpen, Building2, Calendar, CheckCircle2, Clock, Eye, Search, Target, User } from "lucide-react";
-import { Badge, Btn, Card, EmptyState, SectionHead, Stat, fieldStyle, T, PRODUCT_ACCENT } from "../../../components/common";
+import { Badge, Btn, Card, EmptyState, Modal, SectionHead, Stat, fieldStyle, T, PRODUCT_ACCENT } from "../../../components/common";
 import { ENROLLMENT_STATUS_OPTIONS } from "./LearningAdminCatalog.js";
 import { useLearningAdmin } from "./useLearningAdmin.js";
 
@@ -17,6 +17,26 @@ const statusTone = {
   in_progress: "amber",
   completed: "green",
 };
+
+// lessonCompletion（サーバー実データ）があれば完了日時の新しい順に導出し、無ければ
+// 既存の recentHistory（ローカルキャッシュ/シード由来）にフォールバックする。
+function deriveRecentHistory(enrollment, lessonsForCourse) {
+  const completion = enrollment.lessonCompletion;
+  if (!completion || typeof completion !== "object" || !Object.keys(completion).length) {
+    return Array.isArray(enrollment.recentHistory) ? enrollment.recentHistory : [];
+  }
+  const lessons = typeof lessonsForCourse === "function" ? lessonsForCourse(enrollment.courseId) : [];
+  const lessonTitleById = new Map(lessons.map(lesson => [lesson.id, lesson.title]));
+  return Object.entries(completion)
+    .filter(([, entry]) => entry?.completed)
+    .sort(([, a], [, b]) => String(b.completedAt || "").localeCompare(String(a.completedAt || "")))
+    .slice(0, 3)
+    .map(([lessonId, entry]) => {
+      const title = lessonTitleById.get(lessonId) || lessonId;
+      const date = entry.completedAt ? String(entry.completedAt).slice(0, 10) : "";
+      return date ? `${title} を完了（${date}）` : `${title} を完了`;
+    });
+}
 
 function ProgressBar({ value }) {
   return (
@@ -52,36 +72,24 @@ function EnrollmentRow({ enrollment, selected, onSelect }) {
   );
 }
 
-function DetailPanel({ enrollment, onMemoChange, onMemoSave }) {
-  const [memoDraft, setMemoDraft] = useState(enrollment?.memo || "");
+function EnrollmentDetail({ enrollment, onMemoSave, lessonsForCourse }) {
+  const [memoDraft, setMemoDraft] = useState(enrollment.memo || "");
 
   React.useEffect(() => {
-    setMemoDraft(enrollment?.memo || "");
-  }, [enrollment?.id]);
-
-  if (!enrollment) {
-    return (
-      <Card className="p-6">
-        <EmptyState title="受講者を選択してください" desc="一覧から受講者を選ぶと、進捗詳細を確認できます。" />
-      </Card>
-    );
-  }
+    setMemoDraft(enrollment.memo || "");
+  }, [enrollment.id]);
 
   const incomplete = Math.max(0, enrollment.totalLessons - enrollment.completedLessons);
+  const recentHistory = deriveRecentHistory(enrollment, lessonsForCourse);
 
   return (
-    <Card className="p-5">
-      <div className="mb-4 flex items-start justify-between gap-3">
-        <div>
-          <div className="text-base font-bold" style={{ color: C.ink }}>{enrollment.traineeName}</div>
-          <div className="mt-1 text-xs" style={{ color: C.muted }}>{enrollment.companyName}</div>
-        </div>
+    <div className="space-y-4">
+      <div className="flex items-center justify-end">
         <Badge tone={statusTone[enrollment.status]}>{statusLabel[enrollment.status]}</Badge>
       </div>
 
-      <div className="space-y-4">
-        <div>
-          <div className="mb-2 flex items-center justify-between text-xs font-semibold" style={{ color: C.body }}>
+      <div>
+        <div className="mb-2 flex items-center justify-between text-xs font-semibold" style={{ color: C.body }}>
             <span>{enrollment.courseTitle}</span>
             <span>{enrollment.progress}%</span>
           </div>
@@ -117,7 +125,7 @@ function DetailPanel({ enrollment, onMemoChange, onMemoSave }) {
         <div>
           <div className="mb-2 text-xs font-bold" style={{ color: C.body }}>最近の学習履歴</div>
           <div className="space-y-2">
-            {(enrollment.recentHistory || []).length ? enrollment.recentHistory.map(item => (
+            {recentHistory.length ? recentHistory.map(item => (
               <div key={item} className="rounded-xl px-3 py-2 text-xs" style={{ background: C.canvas, color: C.body }}>{item}</div>
             )) : <div className="text-xs" style={{ color: C.muted }}>履歴はまだありません。</div>}
           </div>
@@ -143,12 +151,11 @@ function DetailPanel({ enrollment, onMemoChange, onMemoSave }) {
           </div>
         </div>
       </div>
-    </Card>
   );
 }
 
 export default function EnrollmentManager() {
-  const { courses, enrollments, enrollmentStats, updateEnrollmentMemo } = useLearningAdmin();
+  const { courses, enrollments, enrollmentStats, updateEnrollmentMemo, lessonsForCourse } = useLearningAdmin();
   const [query, setQuery] = useState("");
   const [courseFilter, setCourseFilter] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
@@ -187,7 +194,7 @@ export default function EnrollmentManager() {
         <div className="flex flex-col gap-2">
           <div className="text-sm font-bold" style={{ color: C.ink }}>管理者向け進捗モニタリング</div>
           <p className="text-xs" style={{ color: C.body }}>
-            今回はモックデータとlocalStorageで受講状況を確認します。API化後は同じ表示を進捗テーブルへ接続します。
+            受講者ごとの実際の学習進捗をサーバーから取得して表示します。取得できない場合は直前に確認できた内容を表示します。
           </p>
         </div>
       </Card>
@@ -200,53 +207,55 @@ export default function EnrollmentManager() {
         <Stat icon={Clock} label="平均進捗率" value={`${enrollmentStats.averageProgress}%`} sub="全受講データ" tone="muted" />
       </div>
 
-      <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_390px]">
-        <div className="space-y-3">
-          <Card className="p-4">
-            <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_180px_150px_180px]">
-              <div className="flex items-center gap-2 rounded-xl border px-3 py-2" style={{ borderColor: C.line, background: "#fff" }}>
-                <Search size={16} style={{ color: C.muted }} />
-                <input
-                  className="w-full bg-transparent text-sm outline-none"
-                  value={query}
-                  onChange={e => setQuery(e.target.value)}
-                  placeholder="受講者名・企業・スキルで検索"
-                  style={{ color: C.ink }}
-                />
-              </div>
-              <select style={fieldStyle} value={courseFilter} onChange={e => setCourseFilter(e.target.value)}>
-                <option value="">全コース</option>
-                {courses.map(course => <option key={course.id} value={course.id}>{course.title}</option>)}
-              </select>
-              <select style={fieldStyle} value={statusFilter} onChange={e => setStatusFilter(e.target.value)}>
-                <option value="">全ステータス</option>
-                {ENROLLMENT_STATUS_OPTIONS.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}
-              </select>
-              <select style={fieldStyle} value={companyFilter} onChange={e => setCompanyFilter(e.target.value)}>
-                <option value="">全企業</option>
-                {companies.map(company => <option key={company} value={company}>{company}</option>)}
-              </select>
+      <div className="space-y-3">
+        <Card className="p-4">
+          <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_180px_150px_180px]">
+            <div className="flex items-center gap-2 rounded-xl border px-3 py-2" style={{ borderColor: C.line, background: "#fff" }}>
+              <Search size={16} style={{ color: C.muted }} />
+              <input
+                className="w-full bg-transparent text-sm outline-none"
+                value={query}
+                onChange={e => setQuery(e.target.value)}
+                placeholder="受講者名・企業・スキルで検索"
+                style={{ color: C.ink }}
+              />
             </div>
-          </Card>
+            <select style={fieldStyle} value={courseFilter} onChange={e => setCourseFilter(e.target.value)}>
+              <option value="">全コース</option>
+              {courses.map(course => <option key={course.id} value={course.id}>{course.title}</option>)}
+            </select>
+            <select style={fieldStyle} value={statusFilter} onChange={e => setStatusFilter(e.target.value)}>
+              <option value="">全ステータス</option>
+              {ENROLLMENT_STATUS_OPTIONS.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}
+            </select>
+            <select style={fieldStyle} value={companyFilter} onChange={e => setCompanyFilter(e.target.value)}>
+              <option value="">全企業</option>
+              {companies.map(company => <option key={company} value={company}>{company}</option>)}
+            </select>
+          </div>
+        </Card>
 
-          {filtered.length ? (
-            <div className="space-y-3">
-              {filtered.map(enrollment => (
-                <EnrollmentRow
-                  key={enrollment.id}
-                  enrollment={enrollment}
-                  selected={selectedEnrollment?.id === enrollment.id}
-                  onSelect={setSelectedEnrollment}
-                />
-              ))}
-            </div>
-          ) : (
-            <EmptyState title="該当する受講状況がありません" desc="検索条件またはフィルタを変更してください。" />
-          )}
-        </div>
-
-        <DetailPanel enrollment={selectedEnrollment || filtered[0] || null} onMemoSave={saveMemo} />
+        {filtered.length ? (
+          <div className="space-y-3">
+            {filtered.map(enrollment => (
+              <EnrollmentRow
+                key={enrollment.id}
+                enrollment={enrollment}
+                selected={selectedEnrollment?.id === enrollment.id}
+                onSelect={setSelectedEnrollment}
+              />
+            ))}
+          </div>
+        ) : (
+          <EmptyState title="該当する受講状況がありません" desc="検索条件またはフィルタを変更してください。" />
+        )}
       </div>
+
+      {selectedEnrollment && (
+        <Modal title={selectedEnrollment.traineeName} desc={selectedEnrollment.companyName} onClose={() => setSelectedEnrollment(null)}>
+          <EnrollmentDetail enrollment={selectedEnrollment} onMemoSave={saveMemo} lessonsForCourse={lessonsForCourse} />
+        </Modal>
+      )}
     </div>
   );
 }
