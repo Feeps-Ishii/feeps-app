@@ -2,16 +2,18 @@
 // AI Lesson Designer（Learning管理画面「AI Lesson Designer」タブの本体）
 // 目的: 「AIが教材を完成させる」のではなく「AIが講師の設計アシスタントとして
 // コース設計・Lesson構成・講師メモまでを提案する」体験。
-// ワークフローは3段階: STEP1 コース設計(このファイルが対応) → STEP2 Lesson単位の
-// slides/動画/terminal/quiz生成(将来実装) → STEP3 ページ単位の部分再生成(将来実装)。
-// このSTEP1では、コース情報を入力→AI生成（Bedrock実接続）→Lesson一覧表示（タイトル・
+// ワークフローは3段階: STEP1 コース設計 → STEP2 Lesson単位のslides生成(このファイルが対応) →
+// STEP3 ページ単位の部分再生成(将来実装)。
+// STEP1では、コース情報を入力→AI生成（Bedrock実接続）→Lesson一覧表示（タイトル・
 // 概要・学習目標・講師メモ・想定時間・難易度）→「このコースを保存する」で下書きコースとして
-// 保存、まで動作する。保存は既存のcreateCourse/createLesson（useLearningAdmin.js）をそのまま
-// 呼ぶだけで、新しい保存の仕組み・本格編集UIは作らない。保存するLessonにslidesは持たせない
-// （このSTEPではslides/動画/terminal/quizを一切生成しない）。保存後もpublished:falseの
-// 下書きのままで、公開は既存の管理画面（LessonManager.jsx等、今回は触らない）で行う運用。
-// 各Lessonカードの「このLessonを生成」ボタンは、将来のSTEP2（Lesson単位でのslides生成）
-// のための導線プレースホルダーで、押しても何も起きない（Coming Soon）。
+// 保存、まで動作する。保存は既存のcreateCourseAwaitingApi/createLessonAwaitingApi
+// （useLearningAdmin.js）をそのまま呼ぶだけで、新しい保存の仕組み・本格編集UIは作らない。
+// 保存後もpublished:falseの下書きのままで、公開は既存の管理画面（LessonManager.jsx等）で行う運用。
+// 各Lessonカードの「このLessonを生成」ボタン（STEP2）は、concept/diagram/table/summary/
+// quiz(選択式)の5kindのみをBedrockで生成する(ADR 0005)。生成結果はコース保存前の
+// result.lessons[i].slidesに保持され、まだDBには保存されない。「このコースを保存する」を
+// 押した時に、STEP1の他フィールドと一緒にまとめて保存される（useAiLessonDesigner.js参照）。
+// image/video/pdf_page(将来)はAIが実素材を生成できないため対象外、管理画面での手動追加のみ。
 // 到達経路: LearningAdminProduct.jsx の「AI Lesson Designer」タブ。
 // ==========================================================================
 import React from "react";
@@ -67,9 +69,12 @@ function LeftForm({ brief, setBriefField }) {
   );
 }
 
-// Lesson一覧の1枚。slides等は持たない(STEP1はコース設計まで)。「このLessonを生成」は
-// 将来のLesson単位生成(STEP2)への導線プレースホルダーで、押しても何も起きない。
-function LessonCard({ index, lesson }) {
+// Lesson一覧の1枚。「このLessonを生成」(STEP2)はconcept/diagram/table/summary/quiz(選択式)
+// の5kindのみをBedrockで生成する(ADR 0005)。生成結果はlesson.slidesに保持され、まだDBには
+// 保存されない(「このコースを保存する」を押した時に一緒に保存される)。
+function LessonCard({ index, lesson, slideGen, onGenerateSlides }) {
+  const status = slideGen?.status || "idle";
+  const slideCount = (lesson.slides || []).length;
   return (
     <div className="rounded-2xl p-4" style={{ background: "#fff", border: `1px solid ${C.line}` }}>
       <div className="flex items-start justify-between gap-3">
@@ -108,15 +113,30 @@ function LessonCard({ index, lesson }) {
         </div>
       )}
 
-      <div className="mt-3 flex items-center justify-end">
+      {status === "error" && (
+        <div className="mt-3 rounded-xl p-3" style={{ background: T.dangerSubtle, border: `1px solid ${T.danger}30` }}>
+          <div className="mb-1 flex items-center gap-1.5 text-[11px] font-bold" style={{ color: T.danger }}>
+            <AlertCircle size={12} />スライド生成に失敗しました
+          </div>
+          <p className="whitespace-pre-wrap text-xs leading-relaxed" style={{ color: C.body }}>{slideGen.notice}</p>
+        </div>
+      )}
+
+      <div className="mt-3 flex items-center justify-end gap-2">
+        {slideCount > 0 && (
+          <span className="rounded-full px-2 py-0.5 text-[10px] font-bold" style={{ background: PRODUCT_ACCENT.learning.subtle, color: PRODUCT_ACCENT.learning.accent }}>
+            {slideCount}枚のスライドを生成済み
+          </span>
+        )}
         <button
           type="button"
-          onClick={() => {}}
-          className="flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-semibold transition hover:opacity-80"
+          onClick={() => onGenerateSlides(lesson.id)}
+          disabled={status === "loading"}
+          className="flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-semibold transition hover:opacity-80 disabled:opacity-60"
           style={{ border: `1px solid ${C.line}`, color: C.muted }}
         >
-          <Wand2 size={12} />このLessonを生成
-          <span className="rounded-full px-1.5 py-0.5 text-[9px] font-bold" style={{ background: T.bgBase, color: C.muted }}>Coming Soon</span>
+          {status === "loading" ? <Loader2 size={12} className="animate-spin" /> : <Wand2 size={12} />}
+          {status === "loading" ? "生成しています..." : slideCount > 0 ? "このLessonを再生成" : "このLessonを生成"}
         </button>
       </div>
     </div>
@@ -124,7 +144,7 @@ function LessonCard({ index, lesson }) {
 }
 
 // ---- 右: 生成ボタン＋結果。idle→loading→done/errorの4状態 ----
-function RightGenerationPanel({ genState, onGenerate, generatedFor, notice, result, saveState, saveNotice, onSave }) {
+function RightGenerationPanel({ genState, onGenerate, generatedFor, notice, result, saveState, saveNotice, onSave, slideGenByLessonId, onGenerateSlides }) {
   return (
     <div className="min-w-0 flex-1 space-y-5">
       <div className="rounded-2xl p-6" style={{ background: T.aiSubtle, border: `1px solid ${T.aiAccent}30` }}>
@@ -190,7 +210,13 @@ function RightGenerationPanel({ genState, onGenerate, generatedFor, notice, resu
             <SectionLabel>Lesson一覧</SectionLabel>
             <div className="space-y-3">
               {result.lessons.map((lesson, i) => (
-                <LessonCard key={lesson.id} index={i} lesson={lesson} />
+                <LessonCard
+                  key={lesson.id}
+                  index={i}
+                  lesson={lesson}
+                  slideGen={slideGenByLessonId[lesson.id]}
+                  onGenerateSlides={onGenerateSlides}
+                />
               ))}
             </div>
           </div>
@@ -229,7 +255,10 @@ function RightGenerationPanel({ genState, onGenerate, generatedFor, notice, resu
 }
 
 export default function AiLessonDesigner() {
-  const { brief, setBriefField, genState, notice, result, generatedFor, generate, saveState, saveNotice, saveGenerated } = useAiLessonDesigner();
+  const {
+    brief, setBriefField, genState, notice, result, generatedFor, generate, saveState, saveNotice, saveGenerated,
+    slideGenByLessonId, generateLessonSlides,
+  } = useAiLessonDesigner();
   const learningAdmin = useLearningAdmin();
 
   return (
@@ -256,6 +285,8 @@ export default function AiLessonDesigner() {
           saveState={saveState}
           saveNotice={saveNotice}
           onSave={() => saveGenerated(learningAdmin)}
+          slideGenByLessonId={slideGenByLessonId}
+          onGenerateSlides={generateLessonSlides}
         />
       </div>
     </div>

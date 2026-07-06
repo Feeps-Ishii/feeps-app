@@ -2,11 +2,15 @@ import { useState } from "react";
 import { apiPost } from "../../../../api.js";
 import { PRODUCT_ACCENT } from "../../../../components/common";
 
-// AI Lesson Designer STEP1(コース設計)用の軽量Hook。既存のuseAiCurriculumDesigner.jsとは異なり、
-// 生成結果の確認・下書き保存のみが目的で、編集用のadd/update/delete関数は持たない。
-// 保存(saveGenerated)は、既存のuseAiCurriculumDesigner.jsのsaveToLearningAdmin()と同じく
-// useLearningAdmin.jsの既存createCourse/createLessonへ委譲するだけで、新しい保存の仕組みは作らない。
-// このSTEPではslides/動画/terminal/quizは一切生成・保存しない(将来のLesson単位生成フェーズで扱う)。
+// AI Lesson Designer STEP1(コース設計)+STEP2(Lesson単位のslides生成)用の軽量Hook。
+// 既存のuseAiCurriculumDesigner.jsとは異なり、生成結果の確認・下書き保存のみが目的で、
+// 編集用のadd/update/delete関数は持たない。保存(saveGenerated)は、既存の
+// useAiCurriculumDesigner.jsのsaveToLearningAdmin()と同じくuseLearningAdmin.jsの既存
+// createCourseAwaitingApi/createLessonAwaitingApiへ委譲するだけで、新しい保存の仕組みは作らない。
+// STEP2の「このLessonを生成」は、コース保存前の生成結果(result.lessons、まだDB未保存)に対して
+// 動作する。生成されたslidesはresult.lessons[i].slidesに保持され、後で「このコースを保存する」を
+// 押した時に一緒に保存される(§saveGenerated参照)。生成対象kindはconcept/diagram/table/summary/
+// quiz(選択式)の5種のみ(ADR 0005)。image/video/pdf_page(将来)は管理画面での手動追加のみ。
 const EMPTY_BRIEF = {
   audience: "",
   duration: "",
@@ -31,6 +35,7 @@ export function useAiLessonDesigner() {
   const [generatedFor, setGeneratedFor] = useState(null);
   const [saveState, setSaveState] = useState("idle"); // idle | saving | done | error
   const [saveNotice, setSaveNotice] = useState("");
+  const [slideGenByLessonId, setSlideGenByLessonId] = useState({}); // { [lessonId]: { status, notice } }
 
   function setBriefField(key, value) {
     setBrief(prev => ({ ...prev, [key]: value }));
@@ -83,6 +88,39 @@ export function useAiLessonDesigner() {
     setGeneratedFor(null);
     setSaveState("idle");
     setSaveNotice("");
+    setSlideGenByLessonId({});
+  }
+
+  // STEP2: 1Lesson分のslidesをBedrockで生成し、result.lessons内の該当Lessonへ反映する。
+  // まだDBには保存しない(コース自体が未保存のため)。失敗時は黙殺せずstatus="error"にする。
+  async function generateLessonSlides(lessonId) {
+    const lesson = result?.lessons.find(l => l.id === lessonId);
+    if (!lesson) return { ok: false, error: "lesson not found" };
+    setSlideGenByLessonId(prev => ({ ...prev, [lessonId]: { status: "loading", notice: "" } }));
+    try {
+      const data = await apiPost("/learning/admin/ai-lesson-designer/lessons/generate", {
+        courseTitle: result.course.title || "",
+        lessonTitle: lesson.title || "",
+        lessonSummary: lesson.summary || "",
+        lessonGoal: lesson.goal || "",
+        teacherMemo: lesson.teacherMemo || "",
+        difficulty: lesson.difficulty || "",
+        estimatedMinutes: lesson.estimatedMinutes,
+      });
+      const slides = Array.isArray(data?.slides) ? data.slides.map((s, i) => ({ id: nextId("slide"), order: i, ...s })) : [];
+      if (!slides.length) throw new Error("スライド候補が返りませんでした。");
+      setResult(prev => ({
+        ...prev,
+        lessons: prev.lessons.map(l => (l.id === lessonId ? { ...l, slides } : l)),
+      }));
+      setSlideGenByLessonId(prev => ({ ...prev, [lessonId]: { status: "done", notice: "" } }));
+      return { ok: true, slideCount: slides.length };
+    } catch (e) {
+      const debug = [e?.errorCode, e?.errorMessage, e?.hint].filter(Boolean).join("\n");
+      const msg = debug || e?.message || "スライド生成に失敗しました。";
+      setSlideGenByLessonId(prev => ({ ...prev, [lessonId]: { status: "error", notice: msg } }));
+      return { ok: false, error: msg };
+    }
   }
 
   // 生成結果(コース設計+Lesson構成+講師メモ)をそのまま下書きコースとして保存する。
@@ -123,6 +161,7 @@ export function useAiLessonDesigner() {
           questionsText: "",
           goal: lesson.goal || "",
           teacherMemo: lesson.teacherMemo || "",
+          slides: lesson.slides || [],
           published: false,
         });
       }
@@ -140,5 +179,6 @@ export function useAiLessonDesigner() {
   return {
     brief, setBriefField, genState, notice, result, generatedFor, generate, reset,
     saveState, saveNotice, saveGenerated,
+    slideGenByLessonId, generateLessonSlides,
   };
 }
