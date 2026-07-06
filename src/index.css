@@ -182,3 +182,32 @@ body.feeps-modal-open .feeps-main-scroll { overflow: hidden !important; }
 @media (prefers-reduced-motion: reduce) {
   .feeps-check-draw { animation: none; stroke-dashoffset: 0; }
 }
+
+/* Login input fields (Login screen only). Values come in as CSS custom properties
+   set inline from theme.js tokens (see TrainingApp.jsx Login()); this stylesheet only
+   handles what plain inline style can't reach: the browser's own autofill styling and
+   the :focus-within pseudo-class. */
+.feeps-login-field {
+  background: var(--field-bg);
+  border: 1px solid var(--field-border);
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+.feeps-login-field:focus-within {
+  border-color: var(--field-focus);
+  box-shadow: 0 0 0 3px var(--field-focus-ring);
+}
+/* Force the browser's autofill background/text back to our own tokens instead of its
+   default pale blue — the inset box-shadow is the only reliable cross-browser way to
+   override -webkit-autofill's own background painting. */
+.feeps-login-field input:-webkit-autofill,
+.feeps-login-field input:-webkit-autofill:hover,
+.feeps-login-field input:-webkit-autofill:focus {
+  -webkit-box-shadow: 0 0 0 1000px var(--field-bg) inset;
+  box-shadow: 0 0 0 1000px var(--field-bg) inset;
+  -webkit-text-fill-color: var(--field-text);
+  caret-color: var(--field-text);
+  transition: background-color 9999s ease-in-out 0s, color 9999s ease-in-out 0s;
+}
+@media (prefers-reduced-motion: reduce) {
+  .feeps-login-field { transition: none; }
+}

@@ -5,7 +5,7 @@ import { ANALYTICS_NAV } from "./products/analytics/AnalyticsCatalog.js";
 import { MATCHING_NAV } from "./products/matching/MatchingCatalog.js";
 import { TALENT_NAV } from "./products/talent/TalentCatalog.js";
 import TrainingProduct from "./products/training/TrainingProduct.jsx";
-import { Card, Badge, Btn, Avatar, Stat, SectionHead, T, PRODUCT_ACCENT, Z, PageLoading, EmptyState as CommonEmptyState, SkeletonRows } from "./components/common";
+import { Card, Badge, Btn, Avatar, Stat, SectionHead, T, PRODUCT_ACCENT, ROLE_ACCENT, Z, PageLoading, EmptyState as CommonEmptyState, SkeletonRows } from "./components/common";
 import { SAMPLE_VIEWS } from "./products/training/TrainingComponents.jsx";
 import { BADGES, GOALS, GOAL_ICON_MAP, NAV, ROLES } from "./products/training/TrainingCatalog.js";
 import { navViewSet, statusKind, testIdOf, todayStr } from "./products/training/useTraining.js";
@@ -162,7 +162,16 @@ function Login({ onLogin }) {
   }
 
   const loginRate = useCountUp(86.2, { decimals: 1 });
-  const lightInput = { background: "#fff", border: `1px solid ${T.border}`, color: T.textPrimary };
+  // CSS custom properties bridge these theme.js tokens into index.css's
+  // .feeps-login-field rules (:focus-within / :-webkit-autofill), which inline
+  // style alone cannot reach.
+  const loginFieldVars = {
+    "--field-bg": T.bgSurface,
+    "--field-border": T.border,
+    "--field-text": T.textPrimary,
+    "--field-focus": T.accent,
+    "--field-focus-ring": T.accentSubtle,
+  };
   return (
     <div className="grid min-h-screen lg:grid-cols-[1.15fr_1fr]" style={{ background: T.bgBase, fontFamily: "'Inter','Noto Sans JP',sans-serif" }}>
       {/* ===== 左: 製品ショーケース ===== */}
@@ -266,14 +275,14 @@ function Login({ onLogin }) {
           <div className="mt-6 space-y-4">
             <label className="block">
               <div className="mb-1.5 text-xs font-semibold" style={{ color: T.textSecondary }}>メールアドレス</div>
-              <div className="flex items-center gap-2 rounded-xl px-3" style={lightInput}>
+              <div className="feeps-login-field flex items-center gap-2 rounded-xl px-3" style={loginFieldVars}>
                 <Mail size={16} style={{ color: T.textMuted }} />
                 <input value={email} onChange={e => setEmail(e.target.value)} placeholder={me.mail} type="email" autoComplete="username" className="w-full bg-transparent py-3 text-sm outline-none" style={{ color: T.textPrimary }} />
               </div>
             </label>
             <label className="block">
               <div className="mb-1.5 text-xs font-semibold" style={{ color: T.textSecondary }}>パスワード</div>
-              <div className="flex items-center gap-2 rounded-xl px-3" style={lightInput}>
+              <div className="feeps-login-field flex items-center gap-2 rounded-xl px-3" style={loginFieldVars}>
                 <Lock size={16} style={{ color: T.textMuted }} />
                 <input type="password" value={password} onChange={e => setPassword(e.target.value)} onKeyDown={e => { if (e.key === "Enter") handleLogin(); }} placeholder="パスワード" autoComplete="current-password" className="w-full bg-transparent py-3 text-sm outline-none" style={{ color: T.textPrimary }} />
               </div>
@@ -282,7 +291,7 @@ function Login({ onLogin }) {
             {needNewPw && (
               <label className="block">
                 <div className="mb-1.5 text-xs font-semibold" style={{ color: T.textSecondary }}>新しいパスワード</div>
-                <div className="flex items-center gap-2 rounded-xl px-3" style={lightInput}>
+                <div className="feeps-login-field flex items-center gap-2 rounded-xl px-3" style={loginFieldVars}>
                   <Lock size={16} style={{ color: T.textMuted }} />
                   <input type="password" value={newPw} onChange={e => setNewPw(e.target.value)} onKeyDown={e => { if (e.key === "Enter") handleNewPassword(); }} placeholder="新しいパスワード" autoComplete="new-password" className="w-full bg-transparent py-3 text-sm outline-none" style={{ color: T.textPrimary }} />
                 </div>
@@ -506,8 +515,13 @@ function ProductSegmentSwitcher({ products, active, onSelect }) {
     const container = containerRef.current;
     if (!container) return;
     const activeEl = container.querySelector(`[data-product="${active}"]`);
-    if (!activeEl) { setPill(null); return; }
-    setPill({ left: activeEl.offsetLeft, width: activeEl.offsetWidth });
+    if (!activeEl) { setPill(prev => (prev === null ? prev : null)); return; }
+    const next = { left: activeEl.offsetLeft, width: activeEl.offsetWidth };
+    // Guard: `products` is passed as a fresh array on every parent render, so this
+    // effect can re-fire without the measured position actually changing. Only
+    // update state (a new object) when the measured value truly differs, or this
+    // becomes an infinite render loop (React error #185).
+    setPill(prev => (prev && prev.left === next.left && prev.width === next.width) ? prev : next);
   }, [active, products]);
 
   return (
@@ -554,8 +568,14 @@ function SideNav({ groups, view, karte, go, badges = {}, collapsed = false, pa =
     const container = containerRef.current;
     if (!container) return;
     const activeEl = container.querySelector('[data-nav-active="true"]');
-    if (!activeEl) { setPill(null); return; }
-    setPill({ top: activeEl.offsetTop, height: activeEl.offsetHeight });
+    if (!activeEl) { setPill(prev => (prev === null ? prev : null)); return; }
+    const next = { top: activeEl.offsetTop, height: activeEl.offsetHeight };
+    // No dependency array on purpose (must re-measure after any render, e.g. sidebar
+    // collapse/expand or badge changes shifting layout). Without this guard, calling
+    // setPill with a brand-new object every render — even when the value is
+    // unchanged — is itself a state change, which re-triggers the effect forever
+    // (React error #185 / Maximum update depth exceeded).
+    setPill(prev => (prev && prev.top === next.top && prev.height === next.height) ? prev : next);
   });
 
   return (
@@ -737,6 +757,7 @@ export default function App() {
     return () => clearTimeout(id);
   }, [view, loggedIn, refreshNotifications]);
   const me = ROLES[role];
+  const roleAccent = ROLE_ACCENT[role] || ROLE_ACCENT.default;
   const nav = product === "training" ? NAV[role]
     : product === "learning" ? (EL_NAV[role] || EL_NAV.trainee)
     : product === "talent" ? (TALENT_NAV[role] || TALENT_NAV.admin)
@@ -929,7 +950,7 @@ export default function App() {
         <Avatar name={displayName} size={26} />
         <div className="hidden min-w-0 text-left sm:block">
           <div className="truncate text-xs font-semibold" style={{ color: T.textPrimary, maxWidth: 100 }}>{displayName}</div>
-          <div className="text-[10px]" style={{ color: T.textMuted }}>{me.label}</div>
+          <span className="inline-flex items-center rounded-full px-1.5 py-[1px] text-[10px] font-semibold" style={{ background: roleAccent.subtle, color: roleAccent.accent }}>{me.label}</span>
         </div>
       </button>
       <div className="hidden h-5 w-px sm:block" style={{ background: T.border }} />

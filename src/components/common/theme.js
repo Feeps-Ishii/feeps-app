@@ -62,13 +62,32 @@ export const T = {
 // Product-nav active underline (2px) / Sidebar active bg (subtle) + text (deep).
 // Buttons, links, forms and focus stay on the shared T.accent; aiAccent rules unchanged.
 // gradFrom is the DARK side, gradTo the light side (approved mock: 濃→明, 120deg).
+// training is intentionally identical to admin (2026-07-03 palette reorganization):
+// 研修管理 is now the shared dark/neutral identity across every role, matching the
+// admin-only screens embedded in it (AdminProduct views set product="admin" directly).
+// analytics was moved off cyan (it collided with learning) onto a rose/wine family so
+// every Product now has a visually distinct hue: gray(training/admin) / teal(learning) /
+// purple(talent) / orange(matching) / rose(analytics).
 export const PRODUCT_ACCENT = {
-  training:  { accent: "#3D6BFF", deep: "#1E47CC", subtle: "#EDF1FF", gradFrom: "#1E47CC", gradTo: "#3D6BFF" },
+  training:  { accent: "#3A404C", deep: "#23272F", subtle: "#EDEEF1", gradFrom: "#23272F", gradTo: "#3A404C" },
   learning:  { accent: "#14A3B8", deep: "#0E7A8A", subtle: "#E7F5F7", gradFrom: "#0E7A8A", gradTo: "#14A3B8" },
   talent:    { accent: "#7C5CE0", deep: "#6247B8", subtle: "#F3F0FC", gradFrom: "#4B32A8", gradTo: "#7C5CE0" },
   matching:  { accent: "#E07B39", deep: "#B25E1F", subtle: "#FBF0E7", gradFrom: "#B25E1F", gradTo: "#E07B39" },
-  analytics: { accent: "#00A0D2", deep: "#00789E", subtle: "#E6F5FA", gradFrom: "#00789E", gradTo: "#00A0D2" },
+  analytics: { accent: "#B23A55", deep: "#8C2C43", subtle: "#F8E9ED", gradFrom: "#8C2C43", gradTo: "#B23A55" },
   admin:     { accent: "#3A404C", deep: "#23272F", subtle: "#EDEEF1", gradFrom: "#23272F", gradTo: "#3A404C" },
+};
+
+// Role accent (2026-07-03). Independent from PRODUCT_ACCENT — this is ONLY for the
+// small role badge next to the user's name in the header, so a role stays visually
+// identifiable regardless of which Product is currently open. Never use these for
+// headers/sidebar/large surfaces; that stays on PRODUCT_ACCENT. Unknown roles fall
+// back to ROLE_ACCENT.default (neutral gray).
+export const ROLE_ACCENT = {
+  trainee:    { accent: "#3E8E5B", subtle: "#E9F4EE" },
+  instructor: { accent: "#4A6FA5", subtle: "#EAF0F8" },
+  client:     { accent: "#B08A34", subtle: "#F8F1E1" },
+  admin:      { accent: "#5C6067", subtle: "#EDEEF0" },
+  default:    { accent: "#5C6067", subtle: "#EDEEF0" },
 };
 
 // Layer system — the only allowed z-index values. Never hardcode z numbers.

@@ -39,6 +39,31 @@ JSXやCSSに生の色コード・z-index数値を直接書かない。必ず以�
 用途は **Product Homeのヒーローグラデ／そのHome内のアイコンチップ／Product切替の2px下線 or ドット／Sidebar activeのアイコン色** に限定。
 ボタン・リンク・フォーム・フォーカスは常に共通の `T.accent`。`gradFrom` はグラデーションの濃い側（濃→明、120deg基調）。
 
+これは**ロール別ではなくProduct別のアクセント**であり、`product`（現在表示中のProduct）のみに連動する。
+ロールが変わっても同じProductを見ている限り色は変わらない（意図的な設計）。
+ヘッダー/サイドバー/Product Homeのヒーローなど**大きな面**の配色はこのProduct基準を維持し、
+ロールごとに切り替えることはしない（下記 §2.4 のロールバッジのみが例外）。
+
+2026-07-03 時点の色（BtoB SaaSとして派手すぎない、Product同士で被らない6色に整理済み）:
+- `training`（研修管理）: 黒・ダークグレー系 `#3A404C` — **`admin` と同一の値**。研修管理は全ロール共通のヒーローがこの色になる。AdminProduct配下の管理者専用画面は個別に`product="admin"`を指定しているため、値としては同じだが独立したキーとして維持している。
+- `learning`（Eラーニング）: ティール系 `#14A3B8`
+- `talent`（スキル・成長）: パープル系 `#7C5CE0`
+- `matching`（案件管理）: オレンジ系 `#E07B39`
+- `analytics`（分析・レポート）: ローズ／ワイン系 `#B23A55` — 以前はシアン系で`learning`と色が被っていたため変更。`T.danger`（`#C4554D`、テラコッタ寄りの赤）とも色相をずらしてあり、エラー表示と混同しない。
+- `admin`（管理者専用画面）: 黒・ダークグレー系 `#3A404C`
+
+### 2.4 Role accent（`ROLE_ACCENT`）— ヘッダーのロールバッジ専用
+`trainee` `instructor` `client` `admin` の4色 + 未知role用の `default`。各 `{ accent, subtle }`。
+**用途はヘッダー右上のユーザー名の下に表示する小さな丸バッジ1箇所のみ**（`TrainingApp.jsx` の `userActionsTail`）。
+サイドバー下部のユーザーカード、ヘッダー/サイドバーの背景・枠線・アイコン色など、他のどの大きな面にも使わない —
+それらは引き続き §2.3 の `PRODUCT_ACCENT` が担当する。`ROLE_ACCENT[role]` が無い場合は
+`ROLE_ACCENT.default`（ニュートラルグレー）にフォールバックする。
+- `trainee`（受講生）: グリーン系 `#3E8E5B`
+- `instructor`（講師）: スレートブルー系 `#4A6FA5`
+- `client`（企業担当者）: ゴールド系 `#B08A34`
+- `admin`（管理者）: ニュートラルグレー系 `#5C6067`
+- `default`（未知role）: ニュートラルグレー系 `#5C6067`（`admin`と同値だが独立管理）
+
 ### 2.4 レイヤー（`Z`）
 `header`(20) `dropdown`(30) `overlay`(100) `modal`(110) `toast`(120)。z-indexを直接数値で書かない。
 
@@ -77,6 +102,13 @@ JSXやCSSに生の色コード・z-index数値を直接書かない。必ず以�
 - **画面の頭**: Product Homeは `PageHeader`（動的タイトル/チップ/CTA構成。装飾SVGの追加は禁止）。
   サブ画面は `SectionHead`（iconはそのProductのlucideアイコンをmonotoneで使用。ドットでの色分けはしない）。
 - **フォーム**: `Field` + `fieldStyle`。
+- **Login画面の入力欄**: `Field`/`fieldStyle`とは別のLogin専用実装（`TrainingApp.jsx`の`Login()`）。
+  入力欄のラッパーに`.feeps-login-field`クラス＋CSS変数（`--field-bg` `--field-border` `--field-text`
+  `--field-focus` `--field-focus-ring`、値は`T.bgSurface` `T.border` `T.textPrimary` `T.accent`
+  `T.accentSubtle`）を渡す。`:focus-within`でのborder/ring、および`input:-webkit-autofill`の
+  背景色乗っ取り防止（`box-shadow: 0 0 0 1000px var(--field-bg) inset`）はこのCSS変数経由でのみ
+  行い、生の16進を使わない。同様の「ブラウザautofillに配色を奪われる入力欄」を他画面で作る場合も
+  このクラスとパターンを再利用する。
 - **カード**: `Card` / `ProductNavCard`（hoverでProduct accentの枠+1px lift）。
 - **バッジ**: `Badge`（低彩度5トーンのみ。多色濫用禁止）。
 - **空状態**: `EmptyState`。検索結果ゼロなどで「準備中」ラベルは出さない（該当UIごと非表示にする）。
@@ -99,6 +131,16 @@ JSXやCSSに生の色コード・z-index数値を直接書かない。必ず以�
 - スライド系UI（Product切替ピル・Sidebar activeピル）は、対象DOMの `offsetLeft/offsetWidth`（横）または
   `offsetTop/offsetHeight`（縦）を `useLayoutEffect` で計測し、絶対配置した同要素をCSS `transition`
   （`cubic-bezier(.3,.9,.4,1)` 基調）で追従させる。ピル自体はz-indexで本体の下に置く。
+  **必須ガード**: この種の「計測してsetStateする」`useLayoutEffect`/`useEffect`は、依存配列を
+  正しく絞る（測定対象が変わる値のみに反応する。プロパティとして渡す配列/オブジェクトを呼び出し側で
+  毎レンダー新規生成しないことも合わせて確認する）のに加えて、**setState前に必ず「新しい測定値が
+  現在のstateと同じなら更新しない」ガードを入れる**こと（例: 関数形の更新で
+  `setPill(prev => (prev && prev.top === next.top && prev.height === next.height) ? prev : next)`）。
+  依存配列なしで毎レンダー実行する設計（レイアウト変化を確実に拾うため意図的にそうする場合）は
+  なおさら必須。このガードが無いと、値が変わっていなくても新しいオブジェクト参照でsetStateし続け、
+  `useLayoutEffect`は同期的にコミットフェーズ内で走るため React のネスト更新上限に達し、
+  **React error #185（Maximum update depth exceeded）で本番が白画面になる**（2026-07-03に実際に発生
+  し修正済み。詳細はCHANGELOG.mdの`Task-Urgent-Fix-ReactError185`を参照）。
 - 成功チェックマークは `stroke-dashoffset` によるドローイン、約400ms。
 - **`prefers-reduced-motion: reduce` で全アニメーションを無効化する。**
   `.app-root` 直下の包括ルール（`.view-anim{animation:none}` / `.app-root *{transition:none!important}`）が
