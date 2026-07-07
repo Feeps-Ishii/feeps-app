@@ -1,7 +1,7 @@
 import React, { useState, useMemo, useEffect, useCallback } from "react";
 import { getCurrentUser, fetchAuthSession } from "aws-amplify/auth";
-import { apiGet, apiPut, apiPost } from "../../api.js";
-import { Card, Badge, Btn, Avatar, Stat, SectionHead, Field, Seg, T, PRODUCT_ACCENT, PageHeader, ProductNavCard, EmptyState as CommonEmptyState, SkeletonRows, SkeletonCards } from "../../components/common";
+import { apiGet, apiPut, apiPost, apiDelete as apiDeleteBase } from "../../api.js";
+import { Card, Badge, Btn, Avatar, Stat, SectionHead, Field, Seg, T, PRODUCT_ACCENT, PageHeader, ProductNavCard, EmptyState as CommonEmptyState, SkeletonRows, SkeletonCards, Modal } from "../../components/common";
 import {
   COURSE, COURSE_FULL, VENUE, PERIOD, TOTAL_HOURS, TODAY, ROLES, GOALS, ALL_TASKS,
   MATERIALS, TESTS, TRAINEES, RISK, ATT_ROWS, KARTE, REPORTS_SEED, QBANK, TAKE_Q, CURRICULUM
@@ -602,6 +602,48 @@ function GoalsView({ role, done, toggle, goals, setGoals, go, openKarte }) {
     setNg("");
   }
 
+  function startEdit(m) {
+    setEditing(m);
+    setEditDraft({
+      title: m.title || "",
+      description: m.description || "",
+      mode: m.mode === "download" ? "download" : "view",
+    });
+  }
+
+  async function saveMaterial() {
+    if (!editing || !courseId) return;
+    setSaving(true); setErr("");
+    try {
+      await apiPut(`/materials/${encodeURIComponent(editing.materialId)}`, {
+        courseId,
+        title: editDraft.title,
+        description: editDraft.description,
+        mode: editDraft.mode,
+      });
+      setEditing(null);
+      loadMaterials();
+    } catch (e) {
+      setErr("資料の更新に失敗しました: " + (e?.errorMessage || e?.message || e));
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function deleteMaterial() {
+    if (!deleting || !courseId) return;
+    setSaving(true); setErr("");
+    try {
+      await apiDeleteBase(`/materials/${encodeURIComponent(deleting.materialId)}?courseId=${encodeURIComponent(courseId)}`);
+      setDeleting(null);
+      loadMaterials();
+    } catch (e) {
+      setErr("資料の削除に失敗しました: " + (e?.errorMessage || e?.message || e));
+    } finally {
+      setSaving(false);
+    }
+  }
+
   return (
     <div>
       <SectionHead title="目標とタスク" desc="長期目標、小目標、今日やることを分けて確認します。Eラーニングとは別に、成長履歴とスキルシートへつなげます。" />
@@ -893,6 +935,10 @@ function Materials({ role }) {
   const [uploading, setUploading] = useState(false);
   const [err, setErr] = useState("");
   const [mode, setMode] = useState("view");
+  const [editing, setEditing] = useState(null);
+  const [editDraft, setEditDraft] = useState({ title: "", description: "", mode: "view" });
+  const [deleting, setDeleting] = useState(null);
+  const [saving, setSaving] = useState(false);
   const fileRef = React.useRef(null);
 
   useEffect(() => {
@@ -961,12 +1007,30 @@ function Materials({ role }) {
                 <div key={m.materialId} className="flex items-center justify-between px-4 py-3" style={{ borderBottom: i < items.length - 1 ? `1px solid ${T.border}` : "none" }}>
                   <div className="flex min-w-0 items-center gap-3">
                     <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl" style={{ background: T.accentSubtle }}><FileText size={17} style={{ color: T.accent }} /></div>
-                    <div className="min-w-0"><div className="truncate text-sm font-semibold" style={{ color: T.textPrimary }}>{m.title}</div><div className="text-xs" style={{ color: T.textMuted }}>{m.mode === "download" ? "ダウンロード専用" : "閲覧可"} ・ {fmtTs(m.uploadedAt)}</div></div>
+                    <div className="min-w-0"><div className="truncate text-sm font-semibold" style={{ color: T.textPrimary }}>{m.title}</div>{m.description && <div className="truncate text-xs" style={{ color: T.textSecondary }}>{m.description}</div>}<div className="text-xs" style={{ color: T.textMuted }}>{m.mode === "download" ? "DLのみ" : "閲覧可"} / {fmtTs(m.uploadedAt)}</div></div>
                   </div>
-                  <Btn kind="ghost" size="sm" icon={m.mode === "download" ? Download : Eye} onClick={() => openMaterial(m)}>{m.mode === "download" ? "DL" : "開く"}</Btn>
+                  <div className="flex shrink-0 items-center gap-2">
+                    <Btn kind="ghost" size="sm" icon={m.mode === "download" ? Download : Eye} onClick={() => openMaterial(m)}>{m.mode === "download" ? "DL" : "開く"}</Btn>
+                    {canEdit && <Btn kind="ghost" size="sm" icon={Pencil} onClick={() => startEdit(m)}>編集</Btn>}
+                    {canEdit && <Btn kind="ghost" size="sm" icon={Trash2} onClick={() => setDeleting(m)}>削除</Btn>}
+                  </div>
                 </div>
               ))}</Card>}
         </>
+      )}
+      {editing && (
+        <Modal title="研修資料を編集" onClose={() => !saving && setEditing(null)} footer={<><Btn kind="ghost" onClick={() => setEditing(null)} disabled={saving}>キャンセル</Btn><Btn onClick={saveMaterial} disabled={saving || !editDraft.title.trim()}>{saving ? "保存中..." : "保存"}</Btn></>}>
+          <div className="space-y-4">
+            <Field label="タイトル"><input value={editDraft.title} onChange={e => setEditDraft(d => ({ ...d, title: e.target.value }))} className="w-full rounded-lg px-3 py-2 text-sm outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary }} /></Field>
+            <Field label="説明"><textarea value={editDraft.description} onChange={e => setEditDraft(d => ({ ...d, description: e.target.value }))} rows={3} className="w-full rounded-lg px-3 py-2 text-sm outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary }} /></Field>
+            <Field label="公開方法"><select value={editDraft.mode} onChange={e => setEditDraft(d => ({ ...d, mode: e.target.value }))} className="w-full rounded-lg px-3 py-2 text-sm outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary, background: "#fff" }}><option value="view">閲覧可</option><option value="download">DLのみ</option></select></Field>
+          </div>
+        </Modal>
+      )}
+      {deleting && (
+        <Modal title="研修資料を削除" danger onClose={() => !saving && setDeleting(null)} footer={<><Btn kind="ghost" onClick={() => setDeleting(null)} disabled={saving}>キャンセル</Btn><Btn onClick={deleteMaterial} disabled={saving}>{saving ? "削除中..." : "削除"}</Btn></>}>
+          <p className="text-sm leading-relaxed" style={{ color: T.textSecondary }}>「{deleting.title}」を削除します。カリキュラムで使用中の場合は削除されず、理由が表示されます。</p>
+        </Modal>
       )}
     </div>
   );
