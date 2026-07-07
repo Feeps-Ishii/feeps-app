@@ -2982,6 +2982,7 @@ function TraineeList({ role, openKarte }) {
   const [page, setPage] = useState(1);
   const [date, setDate] = useState(todayStr());
   const [courses, setCourses] = useState([]);
+  const [companies, setCompanies] = useState([]);
   const [detail, setDetail] = useState({ reports: [], attendance: [], tests: [], tasks: null, memos: [], userCourses: [] });
   const [detailLoading, setDetailLoading] = useState(false);
   useEffect(() => {
@@ -2993,6 +2994,7 @@ function TraineeList({ role, openKarte }) {
   useEffect(() => {
     apiGet("/trainees").then(list => setData((list || []).map(p => ({ ...p, id: p.userId, name: p.name || "（氏名未設定）", email: p.email || "" })))).catch(() => {});
     apiGet("/courses").then(l => setCourses(l || [])).catch(() => setCourses([]));
+    apiGet("/companies").then(l => setCompanies(l || [])).catch(() => setCompanies([]));
   }, []);
   useEffect(() => {
     if (!selected) return;
@@ -3020,6 +3022,7 @@ function TraineeList({ role, openKarte }) {
     Promise.all(jobs).then(() => setDetail(base)).finally(() => setDetailLoading(false));
   }, [selected, date, role, courses]);
   const courseName = (id) => courses.find(c => c.courseId === id)?.name || id || "未登録";
+  const companyName = (id) => companies.find(c => c.companyId === id)?.name || id || "未登録";
   const selectedCourses = detail.userCourses.length ? detail.userCourses : (selected?.course ? [{ courseId: selected.course, name: courseName(selected.course) }] : []);
   const taskDone = detail.tasks?.done ? Object.values(detail.tasks.done).filter(Boolean).length : 0;
   const taskTotal = detail.tasks?.done ? Object.keys(detail.tasks.done).length : 0;
@@ -3028,8 +3031,8 @@ function TraineeList({ role, openKarte }) {
   const canDeep = role === "admin" || role === "instructor";
   const visibleData = useMemo(() => {
     const s = q.trim().toLowerCase();
-    return data.filter(t => !s || `${t.name || ""} ${t.email || ""} ${t.company || ""}`.toLowerCase().includes(s));
-  }, [data, q]);
+    return data.filter(t => !s || `${t.name || ""} ${t.email || ""} ${t.company || ""} ${companyName(t.company)}`.toLowerCase().includes(s));
+  }, [data, q, companies]);
   useEffect(() => { setPage(1); }, [q, data.length]);
   const visiblePage = pageSlice(visibleData, page);
   if (selected) return (
@@ -3040,11 +3043,11 @@ function TraineeList({ role, openKarte }) {
         <Card className="p-5">
           <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
             <div className="flex items-center gap-3"><Avatar name={selected.name || selected.email} size={44} ring /><div><h3 className="font-bold" style={{ color: T.textPrimary }}>{selected.name}</h3><p className="text-xs" style={{ color: T.textMuted }}>{selected.email}</p></div></div>
-            <div className="flex items-center gap-2"><input type="date" value={date} onChange={e => setDate(e.target.value)} className="rounded-lg px-3 py-2 text-sm outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary }} /><Btn size="sm" icon={StickyNote} onClick={() => openKarte(selected)}>カルテを開く</Btn></div>
+            <div className="flex items-center gap-2"><input type="date" value={date} onChange={e => setDate(e.target.value)} className="rounded-lg px-3 py-2 text-sm outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary }} /><Btn size="sm" icon={StickyNote} onClick={() => openKarte({ ...selected, companyName: companyName(selected.company) })}>カルテを開く</Btn></div>
           </div>
           {detailLoading ? <SkeletonCards count={2} />
             : <div className="grid gap-3 sm:grid-cols-2">
-              <div className="rounded-xl p-3" style={{ background: T.bgBase }}><div className="text-xs font-bold" style={{ color: T.textMuted }}>所属企業</div><div className="mt-1 text-sm font-semibold" style={{ color: T.textPrimary }}>{selected.company || "未登録"}</div></div>
+              <div className="rounded-xl p-3" style={{ background: T.bgBase }}><div className="text-xs font-bold" style={{ color: T.textMuted }}>所属企業</div><div className="mt-1 text-sm font-semibold" style={{ color: T.textPrimary }}>{companyName(selected.company)}</div></div>
               <div className="rounded-xl p-3" style={{ background: T.bgBase }}><div className="text-xs font-bold" style={{ color: T.textMuted }}>所属コース</div><div className="mt-1 flex flex-wrap gap-1.5">{selectedCourses.length ? selectedCourses.map(c => <Badge key={c.courseId || c.name} tone="cyan">{c.name}</Badge>) : <span className="text-sm" style={{ color: T.textMuted }}>未登録</span>}</div></div>
             </div>}
         </Card>
@@ -3084,7 +3087,7 @@ function TraineeList({ role, openKarte }) {
               {visibleData.length === 0 ? <div className="px-4 py-8 text-center text-sm" style={{ color: T.textMuted }}>該当する受講生がいません。</div> : visiblePage.items.map(t => {
                 const active = selected?.id === t.id;
                 return (
-                  <button key={t.id} onClick={() => role === "instructor" ? openKarte({ ...t, id: t.userId || t.id }) : setSelected(t)} className="flex w-full items-center gap-3 px-4 py-3 text-left transition hover:bg-gray-50" style={{ background: active ? T.accentSubtle : "#fff" }}>
+                  <button key={t.id} onClick={() => role === "instructor" ? openKarte({ ...t, id: t.userId || t.id, companyName: companyName(t.company) }) : setSelected(t)} className="flex w-full items-center gap-3 px-4 py-3 text-left transition hover:bg-gray-50" style={{ background: active ? T.accentSubtle : "#fff" }}>
                     <Avatar name={t.name || t.email} size={36} />
                     <div className="min-w-0 flex-1"><div className="truncate text-sm font-bold" style={{ color: T.textPrimary }}>{t.name}</div><div className="truncate text-xs" style={{ color: T.textMuted }}>{t.email}</div></div>
                     <ChevronRight size={15} style={{ color: T.textMuted }} />
@@ -3099,12 +3102,12 @@ function TraineeList({ role, openKarte }) {
               : <div>
                 <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
                   <div className="flex items-center gap-3"><Avatar name={selected.name || selected.email} size={44} ring /><div><h3 className="font-bold" style={{ color: T.textPrimary }}>{selected.name}</h3><p className="text-xs" style={{ color: T.textMuted }}>{selected.email}</p></div></div>
-                  <div className="flex items-center gap-2"><input type="date" value={date} onChange={e => setDate(e.target.value)} className="rounded-lg px-3 py-2 text-sm outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary }} /><Btn size="sm" icon={StickyNote} onClick={() => openKarte(selected)}>カルテを開く</Btn></div>
+                  <div className="flex items-center gap-2"><input type="date" value={date} onChange={e => setDate(e.target.value)} className="rounded-lg px-3 py-2 text-sm outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary }} /><Btn size="sm" icon={StickyNote} onClick={() => openKarte({ ...selected, companyName: companyName(selected.company) })}>カルテを開く</Btn></div>
                 </div>
                 {detailLoading ? <SkeletonCards count={2} />
                   : <div className="space-y-4">
                     <div className="grid gap-3 sm:grid-cols-2">
-                      <div className="rounded-xl p-3" style={{ background: T.bgBase }}><div className="text-xs font-bold" style={{ color: T.textMuted }}>所属企業</div><div className="mt-1 text-sm font-semibold" style={{ color: T.textPrimary }}>{selected.company || "未登録"}</div></div>
+                      <div className="rounded-xl p-3" style={{ background: T.bgBase }}><div className="text-xs font-bold" style={{ color: T.textMuted }}>所属企業</div><div className="mt-1 text-sm font-semibold" style={{ color: T.textPrimary }}>{companyName(selected.company)}</div></div>
                       <div className="rounded-xl p-3" style={{ background: T.bgBase }}><div className="text-xs font-bold" style={{ color: T.textMuted }}>所属コース</div><div className="mt-1 flex flex-wrap gap-1.5">{selectedCourses.length ? selectedCourses.map(c => <Badge key={c.courseId || c.name} tone="cyan">{c.name}</Badge>) : <span className="text-sm" style={{ color: T.textMuted }}>未登録</span>}</div></div>
                       <div className="rounded-xl p-3" style={{ background: T.bgBase }}><div className="text-xs font-bold" style={{ color: T.textMuted }}>今日の日報</div><div className="mt-1"><Badge tone={detail.reports.length ? "green" : "muted"}>{canDeep ? (detail.reports.length ? "保存済み" : "未保存") : "権限内で未取得"}</Badge></div></div>
                       <div className="rounded-xl p-3" style={{ background: T.bgBase }}><div className="text-xs font-bold" style={{ color: T.textMuted }}>今日の勤怠</div><div className="mt-1"><Badge tone={detail.attendance.length ? "green" : "muted"}>{canDeep ? (detail.attendance.length ? "登録済み" : "未登録") : "権限内で未取得"}</Badge></div></div>
@@ -3207,29 +3210,6 @@ function Karte({ trainee, back, role }) {
           .then(rows => ({ test: t, rows: (Array.isArray(rows) ? rows : []).filter(r => r.traineeId === karteTraineeId || r.userId === karteTraineeId) }))
           .catch(e => { console.warn("karte test results failed", { testId: tid, error: e }); return { test: t, rows: [] }; });
       }));
-      console.log("karte trainee/company debug", {
-        trainee: {
-          id: karteTraineeId,
-          company: trainee?.company,
-          companyId: trainee?.companyId,
-          companyName: trainee?.companyName,
-          org: trainee?.org,
-        },
-        profile: found ? {
-          company: found.company,
-          companyId: found.companyId,
-          companyName: found.companyName,
-        } : null,
-        companiesCount: Array.isArray(cs) ? cs.length : 0,
-        targetCompanyId: resolvedCompanyId,
-        companyExists: (Array.isArray(cs) ? cs : []).some(c => [c.companyId, c.id, c.company, c.pk].filter(Boolean).includes(resolvedCompanyId)),
-        resolvedName: resolveCompanyNameForKarte({
-          companyName: trainee?.companyName || found?.companyName,
-          company: trainee?.company || found?.company,
-          companyId: trainee?.companyId || found?.companyId,
-          org: trainee?.org || found?.org,
-        }, Array.isArray(cs) ? cs : []),
-      });
       setProfile(found || null);
       setKarteStatus({
         courses: profileCourses,
@@ -3268,7 +3248,7 @@ function Karte({ trainee, back, role }) {
           </div>
         </div>
       </Card>
-      <div className="mx-auto max-w-2xl">
+      <div className="space-y-4">
         <Card className="mb-4 p-5">
           <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
             <div><h3 className="font-bold" style={{ color: T.textPrimary }}>受講生基本情報</h3><p className="text-xs" style={{ color: T.textMuted }}>カルテ内で研修状況をまとめて確認します。</p></div>

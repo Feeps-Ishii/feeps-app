@@ -221,8 +221,26 @@ async function apiDelete(path) {
     method: "DELETE",
     headers: idToken ? { authorization: "Bearer " + idToken } : {},
   });
-  if (!res.ok) throw new Error(`DELETE ${path} ${res.status}`);
-  return res.json();
+  const text = await res.text();
+  const data = text ? JSON.parse(text) : {};
+  if (!res.ok) {
+    const err = new Error(data?.error || `DELETE ${path} ${res.status}`);
+    err.status = res.status;
+    err.references = data?.references || null;
+    throw err;
+  }
+  return data;
+}
+function DeleteConfirm({ title, name, warning, busy, onClose, onConfirm }) {
+  return (
+    <Modal title={title} onClose={busy ? undefined : onClose}
+      footer={<><Btn kind="ghost" onClick={onClose} disabled={busy}>キャンセル</Btn><Btn kind="danger" icon={Trash2} onClick={onConfirm} disabled={busy}>{busy ? "削除中..." : "削除する"}</Btn></>}>
+      <div className="space-y-3">
+        <p className="text-sm leading-relaxed" style={{ color: T.textSecondary }}>{name} を論理削除します。削除後は一覧に表示されません。</p>
+        {warning && <div className="rounded-lg px-3 py-2 text-xs" style={{ background: T.warningSubtle, color: T.warning }}>{warning}</div>}
+      </div>
+    </Modal>
+  );
 }
 const COURSE_KINDS = [["shinjin", "新人研修"], ["regular", "定常"]];
 const kindLabel = (k) => (COURSE_KINDS.find(o => o[0] === k)?.[1]) || "新人研修";
@@ -240,6 +258,7 @@ function AdminCompanies() {
   const [edit, setEdit] = useState({ name: "", memo: "" });
   const [trainees, setTrainees] = useState([]);
   const [detailLoading, setDetailLoading] = useState(false);
+  const [deleteOpen, setDeleteOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState("");
   const [err, setErr] = useState("");
@@ -299,6 +318,19 @@ function AdminCompanies() {
       await load();
     } catch (e) { setErr("保存に失敗しました：" + (e?.message || e)); } finally { setBusy(false); }
   }
+  async function deleteCompany() {
+    if (!selected || busy) return;
+    setBusy(true); setErr(""); setMsg("");
+    try {
+      await apiDelete(`/companies/${selected.companyId}`);
+      setMsg(`${selected.name || "企業"} を削除しました。`);
+      setDeleteOpen(false);
+      setSelected(null);
+      await load();
+    } catch (e) {
+      setErr(e?.message || "削除に失敗しました。");
+    } finally { setBusy(false); }
+  }
   const SortMark = ({ k }) => sort.key === k ? (sort.dir === "asc" ? <ChevronUp size={13} /> : <ChevronDown size={13} />) : null;
   if (selected) return (
     <div>
@@ -316,7 +348,7 @@ function AdminCompanies() {
             <Field label="企業名"><input value={edit.name} onChange={e => setEdit({ ...edit, name: e.target.value })} className={fieldCls} style={{ border: `1px solid ${T.border}`, color: T.textPrimary }} /></Field>
             <div className="lg:col-span-2"><Field label="メモ"><textarea value={edit.memo} onChange={e => setEdit({ ...edit, memo: e.target.value })} rows={3} className={fieldCls + " resize-none"} style={{ border: `1px solid ${T.border}`, color: T.textPrimary }} /></Field></div>
           </div>
-          <div className="mt-4 flex justify-end"><Btn icon={Check} onClick={save}>{busy ? "保存中..." : "保存する"}</Btn></div>
+          <div className="mt-4 flex flex-wrap justify-end gap-2"><Btn kind="ghost" icon={Trash2} onClick={() => setDeleteOpen(true)} disabled={busy}>削除</Btn><Btn icon={Check} onClick={save}>{busy ? "保存中..." : "保存する"}</Btn></div>
         </Card>
         <Card className="p-5">
           <div className="mb-3 flex items-center justify-between">
@@ -411,6 +443,7 @@ function AdminCompanies() {
           </div>
         </Modal>
       )}
+      {deleteOpen && selected && <DeleteConfirm title="企業を削除" name={selected.name || selected.companyId} warning="所属ユーザーがいる企業は削除できません。" busy={busy} onClose={() => setDeleteOpen(false)} onConfirm={deleteCompany} />}
     </div>
   );
 }
@@ -441,6 +474,7 @@ function AdminCourses({ go }) {
   const [calendarLoading, setCalendarLoading] = useState(false);
   const [calendarBusy, setCalendarBusy] = useState(false);
   const [detailLoading, setDetailLoading] = useState(false);
+  const [deleteOpen, setDeleteOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState("");
   const [err, setErr] = useState("");
@@ -567,6 +601,19 @@ function AdminCourses({ go }) {
       await load();
     } catch (e) { setErr("保存に失敗しました：" + (e?.message || e)); } finally { setBusy(false); }
   }
+  async function deleteCourse() {
+    if (!selected || busy) return;
+    setBusy(true); setErr(""); setMsg("");
+    try {
+      await apiDelete(`/courses/${selected.courseId}`);
+      setMsg(`${selected.name || "コース"} を削除しました。`);
+      setDeleteOpen(false);
+      setSelected(null);
+      await load();
+    } catch (e) {
+      setErr(e?.message || "削除に失敗しました。");
+    } finally { setBusy(false); }
+  }
   async function addTrainee() {
     if (!selected || !addTraineeId || busy) return;
     setBusy(true); setErr(""); setMsg("");
@@ -646,7 +693,7 @@ function AdminCourses({ go }) {
               {!instructors.length && <div className="text-sm" style={{ color: T.textMuted }}>講師ユーザーがまだ登録されていません。</div>}
             </div>
           </div>
-          <div className="mt-4 flex justify-end"><Btn icon={Check} onClick={save}>{busy ? "保存中…" : "保存する"}</Btn></div>
+          <div className="mt-4 flex flex-wrap justify-end gap-2"><Btn kind="ghost" icon={Trash2} onClick={() => setDeleteOpen(true)} disabled={busy}>削除</Btn><Btn icon={Check} onClick={save}>{busy ? "保存中…" : "保存する"}</Btn></div>
         </Card>
 
         <Card className="p-5">
@@ -664,6 +711,7 @@ function AdminCourses({ go }) {
             : <div className="overflow-x-auto"><div className="grid grid-cols-7 gap-1.5" style={{ minWidth: 900 }}>{["月", "火", "水", "木", "金", "土", "日"].map(d => <div key={d} className="px-2 py-1 text-center text-xs font-bold" style={{ color: T.textMuted }}>{d}</div>)}{calendarCells.map((row, i) => row.blank ? <div key={row.key || i} className="min-h-[150px] rounded-xl" style={{ background: T.bgBase, border: `1px dashed ${T.border}` }} /> : <div key={row.date} className="min-h-[150px] rounded-xl p-2" style={{ background: row.isTrainingDay ? "#fff" : T.bgBase, border: `1px solid ${row.dirty ? T.accent : T.border}` }}><div className="mb-1 flex items-center justify-between gap-1"><span className="text-sm font-bold" style={{ color: T.textPrimary }}>{Number(row.date.slice(8, 10))}</span>{row.dirty && <span className="h-2 w-2 rounded-full" style={{ background: T.accent }} title="変更あり" />}</div><div className="mb-1 flex flex-wrap gap-1"><Badge tone={row.isTrainingDay ? "green" : "muted"}>{row.isTrainingDay ? "研修日" : "非研修日"}</Badge><Badge tone={calTypeTone(row.type)}>{calTypeLabel(row.type)}</Badge></div>{(row.title || row.note) && <div className="mb-1 line-clamp-2 text-xs" style={{ color: T.textMuted }}>{row.title || row.note}</div>}<div className="space-y-1.5"><select value={row.type} onChange={e => updateCalendar(row.date, { type: e.target.value })} className="w-full rounded-lg px-2 py-1.5 text-xs outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary }}>{CAL_TYPES.map(([v, l]) => <option key={v} value={v}>{l}</option>)}</select><input value={row.title} onChange={e => updateCalendar(row.date, { title: e.target.value })} placeholder="タイトル" className="w-full rounded-lg px-2 py-1.5 text-xs outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary }} /><input value={row.note} onChange={e => updateCalendar(row.date, { note: e.target.value })} placeholder="メモ" className="w-full rounded-lg px-2 py-1.5 text-xs outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary }} /></div></div>)}</div></div>}
         </Card>
       </div>
+      {deleteOpen && selected && <DeleteConfirm title="コースを削除" name={selected.name || selected.courseId} warning="受講生やカリキュラムがあるコースは削除できません。" busy={busy} onClose={() => setDeleteOpen(false)} onConfirm={deleteCourse} />}
     </div>
   );
   return (
@@ -820,6 +868,7 @@ function AdminUsers() {
   const [courseLoading, setCourseLoading] = useState(false);
   const [companies, setCompanies] = useState([]);
   const [courses, setCourses] = useState([]);
+  const [deleteOpen, setDeleteOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState("");
   const [err, setErr] = useState("");
@@ -908,6 +957,19 @@ function AdminUsers() {
       setErr("保存に失敗しました：" + (e?.message || e));
     } finally { setBusy(false); }
   }
+  async function deleteUser() {
+    if (!selected || busy) return;
+    setErr(""); setMsg(""); setBusy(true);
+    try {
+      await apiDelete(`/admin/users/${selected.userId}`);
+      setMsg(`${selected.name || selected.email || "ユーザー"} を削除しました。`);
+      setDeleteOpen(false);
+      setSelected(null);
+      await load();
+    } catch (e) {
+      setErr(e?.message || "削除に失敗しました。");
+    } finally { setBusy(false); }
+  }
   async function saveCourses() {
     if (!selected || busy) return;
     setErr(""); setMsg(""); setBusy(true);
@@ -946,7 +1008,7 @@ function AdminUsers() {
             <div className="rounded-xl p-3 text-xs" style={adminPanelStyle}>現在の所属企業: {companyName(selected.company)}</div>
           </div>
           {edit.role !== selected.role && <div className="mt-3 rounded-lg px-3 py-2 text-xs" style={{ background: T.warningSubtle, color: T.warning }}>ロール変更は再ログイン後に反映されます。</div>}
-          <div className="mt-4 flex justify-end"><Btn icon={Check} onClick={save}>{busy ? "保存中..." : "保存する"}</Btn></div>
+          <div className="mt-4 flex flex-wrap justify-end gap-2"><Btn kind="ghost" icon={Trash2} onClick={() => setDeleteOpen(true)} disabled={busy}>削除</Btn><Btn icon={Check} onClick={save}>{busy ? "保存中..." : "保存する"}</Btn></div>
         </Card>
         <Card className="p-5">
           <div className="mb-3 flex items-center justify-between">
@@ -975,6 +1037,7 @@ function AdminUsers() {
           )}
         </Card>
       </div>
+      {deleteOpen && selected && <DeleteConfirm title="ユーザーを削除" name={selected.name || selected.email || selected.userId} warning="所属コース、担当コース、カルテ・日報・勤怠・テスト結果があるユーザーは削除できません。" busy={busy} onClose={() => setDeleteOpen(false)} onConfirm={deleteUser} />}
     </div>
   );
 
