@@ -182,7 +182,7 @@ export default function LessonSlideEditor({ open, course, lesson, updateLesson, 
                 {option.label}を追加
               </Btn>
             ))}
-            <Btn kind="ghost" size="sm" icon={FileUp} onClick={() => setImporterOpen(true)}>PDFからインポート</Btn>
+            <Btn kind="ghost" size="sm" icon={FileUp} onClick={() => setImporterOpen(true)}>資料をインポート</Btn>
           </div>
         )}
 

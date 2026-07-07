@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from "react";
 import {
   ChevronLeft, ChevronRight, Lightbulb, FileText, Download, Check, X,
-  Play, PlayCircle, Circle, CheckCircle2, Loader2, Sparkles,
+  Play, PlayCircle, Circle, CheckCircle2, Loader2, Sparkles, PanelRightClose, PanelRightOpen,
 } from "lucide-react";
 import { Btn, T, PRODUCT_ACCENT } from "../../components/common";
 import { LessonBodyText } from "./LearningComponents.jsx";
@@ -334,6 +334,7 @@ function VideoSlideBody({ slide }) {
 function ImageSlideBody({ slide, content, lrn }) {
   const [resolvedUrl, setResolvedUrl] = useState(content.url || "");
   const [resolveError, setResolveError] = useState(false);
+  const imageCaption = content.caption || slide.caption || "";
 
   useEffect(() => {
     if (!content.materialId || !lrn?.getMaterialViewUrl) return;
@@ -349,10 +350,15 @@ function ImageSlideBody({ slide, content, lrn }) {
     <div>
       <h3 className="mb-3 text-xl font-bold" style={{ color: C.ink, letterSpacing: "-0.02em" }}>{slide.title}</h3>
       {resolvedUrl && (
-        <img src={resolvedUrl} alt={content.alt || slide.title} className="max-h-[420px] w-full rounded-xl object-contain" style={{ background: T.bgBase }} />
+        <img src={resolvedUrl} alt={content.alt || slide.title} className="max-h-[68vh] min-h-[360px] w-full rounded-xl object-contain" style={{ background: T.bgBase }} />
       )}
       {resolveError && <p className="text-xs" style={{ color: "#ef4444" }}>画像を読み込めませんでした。</p>}
-      {content.caption && <p className="mt-3 text-sm leading-relaxed" style={{ color: C.muted }}>{content.caption}</p>}
+      {imageCaption && (
+        <div className="mt-4 rounded-xl p-4" style={{ background: T.bgBase, border: `1px solid ${C.line}` }}>
+          <div className="mb-1 text-xs font-bold" style={{ color: C.muted }}>このページの説明</div>
+          <p className="text-sm leading-relaxed" style={{ color: C.body }}>{imageCaption}</p>
+        </div>
+      )}
     </div>
   );
 }
@@ -436,6 +442,8 @@ function SlideRenderer({ slide, accent, lrn }) {
 
 function MainSlidePanel({ slides, index, setIndex, accent, lrn }) {
   const slide = slides[index];
+  const slideCaption = slide?.caption || "";
+  const captionShownInBody = slide?.kind === "image";
   return (
     <div className="min-w-0 flex-1">
       <div className="rounded-2xl p-8" style={{ background: "#fff", border: `1px solid ${C.line}` }}>
@@ -466,10 +474,10 @@ function MainSlidePanel({ slides, index, setIndex, accent, lrn }) {
         </button>
       </div>
 
-      {slide?.caption && (
+      {slideCaption && !captionShownInBody && (
         <div className="mt-4 rounded-xl p-4" style={{ background: T.bgBase }}>
           <div className="mb-1 text-xs font-bold" style={{ color: C.muted }}>このページの説明</div>
-          <p className="text-sm leading-relaxed" style={{ color: C.body }}>{slide.caption}</p>
+          <p className="text-sm leading-relaxed" style={{ color: C.body }}>{slideCaption}</p>
         </div>
       )}
     </div>
@@ -523,39 +531,63 @@ function SupplementMaterials({ course, lesson, lrn }) {
   );
 }
 
-function RightSidebar({ course, lesson, lrn, idx, lessons, accent }) {
+function RightSidebar({ course, lesson, lrn, idx, lessons, accent, compact, onToggle }) {
   return (
-    <div className="space-y-6 lg:sticky lg:top-6 lg:w-[280px] lg:shrink-0">
-      <div>
-        <div className="mb-1 text-xs font-bold uppercase" style={{ color: accent, letterSpacing: "0.08em" }}>{course.title} · Lesson {idx + 1}</div>
-        <h2 className="text-lg font-bold" style={{ color: C.ink, letterSpacing: "-0.02em" }}>{lesson.title}</h2>
-        {lesson.summary && <p className="mt-0.5 text-xs" style={{ color: C.muted }}>{lesson.summary}</p>}
+    <div className={`space-y-4 lg:sticky lg:top-6 lg:shrink-0 ${compact ? "lg:w-[72px]" : "lg:w-[240px]"}`}>
+      <div className="flex items-start justify-between gap-2">
+        <div className={`min-w-0 ${compact ? "lg:hidden" : ""}`}>
+          <div className="mb-1 text-xs font-bold uppercase" style={{ color: accent, letterSpacing: "0.08em" }}>{course.title} · Lesson {idx + 1}</div>
+          <h2 className="text-lg font-bold" style={{ color: C.ink, letterSpacing: "-0.02em" }}>{lesson.title}</h2>
+          {lesson.summary && <p className="mt-0.5 text-xs" style={{ color: C.muted }}>{lesson.summary}</p>}
+        </div>
+        <button
+          type="button"
+          title={compact ? "Lesson情報を開く" : "Lesson情報を閉じる"}
+          onClick={onToggle}
+          className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl transition hover:bg-black/[.04]"
+          style={{ border: `1px solid ${C.line}`, color: C.muted, background: "#fff" }}
+        >
+          {compact ? <PanelRightOpen size={16} /> : <PanelRightClose size={16} />}
+        </button>
       </div>
 
-      <div>
-        <SectionLabel>進捗</SectionLabel>
-        <div className="flex items-center gap-2">
-          <div className="h-1.5 flex-1 overflow-hidden rounded-full" style={{ background: C.line }}>
-            <div className="h-full rounded-full" style={{ width: `${lessons.length ? ((idx + 1) / lessons.length) * 100 : 0}%`, background: accent }} />
+      {compact ? (
+        <div className="hidden space-y-2 lg:block">
+          <div className="mx-auto flex h-10 w-10 items-center justify-center rounded-xl text-xs font-bold tabular-nums" style={{ background: T.bgBase, color: C.body, border: `1px solid ${C.line}` }}>
+            {idx + 1}/{lessons.length}
           </div>
-          <span className="shrink-0 text-xs font-semibold tabular-nums" style={{ color: C.muted }}>{idx + 1} / {lessons.length}</span>
+          <div className="mx-auto h-20 w-1.5 overflow-hidden rounded-full" style={{ background: C.line }}>
+            <div className="w-full rounded-full" style={{ height: `${lessons.length ? ((idx + 1) / lessons.length) * 100 : 0}%`, background: accent }} />
+          </div>
         </div>
-      </div>
+      ) : null}
 
-      {lesson.points?.length > 0 && (
+      <div className={compact ? "lg:hidden" : ""}>
         <div>
-          <SectionLabel>学習ポイント</SectionLabel>
-          <ul className="space-y-1.5">
-            {lesson.points.map((p, i) => (
-              <li key={i} className="flex items-start gap-2 text-sm" style={{ color: C.body }}>
-                <Lightbulb size={13} className="mt-0.5 shrink-0" style={{ color: accent }} />{p}
-              </li>
-            ))}
-          </ul>
+          <SectionLabel>進捗</SectionLabel>
+          <div className="flex items-center gap-2">
+            <div className="h-1.5 flex-1 overflow-hidden rounded-full" style={{ background: C.line }}>
+              <div className="h-full rounded-full" style={{ width: `${lessons.length ? ((idx + 1) / lessons.length) * 100 : 0}%`, background: accent }} />
+            </div>
+            <span className="shrink-0 text-xs font-semibold tabular-nums" style={{ color: C.muted }}>{idx + 1} / {lessons.length}</span>
+          </div>
         </div>
-      )}
 
-      <SupplementMaterials course={course} lesson={lesson} lrn={lrn} />
+        {lesson.points?.length > 0 && (
+          <div>
+            <SectionLabel>学習ポイント</SectionLabel>
+            <ul className="space-y-1.5">
+              {lesson.points.map((p, i) => (
+                <li key={i} className="flex items-start gap-2 text-sm" style={{ color: C.body }}>
+                  <Lightbulb size={13} className="mt-0.5 shrink-0" style={{ color: accent }} />{p}
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
+
+        <SupplementMaterials course={course} lesson={lesson} lrn={lrn} />
+      </div>
     </div>
   );
 }
@@ -584,6 +616,7 @@ function ReactionBar({ course, lesson, lrn, accent }) {
 export default function ElSlideLessonView({ course, lesson, lrn, onBack, onNavigate, onComplete, lessons }) {
   const slides = orderedSlides(lesson);
   const [slideIndex, setSlideIndex] = useState(0);
+  const [rightCompact, setRightCompact] = useState(true);
   const accent = course.color || PRODUCT_ACCENT.learning.accent;
   const lessonsDone = lrn.getLessonsDone(course.id);
   const completed = !!lessonsDone[lesson.id]?.completed;
@@ -606,7 +639,7 @@ export default function ElSlideLessonView({ course, lesson, lrn, onBack, onNavig
       <div className="flex flex-col gap-8 lg:flex-row lg:items-start">
         <LeftSlideNav slides={slides} current={slideIndex} onSelect={setSlideIndex} accent={accent} />
         <MainSlidePanel slides={slides} index={slideIndex} setIndex={setSlideIndex} accent={accent} lrn={lrn} />
-        <RightSidebar course={course} lesson={lesson} lrn={lrn} idx={idx} lessons={lessons} accent={accent} />
+        <RightSidebar course={course} lesson={lesson} lrn={lrn} idx={idx} lessons={lessons} accent={accent} compact={rightCompact} onToggle={() => setRightCompact(v => !v)} />
       </div>
 
       <div className="mt-6 flex flex-wrap items-center justify-between gap-3 rounded-2xl p-4" style={{ background: C.canvas }}>
