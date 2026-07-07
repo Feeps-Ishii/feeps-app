@@ -3339,8 +3339,9 @@ function ClientHome({ openKarte, go }) {
   const clientCourseById = useMemo(() => Object.fromEntries(clientCourses.map(c => [c.courseId, c])), [clientCourses]);
   const joinedClientCourses = useMemo(() => {
     const ids = new Set(clientTrainees.map(t => t.course).filter(Boolean));
-    return [...ids].map(id => clientCourseById[id] || { courseId: id, name: id });
-  }, [clientTrainees, clientCourseById]);
+    const fromProfiles = [...ids].map(id => clientCourseById[id] || { courseId: id, name: id });
+    return fromProfiles.length ? fromProfiles : clientCourses;
+  }, [clientTrainees, clientCourseById, clientCourses]);
   const clientIds = useMemo(() => new Set(clientTrainees.map(t => t.userId || t.id).filter(Boolean)), [clientTrainees]);
   const clientReportsForToday = clientReports.filter(r => clientIds.has(r.traineeId || r.userId));
   const clientAttendanceForToday = clientAttendance.filter(a => clientIds.has(a.traineeId || a.userId));
@@ -3430,7 +3431,7 @@ function ClientHome({ openKarte, go }) {
         <div className="space-y-2">{clientLoading ? <SkeletonRows rows={3} /> : clientTrainees.map(t => (
           <div key={t.userId} onClick={() => openKarte({ id: t.userId, name: t.name, email: t.email, company: t.company })} className="flex cursor-pointer items-center gap-3 rounded-xl px-3 py-2.5 transition hover:opacity-80" style={{ background: T.bgBase }}>
             <Avatar name={t.name || t.email} size={34} /><div className="min-w-0 flex-1"><div className="truncate text-sm font-semibold" style={{ color: T.textPrimary }}>{t.name || "氏名未設定"}</div><div className="truncate text-xs" style={{ color: T.textMuted }}>{t.email}</div></div>
-            <Badge tone="cyan">{clientCourseById[t.course]?.name || "所属確認"}</Badge></div>
+            <Badge tone="cyan">{clientCourseById[t.course]?.name || (clientCourses.length === 1 ? clientCourses[0].name : "所属確認")}</Badge></div>
         ))}{!clientLoading && clientTrainees.length === 0 && <div className="rounded-xl px-3 py-4 text-center text-sm" style={{ background: T.bgBase, color: T.textMuted }}>自社受講生はまだ登録されていません。</div>}</div>
       </Card>
     </div>
