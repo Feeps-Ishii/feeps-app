@@ -2115,6 +2115,47 @@ function AttendanceManage({ role }) {
 
 /* ===== 日報 ===== */
 /* API日報(traineeId,date,learned,question,nextday,comment) を画面表示形に変換 */
+function reportCommentRoleLabel(role) {
+  const r = String(role || "").toLowerCase();
+  if (r === "client") return "企業担当者コメント";
+  if (r === "admin") return "管理者コメント";
+  return "講師コメント";
+}
+function reportCommentTone(role) {
+  const r = String(role || "").toLowerCase();
+  if (r === "client") return "amber";
+  if (r === "admin") return "red";
+  return "cyan";
+}
+function normalizeReportComments(r) {
+  const comments = [];
+  if (r.comment) {
+    comments.push({
+      id: "legacy-comment",
+      by: "講師",
+      role: "instructor",
+      roleLabel: reportCommentRoleLabel("instructor"),
+      tone: reportCommentTone("instructor"),
+      text: r.comment,
+      at: r.commentedAt ? fmtTs(r.commentedAt) : "",
+    });
+  }
+  (Array.isArray(r.comments) ? r.comments : []).forEach((c, i) => {
+    const text = String(c?.text ?? c?.comment ?? "").trim();
+    if (!text) return;
+    const authorRole = String(c?.authorRole || c?.role || "instructor").toLowerCase();
+    comments.push({
+      id: c?.commentId || `comment-${i}`,
+      by: c?.authorName || c?.by || reportCommentRoleLabel(authorRole),
+      role: authorRole,
+      roleLabel: reportCommentRoleLabel(authorRole),
+      tone: reportCommentTone(authorRole),
+      text,
+      at: c?.createdAt ? fmtTs(c.createdAt) : (c?.at || ""),
+    });
+  });
+  return comments;
+}
 function mapReport(r) {
   return {
     id: r.date,
@@ -2130,7 +2171,7 @@ function mapReport(r) {
     learned: r.learned || "",
     question: r.question || "",
     nextday: r.nextday || "",
-    comments: r.comment ? [{ by: "講師", role: "講師", text: r.comment, at: "" }] : [],
+    comments: normalizeReportComments(r),
     updatedAt: r.updatedAt || "",
     createdAt: r.createdAt || "",
     submittedAt: r.submittedAt || "",
@@ -2381,7 +2422,7 @@ function mapReportInstructor(r) {
     learned: r.learned || "",
     question: r.question || "",
     nextday: r.nextday || "",
-    comments: r.comment ? [{ by: "講師", role: "講師", text: r.comment, at: "" }] : [],
+    comments: normalizeReportComments(r),
     updatedAt: r.updatedAt || "",
     createdAt: r.createdAt || "",
     submittedAt: r.submittedAt || "",
@@ -2404,7 +2445,7 @@ function Reports({ role }) {
   const [monthlyLoading, setMonthlyLoading] = useState(false);
   const [monthlyFilter, setMonthlyFilter] = useState("すべて");
   const aiC = useAIDraft();
-  const canComment = role === "instructor" || role === "admin", canWrite = role === "trainee";
+  const canComment = role === "instructor" || role === "admin" || role === "client", canWrite = role === "trainee";
   const canViewReports = canComment || role === "client";
   const opsFilter = useOpsFilter(canViewReports);
 
@@ -2427,7 +2468,7 @@ function Reports({ role }) {
           });
         })
         .catch(() => setSaveErr("日報の読み込みに失敗しました。再ログインをお試しください。"));
-    } else if (canComment || role === "client") {
+    } else if (canComment) {
       setSaveErr("");
       apiGet("/reports?date=" + date)
         .then(items => setReports((items || []).map(mapReportInstructor)))
@@ -2495,12 +2536,13 @@ function Reports({ role }) {
     const rep = reports.find(r => r.id === id);
     if (!rep) return;
     try {
-      await apiPut("/reports/" + rep.traineeId + "/comment", { date: rep.rawDate, comment: t });
+      const res = await apiPut("/reports/" + rep.traineeId + "/comment", { date: rep.rawDate, comment: t });
       emitNotificationRefresh();
-      setReports(reports.map(r => r.id === id ? { ...r, comments: [{ by: "石井 啓輔", role: "講師", text: t, at: "" }] } : r));
+      const savedComment = normalizeReportComments({ comments: [res?.comment || { text: t, authorRole: role, createdAt: new Date().toISOString() }] })[0];
+      setReports(reports.map(r => r.id === id ? { ...r, comments: [...(r.comments || []), savedComment] } : r));
       setCText({ ...cText, [id]: "" });
     } catch (e) {
-      setSaveErr("コメント送信に失敗しました：" + (e?.message || e));
+      setSaveErr("コメント送信に失敗しました: " + (e?.errorMessage || e?.message || e));
     }
   }
   function aiComment(id) { aiC.draft(() => setCText({ ...cText, [id]: "良い気づきです。止め時の目安は「打ち手が具体的に見えたら」。なぜを重ねても抽象的なままなら、一段戻して論点を分け直すと整理しやすいですよ。" }), id); }
@@ -2677,7 +2719,7 @@ function Reports({ role }) {
             <div className="mt-4"><div className="mb-2 text-xs font-bold" style={{ color: T.textMuted }}>フィードバック</div>
               <div className="space-y-2">{r.comments.map((c, i) => (
                 <div key={i} className="rounded-xl p-3.5" style={{ background: T.accentSubtle }}><div className="mb-1 flex items-center gap-2"><Avatar name={c.by} size={24} />
-                  <span className="text-sm font-semibold" style={{ color: T.textPrimary }}>{c.by}</span><Badge tone="cyan">{c.role}</Badge><span className="ml-auto text-xs" style={{ color: T.textMuted }}>{c.at}</span></div>
+                  <span className="text-sm font-semibold" style={{ color: T.textPrimary }}>{c.by}</span><Badge tone={c.tone || reportCommentTone(c.role)}>{c.roleLabel || reportCommentRoleLabel(c.role)}</Badge><span className="ml-auto text-xs" style={{ color: T.textMuted }}>{c.at}</span></div>
                   <p className="text-sm leading-relaxed" style={{ color: T.textSecondary }}>{c.text}</p></div>
               ))}{!r.comments.length && <div className="rounded-xl p-3.5 text-sm" style={{ background: T.bgBase, color: T.textMuted }}>まだコメントはありません</div>}</div>
               {canComment && <div className="mt-3">
