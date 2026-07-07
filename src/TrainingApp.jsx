@@ -693,6 +693,7 @@ export default function App() {
   const [notifLoading, setNotifLoading] = useState(false);
   const [notifErr, setNotifErr] = useState("");
   const [userProfile, setUserProfile] = useState(null);
+  const [profileChecked, setProfileChecked] = useState(false);
   useEffect(() => {
     let active = true;
     const authFallback = setTimeout(() => {
@@ -729,7 +730,23 @@ export default function App() {
   }, [loggedIn]);
   useEffect(() => {
     if (!loggedIn) return;
-    apiGet("/profile/me").then(p => setUserProfile(p || null)).catch(() => {});
+    setProfileChecked(false);
+    apiGet("/profile/me")
+      .then(p => {
+        setUserProfile(p || null);
+        if (p?.role && ROLES[p.role] && p.role !== role) {
+          setRole(p.role);
+          setView("home");
+          setKarte(null);
+        }
+      })
+      .catch(() => {
+        setUserProfile(null);
+        setRole("trainee");
+        setView("home");
+        setKarte(null);
+      })
+      .finally(() => setProfileChecked(true));
   }, [loggedIn]);
   const refreshNotifications = useCallback(() => {
     if (!loggedIn) return Promise.resolve();
@@ -784,8 +801,13 @@ export default function App() {
   }, [allowedViews, view]);
 
   function login(r) { setRole(r); setLoggedIn(true); setView("home"); setKarte(null); }
-  async function logout() { try { await signOut(); } catch (e) {} setLoggedIn(false); }
-  function switchRole(r) { setRole(r); setView("home"); setKarte(null); }
+  async function logout() { try { await signOut(); } catch (e) {} setLoggedIn(false); setUserProfile(null); setProfileChecked(false); }
+  function switchRole(r) {
+    const fixedRole = userProfile?.role && ROLES[userProfile.role] ? userProfile.role : r;
+    setRole(fixedRole);
+    setView("home");
+    setKarte(null);
+  }
   function go(v) {
     setKarte(null);
     setView(allowedViews.has(v) ? v : "home");
@@ -816,6 +838,7 @@ export default function App() {
 
   if (!authChecked) return null;
   if (!loggedIn) return <Login onLogin={login} />;
+  if (!profileChecked) return null;
 
   const screen = (() => {
     if (product === "learning") return <LearningProduct subView={subView} goSub={goSub} goProduct={goProduct} role={role} themeColor={themeColor} />;
@@ -877,8 +900,8 @@ export default function App() {
       {demoOpen && (<>
         <div className="fixed inset-0" style={{ zIndex: Z.dropdown - 1 }} onClick={() => setDemoOpen(false)} />
         <div className="absolute left-0 top-full mt-1 min-w-[172px] rounded-xl py-1" style={{ zIndex: Z.dropdown, background: T.bgSurface, border: `1px solid ${T.border}`, boxShadow: "0 8px 24px rgba(21,23,28,.12)" }}>
-          <div className="px-3 py-1.5 text-[10px] font-semibold uppercase tracking-wider" style={{ color: T.textMuted }}>ロール切替（開発用）</div>
-          {Object.values(ROLES).map(r => { const active = role === r.key;
+          <div className="px-3 py-1.5 text-[10px] font-semibold uppercase tracking-wider" style={{ color: T.textMuted }}>{userProfile?.role ? "実ロール固定" : "ロール切替（開発用）"}</div>
+          {Object.values(ROLES).filter(r => !userProfile?.role || r.key === role).map(r => { const active = role === r.key;
             return <button key={r.key} onClick={() => { switchRole(r.key); setDemoOpen(false); }}
               className="flex w-full items-center gap-2 px-3 py-2 text-xs font-semibold transition hover:bg-black/5"
               style={{ color: active ? T.accent : T.textSecondary }}>
@@ -1033,8 +1056,8 @@ export default function App() {
                       <User size={13} />プロフィールを開く
                     </button>
                     <div className="my-1 h-px" style={{ background: T.border }} />
-                    <div className="px-3 py-1 text-[10px] font-semibold uppercase tracking-wider" style={{ color: T.textMuted }}>ロール切替（開発用）</div>
-                    {Object.values(ROLES).map(r => { const activeRole = role === r.key;
+                    <div className="px-3 py-1 text-[10px] font-semibold uppercase tracking-wider" style={{ color: T.textMuted }}>{userProfile?.role ? "実ロール固定" : "ロール切替（開発用）"}</div>
+                    {Object.values(ROLES).filter(r => !userProfile?.role || r.key === role).map(r => { const activeRole = role === r.key;
                       return <button key={r.key} type="button" onClick={() => { switchRole(r.key); setSidebarUserOpen(false); }}
                         className="flex w-full items-center gap-2 px-3 py-2 text-xs font-semibold transition hover:bg-black/5"
                         style={{ color: activeRole ? T.accent : T.textSecondary }}>

@@ -1075,7 +1075,8 @@ function Tests({ role }) {
   const [testResultsMap, setTestResultsMap] = useState({});
   const [reviewDrafts, setReviewDrafts] = useState({});
   const canManage = role === "instructor" || role === "admin";
-  const opsFilter = useOpsFilter(canManage);
+  const canViewResults = canManage || role === "client";
+  const opsFilter = useOpsFilter(canViewResults);
 
   async function loadTests() {
     setTestErr("");
@@ -1098,10 +1099,13 @@ function Tests({ role }) {
       } catch (e) {}
     }
     setTestSource(source);
-    if (canManage) {
+    if (canViewResults) {
       const pairs = await Promise.all(base.map(t => {
         const id = testIdOf(t);
-        return apiGet(`/tests/${id}/results`).then(rows => [id, Array.isArray(rows) ? rows : []]).catch(() => [id, []]);
+        return apiGet(`/tests/${id}/results`).then(rows => [id, Array.isArray(rows) ? rows : []]).catch(e => {
+          setTestErr("テスト結果の読み込みに失敗しました: " + (e?.errorMessage || e?.message || e));
+          return [id, []];
+        });
       }));
       setTestResultsMap(Object.fromEntries(pairs));
     } else {
@@ -1148,7 +1152,7 @@ function Tests({ role }) {
       const items = await apiGet(`/tests/${testIdOf(t)}/results`);
       setResults({ test: t, rows: (items || []).map(r => ({ ...r, traineeId: r.traineeId, name: nameMap[r.traineeId] || fallbackName(r.traineeId), score: r.officialScore ?? r.teacherScore ?? r.score, aiScore: r.score, needsReview: r.needsReview || Object.values(r.answers || {}).filter(a => a?.needsReview).length })) });
     } catch (e) {
-      setResults({ test: t, rows: [], err: "結果の取得に失敗しました（講師権限・再ログインをご確認ください）。" });
+      setResults({ test: t, rows: [], err: "結果の取得に失敗しました: " + (e?.errorMessage || e?.message || e) });
     }
   }
   async function saveTeacherReview(row) {
@@ -1165,7 +1169,7 @@ function Tests({ role }) {
 
   if (taking) return <TestTaking test={taking} preview={takingPreview} back={() => { setTaking(null); setTakingPreview(false); }} onDone={handleDone} />;
   if (building) return <TestBuilder back={() => { setBuilding(false); setEditingTest(null); setDuplicateTest(false); }} focus={buildFocus} student={buildStudent} onSaved={loadTests} initialTest={editingTest} duplicate={duplicateTest} />;
-  if (canManage) {
+  if (canViewResults) {
     const testStats = Object.fromEntries(tests.map(t => {
       const id = testIdOf(t);
       const rawRows = testResultsMap[id] || [];
@@ -1195,7 +1199,7 @@ function Tests({ role }) {
     const totalFollow = Object.values(testStats).reduce((s, v) => s + v.followCount, 0);
     return (
     <div>
-      <SectionHead title="テスト管理" desc="範囲と重点を指定して作成・受験後すぐ自動採点" action={<div className="flex flex-wrap gap-2"><Btn kind="ai" icon={Sparkles} onClick={() => { setBuildFocus(null); setBuildStudent(null); setBuilding(true); }}>AIでテスト作成</Btn><Btn icon={Plus} onClick={() => { setBuildFocus(null); setBuildStudent(null); setBuilding(true); }}>テストを作成</Btn></div>} />
+      <SectionHead title={canManage ? "テスト管理" : "テスト結果"} desc={canManage ? "範囲と重点を指定して作成・受験後すぐ自動採点" : "自社受講生の公開テスト結果を確認します"} action={canManage ? <div className="flex flex-wrap gap-2"><Btn kind="ai" icon={Sparkles} onClick={() => { setBuildFocus(null); setBuildStudent(null); setBuilding(true); }}>AIでテスト作成</Btn><Btn icon={Plus} onClick={() => { setBuildFocus(null); setBuildStudent(null); setBuilding(true); }}>テストを作成</Btn></div> : null} />
       {testErr && <div className="mb-4 rounded-lg px-3 py-2 text-xs" style={{ background: T.warningSubtle, color: T.warning }}>{testErr}</div>}
       <OpsFilterPanel filter={opsFilter} summary={results?.rows ? `表示対象: ${opsFilter.targetTrainees.length}名 / 受験済み: ${filteredRows.length}件 / 平均点: ${filteredRows.length ? avg : "—"}点` : `表示対象: ${opsFilter.targetTrainees.length}名`} />
       <Card className="mb-5 overflow-hidden">
@@ -1217,13 +1221,13 @@ function Tests({ role }) {
           <div className="flex items-center gap-4">
             <div className="hidden text-right sm:block"><div className="text-sm font-bold" style={{ color: T.textPrimary }}>{testStats[testIdOf(t)]?.avgScore == null ? "結果なし" : `平均 ${testStats[testIdOf(t)].avgScore}点`}</div><div className="text-xs" style={{ color: T.textMuted }}>提出 {testStats[testIdOf(t)]?.submitted || 0}{opsFilter.targetTrainees.length ? ` / 未受験 ${testStats[testIdOf(t)]?.unsubmitted || 0}` : ""}</div></div>
             <div className="flex flex-wrap justify-end gap-1.5">
-              <Btn kind="ghost" size="sm" icon={Pencil} onClick={() => { setEditingTest(t); setDuplicateTest(false); setBuilding(true); }}>編集</Btn>
-              <Btn kind="ghost" size="sm" icon={Plus} onClick={() => { setEditingTest(t); setDuplicateTest(true); setBuilding(true); }}>複製</Btn>
-              <Btn kind="ghost" size="sm" icon={Eye} onClick={() => { setTaking(t); setTakingPreview(true); }}>プレビュー</Btn>
-              <Btn kind="ghost" size="sm" icon={PlayCircle} onClick={() => { setTaking(t); setTakingPreview(true); }}>試し受験</Btn>
-              <Btn kind="ghost" size="sm" icon={t.status === "published" ? Lock : Send} onClick={() => updateTestStatus(t, t.status === "published" ? "draft" : "published")}>{t.status === "published" ? "非公開" : "公開"}</Btn>
+              {canManage && <Btn kind="ghost" size="sm" icon={Pencil} onClick={() => { setEditingTest(t); setDuplicateTest(false); setBuilding(true); }}>編集</Btn>}
+              {canManage && <Btn kind="ghost" size="sm" icon={Plus} onClick={() => { setEditingTest(t); setDuplicateTest(true); setBuilding(true); }}>複製</Btn>}
+              {canManage && <Btn kind="ghost" size="sm" icon={Eye} onClick={() => { setTaking(t); setTakingPreview(true); }}>プレビュー</Btn>}
+              {canManage && <Btn kind="ghost" size="sm" icon={PlayCircle} onClick={() => { setTaking(t); setTakingPreview(true); }}>試し受験</Btn>}
+              {canManage && <Btn kind="ghost" size="sm" icon={t.status === "published" ? Lock : Send} onClick={() => updateTestStatus(t, t.status === "published" ? "draft" : "published")}>{t.status === "published" ? "非公開" : "公開"}</Btn>}
               <Btn kind="soft" size="sm" icon={Eye} onClick={() => showResults(t)}>結果</Btn>
-              <Btn kind="ghost" size="sm" icon={Trash2} onClick={() => deleteTest(t)}>削除</Btn>
+              {canManage && <Btn kind="ghost" size="sm" icon={Trash2} onClick={() => deleteTest(t)}>削除</Btn>}
             </div></div></div>
       ))}</Card>
       {results && (
@@ -1246,11 +1250,11 @@ function Tests({ role }) {
                       {aiItems.length > 0 && <div className="mt-2 space-y-1 rounded-lg p-2 text-xs" style={{ background: T.bgBase, color: T.textSecondary }}>
                         {aiItems.map((ai, i) => <div key={i}><b>AI評価 Q{i + 1}:</b> {ai.score == null ? "採点待ち" : `${ai.score}点`} {ai.comment || ""}</div>)}
                       </div>}
-                      <div className="mt-2 grid gap-2 sm:grid-cols-[120px_1fr_auto]">
+                      {canManage && <div className="mt-2 grid gap-2 sm:grid-cols-[120px_1fr_auto]">
                         <input type="number" min="0" max="100" value={draft.teacherScore ?? r.teacherScore ?? r.score ?? ""} onChange={e => setReviewDrafts(d => ({ ...d, [key]: { ...(d[key] || {}), teacherScore: Number(e.target.value) } }))} className="rounded-lg px-2 py-1.5 text-xs outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary }} placeholder="講師点数" />
                         <input value={draft.teacherComment ?? r.teacherComment ?? ""} onChange={e => setReviewDrafts(d => ({ ...d, [key]: { ...(d[key] || {}), teacherComment: e.target.value } }))} className="rounded-lg px-2 py-1.5 text-xs outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary }} placeholder="講師コメント" />
                         <Btn size="sm" kind="ghost" icon={Check} onClick={() => saveTeacherReview(r)}>保存</Btn>
-                      </div>
+                      </div>}
                     </div>
                   );
                 })}</div>}
@@ -1874,7 +1878,7 @@ async function exportAttendanceExcel(data) {
 /* ===== 勤怠 ===== */
 function Attendance({ role }) {
   if (role === "trainee") return <TraineeAttendance />;
-  return <AttendanceManage />;
+  return <AttendanceManage role={role} />;
 }
 function TraineeAttendance() {
   const today = todayStr();
@@ -1973,7 +1977,7 @@ function TraineeAttendance() {
     </div>
   );
 }
-function AttendanceManage() {
+function AttendanceManage({ role }) {
   const nameMap = useNameMap();
   const [date, setDate] = useState(todayStr());
   const [rows, setRows] = useState([]);
@@ -1985,30 +1989,34 @@ function AttendanceManage() {
   const [monthlyRows, setMonthlyRows] = useState([]);
   const [monthlyLoading, setMonthlyLoading] = useState(false);
   const [monthlyFilter, setMonthlyFilter] = useState("すべて");
+  const canEdit = role === "instructor" || role === "admin";
   const opsFilter = useOpsFilter(true);
   function load() {
+    setErr("");
     apiGet("/attendance?date=" + date)
       .then(items => setRows((items || []).map(r => ({
         traineeId: r.traineeId, date: r.date,
         name: "受講生 " + String(r.traineeId).slice(0, 6),
         in: r.clockIn || "", out: r.clockOut || "", s: r.status || "出勤", note: r.note || "",
       }))))
-      .catch(() => setErr("勤怠の読み込みに失敗しました。講師権限と再ログインをご確認ください。"));
+      .catch(e => setErr("勤怠の読み込みに失敗しました: " + (e?.errorMessage || e?.message || e)));
   }
   useEffect(() => { load(); }, [date]);
   useEffect(() => {
     if (periodMode !== "月次") return;
     let alive = true;
+    setErr("");
     setMonthlyLoading(true);
-    Promise.all(datesInMonth(month).map(d => apiGet("/attendance?date=" + d).catch(() => [])))
+    Promise.all(datesInMonth(month).map(d => apiGet("/attendance?date=" + d)))
       .then(days => {
         if (!alive) return;
         setMonthlyRows(days.flatMap(items => items || []));
       })
+      .catch(e => alive && setErr("月次勤怠の読み込みに失敗しました: " + (e?.errorMessage || e?.message || e)))
       .finally(() => alive && setMonthlyLoading(false));
     return () => { alive = false; };
   }, [periodMode, month]);
-  function startEdit(i) { setEIdx(i); setDraft({ ...rows[i] }); }
+  function startEdit(i) { if (!canEdit) return; setEIdx(i); setDraft({ ...rows[i] }); }
   async function save() {
     const row = rows[eIdx]; setErr("");
     try {
@@ -2039,7 +2047,7 @@ function AttendanceManage() {
   }).filter(r => monthlyFilter === "欠席ありのみ" ? r.absent > 0 : monthlyFilter === "未登録ありのみ" ? r.missing > 0 : true);
   return (
     <div>
-      <SectionHead title="勤怠管理" desc={periodMode === "月次" ? `${month}の勤怠集計` : `${fmtLongDate(date)}の出席状況・修正`}
+      <SectionHead title={canEdit ? "勤怠管理" : "勤怠状況"} desc={periodMode === "月次" ? `${month}の勤怠集計` : canEdit ? `${fmtLongDate(date)}の出席状況・修正` : `${fmtLongDate(date)}の自社受講生の出席状況`}
         action={<div className="flex flex-wrap items-center gap-2"><Seg value={periodMode} onChange={setPeriodMode} options={["日次", "月次"]} />{periodMode === "月次" ? <input type="month" value={month} onChange={e => setMonth(e.target.value)} className="rounded-lg px-3 py-2 text-sm outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary, background: "#fff" }} /> : <input type="date" value={date} onChange={e => setDate(e.target.value)} className="rounded-lg px-3 py-2 text-sm outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary, background: "#fff" }} />}<Btn kind="ghost" icon={FileSpreadsheet} onClick={() => exportAttendanceExcel(filteredRows)}>Excelで出力</Btn></div>} />
       {err && <div className="mb-4 rounded-lg px-3 py-2 text-xs" style={{ background: T.dangerSubtle, color: T.danger }}>{err}</div>}
       <OpsFilterPanel filter={opsFilter} summary={periodMode === "月次" ? `表示対象: ${opsFilter.targetTrainees.length}名 / 集計月: ${month}` : `表示対象: ${opsFilter.targetTrainees.length}名 / 勤怠登録: ${filteredRows.length}件`} />
@@ -2071,13 +2079,13 @@ function AttendanceManage() {
         <div className="overflow-x-auto">
           <div style={{ minWidth: 600 }}>
             <div className="flex items-center gap-3 px-4 py-2.5 text-xs font-semibold" style={{ background: T.bgBase, color: T.textMuted }}>
-              <div className="w-40">受講生</div><div className="w-16">出勤</div><div className="w-16">退勤</div><div className="w-20">状態</div><div className="flex-1">備考</div><div className="w-12" /></div>
+              <div className="w-40">受講生</div><div className="w-16">出勤</div><div className="w-16">退勤</div><div className="w-20">状態</div><div className="flex-1">備考</div>{canEdit && <div className="w-12" />}</div>
             {filteredRows.length === 0 ? <div className="px-4 py-8 text-center text-sm" style={{ color: T.textMuted }}>該当データがありません</div> : filteredRows.map((a) => {
               const i = rows.findIndex(r => r.traineeId === a.traineeId);
               return (
               <div key={a.traineeId} className="flex items-center gap-3 px-4 py-3 text-sm" style={{ borderTop: `1px solid ${T.border}`, color: T.textPrimary }}>
                 <div className="flex w-40 items-center gap-2"><Avatar name={nameMap[a.traineeId] || a.name} size={28} /><span className="truncate">{nameMap[a.traineeId] || a.name}</span></div>
-                {eIdx === i ? (
+                {canEdit && eIdx === i ? (
                   <>
                     <input value={draft.in} onChange={e => setDraft({ ...draft, in: e.target.value })} className="w-16 rounded-lg px-1.5 py-1 text-sm outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary }} />
                     <input value={draft.out} onChange={e => setDraft({ ...draft, out: e.target.value })} className="w-16 rounded-lg px-1.5 py-1 text-sm outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary }} />
@@ -2092,7 +2100,7 @@ function AttendanceManage() {
                     <div className="w-16" style={{ color: T.textMuted }}>{a.out}</div>
                     <div className="w-20"><Badge tone={a.s === "出勤" ? "green" : a.s === "遅刻" ? "amber" : "red"}>{a.s}</Badge></div>
                     <div className="flex-1 truncate text-xs" style={{ color: T.textMuted }}>{a.note || "—"}</div>
-                    <div className="flex w-12 justify-end"><button onClick={() => startEdit(i)} className="rounded-lg p-1 hover:bg-gray-50"><Pencil size={15} style={{ color: T.textMuted }} /></button></div>
+                    {canEdit && <div className="flex w-12 justify-end"><button onClick={() => startEdit(i)} className="rounded-lg p-1 hover:bg-gray-50"><Pencil size={15} style={{ color: T.textMuted }} /></button></div>}
                   </>
                 )}
               </div>
@@ -2397,7 +2405,8 @@ function Reports({ role }) {
   const [monthlyFilter, setMonthlyFilter] = useState("すべて");
   const aiC = useAIDraft();
   const canComment = role === "instructor" || role === "admin", canWrite = role === "trainee";
-  const opsFilter = useOpsFilter(canComment);
+  const canViewReports = canComment || role === "client";
+  const opsFilter = useOpsFilter(canViewReports);
 
   useEffect(() => {
     if (role === "trainee") {
@@ -2419,25 +2428,28 @@ function Reports({ role }) {
         })
         .catch(() => setSaveErr("日報の読み込みに失敗しました。再ログインをお試しください。"));
     } else if (canComment || role === "client") {
+      setSaveErr("");
       apiGet("/reports?date=" + date)
         .then(items => setReports((items || []).map(mapReportInstructor)))
-        .catch(() => setSaveErr("日報の読み込みに失敗しました。再ログインをご確認ください。"));
+        .catch(e => setSaveErr("日報の読み込みに失敗しました: " + (e?.errorMessage || e?.message || e)));
     } else {
       setReports(REPORTS_SEED);
     }
   }, [role, date, canComment]);
   useEffect(() => {
-    if (!canComment || periodMode !== "月次") return;
+    if (!canViewReports || periodMode !== "月次") return;
     let alive = true;
+    setSaveErr("");
     setMonthlyLoading(true);
-    Promise.all(datesInMonth(month).map(d => apiGet("/reports?date=" + d).catch(() => [])))
+    Promise.all(datesInMonth(month).map(d => apiGet("/reports?date=" + d)))
       .then(days => {
         if (!alive) return;
         setMonthlyReports(days.flatMap(items => items || []));
       })
+      .catch(e => alive && setSaveErr("月次日報の読み込みに失敗しました: " + (e?.errorMessage || e?.message || e)))
       .finally(() => alive && setMonthlyLoading(false));
     return () => { alive = false; };
-  }, [canComment, periodMode, month]);
+  }, [canViewReports, periodMode, month]);
 
   async function submit() {
     const hasAny = draft.morningGoal.trim() || draft.goalItems.some(g => String(g.text || "").trim()) || draft.learned.trim() || draft.question.trim() || draft.nextday.trim() || draft.reflection.trim() || draft.blockers.trim() || draft.tomorrowGoal.trim();
@@ -2501,7 +2513,7 @@ function Reports({ role }) {
   function removeGoalItem(id) {
     setDraft(d => ({ ...d, goalItems: d.goalItems.filter(g => g.id !== id) }));
   }
-  const visibleReports = canComment ? opsFilter.apply(reports) : reports;
+  const visibleReports = canViewReports ? opsFilter.apply(reports) : reports;
   const companyNameById = (companyId) => opsFilter.companies.find(c => c.companyId === companyId)?.name || companyId || "";
   const companyNameOfReport = (r) => {
     const trainee = opsFilter.trainees.find(t => t.userId === r.traineeId);
@@ -2517,7 +2529,7 @@ function Reports({ role }) {
     visibleReports.forEach(r => { if (r.traineeId) m.set(r.traineeId, r); });
     return m;
   }, [visibleReports]);
-  const dailyReportRows = canComment && periodMode === "日次"
+  const dailyReportRows = canViewReports && periodMode === "日次"
     ? (opsFilter.targetTrainees.length ? opsFilter.targetTrainees : visibleReports.map(r => ({ ...(traineeById[r.traineeId] || {}), userId: r.traineeId }))).map(t => {
       const r = reportByTrainee.get(t.userId);
       const hasComment = !!(r?.comments?.length || r?.rawData?.comment || r?.comment);
@@ -2541,10 +2553,11 @@ function Reports({ role }) {
   }).filter(r => monthlyFilter === "未提出ありのみ" ? r.missing > 0 : true);
   return (
     <div>
-      <SectionHead title="日報" desc={canWrite ? "今日の学びを記録し、講師からフィードバックを受け取ります" : canComment ? "コース・企業・日付で日報を確認し、フィードバックします" : "受講生の日報を閲覧できます"}
-        action={canComment ? <div className="flex flex-wrap items-center gap-2"><Seg value={periodMode} onChange={setPeriodMode} options={["日次", "月次"]} /><span className="text-xs font-semibold" style={{ color: T.textMuted }}>{periodMode === "月次" ? "対象月" : "日報確認日"}</span>{periodMode === "月次" ? <input type="month" value={month} onChange={e => setMonth(e.target.value)} className="rounded-lg px-3 py-2 text-sm outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary, background: "#fff" }} /> : <input type="date" value={date} onChange={e => setDate(e.target.value)} className="rounded-lg px-3 py-2 text-sm outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary, background: "#fff" }} />}</div> : null} />
-      {canComment && <OpsFilterPanel filter={opsFilter} summary={periodMode === "月次" ? `表示対象: ${opsFilter.targetTrainees.length}名 / 集計月: ${month}` : `表示対象: ${opsFilter.targetTrainees.length}名 / 日報保存: ${visibleReports.length}件`} />}
-      {canComment && periodMode === "日次" && (
+      <SectionHead title="日報" desc={canWrite ? "今日の学びを記録し、講師からフィードバックを受け取ります" : canComment ? "コース・企業・日付で日報を確認し、フィードバックします" : "自社受講生の日報を閲覧できます"}
+        action={canViewReports ? <div className="flex flex-wrap items-center gap-2"><Seg value={periodMode} onChange={setPeriodMode} options={["日次", "月次"]} /><span className="text-xs font-semibold" style={{ color: T.textMuted }}>{periodMode === "月次" ? "対象月" : "日報確認日"}</span>{periodMode === "月次" ? <input type="month" value={month} onChange={e => setMonth(e.target.value)} className="rounded-lg px-3 py-2 text-sm outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary, background: "#fff" }} /> : <input type="date" value={date} onChange={e => setDate(e.target.value)} className="rounded-lg px-3 py-2 text-sm outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary, background: "#fff" }} />}</div> : null} />
+      {saveErr && !canWrite && <div className="mb-4 rounded-lg px-3 py-2 text-xs" style={{ background: T.dangerSubtle, color: T.danger }}>{saveErr}</div>}
+      {canViewReports && <OpsFilterPanel filter={opsFilter} summary={periodMode === "月次" ? `表示対象: ${opsFilter.targetTrainees.length}名 / 集計月: ${month}` : `表示対象: ${opsFilter.targetTrainees.length}名 / 日報保存: ${visibleReports.length}件`} />}
+      {canViewReports && periodMode === "日次" && (
         <Card className="mb-5 overflow-hidden">
           <div className="flex flex-wrap items-center justify-between gap-3 p-4" style={{ borderBottom: `1px solid ${T.border}` }}>
             <div><h3 className="font-bold" style={{ color: T.textPrimary }}>日報提出状況</h3><p className="text-xs" style={{ color: T.textMuted }}>選択日の実データから提出・コメント・要確認を集計します。</p></div>
@@ -2581,7 +2594,7 @@ function Reports({ role }) {
           </div>
         </Card>
       )}
-      {canComment && periodMode === "月次" ? (
+      {canViewReports && periodMode === "月次" ? (
         <Card className="overflow-hidden">
           <div className="flex flex-wrap items-center justify-between gap-3 p-4" style={{ borderBottom: `1px solid ${T.border}` }}>
             <div><h3 className="font-bold" style={{ color: T.textPrimary }}>月次日報集計</h3><p className="text-xs" style={{ color: T.textMuted }}>コース・企業の絞り込み条件を反映して、受講生ごとの提出状況を確認します。</p></div>
@@ -3301,15 +3314,15 @@ function ClientHome({ openKarte, go }) {
     Promise.all([
       apiGet("/trainees"),
       apiGet("/courses"),
-      apiGet("/reports?date=" + clientDate).catch(e => { console.warn("client reports failed", e); return []; }),
-      apiGet("/attendance?date=" + clientDate).catch(e => { console.warn("client attendance failed", e); return []; }),
-      apiGet("/tests").catch(e => { console.warn("client tests failed", e); return []; }),
+      apiGet("/reports?date=" + clientDate),
+      apiGet("/attendance?date=" + clientDate),
+      apiGet("/tests"),
     ])
       .then(async ([ts, cs, rs, atts, tests]) => {
         const visibleTests = (Array.isArray(tests) ? tests : []).filter(t => (t.status || "published") !== "archived").slice(0, 8);
         const resultPairs = await Promise.all(visibleTests.map(t => {
           const tid = t.testId || t.id;
-          return apiGet(`/tests/${tid}/results`).then(rows => [tid, Array.isArray(rows) ? rows : []]).catch(e => { console.warn("client test results failed", { testId: tid, error: e }); return [tid, []]; });
+          return apiGet(`/tests/${tid}/results`).then(rows => [tid, Array.isArray(rows) ? rows : []]);
         }));
         if (!alive) return;
         setClientTrainees(Array.isArray(ts) ? ts : []);
@@ -3319,7 +3332,7 @@ function ClientHome({ openKarte, go }) {
         setClientTests(visibleTests);
         setClientTestResults(Object.fromEntries(resultPairs));
       })
-      .catch(e => alive && setClientErr("自社受講生情報の取得に失敗しました: " + (e?.message || e)))
+      .catch(e => alive && setClientErr("自社受講生情報の取得に失敗しました: " + (e?.errorMessage || e?.message || e)))
       .finally(() => alive && setClientLoading(false));
     return () => { alive = false; };
   }, [clientDate]);
