@@ -369,6 +369,7 @@ function AdminCompanies() {
           <p className="text-sm leading-relaxed" style={{ color: T.textMuted }}>コース所属は Enrollments を正として管理します。企業別の関連コース集計は、今後の集計APIでより正確に表示する想定です。</p>
         </Card>
       </div>
+      {deleteOpen && selected && <DeleteConfirm title="企業を削除" name={selected.name || selected.companyId} warning="所属ユーザーがいる企業は削除できません。" busy={busy} onClose={() => setDeleteOpen(false)} onConfirm={deleteCompany} />}
     </div>
   );
   return (
@@ -443,7 +444,6 @@ function AdminCompanies() {
           </div>
         </Modal>
       )}
-      {deleteOpen && selected && <DeleteConfirm title="企業を削除" name={selected.name || selected.companyId} warning="所属ユーザーがいる企業は削除できません。" busy={busy} onClose={() => setDeleteOpen(false)} onConfirm={deleteCompany} />}
     </div>
   );
 }
