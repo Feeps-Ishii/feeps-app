@@ -195,6 +195,25 @@ const adminMsgStyle = { background: T.successSubtle, color: T.success };
 const adminErrStyle = { background: T.dangerSubtle, color: T.danger };
 const adminPanelStyle = { background: T.bgBase, color: T.textMuted };
 const API_BASE = "https://yit7ypsa40.execute-api.ap-northeast-1.amazonaws.com";
+const LIST_PAGE_SIZE = 12;
+function pageSlice(rows, page, size = LIST_PAGE_SIZE) {
+  const totalPages = Math.max(1, Math.ceil(rows.length / size));
+  const safePage = Math.min(Math.max(1, page), totalPages);
+  const start = (safePage - 1) * size;
+  return { items: rows.slice(start, start + size), page: safePage, totalPages, total: rows.length, start };
+}
+function ListPager({ page, totalPages, total, onPage }) {
+  if (totalPages <= 1) return null;
+  return (
+    <div className="flex flex-wrap items-center justify-between gap-3 px-4 py-3" style={{ borderTop: `1px solid ${T.border}` }}>
+      <div className="text-xs font-semibold" style={{ color: T.textMuted }}>{total}件中 {page}/{totalPages}ページ</div>
+      <div className="flex items-center gap-2">
+        <Btn kind="ghost" size="sm" icon={ChevronLeft} onClick={() => onPage(page - 1)} disabled={page <= 1}>前へ</Btn>
+        <Btn kind="ghost" size="sm" icon={ChevronRight} onClick={() => onPage(page + 1)} disabled={page >= totalPages}>次へ</Btn>
+      </div>
+    </div>
+  );
+}
 async function apiDelete(path) {
   const session = await fetchAuthSession();
   const idToken = session.tokens?.idToken?.toString();
@@ -216,6 +235,7 @@ function AdminCompanies() {
   const [form, setForm] = useState({ name: "", note: "" });
   const [q, setQ] = useState("");
   const [sort, setSort] = useState({ key: "name", dir: "asc" });
+  const [page, setPage] = useState(1);
   const [selected, setSelected] = useState(null);
   const [edit, setEdit] = useState({ name: "", memo: "" });
   const [trainees, setTrainees] = useState([]);
@@ -248,6 +268,8 @@ function AdminCompanies() {
     const dir = sort.dir === "asc" ? 1 : -1;
     return [...list].sort((a, b) => String(sort.key === "memo" ? memoOf(a) : a.name || "").localeCompare(String(sort.key === "memo" ? memoOf(b) : b.name || ""), "ja") * dir);
   }, [rows, q, sort]);
+  useEffect(() => { setPage(1); }, [q, sort.key, sort.dir, rows.length]);
+  const visiblePage = pageSlice(visibleRows, page);
   function changeSort(key) {
     setSort(s => s.key === key ? { key, dir: s.dir === "asc" ? "desc" : "asc" } : { key, dir: "asc" });
   }
@@ -338,16 +360,17 @@ function AdminCompanies() {
           {loading ? <SkeletonRows />
             : rows.length === 0 ? <EmptyState title="企業がありません" desc="「企業を追加」から登録できます" />
             : visibleRows.length === 0 ? <div className="px-4 py-8 text-center text-sm" style={{ color: T.textMuted }}>検索条件に一致する企業がありません。</div>
-            : visibleRows.map((r, i) => {
+            : visiblePage.items.map((r, i) => {
               const active = selected?.companyId === r.companyId;
               return (
-                <button key={r.companyId || i} onClick={() => selectCompany(r)} className={adminRowCls} style={{ borderTop: i ? `1px solid ${T.border}` : "none", background: active ? T.accentSubtle : "#fff" }}>
+                <button key={r.companyId || i} onClick={() => selectCompany(r)} className={adminRowCls} style={{ borderTop: visiblePage.start + i ? `1px solid ${T.border}` : "none", background: active ? T.accentSubtle : "#fff" }}>
                   <div className="flex h-9 w-9 items-center justify-center rounded-xl" style={{ background: active ? "#fff" : T.accentSubtle }}><Building2 size={15} style={{ color: T.accent }} /></div>
                   <div className="min-w-0 flex-1"><div className="text-sm font-semibold" style={{ color: T.textPrimary }}>{r.name}</div>{memoOf(r) && <div className="truncate text-xs" style={{ color: T.textMuted }}>{memoOf(r)}</div>}</div>
                   <ChevronRight size={16} style={{ color: T.textMuted }} />
                 </button>
               );
             })}
+          <ListPager page={visiblePage.page} totalPages={visiblePage.totalPages} total={visiblePage.total} onPage={setPage} />
         </Card>
         <Card className={adminDetailCardCls + " hidden"}>
           {!selected ? <EmptyState title="企業を選択してください" desc="一覧の行をクリックすると詳細を表示します" />
@@ -403,6 +426,7 @@ function AdminCourses({ go }) {
   const [form, setForm] = useState({ name: "", kind: "shinjin", description: "" });
   const [q, setQ] = useState("");
   const [sort, setSort] = useState({ key: "name", dir: "asc" });
+  const [page, setPage] = useState(1);
   const [selected, setSelected] = useState(null);
   const [edit, setEdit] = useState({ name: "", type: "shinjin", memo: "", instructorIds: [] });
   const [trainees, setTrainees] = useState([]);
@@ -459,6 +483,8 @@ function AdminCourses({ go }) {
       return String(av).localeCompare(String(bv), "ja") * dir;
     });
   }, [rows, q, sort]);
+  useEffect(() => { setPage(1); }, [q, sort.key, sort.dir, rows.length]);
+  const visiblePage = pageSlice(visibleRows, page);
   function changeSort(key) {
     setSort(s => s.key === key ? { key, dir: s.dir === "asc" ? "desc" : "asc" } : { key, dir: "asc" });
   }
@@ -661,11 +687,11 @@ function AdminCourses({ go }) {
           {loading ? <SkeletonRows />
             : rows.length === 0 ? <EmptyState title="コースがありません" desc="「コースを作成」から登録できます" />
             : visibleRows.length === 0 ? <div className="px-4 py-8 text-center text-sm" style={{ color: T.textMuted }}>検索条件に一致するコースがありません。</div>
-            : visibleRows.map((c, i) => {
+            : visiblePage.items.map((c, i) => {
               const active = selected?.courseId === c.courseId;
               const type = typeOf(c);
               return (
-                <button key={c.courseId || i} onClick={() => selectCourse(c)} className={adminRowCls} style={{ borderTop: i ? `1px solid ${T.border}` : "none", background: active ? T.accentSubtle : "#fff" }}>
+                <button key={c.courseId || i} onClick={() => selectCourse(c)} className={adminRowCls} style={{ borderTop: visiblePage.start + i ? `1px solid ${T.border}` : "none", background: active ? T.accentSubtle : "#fff" }}>
                   <div className="flex h-9 w-9 items-center justify-center rounded-xl" style={{ background: active ? "#fff" : T.accentSubtle }}><BookOpen size={15} style={{ color: T.accent }} /></div>
                   <div className="min-w-0 flex-1">
                     <div className="flex flex-wrap items-center gap-2"><div className="text-sm font-semibold" style={{ color: T.textPrimary }}>{c.name}</div><Badge tone={kindTone(type)}>{kindLabel(type)}</Badge></div>
@@ -676,6 +702,7 @@ function AdminCourses({ go }) {
                 </button>
               );
             })}
+          <ListPager page={visiblePage.page} totalPages={visiblePage.totalPages} total={visiblePage.total} onPage={setPage} />
         </Card>
         <Card className={adminDetailCardCls + " hidden"}>
           {!selected ? <EmptyState title="コースを選択してください" desc="一覧の行をクリックすると詳細を表示します" />
@@ -786,6 +813,7 @@ function AdminUsers() {
   const [form, setForm] = useState({ email: "", name: "", role: "trainee", tempPassword: "Feeps#1234", companyId: "", courseId: "" });
   const [q, setQ] = useState("");
   const [sort, setSort] = useState({ key: "name", dir: "asc" });
+  const [page, setPage] = useState(1);
   const [selected, setSelected] = useState(null);
   const [edit, setEdit] = useState({ name: "", company: "", role: "trainee" });
   const [courseIds, setCourseIds] = useState([]);
@@ -829,6 +857,8 @@ function AdminUsers() {
       return String(av).localeCompare(String(bv), "ja") * dir;
     });
   }, [users, q, sort]);
+  useEffect(() => { setPage(1); }, [q, sort.key, sort.dir, users.length]);
+  const visiblePage = pageSlice(visibleUsers, page);
   function changeSort(key) {
     setSort(s => s.key === key ? { key, dir: s.dir === "asc" ? "desc" : "asc" } : { key, dir: "asc" });
   }
@@ -971,15 +1001,16 @@ function AdminUsers() {
           {loading ? <SkeletonRows />
             : users.length === 0 ? <div className="px-4 py-8 text-center text-sm" style={{ color: T.textMuted }}>まだユーザーがいません。「ユーザーを追加」から作成できます。</div>
             : visibleUsers.length === 0 ? <div className="px-4 py-8 text-center text-sm" style={{ color: T.textMuted }}>検索条件に一致するユーザーがいません。</div>
-            : visibleUsers.map((u, i) => {
+            : visiblePage.items.map((u, i) => {
               const active = selected?.userId === u.userId;
               return (
-                <button key={u.userId || i} onClick={() => selectUser(u)} className={adminRowCls + " justify-between"} style={{ borderTop: i ? `1px solid ${T.border}` : "none", background: active ? T.accentSubtle : "#fff" }}>
+                <button key={u.userId || i} onClick={() => selectUser(u)} className={adminRowCls + " justify-between"} style={{ borderTop: visiblePage.start + i ? `1px solid ${T.border}` : "none", background: active ? T.accentSubtle : "#fff" }}>
                   <div className="flex min-w-0 items-center gap-3"><Avatar name={u.name || u.email} /><div className="min-w-0"><div className="truncate text-sm font-semibold" style={{ color: T.textPrimary }}>{u.name || "（氏名未設定）"}</div><div className="truncate text-xs" style={{ color: T.textMuted }}>{u.email}</div></div></div>
                   <div className="flex shrink-0 items-center gap-2"><Badge tone={roleTone(u.role)}>{roleLabel(u.role)}</Badge><ChevronRight size={16} style={{ color: T.textMuted }} /></div>
                 </button>
               );
             })}
+          <ListPager page={visiblePage.page} totalPages={visiblePage.totalPages} total={visiblePage.total} onPage={setPage} />
         </Card>
         <Card className={adminDetailCardCls + " hidden"}>
           {!selected ? <EmptyState title="ユーザーを選択してください" desc="一覧の行をクリックすると詳細を表示します" />

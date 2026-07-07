@@ -2979,6 +2979,7 @@ function TraineeList({ role, openKarte }) {
   const [loading, setLoading] = useState(true);
   const [selected, setSelected] = useState(null);
   const [q, setQ] = useState("");
+  const [page, setPage] = useState(1);
   const [date, setDate] = useState(todayStr());
   const [courses, setCourses] = useState([]);
   const [detail, setDetail] = useState({ reports: [], attendance: [], tests: [], tasks: null, memos: [], userCourses: [] });
@@ -3029,6 +3030,8 @@ function TraineeList({ role, openKarte }) {
     const s = q.trim().toLowerCase();
     return data.filter(t => !s || `${t.name || ""} ${t.email || ""} ${t.company || ""}`.toLowerCase().includes(s));
   }, [data, q]);
+  useEffect(() => { setPage(1); }, [q, data.length]);
+  const visiblePage = pageSlice(visibleData, page);
   if (selected) return (
     <div>
       <SectionHead title={selected.name || selected.email || "受講生詳細"} desc="基本情報、所属コース、日報・勤怠・テスト・タスク・カルテ概要を確認します"
@@ -3078,7 +3081,7 @@ function TraineeList({ role, openKarte }) {
             </div>
             <div className="px-4 py-3 text-xs font-bold" style={{ color: T.textMuted, borderBottom: `1px solid ${T.border}` }}>受講生一覧</div>
             <div className="divide-y" style={{ borderColor: T.border }}>
-              {visibleData.length === 0 ? <div className="px-4 py-8 text-center text-sm" style={{ color: T.textMuted }}>該当する受講生がいません。</div> : visibleData.map(t => {
+              {visibleData.length === 0 ? <div className="px-4 py-8 text-center text-sm" style={{ color: T.textMuted }}>該当する受講生がいません。</div> : visiblePage.items.map(t => {
                 const active = selected?.id === t.id;
                 return (
                   <button key={t.id} onClick={() => role === "instructor" ? openKarte({ ...t, id: t.userId || t.id }) : setSelected(t)} className="flex w-full items-center gap-3 px-4 py-3 text-left transition hover:bg-gray-50" style={{ background: active ? T.accentSubtle : "#fff" }}>
@@ -3089,6 +3092,7 @@ function TraineeList({ role, openKarte }) {
                 );
               })}
             </div>
+            <ListPager page={visiblePage.page} totalPages={visiblePage.totalPages} total={visiblePage.total} onPage={setPage} />
           </Card>
           <Card className="hidden p-5 xl:col-span-3">
             {!selected ? <EmptyState title="受講生を選択してください" desc="一覧から受講生を選ぶと詳細を表示します。" />
@@ -3473,6 +3477,25 @@ const adminRowCls = "flex min-h-[64px] w-full items-center gap-3 px-4 py-3 text-
 const adminMsgStyle = { background: T.successSubtle, color: T.success };
 const adminErrStyle = { background: T.dangerSubtle, color: T.danger };
 const adminPanelStyle = { background: T.bgBase, color: T.textMuted };
+const LIST_PAGE_SIZE = 12;
+function pageSlice(rows, page, size = LIST_PAGE_SIZE) {
+  const totalPages = Math.max(1, Math.ceil(rows.length / size));
+  const safePage = Math.min(Math.max(1, page), totalPages);
+  const start = (safePage - 1) * size;
+  return { items: rows.slice(start, start + size), page: safePage, totalPages, total: rows.length, start };
+}
+function ListPager({ page, totalPages, total, onPage }) {
+  if (totalPages <= 1) return null;
+  return (
+    <div className="flex flex-wrap items-center justify-between gap-3 px-4 py-3" style={{ borderTop: `1px solid ${T.border}` }}>
+      <div className="text-xs font-semibold" style={{ color: T.textMuted }}>{total}件中 {page}/{totalPages}ページ</div>
+      <div className="flex items-center gap-2">
+        <Btn kind="ghost" size="sm" icon={ChevronLeft} onClick={() => onPage(page - 1)} disabled={page <= 1}>前へ</Btn>
+        <Btn kind="ghost" size="sm" icon={ChevronRight} onClick={() => onPage(page + 1)} disabled={page >= totalPages}>次へ</Btn>
+      </div>
+    </div>
+  );
+}
 const API_BASE = "https://yit7ypsa40.execute-api.ap-northeast-1.amazonaws.com";
 async function apiDelete(path) {
   const session = await fetchAuthSession();
