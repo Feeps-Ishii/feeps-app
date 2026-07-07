@@ -81,9 +81,10 @@ export function AwsCostDashboard() {
       </div>
       {data && (
         <>
-          <div className="mb-5 grid gap-4 sm:grid-cols-3">
+          <div className="mb-5 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
             <Stat icon={Receipt} label="今月合計" value={fmtAmt(data.total?.amount)} tone="cyan" />
             <Stat icon={Sparkles} label="Bedrock料金" value={fmtAmt(data.bedrock?.amount)} tone="amber" />
+            <Stat icon={Activity} label="Cost Explorer API料金" value={fmtAmt(data.costExplorerApi?.amount)} tone="amber" />
             <Stat icon={Activity} label="サービス数" value={`${data.byService?.length || 0}件`} tone="green" />
           </div>
           <div className="grid gap-4 md:grid-cols-2">
@@ -114,7 +115,36 @@ export function AwsCostDashboard() {
                 <div className="px-4 py-4">
                   <div className="text-2xl font-extrabold" style={{ color: T.accentHover }}>{fmtAmt(data.bedrock?.amount)}</div>
                   <div className="mt-1 text-xs" style={{ color: T.textMuted }}>AI機能利用料金（{month.replace("-", "/")}）</div>
+                  {(data.bedrock?.services || []).length > 0 && (
+                    <div className="mt-3 space-y-1.5">
+                      {(data.bedrock.services || []).slice(0, 3).map(s => (
+                        <div key={s.service} className="flex justify-between gap-3 text-xs">
+                          <span className="truncate" style={{ color: T.textMuted }}>{s.service}</span>
+                          <span className="shrink-0 font-semibold" style={{ color: T.textSecondary }}>{fmtAmt(s.amount)}</span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
                   {data.bedrockNote && <div className="mt-2 text-xs leading-relaxed" style={{ color: T.textMuted }}>{data.bedrockNote}</div>}
+                </div>
+              </Card>
+              <Card>
+                <div className="px-4 py-3" style={{ borderBottom: `1px solid ${T.border}` }}>
+                  <span className="text-sm font-bold" style={{ color: T.textPrimary }}>Cost Explorer API料金</span>
+                </div>
+                <div className="px-4 py-4">
+                  <div className="text-2xl font-extrabold" style={{ color: T.warning }}>{fmtAmt(data.costExplorerApi?.amount)}</div>
+                  <div className="mt-1 text-xs" style={{ color: T.textMuted }}>タグ付きFeepsOne料金とは別枠のAPI利用料金</div>
+                  {(data.costExplorerApi?.services || []).length > 0 && (
+                    <div className="mt-3 space-y-1.5">
+                      {(data.costExplorerApi.services || []).map(s => (
+                        <div key={s.service} className="flex justify-between gap-3 text-xs">
+                          <span className="truncate" style={{ color: T.textMuted }}>{s.service}</span>
+                          <span className="shrink-0 font-semibold" style={{ color: T.textSecondary }}>{fmtAmt(s.amount)}</span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
               </Card>
               <Card>
@@ -142,7 +172,7 @@ export function AwsCostDashboard() {
           </div>
           {data.retrievedAt && (
             <p className="mt-3 text-xs" style={{ color: T.textMuted }}>
-              最終取得: {new Date(data.retrievedAt).toLocaleString("ja-JP")} / Cost Explorerのデータは最大24時間遅延することがあります
+              最終取得: {new Date(data.retrievedAt).toLocaleString("ja-JP")} / {data.cache?.hit ? "キャッシュから表示" : "Cost Explorerから取得してキャッシュ保存"} / Cost Explorerのデータは最大24時間遅延することがあります
             </p>
           )}
         </>
