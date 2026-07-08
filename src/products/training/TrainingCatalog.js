@@ -59,11 +59,6 @@ const MATERIALS = [
   { id: 12, title: "JavaScript / TypeScript / React 教材", type: "PDF", size: "5.8MB", cat: "Web・フロント", done: false },
   { id: 13, title: "上流工程・チーム開発 演習要項", type: "PDF", size: "3.5MB", cat: "上流・チーム開発", done: false },
 ];
-const TESTS = [
-  { id: 1, title: "Java基礎 確認テスト（変数・配列）", q: 10, limit: "20分", status: "graded", score: 88, avg: 82, submitted: 5 },
-  { id: 2, title: "条件分岐・反復 小テスト", q: 6, limit: "12分", status: "not_started", score: null, avg: 74, submitted: 3 },
-  { id: 3, title: "オブジェクト指向 確認テスト", q: 10, limit: "20分", status: "not_started", score: null, avg: null, submitted: 0 },
-];
 const TRAINEES = [
   { id: 1, name: "田中 翔太", org: "株式会社アクシス", attend: 100, progress: 78, avg: 88, streak: 4, flag: null },
   { id: 2, name: "佐藤 美咲", org: "株式会社アクシス", attend: 100, progress: 85, avg: 92, streak: 5, flag: null },
@@ -94,13 +89,6 @@ const RISK = [
     top: "非常に良好",
     advice: "全項目で良好です。難易度高めの課題やチーム開発のリード役が適しています。" },
 ];
-const ATT_ROWS = [
-  { name: "田中 翔太", org: "株式会社アクシス", in: "09:52", out: "17:05", s: "出勤", note: "" },
-  { name: "佐藤 美咲", org: "株式会社アクシス", in: "09:48", out: "17:02", s: "出勤", note: "" },
-  { name: "鈴木 大輔", org: "株式会社アクシス", in: "10:18", out: "17:00", s: "遅刻", note: "電車遅延" },
-  { name: "伊藤 彩花", org: "株式会社アクシス", in: "09:40", out: "17:10", s: "出勤", note: "" },
-  { name: "渡辺 健", org: "株式会社アクシス", in: "—", out: "—", s: "欠席", note: "体調不良（連絡済）" },
-];
 const KARTE = {
   3: [{ type: "memo", at: "04/15 18:30", who: "石井 啓輔", text: "配列のインデックス理解で詰まりやすい。図で再説明予定。基本文法は概ねOK。" },
       { type: "test", at: "04/15 16:10", text: "Java基礎 確認テスト 70点（配列は要復習）" },
@@ -111,18 +99,6 @@ const KARTE = {
       { type: "report", at: "04/15 18:05", text: "日報保存：オブジェクト指向の実装が楽しみ" },
       { type: "attend", at: "04/15 09:52", text: "出勤", tone: "green" }],
 };
-const REPORTS_SEED = [
-  { id: 1, name: "田中 翔太", org: "株式会社アクシス", date: "2026/04/15",
-    learned: "Javaの変数・データ型と配列の基本を理解した。int型と参照型の違い、配列のインデックスが0始まりである点が腹落ちした。",
-    question: "配列とList（コレクション）の使い分けの基準がまだ曖昧。",
-    nextday: "条件分岐と反復を組み合わせて、配列を走査する処理を書けるようにしたい。",
-    comments: [{ by: "石井 啓輔", role: "講師", text: "理解が良いです。要素数が固定なら配列、増減するならList、とまず覚えるとスッキリしますよ。明日のループ演習で配列操作に慣れましょう。", at: "04/15 18:20" }] },
-  { id: 2, name: "佐藤 美咲", org: "株式会社アクシス", date: "2026/04/15",
-    learned: "for文とwhile文の使い分け、拡張for文で配列を簡潔に回せることを学んだ。",
-    question: "二重ループのときのインデックスの考え方が少し混乱した。",
-    nextday: "メソッドに切り出して、処理を再利用できるように書きたい。", comments: [] },
-];
-
 /* ===== 問題バンク（範囲・重点でAI生成）— Java ===== */
 const QBANK = {
   "変数・データ型": [
@@ -207,4 +183,4 @@ const NAV = {
 };
 const navViewSet = role => new Set([...(NAV[role] || []).flatMap(g => g.items.map(([k]) => k)), "notifications", "profile"]);
 
-export { COURSE, COURSE_FULL, VENUE, PERIOD, TOTAL_HOURS, TODAY, ROLES, GOALS, GOAL_ICON_MAP, ALL_TASKS, MATERIALS, TESTS, TRAINEES, RISK, ATT_ROWS, KARTE, REPORTS_SEED, QBANK, TAKE_Q, CURRICULUM, BADGES, NAV, navViewSet };
+export { COURSE, COURSE_FULL, VENUE, PERIOD, TOTAL_HOURS, TODAY, ROLES, GOALS, GOAL_ICON_MAP, ALL_TASKS, MATERIALS, TRAINEES, RISK, KARTE, QBANK, TAKE_Q, CURRICULUM, BADGES, NAV, navViewSet };

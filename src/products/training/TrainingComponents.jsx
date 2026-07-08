@@ -4,7 +4,7 @@ import { apiGet, apiPut, apiPost, apiDelete as apiDeleteBase } from "../../api.j
 import { Card, Badge, Btn, Avatar, Stat, SectionHead, Field, Seg, T, PRODUCT_ACCENT, PageHeader, ProductNavCard, EmptyState as CommonEmptyState, SkeletonRows, SkeletonCards, Modal } from "../../components/common";
 import {
   COURSE, COURSE_FULL, VENUE, PERIOD, TOTAL_HOURS, TODAY, ROLES, GOALS, ALL_TASKS,
-  MATERIALS, TESTS, TRAINEES, RISK, KARTE, QBANK, TAKE_Q, CURRICULUM
+  MATERIALS, TRAINEES, RISK, KARTE, QBANK, TAKE_Q, CURRICULUM
 } from "./TrainingCatalog.js";
 import {
   LayoutDashboard, FileText, ClipboardCheck, Clock, NotebookPen, Users,
@@ -1214,6 +1214,19 @@ function Tests({ role }) {
   const canManage = role === "instructor" || role === "admin";
   const canViewResults = canManage || role === "client";
   const opsFilter = useOpsFilter(canViewResults);
+  const instructorAssignedCourseIds = useMemo(() => new Set(
+    opsFilter.courses
+      .filter(c => courseInstructorIds(c).includes(opsFilter.currentUserId))
+      .map(c => c.courseId)
+      .filter(Boolean)
+  ), [opsFilter.courses, opsFilter.currentUserId]);
+  const canCreateTests = role === "admin" || (role === "instructor" && instructorAssignedCourseIds.size > 0);
+  const canEditTest = (test) => {
+    if (role === "admin") return true;
+    if (role !== "instructor") return false;
+    return !!test?.courseId && instructorAssignedCourseIds.has(test.courseId);
+  };
+  const canGradeResults = role === "admin" || (role === "instructor" && instructorAssignedCourseIds.size > 0);
 
   async function loadTests() {
     setTestErr("");
@@ -1223,9 +1236,9 @@ function Tests({ role }) {
       const list = await apiGet("/tests");
       base = Array.isArray(list) ? list.map(normalizeTest) : [];
     } catch (e) {
-      source = canManage ? "empty" : "fallback";
-      base = canManage ? [] : TESTS.map(normalizeTest);
-      setTestErr(canManage ? "テスト定義APIから取得できるテストがありません。" : "テスト定義APIに接続できないため、静的テストを表示しています。");
+      source = "empty";
+      base = [];
+      setTestErr("テスト定義APIの読み込みに失敗しました。");
     }
     if (role === "trainee") {
       try {
@@ -1293,6 +1306,10 @@ function Tests({ role }) {
     }
   }
   async function saveTeacherReview(row) {
+    if (!canGradeResults) {
+      setTestErr("このテスト結果を採点する権限がありません。");
+      return;
+    }
     const key = `${testIdOf(results.test)}:${row.traineeId}`;
     const draft = reviewDrafts[key] || {};
     try {
@@ -1336,7 +1353,7 @@ function Tests({ role }) {
     const totalFollow = Object.values(testStats).reduce((s, v) => s + v.followCount, 0);
     return (
     <div>
-      <SectionHead title={canManage ? "テスト管理" : "テスト結果"} desc={canManage ? "範囲と重点を指定して作成・受験後すぐ自動採点" : "自社受講生の公開テスト結果を確認します"} action={canManage ? <div className="flex flex-wrap gap-2"><Btn kind="ai" icon={Sparkles} onClick={() => { setBuildFocus(null); setBuildStudent(null); setBuilding(true); }}>AIでテスト作成</Btn><Btn icon={Plus} onClick={() => { setBuildFocus(null); setBuildStudent(null); setBuilding(true); }}>テストを作成</Btn></div> : null} />
+      <SectionHead title={canManage ? "テスト管理" : "テスト結果"} desc={canManage ? "範囲と重点を指定して作成・受験後すぐ自動採点" : "自社受講生の公開テスト結果を確認します"} action={canCreateTests ? <div className="flex flex-wrap gap-2"><Btn kind="ai" icon={Sparkles} onClick={() => { setBuildFocus(null); setBuildStudent(null); setBuilding(true); }}>AIでテスト作成</Btn><Btn icon={Plus} onClick={() => { setBuildFocus(null); setBuildStudent(null); setBuilding(true); }}>テストを作成</Btn></div> : null} />
       {testErr && <div className="mb-4 rounded-lg px-3 py-2 text-xs" style={{ background: T.warningSubtle, color: T.warning }}>{testErr}</div>}
       <OpsFilterPanel filter={opsFilter} summary={results?.rows ? `表示対象: ${opsFilter.targetTrainees.length}名 / 受験済み: ${filteredRows.length}件 / 平均点: ${filteredRows.length ? avg : "—"}点` : `表示対象: ${opsFilter.targetTrainees.length}名`} />
       <Card className="mb-5 overflow-hidden">
@@ -1354,17 +1371,17 @@ function Tests({ role }) {
       </Card>
       <Card>{tests.length === 0 ? <div className="px-4 py-8 text-center text-sm" style={{ color: T.textMuted }}>テストがまだありません。</div> : tests.map((t, i) => (
         <div key={testIdOf(t) || i} className="flex items-center justify-between px-4 py-3.5" style={{ borderBottom: i < tests.length - 1 ? `1px solid ${T.border}` : "none" }}>
-          <div><div className="flex flex-wrap items-center gap-2"><div className="text-sm font-semibold" style={{ color: T.textPrimary }}>{t.title}</div><Badge tone={t.status === "draft" ? "amber" : t.status === "published" ? "green" : "muted"}>{t.status === "draft" ? "下書き" : t.status === "published" ? "公開" : testSource === "fallback" ? "静的" : t.status}</Badge>{t.courseId && <Badge tone="cyan">{opsFilter.courses.find(c => c.courseId === t.courseId)?.name || t.courseId}</Badge>}</div><div className="text-xs" style={{ color: T.textMuted }}>{t.q}問 ・ 制限 {t.limit} ・ 自動採点</div></div>
+          <div><div className="flex flex-wrap items-center gap-2"><div className="text-sm font-semibold" style={{ color: T.textPrimary }}>{t.title}</div><Badge tone={t.status === "draft" ? "amber" : t.status === "published" ? "green" : "muted"}>{t.status === "draft" ? "下書き" : t.status === "published" ? "公開" : t.status}</Badge>{t.courseId && <Badge tone="cyan">{opsFilter.courses.find(c => c.courseId === t.courseId)?.name || t.courseId}</Badge>}</div><div className="text-xs" style={{ color: T.textMuted }}>{t.q}問 ・ 制限 {t.limit} ・ 自動採点</div></div>
           <div className="flex items-center gap-4">
             <div className="hidden text-right sm:block"><div className="text-sm font-bold" style={{ color: T.textPrimary }}>{testStats[testIdOf(t)]?.avgScore == null ? "結果なし" : `平均 ${testStats[testIdOf(t)].avgScore}点`}</div><div className="text-xs" style={{ color: T.textMuted }}>提出 {testStats[testIdOf(t)]?.submitted || 0}{opsFilter.targetTrainees.length ? ` / 未受験 ${testStats[testIdOf(t)]?.unsubmitted || 0}` : ""}</div></div>
             <div className="flex flex-wrap justify-end gap-1.5">
-              {canManage && <Btn kind="ghost" size="sm" icon={Pencil} onClick={() => { setEditingTest(t); setDuplicateTest(false); setBuilding(true); }}>編集</Btn>}
-              {canManage && <Btn kind="ghost" size="sm" icon={Plus} onClick={() => { setEditingTest(t); setDuplicateTest(true); setBuilding(true); }}>複製</Btn>}
+              {canEditTest(t) && <Btn kind="ghost" size="sm" icon={Pencil} onClick={() => { setEditingTest(t); setDuplicateTest(false); setBuilding(true); }}>編集</Btn>}
+              {canEditTest(t) && <Btn kind="ghost" size="sm" icon={Plus} onClick={() => { setEditingTest(t); setDuplicateTest(true); setBuilding(true); }}>複製</Btn>}
               {canManage && <Btn kind="ghost" size="sm" icon={Eye} onClick={() => { setTaking(t); setTakingPreview(true); }}>プレビュー</Btn>}
               {canManage && <Btn kind="ghost" size="sm" icon={PlayCircle} onClick={() => { setTaking(t); setTakingPreview(true); }}>試し受験</Btn>}
-              {canManage && <Btn kind="ghost" size="sm" icon={t.status === "published" ? Lock : Send} onClick={() => updateTestStatus(t, t.status === "published" ? "draft" : "published")}>{t.status === "published" ? "非公開" : "公開"}</Btn>}
+              {canEditTest(t) && <Btn kind="ghost" size="sm" icon={t.status === "published" ? Lock : Send} onClick={() => updateTestStatus(t, t.status === "published" ? "draft" : "published")}>{t.status === "published" ? "非公開" : "公開"}</Btn>}
               <Btn kind="soft" size="sm" icon={Eye} onClick={() => showResults(t)}>結果</Btn>
-              {canManage && <Btn kind="ghost" size="sm" icon={Trash2} onClick={() => deleteTest(t)}>削除</Btn>}
+              {canEditTest(t) && <Btn kind="ghost" size="sm" icon={Trash2} onClick={() => deleteTest(t)}>削除</Btn>}
             </div></div></div>
       ))}</Card>
       {results && (
@@ -1387,7 +1404,7 @@ function Tests({ role }) {
                       {aiItems.length > 0 && <div className="mt-2 space-y-1 rounded-lg p-2 text-xs" style={{ background: T.bgBase, color: T.textSecondary }}>
                         {aiItems.map((ai, i) => <div key={i}><b>AI評価 Q{i + 1}:</b> {ai.score == null ? "採点待ち" : `${ai.score}点`} {ai.comment || ""}</div>)}
                       </div>}
-                      {canManage && <div className="mt-2 grid gap-2 sm:grid-cols-[120px_1fr_auto]">
+                      {canGradeResults && <div className="mt-2 grid gap-2 sm:grid-cols-[120px_1fr_auto]">
                         <input type="number" min="0" max="100" value={draft.teacherScore ?? r.teacherScore ?? r.score ?? ""} onChange={e => setReviewDrafts(d => ({ ...d, [key]: { ...(d[key] || {}), teacherScore: Number(e.target.value) } }))} className="rounded-lg px-2 py-1.5 text-xs outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary }} placeholder="講師点数" />
                         <input value={draft.teacherComment ?? r.teacherComment ?? ""} onChange={e => setReviewDrafts(d => ({ ...d, [key]: { ...(d[key] || {}), teacherComment: e.target.value } }))} className="rounded-lg px-2 py-1.5 text-xs outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary }} placeholder="講師コメント" />
                         <Btn size="sm" kind="ghost" icon={Check} onClick={() => saveTeacherReview(r)}>保存</Btn>
