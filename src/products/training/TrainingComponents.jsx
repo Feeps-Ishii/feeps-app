@@ -3144,7 +3144,7 @@ function TraineeList({ role, openKarte }) {
   const [date, setDate] = useState(todayStr());
   const [courses, setCourses] = useState([]);
   const [companies, setCompanies] = useState([]);
-  const [detail, setDetail] = useState({ reports: [], attendance: [], tests: [], tasks: null, memos: [], userCourses: [] });
+  const [detail, setDetail] = useState({ reports: [], attendance: [], tests: [], testError: "", tasks: null, memos: [], userCourses: [] });
   const [detailLoading, setDetailLoading] = useState(false);
   useEffect(() => {
     apiGet("/trainees")
@@ -3165,6 +3165,7 @@ function TraineeList({ role, openKarte }) {
       reports: [],
       attendance: [],
       tests: [],
+      testError: "",
       tasks: null,
       memos: [],
       userCourses: selected.course ? [courses.find(c => c.courseId === selected.course)].filter(Boolean) : [],
@@ -3175,8 +3176,17 @@ function TraineeList({ role, openKarte }) {
     if (canDeep) {
       jobs.push(apiGet(`/reports?date=${date}`).then(v => { base.reports = (v || []).filter(r => r.traineeId === userId); }).catch(() => {}));
       jobs.push(apiGet(`/attendance?date=${date}`).then(v => { base.attendance = (v || []).filter(r => r.traineeId === userId); }).catch(() => {}));
-      jobs.push(Promise.all(TESTS.slice(0, 3).map(t => apiGet(`/tests/${t.id}/results`).then(v => ({ test: t, rows: v || [] })).catch(() => ({ test: t, rows: [] }))))
-        .then(all => { base.tests = all.flatMap(x => x.rows.filter(r => r.traineeId === userId).map(r => ({ ...r, title: x.test.title }))); }));
+      jobs.push(apiGet("/tests")
+        .then(testList => Promise.all((Array.isArray(testList) ? testList : [])
+          .filter(t => (t.status || "published") !== "archived")
+          .map(t => {
+            const tid = testIdOf(t);
+            return apiGet(`/tests/${tid}/results`)
+              .then(v => ({ test: t, rows: Array.isArray(v) ? v : [] }))
+              .catch(() => ({ test: t, rows: [] }));
+          })))
+        .then(all => { base.tests = all.flatMap(x => x.rows.filter(r => r.traineeId === userId || r.userId === userId).map(r => ({ ...r, title: x.test.title || x.test.name || testIdOf(x.test) }))); })
+        .catch(e => { base.testError = e?.errorMessage || e?.message || String(e); }));
       jobs.push(apiGet(`/tasks/${userId}`).then(v => { base.tasks = v || null; }).catch(() => {}));
       jobs.push(apiGet(`/karte/${userId}`).then(v => { base.memos = v || []; }).catch(() => {}));
     }
