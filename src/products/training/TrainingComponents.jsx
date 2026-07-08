@@ -977,6 +977,48 @@ function Materials({ role }) {
     } catch (e) { if (tab) tab.close(); setErr("URLの取得に失敗しました：" + (e?.message || e)); }
   }
 
+  function startEdit(m) {
+    setEditing(m);
+    setEditDraft({
+      title: m.title || "",
+      description: m.description || "",
+      mode: m.mode === "download" ? "download" : "view",
+    });
+  }
+
+  async function saveMaterial() {
+    if (!editing || !courseId) return;
+    setSaving(true); setErr("");
+    try {
+      await apiPut(`/materials/${encodeURIComponent(editing.materialId)}`, {
+        courseId,
+        title: editDraft.title,
+        description: editDraft.description,
+        mode: editDraft.mode,
+      });
+      setEditing(null);
+      loadMaterials();
+    } catch (e) {
+      setErr("資料の更新に失敗しました: " + (e?.errorMessage || e?.message || e));
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function deleteMaterial() {
+    if (!deleting || !courseId) return;
+    setSaving(true); setErr("");
+    try {
+      await apiDeleteBase(`/materials/${encodeURIComponent(deleting.materialId)}?courseId=${encodeURIComponent(courseId)}`);
+      setDeleting(null);
+      loadMaterials();
+    } catch (e) {
+      setErr("資料の削除に失敗しました: " + (e?.errorMessage || e?.message || e));
+    } finally {
+      setSaving(false);
+    }
+  }
+
   return (
     <div>
       <SectionHead title="研修資料" desc={canEdit ? "研修・Eラーニング・継続支援コース単位の資料を管理します" : "あなたの所属コースの資料"}
