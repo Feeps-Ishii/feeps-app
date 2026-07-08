@@ -1134,6 +1134,22 @@ function OpsFilterPanel({ filter, summary, note = "コースと企業を両方�
   );
 }
 const testIdOf = (t) => String(t?.testId ?? t?.id ?? "");
+const courseInstructorIds = (course) => {
+  if (Array.isArray(course?.instructorIds)) return course.instructorIds;
+  return [course?.instructorId, course?.instructor, course?.teacherId, course?.teacher].filter(Boolean);
+};
+const traineeCourseIds = (trainee) => {
+  const ids = new Set();
+  if (trainee?.course) ids.add(trainee.course);
+  if (trainee?.courseId) ids.add(trainee.courseId);
+  if (Array.isArray(trainee?.courses)) {
+    trainee.courses.forEach(c => {
+      const id = typeof c === "string" ? c : c?.courseId || c?.id;
+      if (id) ids.add(id);
+    });
+  }
+  return ids;
+};
 const answerModeOf = (q) => q?.answerMode || (q?.type === "code" ? "codeExact" : q?.type === "descriptive" ? "explanation" : "");
 const answerModeLabel = (mode) => ({ explanation: "文章回答", exact: "決定回答", codeExact: "コード回答", mixed: "混在" }[mode] || "文章回答");
 const gradeTone = (score, pending = false) => pending || score == null ? { label: "採点待ち", bg: T.bgBase, color: T.textMuted, icon: AlertCircle } : score >= 80 ? { label: "正解", bg: T.successSubtle, color: T.success, icon: CheckCircle2 } : score >= 50 ? { label: "部分正解", bg: T.warningSubtle, color: T.warning, icon: AlertCircle } : { label: "不正解", bg: T.dangerSubtle, color: T.danger, icon: X };
@@ -2569,7 +2585,24 @@ function Reports({ role }) {
   const canWrite = role === "trainee";
   const canViewReports = role === "admin" || role === "instructor" || role === "client";
   const opsFilter = useOpsFilter(canViewReports);
-  const canComment = role === "admin" || role === "client" || (role === "instructor" && Array.isArray(opsFilter.selectedCourse?.instructorIds) && opsFilter.selectedCourse.instructorIds.includes(opsFilter.currentUserId));
+  const instructorAssignedCourseIds = useMemo(() => new Set(
+    opsFilter.courses
+      .filter(c => courseInstructorIds(c).includes(opsFilter.currentUserId))
+      .map(c => c.courseId)
+      .filter(Boolean)
+  ), [opsFilter.courses, opsFilter.currentUserId]);
+  const hasInstructorAssignments = role === "instructor" && instructorAssignedCourseIds.size > 0;
+  const canCommentReport = (report) => {
+    if (role === "admin" || role === "client") return true;
+    if (role !== "instructor") return false;
+    const trainee = opsFilter.trainees.find(t => t.userId === report?.traineeId);
+    if (!hasInstructorAssignments) return false;
+    if (opsFilter.courseId) return instructorAssignedCourseIds.has(opsFilter.courseId);
+    if (opsFilter.targetIds.has(report?.traineeId)) return true;
+    const ids = traineeCourseIds(trainee);
+    return [...ids].some(id => instructorAssignedCourseIds.has(id));
+  };
+  const canComment = role === "admin" || role === "client" || hasInstructorAssignments;
 
   useEffect(() => {
     if (role === "trainee") {
@@ -2654,10 +2687,10 @@ function Reports({ role }) {
     }
   }
   async function addC(id) {
-    if (!canComment) { setSaveErr("この日報へのコメント権限がありません。"); return; }
     const t = (cText[id] || "").trim(); if (!t) return;
     const rep = reports.find(r => r.id === id);
     if (!rep) return;
+    if (!canCommentReport(rep)) { setSaveErr("この日報へのコメント権限がありません。"); return; }
     try {
       const res = await apiPut("/reports/" + rep.traineeId + "/comment", { date: rep.rawDate, comment: t });
       emitNotificationRefresh();
@@ -2845,7 +2878,7 @@ function Reports({ role }) {
                   <span className="text-sm font-semibold" style={{ color: T.textPrimary }}>{c.by}</span><Badge tone={c.tone || reportCommentTone(c.role)}>{c.roleLabel || reportCommentRoleLabel(c.role)}</Badge><span className="ml-auto text-xs" style={{ color: T.textMuted }}>{c.at}</span></div>
                   <p className="text-sm leading-relaxed" style={{ color: T.textSecondary }}>{c.text}</p></div>
               ))}{!r.comments.length && <div className="rounded-xl p-3.5 text-sm" style={{ background: T.bgBase, color: T.textMuted }}>まだコメントはありません</div>}</div>
-              {canComment && <div className="mt-3">
+              {canCommentReport(r) && <div className="mt-3">
                 <div className="mb-2 flex justify-end"><Btn kind="soft" size="sm" icon={Sparkles} onClick={() => aiComment(r.id)}>{aiC.busy ? "生成中…" : "AIで返信案"}</Btn></div>
                 <div className="flex gap-2"><input value={cText[r.id] || ""} onChange={e => setCText({ ...cText, [r.id]: e.target.value })} placeholder="コメントを入力…" onKeyDown={e => e.key === "Enter" && addC(r.id)} className="flex-1 rounded-xl px-3 py-2.5 text-sm outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary }} /><Btn icon={Send} onClick={() => addC(r.id)}>送信</Btn></div></div>}
             </div></div>}
