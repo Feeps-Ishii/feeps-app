@@ -4,7 +4,7 @@ import { apiGet, apiPut, apiPost, apiDelete as apiDeleteBase } from "../../api.j
 import { Card, Badge, Btn, Avatar, Stat, SectionHead, Field, Seg, T, PRODUCT_ACCENT, PageHeader, ProductNavCard, EmptyState as CommonEmptyState, SkeletonRows, SkeletonCards, Modal } from "../../components/common";
 import {
   COURSE, COURSE_FULL, VENUE, PERIOD, TOTAL_HOURS, TODAY, ROLES, GOALS, ALL_TASKS,
-  MATERIALS, TESTS, TRAINEES, RISK, ATT_ROWS, KARTE, REPORTS_SEED, QBANK, TAKE_Q, CURRICULUM
+  MATERIALS, TESTS, TRAINEES, RISK, KARTE, QBANK, TAKE_Q, CURRICULUM
 } from "./TrainingCatalog.js";
 import {
   LayoutDashboard, FileText, ClipboardCheck, Clock, NotebookPen, Users,
@@ -1095,11 +1095,13 @@ function useOpsFilter(enabled = true) {
   const [companies, setCompanies] = useState([]);
   const [courses, setCourses] = useState([]);
   const [trainees, setTrainees] = useState([]);
+  const [currentUserId, setCurrentUserId] = useState("");
   const [courseId, setCourseId] = useState("");
   const [companyId, setCompanyId] = useState("");
   const [courseTrainees, setCourseTrainees] = useState([]);
   useEffect(() => {
     if (!enabled) return;
+    getCurrentUser().then(u => setCurrentUserId(u?.userId || u?.username || "")).catch(() => {});
     apiGet("/companies").then(l => setCompanies(l || [])).catch(() => {});
     apiGet("/courses").then(l => setCourses(l || [])).catch(() => {});
     apiGet("/trainees").then(l => setTrainees(l || [])).catch(() => {});
@@ -1115,8 +1117,9 @@ function useOpsFilter(enabled = true) {
     return true;
   }), [trainees, companyId, courseId, courseIds]);
   const targetIds = useMemo(() => new Set(targetTrainees.map(t => t.userId)), [targetTrainees]);
+  const selectedCourse = useMemo(() => courses.find(c => c.courseId === courseId) || null, [courses, courseId]);
   const apply = (rows) => !courseId && !companyId ? rows : rows.filter(r => targetIds.has(r.traineeId));
-  return { companies, courses, trainees, courseId, setCourseId, companyId, setCompanyId, targetTrainees, targetIds, apply };
+  return { companies, courses, trainees, currentUserId, selectedCourse, courseId, setCourseId, companyId, setCompanyId, targetTrainees, targetIds, apply };
 }
 function OpsFilterPanel({ filter, summary, note = "コースと企業を両方選ぶとAND条件で絞り込みます。" }) {
   return (
@@ -1984,7 +1987,7 @@ function TestTaking({ test, back, onDone, preview = false }) {
 async function exportAttendanceExcel(data) {
   try {
     const XLSX = await import("xlsx");
-    const rows = (data || ATT_ROWS).map(r => ({ 日付: "2026/04/15", 氏名: r.name, 所属: r.org, 出勤: r.in, 退勤: r.out, 状態: r.s, 備考: r.note || "" }));
+    const rows = (data || []).map(r => ({ 日付: "2026/04/15", 氏名: r.name, 所属: r.org, 出勤: r.in, 退勤: r.out, 状態: r.s, 備考: r.note || "" }));
     const ws = XLSX.utils.json_to_sheet(rows);
     ws["!cols"] = [{ wch: 12 }, { wch: 14 }, { wch: 22 }, { wch: 8 }, { wch: 8 }, { wch: 8 }, { wch: 20 }];
     const wb = XLSX.utils.book_new();
@@ -2107,8 +2110,8 @@ function AttendanceManage({ role }) {
   const [monthlyRows, setMonthlyRows] = useState([]);
   const [monthlyLoading, setMonthlyLoading] = useState(false);
   const [monthlyFilter, setMonthlyFilter] = useState("すべて");
-  const canEdit = role === "instructor" || role === "admin";
   const opsFilter = useOpsFilter(true);
+  const canEdit = role === "admin" || (role === "instructor" && Array.isArray(opsFilter.selectedCourse?.instructorIds) && opsFilter.selectedCourse.instructorIds.includes(opsFilter.currentUserId));
   function load() {
     setErr("");
     apiGet("/attendance?date=" + date)
@@ -2563,9 +2566,10 @@ function Reports({ role }) {
   const [monthlyLoading, setMonthlyLoading] = useState(false);
   const [monthlyFilter, setMonthlyFilter] = useState("すべて");
   const aiC = useAIDraft();
-  const canComment = role === "instructor" || role === "admin" || role === "client", canWrite = role === "trainee";
-  const canViewReports = canComment || role === "client";
+  const canWrite = role === "trainee";
+  const canViewReports = role === "admin" || role === "instructor" || role === "client";
   const opsFilter = useOpsFilter(canViewReports);
+  const canComment = role === "admin" || role === "client" || (role === "instructor" && Array.isArray(opsFilter.selectedCourse?.instructorIds) && opsFilter.selectedCourse.instructorIds.includes(opsFilter.currentUserId));
 
   useEffect(() => {
     if (role === "trainee") {
@@ -2586,15 +2590,15 @@ function Reports({ role }) {
           });
         })
         .catch(() => setSaveErr("日報の読み込みに失敗しました。再ログインをお試しください。"));
-    } else if (canComment) {
+    } else if (canViewReports) {
       setSaveErr("");
       apiGet("/reports?date=" + date)
         .then(items => setReports((items || []).map(mapReportInstructor)))
         .catch(e => setSaveErr("日報の読み込みに失敗しました: " + (e?.errorMessage || e?.message || e)));
     } else {
-      setReports(REPORTS_SEED);
+      setReports([]);
     }
-  }, [role, date, canComment]);
+  }, [role, date, canViewReports]);
   useEffect(() => {
     if (!canViewReports || periodMode !== "月次") return;
     let alive = true;
@@ -2650,6 +2654,7 @@ function Reports({ role }) {
     }
   }
   async function addC(id) {
+    if (!canComment) { setSaveErr("この日報へのコメント権限がありません。"); return; }
     const t = (cText[id] || "").trim(); if (!t) return;
     const rep = reports.find(r => r.id === id);
     if (!rep) return;
@@ -3172,7 +3177,7 @@ function TraineeList({ role, openKarte }) {
   useEffect(() => {
     if (!selected) return;
     const userId = selected.id || selected.userId;
-    const canDeep = role === "admin" || role === "instructor";
+    const canDeep = role === "admin" || role === "instructor" || role === "client";
     const base = {
       reports: [],
       attendance: [],
@@ -3199,8 +3204,10 @@ function TraineeList({ role, openKarte }) {
           })))
         .then(all => { base.tests = all.flatMap(x => x.rows.filter(r => r.traineeId === userId || r.userId === userId).map(r => ({ ...r, title: x.test.title || x.test.name || testIdOf(x.test) }))); })
         .catch(e => { base.testError = e?.errorMessage || e?.message || String(e); }));
-      jobs.push(apiGet(`/tasks/${userId}`).then(v => { base.tasks = v || null; }).catch(() => {}));
-      jobs.push(apiGet(`/karte/${userId}`).then(v => { base.memos = v || []; }).catch(() => {}));
+      if (role === "admin" || role === "instructor") {
+        jobs.push(apiGet(`/tasks/${userId}`).then(v => { base.tasks = v || null; }).catch(() => {}));
+        jobs.push(apiGet(`/karte/${userId}`).then(v => { base.memos = v || []; }).catch(() => {}));
+      }
     }
     Promise.all(jobs).then(() => setDetail(base)).finally(() => setDetailLoading(false));
   }, [selected, date, role, courses]);
@@ -3211,7 +3218,7 @@ function TraineeList({ role, openKarte }) {
   const taskTotal = detail.tasks?.done ? Object.keys(detail.tasks.done).length : 0;
   const avgScore = detail.tests.length ? Math.round(detail.tests.reduce((s, r) => s + Number(r.score || 0), 0) / detail.tests.length) : null;
   const latestMemo = detail.memos[0];
-  const canDeep = role === "admin" || role === "instructor";
+  const canDeep = role === "admin" || role === "instructor" || role === "client";
   const visibleData = useMemo(() => {
     const s = q.trim().toLowerCase();
     return data.filter(t => !s || `${t.name || ""} ${t.email || ""} ${t.company || ""} ${companyName(t.company)}`.toLowerCase().includes(s));
