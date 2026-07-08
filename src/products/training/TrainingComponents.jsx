@@ -752,8 +752,8 @@ function GoalsView({ role, done, toggle, goals, setGoals, go, openKarte }) {
   );
 }
 function Curriculum({ role }) {
-  const canEdit = role === "instructor" || role === "admin";
   const [courses, setCourses] = useState([]);
+  const [currentUserId, setCurrentUserId] = useState("");
   const [courseId, setCourseId] = useState("");
   const [sections, setSections] = useState([]);
   const [materials, setMaterials] = useState([]);
@@ -762,18 +762,17 @@ function Curriculum({ role }) {
   const [msg, setMsg] = useState("");
   const [err, setErr] = useState("");
   const materialsById = useMemo(() => Object.fromEntries(materials.map(m => [m.materialId, m])), [materials]);
+  const selectedCourse = useMemo(() => courses.find(c => c.courseId === courseId) || null, [courses, courseId]);
+  const canEdit = role === "admin" || (role === "instructor" && Array.isArray(selectedCourse?.instructorIds) && selectedCourse.instructorIds.includes(currentUserId));
 
   useEffect(() => {
-    const ep = canEdit ? "/courses" : "/me/courses";
+    const ep = role === "trainee" ? "/me/courses" : "/courses";
     const me = role === "instructor" ? getCurrentUser().catch(() => null) : Promise.resolve(null);
     Promise.all([apiGet(ep), me])
       .then(([list, user]) => {
         let cs = list || [];
         const uid = user?.userId || user?.username || "";
-        if (role === "instructor" && uid) {
-          const assigned = cs.filter(c => Array.isArray(c.instructorIds) && c.instructorIds.includes(uid));
-          if (assigned.length) cs = assigned;
-        }
+        setCurrentUserId(uid);
         setCourses(cs);
         if (cs.length) setCourseId(cs[0].courseId); else setLoading(false);
       })
@@ -808,6 +807,7 @@ function Curriculum({ role }) {
     setSections(xs => xs.map((s, i) => i !== si ? s : { ...s, chapters: arr(s.chapters).map((c, j) => j === ci ? { ...c, lessons: arr(c.lessons).filter((_, k) => k !== li) } : c) }));
   }
   async function save() {
+    if (!canEdit) { setErr("このコースの編集権限がありません。"); return; }
     if (busy) return; setBusy(true); setMsg(""); setErr("");
     try {
       const payload = { sections, sessions: sessionsFromSections(sections) };
@@ -927,8 +927,8 @@ function Curriculum({ role }) {
 
 /* ===== 教材 ===== */
 function Materials({ role }) {
-  const canEdit = role === "instructor" || role === "admin";
   const [courses, setCourses] = useState([]);
+  const [currentUserId, setCurrentUserId] = useState("");
   const [courseId, setCourseId] = useState("");
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -940,10 +940,18 @@ function Materials({ role }) {
   const [deleting, setDeleting] = useState(null);
   const [saving, setSaving] = useState(false);
   const fileRef = React.useRef(null);
+  const selectedCourse = useMemo(() => courses.find(c => c.courseId === courseId) || null, [courses, courseId]);
+  const canEdit = role === "admin" || (role === "instructor" && Array.isArray(selectedCourse?.instructorIds) && selectedCourse.instructorIds.includes(currentUserId));
 
   useEffect(() => {
-    const ep = canEdit ? "/courses" : "/me/courses";
-    apiGet(ep).then(list => { const cs = list || []; setCourses(cs); if (cs.length) setCourseId(cs[0].courseId); else setLoading(false); })
+    const ep = role === "trainee" ? "/me/courses" : "/courses";
+    const me = role === "instructor" ? getCurrentUser().catch(() => null) : Promise.resolve(null);
+    Promise.all([apiGet(ep), me]).then(([list, user]) => {
+      const cs = list || [];
+      setCurrentUserId(user?.userId || user?.username || "");
+      setCourses(cs);
+      if (cs.length) setCourseId(cs[0].courseId); else setLoading(false);
+    })
       .catch(() => { setErr("コースの取得に失敗しました。"); setLoading(false); });
   }, [role]);
 
@@ -956,6 +964,7 @@ function Materials({ role }) {
 
   async function upload(file) {
     if (!file || !courseId) return;
+    if (!canEdit) { setErr("このコースの資料編集権限がありません。"); return; }
     setUploading(true); setErr("");
     try {
       const ct = file.type || "application/octet-stream";
@@ -978,6 +987,7 @@ function Materials({ role }) {
   }
 
   function startEdit(m) {
+    if (!canEdit) return;
     setEditing(m);
     setEditDraft({
       title: m.title || "",
@@ -988,6 +998,7 @@ function Materials({ role }) {
 
   async function saveMaterial() {
     if (!editing || !courseId) return;
+    if (!canEdit) { setErr("このコースの資料編集権限がありません。"); return; }
     setSaving(true); setErr("");
     try {
       await apiPut(`/materials/${encodeURIComponent(editing.materialId)}`, {
@@ -1007,6 +1018,7 @@ function Materials({ role }) {
 
   async function deleteMaterial() {
     if (!deleting || !courseId) return;
+    if (!canEdit) { setErr("このコースの資料削除権限がありません。"); return; }
     setSaving(true); setErr("");
     try {
       await apiDeleteBase(`/materials/${encodeURIComponent(deleting.materialId)}?courseId=${encodeURIComponent(courseId)}`);
