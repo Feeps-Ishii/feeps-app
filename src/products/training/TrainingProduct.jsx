@@ -1,7 +1,7 @@
 import React from "react";
 import {
   Attendance, ClientHome, Curriculum, ElearningView, GoalsView, InstructorHome, Karte, Materials, Reports,
-  Tests, TraineeHome, TraineeList
+  ReadOnlyCompanies, ReadOnlyCourses, ReadOnlyInstructors, Tests, TraineeHome, TraineeList
 } from "./TrainingComponents.jsx";
 
 export default function TrainingProduct({
@@ -25,6 +25,9 @@ export default function TrainingProduct({
     return null;
   }
   if (view === "curriculum") return <Curriculum role={role} />;
+  if (view === "companies") return <ReadOnlyCompanies role={role} />;
+  if (view === "courses") return <ReadOnlyCourses role={role} />;
+  if (view === "users") return <ReadOnlyInstructors />;
   if (view === "goals") return <GoalsView role={role} done={taskDone} toggle={toggle} goals={goals} setGoals={setGoals} go={go} openKarte={setKarte} />;
   if (view === "elearning") return <ElearningView go={go} />;
   if (view === "materials") return <Materials role={role} />;

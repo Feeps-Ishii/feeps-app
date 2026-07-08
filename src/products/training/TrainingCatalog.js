@@ -187,15 +187,17 @@ const BADGES = {
 const NAV = {
   trainee: [
     { sec: null, items: [["home", "ホーム", LayoutDashboard]] },
-    { sec: "研修中", items: [["curriculum", "カリキュラム", Calendar], ["reports", "日報", NotebookPen], ["attendance", "勤怠", Clock], ["tests", "テスト", ClipboardCheck], ["materials", "研修資料", FileText], ["goals", "目標とタスク", Target]] },
+    { sec: "研修中", items: [["courses", "所属コース", BookOpen], ["curriculum", "カリキュラム", Calendar], ["reports", "日報", NotebookPen], ["attendance", "勤怠", Clock], ["tests", "テスト", ClipboardCheck], ["materials", "研修資料", FileText], ["goals", "目標とタスク", Target]] },
   ],
   instructor: [
     { sec: null, items: [["home", "ホーム", LayoutDashboard]] },
+    { sec: "管理", items: [["companies", "企業", Building2], ["courses", "コース", BookOpen], ["users", "ユーザー・講師", Users]] },
     { sec: "研修中", items: [["curriculum", "カリキュラム", Calendar], ["reports", "日報確認", NotebookPen], ["attendance", "勤怠確認", Clock], ["tests", "テスト", ClipboardCheck], ["materials", "研修資料", FileText], ["goals", "目標ダッシュボード", Target], ["trainees", "受講生カルテ・要確認者", Users]] },
   ],
   client: [
     { sec: null, items: [["home", "ホーム", LayoutDashboard]] },
-    { sec: "研修中", items: [["trainees", "自社受講生", Users], ["attendance", "出席・勤怠状況", Clock], ["reports", "日報確認・コメント", NotebookPen], ["tests", "テスト結果", ClipboardCheck]] },
+    { sec: "自社", items: [["companies", "企業", Building2], ["courses", "関連コース", BookOpen], ["trainees", "自社受講生", Users]] },
+    { sec: "研修中", items: [["curriculum", "カリキュラム", Calendar], ["attendance", "出席・勤怠状況", Clock], ["reports", "日報確認・コメント", NotebookPen], ["tests", "テスト結果", ClipboardCheck], ["materials", "研修資料", FileText]] },
   ],
   admin: [
     { sec: null, items: [["home", "ホーム", LayoutDashboard]] },

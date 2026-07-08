@@ -3648,6 +3648,94 @@ function ListPager({ page, totalPages, total, onPage }) {
     </div>
   );
 }
+
+function ReadOnlyCompanies({ role }) {
+  const [rows, setRows] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [err, setErr] = useState("");
+  useEffect(() => {
+    setLoading(true); setErr("");
+    apiGet("/companies")
+      .then(v => setRows(Array.isArray(v) ? v : []))
+      .catch(e => setErr(e?.errorMessage || e?.message || String(e)))
+      .finally(() => setLoading(false));
+  }, [role]);
+  return (
+    <div>
+      <SectionHead title="企業" desc={role === "client" ? "自社情報を確認します" : "企業情報を読み取り専用で確認します"} />
+      {err && <div className="mb-3 rounded-xl px-3 py-2 text-sm" style={adminErrStyle}>{err}</div>}
+      <Card className="overflow-hidden">
+        {loading ? <SkeletonRows rows={4} />
+          : rows.length === 0 ? <EmptyState title="企業がありません" desc="表示できる企業情報がありません" />
+            : <div className="divide-y" style={{ borderColor: T.border }}>{rows.map(c => (
+              <div key={c.companyId} className="flex items-center gap-3 px-4 py-3">
+                <div className="flex h-9 w-9 items-center justify-center rounded-xl" style={{ background: T.accentSubtle, color: T.accent }}><Building2 size={17} /></div>
+                <div className="min-w-0 flex-1"><div className="truncate text-sm font-bold" style={{ color: T.textPrimary }}>{c.name || c.companyId}</div><div className="truncate text-xs" style={{ color: T.textMuted }}>{c.memo || c.note || c.companyId}</div></div>
+                <Badge tone="muted">R</Badge>
+              </div>
+            ))}</div>}
+      </Card>
+    </div>
+  );
+}
+
+function ReadOnlyCourses({ role }) {
+  const [rows, setRows] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [err, setErr] = useState("");
+  useEffect(() => {
+    setLoading(true); setErr("");
+    apiGet(role === "trainee" ? "/me/courses" : "/courses")
+      .then(v => setRows(Array.isArray(v) ? v : []))
+      .catch(e => setErr(e?.errorMessage || e?.message || String(e)))
+      .finally(() => setLoading(false));
+  }, [role]);
+  return (
+    <div>
+      <SectionHead title="コース" desc={role === "trainee" ? "自分の所属コースを確認します" : "閲覧可能なコースを確認します"} />
+      {err && <div className="mb-3 rounded-xl px-3 py-2 text-sm" style={adminErrStyle}>{err}</div>}
+      {loading ? <Card><SkeletonRows rows={4} /></Card>
+        : rows.length === 0 ? <Card><EmptyState title="コースがありません" desc="表示できるコースがありません" /></Card>
+          : <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">{rows.map(c => (
+            <Card key={c.courseId || c.id} className="p-4">
+              <div className="mb-2 flex items-start justify-between gap-2"><div className="min-w-0"><h3 className="truncate font-bold" style={{ color: T.textPrimary }}>{c.name || c.courseId || c.id}</h3><p className="mt-1 text-xs" style={{ color: T.textMuted }}>{c.description || c.memo || c.courseId}</p></div><Badge tone={kindTone(c.type || c.kind)}>{kindLabel(c.type || c.kind)}</Badge></div>
+              {Array.isArray(c.instructorIds) && c.instructorIds.length > 0 && <div className="mt-3 text-xs" style={{ color: T.textMuted }}>担当講師 {c.instructorIds.length}名</div>}
+            </Card>
+          ))}</div>}
+    </div>
+  );
+}
+
+function ReadOnlyInstructors() {
+  const [rows, setRows] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [err, setErr] = useState("");
+  useEffect(() => {
+    setLoading(true); setErr("");
+    apiGet("/admin/instructors")
+      .then(v => setRows(Array.isArray(v) ? v : []))
+      .catch(e => setErr(e?.errorMessage || e?.message || String(e)))
+      .finally(() => setLoading(false));
+  }, []);
+  return (
+    <div>
+      <SectionHead title="ユーザー・講師" desc="講師情報を読み取り専用で確認します" />
+      {err && <div className="mb-3 rounded-xl px-3 py-2 text-sm" style={adminErrStyle}>{err}</div>}
+      <Card className="overflow-hidden">
+        {loading ? <SkeletonRows rows={4} />
+          : rows.length === 0 ? <EmptyState title="講師がありません" desc="表示できる講師情報がありません" />
+            : <div className="divide-y" style={{ borderColor: T.border }}>{rows.map(u => (
+              <div key={u.userId || u.email} className="flex items-center gap-3 px-4 py-3">
+                <Avatar name={u.name || u.email} size={36} />
+                <div className="min-w-0 flex-1"><div className="truncate text-sm font-bold" style={{ color: T.textPrimary }}>{u.name || "氏名未設定"}</div><div className="truncate text-xs" style={{ color: T.textMuted }}>{u.email || u.userId}</div></div>
+                <Badge tone={roleTone(u.role)}>{roleLabel(u.role)}</Badge>
+              </div>
+            ))}</div>}
+      </Card>
+    </div>
+  );
+}
+
 const API_BASE = "https://yit7ypsa40.execute-api.ap-northeast-1.amazonaws.com";
 async function apiDelete(path) {
   const session = await fetchAuthSession();
@@ -3731,5 +3819,5 @@ export {
   Card, Badge, Btn, Avatar, Ring, Bar, Stat, SectionHead, EmptyState,
   StatusRow, TraineeHome, InstructorGoalsDashboard, GoalsView, Curriculum, Materials,
   Tests, Attendance, Reports, InstructorHome, TraineeList, Karte, ClientHome,
-  ElearningView, SAMPLE_VIEWS
+  ElearningView, ReadOnlyCompanies, ReadOnlyCourses, ReadOnlyInstructors, SAMPLE_VIEWS
 };

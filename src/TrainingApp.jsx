@@ -895,12 +895,12 @@ export default function App() {
       <button onClick={() => setDemoOpen(v => !v)}
         className="inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[11px] font-bold transition hover:bg-black/10"
         style={{ background: "rgba(26,28,32,.05)", color: T.textSecondary }}>
-        DEMO <ChevronDown size={11} />
+        {me.label} <ChevronDown size={11} />
       </button>
       {demoOpen && (<>
         <div className="fixed inset-0" style={{ zIndex: Z.dropdown - 1 }} onClick={() => setDemoOpen(false)} />
         <div className="absolute left-0 top-full mt-1 min-w-[172px] rounded-xl py-1" style={{ zIndex: Z.dropdown, background: T.bgSurface, border: `1px solid ${T.border}`, boxShadow: "0 8px 24px rgba(21,23,28,.12)" }}>
-          <div className="px-3 py-1.5 text-[10px] font-semibold uppercase tracking-wider" style={{ color: T.textMuted }}>{userProfile?.role ? "実ロール固定" : "ロール切替（開発用）"}</div>
+          <div className="px-3 py-1.5 text-[10px] font-semibold uppercase tracking-wider" style={{ color: T.textMuted }}>{userProfile?.role ? "実ロール" : "ロール切替（開発用）"}</div>
           {Object.values(ROLES).filter(r => !userProfile?.role || r.key === role).map(r => { const active = role === r.key;
             return <button key={r.key} onClick={() => { switchRole(r.key); setDemoOpen(false); }}
               className="flex w-full items-center gap-2 px-3 py-2 text-xs font-semibold transition hover:bg-black/5"
@@ -1056,7 +1056,7 @@ export default function App() {
                       <User size={13} />プロフィールを開く
                     </button>
                     <div className="my-1 h-px" style={{ background: T.border }} />
-                    <div className="px-3 py-1 text-[10px] font-semibold uppercase tracking-wider" style={{ color: T.textMuted }}>{userProfile?.role ? "実ロール固定" : "ロール切替（開発用）"}</div>
+                    <div className="px-3 py-1 text-[10px] font-semibold uppercase tracking-wider" style={{ color: T.textMuted }}>{userProfile?.role ? "実ロール" : "ロール切替（開発用）"}</div>
                     {Object.values(ROLES).filter(r => !userProfile?.role || r.key === role).map(r => { const activeRole = role === r.key;
                       return <button key={r.key} type="button" onClick={() => { switchRole(r.key); setSidebarUserOpen(false); }}
                         className="flex w-full items-center gap-2 px-3 py-2 text-xs font-semibold transition hover:bg-black/5"
