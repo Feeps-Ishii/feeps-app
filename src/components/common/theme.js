@@ -69,6 +69,7 @@ export const T = {
 // every Product now has a visually distinct hue: gray(training/admin) / teal(learning) /
 // purple(talent) / orange(matching) / rose(analytics).
 export const PRODUCT_ACCENT = {
+  home:      { accent: "#3D6BFF", deep: "#2F56D9", subtle: "#EDF1FF", gradFrom: "#2F56D9", gradTo: "#14A3B8" },
   training:  { accent: "#3A404C", deep: "#23272F", subtle: "#EDEEF1", gradFrom: "#23272F", gradTo: "#3A404C" },
   learning:  { accent: "#14A3B8", deep: "#0E7A8A", subtle: "#E7F5F7", gradFrom: "#0E7A8A", gradTo: "#14A3B8" },
   talent:    { accent: "#7C5CE0", deep: "#6247B8", subtle: "#F3F0FC", gradFrom: "#4B32A8", gradTo: "#7C5CE0" },

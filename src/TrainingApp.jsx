@@ -4,6 +4,7 @@ import { apiGet, apiPut, apiPost } from "./api.js";
 import { ANALYTICS_NAV } from "./products/analytics/AnalyticsCatalog.js";
 import { MATCHING_NAV } from "./products/matching/MatchingCatalog.js";
 import { TALENT_NAV } from "./products/talent/TalentCatalog.js";
+import FeepsOneHome from "./products/home/FeepsOneHome.jsx";
 import TrainingProduct from "./products/training/TrainingProduct.jsx";
 import { Card, Badge, Btn, Avatar, Stat, SectionHead, T, PRODUCT_ACCENT, ROLE_ACCENT, Z, PageLoading, EmptyState as CommonEmptyState, SkeletonRows } from "./components/common";
 import { SAMPLE_VIEWS } from "./products/training/TrainingComponents.jsx";
@@ -311,6 +312,7 @@ function Login({ onLogin }) {
 
 /* ===== 受講生：ホーム ===== */
 const PRODUCTS = [
+  { key: "home",      label: "Home",           icon: Compass,       color: PRODUCT_ACCENT.home.accent, roles: ["trainee","instructor","client","admin"] },
   { key: "training",  label: "研修管理",       icon: GraduationCap, color: PRODUCT_ACCENT.training.accent, roles: ["trainee","instructor","client","admin"] },
   { key: "learning",  label: "Eラーニング",    icon: BookOpen,      color: PRODUCT_ACCENT.learning.accent, roles: ["trainee","instructor","client","admin"] },
   { key: "talent",    label: "スキル・成長",   icon: TrendingUp,    color: PRODUCT_ACCENT.talent.accent, roles: ["trainee","instructor","client","admin"] },
@@ -643,7 +645,7 @@ export default function App() {
   const [loggedIn, setLoggedIn] = useState(false);
   const [role, setRole] = useState(() => storageGet("feeps.role", "trainee"));
   const [view, setView] = useState(() => storageGet("feeps.view", "home"));
-  const [product, setProduct] = useState(() => storageGet("feeps.product", "training"));
+  const [product, setProduct] = useState(() => storageGet("feeps.product", "home"));
   const [subView, setSubView] = useState("home");
   const [karte, setKarte] = useState(null);
   const [taskDone, setTaskDone] = useState({});
@@ -700,7 +702,14 @@ export default function App() {
       if (active) setAuthChecked(true);
     }, 3000);
     getCurrentUser()
-      .then(() => { if (active) setLoggedIn(true); })
+      .then(() => {
+        if (active) {
+          setProduct("home");
+          setSubView("home");
+          setView("home");
+          setLoggedIn(true);
+        }
+      })
       .catch(() => {})
       .finally(() => {
         clearTimeout(authFallback);
@@ -716,7 +725,7 @@ export default function App() {
   useEffect(() => { storageSet("feeps.product", product); }, [product]);
   useEffect(() => {
     const p = PRODUCTS.find(px => px.key === product);
-    if (p && !p.roles.includes(role)) { setProduct("training"); setSubView("home"); }
+    if (p && !p.roles.includes(role)) { setProduct("home"); setSubView("home"); }
   }, [role]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => {
     if (!loggedIn) return;
@@ -736,6 +745,7 @@ export default function App() {
         setUserProfile(p || null);
         if (p?.role && ROLES[p.role] && p.role !== role) {
           setRole(p.role);
+          setProduct("home");
           setView("home");
           setKarte(null);
         }
@@ -743,6 +753,7 @@ export default function App() {
       .catch(() => {
         setUserProfile(null);
         setRole("trainee");
+        setProduct("home");
         setView("home");
         setKarte(null);
       })
@@ -775,7 +786,8 @@ export default function App() {
   }, [view, loggedIn, refreshNotifications]);
   const me = ROLES[role];
   const roleAccent = ROLE_ACCENT[role] || ROLE_ACCENT.default;
-  const nav = product === "training" ? NAV[role]
+  const nav = product === "home" ? [{ sec: null, items: [["home", "Home", Compass]] }]
+    : product === "training" ? NAV[role]
     : product === "learning" ? (EL_NAV[role] || EL_NAV.trainee)
     : product === "talent" ? (TALENT_NAV[role] || TALENT_NAV.admin)
     : product === "matching" ? MATCHING_NAV
@@ -800,12 +812,14 @@ export default function App() {
     }
   }, [allowedViews, view]);
 
-  function login(r) { setRole(r); setLoggedIn(true); setView("home"); setKarte(null); }
+  function login(r) { setRole(r); setLoggedIn(true); setProduct("home"); setView("home"); setSubView("home"); setKarte(null); }
   async function logout() { try { await signOut(); } catch (e) {} setLoggedIn(false); setUserProfile(null); setProfileChecked(false); }
   function switchRole(r) {
     const fixedRole = userProfile?.role && ROLES[userProfile.role] ? userProfile.role : r;
     setRole(fixedRole);
+    setProduct("home");
     setView("home");
+    setSubView("home");
     setKarte(null);
   }
   function go(v) {
@@ -817,7 +831,8 @@ export default function App() {
     setProduct(p);
     setKarte(null);
     setDrawerOpen(false);
-    if (p === "training")       { setView("home"); setSubView("home"); }
+    if (p === "home")           { setView("home"); setSubView("home"); }
+    else if (p === "training")  { setView("home"); setSubView("home"); }
     else if (p === "learning")  setSubView("el_home");
     else if (p === "talent")    setSubView("tl_home");
     else if (p === "matching")  setSubView("mt_home");
@@ -841,6 +856,7 @@ export default function App() {
   if (!profileChecked) return null;
 
   const screen = (() => {
+    if (product === "home") return <FeepsOneHome role={role} displayName={displayName} goProduct={goProduct} goTraining={go} />;
     if (product === "learning") return <LearningProduct subView={subView} goSub={goSub} goProduct={goProduct} role={role} themeColor={themeColor} />;
     if (product === "talent") return <TalentProduct subView={subView} goSub={goSub} goProduct={goProduct} role={role} themeColor={themeColor} done={taskDone} goals={goals} />;
     if (product === "matching") return <MatchingProduct subView={subView} goSub={goSub} role={role} themeColor={themeColor} />;
