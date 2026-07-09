@@ -1,6 +1,7 @@
 import React from "react";
+import InstructorWorkspace from "../workspace/InstructorWorkspace.jsx";
 import {
-  Attendance, ClientHome, Curriculum, ElearningView, GoalsView, InstructorHome, Karte, Materials, Reports,
+  Attendance, ClientHome, Curriculum, ElearningView, GoalsView, Karte, Materials, Reports,
   ReadOnlyCompanies, ReadOnlyCourses, ReadOnlyInstructors, Tests, TraineeHome, TraineeList
 } from "./TrainingComponents.jsx";
 
@@ -16,11 +17,12 @@ export default function TrainingProduct({
   setGoals,
   dailyMessage,
   setDailyMessage,
+  displayName,
 }) {
   if (karte) return <Karte trainee={karte} back={() => setKarte(null)} role={role} />;
   if (view === "home") {
     if (role === "trainee") return <TraineeHome go={go} done={taskDone} toggle={toggle} dailyMessage={dailyMessage} goals={goals} />;
-    if (role === "instructor") return <InstructorHome go={go} openKarte={setKarte} dailyMessage={dailyMessage} setDailyMessage={setDailyMessage} />;
+    if (role === "instructor") return <InstructorWorkspace go={go} displayName={displayName} />;
     if (role === "client") return <ClientHome openKarte={setKarte} go={go} />;
     return null;
   }

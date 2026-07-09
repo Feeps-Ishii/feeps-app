@@ -866,6 +866,7 @@ export default function App() {
       setGoals={handleSetGoals}
       dailyMessage={dailyMessage}
       setDailyMessage={setDailyMessage}
+      displayName={displayName}
     />;
   })();
 
