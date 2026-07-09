@@ -936,6 +936,9 @@ function Materials({ role }) {
   const [currentUserId, setCurrentUserId] = useState("");
   const [courseId, setCourseId] = useState("");
   const [items, setItems] = useState([]);
+  const [curriculumSections, setCurriculumSections] = useState([]);
+  const [curriculumLoading, setCurriculumLoading] = useState(false);
+  const [curriculumErr, setCurriculumErr] = useState("");
   const [loading, setLoading] = useState(true);
   const [uploading, setUploading] = useState(false);
   const [err, setErr] = useState("");
@@ -947,6 +950,24 @@ function Materials({ role }) {
   const fileRef = React.useRef(null);
   const selectedCourse = useMemo(() => courses.find(c => c.courseId === courseId) || null, [courses, courseId]);
   const canEdit = role === "admin" || (role === "instructor" && Array.isArray(selectedCourse?.instructorIds) && selectedCourse.instructorIds.includes(currentUserId));
+  const materialsById = useMemo(() => Object.fromEntries(items.map(m => [m.materialId, m])), [items]);
+  const materialGroups = useMemo(() => {
+    const referenced = new Set();
+    const groups = arr(curriculumSections).map(section => ({
+      id: section.id || section.title,
+      title: section.title || "カリキュラム",
+      chapters: arr(section.chapters).map(chapter => ({
+        id: chapter.id || chapter.title,
+        title: chapter.title || "章",
+        lessons: arr(chapter.lessons).map(lesson => {
+          const materials = arr(lesson.materialIds).map(id => materialsById[id]).filter(Boolean);
+          materials.forEach(m => referenced.add(m.materialId));
+          return { id: lesson.id || lesson.title, title: lesson.title || "レッスン", materials };
+        }).filter(lesson => lesson.materials.length > 0),
+      })).filter(chapter => chapter.lessons.length > 0),
+    })).filter(section => section.chapters.length > 0);
+    return { groups, loose: items.filter(m => !referenced.has(m.materialId)) };
+  }, [curriculumSections, items, materialsById]);
 
   useEffect(() => {
     const ep = role === "trainee" ? "/me/courses" : "/courses";
@@ -965,7 +986,15 @@ function Materials({ role }) {
     setLoading(true); setErr("");
     apiGet(`/materials?courseId=${courseId}`).then(l => setItems(l || [])).catch(() => setErr("資料一覧の取得に失敗しました。")).finally(() => setLoading(false));
   }
-  useEffect(() => { loadMaterials(); }, [courseId]);
+  function loadCurriculumForMaterials() {
+    if (!courseId) return;
+    setCurriculumLoading(true); setCurriculumErr("");
+    apiGet(`/courses/${courseId}/curriculum`)
+      .then(res => setCurriculumSections(normalizeCurriculumSections(res || {})))
+      .catch(() => { setCurriculumSections([]); setCurriculumErr("カリキュラム情報を取得できませんでした。資料のみ表示します。"); })
+      .finally(() => setCurriculumLoading(false));
+  }
+  useEffect(() => { loadMaterials(); loadCurriculumForMaterials(); }, [courseId]);
 
   async function upload(file) {
     if (!file || !courseId) return;
@@ -1035,6 +1064,58 @@ function Materials({ role }) {
       setSaving(false);
     }
   }
+  function renderMaterialRow(m, key) {
+    return (
+      <div key={key || m.materialId} className="flex items-center justify-between gap-3 px-4 py-3" style={{ borderTop: `1px solid ${T.border}` }}>
+        <div className="flex min-w-0 items-center gap-3">
+          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl" style={{ background: T.accentSubtle }}><FileText size={17} style={{ color: T.accent }} /></div>
+          <div className="min-w-0"><div className="truncate text-sm font-semibold" style={{ color: T.textPrimary }}>{m.title}</div>{m.description && <div className="truncate text-xs" style={{ color: T.textSecondary }}>{m.description}</div>}<div className="text-xs" style={{ color: T.textMuted }}>{m.mode === "download" ? "DLのみ" : "閲覧可"} / {fmtTs(m.uploadedAt)}</div></div>
+        </div>
+        <div className="flex shrink-0 items-center gap-2">
+          <Btn kind="ghost" size="sm" icon={m.mode === "download" ? Download : Eye} onClick={() => openMaterial(m)}>{m.mode === "download" ? "DL" : "開く"}</Btn>
+          {canEdit && <Btn kind="ghost" size="sm" icon={Pencil} onClick={() => startEdit(m)}>編集</Btn>}
+          {canEdit && <Btn kind="ghost" size="sm" icon={Trash2} onClick={() => setDeleting(m)}>削除</Btn>}
+        </div>
+      </div>
+    );
+  }
+  function renderMaterialList() {
+    if (!items.length) return null;
+    return (
+      <div>
+        <div className="px-4 py-3" style={{ borderBottom: `1px solid ${T.border}` }}>
+          <div className="text-sm font-bold" style={{ color: T.textPrimary }}>カリキュラム別教材</div>
+          <div className="text-xs" style={{ color: T.textMuted }}>カリキュラムに紐づく教材を章・レッスン単位で表示します。</div>
+        </div>
+        {curriculumLoading && <div className="px-4 py-3 text-xs" style={{ color: T.textMuted }}>カリキュラムを確認中...</div>}
+        {curriculumErr && <div className="mx-4 mt-3 rounded-lg px-3 py-2 text-xs" style={{ background: T.warningSubtle, color: T.warning }}>{curriculumErr}</div>}
+        {materialGroups.groups.map(section => (
+          <div key={section.id} className="px-4 py-3" style={{ borderTop: `1px solid ${T.border}` }}>
+            <div className="text-sm font-bold" style={{ color: T.textPrimary }}>{section.title}</div>
+            {section.chapters.map(chapter => (
+              <div key={chapter.id} className="mt-3 rounded-xl" style={{ border: `1px solid ${T.border}`, background: "#fff" }}>
+                <div className="px-3 py-2 text-xs font-bold" style={{ color: T.textSecondary, background: T.bgBase }}>{chapter.title}</div>
+                {chapter.lessons.map(lesson => (
+                  <div key={lesson.id}>
+                    <div className="px-3 pt-3 text-xs font-semibold" style={{ color: T.textMuted }}>{lesson.title}</div>
+                    {lesson.materials.map(m => renderMaterialRow(m, `${lesson.id}:${m.materialId}`))}
+                  </div>
+                ))}
+              </div>
+            ))}
+          </div>
+        ))}
+        {materialGroups.loose.length > 0 && (
+          <div className="px-4 py-3" style={{ borderTop: `1px solid ${T.border}` }}>
+            <div className="text-sm font-bold" style={{ color: T.textPrimary }}>{materialGroups.groups.length ? "未紐づけ教材" : "教材一覧"}</div>
+            <div className="mt-2 rounded-xl" style={{ border: `1px solid ${T.border}`, background: "#fff" }}>
+              {materialGroups.loose.map(m => renderMaterialRow(m, `loose:${m.materialId}`))}
+            </div>
+          </div>
+        )}
+      </div>
+    );
+  }
 
   return (
     <div>
@@ -1062,7 +1143,7 @@ function Materials({ role }) {
           </div>
           {loading ? <Card><SkeletonRows /></Card>
             : items.length === 0 ? <Card><EmptyState title="資料がありません" desc={canEdit ? "「ファイルを追加」からアップロードできます" : "講師が資料を準備中です"} /></Card>
-            : <Card>{items.map((m, i) => (
+            : <Card>{renderMaterialList() || items.map((m, i) => (
                 <div key={m.materialId} className="flex items-center justify-between px-4 py-3" style={{ borderBottom: i < items.length - 1 ? `1px solid ${T.border}` : "none" }}>
                   <div className="flex min-w-0 items-center gap-3">
                     <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl" style={{ background: T.accentSubtle }}><FileText size={17} style={{ color: T.accent }} /></div>
