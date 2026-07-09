@@ -48,6 +48,16 @@ function num(value) {
   return Number.isFinite(n) ? n : 0;
 }
 
+function textOf(value, fallback = "") {
+  if (value == null || value === "") return fallback;
+  if (typeof value === "string" || typeof value === "number" || typeof value === "boolean") return String(value);
+  if (Array.isArray(value)) return value.map(v => textOf(v)).filter(Boolean).join(" / ") || fallback;
+  if (typeof value === "object") {
+    return textOf(value.title ?? value.name ?? value.label ?? value.text ?? value.message ?? value.content, fallback);
+  }
+  return fallback;
+}
+
 function dateLabel(value) {
   const d = value ? new Date(value) : new Date();
   if (Number.isNaN(d.getTime())) return "";
@@ -262,7 +272,7 @@ export default function FeepsOneHome({ role, displayName, goProduct, goTraining 
   };
 
   const todoCards = role === "instructor" ? [
-    { icon: Megaphone, title: "本日のお知らせ", value: todayCourses.some(c => c?.dailyNote) ? "登録済" : "未実装", desc: "講師から受講生への日次連絡。登録APIは未実装です。", action: "研修管理へ", tone: "training", onClick: () => instructorTaskClick("home") },
+    { icon: Megaphone, title: "本日のお知らせ", value: todayCourses.some(c => textOf(c?.dailyNote)) ? "登録済" : "未実装", desc: "講師から受講生への日次連絡。登録APIは未実装です。", action: "研修管理へ", tone: "training", onClick: () => instructorTaskClick("home") },
     { icon: Clock, title: "勤怠確認", value: `${attendanceAlerts}件`, desc: "欠席・遅刻・未打刻などを確認します。", action: "確認する", tone: "training", onClick: () => instructorTaskClick("attendance") },
     { icon: FileText, title: "日報確認", value: `${pendingReports}件`, desc: "未確認の日報を一覧で確認します。", action: "確認する", tone: "training", onClick: () => instructorTaskClick("reports") },
     { icon: ClipboardCheck, title: "授業準備", value: `${lessonPrep.length || todayCourses.length}件`, desc: "今日のカリキュラム・教材・テストを開きます。", action: "開く", tone: "learning", onClick: () => instructorTaskClick("curriculum") },
@@ -348,12 +358,12 @@ export default function FeepsOneHome({ role, displayName, goProduct, goTraining 
           <SectionTitle title="今日の担当コース" desc="詳細な編集や確認は研修管理Productで行います。" />
           <div className="grid gap-4 md:grid-cols-2">
             {todayCourses.slice(0, 2).map(course => (
-              <Card key={course.courseId || course.courseName} className="p-4">
+              <Card key={textOf(course.courseId || course.courseName, "course")} className="p-4">
                 <div className="flex flex-wrap items-start justify-between gap-3">
                   <div className="min-w-0">
-                    <h3 className="font-bold" style={{ color: T.textPrimary }}>{course.courseName || "コース名未設定"}</h3>
-                    <p className="mt-1 text-xs" style={{ color: T.textMuted }}>{course.companyName || "企業名未取得"} / {num(course.studentCount)}名</p>
-                    <p className="mt-3 text-sm" style={{ color: T.textSecondary }}>{course.todayCurriculum || "今日の授業は未設定です。"}</p>
+                    <h3 className="font-bold" style={{ color: T.textPrimary }}>{textOf(course.courseName, "コース名未設定")}</h3>
+                    <p className="mt-1 text-xs" style={{ color: T.textMuted }}>{textOf(course.companyName, "企業名未取得")} / {num(course.studentCount)}名</p>
+                    <p className="mt-3 text-sm" style={{ color: T.textSecondary }}>{textOf(course.todayCurriculum, "今日の授業は未設定です。")}</p>
                   </div>
                   <Btn size="sm" kind="soft" icon={ArrowRight} onClick={() => {
                     goProduct("training");
