@@ -83,6 +83,24 @@ function toTrainingView(url) {
   return "home";
 }
 
+function openTargetUrl(targetUrl, { goProduct, goTraining }) {
+  const text = String(targetUrl || "");
+  if (text.includes("/learning")) {
+    goProduct("learning");
+    return;
+  }
+  if (text.includes("/talent")) {
+    goProduct("talent");
+    return;
+  }
+  if (text.includes("/training")) {
+    goProduct("training");
+    goTraining(toTrainingView(text));
+    return;
+  }
+  goProduct("training");
+}
+
 function openProduct(key, { goProduct, goTraining }) {
   if (key === "admin") {
     goProduct("training");
@@ -264,14 +282,15 @@ export default function FeepsOneHome({ role, displayName, goProduct, goTraining 
   const [dashboardError, setDashboardError] = useState("");
 
   const loadDashboard = useMemo(() => async () => {
-    if (role !== "instructor") return;
+    const path = role === "instructor" ? "/dashboard/instructor" : role === "trainee" ? "/dashboard/trainee" : "";
+    if (!path) return;
     setLoadingDashboard(true);
     setDashboardError("");
     try {
-      setDashboard(await apiGet("/dashboard/instructor"));
+      setDashboard(await apiGet(path));
     } catch (e) {
       setDashboard(null);
-      setDashboardError(e?.errorMessage || e?.message || "講師Dashboard APIの取得に失敗しました。");
+      setDashboardError(e?.errorMessage || e?.message || "Dashboard APIの取得に失敗しました。");
     } finally {
       setLoadingDashboard(false);
     }
@@ -283,21 +302,43 @@ export default function FeepsOneHome({ role, displayName, goProduct, goTraining 
 
   const summary = dashboard?.summary || {};
   const todayCourses = asArray(dashboard?.todayCourses);
+  const traineeCourses = asArray(dashboard?.activeCourses);
+  const traineeTasks = asArray(dashboard?.todayTasks);
+  const traineeAnnouncements = asArray(dashboard?.dailyAnnouncements);
+  const traineeWarnings = asArray(dashboard?.warnings);
+  const traineeTests = asArray(dashboard?.tests);
   const lessonPrep = asArray(dashboard?.lessonPrep);
   const pendingReports = num(summary.pendingReports);
   const attendanceAlerts = num(summary.attendanceAlerts);
   const activeStudents = num(summary.activeStudents);
   const assignedCourses = num(summary.assignedCourses);
+  const traineeActiveCourses = num(summary.activeCourses ?? traineeCourses.length);
+  const traineeUnsubmittedTests = num(summary.unsubmittedTests ?? traineeTests.filter(t => t?.status === "unsubmitted").length);
 
   const primaryCourse = textOf(todayCourses[0]?.courseName);
+  const traineePrimaryCourse = textOf(traineeCourses[0]?.courseName);
   const contextLine = role === "instructor" && primaryCourse
     ? `今日は${primaryCourse}があります。`
+    : role === "trainee" && traineePrimaryCourse
+      ? `今日は${traineePrimaryCourse}の状況を確認できます。`
     : ROLE_WELCOME[role] || ROLE_WELCOME.trainee;
 
   const instructorTaskClick = (view) => {
     goProduct("training");
     goTraining(view);
   };
+  const openDashboardTarget = (targetUrl) => openTargetUrl(targetUrl, { goProduct, goTraining });
+  const traineeTaskByType = new Map(traineeTasks.map(task => [task?.type, task]));
+  const traineeTask = (types) => {
+    const list = Array.isArray(types) ? types : [types];
+    return list.map(type => traineeTaskByType.get(type)).find(Boolean) || null;
+  };
+  const traineeAttendanceTask = traineeTask(["attendance_checkin", "attendance_checked"]);
+  const traineeReportTask = traineeTask(["daily_report_submit", "daily_report_submitted"]);
+  const traineeLearningTask = traineeTask("continue_learning");
+  const traineeTestTask = traineeTask("take_test");
+  const traineeGoalTask = traineeTask("check_goal");
+  const traineeLoadingText = loadingDashboard ? "取得中" : "確認する";
 
   const todoCards = role === "instructor" ? [
     { icon: Megaphone, title: "本日のお知らせ", value: todayCourses.some(c => textOf(c?.dailyNote)) ? "登録済" : "未登録", desc: "講師から受講生への日次連絡です。登録APIは今後拡張します。", action: "研修管理へ", tone: "training", onClick: () => instructorTaskClick("home") },
@@ -305,10 +346,10 @@ export default function FeepsOneHome({ role, displayName, goProduct, goTraining 
     { icon: FileText, title: "日報確認", value: `${pendingReports}件`, desc: "未確認の日報を一覧で確認します。", action: "確認する", tone: "training", onClick: () => instructorTaskClick("reports") },
     { icon: ClipboardCheck, title: "授業準備", value: `${lessonPrep.length || todayCourses.length}件`, desc: "今日のカリキュラム・教材・テストを開きます。", action: "開く", tone: "learning", onClick: () => instructorTaskClick("curriculum") },
   ] : role === "trainee" ? [
-    { icon: Clock, title: "勤怠登録", value: "未取得", desc: "今日の打刻状態は研修管理で確認できます。", action: "開く", tone: "training", onClick: () => openProduct("training", { goProduct, goTraining }) },
-    { icon: FileText, title: "未提出日報", value: "集計中", desc: "自分の日報提出状況を確認します。", action: "開く", tone: "training", onClick: () => openProduct("training", { goProduct, goTraining }) },
-    { icon: BookOpen, title: "前回の続き", value: "準備中", desc: "学習の続きはEラーニングから開けます。", action: "Learningへ", tone: "learning", onClick: () => openProduct("learning", { goProduct, goTraining }) },
-    { icon: ClipboardCheck, title: "未受験テスト", value: "集計中", desc: "受験状況は研修管理で確認できます。", action: "開く", tone: "training", onClick: () => openProduct("training", { goProduct, goTraining }) },
+    { icon: Clock, title: "勤怠登録", value: textOf(traineeAttendanceTask?.status === "done" ? "登録済み" : traineeAttendanceTask?.status === "needs_action" ? "未登録" : traineeLoadingText), desc: textOf(traineeAttendanceTask?.description, dashboardError || "今日の勤怠状態を確認できます。"), action: textOf(traineeAttendanceTask?.actionLabel, "開く"), tone: "training", onClick: () => openDashboardTarget(traineeAttendanceTask?.targetUrl || "/training/attendance") },
+    { icon: FileText, title: "日報提出", value: textOf(traineeReportTask?.status === "done" ? "提出済み" : traineeReportTask?.status === "needs_action" ? "未提出" : traineeLoadingText), desc: textOf(traineeReportTask?.description, "今日の日報状態を確認できます。"), action: textOf(traineeReportTask?.actionLabel, "開く"), tone: "training", onClick: () => openDashboardTarget(traineeReportTask?.targetUrl || "/training/reports") },
+    { icon: BookOpen, title: "前回の続き", value: dashboard?.learning?.progressPercent != null ? `${dashboard.learning.progressPercent}%` : textOf(traineeLearningTask?.status === "unavailable" ? "Learningで確認" : traineeLoadingText), desc: textOf(traineeLearningTask?.description, "学習の続きはEラーニングで確認できます。"), action: textOf(traineeLearningTask?.actionLabel, "Learningへ"), tone: "learning", onClick: () => openDashboardTarget(traineeLearningTask?.targetUrl || "/learning") },
+    { icon: ClipboardCheck, title: "未受験テスト", value: loadingDashboard ? "取得中" : `${traineeUnsubmittedTests}件`, desc: textOf(traineeTestTask?.description, "未受験テストを確認できます。"), action: textOf(traineeTestTask?.actionLabel, "開く"), tone: "training", onClick: () => openDashboardTarget(traineeTestTask?.targetUrl || "/training/tests") },
   ] : role === "client" ? [
     { icon: Users, title: "自社受講生", value: "集計中", desc: "自社範囲の受講生数を集計します。", action: "開く", tone: "training", onClick: () => openProduct("training", { goProduct, goTraining }) },
     { icon: Clock, title: "本日出席率", value: "集計中", desc: "本日の出席状況を確認します。", action: "開く", tone: "training", onClick: () => openProduct("training", { goProduct, goTraining }) },
@@ -327,10 +368,10 @@ export default function FeepsOneHome({ role, displayName, goProduct, goTraining 
     { label: "未確認日報", value: loadingDashboard ? "取得中" : `${pendingReports}件`, hint: "今日見るもの", icon: FileText, tone: "training" },
     { label: "勤怠異常", value: loadingDashboard ? "取得中" : `${attendanceAlerts}件`, hint: "確認が必要", icon: Clock, tone: "training" },
   ] : role === "trainee" ? [
-    { label: "受講中コース", value: "未取得", hint: "研修管理で確認", icon: GraduationCap, tone: "training" },
-    { label: "学習進捗", value: "準備中", hint: "Learning集計予定", icon: BookOpen, tone: "learning" },
-    { label: "未提出", value: "集計中", hint: "日報・課題", icon: FileText, tone: "training" },
-    { label: "現在目標", value: "準備中", hint: "Talentで確認", icon: Target, tone: "talent" },
+    { label: "受講中コース", value: loadingDashboard ? "取得中" : `${traineeActiveCourses}件`, hint: textOf(traineeCourses[0]?.courseName, "研修管理で確認"), icon: GraduationCap, tone: "training" },
+    { label: "学習進捗", value: dashboard?.summary?.learningProgress?.label || (loadingDashboard ? "取得中" : "Learningで確認"), hint: dashboard?.learning?.currentLessonTitle || "Eラーニングで確認", icon: BookOpen, tone: "learning" },
+    { label: "日報状態", value: textOf(dashboard?.summary?.dailyReportStatus === "submitted" ? "提出済み" : dashboard?.summary?.dailyReportStatus === "commented" ? "コメントあり" : dashboard?.summary?.dailyReportStatus === "not_submitted" ? "未提出" : loadingDashboard ? "取得中" : "確認する"), hint: "今日の日報", icon: FileText, tone: "training" },
+    { label: "現在目標", value: textOf(dashboard?.summary?.currentGoal?.title, loadingDashboard ? "取得中" : "スキル・成長で確認"), hint: textOf(traineeGoalTask?.description, "Talentで確認"), icon: Target, tone: "talent" },
   ] : role === "client" ? [
     { label: "自社受講生", value: "集計中", hint: "自社範囲", icon: Users, tone: "training" },
     { label: "本日出席率", value: "集計中", hint: "勤怠集計", icon: Clock, tone: "training" },
@@ -347,11 +388,11 @@ export default function FeepsOneHome({ role, displayName, goProduct, goTraining 
     <div className="space-y-7">
       <Hero role={role} displayName={displayName} contextLine={contextLine} />
 
-      {role === "instructor" && dashboardError && (
+      {(role === "instructor" || role === "trainee") && dashboardError && (
         <Card className="p-4">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div>
-              <div className="text-sm font-bold" style={{ color: T.danger }}>講師Dashboard APIを取得できませんでした</div>
+              <div className="text-sm font-bold" style={{ color: T.danger }}>Dashboard APIを取得できませんでした</div>
               <div className="mt-1 text-xs" style={{ color: T.textMuted }}>{dashboardError}</div>
             </div>
             <Btn size="sm" kind="ghost" icon={RefreshCw} onClick={loadDashboard}>再取得</Btn>
@@ -361,7 +402,7 @@ export default function FeepsOneHome({ role, displayName, goProduct, goTraining 
 
       <section>
         <SectionTitle title="今日やること" desc="まず確認するものだけを並べています。" />
-        {role === "instructor" && loadingDashboard && !dashboard ? (
+        {(role === "instructor" || role === "trainee") && loadingDashboard && !dashboard ? (
           <SkeletonCards count={4} />
         ) : (
           <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
@@ -402,6 +443,40 @@ export default function FeepsOneHome({ role, displayName, goProduct, goTraining 
             ))}
           </div>
         </section>
+      )}
+
+      {role === "trainee" && traineeAnnouncements.length > 0 && (
+        <section>
+          <SectionTitle title="本日のお知らせ" desc="担当講師から受講生向けに共有された連絡です。" />
+          <div className="grid gap-4 md:grid-cols-2">
+            {traineeAnnouncements.map(item => (
+              <Card key={`${item.courseId}-${item.date}`} className="p-5">
+                <div className="flex items-start gap-3">
+                  <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl" style={{ background: PRODUCT_ACCENT.training.subtle, color: PRODUCT_ACCENT.training.deep }}>
+                    <Megaphone size={18} />
+                  </span>
+                  <div className="min-w-0">
+                    <div className="text-sm font-bold" style={{ color: T.textPrimary }}>{textOf(item.courseName, "コース")}</div>
+                    <p className="mt-2 text-sm leading-relaxed" style={{ color: T.textSecondary }}>{textOf(item.announcement)}</p>
+                  </div>
+                </div>
+              </Card>
+            ))}
+          </div>
+        </section>
+      )}
+
+      {role === "trainee" && traineeWarnings.length > 0 && (
+        <Card className="p-4">
+          <div className="text-sm font-bold" style={{ color: T.textPrimary }}>補足</div>
+          <div className="mt-2 space-y-1">
+            {traineeWarnings.slice(0, 4).map(w => (
+              <div key={textOf(w.code, textOf(w.message))} className="text-xs" style={{ color: T.textMuted }}>
+                {textOf(w.message, textOf(w.code))}
+              </div>
+            ))}
+          </div>
+        </Card>
       )}
 
       <ProductNavigator role={role} goProduct={goProduct} goTraining={goTraining} />
