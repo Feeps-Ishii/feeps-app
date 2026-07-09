@@ -31,6 +31,27 @@ const WARNING_LABELS = {
   instructor_unassigned_readonly: "担当コース未設定のため、閲覧用の情報として表示しています。",
 };
 
+function textOf(value, fallback = "") {
+  if (value == null || value === "") return fallback;
+  if (typeof value === "string" || typeof value === "number" || typeof value === "boolean") return String(value);
+  if (Array.isArray(value)) return value.map(v => textOf(v)).filter(Boolean).join("、") || fallback;
+  if (typeof value === "object") {
+    return textOf(
+      value.title ?? value.name ?? value.label ?? value.text ?? value.message ?? value.reason ?? value.content,
+      fallback
+    );
+  }
+  return fallback;
+}
+
+function asArray(value) {
+  return Array.isArray(value) ? value : [];
+}
+
+function asObject(value) {
+  return value && typeof value === "object" && !Array.isArray(value) ? value : {};
+}
+
 function formatDate(value) {
   if (!value) return "";
   return String(value).replaceAll("-", "/");
@@ -98,7 +119,7 @@ function TodoCard({ todo, go }) {
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
           <div className="text-sm font-bold" style={{ color: active ? T.textPrimary : T.textSecondary }}>{todo?.label || TODO_LABELS[todo?.type] || "確認項目"}</div>
-          <div className="mt-1 text-xs leading-relaxed" style={{ color: T.textMuted }}>{todo?.reason || "該当する項目を確認します。"}</div>
+          <div className="mt-1 text-xs leading-relaxed" style={{ color: T.textMuted }}>{textOf(todo?.reason, "該当する項目を確認します。")}</div>
         </div>
         <Badge tone={tone}>{count}件</Badge>
       </div>
@@ -146,14 +167,18 @@ export default function InstructorWorkspace({ go, displayName = "講師" }) {
 
   useEffect(() => { load(); }, [load]);
 
-  const summary = data?.summary || {};
-  const todos = useMemo(() => [...(data?.todos || [])].sort((a, b) => {
+  const summary = asObject(data?.summary);
+  const todayCourses = asArray(data?.todayCourses);
+  const followUps = asArray(data?.followUps);
+  const recentActivity = asArray(data?.recentActivity);
+  const lessonPrep = asArray(data?.lessonPrep);
+  const todos = useMemo(() => asArray(data?.todos).sort((a, b) => {
     const ap = Number(a?.priority || 99);
     const bp = Number(b?.priority || 99);
     if (ap !== bp) return ap - bp;
     return Number(b?.count || 0) - Number(a?.count || 0);
   }), [data]);
-  const warnings = Array.isArray(data?.warnings) ? data.warnings : [];
+  const warnings = asArray(data?.warnings);
   const readOnly = Boolean(data?.scope?.readOnly);
 
   return (
@@ -199,27 +224,32 @@ export default function InstructorWorkspace({ go, displayName = "講師" }) {
           <div className="grid gap-5 xl:grid-cols-[1.1fr_.9fr]">
             <Card className="p-5">
               <SectionTitle icon={GraduationCap} title="今日の担当コース" desc="授業準備と確認画面へ進む入口です。" />
-              {data?.todayCourses?.length ? (
+              {todayCourses.length ? (
                 <div className="space-y-3">
-                  {data.todayCourses.map(course => (
-                    <div key={course.courseId} className="rounded-xl p-4" style={{ background: T.bgBase }}>
+                  {todayCourses.map((course, index) => {
+                    const links = asObject(course.links);
+                    const dailyNote = asObject(course.dailyNote);
+                    const curriculumText = textOf(course.todayCurriculum, "今日のカリキュラムは未設定です。");
+                    const dailyNoteText = textOf(dailyNote.announcement ?? dailyNote.lessonMemo ?? dailyNote.lessonTitle);
+                    return (
+                    <div key={course.courseId || index} className="rounded-xl p-4" style={{ background: T.bgBase }}>
                       <div className="flex flex-wrap items-start justify-between gap-3">
                         <div className="min-w-0">
-                          <div className="text-sm font-bold" style={{ color: T.textPrimary }}>{course.courseName || "コース名未設定"}</div>
-                          <div className="mt-1 text-xs" style={{ color: T.textMuted }}>{course.companyName || "企業未設定"} ・ 受講生 {course.studentCount || 0}名</div>
-                          <div className="mt-3 text-sm" style={{ color: T.textSecondary }}>{course.todayCurriculum?.title || course.todayCurriculum || "今日のカリキュラムは未設定です。"}</div>
-                          {course.dailyNote && <div className="mt-2 text-xs leading-relaxed" style={{ color: T.textMuted }}>{course.dailyNote.announcement || course.dailyNote.lessonMemo || course.dailyNote.lessonTitle}</div>}
+                          <div className="text-sm font-bold" style={{ color: T.textPrimary }}>{textOf(course.courseName, "コース名未設定")}</div>
+                          <div className="mt-1 text-xs" style={{ color: T.textMuted }}>{textOf(course.companyName, "企業未設定")} ・ 受講生 {Number(course.studentCount || 0)}名</div>
+                          <div className="mt-3 text-sm" style={{ color: T.textSecondary }}>{curriculumText}</div>
+                          {dailyNoteText && <div className="mt-2 text-xs leading-relaxed" style={{ color: T.textMuted }}>{dailyNoteText}</div>}
                         </div>
                         <Badge tone={course.readOnly ? "amber" : "green"}>{course.readOnly ? "閲覧のみ" : "担当"}</Badge>
                       </div>
                       <div className="mt-3 flex flex-wrap gap-3">
-                        <LinkButton label="教材" targetUrl={course.links?.materials} go={go} />
-                        <LinkButton label="日報" targetUrl={course.links?.reports} go={go} />
-                        <LinkButton label="勤怠" targetUrl={course.links?.attendance} go={go} />
-                        <LinkButton label="テスト" targetUrl={course.links?.tests} go={go} />
+                        <LinkButton label="教材" targetUrl={links.materials} go={go} />
+                        <LinkButton label="日報" targetUrl={links.reports} go={go} />
+                        <LinkButton label="勤怠" targetUrl={links.attendance} go={go} />
+                        <LinkButton label="テスト" targetUrl={links.tests} go={go} />
                       </div>
                     </div>
-                  ))}
+                  );})}
                 </div>
               ) : <EmptyBlock title="今日の担当コースはありません" desc="担当コースが設定されるとここに表示されます。" />}
             </Card>
@@ -237,21 +267,21 @@ export default function InstructorWorkspace({ go, displayName = "講師" }) {
           <div className="mt-5 grid gap-5 xl:grid-cols-[1.2fr_.8fr]">
             <Card className="p-5">
               <SectionTitle icon={Users} title="要フォロー受講生" desc="複数理由がある受講生ほど優先して確認します。" action={<Badge tone={summary.followUpStudents ? "amber" : "green"}>{summary.followUpStudents || 0}名</Badge>} />
-              {data?.followUps?.length ? (
+              {followUps.length ? (
                 <div className="grid gap-3 lg:grid-cols-2">
-                  {data.followUps.map(item => (
-                    <button type="button" key={item.traineeId} onClick={() => item.targetUrl && goFromUrl(item.targetUrl, go)}
+                  {followUps.map((item, index) => (
+                    <button type="button" key={item.traineeId || index} onClick={() => item.targetUrl && goFromUrl(item.targetUrl, go)}
                       className="rounded-xl p-4 text-left transition hover:-translate-y-0.5"
                       style={{ background: T.bgBase, border: `1px solid ${T.border}` }}>
                       <div className="flex items-start justify-between gap-3">
                         <div className="min-w-0">
-                          <div className="truncate text-sm font-bold" style={{ color: T.textPrimary }}>{item.traineeName || "受講生名未設定"}</div>
-                          <div className="mt-1 truncate text-xs" style={{ color: T.textMuted }}>{item.companyName || "企業未設定"} ・ {item.courseName || "コース未設定"}</div>
+                          <div className="truncate text-sm font-bold" style={{ color: T.textPrimary }}>{textOf(item.traineeName, "受講生名未設定")}</div>
+                          <div className="mt-1 truncate text-xs" style={{ color: T.textMuted }}>{textOf(item.companyName, "企業未設定")} ・ {textOf(item.courseName, "コース未設定")}</div>
                         </div>
                         <Badge tone={toneForSeverity(item.severity)}>{item.severity === "high" ? "高" : item.severity === "medium" ? "中" : "確認"}</Badge>
                       </div>
                       <div className="mt-3 flex flex-wrap gap-1.5">
-                        {(item.reasons || []).slice(0, 5).map(reason => <Badge key={reason.type + reason.label} tone={toneForSeverity(reason.severity || item.severity)}>{reason.label || reason.type}</Badge>)}
+                        {asArray(item.reasons).slice(0, 5).map((reason, reasonIndex) => <Badge key={textOf(reason.type) + textOf(reason.label) + reasonIndex} tone={toneForSeverity(reason.severity || item.severity)}>{textOf(reason.label ?? reason.type, "確認")}</Badge>)}
                       </div>
                       <div className="mt-3 text-xs" style={{ color: T.textMuted }}>最終更新 {formatDateTime(item.lastUpdatedAt) || "未設定"}</div>
                     </button>
@@ -262,17 +292,17 @@ export default function InstructorWorkspace({ go, displayName = "講師" }) {
 
             <Card className="p-5">
               <SectionTitle icon={Clock} title="最近の提出/コメント" desc="直近の動きを確認します。" />
-              {data?.recentActivity?.length ? (
+              {recentActivity.length ? (
                 <div className="space-y-2">
-                  {data.recentActivity.map((item, index) => (
+                  {recentActivity.map((item, index) => (
                     <button type="button" key={`${item.type}-${item.traineeId}-${item.occurredAt}-${index}`} onClick={() => item.targetUrl && goFromUrl(item.targetUrl, go)}
                       className="flex w-full items-start gap-3 rounded-xl px-3 py-3 text-left transition hover:bg-black/[.03]">
                       <span className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg" style={{ background: T.accentSubtle, color: T.accentHover }}>
                         {item.type?.includes("test") ? <ClipboardCheck size={15} /> : item.type?.includes("comment") ? <NotebookPen size={15} /> : <FileText size={15} />}
                       </span>
                       <span className="min-w-0 flex-1">
-                        <span className="block truncate text-sm font-semibold" style={{ color: T.textPrimary }}>{item.label || "新着"}</span>
-                        <span className="mt-0.5 block truncate text-xs" style={{ color: T.textMuted }}>{item.traineeName || "受講生"} ・ {item.courseName || "コース"} ・ {formatDateTime(item.occurredAt)}</span>
+                        <span className="block truncate text-sm font-semibold" style={{ color: T.textPrimary }}>{textOf(item.label, "新着")}</span>
+                        <span className="mt-0.5 block truncate text-xs" style={{ color: T.textMuted }}>{textOf(item.traineeName, "受講生")} ・ {textOf(item.courseName, "コース")} ・ {formatDateTime(item.occurredAt)}</span>
                       </span>
                     </button>
                   ))}
@@ -283,29 +313,31 @@ export default function InstructorWorkspace({ go, displayName = "講師" }) {
 
           <Card className="mt-5 p-5">
             <SectionTitle icon={BookOpen} title="授業準備" desc="今日のカリキュラム、教材、テスト準備へ進みます。" />
-            {data?.lessonPrep?.length ? (
+            {lessonPrep.length ? (
               <div className="grid gap-3 lg:grid-cols-2">
-                {data.lessonPrep.map(item => (
-                  <div key={item.courseId} className="rounded-xl p-4" style={{ background: T.bgBase }}>
+                {lessonPrep.map((item, index) => {
+                  const targetUrls = asObject(item.targetUrls);
+                  return (
+                  <div key={item.courseId || index} className="rounded-xl p-4" style={{ background: T.bgBase }}>
                     <div className="flex flex-wrap items-start justify-between gap-3">
                       <div>
-                        <div className="text-sm font-bold" style={{ color: T.textPrimary }}>{item.courseName || "コース名未設定"}</div>
-                        <div className="mt-1 text-sm" style={{ color: T.textSecondary }}>{item.curriculumTitle || "今日のカリキュラムは未設定です。"}</div>
+                        <div className="text-sm font-bold" style={{ color: T.textPrimary }}>{textOf(item.courseName, "コース名未設定")}</div>
+                        <div className="mt-1 text-sm" style={{ color: T.textSecondary }}>{textOf(item.curriculumTitle, "今日のカリキュラムは未設定です。")}</div>
                       </div>
                       <Badge tone={item.aiLessonDesignerAvailable ? "cyan" : "muted"}>{item.aiLessonDesignerAvailable ? "AI利用可" : "AI未設定"}</Badge>
                     </div>
                     <div className="mt-3 flex flex-wrap gap-2 text-xs" style={{ color: T.textMuted }}>
-                      <span>教材 {item.materialCount || 0}件</span>
-                      <span>テスト {item.testCount || 0}件</span>
+                      <span>教材 {Number(item.materialCount || 0)}件</span>
+                      <span>テスト {Number(item.testCount || 0)}件</span>
                     </div>
                     <div className="mt-3 flex flex-wrap gap-3">
-                      <LinkButton label="カリキュラム" targetUrl={item.targetUrls?.curriculum} go={go} />
-                      <LinkButton label="教材" targetUrl={item.targetUrls?.materials} go={go} />
-                      <LinkButton label="テスト" targetUrl={item.targetUrls?.tests} go={go} />
-                      <LinkButton label="AI Lesson Designer" targetUrl={item.targetUrls?.aiLessonDesigner} go={go} />
+                      <LinkButton label="カリキュラム" targetUrl={targetUrls.curriculum} go={go} />
+                      <LinkButton label="教材" targetUrl={targetUrls.materials} go={go} />
+                      <LinkButton label="テスト" targetUrl={targetUrls.tests} go={go} />
+                      <LinkButton label="AI Lesson Designer" targetUrl={targetUrls.aiLessonDesigner} go={go} />
                     </div>
                   </div>
-                ))}
+                );})}
               </div>
             ) : <EmptyBlock title="授業準備データはありません" desc="カリキュラムや教材が登録されるとここに表示されます。" />}
           </Card>
@@ -317,9 +349,9 @@ export default function InstructorWorkspace({ go, displayName = "講師" }) {
                 <div className="text-sm font-bold" style={{ color: T.textPrimary }}>初期版での補足</div>
               </div>
               <div className="grid gap-2 md:grid-cols-2">
-                {warnings.map(w => (
-                  <div key={w} className="rounded-xl px-3 py-2 text-xs" style={{ background: T.bgBase, color: T.textSecondary }}>
-                    {WARNING_LABELS[w] || w}
+                {warnings.map((w, index) => (
+                  <div key={textOf(w, String(index))} className="rounded-xl px-3 py-2 text-xs" style={{ background: T.bgBase, color: T.textSecondary }}>
+                    {WARNING_LABELS[textOf(w)] || textOf(w)}
                   </div>
                 ))}
               </div>
