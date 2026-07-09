@@ -31,6 +31,15 @@ function asObject(value) {
   return value && typeof value === "object" && !Array.isArray(value) ? value : {};
 }
 
+function asObjectArray(value) {
+  return asArray(value).filter(item => item && typeof item === "object" && !Array.isArray(item));
+}
+
+function num(value) {
+  const n = Number(value);
+  return Number.isFinite(n) ? n : 0;
+}
+
 function formatDate(value) {
   if (!value) return "";
   return String(value).replaceAll("-", "/");
@@ -235,15 +244,19 @@ export default function InstructorWorkspace({ go, displayName = "講師" }) {
   useEffect(() => { load(); }, [load]);
 
   const summary = asObject(data?.summary);
-  const todayCourses = asArray(data?.todayCourses);
-  const recentActivity = asArray(data?.recentActivity).slice(0, 5);
-  const lessonPrep = asArray(data?.lessonPrep);
+  const todayCourses = asObjectArray(data?.todayCourses);
+  const recentActivity = asObjectArray(data?.recentActivity).slice(0, 5);
+  const lessonPrep = asObjectArray(data?.lessonPrep);
   const warnings = asArray(data?.warnings);
   const readOnly = Boolean(data?.scope?.readOnly);
   const date = data?.date || "";
   const todayLessonCount = lessonPrep.filter(item => textOf(item.curriculumTitle)).length || todayCourses.length;
   const hasLessonPrep = lessonPrep.length > 0 || todayCourses.length > 0;
   const noticeCount = todayCourses.filter(c => !!textOf(asObject(c.dailyNote).announcement)).length;
+  const assignedCourseCount = num(summary.assignedCourses || data?.scope?.assignedCourseCount);
+  const activeStudentCount = num(summary.activeStudents);
+  const pendingReportCount = num(summary.pendingReports) + num(summary.uncommentedReports);
+  const attendanceAlertCount = num(summary.attendanceAlerts);
 
   const courseBlocks = useMemo(() => todayCourses.map(course => {
     const links = asObject(course.links);
@@ -266,10 +279,10 @@ export default function InstructorWorkspace({ go, displayName = "講師" }) {
           <Btn kind="white" icon={RefreshCw} onClick={() => load({ silent: true })}>{refreshing ? "更新中" : "更新"}</Btn>
         </div>
         <div className="mt-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-          <Metric label="担当コース" value={summary.assignedCourses || data?.scope?.assignedCourseCount} unit="件" />
-          <Metric label="受講生数" value={summary.activeStudents} unit="名" />
-          <Metric label="未確認日報" value={summary.pendingReports + summary.uncommentedReports} unit="件" />
-          <Metric label="勤怠異常" value={summary.attendanceAlerts} unit="件" />
+          <Metric label="担当コース" value={assignedCourseCount} unit="件" />
+          <Metric label="受講生数" value={activeStudentCount} unit="名" />
+          <Metric label="未確認日報" value={pendingReportCount} unit="件" />
+          <Metric label="勤怠異常" value={attendanceAlertCount} unit="件" />
         </div>
         {readOnly && <div className="mt-3"><Badge tone="amber">{textOf(data?.scope?.message, "担当未設定のため閲覧のみ")}</Badge></div>}
       </div>
@@ -296,8 +309,8 @@ export default function InstructorWorkspace({ go, displayName = "講師" }) {
             <Card className="p-4">
               <SectionTitle icon={ClipboardCheck} title="今日やること" desc="ここだけ見れば授業開始に進めます。" />
               <div className="grid gap-3 sm:grid-cols-2">
-                <ActionCard icon={Clock} title="勤怠確認" value={`異常 ${Number(summary.attendanceAlerts || 0)}件`} desc="欠席・遅刻・未打刻を確認します。" buttonLabel="確認する" onClick={() => go("attendance")} tone={summary.attendanceAlerts ? "alert" : "normal"} />
-                <ActionCard icon={NotebookPen} title="日報確認" value={`未確認 ${Number((summary.pendingReports || 0) + (summary.uncommentedReports || 0))}件`} desc="提出状況と未コメントを確認します。" buttonLabel="確認する" onClick={() => go("reports")} tone={(summary.pendingReports || 0) + (summary.uncommentedReports || 0) ? "alert" : "normal"} />
+                <ActionCard icon={Clock} title="勤怠確認" value={`異常 ${attendanceAlertCount}件`} desc="欠席・遅刻・未打刻を確認します。" buttonLabel="確認する" onClick={() => go("attendance")} tone={attendanceAlertCount ? "alert" : "normal"} />
+                <ActionCard icon={NotebookPen} title="日報確認" value={`未確認 ${pendingReportCount}件`} desc="提出状況と未コメントを確認します。" buttonLabel="確認する" onClick={() => go("reports")} tone={pendingReportCount ? "alert" : "normal"} />
                 <ActionCard icon={BookOpen} title="授業準備" value={`${todayLessonCount}件`} desc="今日のカリキュラム、教材、テストを開きます。" buttonLabel="開く" onClick={() => go("curriculum")} />
                 <ActionCard icon={Megaphone} title="本日のお知らせ" value={noticeCount ? `${noticeCount}件登録済` : "未登録"} desc="受講生への日次連絡を整えます。" buttonLabel={noticeCount ? "編集する" : "登録する"} onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })} tone={noticeCount ? "normal" : "alert"} />
               </div>
