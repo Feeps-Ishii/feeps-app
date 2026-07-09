@@ -6,7 +6,7 @@ import {
   Circle, AlertCircle, Lightbulb, Calendar, Clock, RefreshCw, Download
 } from "lucide-react";
 import { LearningCatalog } from "./LearningCatalog.js";
-import { Card, Badge, Btn, SectionHead, PageHeader, ProductNavCard, T, PRODUCT_ACCENT } from "../../components/common";
+import { Card, Badge, Btn, EmptyState, SectionHead, PageHeader, ProductNavCard, T, PRODUCT_ACCENT } from "../../components/common";
 import ElSlideLessonView from "./ElSlideLessonView.jsx";
 
 // Learner-side palette: legacy key names kept, values sourced from tokens.
