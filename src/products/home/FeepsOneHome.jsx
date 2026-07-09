@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useState } from "react";
 import {
   Activity, ArrowRight, BarChart3, BookOpen, Briefcase, Building2, CalendarDays,
   CheckCircle2, ClipboardCheck, Clock, ExternalLink, FileText, GraduationCap,
-  Lock, Megaphone, RefreshCw, Settings, Sparkles, Target, TrendingUp, Users
+  Megaphone, RefreshCw, Settings, Sparkles, Target, TrendingUp, Users
 } from "lucide-react";
 import { apiGet } from "../../api.js";
 import { Badge, Btn, Card, SkeletonCards, T, PRODUCT_ACCENT, ROLE_ACCENT } from "../../components/common";
@@ -23,9 +23,17 @@ const ROLE_LABEL = {
 
 const RECOMMENDED = {
   instructor: ["training", "learning", "talent"],
-  trainee: ["learning", "training", "talent"],
-  client: ["training", "talent"],
-  admin: ["admin", "analytics", "training"],
+  trainee: ["learning", "training", "talent", "matching"],
+  client: ["training", "talent", "matching"],
+  admin: ["admin", "analytics", "training", "learning", "talent", "matching"],
+};
+
+const PRODUCT_BY_ROLE = {
+  instructor: ["training", "learning", "talent"],
+  trainee: ["learning", "training", "talent", "matching"],
+  client: ["training", "talent", "matching"],
+  admin: ["admin", "analytics", "training", "learning", "talent", "matching"],
+  default: ["training", "learning", "talent"],
 };
 
 const PRODUCTS = [
@@ -33,8 +41,8 @@ const PRODUCTS = [
   { key: "learning", label: "Eラーニング", value: "学びを止めない", tags: ["教材", "AI Lesson", "理解度", "AI採点"], icon: BookOpen },
   { key: "talent", label: "スキル・成長", value: "成長を見える化する", tags: ["目標", "スキル", "成長履歴", "ポートフォリオ"], icon: TrendingUp },
   { key: "matching", label: "案件", value: "成長を仕事へつなげる", tags: ["案件候補", "スキル条件", "マッチング"], icon: Briefcase, note: "今後強化" },
-  { key: "analytics", label: "分析", value: "研修成果を分析する", tags: ["AI利用", "AWS利用", "研修成果", "利用状況"], icon: BarChart3, adminOnly: true },
-  { key: "admin", label: "管理", value: "運営基盤を管理する", tags: ["企業", "ユーザー", "権限", "設定"], icon: Settings, adminOnly: true },
+  { key: "analytics", label: "分析", value: "研修成果を分析する", tags: ["AI利用", "AWS利用", "研修成果", "利用状況"], icon: BarChart3 },
+  { key: "admin", label: "管理", value: "運営基盤を管理する", tags: ["企業", "ユーザー", "権限", "設定"], icon: Settings },
 ];
 
 const JOURNEY = ["研修", "学習", "成長", "案件", "現場参画", "継続学習"];
@@ -81,7 +89,6 @@ function openProduct(key, { role, goProduct, goTraining }) {
     goTraining("home");
     return;
   }
-  if ((key === "analytics" || key === "admin") && role !== "admin") return;
   goProduct(key);
 }
 
@@ -183,47 +190,41 @@ function Hero({ role, displayName }) {
 }
 
 function ProductNavigator({ role, goProduct, goTraining }) {
-  const recommended = RECOMMENDED[role] || [];
-  const ordered = [...PRODUCTS].sort((a, b) => {
-    const ai = recommended.indexOf(a.key);
-    const bi = recommended.indexOf(b.key);
-    if (ai >= 0 || bi >= 0) return (ai < 0 ? 99 : ai) - (bi < 0 ? 99 : bi);
-    return 0;
-  });
+  const availableKeys = PRODUCT_BY_ROLE[role] || PRODUCT_BY_ROLE.default;
+  const recommended = RECOMMENDED[role] || PRODUCT_BY_ROLE.default;
+  const ordered = availableKeys.map(key => PRODUCTS.find(product => product.key === key)).filter(Boolean);
   return (
     <section>
-      <SectionTitle title="Product Navigator" desc="Feeps Oneの各Productへ移動します。" />
-      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+      <SectionTitle title="利用できるサービス" desc="あなたのロールで利用できるサービスへ移動できます。" />
+      <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
         {ordered.map(product => {
           const pa = PRODUCT_ACCENT[product.key] || PRODUCT_ACCENT.training;
-          const locked = product.adminOnly && role !== "admin";
           const recommendedHere = recommended.includes(product.key);
           const Icon = product.icon;
           return (
-            <Card key={product.key} className="p-4">
-              <div className="flex h-full flex-col gap-4">
-                <div className="flex items-start gap-3">
-                  <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl" style={{ background: pa.subtle, color: pa.deep }}>
-                    <Icon size={21} />
+            <Card key={product.key} className="p-5 sm:p-6">
+              <div className="flex min-h-[190px] flex-col gap-5">
+                <div className="flex items-start gap-4">
+                  <span className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl" style={{ background: pa.subtle, color: pa.deep }}>
+                    <Icon size={27} />
                   </span>
                   <div className="min-w-0 flex-1">
                     <div className="flex flex-wrap items-center gap-2">
-                      <h3 className="text-base font-bold" style={{ color: T.textPrimary }}>{product.label}</h3>
+                      <h3 className="text-lg font-bold" style={{ color: T.textPrimary }}>{product.label}</h3>
                       {recommendedHere && <Badge>おすすめ</Badge>}
                       {product.note && <Badge>{product.note}</Badge>}
-                      {locked && <Badge>管理者のみ</Badge>}
                     </div>
                     <p className="mt-1 text-sm" style={{ color: T.textSecondary }}>{product.value}</p>
                   </div>
                 </div>
-                <div className="flex flex-wrap gap-1.5">
+                <div className="flex flex-wrap gap-2">
                   {product.tags.map(tag => (
-                    <span key={tag} className="rounded-full px-2.5 py-1 text-xs font-semibold" style={{ background: T.bgBase, color: T.textSecondary }}>{tag}</span>
+                    <span key={tag} className="rounded-full px-3 py-1.5 text-xs font-semibold" style={{ background: T.bgBase, color: T.textSecondary }}>{tag}</span>
                   ))}
                 </div>
                 <div className="mt-auto">
-                  <Btn size="sm" kind={locked ? "ghost" : "soft"} icon={locked ? Lock : ExternalLink} disabled={locked} onClick={() => openProduct(product.key, { role, goProduct, goTraining })}>
-                    {locked ? "権限が必要" : "開く"}
+                  <Btn size="sm" kind="soft" icon={ExternalLink} onClick={() => openProduct(product.key, { role, goProduct, goTraining })}>
+                    開く
                   </Btn>
                 </div>
               </div>

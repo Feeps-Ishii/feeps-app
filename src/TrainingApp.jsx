@@ -799,6 +799,7 @@ export default function App() {
   const currentProduct = PRODUCTS.find(p => p.key === product) ?? PRODUCTS[0];
   const themeColor = currentProduct.color;
   const displayName = userProfile?.name || me.who;
+  const isHomeProduct = product === "home";
   const viewTitle = karte ? "カルテ"
     : view === "notifications" ? "通知センター"
     : view === "profile" ? "プロフィール"
@@ -1032,7 +1033,7 @@ export default function App() {
       </div>
 
       <div className="flex max-w-full flex-1 overflow-x-hidden lg:min-h-0">
-        <aside className="feeps-sidebar hidden shrink-0 lg:flex lg:h-full lg:flex-col" style={{ width: sidebarCollapsed ? T.sidebarWidthCollapsed : T.sidebarWidth, background: "transparent" }}>
+        {!isHomeProduct && <aside className="feeps-sidebar hidden shrink-0 lg:flex lg:h-full lg:flex-col" style={{ width: sidebarCollapsed ? T.sidebarWidthCollapsed : T.sidebarWidth, background: "transparent" }}>
           <div className={"flex h-16 items-center " + (sidebarCollapsed ? "justify-center px-0" : "gap-3 px-4")}>
             <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl" style={{ background: (PRODUCT_ACCENT[product] || PRODUCT_ACCENT.training).subtle }} title={sidebarCollapsed ? currentProduct.label : undefined}>
               <currentProduct.icon size={20} style={{ color: (PRODUCT_ACCENT[product] || PRODUCT_ACCENT.training).deep }} />
@@ -1090,10 +1091,10 @@ export default function App() {
               </div>
             )}
           </div>
-        </aside>
+        </aside>}
 
         <div className="flex min-w-0 flex-1 flex-col overflow-x-hidden lg:min-h-0">
-          {drawerOpen && (
+          {drawerOpen && !isHomeProduct && (
             <div className="fixed inset-0 lg:hidden" style={{ zIndex: Z.overlay }}>
               <div className="absolute inset-0" style={{ background: "rgba(21,38,47,.45)" }} onClick={() => setDrawerOpen(false)} />
               <aside className="absolute left-0 top-0 flex h-full w-72 max-w-[86vw] flex-col" style={{ background: T.bgSurface, boxShadow: "0 10px 40px rgba(0,0,0,.25)" }}>
@@ -1129,7 +1130,7 @@ export default function App() {
           <header className={"feeps-header feeps-pagehead sticky top-0 flex h-12 min-w-0 shrink-0 items-center justify-between gap-3 px-3 sm:px-5" + (!scrolled ? " is-flush" : "")}
             style={{ zIndex: Z.header, "--ph-bg": T.bgSurface, "--ph-border": `1px solid ${T.border}`, "--ph-shadow": scrolled ? "0 1px 3px rgba(21,23,28,0.06)" : "none" }}>
             <div className="flex min-w-0 items-center gap-2">
-              <button onClick={() => setDrawerOpen(true)} aria-label="メニューを開く" className="rounded-lg p-1.5 transition hover:bg-black/5 lg:hidden" style={{ color: T.textPrimary }}><Menu size={22} /></button>
+              {!isHomeProduct && <button onClick={() => setDrawerOpen(true)} aria-label="メニューを開く" className="rounded-lg p-1.5 transition hover:bg-black/5 lg:hidden" style={{ color: T.textPrimary }}><Menu size={22} /></button>}
               <currentProduct.icon size={18} className="shrink-0" style={{ color: T.textMuted }} />
               <div className="truncate text-sm font-semibold" style={{ color: T.textPrimary }}>{viewTitle}</div>
             </div>
@@ -1137,9 +1138,9 @@ export default function App() {
             {false && <div className="hidden min-w-0 items-center gap-2 rounded-xl px-3 py-2 sm:flex md:w-80" style={{ background: T.bgBase }}>
               <Search size={15} style={{ color: T.textMuted }} /><input aria-label="受講生・教材・テストを検索" placeholder="受講生・教材・テストを検索…" className="w-full bg-transparent text-sm outline-none" style={{ color: T.textPrimary }} />
               <kbd className="hidden rounded px-1.5 py-0.5 text-xs md:inline" style={{ background: "#fff", border: `1px solid ${T.border}`, color: T.textMuted }}>⌘K</kbd></div>}
-            {role === "instructor" && <div className="flex shrink-0 items-center"><QuickAdd onPick={go} /></div>}
+            {role === "instructor" && !isHomeProduct && <div className="flex shrink-0 items-center"><QuickAdd onPick={go} /></div>}
           </header>
-          <main className="mx-auto w-full max-w-full p-4 sm:p-6 lg:p-8" style={{ maxWidth: 1120 }}>
+          <main className="mx-auto w-full max-w-full p-4 sm:p-6 lg:p-8" style={{ maxWidth: isHomeProduct ? 1320 : 1120 }}>
             <div key={role + product + activeView + (karte ? karte.id : "")} className="view-anim min-w-0 max-w-full">
               {product === "training" && !karte && SAMPLE_VIEWS.has(view) && (
                 <div className="mb-4 flex items-center gap-2 rounded-xl px-3 py-2 text-xs font-semibold" style={{ background: T.warningSubtle, color: T.warning }}>
