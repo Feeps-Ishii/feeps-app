@@ -890,10 +890,10 @@ export default function App() {
   // Shared header pieces, reused by both the mobile 2-row bar (lg:hidden, unchanged
   // from pre-Floating-Canvas layout) and the desktop single 60px bar (hidden lg:flex).
   const brandLogo = (
-    <div className="flex min-w-0 shrink-0 items-center gap-2">
+    <button type="button" onClick={() => goProduct("home")} aria-label="Feeps One Homeへ戻る" className="flex min-w-0 shrink-0 items-center gap-2 rounded-xl px-1 py-1 transition hover:bg-black/5">
       <span className="flex h-7 w-7 items-center justify-center rounded-lg" style={{ background: T.accent }}><TrendingUp size={15} color="#fff" /></span>
       <span className="hidden text-sm font-extrabold sm:inline" style={{ color: T.textPrimary }}>{BRAND.name}</span>
-    </div>
+    </button>
   );
   const productTabsRow = (
     <>
@@ -1131,8 +1131,8 @@ export default function App() {
             style={{ zIndex: Z.header, "--ph-bg": T.bgSurface, "--ph-border": `1px solid ${T.border}`, "--ph-shadow": scrolled ? "0 1px 3px rgba(21,23,28,0.06)" : "none" }}>
             <div className="flex min-w-0 items-center gap-2">
               {!isHomeProduct && <button onClick={() => setDrawerOpen(true)} aria-label="メニューを開く" className="rounded-lg p-1.5 transition hover:bg-black/5 lg:hidden" style={{ color: T.textPrimary }}><Menu size={22} /></button>}
-              <currentProduct.icon size={18} className="shrink-0" style={{ color: T.textMuted }} />
-              <div className="truncate text-sm font-semibold" style={{ color: T.textPrimary }}>{viewTitle}</div>
+              {!isHomeProduct && <currentProduct.icon size={18} className="shrink-0" style={{ color: T.textMuted }} />}
+              {!isHomeProduct && <div className="truncate text-sm font-semibold" style={{ color: T.textPrimary }}>{viewTitle}</div>}
             </div>
             {/* 検索: 実機能実装(Phase 2)まで非表示。コードは温存 */}
             {false && <div className="hidden min-w-0 items-center gap-2 rounded-xl px-3 py-2 sm:flex md:w-80" style={{ background: T.bgBase }}>
