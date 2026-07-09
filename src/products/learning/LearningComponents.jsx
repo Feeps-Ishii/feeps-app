@@ -3,7 +3,7 @@ import ReactMarkdown from "react-markdown";
 import {
   BookOpen, FileText, Settings, Users, Search, PlayCircle, Award,
   Sparkles, Flame, ChevronRight, ChevronLeft, Check, CheckCircle2,
-  Circle, AlertCircle, Lightbulb, Calendar, Clock, RefreshCw
+  Circle, AlertCircle, Lightbulb, Calendar, Clock, RefreshCw, Download
 } from "lucide-react";
 import { LearningCatalog } from "./LearningCatalog.js";
 import { Card, Badge, Btn, SectionHead, PageHeader, ProductNavCard, T, PRODUCT_ACCENT } from "../../components/common";
@@ -323,7 +323,7 @@ function LearningOverview({ lrn, goSub, goProduct, onOpenDetail, role, themeColo
       {/* クイックアクセス */}
       <div className="mb-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
         {[
-          { key: "el_courses",   icon: BookOpen,  label: "コース一覧", desc: `全${(lrn.catalog || LearningCatalog).length}コース` },
+          { key: "el_courses",   icon: BookOpen,  label: "コース一覧", desc: `全${(lrn.catalog || []).length}コース` },
           { key: "el_completed", icon: Award,     label: "修了済み",   desc: `${lrn.completed.length}本修了` },
           { key: "el_skills",    icon: Sparkles,  label: "獲得スキル", desc: `${earnedSkills.length}件` },
           { key: "el_recommend", icon: Lightbulb, label: "おすすめ",   desc: `${lrn.notStarted.length}本未受講` },
@@ -440,7 +440,7 @@ function ElCourseCard({ course, prog, courseState, onStart, onComplete, onOpenDe
 function ElCourseView({ lrn, onStart, onComplete, onOpenDetail, themeColor }) {
   const [query, setQuery] = useState("");
   const [catFilter, setCatFilter] = useState("すべて");
-  const catalog = lrn.catalog || LearningCatalog;
+  const catalog = lrn.catalog || [];
   const cats = ["すべて", ...new Set(catalog.map(c => c.category))];
   const filtered = catalog.filter(c =>
     (catFilter === "すべて" || c.category === catFilter) &&
@@ -465,7 +465,7 @@ function ElCourseView({ lrn, onStart, onComplete, onOpenDetail, themeColor }) {
         ))}
       </div>
       {filtered.length === 0
-        ? <Card><EmptyState title="コースが見つかりません" desc="検索条件を変えてみてください。" /></Card>
+        ? <Card><EmptyState title={catalog.length ? "コースが見つかりません" : "受講できるコースがありません"} desc={catalog.length ? "検索条件を変えてみてください。" : "公開済み、または受講中のEラーニングコースが登録されるとここに表示されます。"} /></Card>
         : <div className="grid gap-4 sm:grid-cols-2">{filtered.map(c => (
             <ElCourseCard key={c.id} course={c} prog={lrn.progress[c.id]} courseState={lrn.getCourseState(c.id)} onStart={onStart} onComplete={onComplete} onOpenDetail={onOpenDetail} />
           ))}</div>}
@@ -473,12 +473,12 @@ function ElCourseView({ lrn, onStart, onComplete, onOpenDetail, themeColor }) {
   );
 }
 function ElInProgressView({ lrn, onStart, onComplete, onOpenDetail }) {
-  const firstCourse = lrn.notStarted[0] || lrn.catalog?.[0] || LearningCatalog[0];
+  const firstCourse = lrn.notStarted[0] || lrn.catalog?.[0] || null;
   return (
     <div>
       <SectionHead title="学習中" desc="受講中のコースの進捗を確認できます。" />
       {lrn.inprogress.length === 0
-        ? <LearningEmptyAction title="学習中のコースがありません" desc="気になるコースを1つ選ぶと、前回の続きカードからすぐ再開できます。" cta="おすすめコースを見る" icon={PlayCircle} onClick={() => onOpenDetail ? onOpenDetail(firstCourse) : null} themeColor={PRODUCT_ACCENT.learning.accent} />
+        ? <LearningEmptyAction title="学習中のコースがありません" desc="受講中のコースが登録されると、ここから前回の続きへ進めます。" cta={firstCourse ? "おすすめコースを見る" : "コース一覧を見る"} icon={PlayCircle} onClick={() => firstCourse && onOpenDetail ? onOpenDetail(firstCourse) : null} themeColor={PRODUCT_ACCENT.learning.accent} />
         : <div className="grid gap-4 sm:grid-cols-2">{lrn.inprogress.map(c => (
             <ElCourseCard key={c.id} course={c} prog={lrn.progress[c.id]} courseState={lrn.getCourseState(c.id)} onStart={onStart} onComplete={onComplete} onOpenDetail={onOpenDetail} />
           ))}</div>}
@@ -536,7 +536,8 @@ function ElCompletedView({ lrn, goSub, onOpenDetail }) {
   );
 }
 function ElRecommendView({ lrn, goSub, onStart, onComplete, onOpenDetail, themeColor }) {
-  const recommend = lrn.notStarted.length > 0 ? lrn.notStarted : lrn.inprogress;
+  const recommend = [...lrn.notStarted, ...lrn.inprogress]
+    .filter(course => lrn.getCourseState(course.id).status !== "completed");
   return (
     <div>
       <SectionHead title="おすすめコース" desc="まだ受講していないコースをピックアップしました。" />
@@ -606,6 +607,79 @@ function ElSkillsView({ lrn, goProduct, themeColor }) {
               <Btn style={{ background: PRODUCT_ACCENT.talent.accent, color: "#fff" }} onClick={() => goProduct && goProduct("talent")}>スキル・成長を見る</Btn>
             </div>
           </>)}
+    </div>
+  );
+}
+
+function pdfEscape(text) {
+  return String(text || "").replace(/[^\x20-\x7E]/g, "?").replace(/[\\()]/g, "\\$&");
+}
+function buildSimplePdf(lines) {
+  const content = lines.map((line, index) => `72 ${760 - index * 28} Td (${pdfEscape(line)}) Tj`).join("\n");
+  const stream = `BT\n/F1 18 Tf\n${content}\nET`;
+  const objects = [
+    "1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n",
+    "2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n",
+    "3 0 obj\n<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Resources << /Font << /F1 4 0 R >> >> /Contents 5 0 R >>\nendobj\n",
+    "4 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>\nendobj\n",
+    `5 0 obj\n<< /Length ${stream.length} >>\nstream\n${stream}\nendstream\nendobj\n`,
+  ];
+  let pdf = "%PDF-1.4\n";
+  const offsets = [0];
+  objects.forEach(obj => { offsets.push(pdf.length); pdf += obj; });
+  const xref = pdf.length;
+  pdf += `xref\n0 ${objects.length + 1}\n0000000000 65535 f \n`;
+  offsets.slice(1).forEach(offset => { pdf += `${String(offset).padStart(10, "0")} 00000 n \n`; });
+  pdf += `trailer\n<< /Size ${objects.length + 1} /Root 1 0 R >>\nstartxref\n${xref}\n%%EOF`;
+  return pdf;
+}
+function downloadCertificate(course, result) {
+  const issuedAt = result?.createdAt?.slice(0, 10) || course?.completedAt?.slice?.(0, 10) || new Date().toISOString().slice(0, 10);
+  const pdf = buildSimplePdf([
+    "Feeps One Certificate",
+    `Course: ${course?.title || course?.id}`,
+    `Issued: ${issuedAt}`,
+    result?.score != null ? `Score: ${result.score}` : "Score: -",
+    "This certificate is generated from completed learning records.",
+  ]);
+  const blob = new Blob([pdf], { type: "application/pdf" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `feeps-certificate-${course?.id || "course"}.pdf`;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
+}
+function ElCertificateView({ lrn, goSub }) {
+  return (
+    <div>
+      <SectionHead title="修了証" desc="Eラーニングの修了済みコースから修了証を確認できます。" />
+      {lrn.completed.length === 0 ? (
+        <LearningEmptyAction title="修了証はまだありません" desc="コースを修了すると、取得日と対象コースがここに表示されます。" cta="学習を始める" icon={Award} onClick={() => goSub("el_courses")} themeColor={PRODUCT_ACCENT.learning.accent} />
+      ) : (
+        <div className="space-y-3">
+          {lrn.completed.map(course => {
+            const result = lrn.getOfficialFinalTestResult(course.id);
+            const issuedAt = result?.createdAt?.slice(0, 10) || lrn.progress[course.id]?.completedAt?.slice(0, 10) || "-";
+            return (
+              <Card key={course.id} className="p-4">
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                  <div className="min-w-0">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <Badge tone="green">取得済み</Badge>
+                      <h3 className="text-sm font-bold" style={{ color: C.ink }}>{course.title}</h3>
+                    </div>
+                    <div className="mt-1 text-xs" style={{ color: C.muted }}>取得日: {issuedAt}{result?.score != null ? ` / ${result.score}点` : ""}</div>
+                  </div>
+                  <Btn icon={Download} onClick={() => downloadCertificate(course, result)}>PDFダウンロード</Btn>
+                </div>
+              </Card>
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 }
@@ -1718,6 +1792,7 @@ export {
   ElCompletedView,
   ElRecommendView,
   ElSkillsView,
+  ElCertificateView,
   ElCompletionModal,
   ElCourseDetail,
   ElFinalTestView,

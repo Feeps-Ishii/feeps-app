@@ -8,6 +8,7 @@ import {
   ElCompletedView,
   ElRecommendView,
   ElSkillsView,
+  ElCertificateView,
   ElCompletionModal,
   ElCourseDetail,
   ElFinalTestView,
@@ -16,7 +17,7 @@ import {
 import LearningAdminProduct from "./admin/LearningAdminProduct.jsx";
 import EnrollmentManager from "./admin/EnrollmentManager.jsx";
 export default function LearningProduct({ subView, goSub, goProduct, role, themeColor }) {
-  const lrn = useLearning();
+  const lrn = useLearning(role);
   const [completionCourse, setCompletionCourse] = useState(null);
   const [activeCourse, setActiveCourse] = useState(null);
   const [activeLesson, setActiveLesson] = useState(null);
@@ -83,7 +84,7 @@ export default function LearningProduct({ subView, goSub, goProduct, role, theme
     el_inprogress: <ElInProgressView {...sp} />,
     el_completed:  <ElCompletedView  {...sp} />,
     el_skills:     <ElSkillsView     {...sp} />,
-    el_cert:       <LearningPlaceholder title="修了証"     desc="取得したEラーニングコースの修了証を確認できます。" />,
+    el_cert:       <ElCertificateView {...sp} />,
     el_manage:     role === "admin" || role === "instructor"
       ? <LearningAdminProduct role={role} />
       : <LearningPlaceholder title="コース管理"  desc="Eラーニングコースを作成・編集・公開できます。" />,
@@ -99,4 +100,3 @@ export default function LearningProduct({ subView, goSub, goProduct, role, theme
     </>
   );
 }
-

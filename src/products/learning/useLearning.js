@@ -2,7 +2,8 @@
 import { LearningCatalog, LESSON_CATALOG } from "./LearningCatalog.js";
 import { apiGet, apiPost, apiPut } from "../../api.js";
 // useLearning - Repository層（将来 GET/PUT /learning/me へ差し替え可能）
-export function useLearning() {
+export function useLearning(role = "trainee") {
+  const apiOnly = role === "trainee" || role === "client";
   const PROGRESS_KEY = "feeps.el.progress";
   const EVENTS_KEY   = "feeps.el.events";
   const LESSON_KEY   = "feeps.el.lessons";
@@ -44,8 +45,8 @@ export function useLearning() {
     };
   }
   function getLearnerCatalog() {
-    const byId = new Map(LearningCatalog.map(course => [course.id, normalizeLearnerCourse({ ...course, published: true })]));
-    const adminCourses = Array.isArray(apiCourses) ? apiCourses : _loadAdminCourses();
+    const byId = new Map(apiOnly ? [] : LearningCatalog.map(course => [course.id, normalizeLearnerCourse({ ...course, published: true })]));
+    const adminCourses = Array.isArray(apiCourses) ? apiCourses : (apiOnly ? [] : _loadAdminCourses());
     adminCourses.forEach(course => {
       if (!course?.id) return;
       const normalized = normalizeLearnerCourse(course);
@@ -66,6 +67,7 @@ export function useLearning() {
         .slice()
         .sort((a, b) => Number(a.order || 0) - Number(b.order || 0));
     }
+    if (apiOnly) return [];
     const adminLessons = _loadAdminLessons();
     if (Array.isArray(adminLessons[courseId])) {
       return adminLessons[courseId]
@@ -76,7 +78,7 @@ export function useLearning() {
     return LESSON_CATALOG[courseId] || [];
   }
   function courseById(courseId) {
-    return getLearnerCatalog().find(c => c.id === courseId) || LearningCatalog.find(c => c.id === courseId);
+    return getLearnerCatalog().find(c => c.id === courseId) || (apiOnly ? null : LearningCatalog.find(c => c.id === courseId));
   }
   function _loadFinalSettings() {
     try {
@@ -754,6 +756,4 @@ export function useLearning() {
     catalog,
   };
 }
-
-
 

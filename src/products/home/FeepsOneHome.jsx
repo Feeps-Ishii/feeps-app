@@ -131,6 +131,8 @@ function SectionTitle({ title, desc, action }) {
 
 function SmallStatus({ label, value, hint, icon: Icon, tone = "home" }) {
   const pa = PRODUCT_ACCENT[tone] || PRODUCT_ACCENT.home;
+  const valueText = textOf(value);
+  const isLongValue = valueText.length > 12;
   return (
     <Card className="p-4 sm:p-5">
       <div className="flex h-full items-start gap-3">
@@ -139,7 +141,7 @@ function SmallStatus({ label, value, hint, icon: Icon, tone = "home" }) {
         </span>
         <div className="min-w-0">
           <div className="text-xs font-semibold" style={{ color: T.textMuted }}>{label}</div>
-          <div className="mt-2 text-2xl font-extrabold leading-none tabular-nums" style={{ color: T.textPrimary }}>{value}</div>
+          <div className={isLongValue ? "mt-2 break-words text-base font-extrabold leading-snug" : "mt-2 text-2xl font-extrabold leading-none tabular-nums"} style={{ color: T.textPrimary }}>{valueText}</div>
           {hint && <div className="mt-2 text-xs leading-relaxed" style={{ color: T.textMuted }}>{hint}</div>}
         </div>
       </div>

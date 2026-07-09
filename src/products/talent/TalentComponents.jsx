@@ -158,7 +158,7 @@ function TalentHome({ goSub, goProduct, role = "trainee", themeColor = PRODUCT_A
     },
   };
   const cfg = cfgs[role] || cfgs.trainee;
-  const lrn = useLearning();
+  const lrn = useLearning(role);
   const elEarned = lrn.getEarnedSkills();
   const { summary: finalSummary } = useElearningFinalTestEvidence();
   return (
@@ -262,7 +262,7 @@ function TalentHome({ goSub, goProduct, role = "trainee", themeColor = PRODUCT_A
 function SkillMap({ done = {}, goals = [], role, go }) {
   const [growth, setGrowth] = useState({ reports: [], tests: [], attendance: [] });
   const [growthLoading, setGrowthLoading] = useState(true);
-  const elAchievements = useLearning().getAchievements();
+  const elAchievements = useLearning(role).getAchievements();
   const lvlOf = id => done[id] ? 100 : 0;
   const safeGoals = Array.isArray(goals) ? goals : [];
   const cats = safeGoals.map(g => {
@@ -504,7 +504,7 @@ function SkillEditor({ skills, setSkills, defaultCat = "言語" }) {
 function TrainingSkillsView({ done = {}, goals = [], role }) {
   const isTrainee = role === "trainee";
   const [skills, setSkills] = useState([]);
-  const elSkills = useLearning().getEarnedSkills();
+  const elSkills = useLearning(role).getEarnedSkills();
   const { officialSkillEvidence: finalSkillEvidence } = useElearningFinalTestEvidence();
   const [tests, setTests] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -691,9 +691,9 @@ function WorksView() {
     </div>
   );
 }
-function PersonalSkillSheet() {
+function PersonalSkillSheet({ role = "trainee" } = {}) {
   const [profile, setProfile] = useState({ name: "", company: "", title: "", exp: "", station: "", selfPR: "" });
-  const elSkills = useLearning().getEarnedSkills();
+  const elSkills = useLearning(role).getEarnedSkills();
   const { officialSkillEvidence: finalSkillEvidence } = useElearningFinalTestEvidence();
   const [skills, setSkills] = useState([]);
   const [strengths, setStrengths] = useState([]);
@@ -1232,4 +1232,103 @@ function SkillSheetPreview({ data, onClose }) {
 }
 /* ===== ナビ ===== */
 
-export { TalentHome, SkillMap, TrainingSkillsView, WorksView, SkillSheetView, Portfolio, SkillSheetPreview, TalentPlaceholder };
+function LearningBadgesView({ role = "trainee" }) {
+  const lrn = useLearning(role);
+  const rows = lrn.completed.map(course => {
+    const result = lrn.getOfficialFinalTestResult(course.id);
+    return {
+      id: course.id,
+      title: course.title,
+      acquiredAt: result?.createdAt?.slice(0, 10) || lrn.progress[course.id]?.completedAt?.slice(0, 10) || "",
+      score: result?.score,
+      skills: course.skills || [],
+    };
+  });
+  return (
+    <div>
+      <SectionHead title="資格・バッジ" desc="Learningの修了内容から取得済みバッジを表示します。" />
+      {rows.length === 0 ? (
+        <Card><CommonEmptyState title="取得済みバッジはまだありません" desc="Eラーニングを修了すると、対象コースと取得日がここに表示されます。" /></Card>
+      ) : (
+        <div className="grid gap-4 md:grid-cols-2">
+          {rows.map(row => (
+            <Card key={row.id} className="p-5">
+              <div className="mb-3 flex items-start gap-3">
+                <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl" style={{ background: PRODUCT_ACCENT.talent.subtle, color: PRODUCT_ACCENT.talent.accent }}>
+                  <Award size={20} />
+                </div>
+                <div className="min-w-0">
+                  <div className="flex flex-wrap items-center gap-2"><Badge tone="green">取得済み</Badge>{row.score != null && <Badge tone="cyan">{row.score}点</Badge>}</div>
+                  <h3 className="mt-1 break-words text-sm font-bold" style={{ color: T.textPrimary }}>{row.title}</h3>
+                  <p className="mt-1 text-xs" style={{ color: T.textMuted }}>取得日: {row.acquiredAt || "-"}</p>
+                </div>
+              </div>
+              <div className="flex flex-wrap gap-1.5">{row.skills.map(skill => <Badge key={skill} tone="cyan">{skill}</Badge>)}</div>
+            </Card>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+function SelfPrStrengthView() {
+  const [form, setForm] = useState({ selfPR: "", strengths: "", specialty: "", growthFocus: "" });
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [message, setMessage] = useState("");
+  useEffect(() => {
+    let alive = true;
+    apiGet("/skills/me")
+      .then(item => {
+        if (!alive || !item) return;
+        setForm({
+          selfPR: item.selfPR || "",
+          strengths: Array.isArray(item.strengths) ? item.strengths.join("、") : (item.strengths || ""),
+          specialty: item.specialty || "",
+          growthFocus: item.growthFocus || "",
+        });
+      })
+      .finally(() => alive && setLoading(false));
+    return () => { alive = false; };
+  }, []);
+  async function save() {
+    setSaving(true); setMessage("");
+    try {
+      await apiPut("/skills/me", {
+        selfPR: form.selfPR,
+        strengths: String(form.strengths || "").split(/[、,\n]/).map(s => s.trim()).filter(Boolean),
+        specialty: form.specialty,
+        growthFocus: form.growthFocus,
+      });
+      setMessage("保存しました");
+    } catch (e) {
+      setMessage("保存に失敗しました: " + (e?.message || e));
+    } finally {
+      setSaving(false);
+    }
+  }
+  const field = (key, label, rows = 3) => (
+    <label className="block">
+      <span className="mb-1 block text-xs font-bold" style={{ color: T.textMuted }}>{label}</span>
+      <textarea value={form[key]} onChange={e => setForm(f => ({ ...f, [key]: e.target.value }))} rows={rows} className="ff-input w-full resize-none rounded-xl px-3 py-2.5 text-sm leading-relaxed outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary }} />
+    </label>
+  );
+  return (
+    <div>
+      <SectionHead title="自己PR・強み" desc="自己PR、強み、得意分野、今後伸ばしたいことをTalentプロフィールとして保存します。" action={<Btn icon={Check} onClick={save} disabled={saving || loading}>{saving ? "保存中..." : "保存"}</Btn>} />
+      {loading ? <Card><SkeletonRows /></Card> : (
+        <Card className="p-5">
+          <div className="grid gap-4 lg:grid-cols-2">
+            <div className="lg:col-span-2">{field("selfPR", "自己PR", 5)}</div>
+            {field("strengths", "強み")}
+            {field("specialty", "得意分野")}
+            <div className="lg:col-span-2">{field("growthFocus", "今後伸ばしたいこと", 3)}</div>
+          </div>
+          {message && <div className="mt-4 text-sm font-semibold" style={{ color: message.includes("失敗") ? T.danger : T.success }}>{message}</div>}
+        </Card>
+      )}
+    </div>
+  );
+}
+
+export { TalentHome, SkillMap, TrainingSkillsView, WorksView, SkillSheetView, Portfolio, SkillSheetPreview, LearningBadgesView, SelfPrStrengthView, TalentPlaceholder };

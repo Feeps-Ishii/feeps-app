@@ -45,15 +45,20 @@ function useAIDraft() {
   function draft(cb, payload) { setBusy(true); setTimeout(() => { cb(payload); setBusy(false); }, 1100); }
   return { busy, draft };
 }
+function safeGoals(goals) {
+  return Array.isArray(goals)
+    ? goals.map(g => ({ ...g, tasks: Array.isArray(g?.tasks) ? g.tasks : [] }))
+    : [];
+}
 function goalProgress(goals, done) {
-  return goals.map(g => {
-    const n = g.tasks.filter(t => done[t.id]).length;
+  return safeGoals(goals).map(g => {
+    const n = g.tasks.filter(t => done?.[t.id]).length;
     return { ...g, n, total: g.tasks.length, pct: g.tasks.length ? Math.round((n / g.tasks.length) * 100) : 0 };
   });
 }
-function flatTasks(goals) { return goals.flatMap(g => g.tasks.map(t => ({ ...t, goal: g.title, gid: g.id }))); }
+function flatTasks(goals) { return safeGoals(goals).flatMap(g => g.tasks.map(t => ({ ...t, goal: g.title, gid: g.id }))); }
 function overallProgress(goals, done) {
-  const all = flatTasks(goals); const n = all.filter(t => done[t.id]).length;
+  const all = flatTasks(goals); const n = all.filter(t => done?.[t.id]).length;
   return all.length ? Math.round((n / all.length) * 100) : 0;
 }
 
@@ -1421,14 +1426,19 @@ function Tests({ role }) {
     <div>
       <SectionHead title="テスト" desc="受験後すぐに得点が表示されます" />
       {testErr && <div className="mb-4 rounded-lg px-3 py-2 text-xs" style={{ background: T.warningSubtle, color: T.warning }}>{testErr}</div>}
-      <div className="grid gap-4 md:grid-cols-3">{tests.length === 0 ? <Card><EmptyState title="受験できるテストがありません" desc="公開されたテストがあるとここに表示されます。" /></Card> : tests.map(t => {
+      <div className="grid min-w-0 gap-4 md:grid-cols-2 xl:grid-cols-3">{tests.length === 0 ? <Card><EmptyState title="受験できるテストがありません" desc="公開されたテストがあるとここに表示されます。" /></Card> : tests.map(t => {
         const hasQuestions = testQuestionsOf(t).length > 0;
         return (
         <Card key={testIdOf(t)} className="flex flex-col p-5">
           <div className="mb-2 flex items-start justify-between">
             {t.status === "graded" ? <Badge tone="green">受験済</Badge> : <Badge tone="muted">未受験</Badge>}
             <span className="text-xs" style={{ color: T.textMuted }}>{t.q}問・{t.limit}</span></div>
-          <h3 className="mb-4 flex-1 font-bold leading-snug" style={{ color: T.textPrimary }}>{t.title}</h3>
+          <div className="mb-3 min-w-0 rounded-xl p-3 text-xs" style={{ background: T.bgBase, color: T.textMuted }}>
+            <div className="truncate">カリキュラム: {t.curriculumTitle || t.curriculumName || t.courseName || t.courseId || "未設定"}</div>
+            <div className="truncate">章: {t.chapterTitle || t.sectionTitle || "確認テスト"}</div>
+            <div className="truncate">レッスン: {t.lessonTitle || t.lessonName || "対象レッスン未設定"}</div>
+          </div>
+          <h3 className="mb-4 min-w-0 flex-1 break-words font-bold leading-snug" style={{ color: T.textPrimary }}>{t.title}</h3>
           {t.status === "graded" ? <div>
             <div className="flex items-end justify-between rounded-xl p-3" style={{ background: t.score >= 70 ? T.successSubtle : T.warningSubtle }}>
               <span className="text-sm font-semibold" style={{ color: t.score >= 70 ? T.success : T.warning }}>スコア</span>
@@ -2042,6 +2052,9 @@ function TraineeAttendance() {
   const [eIdx, setEIdx] = useState(-1);
   const [draft, setDraft] = useState({});
   const [err, setErr] = useState("");
+  const [histMonth, setHistMonth] = useState(monthStr());
+  const [histQuery, setHistQuery] = useState("");
+  const [histSort, setHistSort] = useState("desc");
 
   function load() {
     apiGet("/attendance/me")
@@ -2066,7 +2079,19 @@ function TraineeAttendance() {
   function doClockIn() { const n = { in: att.in || nowHM(), out: att.out }; setAtt(n); saveToday(n); }
   function doClockOut() { const n = { in: att.in, out: nowHM() }; setAtt(n); saveToday(n); }
   function saveTodayEdit() { setEditToday(false); saveToday(att); }
-  function startEdit(i) { setEIdx(i); setDraft({ ...hist[i] }); }
+  function startEdit(rowOrIndex) {
+    const row = typeof rowOrIndex === "number" ? hist[rowOrIndex] : rowOrIndex;
+    const idx = hist.findIndex(h => h.date === row?.date);
+    setEIdx(idx);
+    setDraft({ ...row });
+  }
+  const visibleHist = hist
+    .filter(r => !histMonth || String(r.date || "").startsWith(histMonth))
+    .filter(r => {
+      const q = histQuery.trim().toLowerCase();
+      return !q || [r.date, r.d, r.in, r.out, r.s].some(v => String(v || "").toLowerCase().includes(q));
+    })
+    .sort((a, b) => histSort === "desc" ? String(b.date).localeCompare(String(a.date)) : String(a.date).localeCompare(String(b.date)));
   async function saveEdit() {
     const row = hist[eIdx]; setErr("");
     try {
@@ -2106,9 +2131,20 @@ function TraineeAttendance() {
         </div>
       </Card>
       <h3 className="mb-2 text-sm font-bold" style={{ color: T.textPrimary }}>履歴（タップで修正）</h3>
-      <Card>{hist.map((r, i) => (
-        <div key={i} className="flex items-center justify-between px-4 py-3" style={{ borderBottom: i < hist.length - 1 ? `1px solid ${T.border}` : "none" }}>
-          {eIdx === i ? (
+      <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
+        <h3 className="text-sm font-bold" style={{ color: T.textPrimary }}>月別勤怠一覧</h3>
+        <div className="flex flex-wrap items-center gap-2">
+          <input type="month" value={histMonth} onChange={e => setHistMonth(e.target.value)} className="rounded-lg px-3 py-2 text-sm outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary, background: "#fff" }} />
+          <div className="relative">
+            <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2" style={{ color: T.textMuted }} />
+            <input value={histQuery} onChange={e => setHistQuery(e.target.value)} placeholder="検索" className="w-40 rounded-lg py-2 pl-8 pr-3 text-sm outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary, background: "#fff" }} />
+          </div>
+          <Btn kind="ghost" size="sm" icon={histSort === "desc" ? ChevronDown : ChevronUp} onClick={() => setHistSort(v => v === "desc" ? "asc" : "desc")}>{histSort === "desc" ? "新しい順" : "古い順"}</Btn>
+        </div>
+      </div>
+      <Card>{visibleHist.length === 0 ? <EmptyState title="該当する勤怠履歴がありません" desc="月や検索条件を変更してください。" /> : visibleHist.map((r, i) => (
+        <div key={r.date || i} className="flex items-center justify-between px-4 py-3" style={{ borderBottom: i < visibleHist.length - 1 ? `1px solid ${T.border}` : "none" }}>
+          {eIdx === hist.findIndex(h => h.date === r.date) ? (
             <div className="flex flex-1 items-center gap-2">
               <span className="w-20 text-sm font-medium" style={{ color: T.textPrimary }}>{r.d}</span>
               <input value={draft.in} onChange={e => setDraft({ ...draft, in: e.target.value })} className="w-16 rounded-lg px-2 py-1 text-sm outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary }} />
@@ -2122,7 +2158,7 @@ function TraineeAttendance() {
               <div className="flex items-center gap-4 text-sm" style={{ color: T.textMuted }}>
                 <span>出 {r.in || "—"}</span><span>退 {r.out || "—"}</span>
                 <Badge tone={r.s === "遅刻" ? "amber" : r.s === "欠席" ? "red" : "green"}>{r.s}</Badge>
-                <button onClick={() => startEdit(i)} className="rounded-lg p-1 hover:bg-gray-50"><Pencil size={14} style={{ color: T.textMuted }} /></button>
+                <button onClick={() => startEdit(r)} className="rounded-lg p-1 hover:bg-gray-50"><Pencil size={14} style={{ color: T.textMuted }} /></button>
               </div>
             </>
           )}

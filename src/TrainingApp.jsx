@@ -85,15 +85,20 @@ function useAIDraft() {
   function draft(cb, payload) { setBusy(true); setTimeout(() => { cb(payload); setBusy(false); }, 1100); }
   return { busy, draft };
 }
+function safeGoals(goals) {
+  return Array.isArray(goals)
+    ? goals.map(g => ({ ...g, tasks: Array.isArray(g?.tasks) ? g.tasks : [] }))
+    : [];
+}
 function goalProgress(goals, done) {
-  return goals.map(g => {
-    const n = g.tasks.filter(t => done[t.id]).length;
+  return safeGoals(goals).map(g => {
+    const n = g.tasks.filter(t => done?.[t.id]).length;
     return { ...g, n, total: g.tasks.length, pct: g.tasks.length ? Math.round((n / g.tasks.length) * 100) : 0 };
   });
 }
-function flatTasks(goals) { return goals.flatMap(g => g.tasks.map(t => ({ ...t, goal: g.title, gid: g.id }))); }
+function flatTasks(goals) { return safeGoals(goals).flatMap(g => g.tasks.map(t => ({ ...t, goal: g.title, gid: g.id }))); }
 function overallProgress(goals, done) {
-  const all = flatTasks(goals); const n = all.filter(t => done[t.id]).length;
+  const all = flatTasks(goals); const n = all.filter(t => done?.[t.id]).length;
   return all.length ? Math.round((n / all.length) * 100) : 0;
 }
 
@@ -348,6 +353,40 @@ const notifId = (role, category, key) => `${role}-${category}-${key}`;
 const userName = u => u?.name || u?.email || u?.userId || u?.id || "受講生";
 const hasReportComment = r => !!r?.comment || (Array.isArray(r?.comments) && r.comments.length > 0);
 const traineeIdOf = t => t?.userId || t?.id;
+function targetTrainingView(targetUrl) {
+  const text = String(targetUrl || "");
+  if (text.includes("attendance")) return "attendance";
+  if (text.includes("reports")) return "reports";
+  if (text.includes("tests")) return "tests";
+  if (text.includes("materials")) return "materials";
+  if (text.includes("curriculum")) return "curriculum";
+  if (text.includes("goals")) return "goals";
+  return "home";
+}
+function openNotificationTarget(n, { go, goProduct, goSub }) {
+  const targetUrl = String(n?.targetUrl || "");
+  if (targetUrl.includes("/learning")) {
+    goProduct("learning");
+    if (goSub) goSub(targetUrl.includes("courses") ? "el_courses" : targetUrl.includes("tests") ? "el_recommend" : "el_inprogress");
+    return;
+  }
+  if (targetUrl.includes("/talent")) {
+    goProduct("talent");
+    if (goSub) goSub(targetUrl.includes("skills") ? "tl_skills" : "tl_growth");
+    return;
+  }
+  if (targetUrl.includes("/training")) {
+    goProduct("training");
+    go(targetTrainingView(targetUrl));
+    return;
+  }
+  if (n?.to && typeof n.to === "object") {
+    goProduct(n.to.product);
+    if (n.to.subView) goSub(n.to.subView);
+  } else {
+    go(n?.to || "home");
+  }
+}
 function emitNotificationRefresh() {
   try { window.dispatchEvent(new Event("feeps:notifications-refresh")); } catch (e) {}
 }
@@ -369,17 +408,17 @@ async function loadRoleNotifications(role) {
     ]);
     const reportToday = (Array.isArray(myReports) ? myReports : []).find(r => r.date === date);
     const attendanceToday = (Array.isArray(myAttendance) ? myAttendance : []).find(a => a.date === date);
-    if (!reportToday) add(result, { id: notifId(role, "reports", date), severity: "high", category: "日報", title: "今日の日報が未保存です", desc: "今日の目標や振り返りを保存してください。", to: "reports" });
-    if (!attendanceToday) add(result, { id: notifId(role, "attendance", date), severity: "medium", category: "勤怠", title: "勤怠が未登録です", desc: "出勤・退勤など本日の勤怠を登録してください。", to: "attendance" });
-    if (reportToday && hasReportComment(reportToday)) add(result, { id: notifId(role, "comments", date), severity: "low", category: "コメント", title: "講師から日報コメントがあります", desc: "今日の日報コメントを確認できます。", to: "reports" });
+    if (!reportToday) add(result, { id: notifId(role, "reports", date), severity: "high", category: "日報", title: "今日の日報が未保存です", desc: "今日の目標や振り返りを保存してください。", to: "reports", targetUrl: "/training/reports" });
+    if (!attendanceToday) add(result, { id: notifId(role, "attendance", date), severity: "medium", category: "勤怠", title: "勤怠が未登録です", desc: "出勤・退勤など本日の勤怠を登録してください。", to: "attendance", targetUrl: "/training/attendance" });
+    if (reportToday && hasReportComment(reportToday)) add(result, { id: notifId(role, "comments", date), severity: "low", category: "コメント", title: "講師から日報コメントがあります", desc: "今日の日報コメントを確認できます。", to: "reports", targetUrl: "/training/reports" });
     const takenIds = new Set((Array.isArray(myTests) ? myTests : []).filter(t => t.status === "graded" || t.score != null).map(t => testIdOf(t)));
     const openTests = (Array.isArray(publishedTests) ? publishedTests : []).filter(t => (t.status || "published") === "published");
     const notTaken = openTests.filter(t => !takenIds.has(testIdOf(t)));
-    if (notTaken.length) add(result, { id: notifId(role, "tests", notTaken.length), severity: "medium", category: "テスト", title: `未受験テストが${notTaken.length}件あります`, desc: notTaken.slice(0, 2).map(t => t.title || t.name || testIdOf(t)).join("、"), to: "tests" });
+    if (notTaken.length) add(result, { id: notifId(role, "tests", notTaken.length), severity: "medium", category: "テスト", title: `未受験テストが${notTaken.length}件あります`, desc: notTaken.slice(0, 2).map(t => t.title || t.name || testIdOf(t)).join("、"), to: "tests", targetUrl: `/training/tests?testId=${encodeURIComponent(testIdOf(notTaken[0]))}` });
     const firstCourse = (Array.isArray(courses) ? courses : [])[0];
     if (firstCourse?.courseId) {
       const note = await apiGet(`/courses/${firstCourse.courseId}/daily-note?date=${date}`).catch(e => { console.warn("notifications trainee daily-note failed", e); return null; });
-      if (note?.announcement) add(result, { id: notifId(role, "daily-note", firstCourse.courseId), severity: "low", category: "連絡", title: "本日の連絡があります", desc: note.announcement, to: "home" });
+      if (note?.announcement) add(result, { id: notifId(role, "daily-note", firstCourse.courseId), severity: "low", category: "連絡", title: "本日の連絡があります", desc: note.announcement, to: "home", targetUrl: "/training/home" });
     }
     return result;
   }
@@ -491,7 +530,7 @@ function NotificationCenter({ notifications, loading, error, role, go, goProduct
         {loading ? <SkeletonRows />
           : rows.length === 0 ? <EmptyState title="現在、新しい通知はありません" desc="未対応や更新が発生するとここに表示されます。" />
           : <div className="divide-y" style={{ borderColor: T.border }}>{rows.map(n => (
-            <button key={n.id} onClick={() => { if (n.to && typeof n.to === "object") { goProduct(n.to.product); if (n.to.subView) goSub(n.to.subView); } else { go(n.to || "home"); } }} className="flex w-full items-start gap-3 p-4 text-left transition hover:bg-slate-50">
+            <button key={n.id} onClick={() => openNotificationTarget(n, { go, goProduct, goSub })} className="flex w-full items-start gap-3 p-4 text-left transition hover:bg-slate-50">
               <div className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-xl" style={{ background: notificationTone(n.severity) === "red" ? T.dangerSubtle : notificationTone(n.severity) === "amber" ? T.warningSubtle : T.accentSubtle, color: notificationTone(n.severity) === "red" ? T.danger : notificationTone(n.severity) === "amber" ? T.warning : T.accentHover }}>
                 {n.severity === "high" ? <AlertCircle size={17} /> : n.severity === "medium" ? <Clock size={17} /> : <Bell size={17} />}
               </div>
@@ -962,7 +1001,7 @@ export default function App() {
               const fg = tone === "red" ? T.danger : tone === "amber" ? T.warning : T.accentHover;
               const NotifIcon = n.severity === "high" ? AlertCircle : n.severity === "medium" ? Clock : Bell;
               return (
-                <button key={n.id} type="button" onClick={() => { setNotifOpen(false); if (n.to && typeof n.to === "object") { goProduct(n.to.product); if (n.to.subView) goSub(n.to.subView); } else { go(n.to || "home"); } }}
+                <button key={n.id} type="button" onClick={() => { setNotifOpen(false); openNotificationTarget(n, { go, goProduct, goSub }); }}
                   className="flex w-full items-start gap-3 px-4 py-3 text-left transition hover:bg-black/[.03]">
                   <span className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg" style={{ background: bg, color: fg }}><NotifIcon size={15} /></span>
                   <div className="min-w-0 flex-1">
