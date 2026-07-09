@@ -857,7 +857,7 @@ export default function App() {
   if (!profileChecked) return null;
 
   const screen = (() => {
-    if (product === "home") return <FeepsOneHome role={role} displayName={displayName} goProduct={goProduct} goTraining={go} />;
+    if (product === "home") return <FeepsOneHome role={role} displayName={displayName} goProduct={goProduct} goTraining={go} goSub={goSub} />;
     if (product === "learning") return <LearningProduct subView={subView} goSub={goSub} goProduct={goProduct} role={role} themeColor={themeColor} />;
     if (product === "talent") return <TalentProduct subView={subView} goSub={goSub} goProduct={goProduct} role={role} themeColor={themeColor} done={taskDone} goals={goals} />;
     if (product === "matching") return <MatchingProduct subView={subView} goSub={goSub} role={role} themeColor={themeColor} />;
