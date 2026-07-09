@@ -124,6 +124,20 @@ function CourseOpenButton({ course, go }) {
   return <Btn size="sm" kind="ghost" icon={ArrowUpRight} onClick={() => target ? goFromUrl(target, go) : go("curriculum")}>開く</Btn>;
 }
 
+function LinkButton({ label, targetUrl, go }) {
+  return (
+    <button
+      type="button"
+      className="text-xs font-semibold hover:underline"
+      style={{ color: targetUrl ? T.accentHover : T.textMuted }}
+      onClick={() => targetUrl && goFromUrl(targetUrl, go)}
+      disabled={!targetUrl}
+    >
+      {label}
+    </button>
+  );
+}
+
 function NoticeCard({ courses, date, onSaved }) {
   const [editingCourseId, setEditingCourseId] = useState("");
   const [draft, setDraft] = useState("");
