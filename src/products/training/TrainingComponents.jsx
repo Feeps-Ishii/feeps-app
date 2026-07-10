@@ -574,6 +574,8 @@ function GoalsView({ role, done, toggle, goals, setGoals, go, openKarte }) {
   const all = flatTasks(goals);
   const [nt, setNt] = useState({});
   const [ng, setNg] = useState("");
+  const [goalDrafts, setGoalDrafts] = useState({});
+  const [taskDrafts, setTaskDrafts] = useState({});
   const [todayReport, setTodayReport] = useState(null);
   const [reportLoading, setReportLoading] = useState(true);
   const todayTasks = Array.isArray(todayReport?.goalItems) ? todayReport.goalItems : [];
@@ -597,56 +599,31 @@ function GoalsView({ role, done, toggle, goals, setGoals, go, openKarte }) {
   function addTask(gid) {
     const t = (nt[gid] || "").trim();
     if (!t) return;
-    setGoals(goals.map(g => g.id === gid ? { ...g, tasks: [...g.tasks, { id: "u" + Date.now(), t }] } : g));
+    setGoals(safeGoals(goals).map(g => g.id === gid ? { ...g, tasks: [...g.tasks, { id: "u" + Date.now(), t }] } : g));
     setNt({ ...nt, [gid]: "" });
   }
   function addGoal() {
     const title = ng.trim();
     if (!title) return;
-    setGoals([...goals, { id: "ug" + Date.now(), title, sub: "自分で設定した長期目標", icon: Star, custom: true, tasks: [] }]);
+    setGoals([...safeGoals(goals), { id: "ug" + Date.now(), title, sub: "自分で設定した長期目標", icon: Star, custom: true, tasks: [] }]);
     setNg("");
   }
-
-  function startEdit(m) {
-    setEditing(m);
-    setEditDraft({
-      title: m.title || "",
-      description: m.description || "",
-      mode: m.mode === "download" ? "download" : "view",
-    });
+  function updateGoalText(gid, patch) {
+    setGoals(safeGoals(goals).map(g => g.id === gid ? { ...g, ...patch } : g));
+    setGoalDrafts(d => ({ ...d, [gid]: false }));
   }
-
-  async function saveMaterial() {
-    if (!editing || !courseId) return;
-    setSaving(true); setErr("");
-    try {
-      await apiPut(`/materials/${encodeURIComponent(editing.materialId)}`, {
-        courseId,
-        title: editDraft.title,
-        description: editDraft.description,
-        mode: editDraft.mode,
-      });
-      setEditing(null);
-      loadMaterials();
-    } catch (e) {
-      setErr("資料の更新に失敗しました: " + (e?.errorMessage || e?.message || e));
-    } finally {
-      setSaving(false);
-    }
+  function deleteGoal(gid) {
+    if (!window.confirm("この目標を削除しますか？")) return;
+    setGoals(safeGoals(goals).filter(g => g.id !== gid));
   }
-
-  async function deleteMaterial() {
-    if (!deleting || !courseId) return;
-    setSaving(true); setErr("");
-    try {
-      await apiDeleteBase(`/materials/${encodeURIComponent(deleting.materialId)}?courseId=${encodeURIComponent(courseId)}`);
-      setDeleting(null);
-      loadMaterials();
-    } catch (e) {
-      setErr("資料の削除に失敗しました: " + (e?.errorMessage || e?.message || e));
-    } finally {
-      setSaving(false);
-    }
+  function updateTaskText(gid, tid, text) {
+    const value = String(text || "").trim();
+    if (!value) return;
+    setGoals(safeGoals(goals).map(g => g.id === gid ? { ...g, tasks: g.tasks.map(t => t.id === tid ? { ...t, t: value } : t) } : g));
+    setTaskDrafts(d => ({ ...d, [tid]: false }));
+  }
+  function deleteTask(gid, tid) {
+    setGoals(safeGoals(goals).map(g => g.id === gid ? { ...g, tasks: g.tasks.filter(t => t.id !== tid) } : g));
   }
 
   return (
@@ -670,8 +647,19 @@ function GoalsView({ role, done, toggle, goals, setGoals, go, openKarte }) {
                   <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl" style={{ background: T.accentSubtle, color: T.accent }}><I size={18} /></div>
                   <div className="min-w-0 flex-1">
                     <div className="text-xs font-bold" style={{ color: T.accent }}>{g.custom ? "自分の目標" : "長期目標 " + (i + 1)}</div>
-                    <div className="mt-0.5 font-bold" style={{ color: T.textPrimary }}>{g.title}</div>
-                    <div className="mt-0.5 text-xs" style={{ color: T.textMuted }}>{g.sub}</div>
+                    {goalDrafts[g.id] ? (
+                      <div className="mt-1 space-y-2">
+                        <input value={goalDrafts[g.id].title} onChange={e => setGoalDrafts(d => ({ ...d, [g.id]: { ...(d[g.id] || {}), title: e.target.value } }))} className="w-full rounded-lg px-2 py-1.5 text-sm outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary }} />
+                        <input value={goalDrafts[g.id].sub} onChange={e => setGoalDrafts(d => ({ ...d, [g.id]: { ...(d[g.id] || {}), sub: e.target.value } }))} className="w-full rounded-lg px-2 py-1.5 text-xs outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary }} />
+                        <div className="flex gap-2"><Btn size="sm" kind="soft" icon={Check} onClick={() => updateGoalText(g.id, goalDrafts[g.id])}>保存</Btn><Btn size="sm" kind="ghost" icon={X} onClick={() => setGoalDrafts(d => ({ ...d, [g.id]: false }))}>取消</Btn></div>
+                      </div>
+                    ) : (
+                      <>
+                        <div className="mt-0.5 break-words font-bold" style={{ color: T.textPrimary }}>{g.title}</div>
+                        <div className="mt-0.5 break-words text-xs" style={{ color: T.textMuted }}>{g.sub}</div>
+                        {g.custom && <div className="mt-2 flex gap-1.5"><Btn size="sm" kind="ghost" icon={Pencil} onClick={() => setGoalDrafts(d => ({ ...d, [g.id]: { title: g.title || "", sub: g.sub || "" } }))}>編集</Btn><Btn size="sm" kind="ghost" icon={Trash2} onClick={() => deleteGoal(g.id)}>削除</Btn></div>}
+                      </>
+                    )}
                   </div>
                 </div>
                 <div className="mb-1 flex justify-between text-xs"><span style={{ color: T.textMuted }}>小目標の達成</span><span style={{ color: T.textPrimary }}>{g.n}/{g.total}</span></div>
@@ -720,11 +708,13 @@ function GoalsView({ role, done, toggle, goals, setGoals, go, openKarte }) {
               <div className="p-2">
                 {g.tasks.length ? g.tasks.map(t => {
                   const ok = !!done[t.id];
-                  return <button key={t.id} onClick={() => toggle(t.id)} className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left transition hover:bg-gray-50">
-                    {ok ? <CheckCircle2 size={18} style={{ color: T.success }} /> : <Circle size={18} style={{ color: T.textMuted }} />}
-                    <span className="min-w-0 flex-1 text-sm" style={{ color: ok ? T.textMuted : T.textPrimary, textDecoration: ok ? "line-through" : "none" }}>{t.t}</span>
+                  return <div key={t.id} className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 transition hover:bg-gray-50">
+                    <button onClick={() => toggle(t.id)}>{ok ? <CheckCircle2 size={18} style={{ color: T.success }} /> : <Circle size={18} style={{ color: T.textMuted }} />}</button>
+                    {taskDrafts[t.id] ? <input value={taskDrafts[t.id].text} onChange={e => setTaskDrafts(d => ({ ...d, [t.id]: { text: e.target.value } }))} onKeyDown={e => e.key === "Enter" && updateTaskText(g.id, t.id, taskDrafts[t.id]?.text)} className="min-w-0 flex-1 rounded-lg px-2 py-1.5 text-sm outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary }} />
+                      : <button onClick={() => toggle(t.id)} className="min-w-0 flex-1 text-left text-sm" style={{ color: ok ? T.textMuted : T.textPrimary, textDecoration: ok ? "line-through" : "none" }}>{t.t}</button>}
                     {ok && <Badge tone="green">成長履歴候補</Badge>}
-                  </button>;
+                    {g.custom && <div className="flex gap-1">{taskDrafts[t.id] ? <Btn size="sm" kind="ghost" icon={Check} onClick={() => updateTaskText(g.id, t.id, taskDrafts[t.id]?.text)}>保存</Btn> : <button onClick={() => setTaskDrafts(d => ({ ...d, [t.id]: { text: t.t || "" } }))} className="rounded-lg p-1 hover:bg-gray-100"><Pencil size={14} style={{ color: T.textMuted }} /></button>}<button onClick={() => deleteTask(g.id, t.id)} className="rounded-lg p-1 hover:bg-gray-100"><Trash2 size={14} style={{ color: T.textMuted }} /></button></div>}
+                  </div>;
                 }) : <div className="rounded-xl p-3 text-sm" style={adminPanelStyle}>小目標データ未設定です。</div>}
                 <div className="flex items-center gap-2 px-3 py-2">
                   <Plus size={16} style={{ color: T.textMuted }} />
@@ -1297,6 +1287,9 @@ function Tests({ role }) {
   const [results, setResults] = useState(null);
   const [testResultsMap, setTestResultsMap] = useState({});
   const [reviewDrafts, setReviewDrafts] = useState({});
+  const [testQuery, setTestQuery] = useState("");
+  const [testStatus, setTestStatus] = useState("すべて");
+  const [testSort, setTestSort] = useState("priority");
   const canManage = role === "instructor" || role === "admin";
   const canViewResults = canManage || role === "client";
   const opsFilter = useOpsFilter(canViewResults);
@@ -1428,8 +1421,30 @@ function Tests({ role }) {
         maxScore,
         minScore,
         followCount: scores.filter(s => s < 70).length,
+        needsReview: scopedRows.filter(r => r.needsReview || Object.values(r.answers || {}).some(a => a?.needsReview)).length,
       }];
     }));
+    const visibleTests = tests.filter(t => {
+      const id = testIdOf(t);
+      const stats = testStats[id] || {};
+      const q = testQuery.trim().toLowerCase();
+      const byQuery = !q || [t.title, t.courseId, t.curriculumTitle, t.chapterTitle, t.lessonTitle, opsFilter.courses.find(c => c.courseId === t.courseId)?.name].some(v => String(v || "").toLowerCase().includes(q));
+      const byStatus =
+        testStatus === "すべて" ? true :
+        testStatus === "未受験あり" ? Number(stats.unsubmitted || 0) > 0 :
+        testStatus === "低スコアあり" ? Number(stats.followCount || 0) > 0 :
+        testStatus === "採点確認待ち" ? Number(stats.needsReview || 0) > 0 :
+        testStatus === "公開中" ? (t.status || "published") === "published" :
+        testStatus === "下書き" ? t.status === "draft" : true;
+      return byQuery && byStatus;
+    }).sort((a, b) => {
+      const sa = testStats[testIdOf(a)] || {};
+      const sb = testStats[testIdOf(b)] || {};
+      if (testSort === "title") return String(a.title || "").localeCompare(String(b.title || ""), "ja");
+      if (testSort === "avgAsc") return Number(sa.avgScore ?? 999) - Number(sb.avgScore ?? 999);
+      if (testSort === "unsubmitted") return Number(sb.unsubmitted || 0) - Number(sa.unsubmitted || 0);
+      return (Number(sb.needsReview || 0) + Number(sb.followCount || 0) + Number(sb.unsubmitted || 0)) - (Number(sa.needsReview || 0) + Number(sa.followCount || 0) + Number(sa.unsubmitted || 0));
+    });
     const filteredRows = results?.rows ? opsFilter.apply(results.rows) : [];
     const avg = filteredRows.length ? Math.round(filteredRows.reduce((s, r) => s + Number(r.score || 0), 0) / filteredRows.length) : 0;
     const allScores = Object.values(testStats).flatMap(s => s.rows.map(r => Number(r.score)).filter(n => Number.isFinite(n)));
@@ -1437,6 +1452,7 @@ function Tests({ role }) {
     const totalSubmitted = Object.values(testStats).reduce((s, v) => s + v.submitted, 0);
     const totalUnsubmitted = Object.values(testStats).reduce((s, v) => s + v.unsubmitted, 0);
     const totalFollow = Object.values(testStats).reduce((s, v) => s + v.followCount, 0);
+    const totalNeedsReview = Object.values(testStats).reduce((s, v) => s + v.needsReview, 0);
     return (
     <div>
       <SectionHead title={canManage ? "テスト管理" : "テスト結果"} desc={canManage ? "範囲と重点を指定して作成・受験後すぐ自動採点" : "自社受講生の公開テスト結果を確認します"} action={canCreateTests ? <div className="flex flex-wrap gap-2"><Btn kind="ai" icon={Sparkles} onClick={() => { setBuildFocus(null); setBuildStudent(null); setBuilding(true); }}>AIでテスト作成</Btn><Btn icon={Plus} onClick={() => { setBuildFocus(null); setBuildStudent(null); setBuilding(true); }}>テストを作成</Btn></div> : null} />
@@ -1447,19 +1463,34 @@ function Tests({ role }) {
           <div><h3 className="font-bold" style={{ color: T.textPrimary }}>テスト結果サマリー</h3><p className="text-xs" style={{ color: T.textMuted }}>理解度ヒートマップは、設問カテゴリ別の実データが揃うまで表示せず、結果APIから取れる集計を優先します。</p></div>
           <Badge tone={testSource === "db" ? "green" : "muted"}>{testSource === "db" ? "実データ" : "データなし"}</Badge>
         </div>
-        <div className="grid gap-3 p-4 sm:grid-cols-2 lg:grid-cols-5">
+        <div className="grid gap-3 p-4 sm:grid-cols-2 lg:grid-cols-6">
           <div className="rounded-xl p-3" style={{ background: T.bgBase }}><div className="text-xs font-bold" style={{ color: T.textMuted }}>テスト数</div><div className="mt-1 text-2xl font-bold" style={{ color: T.textPrimary }}>{tests.length}</div></div>
           <div className="rounded-xl p-3" style={{ background: T.successSubtle }}><div className="text-xs font-bold" style={{ color: T.success }}>提出数</div><div className="mt-1 text-2xl font-bold" style={{ color: T.textPrimary }}>{totalSubmitted}</div></div>
           <div className="rounded-xl p-3" style={{ background: T.warningSubtle }}><div className="text-xs font-bold" style={{ color: T.warning }}>未受験</div><div className="mt-1 text-2xl font-bold" style={{ color: T.textPrimary }}>{totalUnsubmitted}</div></div>
           <div className="rounded-xl p-3" style={{ background: T.accentSubtle }}><div className="text-xs font-bold" style={{ color: T.accentHover }}>平均点</div><div className="mt-1 text-2xl font-bold" style={{ color: T.textPrimary }}>{overallAvg == null ? "—" : `${overallAvg}点`}</div></div>
           <div className="rounded-xl p-3" style={{ background: T.dangerSubtle }}><div className="text-xs font-bold" style={{ color: T.danger }}>要フォロー</div><div className="mt-1 text-2xl font-bold" style={{ color: T.textPrimary }}>{totalFollow}</div></div>
+          <div className="rounded-xl p-3" style={{ background: T.warningSubtle }}><div className="text-xs font-bold" style={{ color: T.warning }}>採点確認待ち</div><div className="mt-1 text-2xl font-bold" style={{ color: T.textPrimary }}>{totalNeedsReview}</div></div>
         </div>
       </Card>
-      <Card>{tests.length === 0 ? <div className="px-4 py-8 text-center text-sm" style={{ color: T.textMuted }}>テストがまだありません。</div> : tests.map((t, i) => (
-        <div key={testIdOf(t) || i} className="flex items-center justify-between px-4 py-3.5" style={{ borderBottom: i < tests.length - 1 ? `1px solid ${T.border}` : "none" }}>
+      <Card className="mb-4 p-4">
+        <div className="grid gap-3 md:grid-cols-[1fr_170px_170px]">
+          <div className="relative">
+            <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2" style={{ color: T.textMuted }} />
+            <input value={testQuery} onChange={e => setTestQuery(e.target.value)} placeholder="テスト名・コース・カリキュラムで検索" className="w-full rounded-xl py-2 pl-9 pr-3 text-sm outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary }} />
+          </div>
+          <select value={testStatus} onChange={e => setTestStatus(e.target.value)} className="rounded-xl px-3 py-2 text-sm outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary, background: "#fff" }}>
+            {["すべて", "未受験あり", "低スコアあり", "採点確認待ち", "公開中", "下書き"].map(v => <option key={v}>{v}</option>)}
+          </select>
+          <select value={testSort} onChange={e => setTestSort(e.target.value)} className="rounded-xl px-3 py-2 text-sm outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary, background: "#fff" }}>
+            <option value="priority">要対応順</option><option value="unsubmitted">未受験が多い順</option><option value="avgAsc">平均点が低い順</option><option value="title">名前順</option>
+          </select>
+        </div>
+      </Card>
+      <Card>{visibleTests.length === 0 ? <div className="px-4 py-8 text-center text-sm" style={{ color: T.textMuted }}>該当するテストがありません。</div> : visibleTests.map((t, i) => (
+        <div key={testIdOf(t) || i} className="flex flex-col gap-3 px-4 py-3.5 lg:flex-row lg:items-center lg:justify-between" style={{ borderBottom: i < visibleTests.length - 1 ? `1px solid ${T.border}` : "none" }}>
           <div><div className="flex flex-wrap items-center gap-2"><div className="text-sm font-semibold" style={{ color: T.textPrimary }}>{t.title}</div><Badge tone={t.status === "draft" ? "amber" : t.status === "published" ? "green" : "muted"}>{t.status === "draft" ? "下書き" : t.status === "published" ? "公開" : t.status}</Badge>{t.courseId && <Badge tone="cyan">{opsFilter.courses.find(c => c.courseId === t.courseId)?.name || t.courseId}</Badge>}</div><div className="text-xs" style={{ color: T.textMuted }}>{t.q}問 ・ 制限 {t.limit} ・ 自動採点</div></div>
           <div className="flex items-center gap-4">
-            <div className="hidden text-right sm:block"><div className="text-sm font-bold" style={{ color: T.textPrimary }}>{testStats[testIdOf(t)]?.avgScore == null ? "結果なし" : `平均 ${testStats[testIdOf(t)].avgScore}点`}</div><div className="text-xs" style={{ color: T.textMuted }}>提出 {testStats[testIdOf(t)]?.submitted || 0}{opsFilter.targetTrainees.length ? ` / 未受験 ${testStats[testIdOf(t)]?.unsubmitted || 0}` : ""}</div></div>
+            <div className="hidden text-right sm:block"><div className="text-sm font-bold" style={{ color: T.textPrimary }}>{testStats[testIdOf(t)]?.avgScore == null ? "結果なし" : `平均 ${testStats[testIdOf(t)].avgScore}点`}</div><div className="text-xs" style={{ color: T.textMuted }}>提出 {testStats[testIdOf(t)]?.submitted || 0}{opsFilter.targetTrainees.length ? ` / 未受験 ${testStats[testIdOf(t)]?.unsubmitted || 0}` : ""}{testStats[testIdOf(t)]?.needsReview ? ` / 採点確認 ${testStats[testIdOf(t)].needsReview}` : ""}</div></div>
             <div className="flex flex-wrap justify-end gap-1.5">
               {canEditTest(t) && <Btn kind="ghost" size="sm" icon={Pencil} onClick={() => { setEditingTest(t); setDuplicateTest(false); setBuilding(true); }}>編集</Btn>}
               {canEditTest(t) && <Btn kind="ghost" size="sm" icon={Plus} onClick={() => { setEditingTest(t); setDuplicateTest(true); setBuilding(true); }}>複製</Btn>}
@@ -2260,6 +2291,9 @@ function AttendanceManage({ role }) {
   const [monthlyRows, setMonthlyRows] = useState([]);
   const [monthlyLoading, setMonthlyLoading] = useState(false);
   const [monthlyFilter, setMonthlyFilter] = useState("すべて");
+  const [attendanceQuery, setAttendanceQuery] = useState("");
+  const [attendanceStatus, setAttendanceStatus] = useState("すべて");
+  const [attendanceSort, setAttendanceSort] = useState("name");
   const opsFilter = useOpsFilter(true);
   const canEdit = role === "admin" || (role === "instructor" && Array.isArray(opsFilter.selectedCourse?.instructorIds) && opsFilter.selectedCourse.instructorIds.includes(opsFilter.currentUserId));
   function load() {
@@ -2296,7 +2330,25 @@ function AttendanceManage({ role }) {
       setRows(rows.map((r, i) => i === eIdx ? { ...draft } : r)); setEIdx(-1);
     } catch (e) { setErr("保存に失敗しました：" + (e?.message || e)); }
   }
-  const filteredRows = opsFilter.apply(rows);
+  const attendanceMatchesQuery = (row) => {
+    const q = attendanceQuery.trim().toLowerCase();
+    if (!q) return true;
+    return [row.name, nameMap[row.traineeId], row.traineeId, row.s, row.note].some(v => String(v || "").toLowerCase().includes(q));
+  };
+  const attendanceMatchesStatus = (row) => {
+    if (attendanceStatus === "すべて") return true;
+    if (attendanceStatus === "退勤未打刻") return !!row.in && !row.out;
+    if (attendanceStatus === "欠席") return statusKind(row.s) === "absent";
+    if (attendanceStatus === "遅刻") return statusKind(row.s) === "late";
+    if (attendanceStatus === "出勤") return statusKind(row.s) === "present";
+    return true;
+  };
+  const sortAttendanceRows = (items) => items.slice().sort((a, b) => {
+    if (attendanceSort === "status") return String(a.s || "").localeCompare(String(b.s || ""), "ja") || String(nameMap[a.traineeId] || a.name).localeCompare(String(nameMap[b.traineeId] || b.name), "ja");
+    if (attendanceSort === "clockIn") return String(a.in || "99:99").localeCompare(String(b.in || "99:99"));
+    return String(nameMap[a.traineeId] || a.name || "").localeCompare(String(nameMap[b.traineeId] || b.name || ""), "ja");
+  });
+  const filteredRows = sortAttendanceRows(opsFilter.apply(rows).filter(attendanceMatchesQuery).filter(attendanceMatchesStatus));
   const present = filteredRows.filter(r => r.s === "出勤").length, late = filteredRows.filter(r => r.s === "遅刻").length, absent = filteredRows.filter(r => r.s === "欠席").length;
   const monthDates = datesInMonth(month);
   const monthlyAttendance = opsFilter.targetTrainees.map(t => {
@@ -2315,13 +2367,37 @@ function AttendanceManage({ role }) {
       absent: counts.absent,
       missing: Math.max(monthDates.length - registered, 0),
     };
-  }).filter(r => monthlyFilter === "欠席ありのみ" ? r.absent > 0 : monthlyFilter === "未登録ありのみ" ? r.missing > 0 : true);
+  }).filter(r => {
+    const q = attendanceQuery.trim().toLowerCase();
+    const byQuery = !q || [r.name, r.company, r.traineeId].some(v => String(v || "").toLowerCase().includes(q));
+    const byMonthly = monthlyFilter === "欠席ありのみ" ? r.absent > 0 : monthlyFilter === "未登録ありのみ" ? r.missing > 0 : true;
+    const byStatus = attendanceStatus === "すべて" ? true : attendanceStatus === "欠席" ? r.absent > 0 : attendanceStatus === "遅刻" ? r.late > 0 : attendanceStatus === "出勤" ? r.present > 0 : attendanceStatus === "退勤未打刻" ? false : true;
+    return byQuery && byMonthly && byStatus;
+  }).sort((a, b) => {
+    if (attendanceSort === "status") return (b.absent + b.late + b.missing) - (a.absent + a.late + a.missing);
+    if (attendanceSort === "clockIn") return b.missing - a.missing;
+    return String(a.name || "").localeCompare(String(b.name || ""), "ja");
+  });
   return (
     <div>
       <SectionHead title={canEdit ? "勤怠管理" : "勤怠状況"} desc={periodMode === "月次" ? `${month}の勤怠集計` : canEdit ? `${fmtLongDate(date)}の出席状況・修正` : `${fmtLongDate(date)}の自社受講生の出席状況`}
         action={<div className="flex flex-wrap items-center gap-2"><Seg value={periodMode} onChange={setPeriodMode} options={["日次", "月次"]} />{periodMode === "月次" ? <input type="month" value={month} onChange={e => setMonth(e.target.value)} className="rounded-lg px-3 py-2 text-sm outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary, background: "#fff" }} /> : <input type="date" value={date} onChange={e => setDate(e.target.value)} className="rounded-lg px-3 py-2 text-sm outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary, background: "#fff" }} />}<Btn kind="ghost" icon={FileSpreadsheet} onClick={() => exportAttendanceExcel(filteredRows)}>Excelで出力</Btn></div>} />
       {err && <div className="mb-4 rounded-lg px-3 py-2 text-xs" style={{ background: T.dangerSubtle, color: T.danger }}>{err}</div>}
       <OpsFilterPanel filter={opsFilter} summary={periodMode === "月次" ? `表示対象: ${opsFilter.targetTrainees.length}名 / 集計月: ${month}` : `表示対象: ${opsFilter.targetTrainees.length}名 / 勤怠登録: ${filteredRows.length}件`} />
+      <Card className="mb-4 p-4">
+        <div className="grid gap-3 md:grid-cols-[1fr_180px_180px]">
+          <div className="relative">
+            <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2" style={{ color: T.textMuted }} />
+            <input value={attendanceQuery} onChange={e => setAttendanceQuery(e.target.value)} placeholder="受講生名・ID・備考で検索" className="w-full rounded-xl py-2 pl-9 pr-3 text-sm outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary }} />
+          </div>
+          <select value={attendanceStatus} onChange={e => setAttendanceStatus(e.target.value)} className="rounded-xl px-3 py-2 text-sm outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary, background: "#fff" }}>
+            {["すべて", "出勤", "遅刻", "欠席", "退勤未打刻"].map(v => <option key={v}>{v}</option>)}
+          </select>
+          <select value={attendanceSort} onChange={e => setAttendanceSort(e.target.value)} className="rounded-xl px-3 py-2 text-sm outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary, background: "#fff" }}>
+            <option value="name">名前順</option><option value="status">異常が多い順</option><option value="clockIn">出勤時刻順</option>
+          </select>
+        </div>
+      </Card>
       {periodMode === "月次" ? (
         <Card className="overflow-hidden">
           <div className="flex flex-wrap items-center justify-between gap-3 p-4" style={{ borderBottom: `1px solid ${T.border}` }}>
@@ -2715,6 +2791,10 @@ function Reports({ role }) {
   const [monthlyReports, setMonthlyReports] = useState([]);
   const [monthlyLoading, setMonthlyLoading] = useState(false);
   const [monthlyFilter, setMonthlyFilter] = useState("すべて");
+  const [reportQuery, setReportQuery] = useState("");
+  const [reportStatus, setReportStatus] = useState("すべて");
+  const [reportSort, setReportSort] = useState("dateDesc");
+  const [editingReportDate, setEditingReportDate] = useState(todayStr());
   const aiC = useAIDraft();
   const canWrite = role === "trainee";
   const canViewReports = role === "admin" || role === "instructor" || role === "client";
@@ -2755,6 +2835,7 @@ function Reports({ role }) {
             blockers: today.blockers || "",
             tomorrowGoal: today.tomorrowGoal || "",
           });
+          setEditingReportDate(todayStr());
         })
         .catch(() => setSaveErr("日報の読み込みに失敗しました。再ログインをお試しください。"));
     } else if (canViewReports) {
@@ -2786,7 +2867,7 @@ function Reports({ role }) {
     if (!hasAny || saving) return;
     setSaveErr(""); setSaving(true);
     try {
-      const date = todayStr();
+      const date = editingReportDate || todayStr();
       await apiPut("/reports/me", {
         date,
         morningGoal: draft.morningGoal,
@@ -2813,6 +2894,7 @@ function Reports({ role }) {
         blockers: today.blockers || "",
         tomorrowGoal: today.tomorrowGoal || "",
       } : { morningGoal: "", goalItems: [], learned: "", question: "", nextday: "", reflection: "", blockers: "", tomorrowGoal: "" });
+      setEditingReportDate(date);
       setOpen(date);
     } catch (e) {
       setSaveErr("保存に失敗しました：" + (e?.message || e));
@@ -2868,6 +2950,27 @@ function Reports({ role }) {
       const needsCheck = !!(r?.question || r?.blockers);
       return { trainee: t, report: r, hasComment, needsCheck };
     }) : [];
+  const reportRowMatchesQuery = (row) => {
+    const q = reportQuery.trim().toLowerCase();
+    if (!q) return true;
+    const t = row.trainee || {};
+    const r = row.report || {};
+    return [t.name, t.email, t.userId, companyNameById(t.company || r.org || ""), courseNameOfTrainee(t), r.learned, r.question, r.blockers].some(v => String(v || "").toLowerCase().includes(q));
+  };
+  const reportRowMatchesStatus = (row) => {
+    if (reportStatus === "すべて") return true;
+    if (reportStatus === "未提出") return !row.report;
+    if (reportStatus === "未コメント") return !!row.report && !row.hasComment;
+    if (reportStatus === "コメント済み") return !!row.report && row.hasComment;
+    if (reportStatus === "要確認") return !!row.needsCheck || !row.report;
+    return true;
+  };
+  const sortReportRows = (items) => items.slice().sort((a, b) => {
+    if (reportSort === "name") return String(a.trainee?.name || "").localeCompare(String(b.trainee?.name || ""), "ja");
+    if (reportSort === "status") return Number(!b.report) - Number(!a.report) || Number(!b.hasComment) - Number(!a.hasComment);
+    return String(reportUpdatedAt(b.report || {})).localeCompare(String(reportUpdatedAt(a.report || {})));
+  });
+  const displayDailyReportRows = sortReportRows(dailyReportRows.filter(reportRowMatchesQuery).filter(reportRowMatchesStatus));
   const dailySubmitted = dailyReportRows.filter(r => r.report).length;
   const dailyMissing = dailyReportRows.filter(r => !r.report).length;
   const dailyUncommented = dailyReportRows.filter(r => r.report && !r.hasComment).length;
@@ -2875,20 +2978,75 @@ function Reports({ role }) {
   const reportMonthDates = datesInMonth(month);
   const monthlyReportRows = opsFilter.targetTrainees.map(t => {
     const submitted = monthlyReports.filter(r => r.traineeId === t.userId).length;
+    const commented = monthlyReports.filter(r => r.traineeId === t.userId && (r.comment || (Array.isArray(r.comments) && r.comments.length))).length;
     return {
       traineeId: t.userId,
       name: t.name || nameMap[t.userId] || fallbackName(t.userId),
       company: companyNameById(t.company) || "未登録",
       submitted,
+      commented,
       missing: Math.max(reportMonthDates.length - submitted, 0),
     };
-  }).filter(r => monthlyFilter === "未提出ありのみ" ? r.missing > 0 : true);
+  }).filter(r => {
+    const q = reportQuery.trim().toLowerCase();
+    const byQuery = !q || [r.name, r.company, r.traineeId].some(v => String(v || "").toLowerCase().includes(q));
+    const byMonthly = monthlyFilter === "未提出ありのみ" ? r.missing > 0 : true;
+    const byStatus = reportStatus === "すべて" ? true : reportStatus === "未提出" ? r.missing > 0 : reportStatus === "未コメント" ? r.submitted > r.commented : reportStatus === "コメント済み" ? r.commented > 0 : true;
+    return byQuery && byMonthly && byStatus;
+  }).sort((a, b) => {
+    if (reportSort === "name") return String(a.name || "").localeCompare(String(b.name || ""), "ja");
+    if (reportSort === "status") return (b.missing + Math.max(b.submitted - b.commented, 0)) - (a.missing + Math.max(a.submitted - a.commented, 0));
+    return b.submitted - a.submitted;
+  });
+  const traineeMonthDates = datesInMonth(month);
+  const reportsByDate = useMemo(() => Object.fromEntries(reports.map(r => [r.rawDate, r])), [reports]);
+  const traineeReportRows = traineeMonthDates.map(d => {
+    const r = reportsByDate[d];
+    return { date: d, report: r, hasComment: !!(r?.comments?.length || r?.rawData?.comment || r?.comment) };
+  }).filter(row => {
+    const q = reportQuery.trim().toLowerCase();
+    const byQuery = !q || [row.date, row.report?.learned, row.report?.question, row.report?.blockers].some(v => String(v || "").toLowerCase().includes(q));
+    const byStatus = reportStatus === "すべて" ? true : reportStatus === "未提出" ? !row.report : reportStatus === "コメント済み" ? row.hasComment : reportStatus === "未コメント" ? !!row.report && !row.hasComment : true;
+    return byQuery && byStatus;
+  }).sort((a, b) => reportSort === "dateAsc" ? a.date.localeCompare(b.date) : b.date.localeCompare(a.date));
+  function editReport(row) {
+    const r = row.report;
+    setEditingReportDate(row.date);
+    setDraft(r ? {
+      morningGoal: r.morningGoal || "",
+      goalItems: r.goalItems || [],
+      learned: r.learned || "",
+      question: r.question || "",
+      nextday: r.nextday || "",
+      reflection: r.reflection || "",
+      blockers: r.blockers || "",
+      tomorrowGoal: r.tomorrowGoal || "",
+    } : { morningGoal: "", goalItems: [], learned: "", question: "", nextday: "", reflection: "", blockers: "", tomorrowGoal: "" });
+    setOpen(row.date);
+  }
   return (
     <div>
       <SectionHead title="日報" desc={canWrite ? "今日の学びを記録し、講師からフィードバックを受け取ります" : canComment ? "コース・企業・日付で日報を確認し、フィードバックします" : "自社受講生の日報を閲覧できます"}
         action={canViewReports ? <div className="flex flex-wrap items-center gap-2"><Seg value={periodMode} onChange={setPeriodMode} options={["日次", "月次"]} /><span className="text-xs font-semibold" style={{ color: T.textMuted }}>{periodMode === "月次" ? "対象月" : "日報確認日"}</span>{periodMode === "月次" ? <input type="month" value={month} onChange={e => setMonth(e.target.value)} className="rounded-lg px-3 py-2 text-sm outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary, background: "#fff" }} /> : <input type="date" value={date} onChange={e => setDate(e.target.value)} className="rounded-lg px-3 py-2 text-sm outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary, background: "#fff" }} />}</div> : null} />
       {saveErr && !canWrite && <div className="mb-4 rounded-lg px-3 py-2 text-xs" style={{ background: T.dangerSubtle, color: T.danger }}>{saveErr}</div>}
       {canViewReports && <OpsFilterPanel filter={opsFilter} summary={periodMode === "月次" ? `表示対象: ${opsFilter.targetTrainees.length}名 / 集計月: ${month}` : `表示対象: ${opsFilter.targetTrainees.length}名 / 日報保存: ${visibleReports.length}件`} />}
+      {(canViewReports || canWrite) && (
+        <Card className="mb-4 p-4">
+          <div className="grid gap-3 md:grid-cols-[1fr_170px_170px_auto]">
+            <div className="relative">
+              <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2" style={{ color: T.textMuted }} />
+              <input value={reportQuery} onChange={e => setReportQuery(e.target.value)} placeholder={canWrite ? "日付・本文で検索" : "受講生名・企業・コース・本文で検索"} className="w-full rounded-xl py-2 pl-9 pr-3 text-sm outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary }} />
+            </div>
+            <select value={reportStatus} onChange={e => setReportStatus(e.target.value)} className="rounded-xl px-3 py-2 text-sm outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary, background: "#fff" }}>
+              {["すべて", "未提出", "未コメント", "コメント済み", ...(canViewReports ? ["要確認"] : [])].map(v => <option key={v}>{v}</option>)}
+            </select>
+            <select value={reportSort} onChange={e => setReportSort(e.target.value)} className="rounded-xl px-3 py-2 text-sm outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary, background: "#fff" }}>
+              {canWrite ? <><option value="dateDesc">新しい日付順</option><option value="dateAsc">古い日付順</option></> : <><option value="dateDesc">更新が新しい順</option><option value="status">未処理優先</option><option value="name">名前順</option></>}
+            </select>
+            {canWrite && <input type="month" value={month} onChange={e => setMonth(e.target.value)} className="rounded-xl px-3 py-2 text-sm outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary, background: "#fff" }} />}
+          </div>
+        </Card>
+      )}
       {canViewReports && periodMode === "日次" && (
         <Card className="mb-5 overflow-hidden">
           <div className="flex flex-wrap items-center justify-between gap-3 p-4" style={{ borderBottom: `1px solid ${T.border}` }}>
@@ -2906,7 +3064,7 @@ function Reports({ role }) {
               <div className="grid grid-cols-12 gap-3 px-4 py-2.5 text-xs font-semibold" style={{ background: T.bgBase, color: T.textMuted }}>
                 <div className="col-span-3">受講生</div><div className="col-span-2">企業</div><div className="col-span-2">コース</div><div>提出</div><div>コメント</div><div className="col-span-2">提出日時</div><div>操作</div>
               </div>
-              {dailyReportRows.length === 0 ? <div className="px-4 py-8 text-center text-sm" style={{ color: T.textMuted }}>表示対象の受講生がいません。</div> : dailyReportRows.map(row => {
+              {displayDailyReportRows.length === 0 ? <div className="px-4 py-8 text-center text-sm" style={{ color: T.textMuted }}>表示対象の受講生がいません。</div> : displayDailyReportRows.map(row => {
                 const t = row.trainee;
                 const r = row.report;
                 const rowId = t.userId || r?.traineeId;
@@ -2935,13 +3093,13 @@ function Reports({ role }) {
           {monthlyLoading ? <div className="px-4 py-8 text-center text-sm" style={{ color: T.textMuted }}>月次集計中...</div> : (
             <div className="overflow-x-auto">
               <div style={{ minWidth: 560 }}>
-                <div className="grid grid-cols-4 gap-3 px-4 py-2.5 text-xs font-semibold" style={{ background: T.bgBase, color: T.textMuted }}>
-                  <div className="col-span-2">受講生</div><div>提出数</div><div>未提出数</div>
+                <div className="grid grid-cols-5 gap-3 px-4 py-2.5 text-xs font-semibold" style={{ background: T.bgBase, color: T.textMuted }}>
+                  <div className="col-span-2">受講生</div><div>提出数</div><div>コメント済み</div><div>未提出数</div>
                 </div>
                 {monthlyReportRows.length === 0 ? <div className="px-4 py-8 text-center text-sm" style={{ color: T.textMuted }}>該当データがありません</div> : monthlyReportRows.map(r => (
-                  <div key={r.traineeId} className="grid grid-cols-4 gap-3 px-4 py-3 text-sm" style={{ borderTop: `1px solid ${T.border}`, color: T.textPrimary }}>
+                  <div key={r.traineeId} className="grid grid-cols-5 gap-3 px-4 py-3 text-sm" style={{ borderTop: `1px solid ${T.border}`, color: T.textPrimary }}>
                     <div className="col-span-2 flex items-center gap-2"><Avatar name={r.name} size={28} /><div className="min-w-0"><div className="truncate font-semibold">{r.name}</div><div className="truncate text-xs" style={{ color: T.textMuted }}>{r.company}</div></div></div>
-                    <div><Badge tone="green">{r.submitted}件</Badge></div><div><Badge tone={r.missing ? "amber" : "green"}>{r.missing}件</Badge></div>
+                    <div><Badge tone="green">{r.submitted}件</Badge></div><div><Badge tone={r.commented ? "cyan" : "muted"}>{r.commented}件</Badge></div><div><Badge tone={r.missing ? "amber" : "green"}>{r.missing}件</Badge></div>
                   </div>
                 ))}
               </div>
@@ -2950,7 +3108,7 @@ function Reports({ role }) {
         </Card>
       ) : (<>
       {canWrite && <Card className="mb-4 p-5">
-        <div className="mb-3 flex items-center justify-between gap-3"><div><h3 className="font-bold" style={{ color: T.textPrimary }}>朝: 今日の目標</h3><p className="text-xs" style={{ color: T.textMuted }}>朝だけでも、途中でも保存できます。</p></div><Btn kind="soft" size="sm" icon={Plus} onClick={addGoalItem}>目標を追加</Btn></div>
+        <div className="mb-3 flex flex-wrap items-center justify-between gap-3"><div><h3 className="font-bold" style={{ color: T.textPrimary }}>朝: 目標</h3><p className="text-xs" style={{ color: T.textMuted }}>対象日を選んで、朝だけでも途中でも保存できます。</p></div><div className="flex items-center gap-2"><input type="date" value={editingReportDate} onChange={e => editReport({ date: e.target.value, report: reportsByDate[e.target.value] })} className="rounded-lg px-3 py-2 text-sm outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary, background: "#fff" }} /><Btn kind="soft" size="sm" icon={Plus} onClick={addGoalItem}>目標を追加</Btn></div></div>
         <Field label="今日の大きな目標"><input value={draft.morningGoal} onChange={e => setDraft({ ...draft, morningGoal: e.target.value })} placeholder="例）配列とループを使った処理を自力で書けるようにする" className={fieldCls} style={{ border: `1px solid ${T.border}`, color: T.textPrimary, background: "#fff" }} /></Field>
         <div className="mt-3 space-y-2">
           {draft.goalItems.length === 0 && <div className="rounded-lg px-3 py-2 text-sm" style={adminPanelStyle}>目標リストはまだありません。</div>}
@@ -2962,10 +3120,10 @@ function Reports({ role }) {
             </div>
           ))}
         </div>
-        <div className="mt-4 flex justify-end"><Btn icon={Check} onClick={submit}>{saving ? "保存中..." : "朝の目標を保存"}</Btn></div>
+        <div className="mt-4 flex justify-end"><Btn icon={Check} onClick={submit}>{saving ? "保存中..." : "目標を保存"}</Btn></div>
       </Card>}
       {canWrite && <Card className="mb-6 p-5">
-        <div className="mb-4 flex items-center justify-between"><h3 className="font-bold" style={{ color: T.textPrimary }}>本日の日報</h3><span className="text-xs" style={{ color: T.textMuted }}>自分の言葉で記入しましょう</span></div>
+        <div className="mb-4 flex items-center justify-between"><h3 className="font-bold" style={{ color: T.textPrimary }}>{editingReportDate.replace(/-/g, "/")} の日報</h3><span className="text-xs" style={{ color: T.textMuted }}>自分の言葉で記入しましょう</span></div>
         <div className="mb-4 rounded-xl px-3 py-2 text-xs" style={adminPanelStyle}>保存後も同じ日の日報を再編集できます。朝の目標だけ、夕方の振り返りだけでも保存できます。</div>
         <div className="space-y-4">{[["learned", "今日学んだこと", "理解できたこと・気づき"], ["question", "疑問・つまずき", "うまく掴めなかった点"], ["nextday", "明日に向けて", "次に取り組みたいこと"]].map(([k, lab, ph]) => (
           <div key={k}><label className="mb-1 block text-sm font-semibold" style={{ color: T.textPrimary }}>{lab}</label>
@@ -2982,7 +3140,28 @@ function Reports({ role }) {
           ))}
         </div>
         <div className="mt-4 flex items-center justify-end gap-3">{saveErr && <span className="text-xs" style={{ color: T.danger }}>{saveErr}</span>}<Btn icon={Send} onClick={submit}>{saving ? "保存中…" : "日報を保存"}</Btn></div></Card>}
-      <div className="space-y-4">{visibleReports.length === 0 && !canWrite ? <Card><div className="px-4 py-8 text-center text-sm" style={{ color: T.textMuted }}>該当データがありません</div></Card> : visibleReports.map(r => (
+      {canWrite && <Card className="mb-6 overflow-hidden">
+        <div className="flex flex-wrap items-center justify-between gap-3 p-4" style={{ borderBottom: `1px solid ${T.border}` }}>
+          <div><h3 className="font-bold" style={{ color: T.textPrimary }}>月別の日報</h3><p className="text-xs" style={{ color: T.textMuted }}>提出済み・未提出・コメント有無を確認し、対象日を選んで編集できます。</p></div>
+          <Badge tone="muted">{month.replace("-", "/")}</Badge>
+        </div>
+        <div className="divide-y" style={{ borderColor: T.border }}>
+          {traineeReportRows.length === 0 ? <div className="px-4 py-8 text-center text-sm" style={{ color: T.textMuted }}>該当データがありません</div> : traineeReportRows.map(row => (
+            <div key={row.date} className="flex flex-wrap items-center justify-between gap-3 px-4 py-3 text-sm">
+              <div className="min-w-0">
+                <div className="font-semibold" style={{ color: T.textPrimary }}>{row.date.replace(/-/g, "/")}</div>
+                <div className="mt-0.5 text-xs" style={{ color: T.textMuted }}>{row.report ? reportSavedLabel(row.report) : "未提出"}</div>
+              </div>
+              <div className="flex flex-wrap items-center gap-2">
+                <Badge tone={row.report ? "green" : "amber"}>{row.report ? "提出済み" : "未提出"}</Badge>
+                <Badge tone={row.hasComment ? "cyan" : "muted"}>{row.hasComment ? "コメントあり" : "コメントなし"}</Badge>
+                <Btn size="sm" kind="ghost" icon={Pencil} onClick={() => editReport(row)}>{row.report ? "編集" : "作成"}</Btn>
+              </div>
+            </div>
+          ))}
+        </div>
+      </Card>}
+      {!canWrite && <div className="space-y-4">{visibleReports.length === 0 ? <Card><div className="px-4 py-8 text-center text-sm" style={{ color: T.textMuted }}>該当データがありません</div></Card> : visibleReports.map(r => (
         <Card key={r.id} className="overflow-hidden">
           <button onClick={() => setOpen(open === r.id ? null : r.id)} className="flex w-full items-center justify-between px-5 py-4 text-left">
             <div className="flex items-center gap-3"><Avatar name={nameMap[r.traineeId] || r.name} />
@@ -3017,7 +3196,7 @@ function Reports({ role }) {
                 <div className="flex gap-2"><input value={cText[r.id] || ""} onChange={e => setCText({ ...cText, [r.id]: e.target.value })} placeholder="コメントを入力…" onKeyDown={e => e.key === "Enter" && addC(r.id)} className="flex-1 rounded-xl px-3 py-2.5 text-sm outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary }} /><Btn icon={Send} onClick={() => addC(r.id)}>送信</Btn></div></div>}
             </div></div>}
         </Card>
-      ))}</div>
+      ))}</div>}
       </>)}
     </div>
   );

@@ -445,14 +445,14 @@ async function loadRoleNotifications(role) {
     const attendanceMissing = trainees.filter(t => !attById[traineeIdOf(t)]);
     const absent = trainees.filter(t => statusKind(attById[traineeIdOf(t)]?.status) === "absent");
     const follow = reports.filter(r => r.question || r.blockers);
-    if (reportMissing.length) add(result, { id: notifId(role, "reports-missing", date), severity: "high", category: "日報", title: `日報未保存の受講生が${reportMissing.length}名います`, desc: reportMissing.slice(0, 3).map(userName).join("、"), to: "reports" });
-    if (uncommented.length) add(result, { id: notifId(role, "uncommented", date), severity: "medium", category: "コメント", title: `未コメントの日報が${uncommented.length}件あります`, desc: "質問や困りごとがない日報も確認対象です。", to: "reports" });
-    if (attendanceMissing.length) add(result, { id: notifId(role, "attendance-missing", date), severity: "medium", category: "勤怠", title: `勤怠未登録の受講生が${attendanceMissing.length}名います`, desc: attendanceMissing.slice(0, 3).map(userName).join("、"), to: "attendance" });
-    if (absent.length) add(result, { id: notifId(role, "absent", date), severity: "high", category: "勤怠", title: `欠席者が${absent.length}名います`, desc: absent.slice(0, 3).map(userName).join("、"), to: "attendance" });
-    if (follow.length) add(result, { id: notifId(role, "follow", date), severity: "high", category: "要フォロー", title: `要フォローの日報が${follow.length}件あります`, desc: "質問または困ったことが記録されています。", to: "reports" });
+    if (reportMissing.length) add(result, { id: notifId(role, "reports-missing", date), severity: "high", category: "日報", title: `日報未保存の受講生が${reportMissing.length}名います`, desc: reportMissing.slice(0, 3).map(userName).join("、"), to: "reports", targetUrl: "/training/reports" });
+    if (uncommented.length) add(result, { id: notifId(role, "uncommented", date), severity: "medium", category: "コメント", title: `未コメントの日報が${uncommented.length}件あります`, desc: "質問や困りごとがない日報も確認対象です。", to: "reports", targetUrl: "/training/reports" });
+    if (attendanceMissing.length) add(result, { id: notifId(role, "attendance-missing", date), severity: "medium", category: "勤怠", title: `勤怠未登録の受講生が${attendanceMissing.length}名います`, desc: attendanceMissing.slice(0, 3).map(userName).join("、"), to: "attendance", targetUrl: "/training/attendance" });
+    if (absent.length) add(result, { id: notifId(role, "absent", date), severity: "high", category: "勤怠", title: `欠席者が${absent.length}名います`, desc: absent.slice(0, 3).map(userName).join("、"), to: "attendance", targetUrl: "/training/attendance" });
+    if (follow.length) add(result, { id: notifId(role, "follow", date), severity: "high", category: "要フォロー", title: `要フォローの日報が${follow.length}件あります`, desc: "質問または困ったことが記録されています。", to: "reports", targetUrl: "/training/reports" });
     const visibleTests = (Array.isArray(tests) ? tests : []).filter(t => (t.status || "published") !== "archived").slice(0, 8);
     const lowRows = (await Promise.all(visibleTests.map(t => apiGet(`/tests/${testIdOf(t)}/results`).then(rows => (Array.isArray(rows) ? rows : []).filter(r => ids.has(r.traineeId || r.userId) && Number(r.score) < 70)).catch(() => [])))).flat();
-    if (lowRows.length) add(result, { id: notifId(role, "low-score", date), severity: "high", category: "テスト", title: `低得点のテスト結果が${lowRows.length}件あります`, desc: "70点未満の結果を確認してください。", to: "tests" });
+    if (lowRows.length) add(result, { id: notifId(role, "low-score", date), severity: "high", category: "テスト", title: `低得点のテスト結果が${lowRows.length}件あります`, desc: "70点未満の結果を確認してください。", to: "tests", targetUrl: "/training/tests" });
     return result;
   }
 
@@ -471,14 +471,14 @@ async function loadRoleNotifications(role) {
     const attById = Object.fromEntries(attendanceToday.map(a => [a.traineeId || a.userId, a]));
     const reportMissing = members.filter(t => !reportIds.has(traineeIdOf(t)));
     const absent = members.filter(t => statusKind(attById[traineeIdOf(t)]?.status) === "absent");
-    if (reportMissing.length) add(result, { id: notifId(role, "reports-missing", date), severity: "high", category: "日報", title: `自社受講生の日報未保存が${reportMissing.length}名います`, desc: reportMissing.slice(0, 3).map(userName).join("、"), to: "reports" });
-    if (absent.length) add(result, { id: notifId(role, "absent", date), severity: "high", category: "勤怠", title: `自社受講生に欠席者が${absent.length}名います`, desc: absent.slice(0, 3).map(userName).join("、"), to: "attendance" });
+    if (reportMissing.length) add(result, { id: notifId(role, "reports-missing", date), severity: "high", category: "日報", title: `自社受講生の日報未保存が${reportMissing.length}名います`, desc: reportMissing.slice(0, 3).map(userName).join("、"), to: "reports", targetUrl: "/training/reports" });
+    if (absent.length) add(result, { id: notifId(role, "absent", date), severity: "high", category: "勤怠", title: `自社受講生に欠席者が${absent.length}名います`, desc: absent.slice(0, 3).map(userName).join("、"), to: "attendance", targetUrl: "/training/attendance" });
     const visibleTests = (Array.isArray(tests) ? tests : []).filter(t => (t.status || "published") !== "archived").slice(0, 8);
     const resultPairs = await Promise.all(visibleTests.map(t => apiGet(`/tests/${testIdOf(t)}/results`).then(rows => [testIdOf(t), Array.isArray(rows) ? rows : []]).catch(() => [testIdOf(t), []])));
     const resultMap = Object.fromEntries(resultPairs);
     const missingTests = visibleTests.length ? members.filter(t => visibleTests.some(test => !(resultMap[testIdOf(test)] || []).some(r => (r.traineeId || r.userId) === traineeIdOf(t)))) : [];
     const lowScores = visibleTests.flatMap(test => (resultMap[testIdOf(test)] || []).filter(r => ids.has(r.traineeId || r.userId) && Number(r.score) < 70));
-    if (missingTests.length) add(result, { id: notifId(role, "tests-missing", date), severity: "medium", category: "テスト", title: `テスト未受験の受講生が${missingTests.length}名います`, desc: missingTests.slice(0, 3).map(userName).join("、"), to: "tests" });
+    if (missingTests.length) add(result, { id: notifId(role, "tests-missing", date), severity: "medium", category: "テスト", title: `テスト未受験の受講生が${missingTests.length}名います`, desc: missingTests.slice(0, 3).map(userName).join("、"), to: "tests", targetUrl: "/training/tests" });
     if (lowScores.length) add(result, { id: notifId(role, "low-score", date), severity: "high", category: "成長確認", title: `理解度低下の可能性が${lowScores.length}件あります`, desc: "70点未満のテスト結果があります。", to: { product: "talent", subView: "tl_skills" } });
     if (members.length) add(result, { id: notifId(role, "matching", members.length), severity: "low", category: "案件候補", title: `案件候補の確認対象が${members.length}名います`, desc: "スキルシートと案件マッチングで研修後活用を確認できます。", to: { product: "matching", subView: "mt_matching" } });
     return result;
@@ -498,14 +498,14 @@ async function loadRoleNotifications(role) {
   const reportMissing = trainees.filter(t => !reportIds.has(t.userId));
   const attendanceMissing = trainees.filter(t => !attById[t.userId]);
   const absent = trainees.filter(t => statusKind(attById[t.userId]?.status) === "absent");
-  if (reportMissing.length) add(result, { id: notifId(role, "reports-missing", date), severity: "high", category: "日報", title: `本日の日報未保存が${reportMissing.length}件あります`, desc: "日報管理画面で未保存者を確認してください。", to: "reports" });
-  if (attendanceMissing.length) add(result, { id: notifId(role, "attendance-missing", date), severity: "medium", category: "勤怠", title: `勤怠未登録が${attendanceMissing.length}件あります`, desc: "勤怠管理画面で未登録者を確認してください。", to: "attendance" });
-  if (absent.length) add(result, { id: notifId(role, "absent", date), severity: "high", category: "勤怠", title: `欠席者が${absent.length}名います`, desc: absent.slice(0, 3).map(userName).join("、"), to: "attendance" });
+  if (reportMissing.length) add(result, { id: notifId(role, "reports-missing", date), severity: "high", category: "日報", title: `本日の日報未保存が${reportMissing.length}件あります`, desc: "日報管理画面で未保存者を確認してください。", to: "reports", targetUrl: "/training/reports" });
+  if (attendanceMissing.length) add(result, { id: notifId(role, "attendance-missing", date), severity: "medium", category: "勤怠", title: `勤怠未登録が${attendanceMissing.length}件あります`, desc: "勤怠管理画面で未登録者を確認してください。", to: "attendance", targetUrl: "/training/attendance" });
+  if (absent.length) add(result, { id: notifId(role, "absent", date), severity: "high", category: "勤怠", title: `欠席者が${absent.length}名います`, desc: absent.slice(0, 3).map(userName).join("、"), to: "attendance", targetUrl: "/training/attendance" });
   const published = (Array.isArray(tests) ? tests : []).filter(t => (t.status || "published") === "published");
-  if (published.length) add(result, { id: notifId(role, "published-tests", published.length), severity: "low", category: "テスト", title: `公開中テストが${published.length}件あります`, desc: "受験状況と結果を確認できます。", to: "tests" });
+  if (published.length) add(result, { id: notifId(role, "published-tests", published.length), severity: "low", category: "テスト", title: `公開中テストが${published.length}件あります`, desc: "受験状況と結果を確認できます。", to: "tests", targetUrl: "/training/tests" });
   const coursePairs = await Promise.all((Array.isArray(courses) ? courses : []).slice(0, 20).map(c => apiGet(`/courses/${c.courseId}/trainees`).then(rows => [c, Array.isArray(rows) ? rows : []]).catch(() => [c, []])));
   const courseAlerts = coursePairs.filter(([, rows]) => rows.some(t => traineeIds.has(t.userId) && (!reportIds.has(t.userId) || !attById[t.userId])));
-  if (courseAlerts.length) add(result, { id: notifId(role, "course-alerts", date), severity: "high", category: "コース別", title: `要確認コースが${courseAlerts.length}件あります`, desc: courseAlerts.slice(0, 3).map(([c]) => c.name).join("、"), to: "courses" });
+  if (courseAlerts.length) add(result, { id: notifId(role, "course-alerts", date), severity: "high", category: "コース別", title: `要確認コースが${courseAlerts.length}件あります`, desc: courseAlerts.slice(0, 3).map(([c]) => c.name).join("、"), to: "courses", targetUrl: "/training/courses" });
   return result;
 }
 

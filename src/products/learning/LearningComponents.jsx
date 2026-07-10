@@ -97,8 +97,11 @@ function LearningCalendarHeatmap({ lrn, themeColor = PRODUCT_ACCENT.learning.acc
         ))}
       </div>
       <div className="mt-3 flex items-center justify-between text-[11px]" style={{ color: C.faint }}>
-        <span>少ない</span><span>多い</span>
+        <span>学習なし</span><span>学習時間が多い</span>
       </div>
+      <p className="mt-2 text-[11px] leading-relaxed" style={{ color: C.muted }}>
+        色が濃い日ほど学習時間が長いことを表します。実学習イベントがない日は薄い表示です。
+      </p>
     </Card>
   );
 }
