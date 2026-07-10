@@ -56,13 +56,16 @@ function exportClientSkillSheetsExcel(rows) {
       氏名: r.name || "氏名未設定",
       メール: r.email || "",
       所属コース: r.courseName || r.course || "未登録",
-      状態: "詳細API追加予定",
+      保有スキル: (r.portfolio?.skills || []).map(s => s?.name || String(s)).join("、"),
+      強み: (r.portfolio?.strengths || []).join("、"),
+      自己PR: r.portfolio?.selfPR || "",
     }));
     const ws = XLSX.utils.json_to_sheet(data);
-    ws["!cols"] = [{ wch: 18 }, { wch: 28 }, { wch: 24 }, { wch: 18 }];
+    ws["!cols"] = [{ wch: 18 }, { wch: 28 }, { wch: 24 }, { wch: 40 }, { wch: 30 }, { wch: 50 }];
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, "スキルシート一覧");
-    XLSX.writeFile(wb, "自社受講生_スキルシート一覧.xlsx");
+    const stamp = new Date().toISOString().slice(0, 10).replace(/-/g, "");
+    XLSX.writeFile(wb, `自社受講生_スキルシート一覧_${stamp}.xlsx`);
   } catch (e) { console.error(e); }
 }
 

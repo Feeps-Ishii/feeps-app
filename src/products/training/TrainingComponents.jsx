@@ -2399,7 +2399,7 @@ function AttendanceManage({ role }) {
     return {
       traineeId: t.userId,
       name: t.name || nameMap[t.userId] || fallbackName(t.userId),
-      company: t.company || "未登録",
+      company: opsFilter.companies.find(c => c.companyId === t.company)?.name || t.company || "未登録",
       present: counts.present,
       late: counts.late,
       absent: counts.absent,
@@ -2419,7 +2419,22 @@ function AttendanceManage({ role }) {
   return (
     <div>
       <SectionHead title={canEdit ? "勤怠管理" : "勤怠状況"} desc={periodMode === "月次" ? `${month}の勤怠集計` : `${fmtLongDate(date)}の${role === "client" ? "自社" : "担当"}受講生の出席状況${canEdit ? "・修正" : ""}`}
-        action={<div className="flex flex-wrap items-center gap-2"><Seg value={periodMode} onChange={setPeriodMode} options={["日次", "月次"]} />{periodMode === "月次" ? <input type="month" value={month} onChange={e => setMonth(e.target.value)} className="rounded-lg px-3 py-2 text-sm outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary, background: "#fff" }} /> : <input type="date" value={date} onChange={e => setDate(e.target.value)} className="rounded-lg px-3 py-2 text-sm outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary, background: "#fff" }} />}<Btn kind="ghost" icon={FileSpreadsheet} onClick={() => exportAttendanceExcel(filteredRows, date)}>Excelで出力</Btn></div>} />
+        action={<div className="flex flex-wrap items-center gap-2"><Seg value={periodMode} onChange={setPeriodMode} options={["日次", "月次"]} />{periodMode === "月次" ? <input type="month" value={month} onChange={e => setMonth(e.target.value)} className="rounded-lg px-3 py-2 text-sm outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary, background: "#fff" }} /> : <input type="date" value={date} onChange={e => setDate(e.target.value)} className="rounded-lg px-3 py-2 text-sm outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary, background: "#fff" }} />}<Btn kind="ghost" icon={FileSpreadsheet} onClick={() => {
+          if (periodMode === "月次") {
+            const companyNameOf = id => opsFilter.companies.find(c => c.companyId === id)?.name || "";
+            const rows = monthlyRows
+              .filter(r => opsFilter.targetIds.has(r.traineeId))
+              .slice()
+              .sort((a, b) => String(a.date || "").localeCompare(String(b.date || "")))
+              .map(r => {
+                const t = opsFilter.targetTrainees.find(x => x.userId === r.traineeId) || {};
+                return { date: r.date, name: t.name || nameMap[r.traineeId] || fallbackName(r.traineeId), org: companyNameOf(t.company) || t.company || "", in: r.clockIn || "", out: r.clockOut || "", s: r.status || "", note: r.note || "" };
+              });
+            exportAttendanceExcel(rows, month);
+          } else {
+            exportAttendanceExcel(filteredRows, date);
+          }
+        }}>Excelで出力</Btn></div>} />
       {err && <div className="mb-4 rounded-lg px-3 py-2 text-xs" style={{ background: T.dangerSubtle, color: T.danger }}>{err}</div>}
       <OpsFilterPanel filter={opsFilter} summary={periodMode === "月次" ? `表示対象: ${opsFilter.targetTrainees.length}名 / 集計月: ${month}` : `表示対象: ${opsFilter.targetTrainees.length}名 / 勤怠登録: ${registeredRows.length}件`} />
       <Card className="mb-4 p-4">
@@ -4054,6 +4069,9 @@ function ClientHome({ openKarte, go }) {
     if (!scores.length) return false;
     return Math.round(scores.reduce((s, n) => s + n, 0) / scores.length) < 70;
   });
+  const clientTodayComments = clientReportsForToday
+    .flatMap(r => normalizeReportComments(r).slice(-1).map(c => ({ ...c, traineeId: r.traineeId || r.userId, traineeName: (clientTrainees.find(t => (t.userId || t.id) === (r.traineeId || r.userId))?.name) || "受講生" })))
+    .slice(0, 3);
   const clientFollowRows = [
     ...clientAttendanceMissing.map(t => ({ trainee: t, reason: "勤怠未登録", tone: "amber" })),
     ...clientAbsent.map(t => ({ trainee: t, reason: "欠席", tone: "red" })),
@@ -4083,7 +4101,7 @@ function ClientHome({ openKarte, go }) {
         <Stat icon={Clock} label="勤怠未登録" value={`${clientAttendanceMissing.length}名`} tone={clientAttendanceMissing.length ? "amber" : "green"} />
         <Stat icon={ClipboardCheck} label="テスト未受験" value={clientTests.length ? `${clientTestMissing.length}名` : "データなし"} tone={clientTestMissing.length ? "amber" : "muted"} />
         <Stat icon={Gauge} label="理解度低下" value={clientTests.length ? `${clientLowScores.length}名` : "データなし"} tone={clientLowScores.length ? "red" : "muted"} />
-        <Stat icon={Briefcase} label="案件候補" value={`${clientTrainees.length}名`} tone="cyan" sub="スキルシート確認対象" />
+        <Stat icon={NotebookPen} label="日報未保存" value={`${clientReportMissing.length}名`} tone={clientReportMissing.length ? "amber" : "green"} />
       </div>
       <div className="mt-6 grid gap-4 lg:grid-cols-3">
         <Card className="p-5">
@@ -4105,9 +4123,16 @@ function ClientHome({ openKarte, go }) {
           ))}</div> : <div className="rounded-xl p-3 text-sm" style={adminPanelStyle}>今日の要フォロー者はありません。</div>}
         </Card>
         <Card className="p-5">
-          <div className="mb-2 flex items-center gap-2"><MessageSquare size={16} style={{ color: T.accent }} /><h3 className="font-bold" style={{ color: T.textPrimary }}>企業コメント</h3></div>
-          <p className="text-sm leading-relaxed" style={{ color: T.textMuted }}>企業担当者から講師・Feeps運用担当へ共有するコメント欄は今後追加予定です。</p>
-          <div className="mt-3 flex flex-wrap gap-2"><Btn size="sm" kind="ghost" icon={Briefcase} onClick={() => go && go("matching")}>案件マッチング</Btn><Btn size="sm" kind="soft" icon={MapPin} onClick={() => go && go("placement")}>現場参画状況</Btn></div>
+          <div className="mb-2 flex items-center gap-2"><MessageSquare size={16} style={{ color: T.accent }} /><h3 className="font-bold" style={{ color: T.textPrimary }}>本日の日報コメント</h3></div>
+          {clientTodayComments.length ? (
+            <div className="space-y-2">{clientTodayComments.map((c, i) => (
+              <div key={c.traineeId + i} className="rounded-xl px-3 py-2" style={{ background: T.bgBase }}>
+                <div className="flex items-center justify-between gap-2"><span className="truncate text-xs font-semibold" style={{ color: T.textPrimary }}>{c.traineeName}</span><Badge tone={c.tone}>{c.roleLabel}</Badge></div>
+                <div className="mt-1 line-clamp-2 text-xs" style={{ color: T.textSecondary }}>{c.text}</div>
+              </div>
+            ))}</div>
+          ) : <p className="text-sm leading-relaxed" style={{ color: T.textMuted }}>本日の日報コメントはまだありません。</p>}
+          <div className="mt-3 flex justify-end"><Btn size="sm" kind="soft" icon={NotebookPen} onClick={() => go && go("reports")}>日報を確認</Btn></div>
         </Card>
       </div>
       <Card className="mt-6 overflow-hidden">

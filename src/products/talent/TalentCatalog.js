@@ -56,11 +56,16 @@ const TALENT_NAV_ITEMS = [
     ["tl_pr",      "自己PR・強み",      Star],
   ]},
 ];
+// 非traineeは受講生横断のスキルシート確認のみ（成長履歴/制作実績/資格/自己PRは本人用ビューのため表示しない）
+const TALENT_NAV_STAFF = [
+  { sec: null, items: [["tl_home", "ホーム", LayoutDashboard]] },
+  { sec: "スキル・成長", items: [["tl_sheet", "受講生スキルシート", Briefcase]] },
+];
 const TALENT_NAV = {
   trainee:    TALENT_NAV_ITEMS,
-  instructor: TALENT_NAV_ITEMS,
-  client:     TALENT_NAV_ITEMS,
-  admin:      TALENT_NAV_ITEMS,
+  instructor: TALENT_NAV_STAFF,
+  client:     TALENT_NAV_STAFF,
+  admin:      TALENT_NAV_STAFF,
 };
 
 export { COURSE, PERIOD, ROLES, CURRICULUM, PORTFOLIO_SKILLS, ENGINEER, PROJECTS_SEED, PHASES, STRENGTHS_SEED, WEAK_SEED, NEXT_SKILLS, TALENT_NAV };

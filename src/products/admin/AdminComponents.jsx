@@ -23,7 +23,7 @@ const datesInMonth = (ym) => {
   const last = new Date(y, m, 0).getDate();
   return Array.from({ length: last }, (_, i) => ym + "-" + String(i + 1).padStart(2, "0"));
 };
-function AdminHome({ go }) {
+function AdminHome({ go, openRisk }) {
   const [date, setDate] = useState(todayStr());
   const [companies, setCompanies] = useState([]);
   const [courses, setCourses] = useState([]);
@@ -177,7 +177,7 @@ function AdminHome({ go }) {
         <div className="flex flex-wrap items-center justify-between gap-2">
           <div className="flex items-center gap-2"><div className="flex h-9 w-9 items-center justify-center rounded-xl" style={{ background: T.accentSubtle, color: T.accent }}><Gauge size={18} /></div>
             <div><h3 className="font-bold" style={{ color: T.textPrimary }}>運用メモ</h3><p className="text-xs" style={{ color: T.textMuted }}>大量データや横断分析は、将来的に集計API化する前提の小規模運用ビューです。</p></div></div>
-          <Btn kind="soft" size="sm" onClick={() => go && go("risk")}>リスク分析を見る</Btn>
+          {openRisk && <Btn kind="soft" size="sm" onClick={openRisk}>リスク分析を見る</Btn>}
         </div>
       </Card>
     </div>

@@ -479,8 +479,7 @@ async function loadRoleNotifications(role) {
     const missingTests = visibleTests.length ? members.filter(t => visibleTests.some(test => !(resultMap[testIdOf(test)] || []).some(r => (r.traineeId || r.userId) === traineeIdOf(t)))) : [];
     const lowScores = visibleTests.flatMap(test => (resultMap[testIdOf(test)] || []).filter(r => ids.has(r.traineeId || r.userId) && Number(r.score) < 70));
     if (missingTests.length) add(result, { id: notifId(role, "tests-missing", date), severity: "medium", category: "テスト", title: `テスト未受験の受講生が${missingTests.length}名います`, desc: missingTests.slice(0, 3).map(userName).join("、"), to: "tests", targetUrl: "/training/tests" });
-    if (lowScores.length) add(result, { id: notifId(role, "low-score", date), severity: "high", category: "成長確認", title: `理解度低下の可能性が${lowScores.length}件あります`, desc: "70点未満のテスト結果があります。", to: { product: "talent", subView: "tl_skills" } });
-    if (members.length) add(result, { id: notifId(role, "matching", members.length), severity: "low", category: "案件候補", title: `案件候補の確認対象が${members.length}名います`, desc: "スキルシートと案件マッチングで研修後活用を確認できます。", to: { product: "matching", subView: "mt_matching" } });
+    if (lowScores.length) add(result, { id: notifId(role, "low-score", date), severity: "high", category: "成長確認", title: `理解度低下の可能性が${lowScores.length}件あります`, desc: "70点未満のテスト結果があります。", to: "tests", targetUrl: "/training/tests" });
     return result;
   }
 
@@ -909,7 +908,7 @@ export default function App() {
     if (view === "awscosts") return <AwsCostDashboard />;
     if (view === "notifications") return <NotificationCenter notifications={notifications} loading={notifLoading} error={notifErr} role={role} go={go} goProduct={goProduct} goSub={goSub} />;
     if (view === "profile") return <UserProfileView me={me} displayName={displayName} userProfile={userProfile} />;
-    if (product === "training" && role === "admin" && ["home", "companies", "courses", "users"].includes(view)) return <AdminProduct view={view} go={go} />;
+    if (product === "training" && role === "admin" && ["home", "companies", "courses", "users"].includes(view)) return <AdminProduct view={view} go={go} goProduct={goProduct} goSub={goSub} />;
     return <TrainingProduct
       view={view}
       role={role}

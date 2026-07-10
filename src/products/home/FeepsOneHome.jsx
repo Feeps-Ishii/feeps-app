@@ -309,6 +309,73 @@ export default function FeepsOneHome({ role, displayName, goProduct, goTraining,
     loadDashboard();
   }, [loadDashboard]);
 
+  // client/adminのHome指標は既存APIのフロント集計で表示する（specs/feeps-one-feature-role-matrix.md §D。専用Dashboard APIは将来拡張）
+  const [ops, setOps] = useState(null);
+  const [opsLoading, setOpsLoading] = useState(false);
+  useEffect(() => {
+    if (role !== "client" && role !== "admin") { setOps(null); return; }
+    let alive = true;
+    const d = new Date();
+    const today = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+    const month = today.slice(0, 7);
+    setOpsLoading(true);
+    (async () => {
+      try {
+        if (role === "client") {
+          const [trainees, attendance, reports, tests] = await Promise.all([
+            apiGet("/trainees").catch(() => []),
+            apiGet(`/attendance?date=${today}`).catch(() => []),
+            apiGet(`/reports?date=${today}`).catch(() => []),
+            apiGet("/tests").catch(() => []),
+          ]);
+          const activeTests = asArray(tests).filter(t => (t?.status || "published") !== "archived");
+          const resultLists = await Promise.all(activeTests.map(t => apiGet(`/tests/${t.testId || t.id}/results`).catch(() => [])));
+          const scores = resultLists.flatMap(r => asArray(r)).map(r => Number(r?.score)).filter(n => Number.isFinite(n));
+          if (!alive) return;
+          setOps({
+            trainees: asArray(trainees).length,
+            present: asArray(attendance).filter(a => a?.clockIn).length,
+            reports: asArray(reports).length,
+            avgScore: scores.length ? Math.round(scores.reduce((s, n) => s + n, 0) / scores.length) : null,
+            lowScores: scores.filter(n => n < 70).length,
+          });
+        } else {
+          const [companies, users, courses, reports, attendance, aiUsage, awsCosts] = await Promise.all([
+            apiGet("/companies").catch(() => []),
+            apiGet("/admin/users").catch(() => []),
+            apiGet("/courses").catch(() => []),
+            apiGet(`/reports?date=${today}`).catch(() => []),
+            apiGet(`/attendance?date=${today}`).catch(() => []),
+            apiGet(`/admin/ai-usage?month=${month}`).catch(() => null),
+            apiGet(`/admin/aws-costs?month=${month}`).catch(() => null),
+          ]);
+          const traineeUsers = asArray(users).filter(u => (u?.role || "trainee") === "trainee" && u?.deleted !== true);
+          const reportIds = new Set(asArray(reports).map(r => r?.traineeId || r?.userId));
+          const attIds = new Set(asArray(attendance).map(a => a?.traineeId || a?.userId));
+          const absent = asArray(attendance).filter(a => /欠|absent/i.test(String(a?.status || ""))).length;
+          // AdminProduct本日のアラートと同じ考え方（日報未保存+勤怠未登録+欠席）
+          const alerts = traineeUsers.filter(t => !reportIds.has(t.userId)).length
+            + traineeUsers.filter(t => !attIds.has(t.userId)).length
+            + absent;
+          if (!alive) return;
+          setOps({
+            companies: asArray(companies).length,
+            trainees: traineeUsers.length,
+            courses: asArray(courses).length,
+            alerts,
+            aiRequests: aiUsage?.totalRequests ?? null,
+            aiCost: aiUsage?.totalEstimatedCostUsd ?? null,
+            awsTotal: awsCosts?.total?.amount ?? null,
+          });
+        }
+      } finally {
+        if (alive) setOpsLoading(false);
+      }
+    })();
+    return () => { alive = false; };
+  }, [role]);
+  const opsText = (make) => (opsLoading ? "取得中" : ops ? make(ops) : "未取得");
+
   const summary = dashboard?.summary || {};
   const todayCourses = asArray(dashboard?.todayCourses);
   const traineeCourses = asArray(dashboard?.activeCourses);
@@ -360,15 +427,15 @@ export default function FeepsOneHome({ role, displayName, goProduct, goTraining,
     { icon: BookOpen, title: Number(dashboard?.learning?.progressPercent) >= 100 ? "次の学習へ" : "前回の続き", value: dashboard?.learning?.progressPercent != null ? `${dashboard.learning.progressPercent}%` : textOf(traineeLearningTask?.status === "unavailable" ? "Learningで確認" : traineeLoadingText), desc: Number(dashboard?.learning?.progressPercent) >= 100 ? "修了しました。次のコースや復習に進めます。" : textOf(traineeLearningTask?.description, "学習の続きはEラーニングで確認できます。"), action: textOf(traineeLearningTask?.actionLabel, "Learningへ"), tone: "learning", onClick: () => openDashboardTarget(traineeLearningTask?.targetUrl || "/learning/inprogress") },
     { icon: ClipboardCheck, title: "未受験テスト", value: loadingDashboard ? "取得中" : `${traineeUnsubmittedTests}件`, desc: textOf(traineeTestTask?.description, "未受験テストを確認できます。"), action: textOf(traineeTestTask?.actionLabel, "開く"), tone: "training", onClick: () => openDashboardTarget(traineeTestTask?.targetUrl || "/training/tests") },
   ] : role === "client" ? [
-    { icon: Users, title: "自社受講生", value: "集計中", desc: "自社範囲の受講生数を集計します。", action: "開く", tone: "training", onClick: () => openProduct("training", { goProduct, goTraining }) },
-    { icon: Clock, title: "本日出席率", value: "集計中", desc: "本日の出席状況を確認します。", action: "開く", tone: "training", onClick: () => openProduct("training", { goProduct, goTraining }) },
-    { icon: FileText, title: "提出率", value: "集計中", desc: "日報の提出状況を確認します。", action: "開く", tone: "training", onClick: () => openProduct("training", { goProduct, goTraining }) },
-    { icon: ClipboardCheck, title: "テスト", value: "集計中", desc: "自社受講生の結果を確認します。", action: "開く", tone: "talent", onClick: () => openProduct("training", { goProduct, goTraining }) },
+    { icon: Users, title: "自社受講生", value: opsText(o => `${o.trainees}名`), desc: "自社範囲の受講生一覧を確認します。", action: "開く", tone: "training", onClick: () => instructorTaskClick("trainees") },
+    { icon: Clock, title: "本日の出席", value: opsText(o => `${o.present}/${o.trainees}名`), desc: "本日の出席状況を確認します。", action: "開く", tone: "training", onClick: () => instructorTaskClick("attendance") },
+    { icon: FileText, title: "日報提出", value: opsText(o => `${o.reports}/${o.trainees}名`), desc: "日報の提出状況とコメントを確認します。", action: "開く", tone: "training", onClick: () => instructorTaskClick("reports") },
+    { icon: ClipboardCheck, title: "テスト結果", value: opsText(o => o.avgScore != null ? `平均${o.avgScore}点` : "結果なし"), desc: opsLoading || !ops ? "自社受講生の結果を確認します。" : `低スコア（70点未満）${ops.lowScores}件`, action: "開く", tone: "talent", onClick: () => instructorTaskClick("tests") },
   ] : [
-    { icon: CheckCircle2, title: "未処理アラート", value: "集計中", desc: "全体運営で確認が必要な項目を集計します。", action: "管理へ", tone: "admin", onClick: () => openProduct("admin", { goProduct, goTraining }) },
-    { icon: Building2, title: "企業/コース管理", value: "管理", desc: "企業・コース・ユーザーを管理します。", action: "管理へ", tone: "admin", onClick: () => openProduct("admin", { goProduct, goTraining }) },
-    { icon: Activity, title: "AI利用", value: "集計中", desc: "AI利用状況は分析Productで確認します。", action: "分析へ", tone: "analytics", onClick: () => openProduct("analytics", { goProduct, goTraining }) },
-    { icon: BarChart3, title: "AWS利用", value: "集計中", desc: "AWSコストは分析Productで確認します。", action: "分析へ", tone: "analytics", onClick: () => openProduct("analytics", { goProduct, goTraining }) },
+    { icon: CheckCircle2, title: "未処理アラート", value: opsText(o => `${o.alerts}件`), desc: "本日の日報未保存・勤怠未登録・欠席の合計です。", action: "確認する", tone: "admin", onClick: () => instructorTaskClick("home") },
+    { icon: Building2, title: "企業/コース管理", value: opsText(o => `${o.companies}社/${o.courses}件`), desc: "企業・コース・ユーザーを管理します。", action: "管理へ", tone: "admin", onClick: () => openProduct("admin", { goProduct, goTraining }) },
+    { icon: Activity, title: "AI利用", value: opsText(o => o.aiRequests != null ? `${o.aiRequests}回` : "未取得"), desc: opsLoading || !ops || ops.aiCost == null ? "AI利用状況は分析Productで確認します。" : `今月の推定 $${Number(ops.aiCost).toFixed(4)}`, action: "分析へ", tone: "analytics", onClick: () => openProduct("analytics", { goProduct, goTraining }) },
+    { icon: BarChart3, title: "AWS利用", value: opsText(o => o.awsTotal != null ? `$${Number(o.awsTotal).toFixed(2)}` : "未取得"), desc: "AWSコストは分析Productで確認します。", action: "分析へ", tone: "analytics", onClick: () => openProduct("analytics", { goProduct, goTraining }) },
   ];
 
   const statusCards = role === "instructor" ? [
@@ -382,15 +449,15 @@ export default function FeepsOneHome({ role, displayName, goProduct, goTraining,
     { label: "日報状態", value: textOf(dashboard?.summary?.dailyReportStatus === "submitted" ? "提出済み" : dashboard?.summary?.dailyReportStatus === "commented" ? "コメントあり" : dashboard?.summary?.dailyReportStatus === "not_submitted" ? "未提出" : loadingDashboard ? "取得中" : "確認する"), hint: "今日の日報", icon: FileText, tone: "training" },
     { label: "現在目標", value: textOf(dashboard?.summary?.currentGoal?.title, loadingDashboard ? "取得中" : "スキル・成長で確認"), hint: textOf(traineeGoalTask?.description, "Talentで確認"), icon: Target, tone: "talent" },
   ] : role === "client" ? [
-    { label: "自社受講生", value: "集計中", hint: "自社範囲", icon: Users, tone: "training" },
-    { label: "本日出席率", value: "集計中", hint: "勤怠集計", icon: Clock, tone: "training" },
-    { label: "提出率", value: "集計中", hint: "日報集計", icon: FileText, tone: "training" },
-    { label: "テスト", value: "集計中", hint: "結果サマリー", icon: ClipboardCheck, tone: "talent" },
+    { label: "自社受講生", value: opsText(o => `${o.trainees}名`), hint: "自社範囲", icon: Users, tone: "training" },
+    { label: "本日出席率", value: opsText(o => o.trainees ? `${Math.round((o.present / o.trainees) * 100)}%` : "—"), hint: "本日の勤怠登録", icon: Clock, tone: "training" },
+    { label: "日報提出率", value: opsText(o => o.trainees ? `${Math.round((o.reports / o.trainees) * 100)}%` : "—"), hint: "本日の日報", icon: FileText, tone: "training" },
+    { label: "テスト平均", value: opsText(o => o.avgScore != null ? `${o.avgScore}点` : "結果なし"), hint: "自社受講生の結果", icon: ClipboardCheck, tone: "talent" },
   ] : [
-    { label: "企業数", value: "集計中", hint: "Administration", icon: Building2, tone: "admin" },
-    { label: "受講者数", value: "集計中", hint: "Administration", icon: Users, tone: "admin" },
-    { label: "AI利用", value: "集計中", hint: "Analytics", icon: Activity, tone: "analytics" },
-    { label: "AWS利用", value: "集計中", hint: "Analytics", icon: BarChart3, tone: "analytics" },
+    { label: "企業数", value: opsText(o => `${o.companies}社`), hint: "契約企業", icon: Building2, tone: "admin" },
+    { label: "受講生数", value: opsText(o => `${o.trainees}名`), hint: "全体", icon: Users, tone: "admin" },
+    { label: "AI利用", value: opsText(o => o.aiRequests != null ? `${o.aiRequests}回` : "未取得"), hint: "今月", icon: Activity, tone: "analytics" },
+    { label: "AWS利用", value: opsText(o => o.awsTotal != null ? `$${Number(o.awsTotal).toFixed(2)}` : "未取得"), hint: "今月", icon: BarChart3, tone: "analytics" },
   ];
 
   return (

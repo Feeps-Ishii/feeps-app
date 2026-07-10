@@ -126,34 +126,23 @@ function TalentHome({ goSub, goProduct, role = "trainee", themeColor = PRODUCT_A
     },
     instructor: {
       desc: "担当受講生のスキル・成長状況を確認し、次のステップへのアドバイスに活かします。",
-      next: null,
+      next: "個別の成長履歴・テスト状況は研修管理の受講生カルテから確認できます。",
       cards: [
-        { key: "tl_growth",  icon: GitBranch,     label: "成長履歴確認",       desc: "担当受講生の成長プロセスを確認します。" },
-        { key: "tl_skills",  icon: GraduationCap, label: "研修スキル確認",     desc: "受講生が習得したスキルを確認します。" },
-        { key: "tl_sheet",   icon: Briefcase,     label: "スキルシート確認",   desc: "受講生の案件参画向けスキルシートを確認します。" },
-        { key: "tl_works",   icon: FileText,      label: "制作実績確認",       desc: "受講生の成果物・作成物を確認します。" },
+        { key: "tl_sheet",   icon: Briefcase,     label: "受講生スキルシート", desc: "担当受講生の保有スキル・強み・自己PRを確認します。" },
       ],
     },
     client: {
       desc: "自社受講生のスキル・成長状況を確認し、案件参画に向けた人材評価に活かします。",
-      next: "スキルシートを確認の上、案件管理プロダクトで案件候補を探せます。",
+      next: "個別の日報・勤怠・テスト結果は研修管理から確認できます。",
       cards: [
-        { key: "tl_sheet",   icon: Briefcase,     label: "スキルシート確認",   desc: "自社受講生の案件参画向けスキルシートを確認します。" },
-        { key: "tl_growth",  icon: GitBranch,     label: "成長履歴確認",       desc: "自社受講生の成長プロセスを確認します。" },
-        { key: "tl_works",   icon: FileText,      label: "制作実績確認",       desc: "自社受講生の成果物・作成物を確認します。" },
-        { key: "tl_badge",   icon: Award,         label: "資格・バッジ",       desc: "自社受講生の資格取得状況を確認します。" },
+        { key: "tl_sheet",   icon: Briefcase,     label: "受講生スキルシート", desc: "自社受講生の保有スキル・強み・自己PRを確認します。" },
       ],
     },
     admin: {
       desc: "全受講生のスキル・成長状況を一元管理し、案件マッチングや人材評価に活かします。",
-      next: null,
+      next: "個別の成長履歴・テスト状況は研修管理の受講生カルテから確認できます。",
       cards: [
-        { key: "tl_growth",  icon: GitBranch,     label: "成長履歴",           desc: "全受講生の成長プロセスを確認します。" },
-        { key: "tl_skills",  icon: GraduationCap, label: "研修スキル",         desc: "受講生が習得したスキルを確認します。" },
-        { key: "tl_sheet",   icon: Briefcase,     label: "案件用スキルシート",  desc: "案件参画向けスキルシートを管理します。" },
-        { key: "tl_works",   icon: FileText,      label: "制作実績",            desc: "成果物・作成物を管理します。" },
-        { key: "tl_badge",   icon: Award,         label: "資格・バッジ",        desc: "資格取得状況を管理できます。" },
-        { key: "tl_pr",      icon: Star,          label: "自己PR・強み",        desc: "強みと自己PRを整理できます。" },
+        { key: "tl_sheet",   icon: Briefcase,     label: "受講生スキルシート", desc: "全受講生の保有スキル・強み・自己PRを確認します。" },
       ],
     },
   };
@@ -168,7 +157,7 @@ function TalentHome({ goSub, goProduct, role = "trainee", themeColor = PRODUCT_A
         label="スキル・成長"
         title="学びを、スキルとして残す。"
         description={cfg.desc}
-        chips={[
+        chips={role === "client" || role === "instructor" || role === "admin" ? [] : [
           { label: "取得スキル", value: elEarned.length, unit: "件" },
           { label: "公式スキル証跡", value: finalSummary.passedCount || 0, unit: "件" },
         ]}
@@ -186,7 +175,7 @@ function TalentHome({ goSub, goProduct, role = "trainee", themeColor = PRODUCT_A
           <p className="text-sm" style={{ color: T.textMuted }}><span className="font-semibold" style={{ color: T.textPrimary }}>次のステップ：</span>{cfg.next}</p>
         </div>
       )}
-      {(role === "trainee" || role === "client") && (
+      {role === "trainee" && (
         <div className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-2xl p-4" style={{ background: "rgba(20,163,184,.06)", border: "1px solid rgba(20,163,184,.15)" }}>
           <div className="flex items-start gap-3">
             <BookOpen size={16} style={{ color: PRODUCT_ACCENT.learning.accent, marginTop: 1 }} />
@@ -202,7 +191,7 @@ function TalentHome({ goSub, goProduct, role = "trainee", themeColor = PRODUCT_A
           </Btn>
         </div>
       )}
-      {(role === "trainee" || role === "client") && (
+      {role === "trainee" && (
         <Card className="mt-4 p-5" style={{ border: "1px solid #7C3AED22", background: "#7C3AED08" }}>
           <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
             <div>
@@ -842,7 +831,7 @@ function PersonalSkillSheet({ role = "trainee" } = {}) {
   );
 }
 function SkillSheetView({ role }) {
-  if (role === "client") return <ClientSkillSheets />;
+  if (role === "client" || role === "instructor" || role === "admin") return <ClientSkillSheets role={role} />;
   return <PersonalSkillSheet />;
 }
 function Portfolio({ done, goals, go, role }) {
@@ -862,7 +851,8 @@ function PersonalPortfolio({ done, goals, go }) {
     </div>
   );
 }
-function ClientSkillSheets() {
+function ClientSkillSheets({ role = "client" }) {
+  const scopeLabel = role === "client" ? "自社受講生" : role === "instructor" ? "担当受講生" : "全受講生";
   const [trainees, setTrainees] = useState([]);
   const [courses, setCourses] = useState([]);
   const [selected, setSelected] = useState(null);
@@ -882,11 +872,23 @@ function ClientSkillSheets() {
     return () => { alive = false; };
   }, []);
   const courseName = id => courses.find(c => c.courseId === id)?.name || id || "未登録";
-  const rows = trainees.map(t => ({ ...t, courseName: courseName(t.course) }));
+  const [skillMap, setSkillMap] = useState(null);
+  useEffect(() => {
+    if (!trainees.length) return;
+    let alive = true;
+    Promise.all(trainees.map(t => {
+      const id = t.userId || t.id;
+      return apiGet(`/skills/${id}`).then(v => [id, v]).catch(() => [id, null]);
+    })).then(pairs => { if (alive) setSkillMap(Object.fromEntries(pairs)); });
+    return () => { alive = false; };
+  }, [trainees]);
+  const skillsOf = t => skillMap?.[t.userId || t.id] || null;
+  const rows = trainees.map(t => ({ ...t, courseName: courseName(t.course), portfolio: skillsOf(t) }));
   useEffect(() => { if (!selected && rows.length) setSelected(rows[0]); }, [rows, selected]);
+  const selectedPortfolio = selected ? skillsOf(selected) : null;
   return (
     <div>
-      <SectionHead title="スキルシート" desc="自社受講生・社員のスキルシート状態を一覧で確認します。詳細取得APIは今後追加予定です。"
+      <SectionHead title="スキルシート" desc={`${scopeLabel}の保有スキル・強み・自己PRを一覧で確認します。`}
         action={<Btn kind="ghost" icon={FileSpreadsheet} onClick={() => exportClientSkillSheetsExcel(rows)}>Excel出力</Btn>} />
       {err && <div className="mb-4 rounded-lg px-3 py-2 text-xs" style={{ background: T.dangerSubtle, color: T.danger }}>{err}</div>}
       {loading ? <Card><SkeletonRows /></Card>
@@ -902,8 +904,8 @@ function ClientSkillSheets() {
                 <button key={t.userId || t.email} onClick={() => setSelected(t)} className="grid w-full grid-cols-5 gap-3 px-4 py-3 text-left text-sm transition hover:bg-gray-50" style={{ borderTop: `1px solid ${T.border}`, background: active ? T.accentSubtle : "#fff", color: T.textPrimary }}>
                   <div className="col-span-2 flex min-w-0 items-center gap-2"><Avatar name={t.name || t.email} size={30} /><div className="min-w-0"><div className="truncate font-semibold">{t.name || "氏名未設定"}</div><div className="truncate text-xs" style={{ color: T.textMuted }}>{t.email || "メール未登録"}</div></div></div>
                   <div className="truncate">{t.courseName}</div>
-                  <div><Badge tone="muted">詳細API待ち</Badge></div>
-                  <div className="truncate text-xs" style={{ color: T.textMuted }}>{t.updatedAt ? fmtTs(t.updatedAt) : "未取得"}</div>
+                  <div>{skillMap === null ? <Badge tone="muted">取得中</Badge> : (t.portfolio?.skills?.length ? <Badge tone="green">{t.portfolio.skills.length}件登録</Badge> : <Badge tone="muted">未登録</Badge>)}</div>
+                  <div className="truncate text-xs" style={{ color: T.textMuted }}>{t.portfolio?.updatedAt ? fmtTs(t.portfolio.updatedAt) : t.updatedAt ? fmtTs(t.updatedAt) : "未取得"}</div>
                 </button>
               );
             })}
@@ -914,8 +916,23 @@ function ClientSkillSheets() {
                 <div className="mb-4 flex items-center gap-3"><Avatar name={selected.name || selected.email} size={42} ring /><div className="min-w-0"><h3 className="truncate font-bold" style={{ color: T.textPrimary }}>{selected.name || "氏名未設定"}</h3><p className="truncate text-xs" style={{ color: T.textMuted }}>{selected.email || "メール未登録"}</p></div></div>
                 <div className="space-y-3">
                   <div className="rounded-xl p-3" style={{ background: T.bgBase }}><div className="text-xs font-bold" style={{ color: T.textMuted }}>所属コース</div><div className="mt-1 text-sm font-semibold" style={{ color: T.textPrimary }}>{selected.courseName}</div></div>
-                  <div className="rounded-xl p-3" style={{ background: T.bgBase }}><div className="text-xs font-bold" style={{ color: T.textMuted }}>スキル/強み/自己PR</div><div className="mt-1 text-sm" style={{ color: T.textSecondary }}>他人のスキルシート詳細取得APIは今後追加予定です。</div></div>
-                  <div className="rounded-xl p-3" style={{ background: T.bgBase }}><div className="text-xs font-bold" style={{ color: T.textMuted }}>プロジェクト/ポートフォリオ</div><div className="mt-1 text-sm" style={{ color: T.textSecondary }}>詳細API追加後に、保有スキル・自己PR・案件履歴を表示します。</div></div>
+                  <div className="rounded-xl p-3" style={{ background: T.bgBase }}>
+                    <div className="text-xs font-bold" style={{ color: T.textMuted }}>保有スキル</div>
+                    {selectedPortfolio?.skills?.length
+                      ? <div className="mt-2 flex flex-wrap gap-1.5">{selectedPortfolio.skills.slice(0, 10).map((s, i) => <span key={(s?.name || i) + i} className="rounded-full px-2.5 py-0.5 text-xs font-semibold" style={{ background: T.accentSubtle, color: T.accentHover }}>{s?.name || String(s)}{Number.isFinite(Number(s?.level)) ? ` ${s.level}` : ""}</span>)}{selectedPortfolio.skills.length > 10 && <span className="text-xs" style={{ color: T.textMuted }}>他{selectedPortfolio.skills.length - 10}件</span>}</div>
+                      : <div className="mt-1 text-sm" style={{ color: T.textMuted }}>まだ登録されていません。</div>}
+                  </div>
+                  <div className="rounded-xl p-3" style={{ background: T.bgBase }}>
+                    <div className="text-xs font-bold" style={{ color: T.textMuted }}>強み・自己PR</div>
+                    {selectedPortfolio?.strengths?.length ? <div className="mt-1 text-sm" style={{ color: T.textSecondary }}>{selectedPortfolio.strengths.join("、")}</div> : null}
+                    {selectedPortfolio?.selfPR ? <div className="mt-1 whitespace-pre-wrap text-sm" style={{ color: T.textSecondary }}>{selectedPortfolio.selfPR}</div> : (!selectedPortfolio?.strengths?.length && <div className="mt-1 text-sm" style={{ color: T.textMuted }}>まだ登録されていません。</div>)}
+                  </div>
+                  <div className="rounded-xl p-3" style={{ background: T.bgBase }}>
+                    <div className="text-xs font-bold" style={{ color: T.textMuted }}>案件・プロジェクト履歴</div>
+                    {selectedPortfolio?.projects?.length
+                      ? <div className="mt-1 space-y-1">{selectedPortfolio.projects.slice(0, 5).map((p, i) => <div key={(p?.id || i) + i} className="text-sm" style={{ color: T.textSecondary }}>{p?.name || "案件"}{p?.period ? `（${p.period}）` : ""}</div>)}</div>
+                      : <div className="mt-1 text-sm" style={{ color: T.textMuted }}>まだ登録されていません。</div>}
+                  </div>
                 </div>
               </div>}
           </Card>

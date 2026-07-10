@@ -8,7 +8,7 @@ export const ANALYTICS_NAV = [
 export const ANALYTICS_HOME_CARDS = [
   { key: "an_awscosts", icon: Receipt,     label: "AWS利用料金",  desc: "月別のAWS利用料金とBedrock使用量を確認します。", ready: true },
   { key: "an_risk",     icon: Gauge,       label: "リスク分析",   desc: "受講生のリスクを自動検出・アラート表示します。", ready: true },
-  { key: "an_report",   icon: NotebookPen, label: "月次レポート", desc: "研修実績・受講状況の月次集計を確認します。", ready: false },
+  { key: "an_report",   icon: NotebookPen, label: "月次レポート", desc: "研修実績・受講状況の月次集計を確認します。", ready: true },
 ];
 
 export const RISK_SIG_LABEL = {

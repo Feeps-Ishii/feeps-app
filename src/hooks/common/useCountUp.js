@@ -11,7 +11,8 @@ export default function useCountUp(target, { duration = 800, decimals = 0 } = {}
   const valueRef = useRef(0);
 
   useEffect(() => {
-    if (typeof window !== "undefined" && window.matchMedia?.("(prefers-reduced-motion: reduce)").matches) {
+    // 非表示タブではrAFが発火しないため、reduced-motionと同様に最終値を即時反映する
+    if (typeof window !== "undefined" && (window.matchMedia?.("(prefers-reduced-motion: reduce)").matches || document.visibilityState === "hidden")) {
       valueRef.current = n;
       setValue(n);
       return;

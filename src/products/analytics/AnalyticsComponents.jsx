@@ -4,7 +4,7 @@ import {
   Receipt, ShieldCheck, Sparkles, Upload
 } from "lucide-react";
 import { ANALYTICS_HOME_CARDS, RISK_SIG_LABEL } from "./AnalyticsCatalog.js";
-import { useAwsCosts, useRiskAnalysis } from "./useAnalytics.js";
+import { useAwsCosts, useMonthlyReport, useRiskAnalysis } from "./useAnalytics.js";
 import { Card, Badge, Btn, Avatar, Stat, SectionHead, PageHeader, ProductNavCard, T, EmptyState as CommonEmptyState } from "../../components/common";
 
 const GRAD = `linear-gradient(135deg, ${T.accent} 0%, #5B8CFF 100%)`;
@@ -327,10 +327,66 @@ export function RiskBoard() {
   );
 }
 
-export function AnalyticsPlaceholder({ title, desc }) {
+async function exportMonthlyReportExcel(data, month) {
+  try {
+    const XLSX = await import("xlsx");
+    const rows = (data?.rows || []).map(r => ({
+      コース: r.name, 受講生数: r.members, 出席延べ: r.present, 遅刻延べ: r.late, 欠席延べ: r.absent,
+      日報提出延べ: r.reports, コメント済み延べ: r.commented, テスト平均: r.avgScore == null ? "" : r.avgScore, テスト受験数: r.testCount,
+    }));
+    const t = data?.totals || {};
+    rows.push({ コース: "合計", 受講生数: t.trainees, 出席延べ: t.present, 遅刻延べ: t.late, 欠席延べ: t.absent, 日報提出延べ: t.reports, コメント済み延べ: t.commented, テスト平均: t.avgScore == null ? "" : t.avgScore, テスト受験数: t.testCount });
+    const ws = XLSX.utils.json_to_sheet(rows);
+    ws["!cols"] = [{ wch: 28 }, { wch: 10 }, { wch: 10 }, { wch: 10 }, { wch: 10 }, { wch: 12 }, { wch: 14 }, { wch: 10 }, { wch: 12 }];
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, `月次_${month}`);
+    XLSX.writeFile(wb, `月次レポート_${String(month).replaceAll("-", "")}.xlsx`);
+  } catch (e) { console.error(e); }
+}
+
+export function MonthlyReport() {
+  const { month, setMonth, data, loading, err } = useMonthlyReport();
   return (
-    <Card>
-      <EmptyState title={title} desc={desc} />
-    </Card>
+    <div>
+      <SectionHead title="月次レポート" desc="コース別の出席・日報・テスト状況を月次で集計します"
+        action={<div className="flex flex-wrap items-center gap-2">
+          <input type="month" value={month} onChange={e => setMonth(e.target.value)} className="rounded-lg px-3 py-2 text-sm outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary, background: "#fff" }} />
+          <Btn kind="ghost" icon={Download} onClick={() => exportMonthlyReportExcel(data, month)} disabled={!data}>Excel出力</Btn>
+        </div>} />
+      {err && <div className="mb-4 rounded-lg px-3 py-2 text-xs" style={{ background: T.dangerSubtle, color: T.danger }}>{err}</div>}
+      {loading ? (
+        <div className="rounded-xl px-4 py-10 text-center text-sm" style={{ background: T.bgBase, color: T.textMuted }}>{month} の実績を集計中...</div>
+      ) : !data || data.rows.length === 0 ? (
+        <Card><EmptyState title="集計対象のコースがありません" desc="コースが登録されると月次レポートを表示します。" /></Card>
+      ) : (<>
+        <div className="mb-5 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          <Stat icon={Activity} label="受講生数" value={`${data.totals.trainees}名`} tone="cyan" />
+          <Stat icon={ShieldCheck} label="出席延べ" value={`${data.totals.present}件`} tone="green" sub={`遅刻 ${data.totals.late} / 欠席 ${data.totals.absent}`} />
+          <Stat icon={Upload} label="日報提出延べ" value={`${data.totals.reports}件`} tone={data.totals.reports ? "green" : "muted"} sub={`コメント済み ${data.totals.commented}`} />
+          <Stat icon={Sparkles} label="テスト平均" value={data.totals.avgScore == null ? "結果なし" : `${data.totals.avgScore}点`} tone={data.totals.avgScore != null && data.totals.avgScore < 70 ? "amber" : "cyan"} sub={`受験 ${data.totals.testCount}件`} />
+        </div>
+        <Card className="overflow-hidden">
+          <div className="overflow-x-auto">
+            <div style={{ minWidth: 760 }}>
+              <div className="grid grid-cols-8 gap-3 px-4 py-2.5 text-xs font-semibold" style={{ background: T.bgBase, color: T.textMuted }}>
+                <div className="col-span-2">コース</div><div>受講生</div><div>出席延べ</div><div>遅刻/欠席</div><div>日報提出</div><div>コメント済</div><div>テスト平均</div>
+              </div>
+              {data.rows.map(r => (
+                <div key={r.courseId} className="grid grid-cols-8 gap-3 px-4 py-3 text-sm" style={{ borderTop: `1px solid ${T.border}`, color: T.textPrimary }}>
+                  <div className="col-span-2 truncate font-semibold">{r.name}</div>
+                  <div>{r.members}名</div>
+                  <div><Badge tone={r.present ? "green" : "muted"}>{r.present}件</Badge></div>
+                  <div className="text-xs" style={{ color: T.textMuted }}>{r.late} / {r.absent}</div>
+                  <div><Badge tone={r.reports ? "green" : "muted"}>{r.reports}件</Badge></div>
+                  <div className="text-xs" style={{ color: T.textMuted }}>{r.commented}件</div>
+                  <div>{r.avgScore == null ? <span className="text-xs" style={{ color: T.textMuted }}>結果なし</span> : <Badge tone={r.avgScore < 70 ? "amber" : "cyan"}>{r.avgScore}点</Badge>}</div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </Card>
+        <p className="mt-3 text-xs" style={{ color: T.textMuted }}>既存APIのフロント集計です。出席・日報は月内の延べ件数、テスト平均は公開テストの受験結果から算出しています。</p>
+      </>)}
+    </div>
   );
 }

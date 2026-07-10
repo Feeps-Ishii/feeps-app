@@ -15,6 +15,90 @@ const statusKind = (status) => {
 const fallbackName = (id) => "受講生 " + String(id || "").slice(0, 6);
 const hasReportComment = r => !!r?.comment || (Array.isArray(r?.comments) && r.comments.length > 0);
 
+const datesInMonth = (ym) => {
+  if (!ym) return [];
+  const [y, m] = ym.split("-").map(Number);
+  if (!y || !m) return [];
+  const last = new Date(y, m, 0).getDate();
+  return Array.from({ length: last }, (_, i) => ym + "-" + String(i + 1).padStart(2, "0"));
+};
+
+// 月次レポート: 既存APIのフロント集計（コース別の出席/日報/テスト。大量データ時はBackend集計API化が前提）
+export function useMonthlyReport() {
+  const [month, setMonth] = useState(() => todayStr().slice(0, 7));
+  const [data, setData] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [err, setErr] = useState("");
+
+  useEffect(() => {
+    let alive = true;
+    setLoading(true);
+    setErr("");
+    const dates = datesInMonth(month);
+    (async () => {
+      try {
+        const [trainees, courses, tests] = await Promise.all([
+          apiGet("/trainees").catch(() => []),
+          apiGet("/courses").catch(() => []),
+          apiGet("/tests").catch(() => []),
+        ]);
+        const courseList = (Array.isArray(courses) ? courses : []).filter(c => c?.deleted !== true);
+        const activeTests = (Array.isArray(tests) ? tests : []).filter(t => (t?.status || "published") !== "archived");
+        const [attDays, repDays, memberPairs, resultPairs] = await Promise.all([
+          Promise.all(dates.map(d => apiGet("/attendance?date=" + d).catch(() => []))),
+          Promise.all(dates.map(d => apiGet("/reports?date=" + d).catch(() => []))),
+          Promise.all(courseList.map(c => apiGet(`/courses/${c.courseId}/trainees`).then(rows => [c.courseId, Array.isArray(rows) ? rows : []]).catch(() => [c.courseId, []]))),
+          Promise.all(activeTests.map(t => { const id = t.testId || t.id; return apiGet(`/tests/${id}/results`).then(rows => [t, Array.isArray(rows) ? rows : []]).catch(() => [t, []]); })),
+        ]);
+        if (!alive) return;
+        const attAll = attDays.flatMap(x => x || []);
+        const repAll = repDays.flatMap(x => x || []);
+        const membersByCourse = Object.fromEntries(memberPairs);
+        const rows = courseList.map(c => {
+          const memberIds = new Set((membersByCourse[c.courseId] || []).map(t => t.userId).filter(Boolean));
+          const att = attAll.filter(a => memberIds.has(a?.traineeId));
+          const present = att.filter(a => a?.clockIn).length;
+          const absent = att.filter(a => /欠|absent/i.test(String(a?.status || ""))).length;
+          const late = att.filter(a => /遅|late/i.test(String(a?.status || ""))).length;
+          const reports = repAll.filter(r => memberIds.has(r?.traineeId || r?.userId)).length;
+          const commented = repAll.filter(r => memberIds.has(r?.traineeId || r?.userId) && hasReportComment(r)).length;
+          const scores = resultPairs.filter(([t]) => t.courseId === c.courseId).flatMap(([, rs]) => rs.filter(r => memberIds.has(r?.traineeId || r?.userId)).map(r => Number(r?.score)).filter(Number.isFinite));
+          return {
+            courseId: c.courseId,
+            name: c.name || c.courseId,
+            members: memberIds.size,
+            present, absent, late, reports, commented,
+            avgScore: scores.length ? Math.round(scores.reduce((s, n) => s + n, 0) / scores.length) : null,
+            testCount: scores.length,
+          };
+        });
+        const allScores = rows.flatMap(r => r.avgScore == null ? [] : [[r.avgScore, r.testCount]]);
+        const totalTests = rows.reduce((s, r) => s + r.testCount, 0);
+        setData({
+          rows,
+          totals: {
+            trainees: (Array.isArray(trainees) ? trainees : []).length,
+            present: rows.reduce((s, r) => s + r.present, 0),
+            absent: rows.reduce((s, r) => s + r.absent, 0),
+            late: rows.reduce((s, r) => s + r.late, 0),
+            reports: rows.reduce((s, r) => s + r.reports, 0),
+            commented: rows.reduce((s, r) => s + r.commented, 0),
+            avgScore: totalTests ? Math.round(allScores.reduce((s, [a, n]) => s + a * n, 0) / totalTests) : null,
+            testCount: totalTests,
+          },
+        });
+      } catch (e) {
+        if (alive) setErr("月次レポートの集計に失敗しました：" + (e?.errorMessage || e?.message || e));
+      } finally {
+        if (alive) setLoading(false);
+      }
+    })();
+    return () => { alive = false; };
+  }, [month]);
+
+  return { month, setMonth, data, loading, err };
+}
+
 export function useAwsCosts() {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
