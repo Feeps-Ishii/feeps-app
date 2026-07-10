@@ -807,10 +807,7 @@ function Curriculum({ role }) {
     if (busy) return; setBusy(true); setMsg(""); setErr("");
     try {
       const payload = { sections, sessions: sessionsFromSections(sections) };
-      console.log("curriculum save payload", { courseId, payload });
       await apiPut(`/courses/${courseId}/curriculum`, payload);
-      const fresh = await apiGet(`/courses/${courseId}/curriculum`);
-      console.log("curriculum saved response", { courseId, response: fresh });
       setMsg("保存しました。"); setTimeout(() => setMsg(""), 2000);
     }
     catch (e) { setErr("保存に失敗しました：" + (e?.message || e)); } finally { setBusy(false); }
@@ -2729,13 +2726,11 @@ function findCurriculumForDate(item, date) {
 async function getTodayCurriculum(courseId, date) {
   try {
     const res = await apiGet(`/courses/${courseId}/curriculum/today?date=${date}`);
-    console.log("curriculum/today response", { courseId, date, response: res });
     if (res?.item) {
       if (res.item.content) return res.item;
       try {
         const full = await apiGet(`/courses/${courseId}/curriculum`);
         const picked = findCurriculumForDate(full, date);
-        console.log("curriculum enrich response", { courseId, date, sourceKey: picked.sourceKey, item: picked.item });
         return picked.item ? { ...res.item, ...picked.item, lessonMemo: res.item.lessonMemo || picked.item.lessonMemo || "" } : res.item;
       } catch (e) {
         console.warn("curriculum enrich failed", { courseId, date, error: e });
@@ -2748,7 +2743,6 @@ async function getTodayCurriculum(courseId, date) {
   try {
     const full = await apiGet(`/courses/${courseId}/curriculum`);
     const picked = findCurriculumForDate(full, date);
-    console.log("curriculum fallback response", { courseId, date, sourceKey: picked.sourceKey, response: full, item: picked.item });
     return picked.item;
   } catch (e) {
     console.warn("curriculum fallback failed", { courseId, date, error: e });
@@ -2894,8 +2888,9 @@ function Reports({ role }) {
     window.setTimeout(() => setReportFormPulse(false), 1800);
     window.requestAnimationFrame(() => {
       window.requestAnimationFrame(() => {
-        const top = reportFormRef.current?.getBoundingClientRect?.().top;
-        if (Number.isFinite(top)) window.scrollTo({ top: Math.max(0, window.scrollY + top - 112), behavior: "smooth" });
+        // lg+はwindowではなく.feeps-main-scrollがスクロールするため、
+        // 祖先コンテナも辿るscrollIntoView + scroll-margin-top(sticky header分)で寄せる
+        reportFormRef.current?.scrollIntoView?.({ behavior: "smooth", block: "start" });
         window.setTimeout(() => reportFirstInputRef.current?.focus?.({ preventScroll: true }), 180);
       });
     });
@@ -3167,7 +3162,7 @@ function Reports({ role }) {
           )}
         </Card>
       ) : (<>
-      {canWrite && <div ref={reportFormRef}><Card className="mb-4 p-5 transition-shadow" style={reportFormPulse ? { boxShadow: `0 0 0 3px ${T.accent}33, 0 18px 40px rgba(0,0,0,.08)` } : undefined}>
+      {canWrite && <div ref={reportFormRef} style={{ scrollMarginTop: 72 }}><Card className="mb-4 p-5 transition-shadow" style={reportFormPulse ? { boxShadow: `0 0 0 3px ${T.accent}33, 0 18px 40px rgba(0,0,0,.08)` } : undefined}>
         <div className="mb-3 flex flex-wrap items-center justify-between gap-3"><div><h3 className="font-bold" style={{ color: T.textPrimary }}>朝: 目標</h3><p className="text-xs" style={{ color: T.textMuted }}>対象日を選んで、朝だけでも途中でも保存できます。</p></div><div className="flex items-center gap-2"><input type="date" value={editingReportDate} onChange={e => editReport({ date: e.target.value, report: reportsByDate[e.target.value] })} className="rounded-lg px-3 py-2 text-sm outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary, background: "#fff" }} /><Btn kind="soft" size="sm" icon={Plus} onClick={addGoalItem}>目標を追加</Btn></div></div>
         <div className="mb-4 rounded-xl px-3 py-2 text-xs font-semibold" style={{ background: reportEditState === "create" ? T.warningSubtle : T.accentSubtle, color: reportEditState === "create" ? T.warning : T.accentHover }}>
           {reportEditState === "create" ? "新しい日報を作成中" : reportEditState === "edit" ? `${editingReportDate.replace(/-/g, "/")}の日報を編集中` : "本日の日報"}

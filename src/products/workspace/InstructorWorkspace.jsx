@@ -326,7 +326,7 @@ export default function InstructorWorkspace({ go, displayName = "講師" }) {
                 <ActionCard icon={Clock} title="勤怠確認" value={`異常 ${attendanceAlertCount}件`} desc="欠席・遅刻・未打刻を確認します。" buttonLabel="確認する" onClick={() => go("attendance")} tone={attendanceAlertCount ? "alert" : "normal"} />
                 <ActionCard icon={NotebookPen} title="日報確認" value={`未確認 ${pendingReportCount}件`} desc="提出状況と未コメントを確認します。" buttonLabel="確認する" onClick={() => go("reports")} tone={pendingReportCount ? "alert" : "normal"} />
                 <ActionCard icon={BookOpen} title="授業準備" value={`${todayLessonCount}件`} desc="今日のカリキュラム、教材、テストを開きます。" buttonLabel="開く" onClick={() => go("curriculum")} />
-                <ActionCard icon={Megaphone} title="本日のお知らせ" value={noticeCount ? `${noticeCount}件登録済` : "未登録"} desc="受講生への日次連絡を整えます。" buttonLabel={noticeCount ? "編集する" : "登録する"} onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })} tone={noticeCount ? "normal" : "alert"} />
+                <ActionCard icon={Megaphone} title="本日のお知らせ" value={noticeCount ? `${noticeCount}件登録済` : "未登録"} desc="受講生への日次連絡を整えます。" buttonLabel={noticeCount ? "編集する" : "登録する"} onClick={() => { document.querySelector(".feeps-main-scroll")?.scrollTo({ top: 0, behavior: "smooth" }); window.scrollTo({ top: 0, behavior: "smooth" }); }} tone={noticeCount ? "normal" : "alert"} />
               </div>
             </Card>
           </div>
