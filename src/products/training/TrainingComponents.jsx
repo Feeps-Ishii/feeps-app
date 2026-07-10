@@ -307,8 +307,8 @@ function TraineeHome({ go, done, toggle, dailyMessage, goals }) {
         )}
       </Card>
 
-      {/* 講師からの本日の連絡（dailyMessageチャネル・復元済み） */}
-      {dailyMessage && (
+      {/* legacy dailyMessage channel is disabled; course daily-note announcement is the canonical 本日のお知らせ source. */}
+      {false && dailyMessage && (
         <Card className="mt-4 flex min-w-0 max-w-full items-start gap-3 p-4">
           <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg" style={{ background: T.warningSubtle, color: T.warning }}><Megaphone size={15} /></span>
           <div className="min-w-0 flex-1">
@@ -317,14 +317,12 @@ function TraineeHome({ go, done, toggle, dailyMessage, goals }) {
           </div>
         </Card>
       )}
-      {/* TODO(Phase4 instructor): "講師からの本日の連絡" and "本日の連絡" are the same dailyMessage concept.
-          Keep trainee display stable for now; unify the authoring/display name to "本日のお知らせ" when instructor CRUD is completed. */}
-      {/* ===== 講師からの本日の連絡 ===== */}
+      {/* ===== 本日のお知らせ ===== */}
       {thHasDailyAnnouncement && (
         <Card className="mt-4 flex min-w-0 max-w-full items-start gap-3 p-4">
           <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg" style={{ background: T.warningSubtle, color: T.warning }}><Megaphone size={15} /></span>
           <div className="min-w-0 flex-1">
-            <div className="text-xs font-bold" style={{ color: T.warning }}>本日の連絡</div>
+            <div className="text-xs font-bold" style={{ color: T.warning }}>本日のお知らせ</div>
             <div className="mt-0.5 break-words text-sm leading-relaxed" style={{ color: T.textPrimary }}>{thDailyNote.announcement}</div>
             {thHome.courses.length > 1 && <div className="mt-1 break-words text-xs" style={{ color: T.textMuted }}>{thDailyNoteCourse?.name || "メインコース"} の連絡を表示しています。</div>}
           </div>
@@ -2362,10 +2360,14 @@ function AttendanceManage({ role }) {
   };
   const attendanceMatchesStatus = (row) => {
     if (attendanceStatus === "すべて") return true;
+    if (attendanceStatus === "出勤未打刻") return !row.in;
     if (attendanceStatus === "退勤未打刻") return !!row.in && !row.out;
     if (attendanceStatus === "欠席") return statusKind(row.s) === "absent";
     if (attendanceStatus === "遅刻") return statusKind(row.s) === "late";
-    if (attendanceStatus === "出勤") return statusKind(row.s) === "present";
+    if (attendanceStatus === "早退") return statusKind(row.s) === "early";
+    if (attendanceStatus === "修正済み") return statusKind(row.s) === "fixed";
+    if (attendanceStatus === "未完了") return attendanceStatusLabel(row.s, row) === "未完了";
+    if (attendanceStatus === "正常") return attendanceStatusLabel(row.s, row) === "正常";
     return true;
   };
   const sortAttendanceRows = (items) => items.slice().sort((a, b) => {
@@ -2396,7 +2398,7 @@ function AttendanceManage({ role }) {
     const q = attendanceQuery.trim().toLowerCase();
     const byQuery = !q || [r.name, r.company, r.traineeId].some(v => String(v || "").toLowerCase().includes(q));
     const byMonthly = monthlyFilter === "欠席ありのみ" ? r.absent > 0 : monthlyFilter === "未登録ありのみ" ? r.missing > 0 : true;
-    const byStatus = attendanceStatus === "すべて" ? true : attendanceStatus === "欠席" ? r.absent > 0 : attendanceStatus === "遅刻" ? r.late > 0 : attendanceStatus === "出勤" ? r.present > 0 : attendanceStatus === "退勤未打刻" ? false : true;
+    const byStatus = attendanceStatus === "すべて" ? true : attendanceStatus === "欠席" ? r.absent > 0 : attendanceStatus === "遅刻" ? r.late > 0 : attendanceStatus === "正常" ? r.present > 0 : attendanceStatus === "退勤未打刻" || attendanceStatus === "出勤未打刻" || attendanceStatus === "未完了" ? false : true;
     return byQuery && byMonthly && byStatus;
   }).sort((a, b) => {
     if (attendanceSort === "status") return (b.absent + b.late + b.missing) - (a.absent + a.late + a.missing);
@@ -2416,7 +2418,7 @@ function AttendanceManage({ role }) {
             <input value={attendanceQuery} onChange={e => setAttendanceQuery(e.target.value)} placeholder="受講生名・ID・備考で検索" className="w-full rounded-xl py-2 pl-9 pr-3 text-sm outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary }} />
           </div>
           <select value={attendanceStatus} onChange={e => setAttendanceStatus(e.target.value)} className="rounded-xl px-3 py-2 text-sm outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary, background: "#fff" }}>
-            {["すべて", "出勤", "遅刻", "欠席", "退勤未打刻"].map(v => <option key={v}>{v}</option>)}
+            {["すべて", "正常", "遅刻", "早退", "欠席", "出勤未打刻", "退勤未打刻", "修正済み", "未完了"].map(v => <option key={v}>{v}</option>)}
           </select>
           <select value={attendanceSort} onChange={e => setAttendanceSort(e.target.value)} className="rounded-xl px-3 py-2 text-sm outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary, background: "#fff" }}>
             <option value="name">名前順</option><option value="status">異常が多い順</option><option value="clockIn">出勤時刻順</option>
@@ -2462,7 +2464,7 @@ function AttendanceManage({ role }) {
                     <input value={draft.in} onChange={e => setDraft({ ...draft, in: e.target.value })} className="w-16 rounded-lg px-1.5 py-1 text-sm outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary }} />
                     <input value={draft.out} onChange={e => setDraft({ ...draft, out: e.target.value })} className="w-16 rounded-lg px-1.5 py-1 text-sm outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary }} />
                     <select value={draft.s} onChange={e => setDraft({ ...draft, s: e.target.value })} className="w-20 rounded-lg px-1 py-1 text-sm outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary }}>
-                      <option>出勤</option><option>遅刻</option><option>欠席</option></select>
+                      <option>正常</option><option>遅刻</option><option>早退</option><option>欠席</option><option>修正済み</option><option>未完了</option></select>
                     <input value={draft.note} onChange={e => setDraft({ ...draft, note: e.target.value })} placeholder="備考" className="flex-1 rounded-lg px-2 py-1 text-sm outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary }} />
                     <div className="flex w-12 items-center justify-end gap-1"><button onClick={save} className="rounded-lg p-1" style={{ color: T.success }}><Check size={16} /></button><button onClick={() => setEIdx(-1)} className="rounded-lg p-1" style={{ color: T.textMuted }}><X size={15} /></button></div>
                   </>
@@ -2849,6 +2851,7 @@ function Reports({ role }) {
   const [reportFormPulse, setReportFormPulse] = useState(false);
   const [detailReport, setDetailReport] = useState(null);
   const reportFormRef = useRef(null);
+  const reportFirstInputRef = useRef(null);
   const aiC = useAIDraft();
   const canWrite = role === "trainee";
   const canViewReports = role === "admin" || role === "instructor" || role === "client";
@@ -2889,10 +2892,13 @@ function Reports({ role }) {
   function focusReportForm() {
     setReportFormPulse(true);
     window.setTimeout(() => setReportFormPulse(false), 1800);
-    window.setTimeout(() => {
-      const top = reportFormRef.current?.getBoundingClientRect?.().top;
-      if (Number.isFinite(top)) window.scrollTo({ top: window.scrollY + top - 96, behavior: "smooth" });
-    }, 0);
+    window.requestAnimationFrame(() => {
+      window.requestAnimationFrame(() => {
+        const top = reportFormRef.current?.getBoundingClientRect?.().top;
+        if (Number.isFinite(top)) window.scrollTo({ top: Math.max(0, window.scrollY + top - 112), behavior: "smooth" });
+        window.setTimeout(() => reportFirstInputRef.current?.focus?.({ preventScroll: true }), 180);
+      });
+    });
   }
 
   useEffect(() => {
@@ -3164,9 +3170,9 @@ function Reports({ role }) {
       {canWrite && <div ref={reportFormRef}><Card className="mb-4 p-5 transition-shadow" style={reportFormPulse ? { boxShadow: `0 0 0 3px ${T.accent}33, 0 18px 40px rgba(0,0,0,.08)` } : undefined}>
         <div className="mb-3 flex flex-wrap items-center justify-between gap-3"><div><h3 className="font-bold" style={{ color: T.textPrimary }}>朝: 目標</h3><p className="text-xs" style={{ color: T.textMuted }}>対象日を選んで、朝だけでも途中でも保存できます。</p></div><div className="flex items-center gap-2"><input type="date" value={editingReportDate} onChange={e => editReport({ date: e.target.value, report: reportsByDate[e.target.value] })} className="rounded-lg px-3 py-2 text-sm outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary, background: "#fff" }} /><Btn kind="soft" size="sm" icon={Plus} onClick={addGoalItem}>目標を追加</Btn></div></div>
         <div className="mb-4 rounded-xl px-3 py-2 text-xs font-semibold" style={{ background: reportEditState === "create" ? T.warningSubtle : T.accentSubtle, color: reportEditState === "create" ? T.warning : T.accentHover }}>
-          {reportEditState === "create" ? "新しい日報を作成中" : reportEditState === "edit" ? "編集中の日報" : "本日の日報"}: {editingReportDate.replace(/-/g, "/")}
+          {reportEditState === "create" ? "新しい日報を作成中" : reportEditState === "edit" ? `${editingReportDate.replace(/-/g, "/")}の日報を編集中` : "本日の日報"}
         </div>
-        <Field label="今日の大きな目標"><input value={draft.morningGoal} onChange={e => setDraft({ ...draft, morningGoal: e.target.value })} placeholder="例）配列とループを使った処理を自力で書けるようにする" className={fieldCls} style={{ border: `1px solid ${T.border}`, color: T.textPrimary, background: "#fff" }} /></Field>
+        <Field label="今日の大きな目標"><input ref={reportFirstInputRef} value={draft.morningGoal} onChange={e => setDraft({ ...draft, morningGoal: e.target.value })} placeholder="例）配列とループを使った処理を自力で書けるようにする" className={fieldCls} style={{ border: `1px solid ${T.border}`, color: T.textPrimary, background: "#fff" }} /></Field>
         <div className="mt-3 space-y-2">
           {draft.goalItems.length === 0 && <div className="rounded-lg px-3 py-2 text-sm" style={adminPanelStyle}>目標リストはまだありません。</div>}
           {draft.goalItems.map(item => (
@@ -3494,11 +3500,11 @@ function InstructorHome({ go, openKarte, dailyMessage, setDailyMessage, currentU
         ]}
         cta={{ label: "受講生カルテを開く", icon: Users, onClick: () => go("trainees") }}
       />
-      {/* 受講生への本日の連絡（受講生ホームに表示される・復元済み機能） */}
-      <Card className="mb-6 p-6">
+      {/* legacy dailyMessage channel is disabled; course daily-note announcement is the canonical 本日のお知らせ source. */}
+      {false && <Card className="mb-6 p-6">
         <div className="mb-3 flex flex-wrap items-center gap-2">
           <span className="flex h-8 w-8 items-center justify-center rounded-lg" style={{ background: T.warningSubtle, color: T.warning }}><Megaphone size={15} /></span>
-          <h3 className="text-[15px] font-bold" style={{ color: T.textPrimary }}>受講生への本日の連絡</h3>
+          <h3 className="text-[15px] font-bold" style={{ color: T.textPrimary }}>本日のお知らせ</h3>
           <span className="text-xs" style={{ color: T.textMuted }}>受講生のホーム画面に表示されます</span>
         </div>
         <textarea value={msg} onChange={e => setMsg(e.target.value)} rows={2} placeholder="例）本日はJavaの「条件分岐・反復」です。前回の配列の復習をしておいてください。"
@@ -3507,7 +3513,7 @@ function InstructorHome({ go, openKarte, dailyMessage, setDailyMessage, currentU
           {saved && <span className="inline-flex items-center gap-1 text-xs font-semibold" style={{ color: T.success }}><Check size={13} />受講生に表示しました</span>}
           <Btn size="sm" icon={Send} onClick={save}>連絡を送る</Btn>
         </div>
-      </Card>
+      </Card>}
       {err && <div className="mb-4 rounded-lg px-3 py-2 text-xs" style={adminErrStyle}>{err}</div>}
 
       <div className="mb-6 grid gap-4 md:grid-cols-3">
@@ -3564,7 +3570,7 @@ function InstructorHome({ go, openKarte, dailyMessage, setDailyMessage, currentU
         <Card className="mb-6 p-5">
           <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
             <div>
-              <h3 className="font-bold" style={{ color: T.textPrimary }}>今日の講義内容・本日の連絡</h3>
+              <h3 className="font-bold" style={{ color: T.textPrimary }}>今日の講義内容・本日のお知らせ</h3>
               <p className="text-xs" style={{ color: T.textMuted }}>担当コースごとに、受講生ホームへ表示する今日の単元と連絡を登録します。</p>
             </div>
             <Badge tone="cyan">{date.replace(/-/g, "/")}</Badge>
@@ -3597,7 +3603,7 @@ function InstructorHome({ go, openKarte, dailyMessage, setDailyMessage, currentU
                       <input value={note.lessonTitle || ""} onChange={e => updateDailyNote(course.courseId, "lessonTitle", e.target.value)} className="mt-1 w-full rounded-xl px-3 py-2 text-sm outline-none focus:border-cyan-400" style={{ border: `1px solid ${T.border}`, color: T.textPrimary, background: "#fff" }} placeholder="例: Java 条件分岐と演習" />
                     </label>}
                     <label className="block">
-                      <span className="text-xs font-bold" style={{ color: T.textMuted }}>受講生への本日の連絡</span>
+                      <span className="text-xs font-bold" style={{ color: T.textMuted }}>本日のお知らせ</span>
                       <input value={note.announcement || ""} onChange={e => updateDailyNote(course.courseId, "announcement", e.target.value)} className="mt-1 w-full rounded-xl px-3 py-2 text-sm outline-none focus:border-cyan-400" style={{ border: `1px solid ${T.border}`, color: T.textPrimary, background: "#fff" }} placeholder="例: 10分前にZoomへ入室してください" />
                     </label>
                   </div>

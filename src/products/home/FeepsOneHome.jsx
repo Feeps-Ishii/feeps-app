@@ -351,7 +351,7 @@ export default function FeepsOneHome({ role, displayName, goProduct, goTraining,
   const traineeLoadingText = loadingDashboard ? "取得中" : "確認する";
 
   const todoCards = role === "instructor" ? [
-    { icon: Megaphone, title: "本日のお知らせ", value: todayCourses.some(c => textOf(c?.dailyNote)) ? "登録済" : "未登録", desc: "講師から受講生への日次連絡です。登録APIは今後拡張します。", action: "研修管理へ", tone: "training", onClick: () => instructorTaskClick("home") },
+    { icon: Megaphone, title: "本日のお知らせ", value: todayCourses.some(c => textOf(c?.dailyNote)) ? "登録済" : "未登録", desc: "講師から受講生への日次連絡です。研修管理で登録します。", action: "研修管理へ", tone: "training", onClick: () => instructorTaskClick("home") },
     { icon: Clock, title: "勤怠確認", value: `${attendanceAlerts}件`, desc: "欠席・遅刻・未打刻など、今日確認したい勤怠です。", action: "確認する", tone: "training", onClick: () => instructorTaskClick("attendance") },
     { icon: FileText, title: "日報確認", value: `${pendingReports}件`, desc: "未確認の日報を一覧で確認します。", action: "確認する", tone: "training", onClick: () => instructorTaskClick("reports") },
     { icon: ClipboardCheck, title: "授業準備", value: `${lessonPrep.length || todayCourses.length}件`, desc: "今日のカリキュラム・教材・テストを開きます。", action: "開く", tone: "learning", onClick: () => instructorTaskClick("curriculum") },
