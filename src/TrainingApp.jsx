@@ -972,7 +972,7 @@ export default function App() {
   // Mobile keeps the pre-Phase4 behavior (navigate straight to the full notifications
   // page) — the glass dropdown below is a desktop (lg+) Floating Canvas addition only.
   const notifBellMobile = (
-    <button type="button" onClick={() => go("notifications")} aria-label={notif > 0 ? `通知 ${notif}件` : "通知"}
+    <button type="button" onClick={() => { goProduct("training"); go("notifications"); }} aria-label={notif > 0 ? `通知 ${notif}件` : "通知"}
       className="relative rounded-lg p-1.5 transition hover:bg-black/5">
       <Bell size={17} style={{ color: activeView === "notifications" ? T.accent : T.textSecondary }} />
       {notif > 0 && <span className="absolute -right-0.5 -top-0.5 flex h-4 min-w-[16px] items-center justify-center rounded-full px-1 text-[11px] font-bold text-white" style={{ background: T.danger }}>{notif}</span>}
@@ -1013,7 +1013,7 @@ export default function App() {
               );
             })}
           </div>
-          <button type="button" onClick={() => { setNotifOpen(false); go("notifications"); }}
+          <button type="button" onClick={() => { setNotifOpen(false); goProduct("training"); go("notifications"); }}
             className="block w-full px-4 py-2.5 text-center text-xs font-semibold transition hover:bg-black/[.03]"
             style={{ borderTop: "1px solid rgba(21,23,28,.06)", color: T.accent }}>
             すべて表示

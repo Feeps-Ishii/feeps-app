@@ -23,14 +23,14 @@ const ROLE_LABEL = {
 
 const RECOMMENDED = {
   instructor: ["training", "learning", "talent"],
-  trainee: ["learning", "training", "talent", "matching"],
+  trainee: ["learning", "training", "talent"],
   client: ["training", "talent", "matching"],
   admin: ["admin", "analytics", "training", "learning", "talent", "matching"],
 };
 
 const PRODUCT_BY_ROLE = {
   instructor: ["training", "learning", "talent"],
-  trainee: ["learning", "training", "talent", "matching"],
+  trainee: ["learning", "training", "talent"],
   client: ["training", "talent", "matching"],
   admin: ["admin", "analytics", "training", "learning", "talent", "matching"],
   default: ["training", "learning", "talent"],
@@ -314,7 +314,6 @@ export default function FeepsOneHome({ role, displayName, goProduct, goTraining,
   const traineeCourses = asArray(dashboard?.activeCourses);
   const traineeTasks = asArray(dashboard?.todayTasks);
   const traineeAnnouncements = asArray(dashboard?.dailyAnnouncements);
-  const traineeWarnings = asArray(dashboard?.warnings);
   const traineeTests = asArray(dashboard?.tests);
   const traineeComments = asArray(dashboard?.comments);
   const lessonPrep = asArray(dashboard?.lessonPrep);
@@ -358,7 +357,7 @@ export default function FeepsOneHome({ role, displayName, goProduct, goTraining,
   ] : role === "trainee" ? [
     { icon: Clock, title: "勤怠登録", value: textOf(traineeAttendanceTask?.status === "done" ? "登録済み" : traineeAttendanceTask?.status === "needs_action" ? "未登録" : traineeLoadingText), desc: textOf(traineeAttendanceTask?.description, dashboardError || "今日の勤怠状態を確認できます。"), action: textOf(traineeAttendanceTask?.actionLabel, "開く"), tone: "training", onClick: () => openDashboardTarget(traineeAttendanceTask?.targetUrl || "/training/attendance") },
     { icon: FileText, title: "日報提出", value: textOf(traineeReportTask?.status === "done" ? "提出済み" : traineeReportTask?.status === "needs_action" ? "未提出" : traineeLoadingText), desc: textOf(traineeReportTask?.description, "今日の日報状態を確認できます。"), action: textOf(traineeReportTask?.actionLabel, "開く"), tone: "training", onClick: () => openDashboardTarget(traineeReportTask?.targetUrl || "/training/reports") },
-    { icon: BookOpen, title: "前回の続き", value: dashboard?.learning?.progressPercent != null ? `${dashboard.learning.progressPercent}%` : textOf(traineeLearningTask?.status === "unavailable" ? "Learningで確認" : traineeLoadingText), desc: textOf(traineeLearningTask?.description, "学習の続きはEラーニングで確認できます。"), action: textOf(traineeLearningTask?.actionLabel, "Learningへ"), tone: "learning", onClick: () => openDashboardTarget(traineeLearningTask?.targetUrl || "/learning/inprogress") },
+    { icon: BookOpen, title: Number(dashboard?.learning?.progressPercent) >= 100 ? "次の学習へ" : "前回の続き", value: dashboard?.learning?.progressPercent != null ? `${dashboard.learning.progressPercent}%` : textOf(traineeLearningTask?.status === "unavailable" ? "Learningで確認" : traineeLoadingText), desc: Number(dashboard?.learning?.progressPercent) >= 100 ? "修了しました。次のコースや復習に進めます。" : textOf(traineeLearningTask?.description, "学習の続きはEラーニングで確認できます。"), action: textOf(traineeLearningTask?.actionLabel, "Learningへ"), tone: "learning", onClick: () => openDashboardTarget(traineeLearningTask?.targetUrl || "/learning/inprogress") },
     { icon: ClipboardCheck, title: "未受験テスト", value: loadingDashboard ? "取得中" : `${traineeUnsubmittedTests}件`, desc: textOf(traineeTestTask?.description, "未受験テストを確認できます。"), action: textOf(traineeTestTask?.actionLabel, "開く"), tone: "training", onClick: () => openDashboardTarget(traineeTestTask?.targetUrl || "/training/tests") },
   ] : role === "client" ? [
     { icon: Users, title: "自社受講生", value: "集計中", desc: "自社範囲の受講生数を集計します。", action: "開く", tone: "training", onClick: () => openProduct("training", { goProduct, goTraining }) },
@@ -501,19 +500,6 @@ export default function FeepsOneHome({ role, displayName, goProduct, goTraining,
             ))}
           </div>
         </section>
-      )}
-
-      {role === "trainee" && traineeWarnings.length > 0 && (
-        <Card className="p-4">
-          <div className="text-sm font-bold" style={{ color: T.textPrimary }}>補足</div>
-          <div className="mt-2 space-y-1">
-            {traineeWarnings.slice(0, 4).map(w => (
-              <div key={textOf(w.code, textOf(w.message))} className="text-xs" style={{ color: T.textMuted }}>
-                {textOf(w.message, textOf(w.code))}
-              </div>
-            ))}
-          </div>
-        </Card>
       )}
 
       <ProductNavigator role={role} goProduct={goProduct} goTraining={goTraining} goSub={goSub} />

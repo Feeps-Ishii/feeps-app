@@ -707,7 +707,7 @@ function PersonalSkillSheet({ role = "trainee" } = {}) {
       apiGet("/profile/me").catch(() => null),
       apiGet("/skills/me").catch(() => null),
     ]).then(([pr, sk]) => {
-      if (pr) setProfile(p => ({ ...p, name: pr.name || "", company: pr.company || "" }));
+      if (pr) setProfile(p => ({ ...p, name: pr.name || "", company: pr.companyName || "" }));
       if (sk?.skills) setSkills(sk.skills);
     }).finally(() => setLoading(false));
   }, []);
@@ -928,7 +928,7 @@ function TraineePortfolio({ done, goals }) {
   const overall = overallProgress(goals, done);
   const gp = goalProgress(goals, done);
   const acquired = flatTasks(goals).filter(t => done[t.id]);
-  const [skills, setSkills] = useState(PORTFOLIO_SKILLS);
+  const [skills, setSkills] = useState([]);
   const [skErr, setSkErr] = useState("");
   const [skSaved, setSkSaved] = useState(false);
   const [skBusy, setSkBusy] = useState(false);
@@ -938,15 +938,18 @@ function TraineePortfolio({ done, goals }) {
   const [nameBusy, setNameBusy] = useState(false);
   const [growth, setGrowth] = useState({ reports: [], tests: [], attendance: [] });
 
+  const [profileRaw, setProfileRaw] = useState(null);
   useEffect(() => {
-    apiGet("/profile/me").then(p => { if (p?.name) setProfileName(p.name); }).catch(() => {});
+    apiGet("/profile/me").then(p => { setProfileRaw(p || null); if (p?.name) setProfileName(p.name); }).catch(() => {});
   }, []);
 
   async function saveName() {
     if (nameBusy) return;
     setNameBusy(true);
     try {
-      await apiPut("/profile/me", { name: nameDraft, course: COURSE });
+      // PUT /profile/me は未送信フィールドを空文字で上書きするため、既存のcourse/companyを必ず同送する
+      await apiPut("/profile/me", { name: nameDraft, course: profileRaw?.course || "", company: profileRaw?.company || "" });
+      setProfileRaw(p => ({ ...(p || {}), name: nameDraft }));
       setProfileName(nameDraft); setEditName(false);
     } catch (e) {} finally { setNameBusy(false); }
   }

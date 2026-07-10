@@ -59,19 +59,6 @@ function getLearningResume(lrn) {
   candidates.sort((a, b) => String(b.at).localeCompare(String(a.at)));
   return candidates[0] || null;
 }
-function getLearningStats(lrn) {
-  const active = lrn.inprogress.length;
-  const completed = lrn.completed.length;
-  const skills = lrn.getEarnedSkills().length;
-  const weeklyHours = Math.max(1, completed * 2 + active * 1.5);
-  return {
-    todayMinutes: active ? 35 + active * 10 : completed ? 25 : 0,
-    weeklyHours: weeklyHours.toFixed(1),
-    streak: active || completed ? 4 : 0,
-    completed,
-    skills,
-  };
-}
 const REVIEW_STATUS_LABEL = {
   understood: "理解できた",
   uncertain: "少し不安",
@@ -87,36 +74,6 @@ function reviewStatusLabel(review) {
 }
 function reviewStatusTone(review) {
   return REVIEW_STATUS_TONE[review?.status] || "muted";
-}
-function LearningCalendarHeatmap({ lrn, themeColor = PRODUCT_ACCENT.learning.accent }) {
-  const active = lrn.inprogress.length + lrn.completed.length;
-  const days = Array.from({ length: 35 }, (_, i) => {
-    const v = active ? ((i * 7 + active * 3) % 5) : 0;
-    return { i, v: i > 30 ? 0 : v };
-  });
-  return (
-    <Card className="p-4">
-      <div className="mb-3 flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <Calendar size={15} style={{ color: themeColor }} />
-          <span className="text-sm font-bold" style={{ color: C.ink }}>学習カレンダー</span>
-        </div>
-        <span className="text-xs" style={{ color: C.muted }}>直近5週間</span>
-      </div>
-      <div className="grid grid-cols-7 gap-1.5">
-        {days.map(d => (
-          <div key={d.i} className="aspect-square rounded-md" title={`${d.v * 12}分`}
-            style={{ background: d.v === 0 ? C.line : themeColor, opacity: d.v === 0 ? 1 : .28 + d.v * .14 }} />
-        ))}
-      </div>
-      <div className="mt-3 flex items-center justify-between text-[11px]" style={{ color: C.faint }}>
-        <span>学習なし</span><span>学習時間が多い</span>
-      </div>
-      <p className="mt-2 text-[11px] leading-relaxed" style={{ color: C.muted }}>
-        色が濃い日ほど学習時間が長いことを表します。実学習イベントがない日は薄い表示です。
-      </p>
-    </Card>
-  );
 }
 function LearningEmptyAction({ title, desc, cta, onClick, icon: Icon = BookOpen, themeColor = PRODUCT_ACCENT.learning.accent }) {
   return (
@@ -188,7 +145,6 @@ function LearningOverview({ lrn, goSub, goProduct, onOpenDetail, role, themeColo
   const todayCompleted = lrn.completed.filter(c => lrn.progress[c.id]?.completedAt?.slice(0, 10) === todayStr());
   const recommend = lrn.notStarted.slice(0, 3);
   const resume = getLearningResume(lrn);
-  const stats = getLearningStats(lrn);
   return (
     <div>
       <PageHeader
@@ -211,7 +167,7 @@ function LearningOverview({ lrn, goSub, goProduct, onOpenDetail, role, themeColo
       </div>
 
       {/* 今日の学習 */}
-      <div className="mb-6 grid gap-4 lg:grid-cols-[1.4fr_.8fr]">
+      <div className="mb-6">
         <Card className="p-5">
           <div className="flex flex-wrap items-start justify-between gap-3">
             <div className="min-w-0 flex-1">
@@ -238,44 +194,6 @@ function LearningOverview({ lrn, goSub, goProduct, onOpenDetail, role, themeColo
               )}
             </div>
             <Btn icon={PlayCircle} onClick={() => resume ? onOpenDetail(resume.course) : goSub("el_courses")}>続きから学習</Btn>
-          </div>
-        </Card>
-        <Card className="p-5">
-          <div className="flex items-center gap-2">
-            <Clock size={16} style={{ color: themeColor }} />
-            <h3 className="text-sm font-bold" style={{ color: C.ink }}>学習時間</h3>
-          </div>
-          <div className="mt-4 grid grid-cols-2 gap-3">
-            <div className="rounded-2xl p-4" style={{ background: C.canvas }}>
-              <div className="text-xs" style={{ color: C.muted }}>今日</div>
-              <div className="mt-1 text-2xl font-bold" style={{ color: C.ink }}>{stats.todayMinutes}<span className="ml-1 text-xs font-semibold" style={{ color: C.muted }}>分</span></div>
-            </div>
-            <div className="rounded-2xl p-4" style={{ background: C.canvas }}>
-              <div className="text-xs" style={{ color: C.muted }}>今週</div>
-              <div className="mt-1 text-2xl font-bold" style={{ color: C.ink }}>{stats.weeklyHours}<span className="ml-1 text-xs font-semibold" style={{ color: C.muted }}>時間</span></div>
-            </div>
-          </div>
-        </Card>
-      </div>
-
-      <div className="mb-6 grid gap-4 lg:grid-cols-[.9fr_1.1fr]">
-        <LearningCalendarHeatmap lrn={lrn} themeColor={themeColor} />
-        <Card className="p-5">
-          <div className="flex items-center gap-2">
-            <Flame size={16} style={{ color: C.amber }} />
-            <h3 className="text-sm font-bold" style={{ color: C.ink }}>今日のモチベーション</h3>
-          </div>
-          <div className="mt-4 grid gap-3 sm:grid-cols-2">
-            <div className="rounded-2xl p-4" style={{ background: C.amberW }}>
-              <div className="text-xs font-bold" style={{ color: C.amber }}>あと少し</div>
-              <div className="mt-1 text-sm font-semibold" style={{ color: C.ink }}>
-                {resume && resume.pct >= 75 ? "あと1レッスンで修了が見えてきました" : "15分だけ進める日も立派な前進です"}
-              </div>
-            </div>
-            <div className="rounded-2xl p-4" style={{ background: C.greenW }}>
-              <div className="text-xs font-bold" style={{ color: C.green }}>バッジ</div>
-              <div className="mt-1 text-sm font-semibold" style={{ color: C.ink }}>{stats.streak}日連続学習中</div>
-            </div>
           </div>
         </Card>
       </div>

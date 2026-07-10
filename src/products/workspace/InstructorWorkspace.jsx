@@ -6,13 +6,6 @@ import {
 import { apiGet, apiPut } from "../../api.js";
 import { Badge, Btn, Card, SkeletonCards, SkeletonRows, T } from "../../components/common";
 
-const WARNING_LABELS = {
-  learning_progress_unavailable: "Learning進捗遅れは初期版では未集計です。",
-  talent_summary_unavailable: "Talentの成長情報は初期版では未集計です。",
-  comment_type_unavailable: "コメント種別の分離は今後の拡張対象です。",
-  instructor_unassigned_readonly: "担当コース未設定のため、閲覧用の情報として表示しています。",
-};
-
 function textOf(value, fallback = "") {
   if (value == null || value === "") return fallback;
   if (typeof value === "string" || typeof value === "number" || typeof value === "boolean") return String(value);
@@ -261,7 +254,6 @@ export default function InstructorWorkspace({ go, displayName = "講師" }) {
   const todayCourses = asObjectArray(data?.todayCourses);
   const recentActivity = asObjectArray(data?.recentActivity).slice(0, 5);
   const lessonPrep = asObjectArray(data?.lessonPrep);
-  const warnings = asArray(data?.warnings);
   const readOnly = Boolean(data?.scope?.readOnly);
   const date = data?.date || "";
   const todayLessonCount = lessonPrep.filter(item => textOf(item.curriculumTitle)).length || todayCourses.length;
@@ -399,21 +391,6 @@ export default function InstructorWorkspace({ go, displayName = "講師" }) {
             </Card>
           </div>
 
-          {warnings.length > 0 && (
-            <Card className="p-4">
-              <div className="mb-2 flex items-center gap-2">
-                <CheckCircle2 size={16} style={{ color: T.textMuted }} />
-                <div className="text-sm font-bold" style={{ color: T.textPrimary }}>初期版での補足</div>
-              </div>
-              <div className="grid gap-2 md:grid-cols-3">
-                {warnings.map((w, index) => (
-                  <div key={textOf(w, String(index))} className="rounded-xl px-3 py-2 text-xs" style={{ background: T.bgBase, color: T.textSecondary }}>
-                    {WARNING_LABELS[textOf(w)] || textOf(w)}
-                  </div>
-                ))}
-              </div>
-            </Card>
-          )}
         </>
       )}
     </div>

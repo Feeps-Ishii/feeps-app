@@ -1304,6 +1304,12 @@ function Tests({ role }) {
     return !!test?.courseId && instructorAssignedCourseIds.has(test.courseId);
   };
   const canGradeResults = role === "admin" || (role === "instructor" && instructorAssignedCourseIds.size > 0);
+  // 受講生カードのコース名表示用（opsFilterはtraineeでは無効のため自分のコースだけ取得）
+  const [myCourseNames, setMyCourseNames] = useState({});
+  useEffect(() => {
+    if (role !== "trainee") return;
+    apiGet("/me/courses").then(list => setMyCourseNames(Object.fromEntries((list || []).filter(c => c?.courseId && c?.name).map(c => [c.courseId, c.name])))).catch(() => {});
+  }, [role]);
 
   async function loadTests() {
     setTestErr("");
@@ -1544,7 +1550,7 @@ function Tests({ role }) {
             {t.status === "graded" ? <Badge tone="green">受験済</Badge> : <Badge tone="muted">未受験</Badge>}
             <span className="text-xs" style={{ color: T.textMuted }}>{t.q}問・{t.limit}</span></div>
           <div className="mb-3 min-w-0 rounded-xl p-3 text-xs" style={{ background: T.bgBase, color: T.textMuted }}>
-            <div className="truncate">カリキュラム: {t.curriculumTitle || t.curriculumName || t.courseName || t.courseId || "未設定"}</div>
+            <div className="truncate">コース: {t.curriculumTitle || t.curriculumName || t.courseName || myCourseNames[t.courseId] || "未設定"}</div>
             <div className="truncate">章: {t.chapterTitle || t.sectionTitle || "確認テスト"}</div>
             <div className="truncate">レッスン: {t.lessonTitle || t.lessonName || "対象レッスン未設定"}</div>
           </div>
@@ -2137,15 +2143,16 @@ function TestTaking({ test, back, onDone, preview = false }) {
 }
 
 /* ===== Excel出力 ===== */
-async function exportAttendanceExcel(data) {
+async function exportAttendanceExcel(data, date) {
   try {
     const XLSX = await import("xlsx");
-    const rows = (data || []).map(r => ({ 日付: "2026/04/15", 氏名: r.name, 所属: r.org, 出勤: r.in, 退勤: r.out, 状態: attendanceStatusLabel(r.s, r), 備考: r.note || "" }));
+    const d = String(date || todayStr());
+    const rows = (data || []).map(r => ({ 日付: (r.date || d).replaceAll("-", "/"), 氏名: r.name, 所属: r.org || "", 出勤: r.in, 退勤: r.out, 状態: attendanceStatusLabel(r.s, r), 備考: r.note || "" }));
     const ws = XLSX.utils.json_to_sheet(rows);
     ws["!cols"] = [{ wch: 12 }, { wch: 14 }, { wch: 22 }, { wch: 8 }, { wch: 8 }, { wch: 8 }, { wch: 20 }];
     const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, "勤怠_04-15");
-    XLSX.writeFile(wb, "勤怠記録_アクシスJava_20260415.xlsx");
+    XLSX.utils.book_append_sheet(wb, ws, `勤怠_${d.slice(5)}`);
+    XLSX.writeFile(wb, `勤怠記録_${d.replaceAll("-", "")}.xlsx`);
   } catch (e) { console.error(e); }
 }
 
@@ -2229,7 +2236,7 @@ function TraineeAttendance() {
         <div className="flex flex-col items-center gap-5 sm:flex-row sm:justify-between">
           <div>
             <div className="text-sm" style={{ color: T.textMuted }}>{fmtLongDate(today)}</div>
-            <div className="text-2xl font-bold" style={{ color: T.textPrimary }}>15日目 ｜ Java</div>
+            <div className="text-2xl font-bold" style={{ color: T.textPrimary }}>{enrolledCourses.map(c => c.name).filter(Boolean).join(" ／ ") || "本日の勤怠"}</div>
             {editToday ? (
               <div className="mt-3 flex items-center gap-2">
                 <input value={att.in} onChange={e => setAtt({ ...att, in: e.target.value })} className="w-20 rounded-lg px-2 py-1.5 text-sm outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary }} />
@@ -2303,7 +2310,7 @@ function AttendanceManage({ role }) {
   const nameMap = useNameMap();
   const [date, setDate] = useState(todayStr());
   const [rows, setRows] = useState([]);
-  const [eIdx, setEIdx] = useState(-1);
+  const [eId, setEId] = useState(null);
   const [draft, setDraft] = useState({});
   const [err, setErr] = useState("");
   const [periodMode, setPeriodMode] = useState("日次");
@@ -2341,13 +2348,13 @@ function AttendanceManage({ role }) {
       .finally(() => alive && setMonthlyLoading(false));
     return () => { alive = false; };
   }, [periodMode, month]);
-  function startEdit(i) { if (!canEdit) return; setEIdx(i); setDraft({ ...rows[i] }); }
+  function startEdit(row) { if (!canEdit) return; setEId(row.traineeId); setDraft({ ...row, s: row.s || "正常" }); }
   async function save() {
-    const row = rows[eIdx]; setErr("");
+    setErr("");
     try {
-      await apiPut("/attendance/" + row.traineeId, { date: row.date, clockIn: draft.in, clockOut: draft.out, status: draft.s, note: draft.note });
+      await apiPut("/attendance/" + draft.traineeId, { date: draft.date || date, clockIn: draft.in, clockOut: draft.out, status: draft.s, note: draft.note });
       emitNotificationRefresh();
-      setRows(rows.map((r, i) => i === eIdx ? { ...draft } : r)); setEIdx(-1);
+      setEId(null); load();
     } catch (e) { setErr("保存に失敗しました：" + (e?.message || e)); }
   }
   const attendanceMatchesQuery = (row) => {
@@ -2372,8 +2379,15 @@ function AttendanceManage({ role }) {
     if (attendanceSort === "clockIn") return String(a.in || "99:99").localeCompare(String(b.in || "99:99"));
     return String(nameMap[a.traineeId] || a.name || "").localeCompare(String(nameMap[b.traineeId] || b.name || ""), "ja");
   });
-  const filteredRows = sortAttendanceRows(opsFilter.apply(rows).filter(attendanceMatchesQuery).filter(attendanceMatchesStatus));
-  const present = filteredRows.filter(r => statusKind(r.s) === "present").length, late = filteredRows.filter(r => statusKind(r.s) === "late").length, absent = filteredRows.filter(r => statusKind(r.s) === "absent").length;
+  // 未打刻の受講生も行として表示する（打刻済みAPIレコードに、対象受講生の未登録分を合成）
+  const registeredRows = opsFilter.apply(rows);
+  const registeredIds = new Set(registeredRows.map(r => r.traineeId));
+  const missingRows = opsFilter.targetTrainees
+    .filter(t => t.userId && !registeredIds.has(t.userId))
+    .map(t => ({ traineeId: t.userId, date, name: t.name || nameMap[t.userId] || fallbackName(t.userId), in: "", out: "", s: "", note: "" }));
+  const filteredRows = sortAttendanceRows(registeredRows.concat(missingRows).filter(attendanceMatchesQuery).filter(attendanceMatchesStatus));
+  const present = filteredRows.filter(r => r.in && statusKind(r.s) === "present").length, late = filteredRows.filter(r => statusKind(r.s) === "late").length, absent = filteredRows.filter(r => statusKind(r.s) === "absent").length;
+  const unregistered = filteredRows.filter(r => !r.in && !r.s).length;
   const monthDates = datesInMonth(month);
   const monthlyAttendance = opsFilter.targetTrainees.map(t => {
     const items = monthlyRows.filter(r => r.traineeId === t.userId);
@@ -2404,10 +2418,10 @@ function AttendanceManage({ role }) {
   });
   return (
     <div>
-      <SectionHead title={canEdit ? "勤怠管理" : "勤怠状況"} desc={periodMode === "月次" ? `${month}の勤怠集計` : canEdit ? `${fmtLongDate(date)}の出席状況・修正` : `${fmtLongDate(date)}の自社受講生の出席状況`}
-        action={<div className="flex flex-wrap items-center gap-2"><Seg value={periodMode} onChange={setPeriodMode} options={["日次", "月次"]} />{periodMode === "月次" ? <input type="month" value={month} onChange={e => setMonth(e.target.value)} className="rounded-lg px-3 py-2 text-sm outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary, background: "#fff" }} /> : <input type="date" value={date} onChange={e => setDate(e.target.value)} className="rounded-lg px-3 py-2 text-sm outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary, background: "#fff" }} />}<Btn kind="ghost" icon={FileSpreadsheet} onClick={() => exportAttendanceExcel(filteredRows)}>Excelで出力</Btn></div>} />
+      <SectionHead title={canEdit ? "勤怠管理" : "勤怠状況"} desc={periodMode === "月次" ? `${month}の勤怠集計` : `${fmtLongDate(date)}の${role === "client" ? "自社" : "担当"}受講生の出席状況${canEdit ? "・修正" : ""}`}
+        action={<div className="flex flex-wrap items-center gap-2"><Seg value={periodMode} onChange={setPeriodMode} options={["日次", "月次"]} />{periodMode === "月次" ? <input type="month" value={month} onChange={e => setMonth(e.target.value)} className="rounded-lg px-3 py-2 text-sm outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary, background: "#fff" }} /> : <input type="date" value={date} onChange={e => setDate(e.target.value)} className="rounded-lg px-3 py-2 text-sm outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary, background: "#fff" }} />}<Btn kind="ghost" icon={FileSpreadsheet} onClick={() => exportAttendanceExcel(filteredRows, date)}>Excelで出力</Btn></div>} />
       {err && <div className="mb-4 rounded-lg px-3 py-2 text-xs" style={{ background: T.dangerSubtle, color: T.danger }}>{err}</div>}
-      <OpsFilterPanel filter={opsFilter} summary={periodMode === "月次" ? `表示対象: ${opsFilter.targetTrainees.length}名 / 集計月: ${month}` : `表示対象: ${opsFilter.targetTrainees.length}名 / 勤怠登録: ${filteredRows.length}件`} />
+      <OpsFilterPanel filter={opsFilter} summary={periodMode === "月次" ? `表示対象: ${opsFilter.targetTrainees.length}名 / 集計月: ${month}` : `表示対象: ${opsFilter.targetTrainees.length}名 / 勤怠登録: ${registeredRows.length}件`} />
       <Card className="mb-4 p-4">
         <div className="grid gap-3 md:grid-cols-[1fr_180px_180px]">
           <div className="relative">
@@ -2445,33 +2459,32 @@ function AttendanceManage({ role }) {
           )}
         </Card>
       ) : (<>
-      <div className="mb-5 grid gap-4 sm:grid-cols-3"><Stat icon={CheckCircle2} label="出勤" value={`${present}名`} tone="green" /><Stat icon={AlertCircle} label="遅刻" value={`${late}名`} tone="amber" /><Stat icon={X} label="欠席" value={`${absent}名`} tone="muted" /></div>
+      <div className="mb-5 grid gap-4 sm:grid-cols-2 lg:grid-cols-4"><Stat icon={CheckCircle2} label="出勤" value={`${present}名`} tone="green" /><Stat icon={AlertCircle} label="遅刻" value={`${late}名`} tone="amber" /><Stat icon={X} label="欠席" value={`${absent}名`} tone="muted" /><Stat icon={Clock} label="出勤未打刻" value={`${unregistered}名`} tone={unregistered ? "amber" : "muted"} /></div>
       <Card>
         <div className="overflow-x-auto">
           <div style={{ minWidth: 600 }}>
             <div className="flex items-center gap-3 px-4 py-2.5 text-xs font-semibold" style={{ background: T.bgBase, color: T.textMuted }}>
               <div className="w-40">受講生</div><div className="w-16">出勤</div><div className="w-16">退勤</div><div className="w-20">状態</div><div className="flex-1">備考</div>{canEdit && <div className="w-12" />}</div>
             {filteredRows.length === 0 ? <div className="px-4 py-8 text-center text-sm" style={{ color: T.textMuted }}>該当データがありません</div> : filteredRows.map((a) => {
-              const i = rows.findIndex(r => r.traineeId === a.traineeId);
               return (
               <div key={a.traineeId} className="flex items-center gap-3 px-4 py-3 text-sm" style={{ borderTop: `1px solid ${T.border}`, color: T.textPrimary }}>
                 <div className="flex w-40 items-center gap-2"><Avatar name={nameMap[a.traineeId] || a.name} size={28} /><span className="truncate">{nameMap[a.traineeId] || a.name}</span></div>
-                {canEdit && eIdx === i ? (
+                {canEdit && eId === a.traineeId ? (
                   <>
                     <input value={draft.in} onChange={e => setDraft({ ...draft, in: e.target.value })} className="w-16 rounded-lg px-1.5 py-1 text-sm outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary }} />
                     <input value={draft.out} onChange={e => setDraft({ ...draft, out: e.target.value })} className="w-16 rounded-lg px-1.5 py-1 text-sm outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary }} />
                     <select value={draft.s} onChange={e => setDraft({ ...draft, s: e.target.value })} className="w-20 rounded-lg px-1 py-1 text-sm outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary }}>
                       <option>正常</option><option>遅刻</option><option>早退</option><option>欠席</option><option>修正済み</option><option>未完了</option></select>
                     <input value={draft.note} onChange={e => setDraft({ ...draft, note: e.target.value })} placeholder="備考" className="flex-1 rounded-lg px-2 py-1 text-sm outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary }} />
-                    <div className="flex w-12 items-center justify-end gap-1"><button onClick={save} className="rounded-lg p-1" style={{ color: T.success }}><Check size={16} /></button><button onClick={() => setEIdx(-1)} className="rounded-lg p-1" style={{ color: T.textMuted }}><X size={15} /></button></div>
+                    <div className="flex w-12 items-center justify-end gap-1"><button onClick={save} className="rounded-lg p-1" style={{ color: T.success }}><Check size={16} /></button><button onClick={() => setEId(null)} className="rounded-lg p-1" style={{ color: T.textMuted }}><X size={15} /></button></div>
                   </>
                 ) : (
                   <>
-                    <div className="w-16" style={{ color: T.textMuted }}>{a.in}</div>
-                    <div className="w-16" style={{ color: T.textMuted }}>{a.out}</div>
+                    <div className="w-16" style={{ color: T.textMuted }}>{a.in || "—"}</div>
+                    <div className="w-16" style={{ color: T.textMuted }}>{a.out || "—"}</div>
                     <div className="w-20"><Badge tone={attendanceStatusTone(a.s, a)}>{attendanceStatusLabel(a.s, a)}</Badge></div>
                     <div className="flex-1 truncate text-xs" style={{ color: T.textMuted }}>{a.note || "—"}</div>
-                    {canEdit && <div className="flex w-12 justify-end"><button onClick={() => startEdit(i)} className="rounded-lg p-1 hover:bg-gray-50"><Pencil size={15} style={{ color: T.textMuted }} /></button></div>}
+                    {canEdit && <div className="flex w-12 justify-end"><button onClick={() => startEdit(a)} className="rounded-lg p-1 hover:bg-gray-50"><Pencil size={15} style={{ color: T.textMuted }} /></button></div>}
                   </>
                 )}
               </div>
@@ -2760,6 +2773,7 @@ const statusKind = (status) => {
 };
 const attendanceStatusLabel = (status, row = {}) => {
   const raw = String(status || "").trim().toLowerCase();
+  if (!raw && !(row.clockIn || row.in)) return "出勤未打刻";
   if (!raw && (row.clockIn || row.in) && !(row.clockOut || row.out)) return "未完了";
   if (!raw) return "正常";
   if (["normal", "nomal", "present", "ok", "出勤"].includes(raw)) return "正常";
@@ -2773,7 +2787,7 @@ const attendanceStatusLabel = (status, row = {}) => {
 const attendanceStatusTone = (status, row = {}) => {
   const label = attendanceStatusLabel(status, row);
   if (label === "欠席") return "red";
-  if (label === "遅刻" || label === "早退" || label === "未完了") return "amber";
+  if (label === "遅刻" || label === "早退" || label === "未完了" || label === "出勤未打刻") return "amber";
   return "green";
 };
 const courseStandardIn = (course) => course?.standardClockIn || course?.standardStartTime || course?.defaultClockIn || "";
@@ -3670,12 +3684,9 @@ function TraineeList({ role, openKarte }) {
   const [detailLoading, setDetailLoading] = useState(false);
   useEffect(() => {
     apiGet("/trainees")
-      .then(list => setData((list || []).map(p => ({ id: p.userId, name: p.name || "（氏名未設定）", email: p.email || "" }))))
+      .then(list => setData((list || []).map(p => ({ ...p, id: p.userId, name: p.name || "（氏名未設定）", email: p.email || "" }))))
       .catch(() => {})
       .finally(() => setLoading(false));
-  }, []);
-  useEffect(() => {
-    apiGet("/trainees").then(list => setData((list || []).map(p => ({ ...p, id: p.userId, name: p.name || "（氏名未設定）", email: p.email || "" })))).catch(() => {});
     apiGet("/courses").then(l => setCourses(l || [])).catch(() => setCourses([]));
     apiGet("/companies").then(l => setCompanies(l || [])).catch(() => setCompanies([]));
   }, []);
@@ -4067,7 +4078,7 @@ function ClientHome({ openKarte, go }) {
         cta={{ label: "自社受講生を見る", icon: Users, onClick: () => go("trainees") }}
       />
       {clientErr && <div className="mb-4 rounded-lg px-3 py-2 text-xs" style={{ background: T.dangerSubtle, color: T.danger }}>{clientErr}</div>}
-      <div className="flex justify-end"><Btn kind="ghost" size="sm" icon={FileSpreadsheet} onClick={exportAttendanceExcel}>勤怠を出力</Btn></div>
+      <div className="flex justify-end"><Btn kind="ghost" size="sm" icon={FileSpreadsheet} onClick={() => exportAttendanceExcel(clientAttendanceForToday.map(a => { const t = clientTrainees.find(x => (x.userId || x.id) === (a.traineeId || a.userId)); return { date: a.date, name: clientName(t || {}), org: t?.company || "", in: a.clockIn || "", out: a.clockOut || "", s: a.status || "", note: a.note || "" }; }), clientDate)}>勤怠を出力</Btn></div>
       <div className="mt-4 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <Stat icon={Clock} label="勤怠未登録" value={`${clientAttendanceMissing.length}名`} tone={clientAttendanceMissing.length ? "amber" : "green"} />
         <Stat icon={ClipboardCheck} label="テスト未受験" value={clientTests.length ? `${clientTestMissing.length}名` : "データなし"} tone={clientTestMissing.length ? "amber" : "muted"} />
