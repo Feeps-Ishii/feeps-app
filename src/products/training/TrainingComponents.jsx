@@ -2145,7 +2145,7 @@ function TestTaking({ test, back, onDone, preview = false }) {
 async function exportAttendanceExcel(data) {
   try {
     const XLSX = await import("xlsx");
-    const rows = (data || []).map(r => ({ 日付: "2026/04/15", 氏名: r.name, 所属: r.org, 出勤: r.in, 退勤: r.out, 状態: r.s, 備考: r.note || "" }));
+    const rows = (data || []).map(r => ({ 日付: "2026/04/15", 氏名: r.name, 所属: r.org, 出勤: r.in, 退勤: r.out, 状態: attendanceStatusLabel(r.s, r), 備考: r.note || "" }));
     const ws = XLSX.utils.json_to_sheet(rows);
     ws["!cols"] = [{ wch: 12 }, { wch: 14 }, { wch: 22 }, { wch: 8 }, { wch: 8 }, { wch: 8 }, { wch: 20 }];
     const wb = XLSX.utils.book_new();
@@ -2170,14 +2170,23 @@ function TraineeAttendance() {
   const [histMonth, setHistMonth] = useState(monthStr());
   const [histQuery, setHistQuery] = useState("");
   const [histSort, setHistSort] = useState("desc");
+  const [enrolledCourses, setEnrolledCourses] = useState([]);
+  const [standardCourseId, setStandardCourseId] = useState("");
 
   function load() {
-    apiGet("/attendance/me")
-      .then(items => {
+    Promise.all([
+      apiGet("/attendance/me"),
+      apiGet("/me/courses").catch(() => []),
+    ])
+      .then(([items, courseItems]) => {
         const rows = (items || []).slice().sort((a, b) => (a.date < b.date ? 1 : -1));
         const t = rows.find(r => r.date === today);
         setAtt({ in: t?.clockIn || "", out: t?.clockOut || "" });
         setHist(rows.map(r => ({ date: r.date, d: fmtAttDate(r.date), in: r.clockIn || "", out: r.clockOut || "", s: r.status || "出勤" })));
+        const courses = Array.isArray(courseItems) ? courseItems : [];
+        setEnrolledCourses(courses);
+        const withStandard = courses.filter(c => courseStandardIn(c) || courseStandardOut(c));
+        setStandardCourseId(prev => withStandard.some(c => c.courseId === prev) ? prev : (withStandard.length === 1 ? withStandard[0].courseId : ""));
       })
       .catch(() => setErr("勤怠の読み込みに失敗しました。再ログインをお試しください。"));
   }
@@ -2191,8 +2200,10 @@ function TraineeAttendance() {
       load();
     } catch (e) { setErr("保存に失敗しました：" + (e?.message || e)); }
   }
-  function doClockIn() { const n = { in: att.in || nowHM(), out: att.out }; setAtt(n); saveToday(n); }
-  function doClockOut() { const n = { in: att.in, out: nowHM() }; setAtt(n); saveToday(n); }
+  const standardCourses = enrolledCourses.filter(c => courseStandardIn(c) || courseStandardOut(c));
+  const selectedStandardCourse = standardCourses.find(c => c.courseId === standardCourseId) || null;
+  function doClockIn(time = nowHM()) { const n = { in: att.in || time, out: att.out }; setAtt(n); saveToday(n); }
+  function doClockOut(time = nowHM()) { const n = { in: att.in, out: time }; setAtt(n); saveToday(n); }
   function saveTodayEdit() { setEditToday(false); saveToday(att); }
   function startEdit(rowOrIndex) {
     const row = typeof rowOrIndex === "number" ? hist[rowOrIndex] : rowOrIndex;
@@ -2204,7 +2215,7 @@ function TraineeAttendance() {
     .filter(r => !histMonth || String(r.date || "").startsWith(histMonth))
     .filter(r => {
       const q = histQuery.trim().toLowerCase();
-      return !q || [r.date, r.d, r.in, r.out, r.s].some(v => String(v || "").toLowerCase().includes(q));
+      return !q || [r.date, r.d, r.in, r.out, r.s, attendanceStatusLabel(r.s, r)].some(v => String(v || "").toLowerCase().includes(q));
     })
     .sort((a, b) => histSort === "desc" ? String(b.date).localeCompare(String(a.date)) : String(a.date).localeCompare(String(b.date)));
   async function saveEdit() {
@@ -2239,9 +2250,20 @@ function TraineeAttendance() {
               </div>
             )}
           </div>
-          <div className="flex gap-3">
-            <button onClick={doClockIn} className="flex h-24 w-24 flex-col items-center justify-center rounded-2xl font-bold" style={{ background: att.in ? T.border : GRAD, color: att.in ? T.textMuted : "#fff" }}><Clock size={22} /><span className="mt-1 text-sm">出勤</span></button>
-            <button onClick={doClockOut} disabled={!att.in || !!att.out} className="flex h-24 w-24 flex-col items-center justify-center rounded-2xl font-bold disabled:opacity-50" style={{ background: att.out ? T.border : T.textPrimary, color: att.out ? T.textMuted : "#fff" }}><LogOut size={22} /><span className="mt-1 text-sm">退勤</span></button>
+          <div className="flex flex-col gap-3 sm:items-end">
+            {standardCourses.length > 1 && (
+              <select value={standardCourseId} onChange={e => setStandardCourseId(e.target.value)} className="w-full rounded-lg px-3 py-2 text-sm outline-none sm:w-64" style={{ border: `1px solid ${T.border}`, color: T.textPrimary, background: "#fff" }}>
+                <option value="">定時打刻のコースを選択</option>
+                {standardCourses.map(c => <option key={c.courseId} value={c.courseId}>{c.name}</option>)}
+              </select>
+            )}
+            <div className="flex flex-wrap justify-center gap-3 sm:justify-end">
+              <button onClick={() => doClockIn()} className="flex h-24 w-24 flex-col items-center justify-center rounded-2xl font-bold" style={{ background: att.in ? T.border : GRAD, color: att.in ? T.textMuted : "#fff" }}><Clock size={22} /><span className="mt-1 text-sm">現在時刻で出勤</span></button>
+              {selectedStandardCourse && courseStandardIn(selectedStandardCourse) && <button onClick={() => doClockIn(courseStandardIn(selectedStandardCourse))} disabled={!!att.in} className="flex h-24 w-28 flex-col items-center justify-center rounded-2xl font-bold disabled:opacity-50" style={{ background: T.accentSubtle, color: T.accentHover }}><Clock size={22} /><span className="mt-1 text-xs">定時{courseStandardIn(selectedStandardCourse)}で出勤</span></button>}
+              <button onClick={() => doClockOut()} disabled={!att.in || !!att.out} className="flex h-24 w-24 flex-col items-center justify-center rounded-2xl font-bold disabled:opacity-50" style={{ background: att.out ? T.border : T.textPrimary, color: att.out ? T.textMuted : "#fff" }}><LogOut size={22} /><span className="mt-1 text-sm">現在時刻で退勤</span></button>
+              {selectedStandardCourse && courseStandardOut(selectedStandardCourse) && <button onClick={() => doClockOut(courseStandardOut(selectedStandardCourse))} disabled={!att.in || !!att.out} className="flex h-24 w-28 flex-col items-center justify-center rounded-2xl font-bold disabled:opacity-50" style={{ background: T.warningSubtle, color: T.warning }}><LogOut size={22} /><span className="mt-1 text-xs">定時{courseStandardOut(selectedStandardCourse)}で退勤</span></button>}
+            </div>
+            {standardCourses.length > 1 && !selectedStandardCourse && <div className="text-xs" style={{ color: T.textMuted }}>複数コースに所属しているため、定時打刻を使うコースを選んでください。</div>}
           </div>
         </div>
       </Card>
@@ -2272,7 +2294,7 @@ function TraineeAttendance() {
               <span className="text-sm font-medium" style={{ color: T.textPrimary }}>{r.d}</span>
               <div className="flex items-center gap-4 text-sm" style={{ color: T.textMuted }}>
                 <span>出 {r.in || "—"}</span><span>退 {r.out || "—"}</span>
-                <Badge tone={r.s === "遅刻" ? "amber" : r.s === "欠席" ? "red" : "green"}>{r.s}</Badge>
+                <Badge tone={attendanceStatusTone(r.s, r)}>{attendanceStatusLabel(r.s, r)}</Badge>
                 <button onClick={() => startEdit(r)} className="rounded-lg p-1 hover:bg-gray-50"><Pencil size={14} style={{ color: T.textMuted }} /></button>
               </div>
             </>
@@ -2336,7 +2358,7 @@ function AttendanceManage({ role }) {
   const attendanceMatchesQuery = (row) => {
     const q = attendanceQuery.trim().toLowerCase();
     if (!q) return true;
-    return [row.name, nameMap[row.traineeId], row.traineeId, row.s, row.note].some(v => String(v || "").toLowerCase().includes(q));
+    return [row.name, nameMap[row.traineeId], row.traineeId, row.s, attendanceStatusLabel(row.s, row), row.note].some(v => String(v || "").toLowerCase().includes(q));
   };
   const attendanceMatchesStatus = (row) => {
     if (attendanceStatus === "すべて") return true;
@@ -2347,12 +2369,12 @@ function AttendanceManage({ role }) {
     return true;
   };
   const sortAttendanceRows = (items) => items.slice().sort((a, b) => {
-    if (attendanceSort === "status") return String(a.s || "").localeCompare(String(b.s || ""), "ja") || String(nameMap[a.traineeId] || a.name).localeCompare(String(nameMap[b.traineeId] || b.name), "ja");
+    if (attendanceSort === "status") return attendanceStatusLabel(a.s, a).localeCompare(attendanceStatusLabel(b.s, b), "ja") || String(nameMap[a.traineeId] || a.name).localeCompare(String(nameMap[b.traineeId] || b.name), "ja");
     if (attendanceSort === "clockIn") return String(a.in || "99:99").localeCompare(String(b.in || "99:99"));
     return String(nameMap[a.traineeId] || a.name || "").localeCompare(String(nameMap[b.traineeId] || b.name || ""), "ja");
   });
   const filteredRows = sortAttendanceRows(opsFilter.apply(rows).filter(attendanceMatchesQuery).filter(attendanceMatchesStatus));
-  const present = filteredRows.filter(r => r.s === "出勤").length, late = filteredRows.filter(r => r.s === "遅刻").length, absent = filteredRows.filter(r => r.s === "欠席").length;
+  const present = filteredRows.filter(r => statusKind(r.s) === "present").length, late = filteredRows.filter(r => statusKind(r.s) === "late").length, absent = filteredRows.filter(r => statusKind(r.s) === "absent").length;
   const monthDates = datesInMonth(month);
   const monthlyAttendance = opsFilter.targetTrainees.map(t => {
     const items = monthlyRows.filter(r => r.traineeId === t.userId);
@@ -2448,7 +2470,7 @@ function AttendanceManage({ role }) {
                   <>
                     <div className="w-16" style={{ color: T.textMuted }}>{a.in}</div>
                     <div className="w-16" style={{ color: T.textMuted }}>{a.out}</div>
-                    <div className="w-20"><Badge tone={a.s === "出勤" ? "green" : a.s === "遅刻" ? "amber" : "red"}>{a.s}</Badge></div>
+                    <div className="w-20"><Badge tone={attendanceStatusTone(a.s, a)}>{attendanceStatusLabel(a.s, a)}</Badge></div>
                     <div className="flex-1 truncate text-xs" style={{ color: T.textMuted }}>{a.note || "—"}</div>
                     {canEdit && <div className="flex w-12 justify-end"><button onClick={() => startEdit(i)} className="rounded-lg p-1 hover:bg-gray-50"><Pencil size={15} style={{ color: T.textMuted }} /></button></div>}
                   </>
@@ -2732,11 +2754,34 @@ async function getTodayCurriculum(courseId, date) {
   }
 }
 const statusKind = (status) => {
-  const s = String(status || "");
+  const s = String(status || "").toLowerCase();
   if (s.includes("欠") || s.includes("谺")) return "absent";
   if (s.includes("遅") || s.includes("驕")) return "late";
+  if (s.includes("早")) return "early";
+  if (s.includes("修正")) return "fixed";
+  if (s.includes("未") || s.includes("incomplete") || s.includes("missing")) return "incomplete";
   return "present";
 };
+const attendanceStatusLabel = (status, row = {}) => {
+  const raw = String(status || "").trim().toLowerCase();
+  if (!raw && (row.clockIn || row.in) && !(row.clockOut || row.out)) return "未完了";
+  if (!raw) return "正常";
+  if (["normal", "nomal", "present", "ok", "出勤"].includes(raw)) return "正常";
+  if (raw.includes("late") || raw.includes("遅")) return "遅刻";
+  if (raw.includes("early") || raw.includes("早")) return "早退";
+  if (raw.includes("absent") || raw.includes("欠")) return "欠席";
+  if (raw.includes("fixed") || raw.includes("修正")) return "修正済み";
+  if (raw.includes("incomplete") || raw.includes("missing") || raw.includes("未")) return "未完了";
+  return status || "正常";
+};
+const attendanceStatusTone = (status, row = {}) => {
+  const label = attendanceStatusLabel(status, row);
+  if (label === "欠席") return "red";
+  if (label === "遅刻" || label === "早退" || label === "未完了") return "amber";
+  return "green";
+};
+const courseStandardIn = (course) => course?.standardClockIn || course?.standardStartTime || course?.defaultClockIn || "";
+const courseStandardOut = (course) => course?.standardClockOut || course?.standardEndTime || course?.defaultClockOut || "";
 
 const fallbackName = (id) => "受講生 " + String(id || "").slice(0, 6);
 const fmtTs = (iso) => { try { return new Date(iso).toLocaleString("ja-JP", { month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit" }); } catch (e) { return iso || ""; } };
@@ -2844,7 +2889,10 @@ function Reports({ role }) {
   function focusReportForm() {
     setReportFormPulse(true);
     window.setTimeout(() => setReportFormPulse(false), 1800);
-    window.setTimeout(() => reportFormRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }), 0);
+    window.setTimeout(() => {
+      const top = reportFormRef.current?.getBoundingClientRect?.().top;
+      if (Number.isFinite(top)) window.scrollTo({ top: window.scrollY + top - 96, behavior: "smooth" });
+    }, 0);
   }
 
   useEffect(() => {
@@ -3037,31 +3085,19 @@ function Reports({ role }) {
         action={canViewReports ? <div className="flex flex-wrap items-center gap-2"><Seg value={periodMode} onChange={setPeriodMode} options={["日次", "月次"]} /><span className="text-xs font-semibold" style={{ color: T.textMuted }}>{periodMode === "月次" ? "対象月" : "日報確認日"}</span>{periodMode === "月次" ? <input type="month" value={month} onChange={e => setMonth(e.target.value)} className="rounded-lg px-3 py-2 text-sm outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary, background: "#fff" }} /> : <input type="date" value={date} onChange={e => setDate(e.target.value)} className="rounded-lg px-3 py-2 text-sm outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary, background: "#fff" }} />}</div> : null} />
       {saveErr && !canWrite && <div className="mb-4 rounded-lg px-3 py-2 text-xs" style={{ background: T.dangerSubtle, color: T.danger }}>{saveErr}</div>}
       {canViewReports && <OpsFilterPanel filter={opsFilter} summary={periodMode === "月次" ? `表示対象: ${opsFilter.targetTrainees.length}名 / 集計月: ${month}` : `表示対象: ${opsFilter.targetTrainees.length}名 / 日報保存: ${visibleReports.length}件`} />}
-      {(canViewReports || canWrite) && (
+      {canViewReports && (
         <Card className="mb-4 p-4">
-          <div className={canWrite ? "grid gap-3 md:grid-cols-[1fr_150px_170px_150px_auto]" : "grid gap-3 md:grid-cols-[1fr_170px_170px_auto]"}>
+          <div className="grid gap-3 md:grid-cols-[1fr_170px_170px_auto]">
             <div className="relative">
               <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2" style={{ color: T.textMuted }} />
-              <input value={reportQuery} onChange={e => setReportQuery(e.target.value)} placeholder={canWrite ? "日付・本文で検索" : "受講生名・企業・コース・本文で検索"} className="w-full rounded-xl py-2 pl-9 pr-3 text-sm outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary }} />
+              <input value={reportQuery} onChange={e => setReportQuery(e.target.value)} placeholder="受講生名・企業・コース・本文で検索" className="w-full rounded-xl py-2 pl-9 pr-3 text-sm outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary }} />
             </div>
-            {canWrite ? (
-              <>
-                <select value={reportSubmitFilter} onChange={e => setReportSubmitFilter(e.target.value)} className="rounded-xl px-3 py-2 text-sm outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary, background: "#fff" }}>
-                  {["すべて", "提出済み", "未提出"].map(v => <option key={v}>{v}</option>)}
-                </select>
-                <select value={reportCommentFilter} onChange={e => setReportCommentFilter(e.target.value)} className="rounded-xl px-3 py-2 text-sm outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary, background: "#fff" }}>
-                  {["すべて", "コメントあり", "コメントなし"].map(v => <option key={v}>{v}</option>)}
-                </select>
-              </>
-            ) : (
-              <select value={reportStatus} onChange={e => setReportStatus(e.target.value)} className="rounded-xl px-3 py-2 text-sm outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary, background: "#fff" }}>
-                {["すべて", "未提出", "未コメント", "コメント済み", ...(canViewReports ? ["要確認"] : [])].map(v => <option key={v}>{v}</option>)}
-              </select>
-            )}
-            <select value={reportSort} onChange={e => setReportSort(e.target.value)} className="rounded-xl px-3 py-2 text-sm outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary, background: "#fff" }}>
-              {canWrite ? <><option value="dateDesc">新しい日付順</option><option value="dateAsc">古い日付順</option></> : <><option value="dateDesc">更新が新しい順</option><option value="status">未処理優先</option><option value="name">名前順</option></>}
+            <select value={reportStatus} onChange={e => setReportStatus(e.target.value)} className="rounded-xl px-3 py-2 text-sm outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary, background: "#fff" }}>
+              {["すべて", "未提出", "未コメント", "コメント済み", "要確認"].map(v => <option key={v}>{v}</option>)}
             </select>
-            {canWrite && <input type="month" value={month} onChange={e => setMonth(e.target.value)} className="rounded-xl px-3 py-2 text-sm outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary, background: "#fff" }} />}
+            <select value={reportSort} onChange={e => setReportSort(e.target.value)} className="rounded-xl px-3 py-2 text-sm outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary, background: "#fff" }}>
+              <option value="dateDesc">更新が新しい順</option><option value="status">未処理優先</option><option value="name">名前順</option>
+            </select>
           </div>
         </Card>
       )}
@@ -3161,6 +3197,28 @@ function Reports({ role }) {
           ))}
         </div>
         <div className="mt-4 flex items-center justify-end gap-3">{saveErr && <span className="text-xs" style={{ color: T.danger }}>{saveErr}</span>}<Btn icon={Send} onClick={submit}>{saving ? "保存中…" : "日報を保存"}</Btn></div></Card>}
+      {canWrite && <Card className="mb-4 p-4">
+        <div className="mb-3">
+          <h3 className="text-sm font-bold" style={{ color: T.textPrimary }}>月別の日報を検索</h3>
+          <p className="text-xs" style={{ color: T.textMuted }}>下の一覧に表示する日報を絞り込みます。</p>
+        </div>
+        <div className="grid gap-3 md:grid-cols-[140px_1fr_150px_170px_150px]">
+          <input type="month" value={month} onChange={e => setMonth(e.target.value)} className="rounded-xl px-3 py-2 text-sm outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary, background: "#fff" }} />
+          <div className="relative">
+            <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2" style={{ color: T.textMuted }} />
+            <input value={reportQuery} onChange={e => setReportQuery(e.target.value)} placeholder="日付・本文で検索" className="w-full rounded-xl py-2 pl-9 pr-3 text-sm outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary }} />
+          </div>
+          <select value={reportSubmitFilter} onChange={e => setReportSubmitFilter(e.target.value)} className="rounded-xl px-3 py-2 text-sm outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary, background: "#fff" }}>
+            {["すべて", "提出済み", "未提出"].map(v => <option key={v}>{v}</option>)}
+          </select>
+          <select value={reportCommentFilter} onChange={e => setReportCommentFilter(e.target.value)} className="rounded-xl px-3 py-2 text-sm outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary, background: "#fff" }}>
+            {["すべて", "コメントあり", "コメントなし"].map(v => <option key={v}>{v}</option>)}
+          </select>
+          <select value={reportSort} onChange={e => setReportSort(e.target.value)} className="rounded-xl px-3 py-2 text-sm outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary, background: "#fff" }}>
+            <option value="dateDesc">新しい日付順</option><option value="dateAsc">古い日付順</option>
+          </select>
+        </div>
+      </Card>}
       {canWrite && <Card className="mb-6 overflow-hidden">
         <div className="flex flex-wrap items-center justify-between gap-3 p-4" style={{ borderBottom: `1px solid ${T.border}` }}>
           <div><h3 className="font-bold" style={{ color: T.textPrimary }}>月別の日報</h3><p className="text-xs" style={{ color: T.textMuted }}>提出済み・未提出・コメント有無を確認し、対象日を選んで編集できます。</p></div>
@@ -3279,6 +3337,7 @@ function InstructorHome({ go, openKarte, dailyMessage, setDailyMessage, currentU
   const [dailyNotes, setDailyNotes] = useState({});
   const [todayCurriculum, setTodayCurriculum] = useState({});
   const [dailyNoteSave, setDailyNoteSave] = useState({});
+  const [standardSave, setStandardSave] = useState({});
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState("");
   function save() { setDailyMessage(msg); setSaved(true); setTimeout(() => setSaved(false), 2000); }
@@ -3352,6 +3411,24 @@ function InstructorHome({ go, openKarte, dailyMessage, setDailyMessage, currentU
       setTimeout(() => setDailyNoteSave(prev => ({ ...prev, [courseId]: "" })), 1800);
     } catch (e) {
       setDailyNoteSave(prev => ({ ...prev, [courseId]: "error" }));
+    }
+  };
+  const updateCourseStandard = (courseId, field, value) => {
+    setCourses(prev => prev.map(c => c.courseId === courseId ? { ...c, [field]: value } : c));
+  };
+  const saveCourseStandard = async (course) => {
+    const courseId = course.courseId;
+    setStandardSave(prev => ({ ...prev, [courseId]: "saving" }));
+    try {
+      const res = await apiPut(`/courses/${courseId}/attendance-settings`, {
+        standardClockIn: courseStandardIn(course),
+        standardClockOut: courseStandardOut(course),
+      });
+      setCourses(prev => prev.map(c => c.courseId === courseId ? { ...c, standardClockIn: res.standardClockIn || "", standardClockOut: res.standardClockOut || "" } : c));
+      setStandardSave(prev => ({ ...prev, [courseId]: "saved" }));
+      setTimeout(() => setStandardSave(prev => ({ ...prev, [courseId]: "" })), 1800);
+    } catch (e) {
+      setStandardSave(prev => ({ ...prev, [courseId]: "error" }));
     }
   };
   const assignedTrainees = useMemo(() => {
@@ -3458,6 +3535,26 @@ function InstructorHome({ go, openKarte, dailyMessage, setDailyMessage, currentU
               <div className="flex flex-wrap items-start justify-between gap-3">
                 <div className="min-w-0 flex-1"><div className="flex flex-wrap items-center gap-2"><h4 className="font-bold" style={{ color: T.textPrimary }}>{s.course.name}</h4><Badge tone={kindTone(s.course.type || s.course.kind)}>{kindLabel(s.course.type || s.course.kind)}</Badge></div><p className="mt-1 text-xs" style={{ color: T.textMuted }}>{s.members.length}名 / {s.companyCount}社</p><p className="mt-2 rounded-xl px-3 py-2 text-xs" style={adminPanelStyle}>{s.topic}</p></div>
                 <div className="flex flex-wrap gap-2"><Badge tone="green">勤怠 {s.attendanceCount}/{s.members.length}</Badge><Badge tone="amber">日報 {s.reportCount}/{s.members.length}</Badge><Btn size="sm" kind="ghost" icon={NotebookPen} onClick={() => go("reports")}>日報確認へ</Btn><Btn size="sm" kind="ghost" icon={Clock} onClick={() => go("attendance")}>勤怠確認へ</Btn></div>
+              </div>
+              <div className="mt-3 rounded-xl p-3" style={{ background: T.bgBase, border: `1px solid ${T.border}` }}>
+                <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+                  <div>
+                    <div className="text-xs font-bold" style={{ color: T.textPrimary }}>定時打刻設定</div>
+                    <div className="text-[11px]" style={{ color: T.textMuted }}>受講生の「定時で出勤/退勤」ボタンに使用します。</div>
+                  </div>
+                  {standardSave[s.course.courseId] && <span className="text-xs font-semibold" style={{ color: standardSave[s.course.courseId] === "error" ? T.danger : standardSave[s.course.courseId] === "saved" ? T.success : T.textMuted }}>{standardSave[s.course.courseId] === "saving" ? "保存中..." : standardSave[s.course.courseId] === "saved" ? "保存しました" : "保存に失敗しました"}</span>}
+                </div>
+                <div className="grid gap-2 sm:grid-cols-[1fr_1fr_auto]">
+                  <label className="block">
+                    <span className="text-[11px] font-semibold" style={{ color: T.textMuted }}>標準出勤時刻</span>
+                    <input type="time" value={courseStandardIn(s.course)} onChange={e => updateCourseStandard(s.course.courseId, "standardClockIn", e.target.value)} className="mt-1 w-full rounded-lg px-3 py-2 text-sm outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary, background: "#fff" }} />
+                  </label>
+                  <label className="block">
+                    <span className="text-[11px] font-semibold" style={{ color: T.textMuted }}>標準退勤時刻</span>
+                    <input type="time" value={courseStandardOut(s.course)} onChange={e => updateCourseStandard(s.course.courseId, "standardClockOut", e.target.value)} className="mt-1 w-full rounded-lg px-3 py-2 text-sm outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary, background: "#fff" }} />
+                  </label>
+                  <Btn size="sm" kind="soft" icon={Check} className="self-end" onClick={() => saveCourseStandard(s.course)} disabled={standardSave[s.course.courseId] === "saving"}>保存</Btn>
+                </div>
               </div>
             </div>
           ))}</div>}
