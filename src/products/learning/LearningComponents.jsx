@@ -20,6 +20,19 @@ const C = {
 };
 const GRAD = `linear-gradient(120deg, ${PRODUCT_ACCENT.learning.gradFrom} 0%, ${PRODUCT_ACCENT.learning.gradTo} 100%)`;
 const todayStr = () => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`; };
+function courseHours(value) {
+  const n = Number(value);
+  return Number.isFinite(n) ? n : 0;
+}
+function formatCourseHours(value, prefix = "") {
+  const n = courseHours(value);
+  return n > 0 ? `${prefix}${n}時間` : "記録なし";
+}
+function recommendationReason(course) {
+  if (course?.skills?.length) return `${course.skills[0]}を伸ばすため`;
+  if (course?.category) return `${course.category}の基礎固め`;
+  return "次の学習候補";
+}
 
 function Bar({ value, tone = "cyan" }) {
   const t = { cyan: C.cyan, green: C.green, amber: C.amber };
@@ -173,7 +186,7 @@ function LearningOverview({ lrn, goSub, goProduct, onOpenDetail, role, themeColo
   const isCreator = role === "instructor" || role === "admin";
   const earnedSkills = lrn.getEarnedSkills();
   const todayCompleted = lrn.completed.filter(c => lrn.progress[c.id]?.completedAt?.slice(0, 10) === todayStr());
-  const recommend = [...lrn.inprogress.slice(0, 1), ...lrn.notStarted].slice(0, 3);
+  const recommend = lrn.notStarted.slice(0, 3);
   const resume = getLearningResume(lrn);
   const stats = getLearningStats(lrn);
   return (
@@ -315,7 +328,7 @@ function LearningOverview({ lrn, goSub, goProduct, onOpenDetail, role, themeColo
                 </div>
                 <p className="text-xs leading-relaxed" style={{ color: C.muted }}>{c.desc.slice(0, 40)}…</p>
                 <div className="mt-2 flex items-center gap-2 text-xs" style={{ color: C.faint }}>
-                  <span>{c.level}</span><span>·</span><span>{c.duration}時間</span>
+                  <span>{c.level}</span><span>·</span><span>{formatCourseHours(c.duration)}</span>
                 </div>
               </Card>
             ))}
@@ -404,7 +417,7 @@ function ElCourseCard({ course, prog, courseState, onStart, onComplete, onOpenDe
             </div>
             <div className="mt-0.5 flex flex-wrap items-center gap-1.5 text-xs" style={{ color: C.muted }}>
               <span>{course.category}</span><span style={{ color: C.faint }}>·</span>
-              <span>{course.duration}時間</span><span style={{ color: C.faint }}>·</span>
+              <span>{formatCourseHours(course.duration)}</span><span style={{ color: C.faint }}>·</span>
               <span>{course.level}</span><span style={{ color: C.faint }}>·</span>
               <span>{course.lessons}レッスン</span>
             </div>
@@ -499,7 +512,7 @@ function ElCompletedView({ lrn, goSub, onOpenDetail }) {
               {[
                 { label: "修了コース", value: `${lrn.completed.length}本`, color: C.green },
                 { label: "取得スキル", value: `${lrn.getEarnedSkills().length}件`, color: C.cyan },
-                { label: "学習時間",   value: `${lrn.completed.reduce((s, c) => s + Number(c.duration), 0)}時間`, color: PRODUCT_ACCENT.talent.accent },
+                { label: "学習時間",   value: `${lrn.completed.reduce((s, c) => s + courseHours(c.duration), 0)}時間`, color: PRODUCT_ACCENT.talent.accent },
               ].map(({ label, value, color }) => (
                 <div key={label} className="rounded-2xl p-4" style={{ background: C.canvas }}>
                   <div className="text-xs font-bold" style={{ color: C.muted }}>{label}</div>
@@ -539,23 +552,56 @@ function ElCompletedView({ lrn, goSub, onOpenDetail }) {
   );
 }
 function ElRecommendView({ lrn, goSub, onStart, onComplete, onOpenDetail, themeColor }) {
-  const recommend = [...lrn.notStarted, ...lrn.inprogress]
-    .filter(course => lrn.getCourseState(course.id).status !== "completed");
+  const continueCourses = lrn.inprogress;
+  const nextCourses = lrn.notStarted;
+  const reviewCourses = lrn.catalog.filter(course => {
+    const status = lrn.getCourseState(course.id).status;
+    return ["completed", "lessons_completed", "review_recommended", "final_test_failed"].includes(status);
+  });
+  const hasAny = continueCourses.length || nextCourses.length || reviewCourses.length;
+  const Section = ({ title, desc, children }) => (
+    <section className="mb-6">
+      <div className="mb-3">
+        <h3 className="text-base font-bold" style={{ color: C.ink }}>{title}</h3>
+        <p className="mt-0.5 text-xs" style={{ color: C.muted }}>{desc}</p>
+      </div>
+      {children}
+    </section>
+  );
   return (
     <div>
-      <SectionHead title="おすすめコース" desc="まだ受講していないコースをピックアップしました。" />
+      <SectionHead title="おすすめコース" desc="学習中・未受講・復習を分けて表示します。" />
       <div className="mb-5 flex items-start gap-3 rounded-2xl p-4" style={{ background: `${themeColor}0D`, border: `1px solid ${themeColor}20` }}>
         <Lightbulb size={16} style={{ color: themeColor, marginTop: 1 }} />
         <p className="text-sm" style={{ color: C.body }}>
-          <span className="font-semibold" style={{ color: C.ink }}>スキルギャップを埋めましょう。</span>
-          {" "}Eラーニングで取得したスキルは、スキル・成長に自動反映され、案件用スキルシートに活用できます。
+          <span className="font-semibold" style={{ color: C.ink }}>次にやることを選びやすくしました。</span>
+          {" "}学習中コースは「学習を続ける」、未受講コースは「次におすすめ」、修了済みや復習対象は「復習する」に分けています。
         </p>
       </div>
-      {recommend.length === 0
+      {!hasAny
         ? <LearningEmptyAction title="全コースを修了しました！" desc="次の成長テーマを整理して、スキル・成長画面で強みを確認しましょう。" cta="取得スキルを見る" icon={Sparkles} onClick={() => goSub("el_skills")} themeColor={themeColor} />
-        : <div className="grid gap-4 sm:grid-cols-2">{recommend.map(c => (
-            <ElCourseCard key={c.id} course={c} prog={lrn.progress[c.id]} courseState={lrn.getCourseState(c.id)} onStart={onStart} onComplete={onComplete} onOpenDetail={onOpenDetail} />
-          ))}</div>}
+        : (
+          <>
+            <Section title="学習を続ける" desc="現在学習中のコースです。">
+              {continueCourses.length === 0 ? <Card className="p-4 text-sm" style={{ color: C.muted }}>学習中のコースはありません。</Card> : <div className="grid gap-4 sm:grid-cols-2">{continueCourses.map(c => (
+                <ElCourseCard key={c.id} course={c} prog={lrn.progress[c.id]} courseState={lrn.getCourseState(c.id)} onStart={onStart} onComplete={onComplete} onOpenDetail={onOpenDetail} />
+              ))}</div>}
+            </Section>
+            <Section title="次におすすめ" desc="未受講コースだけを表示します。">
+              {nextCourses.length === 0 ? <Card className="p-4 text-sm" style={{ color: C.muted }}>未受講のおすすめコースはありません。</Card> : <div className="grid gap-4 sm:grid-cols-2">{nextCourses.map(c => (
+                <div key={c.id} className="space-y-2">
+                  <div className="rounded-xl px-3 py-2 text-xs font-semibold" style={{ background: `${themeColor}0D`, color: themeColor }}>おすすめ理由: {recommendationReason(c)}</div>
+                  <ElCourseCard course={c} prog={lrn.progress[c.id]} courseState={lrn.getCourseState(c.id)} onStart={onStart} onComplete={onComplete} onOpenDetail={onOpenDetail} />
+                </div>
+              ))}</div>}
+            </Section>
+            <Section title="復習する" desc="修了済み・総合テスト待ち・復習推奨のコースです。">
+              {reviewCourses.length === 0 ? <Card className="p-4 text-sm" style={{ color: C.muted }}>復習対象のコースはありません。</Card> : <div className="grid gap-4 sm:grid-cols-2">{reviewCourses.map(c => (
+                <ElCourseCard key={c.id} course={c} prog={lrn.progress[c.id]} courseState={lrn.getCourseState(c.id)} onStart={onStart} onComplete={onComplete} onOpenDetail={onOpenDetail} />
+              ))}</div>}
+            </Section>
+          </>
+        )}
     </div>
   );
 }
@@ -994,7 +1040,7 @@ function ElCourseDetail({ course, lrn, onBack, onOpenLesson, onStartFinalTest, o
               <h2 className="mt-1 text-2xl font-bold text-white">{course.title}</h2>
               <div className="mt-1 flex flex-wrap items-center gap-2 text-sm" style={{ color: "rgba(255,255,255,.8)" }}>
                 <span>{course.level}</span><span style={{ color: "rgba(255,255,255,.35)" }}>·</span>
-                <span>約{course.duration}時間</span><span style={{ color: "rgba(255,255,255,.35)" }}>·</span>
+                <span>{formatCourseHours(course.duration, "約")}</span><span style={{ color: "rgba(255,255,255,.35)" }}>·</span>
                 <span>{lessons.length || course.lessons}レッスン</span>
               </div>
             </div>
@@ -1198,7 +1244,7 @@ function ElCourseDetail({ course, lrn, onBack, onOpenLesson, onStartFinalTest, o
           <Card className="p-5">
             <h3 className="mb-3 font-bold" style={{ color: C.ink }}>コース情報</h3>
             <div className="space-y-2">
-              {[["カテゴリ", course.category], ["難易度", course.level], ["学習時間", `約${course.duration}時間`], ["レッスン数", `${lessons.length || course.lessons}本`]].map(([l, v]) => (
+              {[["カテゴリ", course.category], ["難易度", course.level], ["学習時間", formatCourseHours(course.duration, "約")], ["レッスン数", `${lessons.length || course.lessons}本`]].map(([l, v]) => (
                 <div key={l} className="flex items-center justify-between text-sm">
                   <span style={{ color: C.muted }}>{l}</span>
                   <span className="font-semibold" style={{ color: C.ink }}>{v}</span>

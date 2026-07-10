@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useEffect, useCallback } from "react";
+import React, { useState, useMemo, useEffect, useCallback, useRef } from "react";
 import { getCurrentUser, fetchAuthSession } from "aws-amplify/auth";
 import { apiGet, apiPut, apiPost, apiDelete as apiDeleteBase } from "../../api.js";
 import { Card, Badge, Btn, Avatar, Stat, SectionHead, Field, Seg, T, PRODUCT_ACCENT, PageHeader, ProductNavCard, EmptyState as CommonEmptyState, SkeletonRows, SkeletonCards, Modal } from "../../components/common";
@@ -317,6 +317,8 @@ function TraineeHome({ go, done, toggle, dailyMessage, goals }) {
           </div>
         </Card>
       )}
+      {/* TODO(Phase4 instructor): "講師からの本日の連絡" and "本日の連絡" are the same dailyMessage concept.
+          Keep trainee display stable for now; unify the authoring/display name to "本日のお知らせ" when instructor CRUD is completed. */}
       {/* ===== 講師からの本日の連絡 ===== */}
       {thHasDailyAnnouncement && (
         <Card className="mt-4 flex min-w-0 max-w-full items-start gap-3 p-4">
@@ -657,6 +659,7 @@ function GoalsView({ role, done, toggle, goals, setGoals, go, openKarte }) {
                       <>
                         <div className="mt-0.5 break-words font-bold" style={{ color: T.textPrimary }}>{g.title}</div>
                         <div className="mt-0.5 break-words text-xs" style={{ color: T.textMuted }}>{g.sub}</div>
+                        {/* Trainee can edit only self-created custom goals. Instructor/admin-authored goals remain read-only until instructor-side goal CRUD is implemented. */}
                         {g.custom && <div className="mt-2 flex gap-1.5"><Btn size="sm" kind="ghost" icon={Pencil} onClick={() => setGoalDrafts(d => ({ ...d, [g.id]: { title: g.title || "", sub: g.sub || "" } }))}>編集</Btn><Btn size="sm" kind="ghost" icon={Trash2} onClick={() => deleteGoal(g.id)}>削除</Btn></div>}
                       </>
                     )}
@@ -2793,8 +2796,14 @@ function Reports({ role }) {
   const [monthlyFilter, setMonthlyFilter] = useState("すべて");
   const [reportQuery, setReportQuery] = useState("");
   const [reportStatus, setReportStatus] = useState("すべて");
+  const [reportSubmitFilter, setReportSubmitFilter] = useState("すべて");
+  const [reportCommentFilter, setReportCommentFilter] = useState("すべて");
   const [reportSort, setReportSort] = useState("dateDesc");
   const [editingReportDate, setEditingReportDate] = useState(todayStr());
+  const [reportEditState, setReportEditState] = useState("today");
+  const [reportFormPulse, setReportFormPulse] = useState(false);
+  const [detailReport, setDetailReport] = useState(null);
+  const reportFormRef = useRef(null);
   const aiC = useAIDraft();
   const canWrite = role === "trainee";
   const canViewReports = role === "admin" || role === "instructor" || role === "client";
@@ -2817,6 +2826,26 @@ function Reports({ role }) {
     return [...ids].some(id => instructorAssignedCourseIds.has(id));
   };
   const canComment = role === "admin" || role === "client" || hasInstructorAssignments;
+  function blankReportDraft() {
+    return { morningGoal: "", goalItems: [], learned: "", question: "", nextday: "", reflection: "", blockers: "", tomorrowGoal: "" };
+  }
+  function draftFromReport(r) {
+    return {
+      morningGoal: r?.morningGoal || "",
+      goalItems: r?.goalItems || [],
+      learned: r?.learned || "",
+      question: r?.question || "",
+      nextday: r?.nextday || "",
+      reflection: r?.reflection || "",
+      blockers: r?.blockers || "",
+      tomorrowGoal: r?.tomorrowGoal || "",
+    };
+  }
+  function focusReportForm() {
+    setReportFormPulse(true);
+    window.setTimeout(() => setReportFormPulse(false), 1800);
+    window.setTimeout(() => reportFormRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }), 0);
+  }
 
   useEffect(() => {
     if (role === "trainee") {
@@ -2825,17 +2854,9 @@ function Reports({ role }) {
           const mapped = (items || []).map(mapReport);
           setReports(mapped);
           const today = mapped.find(r => r.rawDate === todayStr());
-          if (today) setDraft({
-            morningGoal: today.morningGoal || "",
-            goalItems: today.goalItems || [],
-            learned: today.learned || "",
-            question: today.question || "",
-            nextday: today.nextday || "",
-            reflection: today.reflection || "",
-            blockers: today.blockers || "",
-            tomorrowGoal: today.tomorrowGoal || "",
-          });
+          if (today) setDraft(draftFromReport(today));
           setEditingReportDate(todayStr());
+          setReportEditState(today ? "edit" : "today");
         })
         .catch(() => setSaveErr("日報の読み込みに失敗しました。再ログインをお試しください。"));
     } else if (canViewReports) {
@@ -2884,17 +2905,9 @@ function Reports({ role }) {
       const mapped = (items || []).map(mapReport);
       setReports(mapped);
       const today = mapped.find(r => r.rawDate === date);
-      setDraft(today ? {
-        morningGoal: today.morningGoal || "",
-        goalItems: today.goalItems || [],
-        learned: today.learned || "",
-        question: today.question || "",
-        nextday: today.nextday || "",
-        reflection: today.reflection || "",
-        blockers: today.blockers || "",
-        tomorrowGoal: today.tomorrowGoal || "",
-      } : { morningGoal: "", goalItems: [], learned: "", question: "", nextday: "", reflection: "", blockers: "", tomorrowGoal: "" });
+      setDraft(today ? draftFromReport(today) : blankReportDraft());
       setEditingReportDate(date);
+      setReportEditState("edit");
       setOpen(date);
     } catch (e) {
       setSaveErr("保存に失敗しました：" + (e?.message || e));
@@ -3006,23 +3019,17 @@ function Reports({ role }) {
   }).filter(row => {
     const q = reportQuery.trim().toLowerCase();
     const byQuery = !q || [row.date, row.report?.learned, row.report?.question, row.report?.blockers].some(v => String(v || "").toLowerCase().includes(q));
-    const byStatus = reportStatus === "すべて" ? true : reportStatus === "未提出" ? !row.report : reportStatus === "コメント済み" ? row.hasComment : reportStatus === "未コメント" ? !!row.report && !row.hasComment : true;
-    return byQuery && byStatus;
+    const bySubmit = reportSubmitFilter === "すべて" ? true : reportSubmitFilter === "提出済み" ? !!row.report : !row.report;
+    const byComment = reportCommentFilter === "すべて" ? true : reportCommentFilter === "コメントあり" ? row.hasComment : !!row.report && !row.hasComment;
+    return byQuery && bySubmit && byComment;
   }).sort((a, b) => reportSort === "dateAsc" ? a.date.localeCompare(b.date) : b.date.localeCompare(a.date));
   function editReport(row) {
     const r = row.report;
     setEditingReportDate(row.date);
-    setDraft(r ? {
-      morningGoal: r.morningGoal || "",
-      goalItems: r.goalItems || [],
-      learned: r.learned || "",
-      question: r.question || "",
-      nextday: r.nextday || "",
-      reflection: r.reflection || "",
-      blockers: r.blockers || "",
-      tomorrowGoal: r.tomorrowGoal || "",
-    } : { morningGoal: "", goalItems: [], learned: "", question: "", nextday: "", reflection: "", blockers: "", tomorrowGoal: "" });
+    setDraft(r ? draftFromReport(r) : blankReportDraft());
+    setReportEditState(r ? "edit" : "create");
     setOpen(row.date);
+    focusReportForm();
   }
   return (
     <div>
@@ -3032,14 +3039,25 @@ function Reports({ role }) {
       {canViewReports && <OpsFilterPanel filter={opsFilter} summary={periodMode === "月次" ? `表示対象: ${opsFilter.targetTrainees.length}名 / 集計月: ${month}` : `表示対象: ${opsFilter.targetTrainees.length}名 / 日報保存: ${visibleReports.length}件`} />}
       {(canViewReports || canWrite) && (
         <Card className="mb-4 p-4">
-          <div className="grid gap-3 md:grid-cols-[1fr_170px_170px_auto]">
+          <div className={canWrite ? "grid gap-3 md:grid-cols-[1fr_150px_170px_150px_auto]" : "grid gap-3 md:grid-cols-[1fr_170px_170px_auto]"}>
             <div className="relative">
               <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2" style={{ color: T.textMuted }} />
               <input value={reportQuery} onChange={e => setReportQuery(e.target.value)} placeholder={canWrite ? "日付・本文で検索" : "受講生名・企業・コース・本文で検索"} className="w-full rounded-xl py-2 pl-9 pr-3 text-sm outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary }} />
             </div>
-            <select value={reportStatus} onChange={e => setReportStatus(e.target.value)} className="rounded-xl px-3 py-2 text-sm outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary, background: "#fff" }}>
-              {["すべて", "未提出", "未コメント", "コメント済み", ...(canViewReports ? ["要確認"] : [])].map(v => <option key={v}>{v}</option>)}
-            </select>
+            {canWrite ? (
+              <>
+                <select value={reportSubmitFilter} onChange={e => setReportSubmitFilter(e.target.value)} className="rounded-xl px-3 py-2 text-sm outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary, background: "#fff" }}>
+                  {["すべて", "提出済み", "未提出"].map(v => <option key={v}>{v}</option>)}
+                </select>
+                <select value={reportCommentFilter} onChange={e => setReportCommentFilter(e.target.value)} className="rounded-xl px-3 py-2 text-sm outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary, background: "#fff" }}>
+                  {["すべて", "コメントあり", "コメントなし"].map(v => <option key={v}>{v}</option>)}
+                </select>
+              </>
+            ) : (
+              <select value={reportStatus} onChange={e => setReportStatus(e.target.value)} className="rounded-xl px-3 py-2 text-sm outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary, background: "#fff" }}>
+                {["すべて", "未提出", "未コメント", "コメント済み", ...(canViewReports ? ["要確認"] : [])].map(v => <option key={v}>{v}</option>)}
+              </select>
+            )}
             <select value={reportSort} onChange={e => setReportSort(e.target.value)} className="rounded-xl px-3 py-2 text-sm outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary, background: "#fff" }}>
               {canWrite ? <><option value="dateDesc">新しい日付順</option><option value="dateAsc">古い日付順</option></> : <><option value="dateDesc">更新が新しい順</option><option value="status">未処理優先</option><option value="name">名前順</option></>}
             </select>
@@ -3107,8 +3125,11 @@ function Reports({ role }) {
           )}
         </Card>
       ) : (<>
-      {canWrite && <Card className="mb-4 p-5">
+      {canWrite && <div ref={reportFormRef}><Card className="mb-4 p-5 transition-shadow" style={reportFormPulse ? { boxShadow: `0 0 0 3px ${T.accent}33, 0 18px 40px rgba(0,0,0,.08)` } : undefined}>
         <div className="mb-3 flex flex-wrap items-center justify-between gap-3"><div><h3 className="font-bold" style={{ color: T.textPrimary }}>朝: 目標</h3><p className="text-xs" style={{ color: T.textMuted }}>対象日を選んで、朝だけでも途中でも保存できます。</p></div><div className="flex items-center gap-2"><input type="date" value={editingReportDate} onChange={e => editReport({ date: e.target.value, report: reportsByDate[e.target.value] })} className="rounded-lg px-3 py-2 text-sm outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary, background: "#fff" }} /><Btn kind="soft" size="sm" icon={Plus} onClick={addGoalItem}>目標を追加</Btn></div></div>
+        <div className="mb-4 rounded-xl px-3 py-2 text-xs font-semibold" style={{ background: reportEditState === "create" ? T.warningSubtle : T.accentSubtle, color: reportEditState === "create" ? T.warning : T.accentHover }}>
+          {reportEditState === "create" ? "新しい日報を作成中" : reportEditState === "edit" ? "編集中の日報" : "本日の日報"}: {editingReportDate.replace(/-/g, "/")}
+        </div>
         <Field label="今日の大きな目標"><input value={draft.morningGoal} onChange={e => setDraft({ ...draft, morningGoal: e.target.value })} placeholder="例）配列とループを使った処理を自力で書けるようにする" className={fieldCls} style={{ border: `1px solid ${T.border}`, color: T.textPrimary, background: "#fff" }} /></Field>
         <div className="mt-3 space-y-2">
           {draft.goalItems.length === 0 && <div className="rounded-lg px-3 py-2 text-sm" style={adminPanelStyle}>目標リストはまだありません。</div>}
@@ -3121,7 +3142,7 @@ function Reports({ role }) {
           ))}
         </div>
         <div className="mt-4 flex justify-end"><Btn icon={Check} onClick={submit}>{saving ? "保存中..." : "目標を保存"}</Btn></div>
-      </Card>}
+      </Card></div>}
       {canWrite && <Card className="mb-6 p-5">
         <div className="mb-4 flex items-center justify-between"><h3 className="font-bold" style={{ color: T.textPrimary }}>{editingReportDate.replace(/-/g, "/")} の日報</h3><span className="text-xs" style={{ color: T.textMuted }}>自分の言葉で記入しましょう</span></div>
         <div className="mb-4 rounded-xl px-3 py-2 text-xs" style={adminPanelStyle}>保存後も同じ日の日報を再編集できます。朝の目標だけ、夕方の振り返りだけでも保存できます。</div>
@@ -3155,12 +3176,52 @@ function Reports({ role }) {
               <div className="flex flex-wrap items-center gap-2">
                 <Badge tone={row.report ? "green" : "amber"}>{row.report ? "提出済み" : "未提出"}</Badge>
                 <Badge tone={row.hasComment ? "cyan" : "muted"}>{row.hasComment ? "コメントあり" : "コメントなし"}</Badge>
+                {row.report && <Btn size="sm" kind="ghost" icon={Eye} onClick={() => setDetailReport(row.report)}>詳細</Btn>}
                 <Btn size="sm" kind="ghost" icon={Pencil} onClick={() => editReport(row)}>{row.report ? "編集" : "作成"}</Btn>
               </div>
             </div>
           ))}
         </div>
       </Card>}
+      {detailReport && (
+        <Modal title={`${(detailReport.rawDate || detailReport.date || "").replace(/-/g, "/")} の日報`} desc="閲覧専用です。編集する場合は一覧の編集ボタンから開いてください。" onClose={() => setDetailReport(null)} footer={<Btn kind="ghost" onClick={() => setDetailReport(null)}>閉じる</Btn>} size="lg">
+          {(detailReport.morningGoal || detailReport.goalItems?.length) && (
+            <div className="mb-4 rounded-xl p-3.5" style={{ background: T.accentSubtle }}>
+              <div className="mb-2 text-xs font-bold" style={{ color: T.accent }}>朝の目標</div>
+              {detailReport.morningGoal && <div className="mb-2 text-sm font-semibold" style={{ color: T.textPrimary }}>{detailReport.morningGoal}</div>}
+              {detailReport.goalItems?.length > 0 && <div className="space-y-1.5">{detailReport.goalItems.map(item => (
+                <div key={item.id || item.text} className="flex items-center gap-2 text-sm" style={{ color: item.done ? T.textMuted : T.textSecondary }}>
+                  {item.done ? <CheckCircle2 size={15} style={{ color: T.success }} /> : <Circle size={15} style={{ color: T.textMuted }} />}
+                  <span style={{ textDecoration: item.done ? "line-through" : "none" }}>{item.text || "目標未入力"}</span>
+                </div>
+              ))}</div>}
+            </div>
+          )}
+          <div className="grid gap-3 sm:grid-cols-2">
+            {reportDetailItems(detailReport).map(item => (
+              <div key={item.key} className="rounded-xl p-3.5" style={{ background: T.bgBase }}>
+                <div className="mb-1 text-xs font-bold" style={{ color: T.accent }}>{item.title}</div>
+                <div className="whitespace-pre-wrap text-sm leading-relaxed" style={{ color: item.value ? T.textSecondary : T.textMuted }}>{item.value || "未入力"}</div>
+              </div>
+            ))}
+          </div>
+          <div className="mt-4 rounded-xl p-3.5" style={{ background: T.bgBase }}>
+            <div className="mb-2 text-xs font-bold" style={{ color: T.accent }}>講師コメント</div>
+            {detailReport.comments?.length ? (
+              <div className="space-y-2">{detailReport.comments.map((c, i) => (
+                <div key={c.id || c.createdAt || i} className="rounded-lg bg-white px-3 py-2 text-sm" style={{ border: `1px solid ${T.border}`, color: T.textSecondary }}>
+                  <div className="mb-1 text-[11px] font-semibold" style={{ color: T.textMuted }}>{c.authorName || c.authorRole || "講師"} / {c.createdAt ? fmtTs(c.createdAt) : "日時未記録"}</div>
+                  <div className="whitespace-pre-wrap">{c.text || c.comment || ""}</div>
+                </div>
+              ))}</div>
+            ) : <div className="text-sm" style={{ color: T.textMuted }}>コメントはまだありません。</div>}
+          </div>
+          <div className="mt-4 grid gap-3 text-xs sm:grid-cols-2" style={{ color: T.textMuted }}>
+            <div>提出日時: {detailReport.submittedAt || detailReport.createdAt || detailReport.rawData?.submittedAt || detailReport.rawData?.createdAt ? fmtTs(detailReport.submittedAt || detailReport.createdAt || detailReport.rawData?.submittedAt || detailReport.rawData?.createdAt) : "記録なし"}</div>
+            <div>更新日時: {reportUpdatedAt(detailReport) ? fmtTs(reportUpdatedAt(detailReport)) : "記録なし"}</div>
+          </div>
+        </Modal>
+      )}
       {!canWrite && <div className="space-y-4">{visibleReports.length === 0 ? <Card><div className="px-4 py-8 text-center text-sm" style={{ color: T.textMuted }}>該当データがありません</div></Card> : visibleReports.map(r => (
         <Card key={r.id} className="overflow-hidden">
           <button onClick={() => setOpen(open === r.id ? null : r.id)} className="flex w-full items-center justify-between px-5 py-4 text-left">
