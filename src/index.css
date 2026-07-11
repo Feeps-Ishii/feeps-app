@@ -214,3 +214,34 @@ body.feeps-modal-open .feeps-main-scroll { overflow: hidden !important; }
 
 /* List zebra: subtle alternating rows for long operational tables (header row is child 1). */
 .feeps-zebra > *:nth-child(even) { background: rgba(21,23,28,0.02); }
+
+/* iOS Safariの100vhはツールバー収納分を含み、下端に白帯が出る。
+   対応ブラウザではdynamic viewport unitを優先する（未対応はTailwindの100vhフォールバック）。 */
+.app-root { min-height: 100dvh; }
+@media (min-width: 1024px) { .app-root { height: 100dvh; } }
+
+/* モバイルのBottom Navigation分の逃げ（56px + ホームインジケータ）。lg+はBottom Navなし。 */
+@media (max-width: 1023.98px) {
+  .feeps-main-scroll { padding-bottom: calc(64px + env(safe-area-inset-bottom)); }
+}
+
+/* Modal: mobile bottom sheet <-> desktop centered panel. */
+@keyframes feepsSheetUp {
+  from { opacity: 0; transform: translateY(24px); }
+  to { opacity: 1; transform: none; }
+}
+@media (max-width: 639.98px) {
+  .feeps-modal-sheet {
+    animation: feepsSheetUp 0.22s ease both;
+    padding-bottom: env(safe-area-inset-bottom);
+    border-bottom: none;
+    border-left: none;
+    border-right: none;
+  }
+}
+@media (min-width: 640px) {
+  .feeps-modal-sheet { margin-top: 9vh; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .feeps-modal-sheet { animation: none; }
+}

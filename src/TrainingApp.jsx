@@ -177,7 +177,7 @@ function Login({ onLogin }) {
     "--field-focus-ring": T.accentSubtle,
   };
   return (
-    <div className="grid min-h-screen lg:grid-cols-[1.15fr_1fr]" style={{ background: T.bgBase, fontFamily: "'Inter','Noto Sans JP',sans-serif" }}>
+    <div className="grid min-h-screen lg:grid-cols-[1.15fr_1fr]" style={{ background: T.bgBase, minHeight: "100dvh", fontFamily: "'Inter','Noto Sans JP',sans-serif" }}>
       {/* ===== 左: 製品ショーケース ===== */}
       <div className="relative hidden flex-col justify-between overflow-hidden p-12 lg:flex" style={{ borderRight: `1px solid ${T.border}` }}>
         {/* 背景装飾: 細線の同心円のみ */}
@@ -714,6 +714,13 @@ export default function App() {
   // added for it; this is a UI-only, session-local "mark as read" (dismisses the
   // unread dots visually, resets on reload) so the control is not disabled/inert.
   const [notifDismissedAll, setNotifDismissedAll] = useState(false);
+  // モバイルBottom Navigationのメニューシート開閉
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  // iOS Safariの100vh差分/オーバースクロールで下端が白く切れないよう、body背景をシェル末尾色に合わせる
+  useEffect(() => {
+    document.body.style.background = T.shellTail;
+    return () => { document.body.style.background = ""; };
+  }, []);
   const [authChecked, setAuthChecked] = useState(true);
   const [notifications, setNotifications] = useState([]);
   // Per-menu badges derived from already-fetched notifications (no new API).
@@ -932,19 +939,6 @@ export default function App() {
       <span className="hidden text-sm font-extrabold sm:inline" style={{ color: T.textPrimary }}>{BRAND.name}</span>
     </button>
   );
-  const productTabsRow = (
-    <>
-      {PRODUCTS.filter(p => p.roles.includes(role)).map(p => { const active = product === p.key;
-        return (
-          <button key={p.key} onClick={() => goProduct(p.key)}
-            className="flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-lg px-3 py-2 text-sm font-semibold transition-colors"
-            style={{ color: active ? T.textPrimary : T.textSecondary, borderBottom: `2px solid ${active ? (PRODUCT_ACCENT[p.key] || PRODUCT_ACCENT.training).accent : "transparent"}`, background: "transparent" }}>
-            <span className="h-[6px] w-[6px] shrink-0 rounded-full" style={{ background: (PRODUCT_ACCENT[p.key] || PRODUCT_ACCENT.training).accent, opacity: active ? 1 : .55 }} /><p.icon size={13} />{p.label}
-          </button>
-        );
-      })}
-    </>
-  );
   const demoMenu = (
     <div className="relative ml-2 shrink-0">
       <button onClick={() => setDemoOpen(v => !v)}
@@ -1045,16 +1039,13 @@ export default function App() {
     <div className="app-root flex min-h-screen flex-col overflow-x-hidden lg:h-screen lg:overflow-hidden" style={{ background: T.shellBase, fontFamily: "'Inter','Noto Sans JP',sans-serif", color: T.textPrimary }}>
       <style>{`@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Noto+Sans+JP:wght@400;500;700&display=swap');html,body,#root{max-width:100%;overflow-x:hidden}.app-root,.app-root *{box-sizing:border-box}@keyframes feepsUp{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:none}}.view-anim{animation:feepsUp .3s ease both}.app-root :where(button,a,input,textarea,select,[tabindex]):focus-visible{outline:none;box-shadow:0 0 0 2px #fff,0 0 0 4px rgba(61,107,255,.55);border-radius:12px}@media (prefers-reduced-motion:reduce){.view-anim{animation:none}.app-root *{transition:none!important}}`}</style>
       <div className="shrink-0">
-        {/* モバイル（lg未満）: 従来どおりの2行構成・不透明背景。情報量とタップ領域を優先し、
-            Floating Canvasの60px統合ヘッダーは適用しない（承認済み判断）。 */}
+        {/* モバイル（lg未満）: 1行ヘッダー+Bottom Navigation構成（Phase5-4）。
+            Product切替は画面下部のBottom Navが担い、Floating Canvasは適用しない。 */}
         <div className="lg:hidden">
           <div className="flex w-full max-w-full items-center gap-2 px-3 py-2 sm:px-4" style={{ background: T.bgSurface, borderBottom: `1px solid ${T.border}` }}>
             {brandLogo}
             {demoMenu}
             <div className="ml-auto flex items-center gap-1.5">{notifBellMobile}{userActionsTail}</div>
-          </div>
-          <div className="flex items-center overflow-x-auto px-2 pb-0 sm:px-3" style={{ background: T.bgSurface, borderBottom: `1px solid ${T.border}` }}>
-            {productTabsRow}
           </div>
         </div>
 
@@ -1191,6 +1182,65 @@ export default function App() {
           </div>
         </div>
       </div>
+
+      {/* Bottom Navigation（モバイルのみ・Phase5-4）: 親指圏でのProduct切替。
+          5枠目のメニューから全Product・通知・プロフィール・ログアウトへ。 */}
+      <nav className="fixed inset-x-0 bottom-0 lg:hidden" style={{ zIndex: Z.dropdown, background: T.bgSurface, borderTop: `1px solid ${T.border}`, paddingBottom: "env(safe-area-inset-bottom)" }} aria-label="メインナビゲーション">
+        <div className="grid grid-cols-5">
+          {PRODUCTS.filter(p => p.roles.includes(role)).slice(0, 4).map(p => {
+            const active = product === p.key && !mobileMenuOpen;
+            const short = { home: "Home", training: "研修", learning: "学習", talent: "成長", matching: "案件", analytics: "分析" }[p.key] || p.label;
+            return (
+              <button key={p.key} type="button" onClick={() => { setMobileMenuOpen(false); goProduct(p.key); }}
+                className="flex min-h-[56px] flex-col items-center justify-center gap-1"
+                style={{ color: active ? T.accent : T.textMuted }} aria-current={active ? "page" : undefined}>
+                <p.icon size={21} />
+                <span className="text-[10px] font-semibold leading-none">{short}</span>
+              </button>
+            );
+          })}
+          <button type="button" onClick={() => setMobileMenuOpen(v => !v)}
+            className="flex min-h-[56px] flex-col items-center justify-center gap-1"
+            style={{ color: mobileMenuOpen ? T.accent : T.textMuted }} aria-expanded={mobileMenuOpen}>
+            <Menu size={21} />
+            <span className="text-[10px] font-semibold leading-none">メニュー</span>
+          </button>
+        </div>
+      </nav>
+
+      {/* メニューシート（モバイル）: 全Product一覧とアカウント操作 */}
+      {mobileMenuOpen && (
+        <div className="fixed inset-0 lg:hidden" style={{ zIndex: Z.overlay }}>
+          <div className="absolute inset-0" style={{ background: "rgba(0,0,0,.4)" }} onClick={() => setMobileMenuOpen(false)} />
+          <div className="absolute inset-x-0 bottom-0 rounded-t-3xl px-4 pt-4" style={{ background: T.bgSurface, paddingBottom: "calc(12px + env(safe-area-inset-bottom))" }}>
+            <div className="mx-auto mb-3 h-1 w-10 rounded-full" style={{ background: T.border }} />
+            <div className="grid grid-cols-2 gap-2">
+              {PRODUCTS.filter(p => p.roles.includes(role)).map(p => {
+                const active = product === p.key;
+                return (
+                  <button key={p.key} type="button" onClick={() => { setMobileMenuOpen(false); goProduct(p.key); }}
+                    className="flex min-h-[52px] items-center gap-3 rounded-xl px-3 py-2.5 text-left"
+                    style={{ background: active ? T.accentSubtle : T.bgBase, color: active ? T.accentHover : T.textPrimary }}>
+                    <p.icon size={18} className="shrink-0" style={{ color: active ? T.accent : T.textSecondary }} />
+                    <span className="text-sm font-semibold">{p.label}</span>
+                  </button>
+                );
+              })}
+            </div>
+            <div className="mt-3 grid grid-cols-3 gap-2 border-t pt-3" style={{ borderColor: T.border }}>
+              <button type="button" onClick={() => { setMobileMenuOpen(false); goProduct("training"); go("notifications"); }} className="flex min-h-[48px] flex-col items-center justify-center gap-1 rounded-xl" style={{ background: T.bgBase, color: T.textSecondary }}>
+                <Bell size={17} /><span className="text-[11px] font-semibold">通知</span>
+              </button>
+              <button type="button" onClick={() => { setMobileMenuOpen(false); goProduct("training"); go("profile"); }} className="flex min-h-[48px] flex-col items-center justify-center gap-1 rounded-xl" style={{ background: T.bgBase, color: T.textSecondary }}>
+                <User size={17} /><span className="text-[11px] font-semibold">プロフィール</span>
+              </button>
+              <button type="button" onClick={() => { setMobileMenuOpen(false); logout(); }} className="flex min-h-[48px] flex-col items-center justify-center gap-1 rounded-xl" style={{ background: T.bgBase, color: T.textSecondary }}>
+                <LogOut size={17} /><span className="text-[11px] font-semibold">ログアウト</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

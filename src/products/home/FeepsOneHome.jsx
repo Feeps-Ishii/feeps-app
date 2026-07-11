@@ -180,7 +180,7 @@ function Hero({ role, displayName, contextLine }) {
   const roleAccent = ROLE_ACCENT[role] || ROLE_ACCENT.default;
   const heroBg = `linear-gradient(135deg, ${T.bgSurface} 0%, ${T.accentSubtle} 58%, ${PRODUCT_ACCENT.learning.subtle} 100%)`;
   return (
-    <section className="overflow-hidden rounded-[24px] p-6 sm:p-9" style={{ background: heroBg, border: `1px solid ${T.border}`, boxShadow: "0 14px 36px rgba(21,38,47,.07)" }}>
+    <section className="overflow-hidden rounded-[24px] p-4 sm:p-9" style={{ background: heroBg, border: `1px solid ${T.border}`, boxShadow: "0 14px 36px rgba(21,38,47,.07)" }}>
       <div className="flex flex-wrap items-center justify-between gap-3 border-b pb-4" style={{ borderColor: T.border }}>
         <div className="flex min-w-0 items-center gap-3">
           <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl" style={{ background: T.accent, color: "#fff" }}>
@@ -200,11 +200,11 @@ function Hero({ role, displayName, contextLine }) {
         </div>
       </div>
 
-      <div className="grid gap-6 pt-6 lg:grid-cols-[minmax(0,1fr)_430px] lg:items-end">
+      <div className="grid gap-4 pt-4 sm:gap-6 sm:pt-6 lg:grid-cols-[minmax(0,1fr)_430px] lg:items-end">
         <div className="min-w-0">
-          <h1 className="text-3xl font-semibold leading-tight sm:text-4xl" style={{ color: T.textPrimary, letterSpacing: "-0.02em" }}>研修・学習・成長を、ひとつに。</h1>
-          <p className="mt-2 text-sm font-semibold" style={{ color: T.textSecondary }}>Integrated Training & Growth Platform</p>
-          <div className="mt-6 rounded-2xl p-5" style={{ background: "rgba(255,255,255,.72)", border: `1px solid ${T.border}` }}>
+          <h1 className="hidden text-3xl font-semibold leading-tight sm:block sm:text-4xl" style={{ color: T.textPrimary, letterSpacing: "-0.02em" }}>研修・学習・成長を、ひとつに。</h1>
+          <p className="mt-2 hidden text-sm font-semibold sm:block" style={{ color: T.textSecondary }}>Integrated Training & Growth Platform</p>
+          <div className="mt-0 rounded-2xl p-4 sm:mt-6 sm:p-5" style={{ background: "rgba(255,255,255,.72)", border: `1px solid ${T.border}` }}>
             <p className="text-base font-bold leading-relaxed" style={{ color: T.textPrimary }}>
               {displayName}さん、<br className="sm:hidden" />おかえりなさい。
             </p>
@@ -212,7 +212,7 @@ function Hero({ role, displayName, contextLine }) {
           </div>
         </div>
 
-        <div className="rounded-2xl p-4" style={{ background: T.bgSurface, border: `1px solid ${T.border}` }}>
+        <div className="hidden rounded-2xl p-4 lg:block" style={{ background: T.bgSurface, border: `1px solid ${T.border}` }}>
           <div className="flex items-center justify-between gap-3">
             <div className="text-xs font-bold uppercase" style={{ color: T.textMuted }}>Learning Journey</div>
             <Sparkles size={15} style={{ color: PRODUCT_ACCENT.learning.deep }} />
@@ -245,7 +245,27 @@ function ProductNavigator({ role, goProduct, goTraining, goSub }) {
   return (
     <section>
       <SectionTitle title="利用できるサービス" desc="あなたのロールで利用できるサービスへ移動できます。" />
-      <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
+      {/* モバイルは2列コンパクト（アイコン+名前、カード全体タップ）。sm以上は従来のリッチカード */}
+      <div className="grid grid-cols-2 gap-3 sm:hidden">
+        {ordered.map(product => {
+          const pa = PRODUCT_ACCENT[product.key] || PRODUCT_ACCENT.training;
+          const Icon = product.icon;
+          return (
+            <Card key={product.key} hover onClick={() => openProduct(product.key, { goProduct, goTraining, goSub })} className="p-4">
+              <div className="flex min-h-[56px] items-center gap-3">
+                <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl" style={{ background: pa.subtle, color: pa.deep }}>
+                  <Icon size={20} />
+                </span>
+                <div className="min-w-0">
+                  <div className="text-sm font-bold" style={{ color: T.textPrimary, letterSpacing: "-0.02em" }}>{product.label}</div>
+                  <div className="mt-0.5 truncate text-[11px]" style={{ color: T.textMuted }}>{product.value}</div>
+                </div>
+              </div>
+            </Card>
+          );
+        })}
+      </div>
+      <div className="hidden gap-5 sm:grid md:grid-cols-2 xl:grid-cols-3">
         {ordered.map(product => {
           const pa = PRODUCT_ACCENT[product.key] || PRODUCT_ACCENT.training;
           const recommendedHere = recommended.includes(product.key);
@@ -461,11 +481,14 @@ export default function FeepsOneHome({ role, displayName, goProduct, goTraining,
   ];
 
   return (
-    <div className="space-y-7">
-      <Hero role={role} displayName={displayName} contextLine={contextLine} />
+    <div className="flex flex-col gap-6 sm:gap-7">
+      {/* モバイルは「今日やること」を最上段へ（order制御）。lg+は従来どおりHero先頭 */}
+      <div className="order-2 lg:order-1">
+        <Hero role={role} displayName={displayName} contextLine={contextLine} />
+      </div>
 
       {(role === "instructor" || role === "trainee") && dashboardError && (
-        <Card className="p-4">
+        <Card className="order-1 p-4">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div>
               <div className="text-sm font-bold" style={{ color: T.danger }}>Dashboard APIを取得できませんでした</div>
@@ -476,7 +499,7 @@ export default function FeepsOneHome({ role, displayName, goProduct, goTraining,
         </Card>
       )}
 
-      <section>
+      <section className="order-1 lg:order-2">
         <SectionTitle title="今日やること" desc="まず確認するものだけを並べています。" />
         {(role === "instructor" || role === "trainee") && loadingDashboard && !dashboard ? (
           <SkeletonCards count={4} />
@@ -487,9 +510,11 @@ export default function FeepsOneHome({ role, displayName, goProduct, goTraining,
         )}
       </section>
 
-      <ProductNavigator role={role} goProduct={goProduct} goTraining={goTraining} goSub={goSub} />
+      <div className="order-3">
+        <ProductNavigator role={role} goProduct={goProduct} goTraining={goTraining} goSub={goSub} />
+      </div>
 
-      <section>
+      <section className="order-4">
         <SectionTitle
           title="現在の状況"
           desc="Homeでは状況把握に必要な最小限だけ表示します。"
@@ -501,7 +526,7 @@ export default function FeepsOneHome({ role, displayName, goProduct, goTraining,
       </section>
 
       {role === "instructor" && todayCourses.length > 0 && (
-        <section>
+        <section className="order-5">
           <SectionTitle title="今日の担当コース" desc="詳細な編集や確認は研修管理Productで行います。" />
           <div className="grid gap-4 md:grid-cols-2">
             {todayCourses.slice(0, 2).map(course => (
@@ -524,7 +549,7 @@ export default function FeepsOneHome({ role, displayName, goProduct, goTraining,
       )}
 
       {role === "trainee" && traineeAnnouncements.length > 0 && (
-        <section>
+        <section className="order-5">
           <SectionTitle title="本日のお知らせ" desc="担当講師から受講生向けに共有された連絡です。" />
           <div className="grid gap-4 md:grid-cols-2">
             {traineeAnnouncements.map(item => (
@@ -545,7 +570,7 @@ export default function FeepsOneHome({ role, displayName, goProduct, goTraining,
       )}
 
       {role === "trainee" && traineeComments.length > 0 && (
-        <section>
+        <section className="order-6">
           <SectionTitle title="講師コメント" desc="日報に届いた最新のフィードバックです。" />
           <div className="grid gap-4 md:grid-cols-2">
             {traineeComments.slice(0, 2).map((item, index) => (

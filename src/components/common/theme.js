@@ -47,6 +47,7 @@ export const T = {
   // shellBase: tinted app base the transparent Header/Sidebar sit on.
   // canvas*: the floating white sheet that hosts all page content.
   shellBase: "radial-gradient(1200px 420px at 50% -60px, rgba(61,107,255,0.05), transparent 70%), linear-gradient(180deg, #EEF0F4, #EAECF1)",
+  shellTail: "#EAECF1", // shellBase末尾色。iOS Safariのオーバースクロール/100vh差分で白帯を出さないためbody背景に使う
   canvasBg: "#FFFFFF",
   canvasBorder: "1px solid rgba(21,23,28,0.05)",
   canvasShadow: "0 1px 2px rgba(21,23,28,0.04), 0 12px 32px rgba(21,23,28,0.07)",

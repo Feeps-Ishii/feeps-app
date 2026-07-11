@@ -14,6 +14,13 @@ HANDOFF.md の「★デザイン規約」はこのファイルを参照する形
 - lg未満（モバイル）はFloating Canvasを適用しない。ドロワー+通常スクロールの
   従来構成のまま、情報量とタップ領域を優先する。この方針は意図的な判断であり、
   「モバイルにもFloating Canvasを」は誤り。
+- **モバイルナビゲーション（Phase5-4改定）**: モバイルは1行ヘッダー（ロゴ/通知/ユーザー）+
+  **Bottom Navigation**（`Home+ロール先頭3Product+メニュー`の5枠、各56px以上、
+  `padding-bottom: env(safe-area-inset-bottom)`）。Product切替タブの2行目は廃止済み。
+  メニュー枠は全Product+通知/プロフィール/ログアウトのボトムシートを開く。
+- **ビューポート**: `viewport-fit=cover`前提。`.app-root`は`100dvh`優先（100vhフォールバック）、
+  `body`背景は`T.shellTail`でiOS Safariの白帯を防ぐ。モバイルの`.feeps-main-scroll`は
+  Bottom Nav分の`padding-bottom: calc(64px + env(safe-area-inset-bottom))`を持つ。
 
 ---
 
@@ -115,7 +122,7 @@ JSXやCSSに生の色コード・z-index数値を直接書かない。必ず以�
 
 ## 4. 共通コンポーネント規約
 
-- **モーダル**: 共通 `Modal`（`document.body` へportal、`max-height:85vh`＋内部スクロール、画面上端から約9vh、
+- **モーダル**: 共通 `Modal`（`document.body` へportal、`max-height:85dvh`＋内部スクロール。**sm未満はボトムシート**（下端密着・上角丸・safe-area padding・スライドイン）、sm+は画面上端から約9vh、
   フォーカス管理、dirty時の離脱確認）。`AdminModal` は `Modal` の薄いラッパーであり、直接拡張しない。
   モーダルを開いている間は `body.feeps-modal-open` クラスで `.feeps-main-scroll` も凍結する。
 - **画面の頭**: Product Homeは `PageHeader`（動的タイトル/チップ/CTA構成。装飾SVGの追加は禁止）。
@@ -178,7 +185,7 @@ JSXやCSSに生の色コード・z-index数値を直接書かない。必ず以�
 - 「準備中」ラベルでの機能隠蔽（未実装のUIはラベルではなく要素ごと出し分ける）。
 - 無許可の無限ループアニメーション追加（`feeps-float`/`feeps-shimmer` 以外）。
 - `prefers-reduced-motion` を無視したアニメーション追加。
-- モバイル（lg未満）へのFloating Canvas適用、およびモバイルヘッダーの2行構成からの変更。
+- モバイル（lg未満）へのFloating Canvas適用。モバイルのProduct切替はBottom Navigationが正（ヘッダーへのタブ行復活は不可）。
 - デザイン作業のついでにAPI・認証・ルーティング・業務ロジックを変更すること（別タスクとして扱う）。
 
 ---

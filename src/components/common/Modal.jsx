@@ -10,8 +10,9 @@ const SIZES = { sm: 400, md: 560, lg: 720 };
 // included) regardless of in-layout stacking contexts.
 // - ESC and overlay click close it; pass `dirty` to interpose a discard confirm.
 // - Focuses the first form control on open and restores focus on close.
-// - Locks background scroll; content scrolls inside the body (max-height 85vh,
-//   panel anchored slightly above center: 9vh from the top).
+// - Locks background scroll; content scrolls inside the body (max-height 85dvh).
+// - Mobile (<sm) renders as a bottom sheet (rounded top, safe-area padding);
+//   sm+ keeps the centered panel anchored 9vh from the top.
 // - Footer convention: primary CTA (verb label, accent) right, cancel (ghost) left,
 //   destructive actions in danger styling.
 export default function Modal({ title, desc, onClose, children, footer, size = "md", dirty = false, danger = false }) {
@@ -46,8 +47,8 @@ export default function Modal({ title, desc, onClose, children, footer, size = "
   });
 
   return createPortal(
-    <div className="feeps-modal-overlay fixed inset-0 flex items-start justify-center p-4" style={{ background: "rgba(14,15,19,.55)", zIndex: Z.modal }} onClick={requestClose} role="dialog" aria-modal="true" aria-label={title}>
-      <div className="feeps-modal-panel flex w-full flex-col rounded-xl" style={{ maxWidth: SIZES[size] || SIZES.md, maxHeight: "85vh", marginTop: "9vh", background: T.bgSurface, border: `1px solid ${T.border}` }} onClick={e => e.stopPropagation()}>
+    <div className="feeps-modal-overlay fixed inset-0 flex items-end justify-center p-0 sm:items-start sm:p-4" style={{ background: "rgba(14,15,19,.55)", zIndex: Z.modal }} onClick={requestClose} role="dialog" aria-modal="true" aria-label={title}>
+      <div className="feeps-modal-panel feeps-modal-sheet flex w-full flex-col rounded-t-2xl sm:rounded-xl" style={{ maxWidth: SIZES[size] || SIZES.md, maxHeight: "85dvh", background: T.bgSurface, border: `1px solid ${T.border}` }} onClick={e => e.stopPropagation()}>
         <div className="flex shrink-0 items-start justify-between gap-3 px-5 py-4" style={{ borderBottom: `1px solid ${T.border}` }}>
           <div className="min-w-0">
             <h3 className="truncate text-base font-bold" style={{ color: danger ? T.danger : T.textPrimary, letterSpacing: "-0.02em" }}>{title}</h3>
