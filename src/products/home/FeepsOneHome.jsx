@@ -180,7 +180,7 @@ function Hero({ role, displayName, contextLine }) {
   const roleAccent = ROLE_ACCENT[role] || ROLE_ACCENT.default;
   const heroBg = `linear-gradient(135deg, ${T.bgSurface} 0%, ${T.accentSubtle} 58%, ${PRODUCT_ACCENT.learning.subtle} 100%)`;
   return (
-    <section className="overflow-hidden rounded-[24px] p-5 sm:p-7" style={{ background: heroBg, border: `1px solid ${T.border}`, boxShadow: "0 14px 36px rgba(21,38,47,.07)" }}>
+    <section className="overflow-hidden rounded-[24px] p-6 sm:p-9" style={{ background: heroBg, border: `1px solid ${T.border}`, boxShadow: "0 14px 36px rgba(21,38,47,.07)" }}>
       <div className="flex flex-wrap items-center justify-between gap-3 border-b pb-4" style={{ borderColor: T.border }}>
         <div className="flex min-w-0 items-center gap-3">
           <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl" style={{ background: T.accent, color: "#fff" }}>
@@ -200,11 +200,11 @@ function Hero({ role, displayName, contextLine }) {
         </div>
       </div>
 
-      <div className="grid gap-6 pt-5 lg:grid-cols-[minmax(0,1fr)_430px] lg:items-end">
+      <div className="grid gap-6 pt-6 lg:grid-cols-[minmax(0,1fr)_430px] lg:items-end">
         <div className="min-w-0">
           <h1 className="text-3xl font-semibold leading-tight sm:text-4xl" style={{ color: T.textPrimary, letterSpacing: "-0.02em" }}>研修・学習・成長を、ひとつに。</h1>
           <p className="mt-2 text-sm font-semibold" style={{ color: T.textSecondary }}>Integrated Training & Growth Platform</p>
-          <div className="mt-5 rounded-2xl p-4" style={{ background: "rgba(255,255,255,.72)", border: `1px solid ${T.border}` }}>
+          <div className="mt-6 rounded-2xl p-5" style={{ background: "rgba(255,255,255,.72)", border: `1px solid ${T.border}` }}>
             <p className="text-base font-bold leading-relaxed" style={{ color: T.textPrimary }}>
               {displayName}さん、<br className="sm:hidden" />おかえりなさい。
             </p>
@@ -223,7 +223,7 @@ function Hero({ role, displayName, contextLine }) {
               const pa = PRODUCT_ACCENT[productKey];
               return (
                 <React.Fragment key={step}>
-                  <div className="rounded-full px-3 py-2 text-xs font-bold" style={{ background: pa.subtle, color: pa.deep }}>
+                  <div className="rounded-full px-2.5 py-1.5 text-xs font-semibold" style={{ background: pa.subtle, color: pa.deep }}>
                     {step}
                   </div>
                   {index < JOURNEY.length - 1 && <ArrowRight size={13} style={{ color: T.textMuted }} />}
@@ -487,6 +487,8 @@ export default function FeepsOneHome({ role, displayName, goProduct, goTraining,
         )}
       </section>
 
+      <ProductNavigator role={role} goProduct={goProduct} goTraining={goTraining} goSub={goSub} />
+
       <section>
         <SectionTitle
           title="現在の状況"
@@ -569,7 +571,6 @@ export default function FeepsOneHome({ role, displayName, goProduct, goTraining,
         </section>
       )}
 
-      <ProductNavigator role={role} goProduct={goProduct} goTraining={goTraining} goSub={goSub} />
     </div>
   );
 }

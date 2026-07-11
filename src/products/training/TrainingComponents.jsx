@@ -1,7 +1,7 @@
 import React, { useState, useMemo, useEffect, useCallback, useRef } from "react";
 import { getCurrentUser, fetchAuthSession } from "aws-amplify/auth";
 import { apiGet, apiPut, apiPost, apiDelete as apiDeleteBase } from "../../api.js";
-import { Card, Badge, Btn, Avatar, Stat, SectionHead, Field, Seg, T, PRODUCT_ACCENT, PageHeader, ProductNavCard, EmptyState as CommonEmptyState, SkeletonRows, SkeletonCards, Modal } from "../../components/common";
+import { Card, Badge, Btn, Avatar, Stat, SectionHead, Field, Seg, T, PRODUCT_ACCENT, PageHeader, ProductNavCard, EmptyState as CommonEmptyState, SkeletonRows, SkeletonCards, Modal, MonthPicker } from "../../components/common";
 import {
   QBANK
 } from "./TrainingCatalog.js";
@@ -2262,7 +2262,7 @@ function TraineeAttendance() {
       <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
         <h3 className="text-sm font-bold" style={{ color: T.textPrimary }}>月別勤怠一覧</h3>
         <div className="flex flex-wrap items-center gap-2">
-          <input type="month" value={histMonth} onChange={e => setHistMonth(e.target.value)} className="rounded-xl px-3 py-2 text-sm outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary, background: "#fff" }} />
+          <MonthPicker value={histMonth} onChange={setHistMonth} />
           <div className="relative">
             <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2" style={{ color: T.textMuted }} />
             <input value={histQuery} onChange={e => setHistQuery(e.target.value)} placeholder="検索" className="w-40 rounded-lg py-2 pl-8 pr-3 text-sm outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary, background: "#fff" }} />
@@ -2408,7 +2408,7 @@ function AttendanceManage({ role }) {
   return (
     <div>
       <SectionHead title={canEdit ? "勤怠管理" : "勤怠状況"} desc={periodMode === "月次" ? `${month}の勤怠集計` : `${fmtLongDate(date)}の${role === "client" ? "自社" : "担当"}受講生の出席状況${canEdit ? "・修正" : ""}`}
-        action={<div className="flex flex-wrap items-center gap-2"><Seg value={periodMode} onChange={setPeriodMode} options={["日次", "月次"]} />{periodMode === "月次" ? <input type="month" value={month} onChange={e => setMonth(e.target.value)} className="rounded-xl px-3 py-2 text-sm outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary, background: "#fff" }} /> : <input type="date" value={date} onChange={e => setDate(e.target.value)} className="rounded-xl px-3 py-2 text-sm outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary, background: "#fff" }} />}<Btn kind="ghost" icon={FileSpreadsheet} onClick={() => {
+        action={<div className="flex flex-wrap items-center gap-2"><Seg value={periodMode} onChange={setPeriodMode} options={["日次", "月次"]} />{periodMode === "月次" ? <MonthPicker value={month} onChange={setMonth} /> : <input type="date" value={date} onChange={e => setDate(e.target.value)} className="rounded-xl px-3 py-2 text-sm outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary, background: "#fff" }} />}<Btn kind="ghost" icon={FileSpreadsheet} onClick={() => {
           if (periodMode === "月次") {
             const companyNameOf = id => opsFilter.companies.find(c => c.companyId === id)?.name || "";
             const rows = monthlyRows
@@ -2448,7 +2448,7 @@ function AttendanceManage({ role }) {
           </div>
           {monthlyLoading ? <div className="p-4"><SkeletonRows rows={5} /></div> : (
             <div className="overflow-x-auto">
-              <div style={{ minWidth: 680 }}>
+              <div className="feeps-zebra" style={{ minWidth: 680 }}>
                 <div className="grid grid-cols-6 gap-3 px-4 py-2.5 text-xs font-semibold" style={{ background: T.bgBase, color: T.textMuted }}>
                   <div className="col-span-2">受講生</div><div>出席数</div><div>欠席数</div><div>遅刻数</div><div>未登録数</div>
                 </div>
@@ -2466,7 +2466,7 @@ function AttendanceManage({ role }) {
       <div className="mb-5 grid gap-4 sm:grid-cols-2 lg:grid-cols-4"><Stat icon={CheckCircle2} label="出勤" value={`${present}名`} tone="green" /><Stat icon={AlertCircle} label="遅刻" value={`${late}名`} tone="amber" /><Stat icon={X} label="欠席" value={`${absent}名`} tone="muted" /><Stat icon={Clock} label="出勤未打刻" value={`${unregistered}名`} tone={unregistered ? "amber" : "muted"} /></div>
       <Card>
         <div className="overflow-x-auto">
-          <div style={{ minWidth: 600 }}>
+          <div className="feeps-zebra" style={{ minWidth: 600 }}>
             <div className="flex items-center gap-3 px-4 py-2.5 text-xs font-semibold" style={{ background: T.bgBase, color: T.textMuted }}>
               <div className="w-40">受講生</div><div className="w-16">出勤</div><div className="w-16">退勤</div><div className="w-20">状態</div><div className="flex-1">備考</div>{canEdit && <div className="w-12" />}</div>
             {filteredRows.length === 0 ? <div className="px-4 py-8 text-center text-sm" style={{ color: T.textMuted }}>該当データがありません</div> : filteredRows.map((a) => {
@@ -3101,7 +3101,7 @@ function Reports({ role }) {
   return (
     <div>
       <SectionHead title="日報" desc={canWrite ? "今日の学びを記録し、講師からフィードバックを受け取ります" : canComment ? "コース・企業・日付で日報を確認し、フィードバックします" : "自社受講生の日報を閲覧できます"}
-        action={canViewReports ? <div className="flex flex-wrap items-center gap-2"><Seg value={periodMode} onChange={setPeriodMode} options={["日次", "月次"]} /><span className="text-xs font-semibold" style={{ color: T.textMuted }}>{periodMode === "月次" ? "対象月" : "日報確認日"}</span>{periodMode === "月次" ? <input type="month" value={month} onChange={e => setMonth(e.target.value)} className="rounded-xl px-3 py-2 text-sm outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary, background: "#fff" }} /> : <input type="date" value={date} onChange={e => setDate(e.target.value)} className="rounded-xl px-3 py-2 text-sm outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary, background: "#fff" }} />}</div> : null} />
+        action={canViewReports ? <div className="flex flex-wrap items-center gap-2"><Seg value={periodMode} onChange={setPeriodMode} options={["日次", "月次"]} /><span className="text-xs font-semibold" style={{ color: T.textMuted }}>{periodMode === "月次" ? "対象月" : "日報確認日"}</span>{periodMode === "月次" ? <MonthPicker value={month} onChange={setMonth} /> : <input type="date" value={date} onChange={e => setDate(e.target.value)} className="rounded-xl px-3 py-2 text-sm outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary, background: "#fff" }} />}</div> : null} />
       {saveErr && !canWrite && <div className="mb-4 rounded-lg px-3 py-2 text-xs" style={{ background: T.dangerSubtle, color: T.danger }}>{saveErr}</div>}
       {canViewReports && <OpsFilterPanel filter={opsFilter} summary={periodMode === "月次" ? `表示対象: ${opsFilter.targetTrainees.length}名 / 集計月: ${month}` : `表示対象: ${opsFilter.targetTrainees.length}名 / 日報保存: ${visibleReports.length}件`} />}
       {canViewReports && (
@@ -3133,7 +3133,7 @@ function Reports({ role }) {
             <div className="rounded-xl p-3" style={{ background: T.dangerSubtle }}><div className="text-xs font-bold" style={{ color: T.danger }}>要確認</div><div className="mt-1 text-2xl font-bold" style={{ color: T.textPrimary }}>{dailyNeedsCheck}</div></div>
           </div>
           <div className="overflow-x-auto">
-            <div style={{ minWidth: 760 }}>
+            <div className="feeps-zebra" style={{ minWidth: 760 }}>
               <div className="grid grid-cols-12 gap-3 px-4 py-2.5 text-xs font-semibold" style={{ background: T.bgBase, color: T.textMuted }}>
                 <div className="col-span-3">受講生</div><div className="col-span-2">企業</div><div className="col-span-2">コース</div><div>提出</div><div>コメント</div><div className="col-span-2">提出日時</div><div>操作</div>
               </div>
@@ -3149,7 +3149,7 @@ function Reports({ role }) {
                     <div><Badge tone={r ? "green" : "amber"}>{r ? "保存済み" : "未提出"}</Badge></div>
                     <div><Badge tone={row.hasComment ? "cyan" : r ? "amber" : "muted"}>{row.hasComment ? "あり" : r ? "未コメント" : "-"}</Badge></div>
                     <div className="col-span-2 text-xs" style={{ color: T.textMuted }}>{r ? (reportUpdatedAt(r) ? fmtTs(reportUpdatedAt(r)) : "保存済み") : "-"}</div>
-                    <div>{r ? <button onClick={() => setOpen(open === r.id ? null : r.id)} className="text-xs font-semibold" style={{ color: T.accentHover }}>詳細</button> : <span className="text-xs" style={{ color: T.textMuted }}>-</span>}</div>
+                    <div>{r ? <button onClick={() => { setOpen(r.id); window.setTimeout(() => document.getElementById(`report-detail-${r.id}`)?.parentElement?.scrollIntoView?.({ behavior: "smooth", block: "start" }), 60); }} className="text-xs font-semibold" style={{ color: T.accentHover }}>詳細</button> : <span className="text-xs" style={{ color: T.textMuted }}>-</span>}</div>
                   </div>
                 );
               })}
@@ -3222,7 +3222,7 @@ function Reports({ role }) {
           <p className="text-xs" style={{ color: T.textMuted }}>下の一覧に表示する日報を絞り込みます。</p>
         </div>
         <div className="grid gap-3 md:grid-cols-[140px_1fr_150px_170px_150px]">
-          <input type="month" value={month} onChange={e => setMonth(e.target.value)} className="rounded-xl px-3 py-2 text-sm outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary, background: "#fff" }} />
+          <MonthPicker value={month} onChange={setMonth} />
           <div className="relative">
             <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2" style={{ color: T.textMuted }} />
             <input value={reportQuery} onChange={e => setReportQuery(e.target.value)} placeholder="日付・本文で検索" className="w-full rounded-xl py-2 pl-9 pr-3 text-sm outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary }} />
@@ -3300,7 +3300,8 @@ function Reports({ role }) {
         </Modal>
       )}
       {!canWrite && <div className="space-y-4">{visibleReports.length === 0 ? <Card><div className="px-4 py-8 text-center text-sm" style={{ color: T.textMuted }}>該当データがありません</div></Card> : visibleReports.map(r => (
-        <Card key={r.id} className="overflow-hidden">
+        <Card key={r.id} className="overflow-hidden" style={{ scrollMarginTop: 72 }}>
+          <div id={`report-detail-${r.id}`} />
           <button onClick={() => setOpen(open === r.id ? null : r.id)} className="flex w-full items-center justify-between px-5 py-4 text-left">
             <div className="flex items-center gap-3"><Avatar name={nameMap[r.traineeId] || r.name} />
               <div><div className="text-sm font-bold" style={{ color: T.textPrimary }}>{nameMap[r.traineeId] || r.name}<span className="ml-2 text-xs font-normal" style={{ color: T.textMuted }}>{companyNameOfReport(r)}</span></div><div className="text-xs" style={{ color: T.textMuted }}>{r.date} の日報 ・ {reportSavedLabel(r)}</div></div></div>

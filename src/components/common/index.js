@@ -13,4 +13,5 @@ export { default as ProductNavCard } from "./ProductNavCard.jsx";
 export { default as PageLoading } from "./PageLoading.jsx";
 export { SkeletonRows, SkeletonCards } from "./Skeleton.jsx";
 export { default as SuccessCheck } from "./SuccessCheck.jsx";
+export { default as MonthPicker } from "./MonthPicker.jsx";
 export { T, GRAD, PRODUCT_ACCENT, ROLE_ACCENT, Z } from "./theme.js";

@@ -211,3 +211,6 @@ body.feeps-modal-open .feeps-main-scroll { overflow: hidden !important; }
 @media (prefers-reduced-motion: reduce) {
   .feeps-login-field { transition: none; }
 }
+
+/* List zebra: subtle alternating rows for long operational tables (header row is child 1). */
+.feeps-zebra > *:nth-child(even) { background: rgba(21,23,28,0.02); }

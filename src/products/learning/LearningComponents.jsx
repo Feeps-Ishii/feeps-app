@@ -160,12 +160,6 @@ function LearningOverview({ lrn, goSub, goProduct, onOpenDetail, role, themeColo
         cta={{ label: "コース一覧を開く", icon: BookOpen, onClick: () => goSub("el_courses") }}
       />
 
-      <div className="mb-6 grid gap-4 md:grid-cols-3">
-        <ProductNavCard product="learning" icon={BookOpen} title="コース一覧" desc="公開中のコースから学習を始める" onClick={() => goSub("el_courses")} delay={650} />
-        <ProductNavCard product="learning" icon={PlayCircle} title="学習中" desc="受講中のコースを続きから再開" onClick={() => goSub("el_inprogress")} highlight badge="よく使う" delay={710} />
-        <ProductNavCard product="learning" icon={Sparkles} title="獲得スキル" desc="学習で身についたスキルを確認" onClick={() => goSub("el_skills")} delay={770} />
-      </div>
-
       {/* 今日の学習 */}
       <div className="mb-6">
         <Card className="p-5">
@@ -196,6 +190,12 @@ function LearningOverview({ lrn, goSub, goProduct, onOpenDetail, role, themeColo
             <Btn icon={PlayCircle} onClick={() => resume ? onOpenDetail(resume.course) : goSub("el_courses")}>続きから学習</Btn>
           </div>
         </Card>
+      </div>
+
+      <div className="mb-6 grid gap-4 md:grid-cols-3">
+        <ProductNavCard product="learning" icon={BookOpen} title="コース一覧" desc="公開中のコースから学習を始める" onClick={() => goSub("el_courses")} delay={650} />
+        <ProductNavCard product="learning" icon={PlayCircle} title="学習中" desc="受講中のコースを続きから再開" onClick={() => goSub("el_inprogress")} highlight badge="よく使う" delay={710} />
+        <ProductNavCard product="learning" icon={Sparkles} title="獲得スキル" desc="学習で身についたスキルを確認" onClick={() => goSub("el_skills")} delay={770} />
       </div>
 
       {todayCompleted.length > 0 && (

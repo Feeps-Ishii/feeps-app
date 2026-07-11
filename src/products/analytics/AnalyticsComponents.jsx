@@ -5,7 +5,7 @@ import {
 } from "lucide-react";
 import { ANALYTICS_HOME_CARDS, RISK_SIG_LABEL } from "./AnalyticsCatalog.js";
 import { useAwsCosts, useMonthlyReport, useRiskAnalysis } from "./useAnalytics.js";
-import { Card, Badge, Btn, Avatar, Stat, SectionHead, PageHeader, ProductNavCard, SkeletonRows, T, EmptyState as CommonEmptyState } from "../../components/common";
+import { Card, Badge, Btn, Avatar, Stat, SectionHead, PageHeader, ProductNavCard, SkeletonRows, MonthPicker, T, EmptyState as CommonEmptyState } from "../../components/common";
 
 const GRAD = `linear-gradient(135deg, ${T.accent} 0%, #5B8CFF 100%)`;
 const adminPanelStyle = { background: T.bgBase, color: T.textMuted };
@@ -77,7 +77,7 @@ export function AwsCostDashboard() {
       )}
       <div className="mb-4 flex items-center gap-3">
         <label className="text-sm font-semibold" style={{ color: T.textPrimary }}>対象月</label>
-        <input type="month" value={month} onChange={e => setMonth(e.target.value)} className="rounded-xl px-3 py-2 text-sm outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary, background: "#fff" }} />
+        <MonthPicker value={month} onChange={setMonth} />
       </div>
       {data && (
         <>
@@ -350,7 +350,7 @@ export function MonthlyReport() {
     <div>
       <SectionHead title="月次レポート" desc="コース別の出席・日報・テスト状況を月次で集計します"
         action={<div className="flex flex-wrap items-center gap-2">
-          <input type="month" value={month} onChange={e => setMonth(e.target.value)} className="rounded-xl px-3 py-2 text-sm outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary, background: "#fff" }} />
+          <MonthPicker value={month} onChange={setMonth} />
           <Btn kind="ghost" icon={Download} onClick={() => exportMonthlyReportExcel(data, month)} disabled={!data}>Excel出力</Btn>
         </div>} />
       {err && <div className="mb-4 rounded-lg px-3 py-2 text-xs" style={{ background: T.dangerSubtle, color: T.danger }}>{err}</div>}
@@ -367,7 +367,7 @@ export function MonthlyReport() {
         </div>
         <Card className="overflow-hidden">
           <div className="overflow-x-auto">
-            <div style={{ minWidth: 760 }}>
+            <div className="feeps-zebra" style={{ minWidth: 760 }}>
               <div className="grid grid-cols-8 gap-3 px-4 py-2.5 text-xs font-semibold" style={{ background: T.bgBase, color: T.textMuted }}>
                 <div className="col-span-2">コース</div><div>受講生</div><div>出席延べ</div><div>遅刻/欠席</div><div>日報提出</div><div>コメント済</div><div>テスト平均</div>
               </div>
