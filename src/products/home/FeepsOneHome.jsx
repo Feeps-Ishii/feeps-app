@@ -141,7 +141,7 @@ function SmallStatus({ label, value, hint, icon: Icon, tone = "home" }) {
         </span>
         <div className="min-w-0">
           <div className="text-xs font-semibold" style={{ color: T.textMuted }}>{label}</div>
-          <div className={isLongValue ? "mt-2 break-words text-base font-extrabold leading-snug" : "mt-2 text-2xl font-extrabold leading-none tabular-nums"} style={{ color: T.textPrimary }}>{valueText}</div>
+          <div className={isLongValue ? "mt-2 break-words text-base font-bold leading-snug" : "mt-2 text-2xl font-bold leading-none tabular-nums"} style={{ color: T.textPrimary }}>{valueText}</div>
           {hint && <div className="mt-2 text-xs leading-relaxed" style={{ color: T.textMuted }}>{hint}</div>}
         </div>
       </div>
@@ -159,8 +159,8 @@ function TaskCard({ icon: Icon, title, value, desc, action, tone = "home", onCli
             <Icon size={19} />
           </span>
           <div className="min-w-0">
-            <div className="text-sm font-bold" style={{ color: T.textPrimary }}>{title}</div>
-            <div className="mt-2 text-3xl font-extrabold leading-none tabular-nums" style={{ color: T.textPrimary }}>{value}</div>
+            <div className="text-base font-bold" style={{ color: T.textPrimary, letterSpacing: "-0.02em" }}>{title}</div>
+            <div className="mt-2 text-2xl font-bold leading-none tabular-nums" style={{ color: T.textPrimary }}>{value}</div>
           </div>
         </div>
         <div className="text-xs leading-relaxed" style={{ color: T.textMuted }}>{desc}</div>
@@ -202,7 +202,7 @@ function Hero({ role, displayName, contextLine }) {
 
       <div className="grid gap-6 pt-5 lg:grid-cols-[minmax(0,1fr)_430px] lg:items-end">
         <div className="min-w-0">
-          <h1 className="text-3xl font-extrabold leading-tight sm:text-4xl" style={{ color: T.textPrimary }}>研修・学習・成長を、ひとつに。</h1>
+          <h1 className="text-3xl font-semibold leading-tight sm:text-4xl" style={{ color: T.textPrimary, letterSpacing: "-0.02em" }}>研修・学習・成長を、ひとつに。</h1>
           <p className="mt-2 text-sm font-semibold" style={{ color: T.textSecondary }}>Integrated Training & Growth Platform</p>
           <div className="mt-5 rounded-2xl p-4" style={{ background: "rgba(255,255,255,.72)", border: `1px solid ${T.border}` }}>
             <p className="text-base font-bold leading-relaxed" style={{ color: T.textPrimary }}>
@@ -259,7 +259,7 @@ function ProductNavigator({ role, goProduct, goTraining, goSub }) {
                   </span>
                   <div className="min-w-0 flex-1">
                     <div className="flex flex-wrap items-center gap-2">
-                      <h3 className="text-xl font-extrabold" style={{ color: T.textPrimary }}>{product.label}</h3>
+                      <h3 className="text-lg font-bold" style={{ color: T.textPrimary, letterSpacing: "-0.02em" }}>{product.label}</h3>
                       {recommendedHere && <Badge>おすすめ</Badge>}
                       {product.note && <Badge>{product.note}</Badge>}
                     </div>

@@ -455,7 +455,7 @@ function SkillField({ label, value, onChange, icon: Icon }) {
   return (
     <label className="block">
       <span className="mb-1 flex items-center gap-1 text-xs font-semibold" style={{ color: T.textMuted }}>{Icon && <Icon size={12} />}{label}</span>
-      <input value={value} onChange={e => onChange(e.target.value)} className="ff-input w-full rounded-lg px-3 py-2 text-sm outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary }} />
+      <input value={value} onChange={e => onChange(e.target.value)} className="ff-input w-full rounded-xl px-3 py-2 text-sm outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary }} />
     </label>
   );
 }
@@ -474,7 +474,7 @@ function SkillEditor({ skills, setSkills, defaultCat = "言語" }) {
       ))}</div>
       <div className="flex flex-wrap items-center gap-2 rounded-xl p-3" style={{ background: T.bgBase }}>
         <input value={f.name} onChange={e => setF({ ...f, name: e.target.value })} onKeyDown={e => e.key === "Enter" && add()} placeholder="スキル・資格名"
-          className="ff-input flex-1 rounded-lg px-3 py-2 text-sm outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary, minWidth: 150 }} />
+          className="ff-input flex-1 rounded-xl px-3 py-2 text-sm outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary, minWidth: 150 }} />
         <select value={f.cat} onChange={e => setF({ ...f, cat: e.target.value })} aria-label="カテゴリ" className="ff-input rounded-lg px-2 py-2 text-sm outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary }}>
           {cats.map(c => <option key={c} value={c}>{c}</option>)}</select>
         <label className="flex items-center gap-1.5 text-xs" style={{ color: T.textMuted }}>習熟
@@ -633,19 +633,19 @@ function WorksView() {
           <h3 className="mb-3 font-bold" style={{ color: T.textPrimary }}>作品を追加</h3>
           <div className="grid gap-3 sm:grid-cols-2">
             <label className="block sm:col-span-2"><span className="mb-1 block text-xs font-semibold" style={{ color: T.textMuted }}>作品名 *</span>
-              <input value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} placeholder="例：在庫管理システム" className="ff-input w-full rounded-lg px-3 py-2 text-sm outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary }} /></label>
+              <input value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} placeholder="例：在庫管理システム" className="ff-input w-full rounded-xl px-3 py-2 text-sm outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary }} /></label>
             <label className="block sm:col-span-2"><span className="mb-1 block text-xs font-semibold" style={{ color: T.textMuted }}>概要</span>
-              <textarea value={form.desc} onChange={e => setForm({ ...form, desc: e.target.value })} rows={2} placeholder="作品の概要・目的" className="ff-input w-full resize-none rounded-lg px-3 py-2 text-sm outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary }} /></label>
+              <textarea value={form.desc} onChange={e => setForm({ ...form, desc: e.target.value })} rows={2} placeholder="作品の概要・目的" className="ff-input w-full resize-none rounded-xl px-3 py-2 text-sm outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary }} /></label>
             <label className="block"><span className="mb-1 block text-xs font-semibold" style={{ color: T.textMuted }}>使用技術（カンマ区切り）</span>
-              <input value={form.tech} onChange={e => setForm({ ...form, tech: e.target.value })} placeholder="例：Java, Spring, MySQL" className="ff-input w-full rounded-lg px-3 py-2 text-sm outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary }} /></label>
+              <input value={form.tech} onChange={e => setForm({ ...form, tech: e.target.value })} placeholder="例：Java, Spring, MySQL" className="ff-input w-full rounded-xl px-3 py-2 text-sm outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary }} /></label>
             <label className="block"><span className="mb-1 block text-xs font-semibold" style={{ color: T.textMuted }}>担当範囲</span>
-              <input value={form.role} onChange={e => setForm({ ...form, role: e.target.value })} placeholder="例：バックエンド全般" className="ff-input w-full rounded-lg px-3 py-2 text-sm outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary }} /></label>
+              <input value={form.role} onChange={e => setForm({ ...form, role: e.target.value })} placeholder="例：バックエンド全般" className="ff-input w-full rounded-xl px-3 py-2 text-sm outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary }} /></label>
             <label className="block"><span className="mb-1 block text-xs font-semibold" style={{ color: T.textMuted }}>GitHub URL</span>
-              <input value={form.github} onChange={e => setForm({ ...form, github: e.target.value })} placeholder="https://github.com/..." className="ff-input w-full rounded-lg px-3 py-2 text-sm outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary }} /></label>
+              <input value={form.github} onChange={e => setForm({ ...form, github: e.target.value })} placeholder="https://github.com/..." className="ff-input w-full rounded-xl px-3 py-2 text-sm outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary }} /></label>
             <label className="block"><span className="mb-1 block text-xs font-semibold" style={{ color: T.textMuted }}>公開URL</span>
-              <input value={form.url} onChange={e => setForm({ ...form, url: e.target.value })} placeholder="https://..." className="ff-input w-full rounded-lg px-3 py-2 text-sm outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary }} /></label>
+              <input value={form.url} onChange={e => setForm({ ...form, url: e.target.value })} placeholder="https://..." className="ff-input w-full rounded-xl px-3 py-2 text-sm outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary }} /></label>
             <label className="block sm:col-span-2"><span className="mb-1 block text-xs font-semibold" style={{ color: T.textMuted }}>アピールポイント</span>
-              <textarea value={form.appeal} onChange={e => setForm({ ...form, appeal: e.target.value })} rows={2} placeholder="工夫した点・成果など" className="ff-input w-full resize-none rounded-lg px-3 py-2 text-sm outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary }} /></label>
+              <textarea value={form.appeal} onChange={e => setForm({ ...form, appeal: e.target.value })} rows={2} placeholder="工夫した点・成果など" className="ff-input w-full resize-none rounded-xl px-3 py-2 text-sm outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary }} /></label>
           </div>
           <div className="mt-4 flex justify-end gap-2">
             <Btn kind="ghost" onClick={() => setAdding(false)}>キャンセル</Btn>
@@ -797,18 +797,18 @@ function PersonalSkillSheet({ role = "trainee" } = {}) {
             </div>
           ))}</div>
           <div className="mt-3 grid gap-2 rounded-xl p-3 sm:grid-cols-2" style={{ background: T.bgBase }}>
-            <input value={pf.name} onChange={e => setPf({ ...pf, name: e.target.value })} placeholder="案件名" className="ff-input rounded-lg px-3 py-2 text-sm outline-none sm:col-span-2" style={{ border: `1px solid ${T.border}`, color: T.textPrimary }} />
-            <input value={pf.period} onChange={e => setPf({ ...pf, period: e.target.value })} placeholder="期間（例：2026/05〜2026/06）" className="ff-input rounded-lg px-3 py-2 text-sm outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary }} />
-            <input value={pf.role} onChange={e => setPf({ ...pf, role: e.target.value })} placeholder="役割（例：バックエンド）" className="ff-input rounded-lg px-3 py-2 text-sm outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary }} />
-            <input value={pf.scale} onChange={e => setPf({ ...pf, scale: e.target.value })} placeholder="規模（例：5名）" className="ff-input rounded-lg px-3 py-2 text-sm outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary }} />
-            <input value={pf.tech} onChange={e => setPf({ ...pf, tech: e.target.value })} placeholder="技術（カンマ区切り：Java, Spring）" className="ff-input rounded-lg px-3 py-2 text-sm outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary }} />
+            <input value={pf.name} onChange={e => setPf({ ...pf, name: e.target.value })} placeholder="案件名" className="ff-input rounded-xl px-3 py-2 text-sm outline-none sm:col-span-2" style={{ border: `1px solid ${T.border}`, color: T.textPrimary }} />
+            <input value={pf.period} onChange={e => setPf({ ...pf, period: e.target.value })} placeholder="期間（例：2026/05〜2026/06）" className="ff-input rounded-xl px-3 py-2 text-sm outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary }} />
+            <input value={pf.role} onChange={e => setPf({ ...pf, role: e.target.value })} placeholder="役割（例：バックエンド）" className="ff-input rounded-xl px-3 py-2 text-sm outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary }} />
+            <input value={pf.scale} onChange={e => setPf({ ...pf, scale: e.target.value })} placeholder="規模（例：5名）" className="ff-input rounded-xl px-3 py-2 text-sm outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary }} />
+            <input value={pf.tech} onChange={e => setPf({ ...pf, tech: e.target.value })} placeholder="技術（カンマ区切り：Java, Spring）" className="ff-input rounded-xl px-3 py-2 text-sm outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary }} />
             <div className="sm:col-span-2">
               <div className="mb-1 text-xs font-semibold" style={{ color: T.textMuted }}>担当工程</div>
               <div className="flex flex-wrap gap-1.5">{PHASES.map(ph => { const on = pf.phases.includes(ph);
                 return <button key={ph} type="button" onClick={() => togglePhase(ph)} className="rounded-full px-2.5 py-1 text-xs font-semibold transition"
                   style={{ border: `1.5px solid ${on ? T.accent : T.border}`, background: on ? T.accentSubtle : "#fff", color: on ? T.accentHover : T.textMuted }}>{ph}</button>; })}</div>
             </div>
-            <textarea value={pf.desc} onChange={e => setPf({ ...pf, desc: e.target.value })} rows={2} placeholder="業務内容（担当機能・実装内容など）" className="ff-input resize-none rounded-lg px-3 py-2 text-sm outline-none sm:col-span-2" style={{ border: `1px solid ${T.border}`, color: T.textPrimary }} />
+            <textarea value={pf.desc} onChange={e => setPf({ ...pf, desc: e.target.value })} rows={2} placeholder="業務内容（担当機能・実装内容など）" className="ff-input resize-none rounded-xl px-3 py-2 text-sm outline-none sm:col-span-2" style={{ border: `1px solid ${T.border}`, color: T.textPrimary }} />
             <div className="flex justify-end sm:col-span-2"><Btn size="sm" icon={Plus} onClick={addProject}>案件を追加</Btn></div>
           </div>
         </Card>

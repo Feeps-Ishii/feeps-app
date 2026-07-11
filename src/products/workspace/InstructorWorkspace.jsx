@@ -71,7 +71,7 @@ function SectionTitle({ icon: Icon, title, desc, action }) {
       <div className="min-w-0">
         <div className="flex items-center gap-2">
           {Icon && <span className="flex h-7 w-7 items-center justify-center rounded-lg" style={{ background: T.accentSubtle, color: T.accentHover }}><Icon size={15} /></span>}
-          <h3 className="text-[15px] font-bold" style={{ color: T.textPrimary }}>{title}</h3>
+          <h3 className="text-base font-bold" style={{ color: T.textPrimary, letterSpacing: "-0.02em" }}>{title}</h3>
         </div>
         {desc && <p className="mt-1 text-xs" style={{ color: T.textMuted }}>{desc}</p>}
       </div>
@@ -278,8 +278,8 @@ export default function InstructorWorkspace({ go, displayName = "講師" }) {
       <div className="relative overflow-hidden rounded-2xl p-5 sm:p-6" style={{ background: "linear-gradient(120deg, #23272F 0%, #3A404C 100%)" }}>
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div>
-            <div className="text-xs font-bold uppercase" style={{ color: "rgba(255,255,255,.7)", letterSpacing: "0.12em" }}>Instructor Workspace</div>
-            <h2 className="mt-1 text-2xl font-semibold text-white">今日の授業を始める</h2>
+            <div className="text-xs font-bold uppercase" style={{ color: "rgba(255,255,255,0.75)", letterSpacing: "0.14em" }}>Instructor Workspace</div>
+            <h2 className="mt-1.5 text-[30px] font-medium leading-snug text-white" style={{ letterSpacing: "-0.02em" }}>今日の授業を始める</h2>
             <p className="mt-1 text-sm" style={{ color: "rgba(255,255,255,.72)" }}>{formatDate(date)} ・ {displayName} ・ 最終更新 {lastUpdated ? formatDateTime(lastUpdated) : "未取得"}</p>
           </div>
           <Btn kind="white" icon={RefreshCw} onClick={() => load({ silent: true })}>{refreshing ? "更新中" : "更新"}</Btn>

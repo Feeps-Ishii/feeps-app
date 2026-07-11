@@ -70,6 +70,25 @@ JSXやCSSに生の色コード・z-index数値を直接書かない。必ず以�
 ### 2.5 形状
 `RADIUS.md`(12) / `RADIUS.sm`(8)。見出しは `font-weight >= 600` + `letter-spacing: -0.02em`。数値は `font-variant-numeric: tabular-nums`（`useCountUp` と併用）。
 
+### 2.6 タイポグラフィスケール（Phase5-2で全Product統一。新画面は必ずこの段階に合わせる）
+
+| 用途 | サイズ/ウェイト | 実装 |
+|---|---|---|
+| Product Homeヒーロータイトル | 30px / 500 / -0.02em | `PageHeader`の`text-[30px] font-medium`（講師Workspaceのダークヒーローも同値） |
+| サブ画面タイトル | 20px / 500 / -0.02em | `SectionHead` |
+| ページ内セクション見出し | 18px / 700 | Home `SectionTitle`（h2 `text-lg font-bold`） |
+| カード内タイトル | **16px / 700 / -0.02em** | h3 `text-base font-bold`。14px/15pxの独自サイズは廃止済み |
+| KPI値 | **24px / 700 / tabular-nums** | `text-2xl font-bold`。`font-extrabold`(800)と30px超のKPIは使わない（Heroの`useCountUp`チップも24px） |
+| ラベル | 12px / 600 muted | `text-xs font-semibold` + `T.textMuted` |
+| 説明文 | 12〜14px / 400 | `text-xs`/`text-sm` + `T.textMuted` |
+
+`font-extrabold`(800)が許されるのはブランドロゴタイプ「Feeps One」のみ。
+
+### 2.7 フォームコントロール統一（Phase5-2）
+- 入力欄・select・検索・日付/月選択はすべて **`rounded-xl`（12px = RADIUS.md）**。`rounded-lg`(8px)の入力欄は廃止済み（`fieldStyle`のborderRadius 12が正）。
+- パディングは `px-3 py-2 text-sm` を基準にする。
+- ローディングはテキストのみの「〜中...」を使わず、`SkeletonRows`/`SkeletonCards`（§4準拠）。
+
 ---
 
 ## 3. Floating Canvas 構造（lg+）

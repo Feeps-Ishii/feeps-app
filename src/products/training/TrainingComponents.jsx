@@ -659,7 +659,7 @@ function GoalsView({ role, done, toggle, goals, setGoals, go, openKarte }) {
           })}</div> : <div className="rounded-xl p-4 text-sm" style={adminPanelStyle}>目標データ未設定です。</div>}
           <div className="mt-4 flex flex-wrap items-center gap-2 rounded-xl p-3" style={{ background: T.accentSubtle }}>
             <Star size={16} style={{ color: T.accent }} />
-            <input value={ng} onChange={e => setNg(e.target.value)} onKeyDown={e => e.key === "Enter" && addGoal()} placeholder="長期目標を追加（例：基本情報技術者を取得する）" className="min-w-0 flex-1 rounded-lg px-3 py-2 text-sm outline-none" style={{ border: "1px solid " + T.border, color: T.textPrimary }} />
+            <input value={ng} onChange={e => setNg(e.target.value)} onKeyDown={e => e.key === "Enter" && addGoal()} placeholder="長期目標を追加（例：基本情報技術者を取得する）" className="min-w-0 flex-1 rounded-xl px-3 py-2 text-sm outline-none" style={{ border: "1px solid " + T.border, color: T.textPrimary }} />
             <Btn size="sm" icon={Plus} onClick={addGoal}>目標を追加</Btn>
           </div>
         </Card>
@@ -834,7 +834,7 @@ function Curriculum({ role }) {
         <>
           <div className="mb-5 flex items-center gap-3">
             <span className="text-xs font-semibold" style={{ color: T.textMuted }}>コース</span>
-            <select value={courseId} onChange={e => setCourseId(e.target.value)} className="rounded-lg px-3 py-2 text-sm outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary, background: "#fff" }}>
+            <select value={courseId} onChange={e => setCourseId(e.target.value)} className="rounded-xl px-3 py-2 text-sm outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary, background: "#fff" }}>
               {courses.map(c => <option key={c.courseId} value={c.courseId}>{c.name}（{kindLabel(c.kind)}）</option>)}
             </select>
           </div>
@@ -849,14 +849,14 @@ function Curriculum({ role }) {
                       <div className="space-y-4">
                         <div className="grid gap-2 md:grid-cols-[1fr_1.5fr_auto]">
                           <input value={section.title || ""} onChange={e => updateSection(si, "title", e.target.value)} placeholder="大項目 例: AWS / Java" className="rounded-lg px-3 py-2 text-sm font-semibold outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary }} />
-                          <input value={section.description || ""} onChange={e => updateSection(si, "description", e.target.value)} placeholder="大項目の説明" className="rounded-lg px-3 py-2 text-sm outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary }} />
+                          <input value={section.description || ""} onChange={e => updateSection(si, "description", e.target.value)} placeholder="大項目の説明" className="rounded-xl px-3 py-2 text-sm outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary }} />
                           <button onClick={() => removeSection(si)} className="rounded-lg px-3 py-2 text-xs font-semibold" style={{ color: T.danger, border: `1px solid ${T.border}` }}>大項目削除</button>
                         </div>
                         {arr(section.chapters).map((chapter, ci) => (
                           <div key={chapter.id || ci} className="rounded-xl p-3" style={{ background: T.bgBase, border: `1px solid ${T.border}` }}>
                             <div className="grid gap-2 md:grid-cols-[1fr_1.5fr_auto]">
                               <input value={chapter.title || ""} onChange={e => updateChapter(si, ci, "title", e.target.value)} placeholder="中項目 例: はじめてのAWS" className="rounded-lg px-3 py-2 text-sm font-semibold outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary }} />
-                              <input value={chapter.description || ""} onChange={e => updateChapter(si, ci, "description", e.target.value)} placeholder="中項目の説明" className="rounded-lg px-3 py-2 text-sm outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary }} />
+                              <input value={chapter.description || ""} onChange={e => updateChapter(si, ci, "description", e.target.value)} placeholder="中項目の説明" className="rounded-xl px-3 py-2 text-sm outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary }} />
                               <button onClick={() => removeChapter(si, ci)} className="rounded-lg px-3 py-2 text-xs font-semibold" style={{ color: T.danger, border: `1px solid ${T.border}`, background: "#fff" }}>中項目削除</button>
                             </div>
                             <div className="mt-3 space-y-3">
@@ -864,17 +864,17 @@ function Curriculum({ role }) {
                                 <div key={lesson.id || li} className="rounded-xl bg-white p-3" style={{ border: `1px solid ${T.border}` }}>
                                   <div className="grid gap-2 md:grid-cols-[1.3fr_1fr_1fr_auto]">
                                     <input value={lesson.title || ""} onChange={e => updateLesson(si, ci, li, "title", e.target.value)} placeholder="小項目 例: Lesson1 EC2とは" className="rounded-lg px-3 py-2 text-sm font-semibold outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary }} />
-                                    <input type="date" value={lesson.startDate || ""} onChange={e => updateLesson(si, ci, li, "startDate", e.target.value)} className="rounded-lg px-3 py-2 text-sm outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary }} />
-                                    <input type="date" value={lesson.endDate || ""} onChange={e => updateLesson(si, ci, li, "endDate", e.target.value)} className="rounded-lg px-3 py-2 text-sm outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary }} />
+                                    <input type="date" value={lesson.startDate || ""} onChange={e => updateLesson(si, ci, li, "startDate", e.target.value)} className="rounded-xl px-3 py-2 text-sm outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary }} />
+                                    <input type="date" value={lesson.endDate || ""} onChange={e => updateLesson(si, ci, li, "endDate", e.target.value)} className="rounded-xl px-3 py-2 text-sm outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary }} />
                                     <button onClick={() => removeLesson(si, ci, li)} className="rounded-lg px-3 py-2 text-xs font-semibold" style={{ color: T.danger, border: `1px solid ${T.border}` }}>削除</button>
                                   </div>
                                   <div className="mt-2 grid gap-2 md:grid-cols-2">
-                                    <textarea value={lesson.content || ""} onChange={e => updateLesson(si, ci, li, "content", e.target.value)} rows={2} placeholder="学習内容" className="resize-none rounded-lg px-3 py-2 text-sm outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary }} />
-                                    <textarea value={lesson.memo || ""} onChange={e => updateLesson(si, ci, li, "memo", e.target.value)} rows={2} placeholder="講義メモ" className="resize-none rounded-lg px-3 py-2 text-sm outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary }} />
+                                    <textarea value={lesson.content || ""} onChange={e => updateLesson(si, ci, li, "content", e.target.value)} rows={2} placeholder="学習内容" className="resize-none rounded-xl px-3 py-2 text-sm outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary }} />
+                                    <textarea value={lesson.memo || ""} onChange={e => updateLesson(si, ci, li, "memo", e.target.value)} rows={2} placeholder="講義メモ" className="resize-none rounded-xl px-3 py-2 text-sm outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary }} />
                                   </div>
                                   <div className="mt-2 grid gap-2 md:grid-cols-2">
-                                    <input value={arr(lesson.skills).join(", ")} onChange={e => updateLesson(si, ci, li, "skills", e.target.value.split(",").map(v => v.trim()).filter(Boolean))} placeholder="身につくスキル（カンマ区切り）" className="rounded-lg px-3 py-2 text-sm outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary }} />
-                                    <input value={lesson.durationLabel || ""} onChange={e => updateLesson(si, ci, li, "durationLabel", e.target.value)} placeholder="期間表示（例：3日目）" className="rounded-lg px-3 py-2 text-sm outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary }} />
+                                    <input value={arr(lesson.skills).join(", ")} onChange={e => updateLesson(si, ci, li, "skills", e.target.value.split(",").map(v => v.trim()).filter(Boolean))} placeholder="身につくスキル（カンマ区切り）" className="rounded-xl px-3 py-2 text-sm outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary }} />
+                                    <input value={lesson.durationLabel || ""} onChange={e => updateLesson(si, ci, li, "durationLabel", e.target.value)} placeholder="期間表示（例：3日目）" className="rounded-xl px-3 py-2 text-sm outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary }} />
                                   </div>
                                   {sessMids(lesson).length > 0 && <div className="mt-2 flex flex-wrap gap-1.5">{sessMids(lesson).map(mid => materialsById[mid] && <span key={mid} className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs" style={{ background: T.accentSubtle, color: T.accentHover }}><button onClick={() => openMaterialById(mid)} className="inline-flex items-center gap-1"><FileText size={11} />{materialsById[mid].title}</button><button onClick={() => removeMaterial(si, ci, li, mid)}><X size={11} /></button></span>)}</div>}
                                   <select value="" onChange={e => { addMaterial(si, ci, li, e.target.value); e.target.value = ""; }} className="mt-2 w-full rounded-lg px-3 py-2 text-xs outline-none" style={{ border: `1px solid ${T.border}`, color: T.textMuted, background: "#fff" }}>
@@ -1114,7 +1114,7 @@ function Materials({ role }) {
         <>
           <div className="mb-5 flex items-center gap-3">
             <span className="text-xs font-semibold" style={{ color: T.textMuted }}>コース</span>
-            <select value={courseId} onChange={e => setCourseId(e.target.value)} className="rounded-lg px-3 py-2 text-sm outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary, background: "#fff" }}>
+            <select value={courseId} onChange={e => setCourseId(e.target.value)} className="rounded-xl px-3 py-2 text-sm outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary, background: "#fff" }}>
               {courses.map(c => <option key={c.courseId} value={c.courseId}>{c.name}（{kindLabel(c.kind)}）</option>)}
             </select>
           </div>
@@ -1138,9 +1138,9 @@ function Materials({ role }) {
       {editing && (
         <Modal title="研修資料を編集" onClose={() => !saving && setEditing(null)} footer={<><Btn kind="ghost" onClick={() => setEditing(null)} disabled={saving}>キャンセル</Btn><Btn onClick={saveMaterial} disabled={saving || !editDraft.title.trim()}>{saving ? "保存中..." : "保存"}</Btn></>}>
           <div className="space-y-4">
-            <Field label="タイトル"><input value={editDraft.title} onChange={e => setEditDraft(d => ({ ...d, title: e.target.value }))} className="w-full rounded-lg px-3 py-2 text-sm outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary }} /></Field>
-            <Field label="説明"><textarea value={editDraft.description} onChange={e => setEditDraft(d => ({ ...d, description: e.target.value }))} rows={3} className="w-full rounded-lg px-3 py-2 text-sm outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary }} /></Field>
-            <Field label="公開方法"><select value={editDraft.mode} onChange={e => setEditDraft(d => ({ ...d, mode: e.target.value }))} className="w-full rounded-lg px-3 py-2 text-sm outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary, background: "#fff" }}><option value="view">閲覧可</option><option value="download">DLのみ</option></select></Field>
+            <Field label="タイトル"><input value={editDraft.title} onChange={e => setEditDraft(d => ({ ...d, title: e.target.value }))} className="w-full rounded-xl px-3 py-2 text-sm outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary }} /></Field>
+            <Field label="説明"><textarea value={editDraft.description} onChange={e => setEditDraft(d => ({ ...d, description: e.target.value }))} rows={3} className="w-full rounded-xl px-3 py-2 text-sm outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary }} /></Field>
+            <Field label="公開方法"><select value={editDraft.mode} onChange={e => setEditDraft(d => ({ ...d, mode: e.target.value }))} className="w-full rounded-xl px-3 py-2 text-sm outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary, background: "#fff" }}><option value="view">閲覧可</option><option value="download">DLのみ</option></select></Field>
           </div>
         </Modal>
       )}
@@ -1188,8 +1188,8 @@ function OpsFilterPanel({ filter, summary, note = "コースと企業を両方�
   return (
     <Card className="mb-5 p-4">
       <div className="flex flex-wrap items-end gap-3">
-        <Field label="コース"><select value={filter.courseId} onChange={e => filter.setCourseId(e.target.value)} className="w-full rounded-lg px-3 py-2 text-sm outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary, minWidth: 220 }}><option value="">すべて</option>{filter.courses.map(c => <option key={c.courseId} value={c.courseId}>{c.name}</option>)}</select></Field>
-        <Field label="企業"><select value={filter.companyId} onChange={e => filter.setCompanyId(e.target.value)} className="w-full rounded-lg px-3 py-2 text-sm outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary, minWidth: 220 }}><option value="">すべて</option>{filter.companies.map(c => <option key={c.companyId} value={c.companyId}>{c.name}</option>)}</select></Field>
+        <Field label="コース"><select value={filter.courseId} onChange={e => filter.setCourseId(e.target.value)} className="w-full rounded-xl px-3 py-2 text-sm outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary, minWidth: 220 }}><option value="">すべて</option>{filter.courses.map(c => <option key={c.courseId} value={c.courseId}>{c.name}</option>)}</select></Field>
+        <Field label="企業"><select value={filter.companyId} onChange={e => filter.setCompanyId(e.target.value)} className="w-full rounded-xl px-3 py-2 text-sm outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary, minWidth: 220 }}><option value="">すべて</option>{filter.companies.map(c => <option key={c.companyId} value={c.companyId}>{c.name}</option>)}</select></Field>
         <div className="flex-1 text-xs leading-relaxed" style={{ color: T.textMuted }}>{note}</div>
       </div>
       {summary && <div className="mt-3 rounded-xl px-3 py-2 text-xs font-semibold" style={{ background: T.bgBase, color: T.textSecondary }}>{summary}</div>}
@@ -1929,10 +1929,10 @@ function TestBuilder({ back, focus, student, onSaved, initialTest = null, duplic
               <input value={o} onChange={e => editA(i, oi, e.target.value)} aria-label={`設問${i + 1} 選択肢${oi + 1}${oi === 0 ? "（正解）" : ""}`} className="ff-input flex-1 rounded-lg px-2 py-1.5 text-sm outline-none" style={{ border: `1px solid ${T.border}`, color: T.textSecondary }} /></div>
           ))}</div> : <textarea value={item.modelAnswer || ""} onChange={e => editQuestionField(i, "modelAnswer", e.target.value)} rows={item.type === "code" ? 4 : 2} placeholder="模範解答（記述式・コード記述式）" className="mt-2 w-full resize-y rounded-lg px-3 py-2 font-mono text-sm outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary }} />}
           <div className="mt-3 grid gap-3 md:grid-cols-2">
-            {((item.type || "choice") === "choice" || item.type === "trueFalse") && <Field label="正解"><select value={Number.isInteger(item.correctIndex) ? item.correctIndex : 0} onChange={e => editCorrect(i, e.target.value)} className="w-full rounded-lg px-3 py-2 text-sm outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary }}>{item.a.map((_, oi) => <option key={oi} value={oi}>選択肢 {oi + 1}</option>)}</select></Field>}
-            <Field label="解説"><input value={item.explanation || ""} onChange={e => editExplanation(i, e.target.value)} placeholder="なぜその答えになるか" className="w-full rounded-lg px-3 py-2 text-sm outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary }} /></Field>
-            <Field label="よくある誤答理由"><input value={item.wrongReason || ""} onChange={e => editQuestionField(i, "wrongReason", e.target.value)} placeholder="混同しやすい点など" className="w-full rounded-lg px-3 py-2 text-sm outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary }} /></Field>
-            <Field label="復習ポイント"><input value={item.reviewPoint || ""} onChange={e => editQuestionField(i, "reviewPoint", e.target.value)} placeholder="復習すべき観点" className="w-full rounded-lg px-3 py-2 text-sm outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary }} /></Field>
+            {((item.type || "choice") === "choice" || item.type === "trueFalse") && <Field label="正解"><select value={Number.isInteger(item.correctIndex) ? item.correctIndex : 0} onChange={e => editCorrect(i, e.target.value)} className="w-full rounded-xl px-3 py-2 text-sm outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary }}>{item.a.map((_, oi) => <option key={oi} value={oi}>選択肢 {oi + 1}</option>)}</select></Field>}
+            <Field label="解説"><input value={item.explanation || ""} onChange={e => editExplanation(i, e.target.value)} placeholder="なぜその答えになるか" className="w-full rounded-xl px-3 py-2 text-sm outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary }} /></Field>
+            <Field label="よくある誤答理由"><input value={item.wrongReason || ""} onChange={e => editQuestionField(i, "wrongReason", e.target.value)} placeholder="混同しやすい点など" className="w-full rounded-xl px-3 py-2 text-sm outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary }} /></Field>
+            <Field label="復習ポイント"><input value={item.reviewPoint || ""} onChange={e => editQuestionField(i, "reviewPoint", e.target.value)} placeholder="復習すべき観点" className="w-full rounded-xl px-3 py-2 text-sm outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary }} /></Field>
           </div></Card>
       ))}
       {qs.length === 0 && <Card className="mb-5"><EmptyState title="設問候補はまだありません" desc="AI生成APIは未接続です。次タスクで接続後、ここに候補が並びます。今は空の設問を追加して編集できます。" /></Card>}
@@ -2243,7 +2243,7 @@ function TraineeAttendance() {
           </div>
           <div className="flex flex-col gap-3 sm:items-end">
             {standardCourses.length > 1 && (
-              <select value={standardCourseId} onChange={e => setStandardCourseId(e.target.value)} className="w-full rounded-lg px-3 py-2 text-sm outline-none sm:w-64" style={{ border: `1px solid ${T.border}`, color: T.textPrimary, background: "#fff" }}>
+              <select value={standardCourseId} onChange={e => setStandardCourseId(e.target.value)} className="w-full rounded-xl px-3 py-2 text-sm outline-none sm:w-64" style={{ border: `1px solid ${T.border}`, color: T.textPrimary, background: "#fff" }}>
                 <option value="">定時打刻のコースを選択</option>
                 {standardCourses.map(c => <option key={c.courseId} value={c.courseId}>{c.name}</option>)}
               </select>
@@ -2262,7 +2262,7 @@ function TraineeAttendance() {
       <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
         <h3 className="text-sm font-bold" style={{ color: T.textPrimary }}>月別勤怠一覧</h3>
         <div className="flex flex-wrap items-center gap-2">
-          <input type="month" value={histMonth} onChange={e => setHistMonth(e.target.value)} className="rounded-lg px-3 py-2 text-sm outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary, background: "#fff" }} />
+          <input type="month" value={histMonth} onChange={e => setHistMonth(e.target.value)} className="rounded-xl px-3 py-2 text-sm outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary, background: "#fff" }} />
           <div className="relative">
             <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2" style={{ color: T.textMuted }} />
             <input value={histQuery} onChange={e => setHistQuery(e.target.value)} placeholder="検索" className="w-40 rounded-lg py-2 pl-8 pr-3 text-sm outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary, background: "#fff" }} />
@@ -2408,7 +2408,7 @@ function AttendanceManage({ role }) {
   return (
     <div>
       <SectionHead title={canEdit ? "勤怠管理" : "勤怠状況"} desc={periodMode === "月次" ? `${month}の勤怠集計` : `${fmtLongDate(date)}の${role === "client" ? "自社" : "担当"}受講生の出席状況${canEdit ? "・修正" : ""}`}
-        action={<div className="flex flex-wrap items-center gap-2"><Seg value={periodMode} onChange={setPeriodMode} options={["日次", "月次"]} />{periodMode === "月次" ? <input type="month" value={month} onChange={e => setMonth(e.target.value)} className="rounded-lg px-3 py-2 text-sm outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary, background: "#fff" }} /> : <input type="date" value={date} onChange={e => setDate(e.target.value)} className="rounded-lg px-3 py-2 text-sm outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary, background: "#fff" }} />}<Btn kind="ghost" icon={FileSpreadsheet} onClick={() => {
+        action={<div className="flex flex-wrap items-center gap-2"><Seg value={periodMode} onChange={setPeriodMode} options={["日次", "月次"]} />{periodMode === "月次" ? <input type="month" value={month} onChange={e => setMonth(e.target.value)} className="rounded-xl px-3 py-2 text-sm outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary, background: "#fff" }} /> : <input type="date" value={date} onChange={e => setDate(e.target.value)} className="rounded-xl px-3 py-2 text-sm outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary, background: "#fff" }} />}<Btn kind="ghost" icon={FileSpreadsheet} onClick={() => {
           if (periodMode === "月次") {
             const companyNameOf = id => opsFilter.companies.find(c => c.companyId === id)?.name || "";
             const rows = monthlyRows
@@ -2446,7 +2446,7 @@ function AttendanceManage({ role }) {
             <div><h3 className="font-bold" style={{ color: T.textPrimary }}>月次勤怠集計</h3><p className="text-xs" style={{ color: T.textMuted }}>コース・企業の絞り込み条件を反映して、受講生ごとに月内の勤怠を集計します。</p></div>
             <Seg value={monthlyFilter} onChange={setMonthlyFilter} options={["すべて", "欠席ありのみ", "未登録ありのみ"]} />
           </div>
-          {monthlyLoading ? <div className="px-4 py-8 text-center text-sm" style={{ color: T.textMuted }}>月次集計中...</div> : (
+          {monthlyLoading ? <div className="p-4"><SkeletonRows rows={5} /></div> : (
             <div className="overflow-x-auto">
               <div style={{ minWidth: 680 }}>
                 <div className="grid grid-cols-6 gap-3 px-4 py-2.5 text-xs font-semibold" style={{ background: T.bgBase, color: T.textMuted }}>
@@ -3101,7 +3101,7 @@ function Reports({ role }) {
   return (
     <div>
       <SectionHead title="日報" desc={canWrite ? "今日の学びを記録し、講師からフィードバックを受け取ります" : canComment ? "コース・企業・日付で日報を確認し、フィードバックします" : "自社受講生の日報を閲覧できます"}
-        action={canViewReports ? <div className="flex flex-wrap items-center gap-2"><Seg value={periodMode} onChange={setPeriodMode} options={["日次", "月次"]} /><span className="text-xs font-semibold" style={{ color: T.textMuted }}>{periodMode === "月次" ? "対象月" : "日報確認日"}</span>{periodMode === "月次" ? <input type="month" value={month} onChange={e => setMonth(e.target.value)} className="rounded-lg px-3 py-2 text-sm outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary, background: "#fff" }} /> : <input type="date" value={date} onChange={e => setDate(e.target.value)} className="rounded-lg px-3 py-2 text-sm outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary, background: "#fff" }} />}</div> : null} />
+        action={canViewReports ? <div className="flex flex-wrap items-center gap-2"><Seg value={periodMode} onChange={setPeriodMode} options={["日次", "月次"]} /><span className="text-xs font-semibold" style={{ color: T.textMuted }}>{periodMode === "月次" ? "対象月" : "日報確認日"}</span>{periodMode === "月次" ? <input type="month" value={month} onChange={e => setMonth(e.target.value)} className="rounded-xl px-3 py-2 text-sm outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary, background: "#fff" }} /> : <input type="date" value={date} onChange={e => setDate(e.target.value)} className="rounded-xl px-3 py-2 text-sm outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary, background: "#fff" }} />}</div> : null} />
       {saveErr && !canWrite && <div className="mb-4 rounded-lg px-3 py-2 text-xs" style={{ background: T.dangerSubtle, color: T.danger }}>{saveErr}</div>}
       {canViewReports && <OpsFilterPanel filter={opsFilter} summary={periodMode === "月次" ? `表示対象: ${opsFilter.targetTrainees.length}名 / 集計月: ${month}` : `表示対象: ${opsFilter.targetTrainees.length}名 / 日報保存: ${visibleReports.length}件`} />}
       {canViewReports && (
@@ -3163,7 +3163,7 @@ function Reports({ role }) {
             <div><h3 className="font-bold" style={{ color: T.textPrimary }}>月次日報集計</h3><p className="text-xs" style={{ color: T.textMuted }}>コース・企業の絞り込み条件を反映して、受講生ごとの提出状況を確認します。</p></div>
             <Seg value={monthlyFilter} onChange={setMonthlyFilter} options={["すべて", "未提出ありのみ"]} />
           </div>
-          {monthlyLoading ? <div className="px-4 py-8 text-center text-sm" style={{ color: T.textMuted }}>月次集計中...</div> : (
+          {monthlyLoading ? <div className="p-4"><SkeletonRows rows={5} /></div> : (
             <div className="overflow-x-auto">
               <div style={{ minWidth: 560 }}>
                 <div className="grid grid-cols-5 gap-3 px-4 py-2.5 text-xs font-semibold" style={{ background: T.bgBase, color: T.textMuted }}>
@@ -3181,7 +3181,7 @@ function Reports({ role }) {
         </Card>
       ) : (<>
       {canWrite && <div ref={reportFormRef} style={{ scrollMarginTop: 72 }}><Card className="mb-4 p-5 transition-shadow" style={reportFormPulse ? { boxShadow: `0 0 0 3px ${T.accent}33, 0 18px 40px rgba(0,0,0,.08)` } : undefined}>
-        <div className="mb-3 flex flex-wrap items-center justify-between gap-3"><div><h3 className="font-bold" style={{ color: T.textPrimary }}>朝: 目標</h3><p className="text-xs" style={{ color: T.textMuted }}>対象日を選んで、朝だけでも途中でも保存できます。</p></div><div className="flex items-center gap-2"><input type="date" value={editingReportDate} onChange={e => editReport({ date: e.target.value, report: reportsByDate[e.target.value] })} className="rounded-lg px-3 py-2 text-sm outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary, background: "#fff" }} /><Btn kind="soft" size="sm" icon={Plus} onClick={addGoalItem}>目標を追加</Btn></div></div>
+        <div className="mb-3 flex flex-wrap items-center justify-between gap-3"><div><h3 className="font-bold" style={{ color: T.textPrimary }}>朝: 目標</h3><p className="text-xs" style={{ color: T.textMuted }}>対象日を選んで、朝だけでも途中でも保存できます。</p></div><div className="flex items-center gap-2"><input type="date" value={editingReportDate} onChange={e => editReport({ date: e.target.value, report: reportsByDate[e.target.value] })} className="rounded-xl px-3 py-2 text-sm outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary, background: "#fff" }} /><Btn kind="soft" size="sm" icon={Plus} onClick={addGoalItem}>目標を追加</Btn></div></div>
         <div className="mb-4 rounded-xl px-3 py-2 text-xs font-semibold" style={{ background: reportEditState === "create" ? T.warningSubtle : T.accentSubtle, color: reportEditState === "create" ? T.warning : T.accentHover }}>
           {reportEditState === "create" ? "新しい日報を作成中" : reportEditState === "edit" ? `${editingReportDate.replace(/-/g, "/")}の日報を編集中` : "本日の日報"}
         </div>
@@ -3419,7 +3419,7 @@ function TraineeList({ role, openKarte }) {
         <Card className="p-5">
           <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
             <div className="flex items-center gap-3"><Avatar name={selected.name || selected.email} size={44} ring /><div><h3 className="font-bold" style={{ color: T.textPrimary }}>{selected.name}</h3><p className="text-xs" style={{ color: T.textMuted }}>{selected.email}</p></div></div>
-            <div className="flex items-center gap-2"><input type="date" value={date} onChange={e => setDate(e.target.value)} className="rounded-lg px-3 py-2 text-sm outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary }} /><Btn size="sm" icon={StickyNote} onClick={() => openKarte({ ...selected, companyName: companyName(selected.company) })}>カルテを開く</Btn></div>
+            <div className="flex items-center gap-2"><input type="date" value={date} onChange={e => setDate(e.target.value)} className="rounded-xl px-3 py-2 text-sm outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary }} /><Btn size="sm" icon={StickyNote} onClick={() => openKarte({ ...selected, companyName: companyName(selected.company) })}>カルテを開く</Btn></div>
           </div>
           {detailLoading ? <SkeletonCards count={2} />
             : <div className="grid gap-3 sm:grid-cols-2">
@@ -3478,7 +3478,7 @@ function TraineeList({ role, openKarte }) {
               : <div>
                 <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
                   <div className="flex items-center gap-3"><Avatar name={selected.name || selected.email} size={44} ring /><div><h3 className="font-bold" style={{ color: T.textPrimary }}>{selected.name}</h3><p className="text-xs" style={{ color: T.textMuted }}>{selected.email}</p></div></div>
-                  <div className="flex items-center gap-2"><input type="date" value={date} onChange={e => setDate(e.target.value)} className="rounded-lg px-3 py-2 text-sm outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary }} /><Btn size="sm" icon={StickyNote} onClick={() => openKarte({ ...selected, companyName: companyName(selected.company) })}>カルテを開く</Btn></div>
+                  <div className="flex items-center gap-2"><input type="date" value={date} onChange={e => setDate(e.target.value)} className="rounded-xl px-3 py-2 text-sm outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary }} /><Btn size="sm" icon={StickyNote} onClick={() => openKarte({ ...selected, companyName: companyName(selected.company) })}>カルテを開く</Btn></div>
                 </div>
                 {detailLoading ? <SkeletonCards count={2} />
                   : <div className="space-y-4">
@@ -3628,7 +3628,7 @@ function Karte({ trainee, back, role }) {
         <Card className="mb-4 p-5">
           <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
             <div><h3 className="font-bold" style={{ color: T.textPrimary }}>受講生基本情報</h3><p className="text-xs" style={{ color: T.textMuted }}>カルテ内で研修状況をまとめて確認します。</p></div>
-            <input type="date" value={date} onChange={e => setDate(e.target.value)} className="rounded-lg px-3 py-2 text-sm outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary }} />
+            <input type="date" value={date} onChange={e => setDate(e.target.value)} className="rounded-xl px-3 py-2 text-sm outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary }} />
           </div>
           <div className="grid gap-3 sm:grid-cols-2">
             <div className="rounded-xl p-3" style={{ background: T.bgBase }}><div className="text-xs font-bold" style={{ color: T.textMuted }}>氏名</div><div className="mt-1 text-sm font-semibold" style={{ color: T.textPrimary }}>{trainee.name || profile?.name || "未登録"}</div></div>
@@ -3648,7 +3648,7 @@ function Karte({ trainee, back, role }) {
           {karteReport?.goalItems?.length > 0 && <div className="mt-3 grid gap-2 sm:grid-cols-2">{karteReport.goalItems.map(item => <div key={item.id || item.text} className="flex items-center gap-2 rounded-xl px-3 py-2" style={{ background: item.done ? T.successSubtle : T.bgBase }}>{item.done ? <CheckCircle2 size={15} style={{ color: T.success }} /> : <Circle size={15} style={{ color: T.textMuted }} />}<span className="text-sm" style={{ color: T.textPrimary }}>{item.text || "目標未入力"}</span></div>)}</div>}
         </Card>
         <div className="mb-3 flex items-center gap-2"><StickyNote size={16} style={{ color: T.accent }} /><h3 className="font-bold" style={{ color: T.textPrimary }}>講師メモ</h3></div>
-        {canMemo && <Card className="mb-3 p-3.5"><textarea value={note} onChange={e => setNote(e.target.value)} rows={3} placeholder="この受講生の気づき・指導方針をメモ…" className="w-full resize-none rounded-lg px-3 py-2 text-sm outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary }} />
+        {canMemo && <Card className="mb-3 p-3.5"><textarea value={note} onChange={e => setNote(e.target.value)} rows={3} placeholder="この受講生の気づき・指導方針をメモ…" className="w-full resize-none rounded-xl px-3 py-2 text-sm outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary }} />
           <div className="mt-2 flex justify-end"><Btn size="sm" icon={Plus} onClick={addMemo}>{busy ? "追加中…" : "メモを追加"}</Btn></div></Card>}
         <div className="space-y-2">
           {loading ? <Card><SkeletonRows rows={3} /></Card>
@@ -3833,7 +3833,7 @@ function ElearningView({ go }) {
   );
 }
 /* ===== Eラーニング データ層 ===== */
-const fieldCls = "w-full rounded-lg px-3 py-2 text-sm outline-none";
+const fieldCls = "w-full rounded-xl px-3 py-2 text-sm outline-none";
 const adminGridCls = "grid gap-4 lg:grid-cols-5";
 const adminListCardCls = "overflow-hidden lg:col-span-3";
 const adminDetailCardCls = "p-4 sm:p-5 lg:col-span-2";

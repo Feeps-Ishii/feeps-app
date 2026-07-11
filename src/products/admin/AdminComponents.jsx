@@ -107,7 +107,7 @@ function AdminHome({ go, openRisk }) {
         <ProductNavCard product="admin" icon={BookOpen} title="コース管理" desc="研修・Eラーニングコースの管理" onClick={() => go && go("courses")} highlight badge="よく使う" delay={710} />
         <ProductNavCard product="admin" icon={Users} title="ユーザー管理" desc="受講生・講師・企業担当者の管理" onClick={() => go && go("users")} delay={770} />
       </div>
-      <div className="flex flex-wrap items-center justify-end gap-2"><span className="text-xs font-semibold" style={{ color: T.textMuted }}>日報確認日</span><input type="date" value={date} onChange={e => setDate(e.target.value)} className="rounded-lg px-3 py-2 text-sm outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary, background: "#fff" }} /></div>
+      <div className="flex flex-wrap items-center justify-end gap-2"><span className="text-xs font-semibold" style={{ color: T.textMuted }}>日報確認日</span><input type="date" value={date} onChange={e => setDate(e.target.value)} className="rounded-xl px-3 py-2 text-sm outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary, background: "#fff" }} /></div>
       {err && <div className="mb-4 rounded-lg px-3 py-2 text-xs" style={{ background: T.dangerSubtle, color: T.danger }}>{err}</div>}
       <div className="mt-4 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <Stat icon={Users} label="全受講生" value={`${trainees.length}名`} tone="green" />
@@ -183,7 +183,7 @@ function AdminHome({ go, openRisk }) {
     </div>
   );
 }
-const fieldCls = "w-full rounded-lg px-3 py-2 text-sm outline-none";
+const fieldCls = "w-full rounded-xl px-3 py-2 text-sm outline-none";
 const adminGridCls = "grid gap-4 lg:grid-cols-5";
 const adminListCardCls = "overflow-hidden lg:col-span-3";
 const adminDetailCardCls = "p-4 sm:p-5 lg:col-span-2";
@@ -706,7 +706,7 @@ function AdminCourses({ go }) {
         </Card>
 
         <Card className="p-5">
-          <div className="mb-3 flex flex-wrap items-center justify-between gap-2"><div><h3 className="flex items-center gap-1.5 font-bold" style={{ color: T.textPrimary }}><Calendar size={16} />研修カレンダー</h3><p className="mt-1 text-xs" style={{ color: T.textMuted }}>月次集計では今後この研修日カレンダーを使って未提出・未登録判定から除外します。</p></div><div className="flex flex-wrap items-center gap-2"><Badge tone="green">研修日 {workdays.trainingDaysCount || 0}日</Badge><input type="month" value={calendarMonth} onChange={e => setCalendarMonth(e.target.value)} className="rounded-lg px-3 py-2 text-sm outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary }} /><Btn size="sm" icon={Check} onClick={saveCalendar}>{calendarBusy ? "保存中…" : "保存"}</Btn></div></div>
+          <div className="mb-3 flex flex-wrap items-center justify-between gap-2"><div><h3 className="flex items-center gap-1.5 font-bold" style={{ color: T.textPrimary }}><Calendar size={16} />研修カレンダー</h3><p className="mt-1 text-xs" style={{ color: T.textMuted }}>月次集計では今後この研修日カレンダーを使って未提出・未登録判定から除外します。</p></div><div className="flex flex-wrap items-center gap-2"><Badge tone="green">研修日 {workdays.trainingDaysCount || 0}日</Badge><input type="month" value={calendarMonth} onChange={e => setCalendarMonth(e.target.value)} className="rounded-xl px-3 py-2 text-sm outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary }} /><Btn size="sm" icon={Check} onClick={saveCalendar}>{calendarBusy ? "保存中…" : "保存"}</Btn></div></div>
           {calendarLoading ? <SkeletonRows rows={3} />
             : <div className="overflow-x-auto"><div className="grid grid-cols-7 gap-1.5" style={{ minWidth: 900 }}>{["月", "火", "水", "木", "金", "土", "日"].map(d => <div key={d} className="px-2 py-1 text-center text-xs font-bold" style={{ color: T.textMuted }}>{d}</div>)}{calendarCells.map((row, i) => row.blank ? <div key={row.key || i} className="min-h-[150px] rounded-xl" style={{ background: T.bgBase, border: `1px dashed ${T.border}` }} /> : <div key={row.date} className="min-h-[150px] rounded-xl p-2" style={{ background: row.isTrainingDay ? "#fff" : T.bgBase, border: `1px solid ${row.dirty ? T.accent : T.border}` }}><div className="mb-1 flex items-center justify-between gap-1"><span className="text-sm font-bold" style={{ color: T.textPrimary }}>{Number(row.date.slice(8, 10))}</span>{row.dirty && <span className="h-2 w-2 rounded-full" style={{ background: T.accent }} title="変更あり" />}</div><div className="mb-1 flex flex-wrap gap-1"><Badge tone={row.isTrainingDay ? "green" : "muted"}>{row.isTrainingDay ? "研修日" : "非研修日"}</Badge><Badge tone={calTypeTone(row.type)}>{calTypeLabel(row.type)}</Badge></div>{(row.title || row.note) && <div className="mb-1 line-clamp-2 text-xs" style={{ color: T.textMuted }}>{row.title || row.note}</div>}<div className="space-y-1.5"><select value={row.type} onChange={e => updateCalendar(row.date, { type: e.target.value })} className="w-full rounded-lg px-2 py-1.5 text-xs outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary }}>{CAL_TYPES.map(([v, l]) => <option key={v} value={v}>{l}</option>)}</select><input value={row.title} onChange={e => updateCalendar(row.date, { title: e.target.value })} placeholder="タイトル" className="w-full rounded-lg px-2 py-1.5 text-xs outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary }} /><input value={row.note} onChange={e => updateCalendar(row.date, { note: e.target.value })} placeholder="メモ" className="w-full rounded-lg px-2 py-1.5 text-xs outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary }} /></div></div>)}</div></div>}
         </Card>
@@ -803,7 +803,7 @@ function AdminCourses({ go }) {
                   </div>
                   <div className="flex flex-wrap items-center gap-2">
                     <Badge tone="green">研修日 {workdays.trainingDaysCount || 0}日</Badge>
-                    <input type="month" value={calendarMonth} onChange={e => setCalendarMonth(e.target.value)} className="rounded-lg px-3 py-2 text-sm outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary }} />
+                    <input type="month" value={calendarMonth} onChange={e => setCalendarMonth(e.target.value)} className="rounded-xl px-3 py-2 text-sm outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary }} />
                     <Btn size="sm" icon={Check} onClick={saveCalendar}>{calendarBusy ? "保存中…" : "保存"}</Btn>
                   </div>
                 </div>
@@ -1131,20 +1131,20 @@ function AdminUsers() {
             </div>
             <div className="space-y-3">
               <label className="block"><span className="mb-1 block text-xs font-semibold" style={{ color: T.textMuted }}>メールアドレス</span>
-                <input value={form.email} onChange={e => setForm({ ...form, email: e.target.value })} type="email" placeholder="user@example.com" className="w-full rounded-lg px-3 py-2 text-sm outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary }} /></label>
+                <input value={form.email} onChange={e => setForm({ ...form, email: e.target.value })} type="email" placeholder="user@example.com" className="w-full rounded-xl px-3 py-2 text-sm outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary }} /></label>
               <label className="block"><span className="mb-1 block text-xs font-semibold" style={{ color: T.textMuted }}>氏名</span>
-                <input value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} placeholder="山田 太郎" className="w-full rounded-lg px-3 py-2 text-sm outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary }} /></label>
+                <input value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} placeholder="山田 太郎" className="w-full rounded-xl px-3 py-2 text-sm outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary }} /></label>
               <label className="block"><span className="mb-1 block text-xs font-semibold" style={{ color: T.textMuted }}>ロール</span>
-                <select value={form.role} onChange={e => setForm({ ...form, role: e.target.value })} className="w-full rounded-lg px-3 py-2 text-sm outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary }}>
+                <select value={form.role} onChange={e => setForm({ ...form, role: e.target.value })} className="w-full rounded-xl px-3 py-2 text-sm outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary }}>
                   {ROLE_OPTS.map(([v, l]) => <option key={v} value={v}>{l}</option>)}</select></label>
               <label className="block"><span className="mb-1 block text-xs font-semibold" style={{ color: T.textMuted }}>所属企業（任意）</span>
-                <select value={form.companyId} onChange={e => setForm({ ...form, companyId: e.target.value })} className="w-full rounded-lg px-3 py-2 text-sm outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary }}>
+                <select value={form.companyId} onChange={e => setForm({ ...form, companyId: e.target.value })} className="w-full rounded-xl px-3 py-2 text-sm outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary }}>
                   <option value="">（未選択）</option>{companies.map(c => <option key={c.companyId} value={c.companyId}>{c.name}</option>)}</select></label>
               {form.role === "trainee" && <label className="block"><span className="mb-1 block text-xs font-semibold" style={{ color: T.textMuted }}>所属コース（任意）</span>
-                <select value={form.courseId} onChange={e => setForm({ ...form, courseId: e.target.value })} className="w-full rounded-lg px-3 py-2 text-sm outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary }}>
+                <select value={form.courseId} onChange={e => setForm({ ...form, courseId: e.target.value })} className="w-full rounded-xl px-3 py-2 text-sm outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary }}>
                   <option value="">（未選択）</option>{courses.map(c => <option key={c.courseId} value={c.courseId}>{c.name}（{kindLabel(c.kind)}）</option>)}</select></label>}
               <label className="block"><span className="mb-1 block text-xs font-semibold" style={{ color: T.textMuted }}>仮パスワード（初回ログイン時に変更されます）</span>
-                <input value={form.tempPassword} onChange={e => setForm({ ...form, tempPassword: e.target.value })} className="w-full rounded-lg px-3 py-2 text-sm outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary }} /></label>
+                <input value={form.tempPassword} onChange={e => setForm({ ...form, tempPassword: e.target.value })} className="w-full rounded-xl px-3 py-2 text-sm outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary }} /></label>
               {err && <div className="rounded-lg px-3 py-2 text-xs" style={adminErrStyle}>{err}</div>}
             </div>
             <div className="mt-5 flex justify-end gap-2">

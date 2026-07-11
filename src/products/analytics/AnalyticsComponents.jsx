@@ -5,7 +5,7 @@ import {
 } from "lucide-react";
 import { ANALYTICS_HOME_CARDS, RISK_SIG_LABEL } from "./AnalyticsCatalog.js";
 import { useAwsCosts, useMonthlyReport, useRiskAnalysis } from "./useAnalytics.js";
-import { Card, Badge, Btn, Avatar, Stat, SectionHead, PageHeader, ProductNavCard, T, EmptyState as CommonEmptyState } from "../../components/common";
+import { Card, Badge, Btn, Avatar, Stat, SectionHead, PageHeader, ProductNavCard, SkeletonRows, T, EmptyState as CommonEmptyState } from "../../components/common";
 
 const GRAD = `linear-gradient(135deg, ${T.accent} 0%, #5B8CFF 100%)`;
 const adminPanelStyle = { background: T.bgBase, color: T.textMuted };
@@ -59,7 +59,7 @@ export function AwsCostDashboard() {
   if (loading) return (
     <div>
       <SectionHead title="AWS利用料金" desc="Cost Explorerからリアルタイムでお使いのAWS料金を取得します" />
-      <div className="rounded-xl px-4 py-10 text-center text-sm" style={{ background: T.bgBase, color: T.textMuted }}>データを取得中...</div>
+      <Card><SkeletonRows rows={4} /></Card>
     </div>
   );
 
@@ -77,7 +77,7 @@ export function AwsCostDashboard() {
       )}
       <div className="mb-4 flex items-center gap-3">
         <label className="text-sm font-semibold" style={{ color: T.textPrimary }}>対象月</label>
-        <input type="month" value={month} onChange={e => setMonth(e.target.value)} className="rounded-lg border px-3 py-1.5 text-sm outline-none" style={{ borderColor: T.border, color: T.textPrimary, background: "#fff" }} />
+        <input type="month" value={month} onChange={e => setMonth(e.target.value)} className="rounded-xl px-3 py-2 text-sm outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary, background: "#fff" }} />
       </div>
       {data && (
         <>
@@ -113,7 +113,7 @@ export function AwsCostDashboard() {
                   <span className="text-sm font-bold" style={{ color: T.textPrimary }}>Amazon Bedrock</span>
                 </div>
                 <div className="px-4 py-4">
-                  <div className="text-2xl font-extrabold" style={{ color: T.accentHover }}>{fmtAmt(data.bedrock?.amount)}</div>
+                  <div className="text-2xl font-bold" style={{ color: T.accentHover }}>{fmtAmt(data.bedrock?.amount)}</div>
                   <div className="mt-1 text-xs" style={{ color: T.textMuted }}>AI機能利用料金（{month.replace("-", "/")}）</div>
                   {(data.bedrock?.services || []).length > 0 && (
                     <div className="mt-3 space-y-1.5">
@@ -133,7 +133,7 @@ export function AwsCostDashboard() {
                   <span className="text-sm font-bold" style={{ color: T.textPrimary }}>Cost Explorer API料金</span>
                 </div>
                 <div className="px-4 py-4">
-                  <div className="text-2xl font-extrabold" style={{ color: T.warning }}>{fmtAmt(data.costExplorerApi?.amount)}</div>
+                  <div className="text-2xl font-bold" style={{ color: T.warning }}>{fmtAmt(data.costExplorerApi?.amount)}</div>
                   <div className="mt-1 text-xs" style={{ color: T.textMuted }}>タグ付きFeepsOne料金とは別枠のAPI利用料金</div>
                   {(data.costExplorerApi?.services || []).length > 0 && (
                     <div className="mt-3 space-y-1.5">
@@ -350,12 +350,12 @@ export function MonthlyReport() {
     <div>
       <SectionHead title="月次レポート" desc="コース別の出席・日報・テスト状況を月次で集計します"
         action={<div className="flex flex-wrap items-center gap-2">
-          <input type="month" value={month} onChange={e => setMonth(e.target.value)} className="rounded-lg px-3 py-2 text-sm outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary, background: "#fff" }} />
+          <input type="month" value={month} onChange={e => setMonth(e.target.value)} className="rounded-xl px-3 py-2 text-sm outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary, background: "#fff" }} />
           <Btn kind="ghost" icon={Download} onClick={() => exportMonthlyReportExcel(data, month)} disabled={!data}>Excel出力</Btn>
         </div>} />
       {err && <div className="mb-4 rounded-lg px-3 py-2 text-xs" style={{ background: T.dangerSubtle, color: T.danger }}>{err}</div>}
       {loading ? (
-        <div className="rounded-xl px-4 py-10 text-center text-sm" style={{ background: T.bgBase, color: T.textMuted }}>{month} の実績を集計中...</div>
+        <Card><SkeletonRows rows={5} /></Card>
       ) : !data || data.rows.length === 0 ? (
         <Card><EmptyState title="集計対象のコースがありません" desc="コースが登録されると月次レポートを表示します。" /></Card>
       ) : (<>

@@ -173,7 +173,7 @@ function LearningOverview({ lrn, goSub, goProduct, onOpenDetail, role, themeColo
             <div className="min-w-0 flex-1">
               <div className="flex items-center gap-2">
                 <PlayCircle size={16} style={{ color: themeColor }} />
-                <h3 className="text-sm font-bold" style={{ color: C.ink }}>前回の続き</h3>
+                <h3 className="text-base font-bold" style={{ color: C.ink, letterSpacing: "-0.02em" }}>前回の続き</h3>
               </div>
               {resume ? (
                 <>
@@ -212,7 +212,7 @@ function LearningOverview({ lrn, goSub, goProduct, onOpenDetail, role, themeColo
       {lrn.inprogress.length > 0 && (
         <div className="mb-6">
           <div className="mb-3 flex items-center justify-between">
-            <h3 className="text-sm font-bold" style={{ color: C.ink }}>学習中のコース</h3>
+            <h3 className="text-base font-bold" style={{ color: C.ink, letterSpacing: "-0.02em" }}>学習中のコース</h3>
             <button onClick={() => goSub("el_inprogress")} className="text-xs font-semibold" style={{ color: themeColor }}>すべて見る →</button>
           </div>
           <div className="space-y-2">
@@ -234,7 +234,7 @@ function LearningOverview({ lrn, goSub, goProduct, onOpenDetail, role, themeColo
       {recommend.length > 0 && (
         <div className="mb-6">
           <div className="mb-3 flex items-center justify-between">
-            <h3 className="text-sm font-bold" style={{ color: C.ink }}>おすすめコース</h3>
+            <h3 className="text-base font-bold" style={{ color: C.ink, letterSpacing: "-0.02em" }}>おすすめコース</h3>
             <button onClick={() => goSub("el_recommend")} className="text-xs font-semibold" style={{ color: themeColor }}>すべて見る →</button>
           </div>
           <div className="grid gap-3 sm:grid-cols-3">
@@ -636,7 +636,7 @@ function ElCertificateView({ lrn, goSub }) {
                   <div className="min-w-0">
                     <div className="flex flex-wrap items-center gap-2">
                       <Badge tone="green">取得済み</Badge>
-                      <h3 className="text-sm font-bold" style={{ color: C.ink }}>{course.title}</h3>
+                      <h3 className="text-base font-bold" style={{ color: C.ink, letterSpacing: "-0.02em" }}>{course.title}</h3>
                     </div>
                     <div className="mt-1 text-xs" style={{ color: C.muted }}>取得日: {issuedAt}{result?.score != null ? ` / ${result.score}点` : ""}</div>
                   </div>
@@ -656,7 +656,7 @@ function ReviewLessonList({ title, desc, lessons, items, onOpenLesson, onReviewe
     <Card className="p-5" style={{ background: "rgba(20,163,184,.06)", border: "1px solid rgba(20,163,184,.18)" }}>
       <div className="mb-4 flex items-start justify-between gap-3">
         <div>
-          <h3 className="text-sm font-bold" style={{ color: C.ink }}>{title}</h3>
+          <h3 className="text-base font-bold" style={{ color: C.ink, letterSpacing: "-0.02em" }}>{title}</h3>
           {desc && <p className="mt-1 text-xs" style={{ color: C.muted }}>{desc}</p>}
         </div>
         <Badge tone="amber">{items.length} Lessons</Badge>
@@ -705,7 +705,7 @@ function LessonReviewCheck({ course, lesson, lrn }) {
         <div>
           <div className="flex items-center gap-2">
             <CheckCircle2 size={16} style={{ color: C.green }} />
-            <h3 className="text-sm font-bold" style={{ color: C.ink }}>理解度チェック</h3>
+            <h3 className="text-base font-bold" style={{ color: C.ink, letterSpacing: "-0.02em" }}>理解度チェック</h3>
           </div>
           <p className="mt-1 text-xs" style={{ color: C.muted }}>今の理解度を1クリックで記録できます。</p>
         </div>
@@ -753,7 +753,7 @@ function FinalTestPlanCard({ course, plan, onBuild, onUpdate, onStartTest, onSho
         <div>
           <div className="flex items-center gap-2">
             <Award size={16} style={{ color: C.green }} />
-            <h3 className="text-sm font-bold" style={{ color: C.ink }}>総合テスト出題計画</h3>
+            <h3 className="text-base font-bold" style={{ color: C.ink, letterSpacing: "-0.02em" }}>総合テスト出題計画</h3>
           </div>
           <p className="mt-1 text-xs" style={{ color: C.muted }}>理解度チェックと復習フラグをもとに、AI呼び出し前の出題プランを作成します。</p>
         </div>
@@ -847,7 +847,7 @@ function FinalTestLatestResultCard({ result, lessons, onOpenLesson }) {
         <div>
           <div className="flex items-center gap-2">
             <CheckCircle2 size={16} style={{ color: result.passed ? C.green : C.amber }} />
-            <h3 className="text-sm font-bold" style={{ color: C.ink }}>前回の総合テスト結果</h3>
+            <h3 className="text-base font-bold" style={{ color: C.ink, letterSpacing: "-0.02em" }}>前回の総合テスト結果</h3>
           </div>
           <p className="mt-1 text-xs" style={{ color: C.muted }}>最終受験日: {result.createdAt?.slice(0, 10)}</p>
         </div>
@@ -884,7 +884,7 @@ function FinalPreparationCard({ plan, reviewItems, lessons, onOpenLesson, onRevi
     <Card className="p-5" style={{ background: "#F0FDF4", border: "1px solid #BBF7D0" }}>
       <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
         <div>
-          <h3 className="text-sm font-bold" style={{ color: C.ink }}>総合テスト前の準備</h3>
+          <h3 className="text-base font-bold" style={{ color: C.ink, letterSpacing: "-0.02em" }}>総合テスト前の準備</h3>
           <p className="mt-1 text-xs" style={{ color: C.muted }}>まず振り返るべきLessonを確認してから、次フェーズのAI総合テストへ進みます。</p>
         </div>
         <Badge tone="green">AI総合テストは次フェーズ予定</Badge>
@@ -1043,7 +1043,7 @@ function ElCourseDetail({ course, lrn, onBack, onOpenLesson, onStartFinalTest, o
       <Card className="mb-5 p-5" style={{ background: "#7C3AED0D", border: "1px solid #7C3AED20" }}>
         <div className="mb-3 flex items-center gap-2">
           <Award size={16} style={{ color: PRODUCT_ACCENT.talent.accent }} />
-          <h3 className="text-sm font-bold" style={{ color: PRODUCT_ACCENT.talent.accent }}>このコースを修了すると</h3>
+          <h3 className="text-base font-bold" style={{ color: PRODUCT_ACCENT.talent.accent, letterSpacing: "-0.02em" }}>このコースを修了すると</h3>
         </div>
         <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-5">
           {[course.skills[0] || "基礎スキル", "クラウドスキル +20", "スキルシート更新", "成長履歴へ反映", "案件マッチングへ活用"].map(t => (
@@ -1615,7 +1615,7 @@ function LessonMaterialsCard({ materials, onOpenMaterial }) {
     <Card className="mb-5 p-5">
       <div className="mb-3 flex items-center gap-2">
         <FileText size={16} style={{ color: C.green }} />
-        <h3 className="text-sm font-bold" style={{ color: C.ink }}>関連教材</h3>
+        <h3 className="text-base font-bold" style={{ color: C.ink, letterSpacing: "-0.02em" }}>関連教材</h3>
       </div>
       <div className="space-y-3">
         {materials.map(material => {
