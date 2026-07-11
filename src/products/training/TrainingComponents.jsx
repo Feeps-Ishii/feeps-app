@@ -3,8 +3,7 @@ import { getCurrentUser, fetchAuthSession } from "aws-amplify/auth";
 import { apiGet, apiPut, apiPost, apiDelete as apiDeleteBase } from "../../api.js";
 import { Card, Badge, Btn, Avatar, Stat, SectionHead, Field, Seg, T, PRODUCT_ACCENT, PageHeader, ProductNavCard, EmptyState as CommonEmptyState, SkeletonRows, SkeletonCards, Modal } from "../../components/common";
 import {
-  COURSE, COURSE_FULL, VENUE, PERIOD, TOTAL_HOURS, TODAY, ROLES, GOALS, ALL_TASKS,
-  MATERIALS, TRAINEES, RISK, KARTE, QBANK, TAKE_Q, CURRICULUM
+  QBANK
 } from "./TrainingCatalog.js";
 import {
   LayoutDashboard, FileText, ClipboardCheck, Clock, NotebookPen, Users,
@@ -76,7 +75,7 @@ function StatusRow({ icon: Icon, label, done, okText, ngText, onClick }) {
     </div>
   );
 }
-function TraineeHome({ go, done, toggle, dailyMessage, goals }) {
+function TraineeHome({ go, done, toggle, goals }) {
   const [thHome, setThHome] = useState({
     courses: [],
     reports: [],
@@ -307,16 +306,6 @@ function TraineeHome({ go, done, toggle, dailyMessage, goals }) {
         )}
       </Card>
 
-      {/* legacy dailyMessage channel is disabled; course daily-note announcement is the canonical 本日のお知らせ source. */}
-      {false && dailyMessage && (
-        <Card className="mt-4 flex min-w-0 max-w-full items-start gap-3 p-4">
-          <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg" style={{ background: T.warningSubtle, color: T.warning }}><Megaphone size={15} /></span>
-          <div className="min-w-0 flex-1">
-            <div className="text-xs font-bold" style={{ color: T.warning }}>講師からの本日の連絡</div>
-            <div className="mt-0.5 break-words text-sm leading-relaxed" style={{ color: T.textPrimary }}>{dailyMessage}</div>
-          </div>
-        </Card>
-      )}
       {/* ===== 本日のお知らせ ===== */}
       {thHasDailyAnnouncement && (
         <Card className="mt-4 flex min-w-0 max-w-full items-start gap-3 p-4">
@@ -1234,7 +1223,7 @@ const questionPoints = (q, fallback) => {
 };
 const testQuestionsOf = (t) => {
   const raw = Array.isArray(t?.questions) ? t.questions : [];
-  if (!raw.length) return t?.testId ? [] : TAKE_Q;
+  if (!raw.length) return [];
   return raw.map((q, i) => {
     const type = q.type || (Array.isArray(q.options) || Array.isArray(q.a) || Array.isArray(q.choices) ? "choice" : "descriptive");
     const options = Array.isArray(q.options) ? q.options : Array.isArray(q.choices) ? q.choices : Array.isArray(q.a) ? q.a : [];
@@ -3351,340 +3340,6 @@ function Reports({ role }) {
   );
 }
 
-/* ===== 講師ホーム ===== */
-function InstructorHome({ go, openKarte, dailyMessage, setDailyMessage, currentUserId }) {
-  const [msg, setMsg] = useState(dailyMessage);
-  const [saved, setSaved] = useState(false);
-  const date = todayStr();
-  const [instructorId, setInstructorId] = useState(currentUserId || "");
-  const [courses, setCourses] = useState([]);
-  const [courseMap, setCourseMap] = useState({});
-  const [reports, setReports] = useState([]);
-  const [attendanceRows, setAttendanceRows] = useState([]);
-  const [tests, setTests] = useState([]);
-  const [testResults, setTestResults] = useState({});
-  const [companies, setCompanies] = useState([]);
-  const [dailyNotes, setDailyNotes] = useState({});
-  const [todayCurriculum, setTodayCurriculum] = useState({});
-  const [dailyNoteSave, setDailyNoteSave] = useState({});
-  const [standardSave, setStandardSave] = useState({});
-  const [loading, setLoading] = useState(true);
-  const [err, setErr] = useState("");
-  function save() { setDailyMessage(msg); setSaved(true); setTimeout(() => setSaved(false), 2000); }
-
-  useEffect(() => {
-    if (currentUserId) return;
-    let alive = true;
-    getCurrentUser().then(u => { if (alive) setInstructorId(u?.userId || u?.username || ""); }).catch(() => {});
-    return () => { alive = false; };
-  }, [currentUserId]);
-
-  useEffect(() => {
-    let alive = true;
-    setLoading(true);
-    setErr("");
-    Promise.all([
-      apiGet("/courses").catch(e => { throw e; }),
-      apiGet("/reports?date=" + date).catch(() => []),
-      apiGet("/attendance?date=" + date).catch(() => []),
-      apiGet("/tests").catch(() => []),
-      apiGet("/companies").catch(() => []),
-    ]).then(async ([courseList, reportList, attendanceList, testList, companyList]) => {
-      const assigned = (Array.isArray(courseList) ? courseList : []).filter(c => Array.isArray(c.instructorIds) && instructorId && c.instructorIds.includes(instructorId));
-      const traineePairs = await Promise.all(assigned.map(c => apiGet(`/courses/${c.courseId}/trainees`).then(t => [c.courseId, Array.isArray(t) ? t : []]).catch(() => [c.courseId, []])));
-      const notePairs = await Promise.all(assigned.map(c => apiGet(`/courses/${c.courseId}/daily-note?date=${date}`).then(n => [c.courseId, n || {}]).catch(() => [c.courseId, {}])));
-      const curriculumPairs = await Promise.all(assigned.map(c => getTodayCurriculum(c.courseId, date).then(item => [c.courseId, item])));
-      const visibleTests = (Array.isArray(testList) ? testList : []).filter(t => (t.status || "published") !== "archived").slice(0, 8);
-      const resultPairs = await Promise.all(visibleTests.map(t => {
-        const tid = t.testId || t.id;
-        return apiGet(`/tests/${tid}/results`).then(rows => [tid, Array.isArray(rows) ? rows : []]).catch(() => [tid, []]);
-      }));
-      if (!alive) return;
-      setCourses(assigned);
-      setCourseMap(Object.fromEntries(traineePairs));
-      setDailyNotes(Object.fromEntries(notePairs));
-      setTodayCurriculum(Object.fromEntries(curriculumPairs));
-      setReports(Array.isArray(reportList) ? reportList : []);
-      setAttendanceRows(Array.isArray(attendanceList) ? attendanceList : []);
-      setTests(visibleTests);
-      setTestResults(Object.fromEntries(resultPairs));
-      setCompanies(Array.isArray(companyList) ? companyList : []);
-    }).catch(e => alive && setErr("講師ホームのデータ取得に失敗しました: " + (e?.message || e)))
-      .finally(() => alive && setLoading(false));
-    return () => { alive = false; };
-  }, [date, instructorId]);
-
-  const companyName = id => companies.find(c => c.companyId === id)?.name || id || "未登録";
-  const traineeName = t => t.name || t.email || t.userId || "受講生";
-  const updateDailyNote = (courseId, field, value) => {
-    setDailyNotes(prev => ({
-      ...prev,
-      [courseId]: { ...(prev[courseId] || {}), [field]: value },
-    }));
-  };
-  const saveDailyNote = async (courseId) => {
-    const note = dailyNotes[courseId] || {};
-    setDailyNoteSave(prev => ({ ...prev, [courseId]: "saving" }));
-    try {
-      const payload = {
-        date,
-        lessonTitle: note.lessonTitle || "",
-        lessonMemo: note.lessonMemo || "",
-        announcement: note.announcement || "",
-        curriculumItemId: note.curriculumItemId || "",
-      };
-      await apiPut(`/courses/${courseId}/daily-note`, payload);
-      emitNotificationRefresh();
-      const fresh = await apiGet(`/courses/${courseId}/daily-note?date=${date}`).catch(() => ({ ...payload }));
-      setDailyNotes(prev => ({ ...prev, [courseId]: fresh || payload }));
-      setDailyNoteSave(prev => ({ ...prev, [courseId]: "saved" }));
-      setTimeout(() => setDailyNoteSave(prev => ({ ...prev, [courseId]: "" })), 1800);
-    } catch (e) {
-      setDailyNoteSave(prev => ({ ...prev, [courseId]: "error" }));
-    }
-  };
-  const updateCourseStandard = (courseId, field, value) => {
-    setCourses(prev => prev.map(c => c.courseId === courseId ? { ...c, [field]: value } : c));
-  };
-  const saveCourseStandard = async (course) => {
-    const courseId = course.courseId;
-    setStandardSave(prev => ({ ...prev, [courseId]: "saving" }));
-    try {
-      const res = await apiPut(`/courses/${courseId}/attendance-settings`, {
-        standardClockIn: courseStandardIn(course),
-        standardClockOut: courseStandardOut(course),
-      });
-      setCourses(prev => prev.map(c => c.courseId === courseId ? { ...c, standardClockIn: res.standardClockIn || "", standardClockOut: res.standardClockOut || "" } : c));
-      setStandardSave(prev => ({ ...prev, [courseId]: "saved" }));
-      setTimeout(() => setStandardSave(prev => ({ ...prev, [courseId]: "" })), 1800);
-    } catch (e) {
-      setStandardSave(prev => ({ ...prev, [courseId]: "error" }));
-    }
-  };
-  const assignedTrainees = useMemo(() => {
-    const m = new Map();
-    courses.forEach(c => (courseMap[c.courseId] || []).forEach(t => { if (t.userId) m.set(t.userId, { ...t, courseIds: [...(m.get(t.userId)?.courseIds || []), c.courseId] }); }));
-    return [...m.values()];
-  }, [courses, courseMap]);
-  const assignedIds = useMemo(() => new Set(assignedTrainees.map(t => t.userId)), [assignedTrainees]);
-  const reportsForAssigned = reports.filter(r => assignedIds.has(r.traineeId));
-  const attendanceForAssigned = attendanceRows.filter(r => assignedIds.has(r.traineeId));
-  const reportById = useMemo(() => Object.fromEntries(reportsForAssigned.map(r => [r.traineeId, r])), [reportsForAssigned]);
-  const attendanceById = useMemo(() => Object.fromEntries(attendanceForAssigned.map(r => [r.traineeId, r])), [attendanceForAssigned]);
-  const hasTestResult = (traineeId, testId) => (testResults[testId] || []).some(r => r.traineeId === traineeId || r.userId === traineeId);
-  const testMissing = traineeId => tests.length > 0 && tests.some(t => !hasTestResult(traineeId, t.testId || t.id));
-  const attendanceMissing = assignedTrainees.filter(t => !attendanceById[t.userId]);
-  const absentRows = assignedTrainees.filter(t => statusKind(attendanceById[t.userId]?.status) === "absent");
-  const lateRows = assignedTrainees.filter(t => { const s = statusKind(attendanceById[t.userId]?.status); return s === "late"; });
-  const presentRows = assignedTrainees.filter(t => attendanceById[t.userId] && statusKind(attendanceById[t.userId]?.status) === "present");
-  const reportMissing = assignedTrainees.filter(t => !reportById[t.userId]);
-  const questionRows = assignedTrainees.filter(t => reportById[t.userId]?.question);
-  const blockerRows = assignedTrainees.filter(t => reportById[t.userId]?.blockers);
-  const uncommentedReports = reportsForAssigned.filter(r => !r.comment && !(Array.isArray(r.comments) && r.comments.length));
-  const needs = assignedTrainees.flatMap(t => {
-    const r = reportById[t.userId];
-    const a = attendanceById[t.userId];
-    const items = [];
-    if (!a) items.push("勤怠未登録");
-    if (a && statusKind(a.status) === "absent") items.push("欠席");
-    if (!r) items.push("日報未保存");
-    if (r?.question) items.push("質問あり");
-    if (r?.blockers) items.push("困ったことあり");
-    if (testMissing(t.userId)) items.push("テスト未受験");
-    return items.map(reason => ({ trainee: t, reason, report: r, attendance: a }));
-  });
-  const commentCandidates = assignedTrainees.map(t => ({ trainee: t, report: reportById[t.userId] })).filter(x => x.report?.question || x.report?.blockers);
-  const courseSummaries = courses.map(c => {
-    const members = courseMap[c.courseId] || [];
-    const memberIds = new Set(members.map(t => t.userId));
-    const reportCount = reports.filter(r => memberIds.has(r.traineeId)).length;
-    const attendanceCount = attendanceRows.filter(r => memberIds.has(r.traineeId)).length;
-    const companyCount = new Set(members.map(t => t.company).filter(Boolean)).size;
-    const todayItem = todayCurriculum[c.courseId];
-    const note = dailyNotes[c.courseId] || {};
-    const topic = curriculumDisplayTitle(todayItem) || note.lessonTitle || c.todayTopic || c.todayContent || c.currentUnit || c.lessonTitle || "今日の講義内容は未設定";
-    const lessonMemo = todayItem?.lessonMemo || note.lessonMemo || "";
-    const skills = Array.isArray(todayItem?.skills) ? todayItem.skills : [];
-    return { course: c, members, memberIds, reportCount, attendanceCount, companyCount, topic, lessonMemo, skills, todayItem };
-  });
-  const listNames = rows => rows.slice(0, 4).map(traineeName).join("、") || "なし";
-
-  return (
-    <div>
-      <PageHeader
-        product="training"
-        label="研修管理"
-        title="今日の研修を、迷わず進める。"
-        description={`担当コースから、今日フォローすべき受講生を確認します（${date.replace(/-/g, "/")}）`}
-        chips={[
-          { label: "担当受講生", value: assignedTrainees.length, unit: "名" },
-          { label: "日報未保存", value: reportMissing.length, unit: "名" },
-          { label: "勤怠未登録", value: attendanceMissing.length, unit: "名" },
-          { label: "欠席者", value: absentRows.length, unit: "名" },
-        ]}
-        cta={{ label: "受講生カルテを開く", icon: Users, onClick: () => go("trainees") }}
-      />
-      {/* legacy dailyMessage channel is disabled; course daily-note announcement is the canonical 本日のお知らせ source. */}
-      {false && <Card className="mb-6 p-6">
-        <div className="mb-3 flex flex-wrap items-center gap-2">
-          <span className="flex h-8 w-8 items-center justify-center rounded-lg" style={{ background: T.warningSubtle, color: T.warning }}><Megaphone size={15} /></span>
-          <h3 className="text-[15px] font-bold" style={{ color: T.textPrimary }}>本日のお知らせ</h3>
-          <span className="text-xs" style={{ color: T.textMuted }}>受講生のホーム画面に表示されます</span>
-        </div>
-        <textarea value={msg} onChange={e => setMsg(e.target.value)} rows={2} placeholder="例）本日はJavaの「条件分岐・反復」です。前回の配列の復習をしておいてください。"
-          className="w-full resize-none rounded-xl px-3 py-2.5 text-sm outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary }} />
-        <div className="mt-3 flex items-center justify-end gap-3">
-          {saved && <span className="inline-flex items-center gap-1 text-xs font-semibold" style={{ color: T.success }}><Check size={13} />受講生に表示しました</span>}
-          <Btn size="sm" icon={Send} onClick={save}>連絡を送る</Btn>
-        </div>
-      </Card>}
-      {err && <div className="mb-4 rounded-lg px-3 py-2 text-xs" style={adminErrStyle}>{err}</div>}
-
-      <div className="mb-6 grid gap-4 md:grid-cols-3">
-        <ProductNavCard product="training" icon={Calendar} title="カリキュラム" desc="今日の単元と講義内容を確認" onClick={() => go("curriculum")} delay={650} />
-        <ProductNavCard product="training" icon={NotebookPen} title="日報確認" desc="受講生の日報を確認しコメント" onClick={() => go("reports")} highlight badge="よく使う" delay={710} />
-        <ProductNavCard product="training" icon={Clock} title="勤怠確認" desc="出欠・遅刻の状況を確認" onClick={() => go("attendance")} delay={770} />
-        <ProductNavCard product="training" icon={ClipboardCheck} title="テスト" desc="作成・採点・結果を管理" onClick={() => go("tests")} delay={830} />
-        <ProductNavCard product="training" icon={FileText} title="研修資料" desc="教材・資料を共有" onClick={() => go("materials")} delay={890} />
-        <ProductNavCard product="training" icon={Target} title="目標ダッシュボード" desc="受講生の目標進捗を俯瞰" onClick={() => go("goals")} delay={950} />
-      </div>
-      <div className="mb-6 flex flex-wrap items-center gap-x-5 gap-y-2 text-sm">
-        <button type="button" onClick={() => go("reports")} className="inline-flex items-center gap-1.5 font-semibold transition hover:opacity-70" style={{ color: T.textSecondary }}>未コメント日報 <span style={{ color: uncommentedReports.length ? T.accent : T.textMuted, fontVariantNumeric: "tabular-nums" }}>{uncommentedReports.length}件</span><ChevronRight size={14} style={{ color: T.textMuted }} /></button>
-        <button type="button" onClick={() => go("tests")} className="inline-flex items-center gap-1.5 font-semibold transition hover:opacity-70" style={{ color: T.textSecondary }}>公開中テスト <span style={{ color: T.textMuted, fontVariantNumeric: "tabular-nums" }}>{tests.length}件</span><ChevronRight size={14} style={{ color: T.textMuted }} /></button>
-      </div>
-
-      <Card className="mb-6 overflow-hidden">
-        <div className="flex flex-wrap items-center justify-between gap-3 p-4" style={{ borderBottom: "1px solid " + T.border }}>
-          <div><h3 className="font-bold" style={{ color: T.textPrimary }}>今日の担当研修</h3><p className="text-xs" style={{ color: T.textMuted }}>今日見るべき研修と受講生状況を確認します。過去確認は日報・勤怠画面で行います。</p></div>
-          <div className="flex flex-wrap gap-2"><Badge tone="cyan">担当 {courses.length}件</Badge><Badge tone="green">受講生 {assignedTrainees.length}名</Badge></div>
-        </div>
-        {loading ? <SkeletonRows />
-          : courses.length === 0 ? <div className="px-4 py-8 text-center text-sm" style={{ color: T.textMuted }}>担当コースが未設定です。管理者がコース詳細で担当講師を設定すると表示されます。</div>
-          : <div className="divide-y" style={{ borderColor: T.border }}>{courseSummaries.map(s => (
-            <div key={s.course.courseId} className="p-4">
-              <div className="flex flex-wrap items-start justify-between gap-3">
-                <div className="min-w-0 flex-1"><div className="flex flex-wrap items-center gap-2"><h4 className="font-bold" style={{ color: T.textPrimary }}>{s.course.name}</h4><Badge tone={kindTone(s.course.type || s.course.kind)}>{kindLabel(s.course.type || s.course.kind)}</Badge></div><p className="mt-1 text-xs" style={{ color: T.textMuted }}>{s.members.length}名 / {s.companyCount}社</p><p className="mt-2 rounded-xl px-3 py-2 text-xs" style={adminPanelStyle}>{s.topic}</p></div>
-                <div className="flex flex-wrap gap-2"><Badge tone="green">勤怠 {s.attendanceCount}/{s.members.length}</Badge><Badge tone="amber">日報 {s.reportCount}/{s.members.length}</Badge><Btn size="sm" kind="ghost" icon={NotebookPen} onClick={() => go("reports")}>日報確認へ</Btn><Btn size="sm" kind="ghost" icon={Clock} onClick={() => go("attendance")}>勤怠確認へ</Btn></div>
-              </div>
-              <div className="mt-3 rounded-xl p-3" style={{ background: T.bgBase, border: `1px solid ${T.border}` }}>
-                <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
-                  <div>
-                    <div className="text-xs font-bold" style={{ color: T.textPrimary }}>定時打刻設定</div>
-                    <div className="text-[11px]" style={{ color: T.textMuted }}>受講生の「定時で出勤/退勤」ボタンに使用します。</div>
-                  </div>
-                  {standardSave[s.course.courseId] && <span className="text-xs font-semibold" style={{ color: standardSave[s.course.courseId] === "error" ? T.danger : standardSave[s.course.courseId] === "saved" ? T.success : T.textMuted }}>{standardSave[s.course.courseId] === "saving" ? "保存中..." : standardSave[s.course.courseId] === "saved" ? "保存しました" : "保存に失敗しました"}</span>}
-                </div>
-                <div className="grid gap-2 sm:grid-cols-[1fr_1fr_auto]">
-                  <label className="block">
-                    <span className="text-[11px] font-semibold" style={{ color: T.textMuted }}>標準出勤時刻</span>
-                    <input type="time" value={courseStandardIn(s.course)} onChange={e => updateCourseStandard(s.course.courseId, "standardClockIn", e.target.value)} className="mt-1 w-full rounded-lg px-3 py-2 text-sm outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary, background: "#fff" }} />
-                  </label>
-                  <label className="block">
-                    <span className="text-[11px] font-semibold" style={{ color: T.textMuted }}>標準退勤時刻</span>
-                    <input type="time" value={courseStandardOut(s.course)} onChange={e => updateCourseStandard(s.course.courseId, "standardClockOut", e.target.value)} className="mt-1 w-full rounded-lg px-3 py-2 text-sm outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary, background: "#fff" }} />
-                  </label>
-                  <Btn size="sm" kind="soft" icon={Check} className="self-end" onClick={() => saveCourseStandard(s.course)} disabled={standardSave[s.course.courseId] === "saving"}>保存</Btn>
-                </div>
-              </div>
-            </div>
-          ))}</div>}
-      </Card>
-
-      {courses.length > 0 && (
-        <Card className="mb-6 p-5">
-          <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
-            <div>
-              <h3 className="font-bold" style={{ color: T.textPrimary }}>今日の講義内容・本日のお知らせ</h3>
-              <p className="text-xs" style={{ color: T.textMuted }}>担当コースごとに、受講生ホームへ表示する今日の単元と連絡を登録します。</p>
-            </div>
-            <Badge tone="cyan">{date.replace(/-/g, "/")}</Badge>
-          </div>
-          <div className="space-y-4">
-            {courses.map(course => {
-              const note = dailyNotes[course.courseId] || {};
-              const todayItem = todayCurriculum[course.courseId];
-              const saveState = dailyNoteSave[course.courseId];
-              return (
-                <div key={course.courseId} className="rounded-2xl p-4" style={{ background: T.bgBase, border: `1px solid ${T.border}` }}>
-                  <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-                    <div>
-                      <div className="font-bold" style={{ color: T.textPrimary }}>{course.name}</div>
-                      <div className="text-xs" style={{ color: T.textMuted }}>{kindLabel(course.type || course.kind)}</div>
-                    </div>
-                    {saveState && <span className="text-xs font-semibold" style={{ color: saveState === "error" ? T.danger : saveState === "saved" ? T.success : T.textMuted }}>{saveState === "saving" ? "保存中..." : saveState === "saved" ? "保存しました" : "保存に失敗しました"}</span>}
-                  </div>
-                  <div className="mb-3 rounded-xl p-3" style={adminPanelStyle}>
-                    <div className="text-xs font-bold" style={{ color: T.textMuted }}>カリキュラムから取得した今日の講義内容</div>
-                    <div className="mt-2 text-xs font-bold" style={{ color: T.textMuted }}>今日の単元</div>
-                    <div className="mt-1 text-sm font-bold" style={{ color: T.textPrimary }}>{curriculumDisplayTitle(todayItem) || "今日の単元は未設定です"}</div>
-                    {todayItem?.content && <div className="mt-3"><div className="text-xs font-bold" style={{ color: T.textMuted }}>学習内容</div><div className="mt-1 whitespace-pre-wrap text-xs leading-relaxed" style={{ color: T.textSecondary }}>{todayItem.content}</div></div>}
-                    {todayItem?.lessonMemo && <div className="mt-3"><div className="text-xs font-bold" style={{ color: T.textMuted }}>講義メモ</div><div className="mt-1 whitespace-pre-wrap text-xs leading-relaxed" style={{ color: T.textSecondary }}>{todayItem.lessonMemo}</div></div>}
-                    {Array.isArray(todayItem?.skills) && todayItem.skills.length > 0 && <div className="mt-2 flex flex-wrap gap-1.5">{todayItem.skills.map(skill => <Badge key={skill} tone="cyan">{skill}</Badge>)}</div>}
-                  </div>
-                  <div className="grid gap-3 lg:grid-cols-2">
-                    {!todayItem && <label className="block">
-                      <span className="text-xs font-bold" style={{ color: T.textMuted }}>補足タイトル（カリキュラム未設定時のfallback）</span>
-                      <input value={note.lessonTitle || ""} onChange={e => updateDailyNote(course.courseId, "lessonTitle", e.target.value)} className="mt-1 w-full rounded-xl px-3 py-2 text-sm outline-none focus:border-cyan-400" style={{ border: `1px solid ${T.border}`, color: T.textPrimary, background: "#fff" }} placeholder="例: Java 条件分岐と演習" />
-                    </label>}
-                    <label className="block">
-                      <span className="text-xs font-bold" style={{ color: T.textMuted }}>本日のお知らせ</span>
-                      <input value={note.announcement || ""} onChange={e => updateDailyNote(course.courseId, "announcement", e.target.value)} className="mt-1 w-full rounded-xl px-3 py-2 text-sm outline-none focus:border-cyan-400" style={{ border: `1px solid ${T.border}`, color: T.textPrimary, background: "#fff" }} placeholder="例: 10分前にZoomへ入室してください" />
-                    </label>
-                  </div>
-                  {!todayItem && <label className="mt-3 block">
-                    <span className="text-xs font-bold" style={{ color: T.textMuted }}>補足メモ（カリキュラム講義メモのfallback）</span>
-                    <textarea value={note.lessonMemo || ""} onChange={e => updateDailyNote(course.courseId, "lessonMemo", e.target.value)} rows={2} className="mt-1 w-full resize-none rounded-xl px-3 py-2 text-sm outline-none focus:border-cyan-400" style={{ border: `1px solid ${T.border}`, color: T.textPrimary, background: "#fff" }} placeholder="今日扱う内容、演習範囲、補足など" />
-                  </label>}
-                  <div className="mt-3 flex justify-end">
-                    <Btn size="sm" icon={Send} onClick={() => saveDailyNote(course.courseId)} disabled={saveState === "saving"}>保存</Btn>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        </Card>
-      )}
-
-      <div className="grid gap-6 lg:grid-cols-2">
-        <Card className="p-5">
-          <div className="mb-4 flex items-start justify-between gap-3"><div><h3 className="font-bold" style={{ color: T.textPrimary }}>今日の出欠状況</h3><p className="text-xs" style={{ color: T.textMuted }}>未登録・欠席者を優先して確認します。</p></div><Btn size="sm" kind="soft" icon={Clock} onClick={() => go("attendance")}>勤怠確認へ</Btn></div>
-          <div className="grid gap-3 sm:grid-cols-4">
-            <div className="rounded-xl p-3" style={{ background: T.successSubtle }}><div className="text-xs font-bold" style={{ color: T.success }}>出席</div><div className="mt-1 text-xl font-bold" style={{ color: T.textPrimary }}>{presentRows.length}</div></div>
-            <div className="rounded-xl p-3" style={{ background: T.dangerSubtle }}><div className="text-xs font-bold" style={{ color: T.danger }}>欠席</div><div className="mt-1 text-xl font-bold" style={{ color: T.textPrimary }}>{absentRows.length}</div></div>
-            <div className="rounded-xl p-3" style={{ background: T.warningSubtle }}><div className="text-xs font-bold" style={{ color: T.warning }}>未登録</div><div className="mt-1 text-xl font-bold" style={{ color: T.textPrimary }}>{attendanceMissing.length}</div></div>
-            <div className="rounded-xl p-3" style={{ background: T.accentSubtle }}><div className="text-xs font-bold" style={{ color: T.accentHover }}>遅刻/早退</div><div className="mt-1 text-xl font-bold" style={{ color: T.textPrimary }}>{lateRows.length}</div></div>
-          </div>
-          <div className="mt-4 grid gap-2 sm:grid-cols-2"><div className="rounded-xl p-3" style={adminPanelStyle}><div className="text-xs font-bold" style={{ color: T.textMuted }}>未登録</div><div className="mt-1 text-sm" style={{ color: T.textPrimary }}>{listNames(attendanceMissing)}</div></div><div className="rounded-xl p-3" style={adminPanelStyle}><div className="text-xs font-bold" style={{ color: T.textMuted }}>欠席</div><div className="mt-1 text-sm" style={{ color: T.textPrimary }}>{listNames(absentRows)}</div></div></div>
-        </Card>
-
-        <Card className="p-5">
-          <div className="mb-4 flex items-start justify-between gap-3"><div><h3 className="font-bold" style={{ color: T.textPrimary }}>今日の日報状況</h3><p className="text-xs" style={{ color: T.textMuted }}>未保存とコメント候補を優先します。</p></div><Btn size="sm" kind="soft" icon={NotebookPen} onClick={() => go("reports")}>日報確認へ</Btn></div>
-          <div className="grid gap-3 sm:grid-cols-4">
-            <div className="rounded-xl p-3" style={{ background: T.successSubtle }}><div className="text-xs font-bold" style={{ color: T.success }}>保存済み</div><div className="mt-1 text-xl font-bold" style={{ color: T.textPrimary }}>{reportsForAssigned.length}</div></div>
-            <div className="rounded-xl p-3" style={{ background: T.warningSubtle }}><div className="text-xs font-bold" style={{ color: T.warning }}>未保存</div><div className="mt-1 text-xl font-bold" style={{ color: T.textPrimary }}>{reportMissing.length}</div></div>
-            <div className="rounded-xl p-3" style={{ background: T.accentSubtle }}><div className="text-xs font-bold" style={{ color: T.accentHover }}>質問あり</div><div className="mt-1 text-xl font-bold" style={{ color: T.textPrimary }}>{questionRows.length}</div></div>
-            <div className="rounded-xl p-3" style={{ background: T.dangerSubtle }}><div className="text-xs font-bold" style={{ color: T.danger }}>困りごと</div><div className="mt-1 text-xl font-bold" style={{ color: T.textPrimary }}>{blockerRows.length}</div></div>
-          </div>
-          <div className="mt-4 rounded-xl p-3" style={adminPanelStyle}><div className="text-xs font-bold" style={{ color: T.textMuted }}>コメント候補</div><div className="mt-1 text-sm" style={{ color: T.textPrimary }}>{commentCandidates.slice(0, 4).map(x => traineeName(x.trainee)).join("、") || "なし"}</div></div>
-        </Card>
-      </div>
-
-      <Card className="mt-6 p-5">
-        <div className="mb-4 flex flex-wrap items-start justify-between gap-3"><div><h3 className="font-bold" style={{ color: T.textPrimary }}>要確認者</h3><p className="text-xs" style={{ color: T.textMuted }}>今日フォローすべき受講生を理由つきで表示します。</p></div><Badge tone={needs.length ? "amber" : "green"}>{needs.length}件</Badge></div>
-        {needs.length ? <div className="grid gap-2 lg:grid-cols-2">{needs.slice(0, 14).map((n, i) => (
-          <div key={n.trainee.userId + n.reason + i} className="flex flex-wrap items-center gap-3 rounded-xl px-3 py-2.5" style={{ background: T.bgBase }}>
-            <Avatar name={traineeName(n.trainee)} size={32} />
-            <div className="min-w-0 flex-1"><div className="truncate text-sm font-bold" style={{ color: T.textPrimary }}>{traineeName(n.trainee)}</div><div className="truncate text-xs" style={{ color: T.textMuted }}>{companyName(n.trainee.company)}</div></div>
-            <Badge tone={n.reason.includes("質問") || n.reason.includes("困った") ? "cyan" : "amber"}>{n.reason}</Badge>
-            <button onClick={() => go(n.report ? "reports" : n.attendance ? "attendance" : "tests")} className="text-xs font-semibold" style={{ color: T.accentHover }}>確認</button>
-            <button onClick={() => openKarte && openKarte({ ...n.trainee, id: n.trainee.userId, companyName: companyName(n.trainee.company || n.trainee.companyId) })} className="text-xs font-semibold" style={{ color: T.accentHover }}>カルテ</button>
-          </div>
-        ))}</div> : <div className="rounded-xl p-4 text-sm" style={adminPanelStyle}>今日の要確認者はありません。</div>}
-      </Card>
-
-    </div>
-  );
-}
 /* ===== 受講生一覧 → カルテ ===== */
 function TraineeList({ role, openKarte }) {
   const [data, setData] = useState([]);
@@ -4378,6 +4033,6 @@ function reportDetailItems(r) {
 export {
   Card, Badge, Btn, Avatar, Ring, Bar, Stat, SectionHead, EmptyState,
   StatusRow, TraineeHome, InstructorGoalsDashboard, GoalsView, Curriculum, Materials,
-  Tests, Attendance, Reports, InstructorHome, TraineeList, Karte, ClientHome,
+  Tests, Attendance, Reports, TraineeList, Karte, ClientHome,
   ElearningView, ReadOnlyCompanies, ReadOnlyCourses, ReadOnlyInstructors, SAMPLE_VIEWS
 };

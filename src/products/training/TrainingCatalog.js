@@ -1,20 +1,5 @@
-import {
-  LayoutDashboard, FileText, ClipboardCheck, Clock, NotebookPen, Users,
-  Building2, BookOpen, Settings, GraduationCap, Search, Upload, Download,
-  CheckCircle2, Circle, AlertCircle, ChevronRight, ChevronLeft, ChevronUp, ChevronDown, Trash2, LogOut,
-  Bell, Plus, Send, MessageSquare, TrendingUp, Calendar, PlayCircle, Award,
-  Sparkles, Flame, X, Eye, Pencil, StickyNote, Megaphone, ArrowUpRight,
-  MoreHorizontal, Check, Filter, Target, ListChecks, Lock, Mail, Lightbulb,
-  Wrench, Compass, ShieldCheck, FileSpreadsheet, LogIn, Menu, Star, Activity,
-  GitBranch, Briefcase, Gauge, MapPin, User, Printer, RefreshCw, Receipt
-} from "lucide-react";
+import { LayoutDashboard, FileText, ClipboardCheck, Clock, NotebookPen, Users, Building2, BookOpen, Settings, GraduationCap, Calendar, Sparkles, Target, Wrench, Compass } from "lucide-react";
 
-const COURSE = "アクシス Javaエンジニア育成コース";
-const COURSE_FULL = "株式会社アクシス Javaエンジニア育成コース";
-const VENUE = "虎ノ門DC";
-const PERIOD = "2026/04/01〜06/12（49日間）";
-const TOTAL_HOURS = "364時間45分";
-const TODAY = { dateLabel: "2026年4月15日（水）・15日目", unit: "Java", topic: "条件分岐・反復", testId: 2 };
 
 /* ===== ロール ===== */
 const ROLES = {
@@ -41,64 +26,7 @@ const GOALS = [
     { id: "t16", t: "成果報告会でプレゼンする" } ] },
 ];
 const GOAL_ICON_MAP = { g1: Wrench, g2: Users, g3: Sparkles, g4: Compass };
-const ALL_TASKS = GOALS.flatMap(g => g.tasks.map(t => ({ ...t, goal: g.title, gid: g.id })));
 
-/* ===== サンプルデータ ===== */
-const MATERIALS = [
-  { id: 1, title: "ビジネスマナー 研修テキスト", type: "PDF", size: "3.4MB", cat: "ビジネス", done: true },
-  { id: 2, title: "ビジネススキル・目標設定 ワークシート", type: "PDF", size: "1.8MB", cat: "ビジネス", done: true },
-  { id: 3, title: "IT基礎 テキスト", type: "PDF", size: "4.0MB", cat: "IT・クラウド", done: true },
-  { id: 4, title: "生成AI基礎 ハンドアウト", type: "PDF", size: "2.6MB", cat: "IT・クラウド", done: true },
-  { id: 5, title: "クラウド基礎（AWS） テキスト", type: "PDF", size: "6.2MB", cat: "IT・クラウド", done: true },
-  { id: 6, title: "HTML / CSS 教材", type: "PDF", size: "3.1MB", cat: "Web・フロント", done: true },
-  { id: 7, title: "Java 基礎テキスト", type: "PDF", size: "7.4MB", cat: "Java・サーバ", done: true },
-  { id: 8, title: "Java 練習問題集", type: "PDF", size: "2.2MB", cat: "Java・サーバ", done: false },
-  { id: 9, title: "Java サンプルコード", type: "ZIP", size: "1.1MB", cat: "Java・サーバ", done: false },
-  { id: 10, title: "Spring 教材（MVC / DI）", type: "PDF", size: "5.0MB", cat: "Java・サーバ", done: false },
-  { id: 11, title: "SQL / JPA 教材", type: "PDF", size: "4.3MB", cat: "Java・サーバ", done: false },
-  { id: 12, title: "JavaScript / TypeScript / React 教材", type: "PDF", size: "5.8MB", cat: "Web・フロント", done: false },
-  { id: 13, title: "上流工程・チーム開発 演習要項", type: "PDF", size: "3.5MB", cat: "上流・チーム開発", done: false },
-];
-const TRAINEES = [
-  { id: 1, name: "田中 翔太", org: "株式会社アクシス", attend: 100, progress: 78, avg: 88, streak: 4, flag: null },
-  { id: 2, name: "佐藤 美咲", org: "株式会社アクシス", attend: 100, progress: 85, avg: 92, streak: 5, flag: null },
-  { id: 3, name: "鈴木 大輔", org: "株式会社アクシス", attend: 80, progress: 58, avg: 71, streak: 1, flag: "Javaの配列でつまずき気味" },
-  { id: 4, name: "伊藤 彩花", org: "株式会社アクシス", attend: 100, progress: 92, avg: 95, streak: 5, flag: null },
-  { id: 5, name: "渡辺 健", org: "株式会社アクシス", attend: 90, progress: 70, avg: 80, streak: 2, flag: "本日欠席（連絡済）" },
-];
-/* ポートフォリオ：自己登録の保有スキル */
-const RISK = [
-  { name: "鈴木 大輔", org: "株式会社アクシス", score: 74,
-    signals: { 日報: 68, テスト: 75, 勤怠: 55, 学習時間: 62 },
-    top: "テスト点数の低下と配列でのつまずき",
-    advice: "Javaの理解度が低下しています。Spring演習の前に「配列・反復」の個別補強テストと再演習を追加し、次回の1on1で進捗を確認してください。" },
-  { name: "渡辺 健", org: "株式会社アクシス", score: 48,
-    signals: { 日報: 42, テスト: 45, 勤怠: 70, 学習時間: 50 },
-    top: "欠席と学習時間の減少",
-    advice: "欠席（本日・連絡済）で学習時間が減少傾向です。復帰後にフォロー面談を設定し、欠席分の録画・教材リンクを共有してください。" },
-  { name: "田中 翔太", org: "株式会社アクシス", score: 22,
-    signals: { 日報: 18, テスト: 25, 勤怠: 10, 学習時間: 30 },
-    top: "おおむね順調",
-    advice: "理解・出席ともに良好です。リーダー役やメンター補助を任せると、さらに伸びる可能性があります。" },
-  { name: "佐藤 美咲", org: "株式会社アクシス", score: 18,
-    signals: { 日報: 15, テスト: 20, 勤怠: 12, 学習時間: 24 },
-    top: "安定",
-    advice: "安定して高い習熟度です。発展課題（二重ループ・メソッド分割）を提示すると効果的です。" },
-  { name: "伊藤 彩花", org: "株式会社アクシス", score: 12,
-    signals: { 日報: 10, テスト: 10, 勤怠: 8, 学習時間: 18 },
-    top: "非常に良好",
-    advice: "全項目で良好です。難易度高めの課題やチーム開発のリード役が適しています。" },
-];
-const KARTE = {
-  3: [{ type: "memo", at: "04/15 18:30", who: "石井 啓輔", text: "配列のインデックス理解で詰まりやすい。図で再説明予定。基本文法は概ねOK。" },
-      { type: "test", at: "04/15 16:10", text: "Java基礎 確認テスト 70点（配列は要復習）" },
-      { type: "attend", at: "04/15 10:18", text: "遅刻（電車遅延）", tone: "amber" },
-      { type: "report", at: "04/15 18:05", text: "日報保存：配列とListの違いが曖昧" }],
-  1: [{ type: "memo", at: "04/15 18:20", who: "石井 啓輔", text: "理解が早い。質問の質が高くリーダー候補。" },
-      { type: "test", at: "04/15 16:00", text: "Java基礎 確認テスト 88点" },
-      { type: "report", at: "04/15 18:05", text: "日報保存：オブジェクト指向の実装が楽しみ" },
-      { type: "attend", at: "04/15 09:52", text: "出勤", tone: "green" }],
-};
 /* ===== 問題バンク（範囲・重点でAI生成）— Java ===== */
 const QBANK = {
   "変数・データ型": [
@@ -132,34 +60,7 @@ const QBANK = {
     { q: "データを取得するSQLは？", a: ["SELECT", "UPDATE", "DELETE", "CREATE"] },
   ],
 };
-const TAKE_Q = [
-  { q: "int型の変数を宣言する正しい記述は？", a: ["int x == 10;", "int x = 10;", "x := 10", "var int x 10"], c: 1 },
-  { q: "配列の最初の要素のインデックスは？", a: ["1", "0", "-1", "null"], c: 1 },
-  { q: "決まった回数の繰り返しに適すのは？", a: ["if 文", "switch 文", "for 文", "try 文"], c: 2 },
-  { q: "等価を比較する演算子は？", a: ["=", "==", "=>", ">="], c: 1 },
-];
-const CURRICULUM = [
-  { unit: "ビジネスマナー", range: "Day 1–2 ・ 4/1–4/2", status: "done", topics: ["言葉遣い", "挨拶・態度", "身だしなみ・電話対応", "顧客・クレーム対応", "コミュニケーション"] },
-  { unit: "ビジネススキル・目標設定", range: "Day 3 ・ 4/3", status: "done", topics: ["ビジネススキル", "目標設定"] },
-  { unit: "IT基礎", range: "Day 4 ・ 4/6", status: "done", topics: ["ハードウェア", "ソフトウェア", "最新技術動向"] },
-  { unit: "生成AI基礎", range: "Day 5 ・ 4/7", status: "done", topics: ["生成AIとは", "生成AI体験", "AI活用ワークショップ"] },
-  { unit: "クラウド基礎（AWS）", range: "Day 6–9 ・ 4/8–4/13", status: "done", topics: ["AWS概要・VPC", "EC2・RDS・S3", "可用性アーキテクチャ", "マイクロサービス・Docker", "サーバレス"] },
-  { unit: "HTML / CSS", range: "Day 10 ・ 4/14", status: "done", topics: ["HTML基礎", "CSS基礎", "レイアウト"] },
-  { unit: "Java", range: "Day 11–22 ・ 4/15–5/1", status: "current", topics: ["基本文法", "変数・式・演算子・配列", "条件分岐・反復", "メソッド・オブジェクト指向", "クラスの詳細・継承", "インターフェース・ポリモーフィズム", "コレクション・例外処理"] },
-  { unit: "Spring", range: "Day 23–24 ・ 5/7–5/8", status: "upcoming", topics: ["Spring基礎・MVC", "画面遷移・スコープ", "入力チェック・DI/AOP"] },
-  { unit: "SQL / JPA", range: "Day 24–26 ・ 5/8–5/12", status: "upcoming", topics: ["SQL基礎・SELECT", "関数・集計・結合", "JPA・CRUD操作"] },
-  { unit: "小規模開発演習（Spring）", range: "Day 26–27 ・ 5/12–5/13", status: "upcoming", topics: ["演習課題"] },
-  { unit: "JavaScript / TypeScript / React", range: "Day 28–31 ・ 5/14–5/19", status: "upcoming", topics: ["JS / TS基礎", "REST・React基礎", "CRUD操作", "テスト・デプロイ", "ミニアプリ作成"] },
-  { unit: "上流工程基礎", range: "Day 32–34 ・ 5/20–5/22", status: "upcoming", topics: ["開発プロセス・PM基礎", "要求分析・要件定義", "外部 / 内部設計"] },
-  { unit: "チーム開発演習", range: "Day 34–49 ・ 5/22–6/12", status: "upcoming", topics: ["設計", "製造", "結合試験", "プレゼン資料作成", "成果報告会"] },
-];
 
-const BADGES = {
-  trainee: {},
-  instructor: {},
-  client: {},
-  admin: {},
-};
 const NAV = {
   trainee: [
     { sec: null, items: [["home", "ホーム", LayoutDashboard]] },
@@ -183,4 +84,4 @@ const NAV = {
 };
 const navViewSet = role => new Set([...(NAV[role] || []).flatMap(g => g.items.map(([k]) => k)), "notifications", "profile"]);
 
-export { COURSE, COURSE_FULL, VENUE, PERIOD, TOTAL_HOURS, TODAY, ROLES, GOALS, GOAL_ICON_MAP, ALL_TASKS, MATERIALS, TRAINEES, RISK, KARTE, QBANK, TAKE_Q, CURRICULUM, BADGES, NAV, navViewSet };
+export { ROLES, GOALS, GOAL_ICON_MAP, QBANK, NAV, navViewSet };

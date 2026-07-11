@@ -1,5 +1,4 @@
 import {
-  Portfolio,
   SkillMap,
   SkillSheetView,
   TalentHome,
@@ -19,5 +18,4 @@ function TalentProduct({ subView, goSub, goProduct, role, themeColor, done = {},
   return <TalentHome goSub={goSub} goProduct={goProduct} role={role} themeColor={themeColor} />;
 }
 
-export { SkillMap, Portfolio };
 export default TalentProduct;

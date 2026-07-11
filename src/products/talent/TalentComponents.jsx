@@ -7,7 +7,7 @@ import {
   exportSkillSheetExcel,
   useElearningFinalTestEvidence,
 } from "./useTalent.js";
-import { COURSE, PERIOD, ROLES, CURRICULUM, PORTFOLIO_SKILLS, ENGINEER, PROJECTS_SEED, PHASES, STRENGTHS_SEED, WEAK_SEED, NEXT_SKILLS } from "./TalentCatalog.js";
+import { PHASES } from "./TalentCatalog.js";
 import {
   AlertCircle, Award, BookOpen, Briefcase, Check, CheckCircle2, ChevronLeft, ChevronRight,
   Circle, Eye, FileSpreadsheet, FileText, GitBranch, GraduationCap, Lightbulb, MapPin,
@@ -265,7 +265,6 @@ function SkillMap({ done = {}, goals = [], role, go }) {
   const acq = allSkills.filter(s => s.lvl >= 100).length;
   const wip = allSkills.filter(s => s.lvl > 0 && s.lvl < 100).length;
   const radar = cats.map(c => ({ label: c.title, value: c.avg }));
-  const doneUnits = CURRICULUM.filter(u => u.status === "done");
   useEffect(() => {
     if (role && role !== "trainee") {
       setGrowth({ reports: [], tests: [], attendance: [] });
@@ -316,11 +315,6 @@ function SkillMap({ done = {}, goals = [], role, go }) {
                   <div className="text-xl font-bold" style={{ color: col }}>{v}</div><div className="text-xs" style={{ color: T.textMuted }}>{l}</div></div>
               ))}
             </div>
-          </div>
-          <div className="mt-4 text-xs font-bold" style={{ color: T.textMuted }}>習得済みカリキュラム（{doneUnits.length}/{CURRICULUM.length}）</div>
-          <div className="mt-2 flex flex-wrap gap-1.5">
-            {doneUnits.map(u => <span key={u.unit} className="inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-semibold" style={{ background: T.successSubtle, color: T.success }}><CheckCircle2 size={12} />{u.unit}</span>)}
-            {CURRICULUM.filter(u => u.status === "current").map(u => <span key={u.unit} className="inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-semibold" style={{ background: T.accentSubtle, color: T.accentHover }}><PlayCircle size={12} />{u.unit}（学習中）</span>)}
           </div>
         </Card>
       </div>
@@ -834,23 +828,6 @@ function SkillSheetView({ role }) {
   if (role === "client" || role === "instructor" || role === "admin") return <ClientSkillSheets role={role} />;
   return <PersonalSkillSheet />;
 }
-function Portfolio({ done, goals, go, role }) {
-  if (role === "client") return <ClientSkillSheets />;
-  return <PersonalPortfolio done={done} goals={goals} go={go} />;
-}
-function PersonalPortfolio({ done, goals, go }) {
-  const OPTS = ["研修中（受講生）", "エンジニア（社員）"];
-  const [tab, setTab] = useState(OPTS[0]);
-  const engineer = tab === OPTS[1];
-  return (
-    <div>
-      <SectionHead title={engineer ? "スキルシート" : "ポートフォリオ"}
-        desc={engineer ? "案件参画に向けて強み・保有スキル・経験を整理します" : "研修中から研修後まで、保有スキル・資格を継続的に可視化します"} />
-      <div className="mb-5"><Seg value={tab} onChange={setTab} options={OPTS} /></div>
-      {engineer ? <EngineerSheet go={go} /> : <TraineePortfolio done={done} goals={goals} />}
-    </div>
-  );
-}
 function ClientSkillSheets({ role = "client" }) {
   const scopeLabel = role === "client" ? "自社受講生" : role === "instructor" ? "担当受講生" : "全受講生";
   const [trainees, setTrainees] = useState([]);
@@ -937,238 +914,6 @@ function ClientSkillSheets({ role = "client" }) {
               </div>}
           </Card>
         </div>}
-    </div>
-  );
-}
-function TraineePortfolio({ done, goals }) {
-  const me = ROLES.trainee;
-  const overall = overallProgress(goals, done);
-  const gp = goalProgress(goals, done);
-  const acquired = flatTasks(goals).filter(t => done[t.id]);
-  const [skills, setSkills] = useState([]);
-  const [skErr, setSkErr] = useState("");
-  const [skSaved, setSkSaved] = useState(false);
-  const [skBusy, setSkBusy] = useState(false);
-  const [profileName, setProfileName] = useState("");
-  const [editName, setEditName] = useState(false);
-  const [nameDraft, setNameDraft] = useState("");
-  const [nameBusy, setNameBusy] = useState(false);
-  const [growth, setGrowth] = useState({ reports: [], tests: [], attendance: [] });
-
-  const [profileRaw, setProfileRaw] = useState(null);
-  useEffect(() => {
-    apiGet("/profile/me").then(p => { setProfileRaw(p || null); if (p?.name) setProfileName(p.name); }).catch(() => {});
-  }, []);
-
-  async function saveName() {
-    if (nameBusy) return;
-    setNameBusy(true);
-    try {
-      // PUT /profile/me は未送信フィールドを空文字で上書きするため、既存のcourse/companyを必ず同送する
-      await apiPut("/profile/me", { name: nameDraft, course: profileRaw?.course || "", company: profileRaw?.company || "" });
-      setProfileRaw(p => ({ ...(p || {}), name: nameDraft }));
-      setProfileName(nameDraft); setEditName(false);
-    } catch (e) {} finally { setNameBusy(false); }
-  }
-
-  useEffect(() => {
-    apiGet("/skills/me")
-      .then(item => { if (item && Array.isArray(item.skills)) setSkills(item.skills); })
-      .catch(() => {});
-  }, []);
-  useEffect(() => {
-    let alive = true;
-    Promise.all([
-      apiGet("/reports/me").catch(() => []),
-      apiGet("/tests/me").catch(() => []),
-      apiGet("/attendance/me").catch(() => []),
-    ]).then(([reports, tests, attendance]) => {
-      if (alive) setGrowth({ reports: reports || [], tests: tests || [], attendance: attendance || [] });
-    });
-    return () => { alive = false; };
-  }, []);
-
-  async function saveSkills() {
-    if (skBusy) return;
-    setSkErr(""); setSkBusy(true);
-    try {
-      await apiPut("/skills/me", { skills });
-      setSkSaved(true); setTimeout(() => setSkSaved(false), 2000);
-    } catch (e) {
-      setSkErr("保存に失敗しました：" + (e?.message || e));
-    } finally {
-      setSkBusy(false);
-    }
-  }
-  const testScores = growth.tests.map(t => Number(t.score)).filter(n => Number.isFinite(n));
-  const avgScore = testScores.length ? Math.round(testScores.reduce((s, n) => s + n, 0) / testScores.length) : null;
-  const presentDays = growth.attendance.filter(a => statusKind(a.status) === "present").length;
-  const latestReport = growth.reports.slice().sort((a, b) => String(b.date || "").localeCompare(String(a.date || "")))[0];
-  const topSkills = [...skills].sort((a, b) => Number(b.level || 0) - Number(a.level || 0)).slice(0, 5);
-  return (
-    <div>
-      <Card className="mb-6 overflow-hidden">
-        <div className="relative p-6 text-white" style={{ background: GRAD }}>
-          <div className="absolute inset-0" style={{ backgroundImage: DOTS }} />
-          <div className="relative flex flex-wrap items-center gap-4">
-            <div className="flex h-16 w-16 items-center justify-center rounded-2xl text-2xl font-bold" style={{ background: "rgba(255,255,255,.2)", boxShadow: "0 0 0 3px rgba(255,255,255,.25)" }}>{(profileName || me.who).slice(0, 1)}</div>
-            <div>
-              {editName ? (
-                <div className="flex items-center gap-2">
-                  <input value={nameDraft} onChange={e => setNameDraft(e.target.value)} placeholder="氏名" autoFocus className="rounded-lg px-2 py-1 text-sm outline-none" style={{ color: T.textPrimary }} />
-                  <button onClick={saveName} className="rounded-lg bg-white/20 px-2 py-1 text-xs font-semibold">{nameBusy ? "保存中…" : "保存"}</button>
-                  <button onClick={() => setEditName(false)} className="text-xs opacity-80">取消</button>
-                </div>
-              ) : (
-                <div className="flex items-center gap-2">
-                  <div className="text-xl font-bold">{profileName || me.who}</div>
-                  <button onClick={() => { setNameDraft(profileName || ""); setEditName(true); }} aria-label="氏名を編集" className="opacity-80 transition hover:opacity-100"><Pencil size={14} /></button>
-                </div>
-              )}
-              <div className="text-sm opacity-90">{me.org} ・ {COURSE}</div><div className="text-xs opacity-80">{PERIOD}</div>
-            </div>
-            <div className="ml-auto text-right"><div className="text-3xl font-bold">{overall}%</div><div className="text-xs opacity-90">研修進捗</div></div>
-          </div>
-        </div>
-        <div className="grid gap-3 p-5 sm:grid-cols-4">
-          {[["テスト平均", avgScore == null ? "未受験" : `${avgScore}点`], ["出席記録", `${presentDays}日`], ["日報保存", `${growth.reports.length}件`], ["習得スキル", `${acquired.length}件`]].map(([l, v]) => (
-            <div key={l} className="rounded-xl p-3 text-center" style={{ background: T.bgBase }}><div className="text-lg font-bold" style={{ color: T.textPrimary }}>{v}</div><div className="text-xs" style={{ color: T.textMuted }}>{l}</div></div>
-          ))}
-        </div>
-      </Card>
-      <Card className="mb-6 p-5">
-        <div className="mb-3 flex items-center gap-2"><GitBranch size={16} style={{ color: T.accent }} /><h3 className="font-bold" style={{ color: T.textPrimary }}>成長履歴からスキルシートへ</h3></div>
-        <div className="grid gap-3 lg:grid-cols-3">
-          <div className="rounded-xl p-3" style={{ background: T.bgBase }}><div className="text-xs font-bold" style={{ color: T.textMuted }}>最近の日報</div><div className="mt-1 text-sm leading-relaxed" style={{ color: T.textSecondary }}>{latestReport ? (latestReport.learned || latestReport.question || latestReport.nextday || "記録あり") : "未保存"}</div></div>
-          <div className="rounded-xl p-3" style={{ background: T.bgBase }}><div className="text-xs font-bold" style={{ color: T.textMuted }}>テスト結果</div><div className="mt-1 text-sm font-semibold" style={{ color: T.textPrimary }}>{avgScore == null ? "まだ受験記録がありません" : `平均 ${avgScore}点 / ${testScores.length}件`}</div></div>
-          <div className="rounded-xl p-3" style={{ background: T.bgBase }}><div className="text-xs font-bold" style={{ color: T.textMuted }}>強み候補</div><div className="mt-1 flex flex-wrap gap-1.5">{topSkills.length ? topSkills.map(s => <Badge key={s.name} tone={Number(s.level) >= 80 ? "green" : "cyan"}>{s.name}</Badge>) : <span className="text-sm" style={{ color: T.textMuted }}>スキル登録後に表示</span>}</div></div>
-        </div>
-        <p className="mt-3 text-xs" style={{ color: T.textMuted }}>日報・テスト・タスクの記録をもとに、企業担当者や講師が「何をできるようになったか」を説明しやすい形へ整理します。</p>
-      </Card>
-      <Card className="mb-6 p-5">
-        <div className="mb-3 flex items-center gap-2"><GraduationCap size={16} style={{ color: T.accent }} /><h3 className="font-bold" style={{ color: T.textPrimary }}>研修で習得したスキル</h3></div>
-        <div className="mb-4 grid gap-2 sm:grid-cols-2">{gp.map(g => (
-          <div key={g.id}><div className="mb-1 flex justify-between text-xs"><span className="font-medium" style={{ color: T.textSecondary }}>{g.title}</span><span style={{ color: T.textMuted }}>{g.n}/{g.total}</span></div>
-            <Bar value={g.pct} tone={g.pct >= 80 ? "green" : g.pct >= 40 ? "cyan" : "amber"} /></div>
-        ))}</div>
-        <div className="flex flex-wrap gap-1.5">{acquired.map(s => (
-          <span key={s.id} className="inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-semibold" style={{ background: T.successSubtle, color: T.success }}><CheckCircle2 size={12} />{s.t.replace(/を.*$/, "").slice(0, 18)}</span>
-        ))}</div>
-      </Card>
-      <Card className="p-5">
-        <div className="mb-3 flex items-center gap-2"><Briefcase size={16} style={{ color: T.accent }} /><h3 className="font-bold" style={{ color: T.textPrimary }}>保有スキル・資格</h3>
-          <span className="text-xs" style={{ color: T.textMuted }}>研修外のスキルも登録できます</span></div>
-        <SkillEditor skills={skills} setSkills={setSkills} defaultCat="資格" />
-        <div className="mt-4 flex items-center justify-end gap-3">
-          {skErr && <span className="text-xs" style={{ color: T.danger }}>{skErr}</span>}
-          {skSaved && <span className="inline-flex items-center gap-1 text-xs font-semibold" style={{ color: T.success }}><Check size={13} />保存しました</span>}
-          <Btn icon={Check} onClick={saveSkills}>{skBusy ? "保存中…" : "スキルを保存"}</Btn>
-        </div>
-      </Card>
-    </div>
-  );
-}
-function EngineerSheet({ go }) {
-  const [p, setP] = useState(ENGINEER);
-  const [projects, setProjects] = useState(PROJECTS_SEED);
-  const [strengths, setStrengths] = useState(STRENGTHS_SEED);
-  const [weak, setWeak] = useState(WEAK_SEED);
-  const [skills, setSkills] = useState([...PORTFOLIO_SKILLS, { name: "Java", cat: "言語", level: 70 }, { name: "Spring", cat: "フレームワーク", level: 45 }]);
-  const [pf, setPf] = useState({ name: "", period: "", role: "", scale: "", tech: "", phases: [], desc: "" });
-  const [issued, setIssued] = useState(false);
-  const [selfPR, setSelfPR] = useState(() => buildSelfPR(ENGINEER, STRENGTHS_SEED, WEAK_SEED, PORTFOLIO_SKILLS, PROJECTS_SEED));
-  const ai = useAIDraft();
-  function genPR() { ai.draft(() => setSelfPR(buildSelfPR(p, strengths, weak, skills, projects))); }
-  function togglePhase(ph) { setPf(s => ({ ...s, phases: s.phases.includes(ph) ? s.phases.filter(x => x !== ph) : [...s.phases, ph] })); }
-  function addProject() { if (!pf.name.trim()) return;
-    setProjects([{ id: "p" + Date.now(), name: pf.name.trim(), period: pf.period, role: pf.role, scale: pf.scale, tech: pf.tech.split(/[、,\s]+/).filter(Boolean), phases: pf.phases, desc: pf.desc }, ...projects]);
-    setPf({ name: "", period: "", role: "", scale: "", tech: "", phases: [], desc: "" }); }
-  const sheetData = { p, selfPR, strengths, weak, skills, projects };
-  if (issued) return <SkillSheetPreview data={sheetData} onClose={() => setIssued(false)} />;
-  return (
-    <div className="space-y-6">
-      <Card className="p-5">
-        <div className="mb-3 flex items-center gap-2"><User size={16} style={{ color: T.accent }} /><h3 className="font-bold" style={{ color: T.textPrimary }}>基本情報</h3></div>
-        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-          <SkillField label="氏名" value={p.name} onChange={v => setP({ ...p, name: v })} icon={User} />
-          <SkillField label="年齢" value={p.age} onChange={v => setP({ ...p, age: v })} />
-          <SkillField label="最寄駅" value={p.station} onChange={v => setP({ ...p, station: v })} icon={MapPin} />
-          <SkillField label="役割・ポジション" value={p.title} onChange={v => setP({ ...p, title: v })} icon={Briefcase} />
-          <SkillField label="経験年数" value={p.exp} onChange={v => setP({ ...p, exp: v })} />
-        </div>
-      </Card>
-
-      <div className="grid gap-6 md:grid-cols-2">
-        <Card className="p-5"><div className="mb-3 flex items-center gap-2"><TrendingUp size={16} style={{ color: T.success }} /><h3 className="font-bold" style={{ color: T.textPrimary }}>強み</h3></div>
-          <TagEditor items={strengths} setItems={setStrengths} placeholder="強みを追加（例：API設計）" tone="cyan" /></Card>
-        <Card className="p-5"><div className="mb-3 flex items-center gap-2"><AlertCircle size={16} style={{ color: T.warning }} /><h3 className="font-bold" style={{ color: T.textPrimary }}>弱み・伸ばしたい点</h3></div>
-          <TagEditor items={weak} setItems={setWeak} placeholder="弱みを追加（例：テスト自動化）" tone="amber" /></Card>
-      </div>
-
-      <Card className="p-5">
-        <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-          <div className="flex items-center gap-2"><MessageSquare size={16} style={{ color: T.accent }} /><h3 className="font-bold" style={{ color: T.textPrimary }}>自己PR</h3>
-            <span className="text-xs" style={{ color: T.textMuted }}>強み・弱み・案件から文章を生成</span></div>
-          <Btn kind="soft" size="sm" icon={Sparkles} onClick={genPR}>{ai.busy ? "生成中…" : "AIで生成"}</Btn>
-        </div>
-        <textarea value={selfPR} onChange={e => setSelfPR(e.target.value)} rows={4} className="ff-input w-full resize-none rounded-xl px-3 py-2.5 text-sm leading-relaxed outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary }} />
-      </Card>
-
-      <Card className="p-5">
-        <div className="mb-3 flex items-center gap-2"><Briefcase size={16} style={{ color: T.accent }} /><h3 className="font-bold" style={{ color: T.textPrimary }}>案件履歴</h3></div>
-        <div className="space-y-2">{projects.map((pr, i) => (
-          <div key={pr.id} className="rounded-xl p-3.5" style={{ border: `1px solid ${T.border}` }}>
-            <div className="flex items-start gap-2"><div className="min-w-0 flex-1">
-              <div className="flex flex-wrap items-center gap-2"><span className="text-sm font-bold" style={{ color: T.textPrimary }}>{pr.name}</span><Badge tone="muted">{pr.period || "期間未設定"}</Badge></div>
-              <div className="mt-1 text-xs" style={{ color: T.textMuted }}>役割：{pr.role || "—"} ・ 規模：{pr.scale || "—"}</div>
-              {pr.phases && pr.phases.length > 0 && <div className="mt-1.5 flex flex-wrap gap-1">{pr.phases.map(ph => <span key={ph} className="rounded px-1.5 py-0.5 text-xs font-semibold" style={{ background: T.successSubtle, color: T.success }}>{ph}</span>)}</div>}
-              <div className="mt-1.5 flex flex-wrap gap-1">{pr.tech.map(t => <Badge key={t} tone="cyan">{t}</Badge>)}</div>
-              {pr.desc && <div className="mt-1.5 text-xs leading-relaxed" style={{ color: T.textSecondary }}>{pr.desc}</div>}
-            </div><button onClick={() => setProjects(projects.filter((_, j) => j !== i))} aria-label="案件を削除"><X size={15} style={{ color: T.textMuted }} /></button></div>
-          </div>
-        ))}{projects.length === 0 && <div className="text-xs" style={{ color: T.textMuted }}>案件が未登録です</div>}</div>
-        <div className="mt-3 grid gap-2 rounded-xl p-3 sm:grid-cols-2" style={{ background: T.bgBase }}>
-          <input value={pf.name} onChange={e => setPf({ ...pf, name: e.target.value })} placeholder="案件名" className="ff-input rounded-lg px-3 py-2 text-sm outline-none sm:col-span-2" style={{ border: `1px solid ${T.border}`, color: T.textPrimary }} />
-          <input value={pf.period} onChange={e => setPf({ ...pf, period: e.target.value })} placeholder="期間（例：2026/05〜2026/06）" className="ff-input rounded-lg px-3 py-2 text-sm outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary }} />
-          <input value={pf.role} onChange={e => setPf({ ...pf, role: e.target.value })} placeholder="役割（例：バックエンド）" className="ff-input rounded-lg px-3 py-2 text-sm outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary }} />
-          <input value={pf.scale} onChange={e => setPf({ ...pf, scale: e.target.value })} placeholder="規模（例：5名）" className="ff-input rounded-lg px-3 py-2 text-sm outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary }} />
-          <input value={pf.tech} onChange={e => setPf({ ...pf, tech: e.target.value })} placeholder="技術（カンマ区切り：Java, Spring）" className="ff-input rounded-lg px-3 py-2 text-sm outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary }} />
-          <div className="sm:col-span-2">
-            <div className="mb-1 text-xs font-semibold" style={{ color: T.textMuted }}>担当工程</div>
-            <div className="flex flex-wrap gap-1.5">{PHASES.map(ph => { const on = pf.phases.includes(ph);
-              return <button key={ph} type="button" onClick={() => togglePhase(ph)} className="rounded-full px-2.5 py-1 text-xs font-semibold transition"
-                style={{ border: `1.5px solid ${on ? T.accent : T.border}`, background: on ? T.accentSubtle : "#fff", color: on ? T.accentHover : T.textMuted }}>{ph}</button>; })}</div>
-          </div>
-          <textarea value={pf.desc} onChange={e => setPf({ ...pf, desc: e.target.value })} rows={2} placeholder="業務内容（担当機能・実装内容など）" className="ff-input resize-none rounded-lg px-3 py-2 text-sm outline-none sm:col-span-2" style={{ border: `1px solid ${T.border}`, color: T.textPrimary }} />
-          <div className="flex justify-end sm:col-span-2"><Btn size="sm" icon={Plus} onClick={addProject}>案件を追加</Btn></div>
-        </div>
-      </Card>
-
-      <Card className="p-5">
-        <div className="mb-3 flex items-center gap-2"><Star size={16} style={{ color: T.accent }} /><h3 className="font-bold" style={{ color: T.textPrimary }}>保有スキル・資格</h3></div>
-        <SkillEditor skills={skills} setSkills={setSkills} />
-      </Card>
-
-      <Card className="p-5">
-        <div className="mb-1 flex items-center gap-2"><Target size={16} style={{ color: T.accent }} /><h3 className="font-bold" style={{ color: T.textPrimary }}>次に目指すスキル</h3></div>
-        <p className="mb-3 text-xs" style={{ color: T.textMuted }}>現在のスキルと弱みから、Eラーニングで埋めるべき次の一手を提案します</p>
-        <div className="grid gap-2 sm:grid-cols-2">{NEXT_SKILLS.map(n => (
-          <div key={n.name} className="rounded-xl p-3.5" style={{ border: `1px solid ${T.border}` }}>
-            <div className="flex items-center gap-2"><Lightbulb size={15} style={{ color: T.warning }} /><span className="flex-1 text-sm font-bold" style={{ color: T.textPrimary }}>{n.name}</span></div>
-            <div className="mt-1 text-xs" style={{ color: T.textMuted }}>{n.why}</div>
-            <button onClick={() => go && go(n.to)} className="mt-2 inline-flex items-center gap-1 text-xs font-semibold" style={{ color: T.accentHover }}>Eラーニングで学ぶ<ChevronRight size={13} /></button>
-          </div>
-        ))}</div>
-      </Card>
-
-      <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl p-5" style={{ background: T.accentSubtle, border: `1px solid ${T.border}` }}>
-        <div className="flex items-center gap-2"><FileText size={18} style={{ color: T.accentHover }} />
-          <div><div className="text-sm font-bold" style={{ color: T.textPrimary }}>スキルシートを発行</div><div className="text-xs" style={{ color: T.accentHover }}>案件提案にそのまま使える形式で出力します</div></div></div>
-        <div className="flex gap-2">
-          <Btn kind="ghost" icon={Eye} onClick={() => setIssued(true)}>プレビュー</Btn>
-          <Btn icon={FileSpreadsheet} onClick={() => exportSkillSheetExcel(sheetData)}>Excelで発行</Btn>
-        </div>
-      </div>
     </div>
   );
 }
@@ -1351,4 +1096,4 @@ function SelfPrStrengthView() {
   );
 }
 
-export { TalentHome, SkillMap, TrainingSkillsView, WorksView, SkillSheetView, Portfolio, SkillSheetPreview, LearningBadgesView, SelfPrStrengthView, TalentPlaceholder };
+export { TalentHome, SkillMap, TrainingSkillsView, WorksView, SkillSheetView, SkillSheetPreview, LearningBadgesView, SelfPrStrengthView, TalentPlaceholder };

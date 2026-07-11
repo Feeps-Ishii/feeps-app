@@ -15,13 +15,11 @@ export default function TrainingProduct({
   toggle,
   goals,
   setGoals,
-  dailyMessage,
-  setDailyMessage,
   displayName,
 }) {
   if (karte) return <Karte trainee={karte} back={() => setKarte(null)} role={role} />;
   if (view === "home") {
-    if (role === "trainee") return <TraineeHome go={go} done={taskDone} toggle={toggle} dailyMessage={dailyMessage} goals={goals} />;
+    if (role === "trainee") return <TraineeHome go={go} done={taskDone} toggle={toggle} goals={goals} />;
     if (role === "instructor") return <InstructorWorkspace go={go} displayName={displayName} />;
     if (role === "client") return <ClientHome openKarte={setKarte} go={go} />;
     return null;

@@ -8,7 +8,7 @@ import FeepsOneHome from "./products/home/FeepsOneHome.jsx";
 import TrainingProduct from "./products/training/TrainingProduct.jsx";
 import { Card, Badge, Btn, Avatar, Stat, SectionHead, T, PRODUCT_ACCENT, ROLE_ACCENT, Z, PageLoading, EmptyState as CommonEmptyState, SkeletonRows } from "./components/common";
 import { SAMPLE_VIEWS } from "./products/training/TrainingComponents.jsx";
-import { BADGES, GOALS, GOAL_ICON_MAP, NAV, ROLES } from "./products/training/TrainingCatalog.js";
+import { GOALS, GOAL_ICON_MAP, NAV, ROLES } from "./products/training/TrainingCatalog.js";
 import { navViewSet, statusKind, testIdOf, todayStr } from "./products/training/useTraining.js";
 import useCountUp from "./hooks/common/useCountUp.js";
 import {
@@ -31,8 +31,6 @@ const RiskBoard = lazy(() => import("./products/analytics/AnalyticsProduct.jsx")
 const MatchingProduct = lazy(() => import("./products/matching/MatchingProduct.jsx"));
 const ProjectMatching = lazy(() => import("./products/matching/MatchingProduct.jsx").then(m => ({ default: m.ProjectMatching })));
 const TalentProduct = lazy(() => import("./products/talent/TalentProduct.jsx"));
-const SkillMap = lazy(() => import("./products/talent/TalentProduct.jsx").then(m => ({ default: m.SkillMap })));
-const Portfolio = lazy(() => import("./products/talent/TalentProduct.jsx").then(m => ({ default: m.Portfolio })));
 const AdminProduct = lazy(() => import("./products/admin/AdminProduct.jsx"));
 
 // Catches render/chunk-load failures in a lazily loaded Product so one broken chunk
@@ -688,7 +686,6 @@ export default function App() {
   const [karte, setKarte] = useState(null);
   const [taskDone, setTaskDone] = useState({});
   const [goals, setGoals] = useState(GOALS);
-  const [dailyMessage, setDailyMessage] = useState("本日はJavaの「条件分岐・反復」です。前回の配列の復習をしておいてください。提出物の締切は17時です。");
   const [drawerOpen, setDrawerOpen] = useState(false);
   // Sidebar collapse (desktop): persisted so the choice survives reloads.
   const [sidebarCollapsed, setSidebarCollapsed] = useState(() => storageGet("feeps.sidebar.collapsed", "0") === "1");
@@ -771,7 +768,13 @@ export default function App() {
       if (!item) return;
       if (item.done) setTaskDone(item.done);
       if (Array.isArray(item.goals) && item.goals.length > 0) {
-        setGoals(item.goals.map(g => ({ ...g, icon: GOAL_ICON_MAP[g.id] ?? Star })));
+        // seed等で直接投入されたgoal/taskはidを持たないことがあり、key未指定警告とtoggle不整合の原因になるため補完する
+        setGoals(item.goals.map((g, i) => ({
+          ...g,
+          id: g.id || `g_${i}`,
+          tasks: Array.isArray(g.tasks) ? g.tasks.map((t, j) => ({ ...t, id: t.id || `g_${i}_t_${j}` })) : [],
+          icon: GOAL_ICON_MAP[g.id] ?? Star,
+        })));
       }
     }).catch(() => {});
   }, [loggedIn]);
@@ -900,8 +903,6 @@ export default function App() {
     if (product === "talent") return <TalentProduct subView={subView} goSub={goSub} goProduct={goProduct} role={role} themeColor={themeColor} done={taskDone} goals={goals} />;
     if (product === "matching") return <MatchingProduct subView={subView} goSub={goSub} role={role} themeColor={themeColor} />;
     if (product === "analytics") return <AnalyticsProduct subView={subView} goSub={goSub} themeColor={themeColor} />;
-    if (view === "skillmap") return <SkillMap done={taskDone} goals={goals} role={role} go={go} />;
-    if (view === "portfolio") return <Portfolio done={taskDone} goals={goals} go={go} role={role} />;
     if (view === "matching") return <ProjectMatching role={role} />;
     if (view === "placement") return <ProjectMatching role={role} mode="placement" />;
     if (view === "risk") return <RiskBoard />;
@@ -919,8 +920,6 @@ export default function App() {
       toggle={toggle}
       goals={goals}
       setGoals={handleSetGoals}
-      dailyMessage={dailyMessage}
-      setDailyMessage={setDailyMessage}
       displayName={displayName}
     />;
   })();
