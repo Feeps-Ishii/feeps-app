@@ -1,23 +1,357 @@
-import React from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import {
-  Activity, AlertCircle, Briefcase, Building2, Calendar, CheckCircle2,
-  ChevronLeft, FileSpreadsheet, FileText, MapPin, Printer, Sparkles
+  Activity, AlertCircle, Award, Briefcase, Building2, Calendar, Check, CheckCircle2,
+  ChevronLeft, ChevronRight, ChevronUp, ChevronDown, FileSpreadsheet, FileText, MapPin,
+  Pencil, Plus, Printer, Search, Sparkles, Trash2, Wallet,
 } from "lucide-react";
-import { MATCHING_HOME_CARDS, OPENINGS } from "./MatchingCatalog.js";
-import { candidateToSheet, matchTone, useMatching } from "./useMatching.js";
-import { Card, Badge, Btn, Avatar, SectionHead, PageHeader, ProductNavCard, T, EmptyState as CommonEmptyState, SkeletonRows } from "../../components/common";
+import {
+  MATCHING_HOME_CARDS, PROJECT_STATUS_OPTIONS, PROJECT_VISIBILITY_OPTIONS, WORK_STYLE_OPTIONS,
+  PLACEMENT_STATUS_OPTIONS, EMPTY_PROJECT_FORM, projectStatusLabel, projectVisibilityLabel,
+} from "./MatchingCatalog.js";
+import {
+  candidateToSheet, fetchTraineePortfolio, matchTone, placementFormToPayload, projectFormToPayload,
+  projectToForm, useCompanies, useInstructorTrainees, useMatchingMe, useMatchingPlacements,
+  useMatchingProjects, useProjectCandidates, useTraineeMatching,
+} from "./useMatching.js";
+import { Card, Badge, Btn, Avatar, Field, fieldStyle, SectionHead, PageHeader, ProductNavCard, Modal, T, EmptyState as CommonEmptyState, SkeletonRows } from "../../components/common";
 
 const GRAD = `linear-gradient(135deg, ${T.accent} 0%, #5B8CFF 100%)`;
 const FOOTER = "Copyright © 2025 Feeps Inc. All Rights Reserved.";
+const LIST_PAGE_SIZE = 10;
 
 function Bar({ value, tone = "cyan" }) {
-  const t = { cyan: T.accent, green: T.success, amber: T.warning };
+  const t = { cyan: T.accent, green: T.success, amber: T.warning, muted: T.textMuted };
   return <div className="h-2 w-full overflow-hidden rounded-full" style={{ background: T.border }}>
-    <div className="h-full rounded-full" style={{ width: `${value}%`, background: t[tone], transition: "width .8s ease" }} /></div>;
+    <div className="h-full rounded-full" style={{ width: `${Math.max(0, Math.min(100, value))}%`, background: t[tone] || t.cyan, transition: "width .8s ease" }} /></div>;
 }
 function EmptyState({ title, desc }) {
   return <CommonEmptyState icon={Briefcase} title={title} desc={desc} />;
 }
+function ErrorBanner({ message, onClose }) {
+  if (!message) return null;
+  return (
+    <div className="mb-4 flex items-center justify-between gap-3 rounded-lg px-3 py-2 text-xs" style={{ background: T.dangerSubtle, color: T.danger }}>
+      <span>{message}</span>
+      {onClose && <button type="button" onClick={onClose} className="shrink-0 font-bold underline">閉じる</button>}
+    </div>
+  );
+}
+function money(n) {
+  if (n === null || n === undefined || n === "") return null;
+  return `${Number(n).toLocaleString("ja-JP")}円`;
+}
+
+// ---- 一覧共通: 検索/フィルタ/ソート/ページング/Excel（Training/Admin一覧と同じToolbarパターン） ----
+function pageSlice(rows, page, size = LIST_PAGE_SIZE) {
+  const totalPages = Math.max(1, Math.ceil(rows.length / size));
+  const safePage = Math.min(Math.max(1, page), totalPages);
+  const start = (safePage - 1) * size;
+  return { items: rows.slice(start, start + size), page: safePage, totalPages, total: rows.length, start };
+}
+function ListPager({ page, totalPages, total, onPage }) {
+  if (totalPages <= 1) return null;
+  return (
+    <div className="flex flex-wrap items-center justify-between gap-3 px-4 py-3" style={{ borderTop: `1px solid ${T.border}` }}>
+      <div className="text-xs font-semibold" style={{ color: T.textMuted }}>{total}件中 {page}/{totalPages}ページ</div>
+      <div className="flex items-center gap-2">
+        <Btn kind="ghost" size="sm" icon={ChevronLeft} onClick={() => onPage(page - 1)} disabled={page <= 1}>前へ</Btn>
+        <Btn kind="ghost" size="sm" icon={ChevronRight} onClick={() => onPage(page + 1)} disabled={page >= totalPages}>次へ</Btn>
+      </div>
+    </div>
+  );
+}
+async function exportMatchingExcel(rows, columns, sheetName, fileLabel) {
+  try {
+    const XLSX = await import("xlsx");
+    const data = (rows || []).map(r => Object.fromEntries(columns.map(([key, label]) => [label, key(r)])));
+    const ws = XLSX.utils.json_to_sheet(data);
+    ws["!cols"] = columns.map(() => ({ wch: 22 }));
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, sheetName);
+    const stamp = new Date().toISOString().slice(0, 10).replace(/-/g, "");
+    XLSX.writeFile(wb, `${fileLabel}_${stamp}.xlsx`);
+  } catch (e) { /* Excel出力失敗時は静かに諦める（一覧表示自体は継続） */ }
+}
+function DeleteConfirm({ title, name, warning, busy, onClose, onConfirm }) {
+  return (
+    <Modal title={title} onClose={busy ? undefined : onClose}
+      footer={<><Btn kind="ghost" onClick={onClose} disabled={busy}>キャンセル</Btn><Btn kind="danger" icon={Trash2} onClick={onConfirm} disabled={busy}>{busy ? "削除中…" : "削除する"}</Btn></>}>
+      <div className="space-y-3">
+        <p className="text-sm leading-relaxed" style={{ color: T.textSecondary }}>「{name}」を論理削除します。削除後は一覧に表示されません。</p>
+        {warning && <div className="rounded-lg px-3 py-2 text-xs" style={{ background: T.warningSubtle, color: T.warning }}>{warning}</div>}
+      </div>
+    </Modal>
+  );
+}
+
+// ================= Home =================
+export function MatchingHome({ goSub, role = "admin", themeColor = "#D97706" }) {
+  const isManager = role === "admin" || role === "client";
+  const { projects, loading: pLoading } = useMatchingProjects();
+  const { data: meData, loading: mLoading } = useMatchingMe();
+  const { trainees, loading: tLoading } = useInstructorTrainees();
+  const cards = MATCHING_HOME_CARDS[role] || MATCHING_HOME_CARDS.trainee;
+  const desc = role === "client" ? "自社受講生の実スキルから案件候補を確認し、参画状況を管理します。"
+    : role === "admin" ? "全受講生の実スキルから案件候補をマッチングし、参画状況を管理します。"
+    : role === "instructor" ? "担当受講生の案件参画結果を確認します。"
+    : "あなたのスキル・修了コースに合う案件と、参画状況を確認します。";
+  const chips = isManager
+    ? [{ label: "登録案件", value: pLoading ? 0 : projects.filter(p => p.isDeleted !== true).length, unit: "件" },
+       { label: "募集中", value: pLoading ? 0 : projects.filter(p => p.status === "recruiting").length, unit: "件" }]
+    : role === "instructor"
+    ? [{ label: "担当受講生", value: tLoading ? 0 : trainees.length, unit: "名" }]
+    : [{ label: "おすすめ案件", value: mLoading ? 0 : (meData?.recommendedProjects?.length || 0), unit: "件" },
+       { label: "参画中", value: mLoading ? 0 : (meData?.placements?.length || 0), unit: "件" }];
+  return (
+    <div>
+      <PageHeader
+        product="matching"
+        label="案件管理"
+        title="スキルを、案件へつなげる。"
+        description={desc}
+        chips={chips}
+        cta={{ label: isManager ? "案件一覧を開く" : "参画状況を見る", icon: Sparkles, onClick: () => goSub(isManager ? "mt_list" : "mt_placement") }}
+      />
+      <div className="grid gap-4 md:grid-cols-3">
+        {cards.map(({ key, icon, label, desc: d }, i) => (
+          <ProductNavCard key={key} product="matching" icon={icon} title={label} desc={d}
+            onClick={() => goSub(key)} highlight={i === 0} badge={i === 0 ? "よく使う" : undefined} delay={650 + i * 60} />
+        ))}
+      </div>
+      <div className="mt-5 flex items-start gap-3 rounded-2xl p-4" style={{ background: `${themeColor}08`, border: `1px solid ${themeColor}20` }}>
+        <Sparkles size={15} style={{ color: themeColor, marginTop: 2 }} />
+        <p className="text-sm" style={{ color: T.textMuted }}><span className="font-semibold" style={{ color: T.textPrimary }}>連携：</span>スキル・成長プロダクトのスキルシート（保有スキル・自己PR・案件履歴）とLearningの修了実績が、そのまま案件マッチングの判定材料になります。</p>
+      </div>
+    </div>
+  );
+}
+
+// ================= Project Form（新規作成/編集/閲覧） =================
+function ProjectForm({ mode, form, companies, onChange, readOnly }) {
+  function set(key, value) { onChange({ ...form, [key]: value }); }
+  const dis = readOnly;
+  return (
+    <div className="space-y-3">
+      <Field label="案件タイトル">
+        <input value={form.title} onChange={e => set("title", e.target.value)} disabled={dis} style={fieldStyle} placeholder="Java新人研修後の実務案件" />
+      </Field>
+      <div className="grid gap-3 sm:grid-cols-2">
+        <Field label="会社（未選択＝Feeps社内窓口）">
+          <select value={form.companyId} onChange={e => set("companyId", e.target.value)} disabled={dis} style={fieldStyle}>
+            <option value="">未選択</option>
+            {companies.map(c => <option key={c.companyId} value={c.companyId}>{c.name}</option>)}
+          </select>
+        </Field>
+        <Field label="公開範囲">
+          <select value={form.visibility} onChange={e => set("visibility", e.target.value)} disabled={dis} style={fieldStyle}>
+            {PROJECT_VISIBILITY_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+          </select>
+        </Field>
+      </div>
+      <div className="grid gap-3 sm:grid-cols-2">
+        <Field label="ステータス">
+          <select value={form.status} onChange={e => set("status", e.target.value)} disabled={dis} style={fieldStyle}>
+            {PROJECT_STATUS_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+          </select>
+        </Field>
+        <Field label="勤務形態">
+          <select value={form.workStyle} onChange={e => set("workStyle", e.target.value)} disabled={dis} style={fieldStyle}>
+            {WORK_STYLE_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+          </select>
+        </Field>
+      </div>
+      <Field label="必須スキル（「スキル名:レベル」をカンマ区切り。例: Java:60, SQL:40）">
+        <input value={form.requiredSkillsText} onChange={e => set("requiredSkillsText", e.target.value)} disabled={dis} style={fieldStyle} placeholder="Java:60, SQL:40" />
+      </Field>
+      <Field label="歓迎スキル（同上の形式）">
+        <input value={form.preferredSkillsText} onChange={e => set("preferredSkillsText", e.target.value)} disabled={dis} style={fieldStyle} placeholder="Spring:30" />
+      </Field>
+      <div className="grid gap-3 sm:grid-cols-2">
+        <Field label="必須資格（カンマ区切り）">
+          <input value={form.requiredQualificationsText} onChange={e => set("requiredQualificationsText", e.target.value)} disabled={dis} style={fieldStyle} />
+        </Field>
+        <Field label="歓迎資格（カンマ区切り）">
+          <input value={form.preferredQualificationsText} onChange={e => set("preferredQualificationsText", e.target.value)} disabled={dis} style={fieldStyle} placeholder="基本情報技術者試験" />
+        </Field>
+      </div>
+      <Field label="勤務地">
+        <input value={form.location} onChange={e => set("location", e.target.value)} disabled={dis} style={fieldStyle} placeholder="東京（一部リモート）" />
+      </Field>
+      <div className="grid gap-3 sm:grid-cols-2">
+        <Field label="期間（開始）"><input type="date" value={form.periodStart} onChange={e => set("periodStart", e.target.value)} disabled={dis} style={fieldStyle} /></Field>
+        <Field label="期間（終了）"><input type="date" value={form.periodEnd} onChange={e => set("periodEnd", e.target.value)} disabled={dis} style={fieldStyle} /></Field>
+      </div>
+      <div className="grid gap-3 sm:grid-cols-3">
+        <Field label="募集人数"><input type="number" min="1" value={form.openings} onChange={e => set("openings", e.target.value)} disabled={dis} style={fieldStyle} /></Field>
+        <Field label="単価下限（円/月）"><input type="number" min="0" value={form.budgetMin} onChange={e => set("budgetMin", e.target.value)} disabled={dis} style={fieldStyle} /></Field>
+        <Field label="単価上限（円/月）"><input type="number" min="0" value={form.budgetMax} onChange={e => set("budgetMax", e.target.value)} disabled={dis} style={fieldStyle} /></Field>
+      </div>
+      <Field label="必要経験（自由記述）">
+        <input value={form.requiredExperience} onChange={e => set("requiredExperience", e.target.value)} disabled={dis} style={fieldStyle} />
+      </Field>
+      <Field label="タグ（カンマ区切り）">
+        <input value={form.tagsText} onChange={e => set("tagsText", e.target.value)} disabled={dis} style={fieldStyle} />
+      </Field>
+      <Field label="案件詳細">
+        <textarea value={form.description} onChange={e => set("description", e.target.value)} disabled={dis} rows={3} style={{ ...fieldStyle, resize: "vertical" }} />
+      </Field>
+      <Field label="メモ（社内向け）">
+        <textarea value={form.notes} onChange={e => set("notes", e.target.value)} disabled={dis} rows={2} style={{ ...fieldStyle, resize: "vertical" }} />
+      </Field>
+    </div>
+  );
+}
+
+// ================= 案件一覧（admin: CRUD可 / client: 閲覧のみ） =================
+export function ProjectManager({ role, onOpenCandidates }) {
+  const isAdmin = role === "admin";
+  const { projects, loading, error, actionError, clearActionError, createProject, updateProject, deleteProject } = useMatchingProjects();
+  const { companies } = useCompanies();
+  const [query, setQuery] = useState("");
+  const [statusFilter, setStatusFilter] = useState("");
+  const [companyFilter, setCompanyFilter] = useState("");
+  const [sort, setSort] = useState({ key: "updatedAt", dir: "desc" });
+  const [page, setPage] = useState(1);
+  const [editing, setEditing] = useState(null); // null=閉じている, {}=新規, project=編集
+  const [form, setForm] = useState({ ...EMPTY_PROJECT_FORM });
+  const [saving, setSaving] = useState(false);
+  const [deleteTarget, setDeleteTarget] = useState(null);
+  const [deleteBusy, setDeleteBusy] = useState(false);
+  const [deleteError, setDeleteError] = useState("");
+
+  const companyName = (id) => companies.find(c => c.companyId === id)?.name || "";
+
+  const filtered = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    let list = projects.filter(p => (
+      (!q || [p.title, p.description, companyName(p.companyId), ...(p.tags || [])].some(v => String(v || "").toLowerCase().includes(q))) &&
+      (!statusFilter || p.status === statusFilter) &&
+      (!companyFilter || p.companyId === companyFilter)
+    ));
+    const dir = sort.dir === "asc" ? 1 : -1;
+    return [...list].sort((a, b) => {
+      const av = sort.key === "title" ? (a.title || "") : sort.key === "status" ? (a.status || "") : (a.updatedAt || "");
+      const bv = sort.key === "title" ? (b.title || "") : sort.key === "status" ? (b.status || "") : (b.updatedAt || "");
+      return String(av).localeCompare(String(bv), "ja") * dir;
+    });
+  }, [projects, query, statusFilter, companyFilter, sort, companies]);
+  useEffect(() => { setPage(1); }, [query, statusFilter, companyFilter, sort.key, sort.dir]);
+  const visible = pageSlice(filtered, page);
+
+  function changeSort(key) { setSort(s => s.key === key ? { key, dir: s.dir === "asc" ? "desc" : "asc" } : { key, dir: "asc" }); }
+  const SortMark = ({ k }) => sort.key === k ? (sort.dir === "asc" ? <ChevronUp size={13} /> : <ChevronDown size={13} />) : null;
+
+  function startNew() { setEditing({}); setForm({ ...EMPTY_PROJECT_FORM }); clearActionError(); }
+  function startEdit(p) { setEditing(p); setForm(projectToForm(p)); clearActionError(); }
+  function startView(p) { setEditing({ ...p, __readOnly: true }); setForm(projectToForm(p)); clearActionError(); }
+  function closeForm() { setEditing(null); }
+
+  async function submit() {
+    if (!form.title.trim() || saving) return;
+    setSaving(true);
+    try {
+      const payload = projectFormToPayload(form);
+      if (editing?.projectId) await updateProject(editing.projectId, payload);
+      else await createProject(payload);
+      closeForm();
+    } catch (e) { /* actionErrorはhook側で設定済み。モーダルは開いたまま */ }
+    finally { setSaving(false); }
+  }
+  async function confirmDelete() {
+    if (!deleteTarget) return;
+    setDeleteBusy(true); setDeleteError("");
+    try { await deleteProject(deleteTarget.projectId); setDeleteTarget(null); }
+    catch (e) { setDeleteError(e?.errorMessage || e?.message || "削除に失敗しました。"); }
+    finally { setDeleteBusy(false); }
+  }
+
+  return (
+    <div>
+      <SectionHead title={isAdmin ? "案件一覧" : "自社案件"} desc={isAdmin ? "案件の作成・編集・公開状態を管理します。" : "自社に紐づく案件を確認します。"}
+        action={isAdmin && <div className="flex flex-wrap items-center gap-2">
+          <Btn size="sm" kind="ghost" icon={FileSpreadsheet} onClick={() => exportMatchingExcel(filtered, [
+            [r => r.title || "", "タイトル"], [r => companyName(r.companyId) || "Feeps社内", "会社"],
+            [r => projectStatusLabel(r.status), "ステータス"], [r => projectVisibilityLabel(r.visibility), "公開範囲"],
+            [r => r.location || "", "勤務地"], [r => r.openings || "", "募集人数"],
+          ], "案件一覧", "案件一覧")}>Excel出力</Btn>
+          <Btn size="sm" icon={Plus} onClick={startNew}>新規案件</Btn>
+        </div>} />
+      <ErrorBanner message={error} />
+      <ErrorBanner message={actionError} onClose={clearActionError} />
+      <Card className="overflow-hidden">
+        <div className="flex flex-wrap items-center gap-2 p-3 sm:p-4" style={{ borderBottom: `1px solid ${T.border}` }}>
+          <div className="flex h-10 min-w-0 flex-1 items-center gap-2 rounded-xl px-3" style={{ border: `1px solid ${T.border}` }}>
+            <Search size={15} style={{ color: T.textMuted }} />
+            <input value={query} onChange={e => setQuery(e.target.value)} placeholder="タイトル・会社・タグで検索" className="w-full bg-transparent text-sm outline-none" style={{ color: T.textPrimary }} />
+          </div>
+          <select value={statusFilter} onChange={e => setStatusFilter(e.target.value)} style={{ ...fieldStyle, width: "auto" }}>
+            <option value="">全ステータス</option>
+            {PROJECT_STATUS_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+          </select>
+          {isAdmin && (
+            <select value={companyFilter} onChange={e => setCompanyFilter(e.target.value)} style={{ ...fieldStyle, width: "auto" }}>
+              <option value="">全企業</option>
+              {companies.map(c => <option key={c.companyId} value={c.companyId}>{c.name}</option>)}
+            </select>
+          )}
+          <Btn kind={sort.key === "title" ? "soft" : "ghost"} size="sm" onClick={() => changeSort("title")}>タイトル <SortMark k="title" /></Btn>
+          <Btn kind={sort.key === "status" ? "soft" : "ghost"} size="sm" onClick={() => changeSort("status")}>状態 <SortMark k="status" /></Btn>
+          <Btn kind={sort.key === "updatedAt" ? "soft" : "ghost"} size="sm" onClick={() => changeSort("updatedAt")}>更新日 <SortMark k="updatedAt" /></Btn>
+        </div>
+        {loading ? <SkeletonRows rows={5} />
+          : projects.length === 0 ? <EmptyState title={isAdmin ? "案件がまだ登録されていません" : "自社案件がありません"} desc={isAdmin ? "「新規案件」から登録できます。" : "Feeps担当者が案件を登録すると表示されます。"} />
+          : filtered.length === 0 ? <div className="px-4 py-8 text-center text-sm" style={{ color: T.textMuted }}>検索条件に一致する案件がありません。</div>
+          : <div>{visible.items.map((p, i) => (
+            <div key={p.projectId} className="flex flex-wrap items-center gap-3 px-4 py-3" style={{ borderTop: i ? `1px solid ${T.border}` : "none", background: i % 2 ? T.bgBase : "#fff" }}>
+              <div className="min-w-0 flex-1">
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="text-sm font-bold" style={{ color: T.textPrimary }}>{p.title}</span>
+                  <Badge tone={p.status === "recruiting" ? "green" : p.status === "closed" || p.status === "archived" ? "muted" : "amber"}>{projectStatusLabel(p.status)}</Badge>
+                  <Badge tone="cyan">{projectVisibilityLabel(p.visibility)}</Badge>
+                </div>
+                <div className="mt-0.5 flex flex-wrap gap-x-3 gap-y-0.5 text-xs" style={{ color: T.textMuted }}>
+                  <span className="inline-flex items-center gap-1"><Building2 size={11} />{companyName(p.companyId) || "Feeps社内"}</span>
+                  {p.location && <span className="inline-flex items-center gap-1"><MapPin size={11} />{p.location}</span>}
+                  <span>募集{p.openings}名</span>
+                  {(p.requiredSkills || []).slice(0, 3).map(s => <Badge key={s.skill} tone="muted">{s.skill}{s.level}+</Badge>)}
+                </div>
+              </div>
+              <div className="flex shrink-0 flex-wrap gap-2">
+                <Btn kind="ghost" size="sm" icon={Sparkles} onClick={() => onOpenCandidates(p.projectId)}>候補者を見る</Btn>
+                {isAdmin
+                  ? <><Btn kind="ghost" size="sm" icon={Pencil} onClick={() => startEdit(p)}>編集</Btn>
+                      <Btn kind="ghost" size="sm" icon={Trash2} onClick={() => { setDeleteTarget(p); setDeleteError(""); }}>削除</Btn></>
+                  : <Btn kind="ghost" size="sm" icon={FileText} onClick={() => startView(p)}>詳細</Btn>}
+              </div>
+            </div>
+          ))}</div>}
+        <ListPager page={visible.page} totalPages={visible.totalPages} total={visible.total} onPage={setPage} />
+      </Card>
+
+      {editing && (
+        <Modal
+          title={editing.__readOnly ? "案件詳細" : editing.projectId ? "案件編集" : "案件新規作成"}
+          desc={editing.__readOnly ? "この案件は閲覧のみです。" : undefined}
+          onClose={closeForm}
+          size="lg"
+          footer={editing.__readOnly
+            ? <Btn kind="ghost" onClick={closeForm}>閉じる</Btn>
+            : <><Btn kind="ghost" onClick={closeForm} disabled={saving}>キャンセル</Btn><Btn icon={Check} onClick={submit} disabled={saving || !form.title.trim()}>{saving ? "保存中…" : "保存する"}</Btn></>}
+        >
+          <ProjectForm mode={editing.projectId ? "edit" : "new"} form={form} companies={companies} onChange={setForm} readOnly={Boolean(editing.__readOnly)} />
+        </Modal>
+      )}
+      {deleteTarget && (
+        <div>
+          {deleteError && <div className="fixed inset-x-0 top-4 z-[999] mx-auto w-fit rounded-lg px-3 py-2 text-xs" style={{ background: T.dangerSubtle, color: T.danger }}>{deleteError}</div>}
+          <DeleteConfirm title="案件の削除" name={deleteTarget.title} warning="参画中・調整中のデータがある案件は削除できません。" busy={deleteBusy} onClose={() => setDeleteTarget(null)} onConfirm={confirmDelete} />
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ================= スキルシートプレビュー（Talent APIの実データのみ、未登録はそのまま表示） =================
 async function exportSkillSheetExcel({ p, selfPR, strengths, weak, skills, projects }) {
   try {
     const XLSX = await import("xlsx");
@@ -31,21 +365,23 @@ async function exportSkillSheetExcel({ p, selfPR, strengths, weak, skills, proje
     push(["最寄駅", p.station, "", "", "", "", ""]);
     push([]);
     full("自己PR");
-    { const r = rows.length; push([selfPR]); merges.push({ s: { r, c: 0 }, e: { r, c: W } }); }
+    { const r = rows.length; push([selfPR || "未登録"]); merges.push({ s: { r, c: 0 }, e: { r, c: W } }); }
     push([]);
-    push(["強み", strengths.join("、")]);
-    push(["弱み・課題", weak.join("、")]);
+    push(["強み", strengths.length ? strengths.join("、") : "未登録"]);
+    push(["弱み・課題", weak.length ? weak.join("、") : "未登録"]);
     push([]);
     full("保有スキル・資格");
     push(["分類", "名称", "習熟度(%)"]);
-    skills.forEach(sk => push([sk.cat, sk.name, sk.level]));
+    if (skills.length) skills.forEach(sk => push([sk.cat || "", sk.name, sk.level]));
+    else push(["未登録", "", ""]);
     push([]);
     full("案件履歴 / 職務経歴");
     push(["No", "期間", "案件名 / 業務内容", "役割", "規模", "担当工程", "使用技術"]);
-    projects.forEach((pr, i) => push([
+    if (projects.length) projects.forEach((pr, i) => push([
       i + 1, pr.period, pr.name + (pr.desc ? "\n" + pr.desc : ""), pr.role, pr.scale,
       (pr.phases || []).join("・"), (pr.tech || []).join(", "),
     ]));
+    else push(["未登録", "", "", "", "", "", ""]);
     const ws = XLSX.utils.aoa_to_sheet(rows);
     ws["!cols"] = [{ wch: 6 }, { wch: 18 }, { wch: 46 }, { wch: 14 }, { wch: 10 }, { wch: 26 }, { wch: 28 }];
     ws["!merges"] = merges;
@@ -53,7 +389,7 @@ async function exportSkillSheetExcel({ p, selfPR, strengths, weak, skills, proje
     XLSX.utils.book_append_sheet(wb, ws, "スキルシート");
     const stamp = new Date().toISOString().slice(0, 10).replace(/-/g, "");
     XLSX.writeFile(wb, `スキルシート_${p.name}_${stamp}.xlsx`);
-  } catch (e) { console.error(e); }
+  } catch (e) { /* Excel出力失敗時は静かに諦める */ }
 }
 
 function SkillSheetPreview({ data, onClose }) {
@@ -63,7 +399,7 @@ function SkillSheetPreview({ data, onClose }) {
   return (
     <div>
       <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
-        <Btn kind="ghost" size="sm" icon={ChevronLeft} onClick={onClose}>編集に戻る</Btn>
+        <Btn kind="ghost" size="sm" icon={ChevronLeft} onClick={onClose}>候補者一覧に戻る</Btn>
         <div className="flex gap-2"><Btn kind="ghost" size="sm" icon={Printer} onClick={doPrint}>印刷</Btn>
           <Btn size="sm" icon={FileSpreadsheet} onClick={() => exportSkillSheetExcel(data)}>Excelで発行</Btn></div>
       </div>
@@ -83,29 +419,29 @@ function SkillSheetPreview({ data, onClose }) {
             </div>
           </div>
 
-          {selfPR && (
-            <div className="mt-5">
-              <div className="mb-1.5 text-xs font-bold" style={{ color: T.textPrimary }}>自己PR</div>
-              <p className="text-sm leading-relaxed" style={{ color: T.textSecondary }}>{selfPR}</p>
-            </div>
-          )}
+          <div className="mt-5">
+            <div className="mb-1.5 text-xs font-bold" style={{ color: T.textPrimary }}>自己PR</div>
+            <p className="text-sm leading-relaxed" style={{ color: selfPR ? T.textSecondary : T.textMuted }}>{selfPR || "未登録"}</p>
+          </div>
 
-          {(strengths.length > 0 || weak.length > 0) && (
-            <div className="mt-5 grid gap-5 sm:grid-cols-2">
-              {strengths.length > 0 && <div>
-                <div className="mb-1.5 text-xs font-bold" style={{ color: T.accent }}>強み</div>
-                <div className="flex flex-wrap gap-1.5">{strengths.map(t => <span key={t} className="rounded-full px-2.5 py-0.5 text-xs font-semibold" style={{ background: T.accentSubtle, color: T.accentHover }}>{t}</span>)}</div>
-              </div>}
-              {weak.length > 0 && <div>
-                <div className="mb-1.5 text-xs font-bold" style={{ color: T.warning }}>弱み・伸ばしたい点</div>
-                <div className="flex flex-wrap gap-1.5">{weak.map(t => <span key={t} className="rounded-full px-2.5 py-0.5 text-xs font-semibold" style={{ background: T.warningSubtle, color: T.warning }}>{t}</span>)}</div>
-              </div>}
+          <div className="mt-5 grid gap-5 sm:grid-cols-2">
+            <div>
+              <div className="mb-1.5 text-xs font-bold" style={{ color: T.accent }}>強み</div>
+              {strengths.length > 0
+                ? <div className="flex flex-wrap gap-1.5">{strengths.map(t => <span key={t} className="rounded-full px-2.5 py-0.5 text-xs font-semibold" style={{ background: T.accentSubtle, color: T.accentHover }}>{t}</span>)}</div>
+                : <div className="text-xs" style={{ color: T.textMuted }}>未登録</div>}
             </div>
-          )}
+            <div>
+              <div className="mb-1.5 text-xs font-bold" style={{ color: T.warning }}>弱み・伸ばしたい点</div>
+              {weak.length > 0
+                ? <div className="flex flex-wrap gap-1.5">{weak.map(t => <span key={t} className="rounded-full px-2.5 py-0.5 text-xs font-semibold" style={{ background: T.warningSubtle, color: T.warning }}>{t}</span>)}</div>
+                : <div className="text-xs" style={{ color: T.textMuted }}>未登録</div>}
+            </div>
+          </div>
 
           <div className="mt-5">
             <div className="mb-2 text-xs font-bold" style={{ color: T.textPrimary }}>保有スキル</div>
-            {skills.length === 0 ? <div className="text-xs" style={{ color: T.textMuted }}>登録なし</div> : <div className="grid gap-2 sm:grid-cols-2">{skills.map((s, i) => (
+            {skills.length === 0 ? <div className="text-xs" style={{ color: T.textMuted }}>未登録</div> : <div className="grid gap-2 sm:grid-cols-2">{skills.map((s, i) => (
               <div key={i} className="flex items-center gap-2 text-xs">
                 <span className="w-28 shrink-0 truncate font-semibold" style={{ color: T.textPrimary }}>{s.name}</span>
                 <div className="flex-1"><Bar value={s.level} tone={s.level >= 80 ? "green" : "cyan"} /></div>
@@ -116,16 +452,16 @@ function SkillSheetPreview({ data, onClose }) {
 
           <div className="mt-5">
             <div className="mb-2 text-xs font-bold" style={{ color: T.textPrimary }}>案件履歴 / 職務経歴</div>
-            <div className="space-y-2">{projects.map(pr => (
-              <div key={pr.id} className="rounded-lg p-3" style={{ border: `1px solid ${T.border}` }}>
+            {projects.length === 0 ? <div className="text-xs" style={{ color: T.textMuted }}>未登録</div> : <div className="space-y-2">{projects.map((pr, i) => (
+              <div key={pr.id || i} className="rounded-lg p-3" style={{ border: `1px solid ${T.border}` }}>
                 <div className="flex flex-wrap items-center justify-between gap-2">
                   <span className="text-sm font-bold" style={{ color: T.textPrimary }}>{pr.name}</span>
                   <span className="text-xs" style={{ color: T.textMuted }}>{pr.period}</span></div>
                 <div className="mt-0.5 text-xs" style={{ color: T.textMuted }}>役割：{pr.role || "—"} ・ 規模：{pr.scale || "—"}{pr.phases && pr.phases.length ? " ・ 担当：" + pr.phases.join("・") : ""}</div>
                 {pr.desc && <div className="mt-1 text-xs leading-relaxed" style={{ color: T.textSecondary }}>{pr.desc}</div>}
-                <div className="mt-1.5 flex flex-wrap gap-1">{pr.tech.map(t => <span key={t} className="rounded px-1.5 py-0.5 text-xs font-semibold" style={{ background: T.accentSubtle, color: T.accentHover }}>{t}</span>)}</div>
+                <div className="mt-1.5 flex flex-wrap gap-1">{(pr.tech || []).map(t => <span key={t} className="rounded px-1.5 py-0.5 text-xs font-semibold" style={{ background: T.accentSubtle, color: T.accentHover }}>{t}</span>)}</div>
               </div>
-            ))}{projects.length === 0 && <div className="text-xs" style={{ color: T.textMuted }}>登録なし</div>}</div>
+            ))}</div>}
           </div>
 
           <div className="mt-6 flex items-center justify-between border-t pt-3 text-xs" style={{ borderColor: T.border, color: T.textMuted }}>
@@ -137,132 +473,404 @@ function SkillSheetPreview({ data, onClose }) {
   );
 }
 
-export function MatchingHome({ goSub, role = "admin", themeColor = "#D97706" }) {
-  const desc = role === "client"
-    ? "自社受講生の実スキルから、サンプル案件へのマッチ度を確認します。"
-    : "全受講生の実スキルから、サンプル案件へのマッチ度を確認します。";
-  const cards = role === "client" ? MATCHING_HOME_CARDS.client : MATCHING_HOME_CARDS.admin;
+// ================= 候補者マッチング（admin: 全候補 / client: 自社候補） =================
+export function ProjectMatching({ role, initialProjectId }) {
+  const { projects, loading: projectsLoading } = useMatchingProjects();
+  const [projectId, setProjectId] = useState(initialProjectId || "");
+  useEffect(() => {
+    if (initialProjectId) { setProjectId(initialProjectId); return; }
+    if (!projectId && projects.length) setProjectId(projects[0].projectId);
+  }, [initialProjectId, projects, projectId]);
+  const { items, loading, error } = useProjectCandidates(projectId);
+  const [sortKey, setSortKey] = useState("score");
+  const [preview, setPreview] = useState(null); // { candidate, portfolio }
+  const [previewLoading, setPreviewLoading] = useState(false);
+
+  const opening = projects.find(p => p.projectId === projectId);
+  const sorted = useMemo(() => {
+    const list = [...items];
+    if (sortKey === "name") list.sort((a, b) => String(a.trainee?.name || "").localeCompare(String(b.trainee?.name || ""), "ja"));
+    return list;
+  }, [items, sortKey]);
+
+  async function openSkillSheet(candidate) {
+    setPreviewLoading(true);
+    try {
+      const portfolio = await fetchTraineePortfolio(candidate.trainee.traineeId);
+      setPreview({ candidate, portfolio });
+    } catch (e) {
+      setPreview({ candidate, portfolio: null });
+    } finally { setPreviewLoading(false); }
+  }
+
+  if (preview) return (
+    <SkillSheetPreview data={candidateToSheet(preview.candidate.trainee, preview.portfolio)} onClose={() => setPreview(null)} />
+  );
+
   return (
     <div>
-      <PageHeader
-        product="matching"
-        label="案件管理"
-        title="スキルを、案件へつなげる。"
-        description={desc}
-        chips={[
-          { label: "サンプル案件", value: OPENINGS.length, unit: "件" },
-        ]}
-        cta={{ label: "案件マッチングを開く", icon: Sparkles, onClick: () => goSub("mt_matching") }}
-      />
-      <div className="mb-5 flex items-center gap-2 rounded-xl px-3 py-2 text-xs font-semibold" style={{ background: T.warningSubtle, color: T.warning }}>
-        <AlertCircle size={14} />案件マッチングの候補者は実データです。案件情報はサンプルで、案件一覧・現場参画状況・参画履歴は案件管理用のデータ基盤を追加後に対応予定です。
+      <SectionHead title="候補者マッチング" desc={role === "client" ? "自社受講生の実スキルシートから、案件にマッチする人材を選定します。" : "受講生の実スキルシートから、案件にマッチする人材を選定します。"} />
+
+      {projectsLoading ? <Card><SkeletonRows rows={2} /></Card> : projects.length === 0 ? (
+        <Card><EmptyState title="案件がありません" desc="先に案件一覧から案件を作成してください。" /></Card>
+      ) : (
+        <>
+          <div className="-mx-1 mb-5 flex gap-3 overflow-x-auto px-1 pb-1">
+            {projects.map(op => { const active = op.projectId === projectId;
+              return (
+                <button key={op.projectId} onClick={() => setProjectId(op.projectId)} className="w-64 shrink-0 rounded-2xl p-4 text-left transition"
+                  style={{ background: active ? T.accentSubtle : "#fff", border: `1.5px solid ${active ? T.accent : T.border}` }}>
+                  <div className="flex items-center justify-between"><Badge tone="cyan">{projectStatusLabel(op.status)}</Badge>
+                    <span className="text-xs font-semibold" style={{ color: T.textMuted }}>募集 {op.openings}名</span></div>
+                  <div className="mt-2 text-sm font-bold leading-snug" style={{ color: T.textPrimary }}>{op.title}</div>
+                  <div className="mt-1 text-xs" style={{ color: T.textMuted }}>{op.companyName || "Feeps社内"}{op.periodStart ? ` ・ ${op.periodStart}〜` : ""}</div>
+                  <div className="mt-2 flex flex-wrap gap-1">{(op.requiredSkills || []).map(r => <span key={r.skill} className="rounded px-1.5 py-0.5 text-xs font-semibold" style={{ background: T.bgBase, color: T.textSecondary }}>{r.skill}</span>)}</div>
+                </button>
+              );
+            })}
+          </div>
+
+          {opening && (
+            <Card className="mb-5 p-5">
+              <div className="flex flex-wrap items-start justify-between gap-3">
+                <div><h3 className="font-bold" style={{ color: T.textPrimary }}>{opening.title}</h3>
+                  <div className="mt-1 flex flex-wrap gap-x-4 gap-y-1 text-xs" style={{ color: T.textMuted }}>
+                    <span className="inline-flex items-center gap-1"><Building2 size={12} />{opening.companyName || "Feeps社内"}</span>
+                    {opening.periodStart && <span className="inline-flex items-center gap-1"><Calendar size={12} />{opening.periodStart}〜{opening.periodEnd || ""}</span>}
+                    {opening.location && <span className="inline-flex items-center gap-1"><MapPin size={12} />{opening.location}</span>}
+                    {money(opening.budgetMin) && <span className="inline-flex items-center gap-1"><Wallet size={12} />{money(opening.budgetMin)}〜{money(opening.budgetMax)}</span>}
+                    <span>募集 {opening.openings}名</span></div></div>
+                <select value={sortKey} onChange={e => setSortKey(e.target.value)} style={{ ...fieldStyle, width: "auto" }}>
+                  <option value="score">スコア高い順</option>
+                  <option value="name">氏名順</option>
+                </select>
+              </div>
+              <div className="mt-3 flex flex-wrap items-center gap-2">
+                <span className="text-xs font-bold" style={{ color: T.textMuted }}>必須スキル：</span>
+                {(opening.requiredSkills || []).map(r => <span key={r.skill} className="rounded-full px-2.5 py-1 text-xs font-semibold" style={{ background: T.accentSubtle, color: T.accentHover }}>{r.skill}（{r.level}+）</span>)}
+                {(opening.preferredSkills || []).length > 0 && <><span className="text-xs font-bold" style={{ color: T.textMuted }}>｜ 歓迎：</span>
+                  {opening.preferredSkills.map(r => <span key={r.skill} className="rounded px-1.5 py-0.5 text-xs font-semibold" style={{ background: T.successSubtle, color: T.success }}>{r.skill}（{r.level}+）</span>)}</>}
+              </div>
+            </Card>
+          )}
+
+          <ErrorBanner message={error} />
+          {loading || previewLoading ? <Card><SkeletonRows rows={5} /></Card> : sorted.length === 0 ? (
+            <Card><EmptyState title="候補者がいません" desc={role === "client" ? "自社受講生が登録されると候補者として表示されます。" : "受講生が登録されると候補者として表示されます。"} /></Card>
+          ) : (
+            <div className="space-y-3">{sorted.map((c, i) => (
+              <Card key={c.trainee.traineeId} className="p-4" style={i === 0 && sortKey === "score" && c.requiredMet ? { border: `1.5px solid ${T.accent}` } : undefined}>
+                <div className="flex flex-wrap items-center gap-3">
+                  <Avatar name={c.trainee.name || c.trainee.traineeId} size={42} />
+                  <div className="min-w-0 flex-1">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className="text-sm font-bold" style={{ color: T.textPrimary }}>{c.trainee.name || "氏名未設定"}</span>
+                      {c.requiredMet && <Badge tone="cyan">必須条件充足</Badge>}
+                    </div>
+                    <div className="text-xs" style={{ color: T.textMuted }}>{c.trainee.companyName || "所属未設定"}</div>
+                  </div>
+                  <div className="w-24 text-right">
+                    <div className="text-lg font-bold" style={{ color: c.score >= 80 ? T.success : c.score >= 60 ? T.accentHover : c.score >= 40 ? T.warning : T.textMuted }}>{c.score}点</div>
+                    <div className="text-xs" style={{ color: T.textMuted }}>マッチ度</div>
+                  </div>
+                </div>
+                <div className="mt-2"><Bar value={c.score} tone={matchTone(c.score)} /></div>
+                <div className="mt-2 flex flex-wrap gap-1.5">
+                  {c.matchedSkills.map(s => <span key={s} className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-semibold" style={{ background: T.successSubtle, color: T.success }}><CheckCircle2 size={11} />{s}</span>)}
+                  {c.missingSkills.map(s => <span key={s} className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-semibold" style={{ background: T.warningSubtle, color: T.warning }}><AlertCircle size={11} />{s} 不足</span>)}
+                  {c.completedCourses.map(t => <span key={t} className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-semibold" style={{ background: T.accentSubtle, color: T.accentHover }}><Award size={11} />{t} 修了</span>)}
+                  {c.worksCount > 0 && <Badge tone="muted">制作実績 {c.worksCount}件</Badge>}
+                </div>
+                {(c.reasons.length > 0 || c.warnings.length > 0) && (
+                  <div className="mt-2 space-y-1 text-xs" style={{ color: T.textMuted }}>
+                    {c.reasons.map((r, ri) => <div key={"r" + ri}>✓ {r}</div>)}
+                    {c.warnings.map((w, wi) => <div key={"w" + wi} style={{ color: T.warning }}>⚠ {w}</div>)}
+                  </div>
+                )}
+                <div className="mt-3 flex justify-end">
+                  <Btn kind="ghost" size="sm" icon={FileText} onClick={() => openSkillSheet(c)}>スキルシート</Btn>
+                </div>
+              </Card>
+            ))}</div>
+          )}
+          <p className="mt-3 text-xs" style={{ color: T.textMuted }}>※ マッチ度は候補者の実スキルシート・Learning修了実績・制作実績と、案件の必要スキル・レベルから算出します（100点満点）。</p>
+        </>
+      )}
+    </div>
+  );
+}
+
+// ================= 参画管理（admin: CRUD可 / client: 閲覧のみ） =================
+function PlacementForm({ form, onChange, projects, trainees, mode }) {
+  function set(key, value) { onChange({ ...form, [key]: value }); }
+  return (
+    <div className="space-y-3">
+      <div className="grid gap-3 sm:grid-cols-2">
+        <Field label="案件">
+          <select value={form.projectId} onChange={e => set("projectId", e.target.value)} disabled={mode === "edit"} style={fieldStyle}>
+            <option value="">選択してください</option>
+            {projects.map(p => <option key={p.projectId} value={p.projectId}>{p.title}</option>)}
+          </select>
+        </Field>
+        <Field label="受講生">
+          <select value={form.traineeId} onChange={e => set("traineeId", e.target.value)} disabled={mode === "edit"} style={fieldStyle}>
+            <option value="">選択してください</option>
+            {trainees.map(t => <option key={t.userId || t.id} value={t.userId || t.id}>{t.name || t.email}</option>)}
+          </select>
+        </Field>
       </div>
-      <div className="grid gap-4 md:grid-cols-3">
-        {cards.map(({ key, icon, label, desc: d, ready }, i) => (
-          <ProductNavCard key={key} product="matching" icon={icon} title={label} desc={ready ? d : d + "（準備中）"}
-            onClick={() => goSub(key)} highlight={key === "mt_matching"} badge={key === "mt_matching" ? "よく使う" : undefined} delay={650 + i * 60} />
-        ))}
+      <Field label="ステータス">
+        <select value={form.status} onChange={e => set("status", e.target.value)} style={fieldStyle}>
+          {PLACEMENT_STATUS_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+        </select>
+      </Field>
+      <div className="grid gap-3 sm:grid-cols-2">
+        <Field label="面談日"><input type="date" value={(form.interviewAt || "").slice(0, 10)} onChange={e => set("interviewAt", e.target.value)} style={fieldStyle} /></Field>
+        <Field label="内定日"><input type="date" value={(form.acceptedAt || "").slice(0, 10)} onChange={e => set("acceptedAt", e.target.value)} style={fieldStyle} /></Field>
       </div>
-      <div className="mt-5 flex items-start gap-3 rounded-2xl p-4" style={{ background: `${themeColor}08`, border: `1px solid ${themeColor}20` }}>
-        <Sparkles size={15} style={{ color: themeColor, marginTop: 2 }} />
-        <p className="text-sm" style={{ color: T.textMuted }}><span className="font-semibold" style={{ color: T.textPrimary }}>連携：</span>スキル・成長プロダクトのスキルシート（保有スキル・自己PR・案件履歴）が、そのまま案件マッチングの判定材料になります。</p>
+      <div className="grid gap-3 sm:grid-cols-3">
+        <Field label="参画開始日"><input type="date" value={form.startDate || ""} onChange={e => set("startDate", e.target.value)} style={fieldStyle} /></Field>
+        <Field label="参画終了予定日"><input type="date" value={form.expectedEndDate || ""} onChange={e => set("expectedEndDate", e.target.value)} style={fieldStyle} /></Field>
+        <Field label="実終了日"><input type="date" value={form.actualEndDate || ""} onChange={e => set("actualEndDate", e.target.value)} style={fieldStyle} /></Field>
+      </div>
+      <div className="grid gap-3 sm:grid-cols-2">
+        <Field label="単価（円/月・任意）"><input type="number" min="0" value={form.rate} onChange={e => set("rate", e.target.value)} style={fieldStyle} /></Field>
+        <Field label="契約形態（任意）"><input value={form.contractType} onChange={e => set("contractType", e.target.value)} style={fieldStyle} placeholder="業務委託 / 派遣 / SES" /></Field>
+      </div>
+      <Field label="メモ">
+        <textarea value={form.notes} onChange={e => set("notes", e.target.value)} rows={2} style={{ ...fieldStyle, resize: "vertical" }} />
+      </Field>
+    </div>
+  );
+}
+
+const EMPTY_PLACEMENT_FORM = { projectId: "", traineeId: "", status: "proposed", interviewAt: "", acceptedAt: "", startDate: "", expectedEndDate: "", actualEndDate: "", rate: "", contractType: "", notes: "" };
+
+export function PlacementManager({ role }) {
+  const isAdmin = role === "admin";
+  const { items, loading, error, actionError, clearActionError, createPlacement, updatePlacement, deletePlacement } = useMatchingPlacements();
+  const { projects } = useMatchingProjects();
+  const { trainees } = useInstructorTrainees();
+  const [query, setQuery] = useState("");
+  const [statusFilter, setStatusFilter] = useState("");
+  const [sort, setSort] = useState({ key: "updatedAt", dir: "desc" });
+  const [page, setPage] = useState(1);
+  const [editing, setEditing] = useState(null);
+  const [form, setForm] = useState({ ...EMPTY_PLACEMENT_FORM });
+  const [saving, setSaving] = useState(false);
+  const [deleteTarget, setDeleteTarget] = useState(null);
+  const [deleteBusy, setDeleteBusy] = useState(false);
+  const [deleteError, setDeleteError] = useState("");
+
+  const filtered = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    let list = items.filter(pl => (
+      (!q || [pl.traineeName, pl.projectTitle, pl.notes].some(v => String(v || "").toLowerCase().includes(q))) &&
+      (!statusFilter || pl.status === statusFilter)
+    ));
+    const dir = sort.dir === "asc" ? 1 : -1;
+    return [...list].sort((a, b) => String(a[sort.key] || "").localeCompare(String(b[sort.key] || ""), "ja") * dir);
+  }, [items, query, statusFilter, sort]);
+  useEffect(() => { setPage(1); }, [query, statusFilter, sort.key, sort.dir]);
+  const visible = pageSlice(filtered, page);
+  function changeSort(key) { setSort(s => s.key === key ? { key, dir: s.dir === "asc" ? "desc" : "asc" } : { key, dir: "asc" }); }
+  const SortMark = ({ k }) => sort.key === k ? (sort.dir === "asc" ? <ChevronUp size={13} /> : <ChevronDown size={13} />) : null;
+
+  function startNew() { setEditing({}); setForm({ ...EMPTY_PLACEMENT_FORM }); clearActionError(); }
+  function startEdit(pl) {
+    setEditing(pl);
+    setForm({ projectId: pl.projectId, traineeId: pl.traineeId, status: pl.status, interviewAt: pl.interviewAt || "", acceptedAt: pl.acceptedAt || "", startDate: pl.startDate || "", expectedEndDate: pl.expectedEndDate || "", actualEndDate: pl.actualEndDate || "", rate: pl.rate != null ? String(pl.rate) : "", contractType: pl.contractType || "", notes: pl.notes || "" });
+    clearActionError();
+  }
+  function closeForm() { setEditing(null); }
+
+  async function submit() {
+    if (!form.projectId || !form.traineeId || saving) return;
+    setSaving(true);
+    try {
+      const payload = placementFormToPayload(form);
+      if (editing?.placementId) await updatePlacement(editing.placementId, payload);
+      else await createPlacement(payload);
+      closeForm();
+    } catch (e) { /* actionErrorはhook側で設定済み */ }
+    finally { setSaving(false); }
+  }
+  async function confirmDelete() {
+    if (!deleteTarget) return;
+    setDeleteBusy(true); setDeleteError("");
+    try { await deletePlacement(deleteTarget.placementId); setDeleteTarget(null); }
+    catch (e) { setDeleteError(e?.errorMessage || e?.message || "削除に失敗しました。"); }
+    finally { setDeleteBusy(false); }
+  }
+
+  return (
+    <div>
+      <SectionHead title={isAdmin ? "参画状況" : "自社参画状況"} desc="案件と人材の参画状況を管理します。"
+        action={<div className="flex flex-wrap items-center gap-2">
+          <Btn size="sm" kind="ghost" icon={FileSpreadsheet} onClick={() => exportMatchingExcel(filtered, [
+            [r => r.traineeName || "", "受講生"], [r => r.projectTitle || "", "案件"], [r => r.statusLabel || "", "ステータス"],
+            [r => r.startDate || "", "参画開始日"], [r => r.expectedEndDate || "", "終了予定日"],
+          ], "参画状況", "参画状況")}>Excel出力</Btn>
+          {isAdmin && <Btn size="sm" icon={Plus} onClick={startNew}>参画を登録</Btn>}
+        </div>} />
+      <ErrorBanner message={error} />
+      <ErrorBanner message={actionError} onClose={clearActionError} />
+      <Card className="overflow-hidden">
+        <div className="flex flex-wrap items-center gap-2 p-3 sm:p-4" style={{ borderBottom: `1px solid ${T.border}` }}>
+          <div className="flex h-10 min-w-0 flex-1 items-center gap-2 rounded-xl px-3" style={{ border: `1px solid ${T.border}` }}>
+            <Search size={15} style={{ color: T.textMuted }} />
+            <input value={query} onChange={e => setQuery(e.target.value)} placeholder="受講生名・案件名で検索" className="w-full bg-transparent text-sm outline-none" style={{ color: T.textPrimary }} />
+          </div>
+          <select value={statusFilter} onChange={e => setStatusFilter(e.target.value)} style={{ ...fieldStyle, width: "auto" }}>
+            <option value="">全ステータス</option>
+            {PLACEMENT_STATUS_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+          </select>
+          <Btn kind={sort.key === "traineeName" ? "soft" : "ghost"} size="sm" onClick={() => changeSort("traineeName")}>受講生 <SortMark k="traineeName" /></Btn>
+          <Btn kind={sort.key === "updatedAt" ? "soft" : "ghost"} size="sm" onClick={() => changeSort("updatedAt")}>更新日 <SortMark k="updatedAt" /></Btn>
+        </div>
+        {loading ? <SkeletonRows rows={5} />
+          : items.length === 0 ? <EmptyState title="参画データがありません" desc={isAdmin ? "「参画を登録」から登録できます。" : "自社人材の参画が決まると表示されます。"} />
+          : filtered.length === 0 ? <div className="px-4 py-8 text-center text-sm" style={{ color: T.textMuted }}>検索条件に一致するデータがありません。</div>
+          : <div>{visible.items.map((pl, i) => (
+            <div key={pl.placementId} className="flex flex-wrap items-center gap-3 px-4 py-3" style={{ borderTop: i ? `1px solid ${T.border}` : "none", background: i % 2 ? T.bgBase : "#fff" }}>
+              <Avatar name={pl.traineeName || pl.traineeId} size={36} />
+              <div className="min-w-0 flex-1">
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="text-sm font-bold" style={{ color: T.textPrimary }}>{pl.traineeName || "氏名未設定"}</span>
+                  <Badge tone={pl.status === "active" ? "green" : pl.status === "completed" ? "cyan" : ["declined", "cancelled", "withdrawn"].includes(pl.status) ? "muted" : "amber"}>{pl.statusLabel}</Badge>
+                </div>
+                <div className="mt-0.5 text-xs" style={{ color: T.textMuted }}>{pl.projectTitle}
+                  {pl.startDate && ` ・ ${pl.startDate}〜${pl.expectedEndDate || ""}`}
+                  {pl.rate != null && ` ・ ${money(pl.rate)}`}
+                </div>
+              </div>
+              {isAdmin && <div className="flex shrink-0 gap-2">
+                <Btn kind="ghost" size="sm" icon={Pencil} onClick={() => startEdit(pl)}>編集</Btn>
+                <Btn kind="ghost" size="sm" icon={Trash2} onClick={() => { setDeleteTarget(pl); setDeleteError(""); }}>削除</Btn>
+              </div>}
+            </div>
+          ))}</div>}
+        <ListPager page={visible.page} totalPages={visible.totalPages} total={visible.total} onPage={setPage} />
+      </Card>
+
+      {editing && (
+        <Modal title={editing.placementId ? "参画編集" : "参画登録"} onClose={closeForm} size="lg"
+          footer={<><Btn kind="ghost" onClick={closeForm} disabled={saving}>キャンセル</Btn><Btn icon={Check} onClick={submit} disabled={saving || !form.projectId || !form.traineeId}>{saving ? "保存中…" : "保存する"}</Btn></>}>
+          <PlacementForm form={form} onChange={setForm} projects={projects} trainees={trainees} mode={editing.placementId ? "edit" : "new"} />
+        </Modal>
+      )}
+      {deleteTarget && (
+        <div>
+          {deleteError && <div className="fixed inset-x-0 top-4 z-[999] mx-auto w-fit rounded-lg px-3 py-2 text-xs" style={{ background: T.dangerSubtle, color: T.danger }}>{deleteError}</div>}
+          <DeleteConfirm title="参画の削除" name={`${deleteTarget.traineeName || "受講生"} / ${deleteTarget.projectTitle || "案件"}`} warning="参画中・完了済みのデータは削除できません。" busy={deleteBusy} onClose={() => setDeleteTarget(null)} onConfirm={confirmDelete} />
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ================= trainee向け: おすすめ案件・参画状況・履歴 =================
+function PlacementRow({ pl }) {
+  return (
+    <div className="rounded-xl p-3" style={{ background: T.bgBase }}>
+      <div className="flex flex-wrap items-center gap-2">
+        <span className="text-sm font-bold" style={{ color: T.textPrimary }}>{pl.projectTitle}</span>
+        <Badge tone={pl.status === "active" ? "green" : pl.status === "completed" ? "cyan" : "muted"}>{pl.statusLabel}</Badge>
+      </div>
+      <div className="mt-0.5 text-xs" style={{ color: T.textMuted }}>
+        {pl.startDate && `${pl.startDate}〜${pl.expectedEndDate || pl.actualEndDate || ""}`}
       </div>
     </div>
   );
 }
 
-export function ProjectMatching({ role }) {
-  const { oid, setOid, opening: o, ranked, loading, err, preview, setPreview } = useMatching();
-  const title = "案件マッチング";
-  const desc = role === "client"
-    ? "自社受講生の実スキルシートから、案件にマッチする人材を選定します"
-    : "受講生の実スキルシートから、案件にマッチする人材を選定します";
-  if (preview) return (
-    <div>
-      <div className="mb-4"><Btn kind="ghost" size="sm" icon={ChevronLeft} onClick={() => setPreview(null)}>案件選定に戻る</Btn></div>
-      <SkillSheetPreview data={candidateToSheet(preview)} onClose={() => setPreview(null)} />
-    </div>
-  );
+export function MatchingMeView() {
+  const { data, loading, error } = useMatchingMe();
+  if (loading) return <Card><SkeletonRows rows={4} /></Card>;
   return (
-    <div>
-      <SectionHead title={title} desc={desc} />
-      <div className="mb-3 flex items-center gap-2 rounded-xl px-3 py-2 text-xs font-semibold" style={{ background: T.warningSubtle, color: T.warning }}>
-        <AlertCircle size={14} />案件情報はサンプルです。候補者は{role === "client" ? "自社の" : ""}実受講生・実スキルデータです。
-      </div>
-      <div className="-mx-1 mb-5 flex gap-3 overflow-x-auto px-1 pb-1">
-        {OPENINGS.map(op => { const active = op.id === oid;
-          return (
-            <button key={op.id} onClick={() => setOid(op.id)} className="w-64 shrink-0 rounded-2xl p-4 text-left transition"
-              style={{ background: active ? T.accentSubtle : "#fff", border: `1.5px solid ${active ? T.accent : T.border}` }}>
-              <div className="flex items-center justify-between"><Badge tone="cyan">{op.industry}</Badge>
-                <span className="text-xs font-semibold" style={{ color: T.textMuted }}>募集 {op.headcount}名</span></div>
-              <div className="mt-2 text-sm font-bold leading-snug" style={{ color: T.textPrimary }}>{op.name}</div>
-              <div className="mt-1 text-xs" style={{ color: T.textMuted }}>{op.company} ・ {op.period}</div>
-              <div className="mt-2 flex flex-wrap gap-1">{op.req.map(r => <span key={r.skill} className="rounded px-1.5 py-0.5 text-xs font-semibold" style={{ background: T.bgBase, color: T.textSecondary }}>{r.skill}</span>)}</div>
-            </button>
-          );
-        })}
-      </div>
+    <div className="space-y-5">
+      <SectionHead title="おすすめ案件・参画状況" desc="あなたのスキル・修了コースに合う案件と、現在の参画状況・履歴です。" />
+      <ErrorBanner message={error} />
+      {data?.warnings?.map((w, i) => <div key={i} className="mb-2 flex items-center gap-2 rounded-xl px-3 py-2 text-xs font-semibold" style={{ background: T.warningSubtle, color: T.warning }}><AlertCircle size={14} />{w}</div>)}
 
-      <Card className="mb-5 p-5">
-        <div className="flex flex-wrap items-start justify-between gap-3">
-          <div><h3 className="font-bold" style={{ color: T.textPrimary }}>{o.name}</h3>
-            <div className="mt-1 flex flex-wrap gap-x-4 gap-y-1 text-xs" style={{ color: T.textMuted }}>
-              <span className="inline-flex items-center gap-1"><Building2 size={12} />{o.company}</span>
-              <span className="inline-flex items-center gap-1"><Calendar size={12} />{o.period}</span>
-              <span className="inline-flex items-center gap-1"><MapPin size={12} />{o.location}</span>
-              <span>単価 {o.rate}</span><span>募集 {o.headcount}名</span></div></div>
-        </div>
-        <div className="mt-3 flex flex-wrap items-center gap-2">
-          <span className="text-xs font-bold" style={{ color: T.textMuted }}>必要スキル：</span>
-          {o.req.map(r => <span key={r.skill} className="rounded-full px-2.5 py-1 text-xs font-semibold" style={{ background: T.accentSubtle, color: T.accentHover }}>{r.skill}（{r.level}+）</span>)}
-          <span className="text-xs font-bold" style={{ color: T.textMuted }}>｜ 工程：</span>
-          {o.phases.map(ph => <span key={ph} className="rounded px-1.5 py-0.5 text-xs font-semibold" style={{ background: T.successSubtle, color: T.success }}>{ph}</span>)}
-        </div>
+      <Card className="p-5">
+        <h3 className="mb-3 flex items-center gap-1.5 font-bold" style={{ color: T.textPrimary }}><Sparkles size={16} />おすすめ案件</h3>
+        {!data?.recommendedProjects?.length ? <EmptyState title="現在おすすめできる案件がありません" desc="スキルシートを充実させると、より多くの案件候補が表示されます。" /> : (
+          <div className="space-y-3">{data.recommendedProjects.map(r => (
+            <div key={r.project.projectId} className="rounded-xl p-3" style={{ background: T.bgBase }}>
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <div>
+                  <div className="text-sm font-bold" style={{ color: T.textPrimary }}>{r.project.title}</div>
+                  <div className="mt-0.5 flex flex-wrap gap-x-3 text-xs" style={{ color: T.textMuted }}>
+                    {r.project.companyName && <span>{r.project.companyName}</span>}
+                    {r.project.location && <span>{r.project.location}</span>}
+                    {r.project.workStyle && <span>{r.project.workStyle}</span>}
+                  </div>
+                </div>
+                <div className="text-right">
+                  <div className="text-lg font-bold" style={{ color: r.score >= 80 ? T.success : r.score >= 60 ? T.accentHover : T.textMuted }}>{r.score}点</div>
+                </div>
+              </div>
+              <div className="mt-2 flex flex-wrap gap-1.5">
+                {r.matchedSkills.map(s => <span key={s} className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-semibold" style={{ background: T.successSubtle, color: T.success }}><CheckCircle2 size={11} />{s}</span>)}
+                {r.missingSkills.map(s => <span key={s} className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-semibold" style={{ background: T.warningSubtle, color: T.warning }}><AlertCircle size={11} />{s} 不足</span>)}
+              </div>
+            </div>
+          ))}</div>
+        )}
       </Card>
 
-      {err && <div className="mb-4 rounded-lg px-3 py-2 text-xs" style={{ background: T.dangerSubtle, color: T.danger }}>{err}</div>}
-      {loading ? <Card><SkeletonRows rows={5} /></Card> : ranked.length === 0 ? (
-        <Card><EmptyState title="候補者がいません" desc={role === "client" ? "自社受講生が登録されると候補者として表示されます。" : "受講生が登録されると候補者として表示されます。"} /></Card>
+      <Card className="p-5">
+        <h3 className="mb-3 flex items-center gap-1.5 font-bold" style={{ color: T.textPrimary }}><Activity size={16} />参画中</h3>
+        {!data?.placements?.length ? <div className="text-sm" style={{ color: T.textMuted }}>現在参画中の案件はありません。</div> : (
+          <div className="space-y-2">{data.placements.map(pl => <PlacementRow key={pl.placementId} pl={pl} />)}</div>
+        )}
+      </Card>
+
+      <Card className="p-5">
+        <h3 className="mb-3 flex items-center gap-1.5 font-bold" style={{ color: T.textPrimary }}><Award size={16} />参画履歴</h3>
+        {!data?.placementHistory?.length ? <div className="text-sm" style={{ color: T.textMuted }}>参画履歴はまだありません。</div> : (
+          <div className="space-y-2">{data.placementHistory.map(pl => <PlacementRow key={pl.placementId} pl={pl} />)}</div>
+        )}
+      </Card>
+    </div>
+  );
+}
+
+// ================= instructor向け: 担当受講生の参画状況（閲覧のみ、単価非表示） =================
+export function InstructorPlacementsView() {
+  const { trainees, loading: tLoading, error: tError } = useInstructorTrainees();
+  const [traineeId, setTraineeId] = useState("");
+  useEffect(() => { if (!traineeId && trainees.length) setTraineeId(trainees[0].userId || trainees[0].id); }, [trainees, traineeId]);
+  const { items, loading, error } = useTraineeMatching(traineeId);
+
+  return (
+    <div>
+      <SectionHead title="担当受講生の参画状況" desc="担当受講生の案件参画結果を確認します（閲覧のみ、単価は表示されません）。" />
+      <ErrorBanner message={tError} />
+      <Card className="mb-4 p-4">
+        <Field label="受講生を選択">
+          <select value={traineeId} onChange={e => setTraineeId(e.target.value)} style={fieldStyle} disabled={tLoading}>
+            {trainees.map(t => <option key={t.userId || t.id} value={t.userId || t.id}>{t.name || t.email}</option>)}
+          </select>
+        </Field>
+      </Card>
+      <ErrorBanner message={error} />
+      {loading ? <Card><SkeletonRows rows={3} /></Card> : !items.length ? (
+        <Card><EmptyState title="参画データがありません" desc="この受講生の参画データはまだ登録されていません。" /></Card>
       ) : (
-      <div className="space-y-3">{ranked.map(({ c, score, matched, missing, hasSkills }, i) => (
-          <Card key={c.userId} className="p-4" style={i === 0 && hasSkills ? { border: `1.5px solid ${T.accent}` } : undefined}>
-            <div className="flex flex-wrap items-center gap-3">
-              <Avatar name={c.name || c.email} size={42} />
-              <div className="min-w-0 flex-1">
-                <div className="flex flex-wrap items-center gap-2"><span className="text-sm font-bold" style={{ color: T.textPrimary }}>{c.name || "氏名未設定"}</span>
-                  {i === 0 && hasSkills && <Badge tone="cyan">最適</Badge>}</div>
-                <div className="text-xs" style={{ color: T.textMuted }}>{c.company || "所属未設定"}</div>
+        <div className="space-y-2">{items.map(pl => (
+          <Card key={pl.placementId} className="p-4">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <div>
+                <div className="text-sm font-bold" style={{ color: T.textPrimary }}>{pl.projectTitle}</div>
+                <div className="mt-0.5 text-xs" style={{ color: T.textMuted }}>{pl.startDate && `${pl.startDate}〜${pl.expectedEndDate || pl.actualEndDate || ""}`}</div>
               </div>
-              {hasSkills ? (
-                <div className="w-24 text-right">
-                  <div className="text-lg font-bold" style={{ color: score >= 80 ? T.success : score >= 60 ? T.accentHover : score >= 40 ? T.warning : T.textMuted }}>{score}%</div>
-                  <div className="text-xs" style={{ color: T.textMuted }}>マッチ度</div>
-                </div>
-              ) : <Badge tone="muted">スキル未登録</Badge>}
-            </div>
-            {hasSkills && (<>
-              <div className="mt-2"><Bar value={score} tone={matchTone(score)} /></div>
-              <div className="mt-2 flex flex-wrap gap-1.5">
-                {matched.map(s => <span key={s} className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-semibold" style={{ background: T.successSubtle, color: T.success }}><CheckCircle2 size={11} />{s}</span>)}
-                {missing.map(s => <span key={s} className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-semibold" style={{ background: T.warningSubtle, color: T.warning }}><AlertCircle size={11} />{s} 不足</span>)}
-              </div>
-            </>)}
-            <div className="mt-3 flex justify-end">
-              <Btn kind="ghost" size="sm" icon={FileText} onClick={() => setPreview(c)}>スキルシート</Btn>
+              <Badge tone={pl.status === "active" ? "green" : pl.status === "completed" ? "cyan" : "muted"}>{pl.statusLabel}</Badge>
             </div>
           </Card>
         ))}</div>
       )}
-      <p className="mt-3 text-xs" style={{ color: T.textMuted }}>※ マッチ度は候補者の実スキルシートと案件の必要スキル・レベルから算出します。不足スキルはEラーニングでの補強候補になります。案件へのアサイン・参画管理は今後の対応予定です。</p>
     </div>
-  );
-}
-
-export function MatchingPlaceholder({ title, desc }) {
-  return (
-    <Card>
-      <EmptyState title={title} desc={desc} />
-    </Card>
   );
 }

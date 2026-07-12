@@ -22,15 +22,15 @@ const ROLE_LABEL = {
 };
 
 const RECOMMENDED = {
-  instructor: ["training", "learning", "talent"],
-  trainee: ["learning", "training", "talent"],
+  instructor: ["training", "learning", "talent", "matching"],
+  trainee: ["learning", "training", "talent", "matching"],
   client: ["training", "talent", "matching"],
   admin: ["admin", "analytics", "training", "learning", "talent", "matching"],
 };
 
 const PRODUCT_BY_ROLE = {
-  instructor: ["training", "learning", "talent"],
-  trainee: ["learning", "training", "talent"],
+  instructor: ["training", "learning", "talent", "matching"],
+  trainee: ["learning", "training", "talent", "matching"],
   client: ["training", "talent", "matching"],
   admin: ["admin", "analytics", "training", "learning", "talent", "matching"],
   default: ["training", "learning", "talent"],
@@ -40,7 +40,7 @@ const PRODUCTS = [
   { key: "training", label: "研修管理", value: "研修運営をスムーズに", tags: ["勤怠", "日報", "テスト", "カリキュラム"], icon: GraduationCap },
   { key: "learning", label: "Eラーニング", value: "学びを止めない", tags: ["教材", "AI Lesson", "理解度", "AI採点"], icon: BookOpen },
   { key: "talent", label: "スキル・成長", value: "成長を見える化する", tags: ["目標", "スキル", "成長履歴", "ポートフォリオ"], icon: TrendingUp },
-  { key: "matching", label: "案件", value: "成長を仕事へつなげる", tags: ["案件候補", "スキル条件", "マッチング"], icon: Briefcase, note: "今後強化" },
+  { key: "matching", label: "案件", value: "成長を仕事へつなげる", tags: ["案件候補", "スキル条件", "マッチング"], icon: Briefcase },
   { key: "analytics", label: "分析", value: "研修成果を分析する", tags: ["AI利用", "AWS利用", "研修成果", "利用状況"], icon: BarChart3 },
   { key: "admin", label: "管理", value: "運営基盤を管理する", tags: ["企業", "ユーザー", "権限", "設定"], icon: Settings },
 ];

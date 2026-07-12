@@ -319,7 +319,7 @@ const PRODUCTS = [
   { key: "training",  label: "研修管理",       icon: GraduationCap, color: PRODUCT_ACCENT.training.accent, roles: ["trainee","instructor","client","admin"] },
   { key: "learning",  label: "Eラーニング",    icon: BookOpen,      color: PRODUCT_ACCENT.learning.accent, roles: ["trainee","instructor","client","admin"] },
   { key: "talent",    label: "スキル・成長",   icon: TrendingUp,    color: PRODUCT_ACCENT.talent.accent, roles: ["trainee","instructor","client","admin"] },
-  { key: "matching",  label: "案件管理",       icon: Briefcase,     color: PRODUCT_ACCENT.matching.accent, roles: ["client","admin"] },
+  { key: "matching",  label: "案件管理",       icon: Briefcase,     color: PRODUCT_ACCENT.matching.accent, roles: ["trainee","instructor","client","admin"] },
   { key: "analytics", label: "分析・レポート", icon: Activity,      color: PRODUCT_ACCENT.analytics.accent, roles: ["admin"] },
 ];
 
@@ -838,7 +838,7 @@ export default function App() {
     : product === "training" ? NAV[role]
     : product === "learning" ? (EL_NAV[role] || EL_NAV.trainee)
     : product === "talent" ? (TALENT_NAV[role] || TALENT_NAV.admin)
-    : product === "matching" ? MATCHING_NAV
+    : product === "matching" ? (MATCHING_NAV[role] || MATCHING_NAV.trainee)
     : product === "analytics" ? ANALYTICS_NAV
     : NAV[role];
   const activeView = product === "training" ? view : subView;
