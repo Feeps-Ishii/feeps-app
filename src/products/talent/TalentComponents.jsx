@@ -54,9 +54,9 @@ function TalentPlaceholder({ title, desc }) {
 }
 
 const statusKind = (status) => {
-  const s = String(status || "");
-  if (s.includes("欠") || s.includes("谺")) return "absent";
-  if (s.includes("遅") || s.includes("驕")) return "late";
+  const s = String(status || "").toLowerCase();
+  if (s.includes("absent") || s.includes("欠")) return "absent";
+  if (s.includes("late") || s.includes("遅")) return "late";
   return "present";
 };
 
@@ -711,6 +711,8 @@ function PersonalSkillSheet({ role = "trainee" } = {}) {
   const [pf, setPf] = useState({ name: "", period: "", role: "", scale: "", tech: "", phases: [], desc: "" });
   const [issued, setIssued] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [saveMessage, setSaveMessage] = useState("");
   const ai = useAIDraft();
   useEffect(() => {
     Promise.all([
@@ -719,6 +721,9 @@ function PersonalSkillSheet({ role = "trainee" } = {}) {
     ]).then(([pr, sk]) => {
       if (pr) setProfile(p => ({ ...p, name: pr.name || "", company: pr.companyName || "" }));
       if (sk?.skills) setSkills(sk.skills);
+      if (Array.isArray(sk?.strengths)) setStrengths(sk.strengths);
+      if (Array.isArray(sk?.projects)) setProjects(sk.projects);
+      if (sk?.selfPR) setProfile(p => ({ ...p, selfPR: sk.selfPR }));
     }).finally(() => setLoading(false));
   }, []);
   function genPR() {
@@ -730,6 +735,17 @@ function PersonalSkillSheet({ role = "trainee" } = {}) {
     setProjects([{ id: "p" + Date.now(), name: pf.name.trim(), period: pf.period, role: pf.role, scale: pf.scale, tech: pf.tech.split(/[、,\s]+/).filter(Boolean), phases: pf.phases, desc: pf.desc }, ...projects]);
     setPf({ name: "", period: "", role: "", scale: "", tech: "", phases: [], desc: "" });
   }
+  async function save() {
+    setSaving(true); setSaveMessage("");
+    try {
+      await apiPut("/skills/me", { selfPR: profile.selfPR, strengths, skills, projects });
+      setSaveMessage("保存しました");
+    } catch (e) {
+      setSaveMessage("保存に失敗しました: " + (e?.errorMessage || e?.message || e));
+    } finally {
+      setSaving(false);
+    }
+  }
   const sheetSkills = [
     ...skills,
     ...finalSkillEvidence
@@ -740,7 +756,9 @@ function PersonalSkillSheet({ role = "trainee" } = {}) {
   if (issued) return <SkillSheetPreview data={sheetData} onClose={() => setIssued(false)} />;
   return (
     <div className="space-y-5">
-      <SectionHead title="案件用スキルシート" desc="案件参画に向けて強み・保有スキル・経験を整理します。" />
+      <SectionHead title="案件用スキルシート" desc="案件参画に向けて強み・保有スキル・経験を整理します。"
+        action={<Btn icon={Check} onClick={save} disabled={saving || loading}>{saving ? "保存中..." : "保存"}</Btn>} />
+      {saveMessage && <div className="rounded-lg px-3 py-2 text-xs font-semibold" style={{ background: saveMessage.includes("失敗") ? T.dangerSubtle : T.successSubtle, color: saveMessage.includes("失敗") ? T.danger : T.success }}>{saveMessage}</div>}
       {loading ? <Card><SkeletonRows /></Card> : (<>
         <Card className="p-5">
           <div className="mb-3 flex items-center gap-2"><User size={16} style={{ color: T.accent }} /><h3 className="font-bold" style={{ color: T.textPrimary }}>基本情報</h3>

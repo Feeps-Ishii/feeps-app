@@ -469,8 +469,8 @@ function normalizeQuizQuestion(item, index = 0) {
   };
 }
 
-// quizQuestions: Backend APIが存在しない機能のため、localStorageのみで完結するローカル管理データ。
-// （不足API一覧: POST/GET/PUT/DELETE /learning/admin/quiz-questions 相当が未実装）
+// quizQuestions: Backend API (/learning/admin/quiz-questions) を正本とする。
+// localStorageはAPI応答が届くまでの一時キャッシュとしてのみ使う（Phase7-2 P1でAPI化）。
 function readQuizQuestions() {
   try {
     const raw = window.localStorage.getItem(LEARNING_ADMIN_QUIZZES_STORAGE_KEY);
@@ -511,6 +511,27 @@ function toQuizPayload(form) {
   };
 }
 
+function toQuizApiPayload(item) {
+  return {
+    quizId: item.id,
+    courseId: item.courseId || "",
+    lessonId: item.lessonId || "",
+    type: item.type || "lesson",
+    question: item.question || "",
+    choices: item.choices || [],
+    answer: Number(item.answer || 0),
+    explanation: item.explanation || "",
+    difficulty: item.difficulty || "標準",
+    tags: item.tags || [],
+    skill: item.skill || "",
+    pageId: item.pageId || "",
+    chapterId: item.chapterId || "",
+    points: Number(item.points || 10),
+    published: item.published === true,
+    deleted: item.deleted === true,
+  };
+}
+
 export function quizToForm(item, fallback = {}) {
   if (!item) return { ...EMPTY_QUIZ_FORM, ...fallback };
   const choices = item.choices || [];
@@ -548,8 +569,8 @@ function normalizeReviewFlag(item, index = 0) {
   };
 }
 
-// reviewFlags: Backend APIが存在しない機能のため、localStorageのみで完結するローカル管理データ。
-// （不足API一覧: POST/GET/PUT/DELETE /learning/admin/review-flags 相当が未実装）
+// reviewFlags: Backend API (/learning/admin/review-flags) を正本とする。
+// localStorageはAPI応答が届くまでの一時キャッシュとしてのみ使う（Phase7-2 P1でAPI化）。
 function readReviewFlags() {
   try {
     const raw = window.localStorage.getItem(LEARNING_LESSON_REVIEW_STORAGE_KEY);
@@ -594,6 +615,8 @@ export function reviewToForm(item, fallback = {}) {
   };
 }
 
+// finalTestSettings: Backend API (/learning/admin/final-test-settings) を正本とする。
+// localStorageはAPI応答が届くまでの一時キャッシュとしてのみ使う（Phase7-2 P1でAPI化）。
 function readFinalTestSettings() {
   try {
     const raw = window.localStorage.getItem(LEARNING_FINAL_TEST_SETTINGS_STORAGE_KEY);
@@ -632,6 +655,12 @@ export function useLearningAdmin() {
   const [materialsError, setMaterialsError] = useState("");
   const [enrollmentsLoading, setEnrollmentsLoading] = useState(true);
   const [enrollmentsError, setEnrollmentsError] = useState("");
+  const [quizQuestionsLoading, setQuizQuestionsLoading] = useState(true);
+  const [quizQuestionsError, setQuizQuestionsError] = useState("");
+  const [reviewFlagsLoading, setReviewFlagsLoading] = useState(true);
+  const [reviewFlagsError, setReviewFlagsError] = useState("");
+  const [finalTestSettingsLoading, setFinalTestSettingsLoading] = useState(true);
+  const [finalTestSettingsError, setFinalTestSettingsError] = useState("");
   // 作成/更新/削除など書き込み系操作の失敗を通知するための共通エラー。
   // 楽観的にローカル状態を更新した後、サーバー側が失敗した場合にユーザーへ知らせる。
   const [actionError, setActionError] = useState("");
@@ -719,6 +748,51 @@ export function useLearningAdmin() {
       .finally(() => { if (alive) setEnrollmentsLoading(false); });
     return () => { alive = false; };
   }, [courseIds]);
+
+  useEffect(() => {
+    let alive = true;
+    apiGet("/learning/admin/quiz-questions")
+      .then(items => {
+        if (!alive || !Array.isArray(items)) return;
+        const normalized = items.map(normalizeQuizQuestion).filter(item => item.id && item.deleted !== true);
+        setQuizQuestions(normalized);
+        saveQuizQuestions(normalized);
+        setQuizQuestionsError("");
+      })
+      .catch(e => { if (alive) setQuizQuestionsError(apiErrorMessage(e, "問題一覧の取得に失敗しました。")); })
+      .finally(() => { if (alive) setQuizQuestionsLoading(false); });
+    return () => { alive = false; };
+  }, []);
+
+  useEffect(() => {
+    let alive = true;
+    apiGet("/learning/admin/review-flags")
+      .then(items => {
+        if (!alive || !Array.isArray(items)) return;
+        const normalized = items.map(normalizeReviewFlag).filter(item => item.id);
+        setReviewFlags(normalized);
+        saveReviewFlags(normalized);
+        setReviewFlagsError("");
+      })
+      .catch(e => { if (alive) setReviewFlagsError(apiErrorMessage(e, "復習フラグの取得に失敗しました。")); })
+      .finally(() => { if (alive) setReviewFlagsLoading(false); });
+    return () => { alive = false; };
+  }, []);
+
+  useEffect(() => {
+    let alive = true;
+    apiGet("/learning/admin/final-test-settings")
+      .then(settings => {
+        if (!alive || !settings) return;
+        const next = { ...DEFAULT_FINAL_TEST_SETTINGS, ...settings };
+        setFinalTestSettings(next);
+        saveFinalTestSettings(next);
+        setFinalTestSettingsError("");
+      })
+      .catch(e => { if (alive) setFinalTestSettingsError(apiErrorMessage(e, "総合テスト設定の取得に失敗しました。")); })
+      .finally(() => { if (alive) setFinalTestSettingsLoading(false); });
+    return () => { alive = false; };
+  }, []);
 
   function commit(next) {
     setCourses(next);
@@ -1020,27 +1094,58 @@ export function useLearningAdmin() {
       createdAt: new Date().toISOString(),
     }, quizQuestions.length);
     commitQuizQuestions([...quizQuestions, item]);
+    apiPost("/learning/admin/quiz-questions", toQuizPayload(form))
+      .then(res => {
+        const saved = res?.quiz ? normalizeQuizQuestion(res.quiz) : null;
+        if (!saved?.id) return;
+        commitQuizQuestions([...quizQuestions.filter(q => q.id !== item.id), saved]);
+      })
+      .catch(e => setActionError(apiErrorMessage(e, "問題の作成に失敗しました。")));
     return item;
   }
 
   function updateQuizQuestion(questionId, form) {
-    commitQuizQuestions(quizQuestions.map(item => (
+    let updated = null;
+    const next = quizQuestions.map(item => (
       item.id === questionId
-        ? normalizeQuizQuestion({ ...item, ...toQuizPayload(form), id: item.id, createdAt: item.createdAt })
+        ? (updated = normalizeQuizQuestion({ ...item, ...toQuizPayload(form), id: item.id, createdAt: item.createdAt }))
         : item
-    )));
+    ));
+    commitQuizQuestions(next);
+    if (updated) {
+      apiPut(`/learning/admin/quiz-questions/${encodeURIComponent(questionId)}`, toQuizApiPayload(updated))
+        .then(res => {
+          const saved = res?.quiz ? normalizeQuizQuestion(res.quiz) : null;
+          if (!saved?.id) return;
+          commitQuizQuestions(next.map(item => (item.id === questionId ? saved : item)));
+        })
+        .catch(e => setActionError(apiErrorMessage(e, "問題の更新に失敗しました。")));
+    }
   }
 
   function deleteQuizQuestion(questionId) {
     commitQuizQuestions(quizQuestions.filter(item => item.id !== questionId));
+    apiDelete(`/learning/admin/quiz-questions/${encodeURIComponent(questionId)}`)
+      .catch(e => setActionError(apiErrorMessage(e, "問題の削除に失敗しました。")));
   }
 
   function toggleQuizPublish(questionId) {
-    commitQuizQuestions(quizQuestions.map(item => (
+    let updated = null;
+    const next = quizQuestions.map(item => (
       item.id === questionId
-        ? normalizeQuizQuestion({ ...item, published: item.published !== true, updatedAt: new Date().toISOString() })
+        ? (updated = normalizeQuizQuestion({ ...item, published: item.published !== true, updatedAt: new Date().toISOString() }))
         : item
-    )));
+    ));
+    commitQuizQuestions(next);
+    if (updated) {
+      apiPut(`/learning/admin/quiz-questions/${encodeURIComponent(questionId)}`, toQuizApiPayload(updated))
+        .then(res => {
+          const saved = res?.quiz ? normalizeQuizQuestion(res.quiz) : null;
+          if (!saved?.id) return;
+          commitQuizQuestions(next.map(item => (item.id === questionId ? saved : item)));
+        })
+        .catch(e => setActionError(apiErrorMessage(e, "公開状態の更新に失敗しました。")));
+    }
   }
 
   function commitReviewFlags(next) {
@@ -1051,17 +1156,35 @@ export function useLearningAdmin() {
 
   function upsertReviewFlag(form, reviewId = null) {
     if (reviewId) {
-      commitReviewFlags(reviewFlags.map(item => (
-        item.id === reviewId ? normalizeReviewFlag({ ...item, ...toReviewPayload(form), id: item.id }) : item
-      )));
+      let updated = null;
+      const next = reviewFlags.map(item => (
+        item.id === reviewId ? (updated = normalizeReviewFlag({ ...item, ...toReviewPayload(form), id: item.id })) : item
+      ));
+      commitReviewFlags(next);
+      apiPut(`/learning/admin/review-flags/${encodeURIComponent(reviewId)}`, toReviewPayload(form))
+        .then(res => {
+          const saved = res?.review ? normalizeReviewFlag(res.review) : null;
+          if (!saved?.id) return;
+          commitReviewFlags(next.map(item => (item.id === reviewId ? saved : item)));
+        })
+        .catch(e => setActionError(apiErrorMessage(e, "復習フラグの更新に失敗しました。")));
       return;
     }
     const item = normalizeReviewFlag({ ...toReviewPayload(form), id: `review_${Date.now()}` }, reviewFlags.length);
     commitReviewFlags([...reviewFlags, item]);
+    apiPost("/learning/admin/review-flags", toReviewPayload(form))
+      .then(res => {
+        const saved = res?.review ? normalizeReviewFlag(res.review) : null;
+        if (!saved?.id) return;
+        commitReviewFlags([...reviewFlags.filter(r => r.id !== item.id), saved]);
+      })
+      .catch(e => setActionError(apiErrorMessage(e, "復習フラグの作成に失敗しました。")));
   }
 
   function deleteReviewFlag(reviewId) {
     commitReviewFlags(reviewFlags.filter(item => item.id !== reviewId));
+    apiDelete(`/learning/admin/review-flags/${encodeURIComponent(reviewId)}`)
+      .catch(e => setActionError(apiErrorMessage(e, "復習フラグの削除に失敗しました。")));
   }
 
   function updateFinalTestSettings(nextSettings) {
@@ -1074,6 +1197,8 @@ export function useLearningAdmin() {
     };
     setFinalTestSettings(next);
     saveFinalTestSettings(next);
+    apiPut("/learning/admin/final-test-settings", next)
+      .catch(e => setActionError(apiErrorMessage(e, "総合テスト設定の保存に失敗しました。")));
   }
 
   const stats = useMemo(() => {
@@ -1147,15 +1272,21 @@ export function useLearningAdmin() {
     actionError,
     clearActionError: () => setActionError(""),
     quizQuestions,
+    quizQuestionsLoading,
+    quizQuestionsError,
     quizStats,
     createQuizQuestion,
     updateQuizQuestion,
     deleteQuizQuestion,
     toggleQuizPublish,
     reviewFlags,
+    reviewFlagsLoading,
+    reviewFlagsError,
     upsertReviewFlag,
     deleteReviewFlag,
     finalTestSettings,
+    finalTestSettingsLoading,
+    finalTestSettingsError,
     updateFinalTestSettings,
   };
 }

@@ -648,6 +648,11 @@ function SideNav({ groups, view, karte, go, badges = {}, collapsed = false, pa =
 function UserProfileView({ me, displayName, userProfile }) {
   return (
     <div className="mx-auto max-w-xl space-y-5">
+      {!userProfile?.name && (
+        <div className="rounded-xl px-4 py-3 text-sm font-semibold" style={{ background: T.warningSubtle, color: T.warning }}>
+          プロフィールが未登録です。プロフィールを登録してください。
+        </div>
+      )}
       <Card className="overflow-hidden">
         <div className="h-20 rounded-t-2xl" style={{ background: GRAD }} />
         <div className="px-6 pb-6">
@@ -663,8 +668,8 @@ function UserProfileView({ me, displayName, userProfile }) {
         <div className="divide-y px-4" style={{ borderColor: T.border }}>
           {[
             ["氏名", displayName],
-            ["メールアドレス", userProfile?.email || me.mail],
-            ["所属", userProfile?.company || me.org],
+            ["メールアドレス", userProfile?.email || "未登録"],
+            ["所属", userProfile?.company || "未登録"],
             ["ロール", me.label],
           ].map(([label, value]) => (
             <div key={label} className="flex items-center justify-between py-3">
@@ -710,10 +715,6 @@ export default function App() {
   const [demoOpen, setDemoOpen] = useState(false);
   const [sidebarUserOpen, setSidebarUserOpen] = useState(false);
   const [notifOpen, setNotifOpen] = useState(false);
-  // No read/unread tracking exists in the notification data model and no new API is
-  // added for it; this is a UI-only, session-local "mark as read" (dismisses the
-  // unread dots visually, resets on reload) so the control is not disabled/inert.
-  const [notifDismissedAll, setNotifDismissedAll] = useState(false);
   // モバイルBottom Navigationのメニューシート開閉
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   // iOS Safariの100vh差分/オーバースクロールで下端が白く切れないよう、body背景をシェル末尾色に合わせる
@@ -738,6 +739,19 @@ export default function App() {
   const [notifErr, setNotifErr] = useState("");
   const [userProfile, setUserProfile] = useState(null);
   const [profileChecked, setProfileChecked] = useState(false);
+  // 通知既読はAPI(PUT /notifications/read-state)経由でPROFILESへ永続化する。通知自体は
+  // 都度合成され安定IDを持たないため、「この日の通知はこの時刻以降に既読にした」という
+  // 日付単位の基準時刻(notificationsReadAt)で判定する。別ブラウザ・別端末でも同じ既読状態になる。
+  const [notificationsReadAt, setNotificationsReadAt] = useState(null);
+  useEffect(() => {
+    if (userProfile?.notificationsReadAt) setNotificationsReadAt(userProfile.notificationsReadAt);
+  }, [userProfile]);
+  const notifDismissedAll = notificationsReadAt ? notificationsReadAt.slice(0, 10) === todayStr() : false;
+  async function markAllNotificationsRead() {
+    const readAt = new Date().toISOString();
+    setNotificationsReadAt(readAt);
+    try { await apiPut("/notifications/read-state", { readAt }); } catch (e) { /* 楽観更新のみ、次回ロードでAPI値へ再同期 */ }
+  }
   useEffect(() => {
     let active = true;
     const authFallback = setTimeout(() => {
@@ -846,7 +860,7 @@ export default function App() {
   const notif = notifications.length;
   const currentProduct = PRODUCTS.find(p => p.key === product) ?? PRODUCTS[0];
   const themeColor = currentProduct.color;
-  const displayName = userProfile?.name || me.who;
+  const displayName = userProfile?.name || "プロフィール未登録";
   const isHomeProduct = product === "home";
   const viewTitle = karte ? "カルテ"
     : view === "notifications" ? "通知センター"
@@ -982,7 +996,7 @@ export default function App() {
         <div className="feeps-glass-panel absolute right-0 top-full mt-2 w-80 max-w-[90vw] overflow-hidden" style={{ zIndex: Z.dropdown, borderRadius: 16 }}>
           <div className="flex items-center justify-between px-4 py-3">
             <span className="text-sm font-bold" style={{ color: T.textPrimary }}>通知</span>
-            <button type="button" onClick={() => setNotifDismissedAll(true)} className="text-xs font-semibold transition hover:opacity-70" style={{ color: T.accent }}>すべて既読にする</button>
+            <button type="button" onClick={markAllNotificationsRead} className="text-xs font-semibold transition hover:opacity-70" style={{ color: T.accent }}>すべて既読にする</button>
           </div>
           <div className="max-h-80 overflow-y-auto">
             {notifications.length === 0 ? (

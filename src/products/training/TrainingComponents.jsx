@@ -2792,11 +2792,11 @@ async function getTodayCurriculum(courseId, date) {
 }
 const statusKind = (status) => {
   const s = String(status || "").toLowerCase();
-  if (s.includes("欠") || s.includes("谺")) return "absent";
-  if (s.includes("遅") || s.includes("驕")) return "late";
-  if (s.includes("早")) return "early";
-  if (s.includes("修正")) return "fixed";
-  if (s.includes("未") || s.includes("incomplete") || s.includes("missing")) return "incomplete";
+  if (s.includes("absent") || s.includes("欠")) return "absent";
+  if (s.includes("late") || s.includes("遅")) return "late";
+  if (s.includes("early") || s.includes("早")) return "early";
+  if (s.includes("fixed") || s.includes("修正")) return "fixed";
+  if (s.includes("incomplete") || s.includes("missing") || s.includes("未")) return "incomplete";
   return "present";
 };
 const attendanceStatusLabel = (status, row = {}) => {

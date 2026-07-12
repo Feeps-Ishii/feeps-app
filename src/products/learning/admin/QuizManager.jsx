@@ -267,16 +267,21 @@ export default function QuizManager() {
     courses,
     lessonsForCourse,
     quizQuestions,
+    quizQuestionsError,
     quizStats,
     createQuizQuestion,
     updateQuizQuestion,
     deleteQuizQuestion,
     toggleQuizPublish,
     reviewFlags,
+    reviewFlagsError,
     upsertReviewFlag,
     deleteReviewFlag,
     finalTestSettings,
+    finalTestSettingsError,
     updateFinalTestSettings,
+    actionError,
+    clearActionError,
   } = useLearningAdmin();
   const initialCourseId = courses[0]?.id || "";
   const [query, setQuery] = useState("");
@@ -357,6 +362,18 @@ export default function QuizManager() {
   return (
     <div className="space-y-5">
       <SectionHead title="理解度・問題管理" desc="確認問題、復習問題、総合問題、復習フラグを管理します。" />
+
+      {(quizQuestionsError || reviewFlagsError || finalTestSettingsError) && (
+        <div className="rounded-lg px-3 py-2 text-xs" style={{ background: T.dangerSubtle, color: T.danger }}>
+          {[quizQuestionsError, reviewFlagsError, finalTestSettingsError].filter(Boolean).join(" / ")}
+        </div>
+      )}
+      {actionError && (
+        <div className="flex items-center justify-between gap-3 rounded-lg px-3 py-2 text-xs" style={{ background: T.dangerSubtle, color: T.danger }}>
+          <span>{actionError}</span>
+          <button type="button" onClick={clearActionError} className="shrink-0 font-bold underline">閉じる</button>
+        </div>
+      )}
 
       <div className="grid gap-3 md:grid-cols-4">
         <Stat icon={FileQuestion} label="問題数" value={quizStats.total} sub="登録済み" tone="green" />

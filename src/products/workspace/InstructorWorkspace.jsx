@@ -254,7 +254,7 @@ export default function InstructorWorkspace({ go, displayName = "講師" }) {
   const todayCourses = asObjectArray(data?.todayCourses);
   const recentActivity = asObjectArray(data?.recentActivity).slice(0, 5);
   const lessonPrep = asObjectArray(data?.lessonPrep);
-  const readOnly = Boolean(data?.scope?.readOnly);
+  const unassigned = Boolean(data?.scope?.unassigned);
   const date = data?.date || "";
   const todayLessonCount = lessonPrep.filter(item => textOf(item.curriculumTitle)).length || todayCourses.length;
   const hasLessonPrep = lessonPrep.length > 0 || todayCourses.length > 0;
@@ -290,7 +290,7 @@ export default function InstructorWorkspace({ go, displayName = "講師" }) {
           <Metric label="未確認日報" value={pendingReportCount} unit="件" />
           <Metric label="勤怠異常" value={attendanceAlertCount} unit="件" />
         </div>
-        {readOnly && <div className="mt-3"><Badge tone="amber">{textOf(data?.scope?.message, "担当未設定のため閲覧のみ")}</Badge></div>}
+        {unassigned && <div className="mt-3"><Badge tone="amber">{textOf(data?.scope?.message, "担当コースがありません")}</Badge></div>}
       </div>
 
       {error && (
