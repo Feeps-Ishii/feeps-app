@@ -86,6 +86,9 @@ export function projectStatusLabel(status) {
 export function projectVisibilityLabel(visibility) {
   return PROJECT_VISIBILITY_OPTIONS.find(o => o.value === visibility)?.label || visibility || "";
 }
+export function workStyleLabel(workStyle) {
+  return WORK_STYLE_OPTIONS.find(o => o.value === workStyle)?.label || workStyle || "";
+}
 export function placementStatusLabel(status) {
   return PLACEMENT_STATUS_OPTIONS.find(o => o.value === status)?.label || status || "";
 }

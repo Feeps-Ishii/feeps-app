@@ -6,7 +6,7 @@ import {
 } from "lucide-react";
 import {
   MATCHING_HOME_CARDS, PROJECT_STATUS_OPTIONS, PROJECT_VISIBILITY_OPTIONS, WORK_STYLE_OPTIONS,
-  PLACEMENT_STATUS_OPTIONS, EMPTY_PROJECT_FORM, projectStatusLabel, projectVisibilityLabel,
+  PLACEMENT_STATUS_OPTIONS, EMPTY_PROJECT_FORM, projectStatusLabel, projectVisibilityLabel, workStyleLabel,
 } from "./MatchingCatalog.js";
 import {
   candidateToSheet, fetchTraineePortfolio, matchTone, placementFormToPayload, projectFormToPayload,
@@ -804,7 +804,7 @@ export function MatchingMeView() {
                   <div className="mt-0.5 flex flex-wrap gap-x-3 text-xs" style={{ color: T.textMuted }}>
                     {r.project.companyName && <span>{r.project.companyName}</span>}
                     {r.project.location && <span>{r.project.location}</span>}
-                    {r.project.workStyle && <span>{r.project.workStyle}</span>}
+                    {r.project.workStyle && <span>{workStyleLabel(r.project.workStyle)}</span>}
                   </div>
                 </div>
                 <div className="text-right">
