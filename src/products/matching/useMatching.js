@@ -1,29 +1,17 @@
-import { useMemo, useState } from "react";
-import { ENGINEERS, OPENINGS, SKILL_CAT } from "./MatchingCatalog.js";
+import { useEffect, useMemo, useState } from "react";
+import { apiGet } from "../../api.js";
+import { OPENINGS } from "./MatchingCatalog.js";
 
-function buildSelfPR(p, strengths, weak, skills, projects) {
-  const top = [...skills].sort((a, b) => b.level - a.level).slice(0, 3).map(s => s.name);
-  const proj = projects[0];
-  const s = strengths.join("、"), w = weak.join("、");
-  let t = `${p.title}として${p.exp}の経験があります。`;
-  if (top.length) t += `${top.join("・")}を中心に開発に取り組んできました。`;
-  if (proj) t += `直近では「${proj.name}」（${proj.role || "開発"}・${(proj.phases || []).join("〜") || "製造"}）に参画し、実装から試験まで一連の工程を経験しました。`;
-  if (s) t += `強みは${s}で、チーム開発でも安定して成果を出せます。`;
-  if (w) t += `一方で${w}を課題と認識し、継続的な学習で克服に取り組んでいます。`;
-  t += `今後はより上流工程や実務レベルの設計・実装にも挑戦し、価値を発揮していきたいと考えています。`;
-  return t;
-}
-
-export function engToSheet(e) {
-  const skills = Object.entries(e.skills).map(([name, level]) => ({ cat: SKILL_CAT[name] || "その他", name, level }));
-  return { p: { name: e.name, age: e.age, station: e.station, title: e.title, exp: e.exp },
-    selfPR: buildSelfPR({ title: e.title, exp: e.exp }, e.strengths || [], e.weak || [], skills, e.projects || []),
-    strengths: e.strengths || [], weak: e.weak || [], skills, projects: e.projects || [] };
-}
-
-export function matchOf(e, o) {
+// 実受講生のPortfolio(skills)を案件サンプルの要件スキルと突き合わせてマッチ度を算出する。
+// skills は {cat,name,level}[]（Talentのスキルシートと同じ形）。
+export function matchOf(skills, o) {
+  const byName = Object.fromEntries((Array.isArray(skills) ? skills : []).map(s => [s.name, Number(s.level) || 0]));
   let sum = 0; const matched = [], missing = [];
-  o.req.forEach(r => { const lv = e.skills[r.skill] || 0; sum += Math.min(lv / r.level, 1); (lv >= r.level ? matched : missing).push(r.skill); });
+  o.req.forEach(r => {
+    const lv = byName[r.skill] || 0;
+    sum += Math.min(lv / r.level, 1);
+    (lv >= r.level ? matched : missing).push(r.skill);
+  });
   return { score: Math.round((sum / o.req.length) * 100), matched, missing };
 }
 
@@ -31,20 +19,57 @@ export function matchTone(s) {
   return s >= 80 ? "green" : s >= 60 ? "cyan" : s >= 40 ? "amber" : "muted";
 }
 
+// 実受講生のプロフィール+Portfolioをスキルシートプレビュー/Excel発行の入力形に変換する。
+// 実データに無い項目（弱み等）は空のまま返し、文面をでっち上げない。
+export function candidateToSheet(c) {
+  const p = c.portfolio || {};
+  return {
+    p: { name: c.name || c.email || "氏名未設定", age: "", exp: "", title: c.company || "", station: "" },
+    selfPR: p.selfPR || "",
+    strengths: Array.isArray(p.strengths) ? p.strengths : [],
+    weak: [],
+    skills: Array.isArray(p.skills) ? p.skills : [],
+    projects: Array.isArray(p.projects) ? p.projects : [],
+  };
+}
+
 export function useMatching() {
   const [oid, setOid] = useState(OPENINGS[0].id);
-  const [assign, setAssign] = useState({});
+  const [candidates, setCandidates] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [err, setErr] = useState("");
   const [preview, setPreview] = useState(null);
   const opening = OPENINGS.find(x => x.id === oid) || OPENINGS[0];
-  const ranked = useMemo(() => ENGINEERS.map(e => ({ e, ...matchOf(e, opening) })).sort((a, b) => b.score - a.score), [opening]);
-  const assigned = assign[oid] || [];
 
-  function toggleAssign(eid) {
-    setAssign(s => {
-      const cur = s[oid] || [];
-      return { ...s, [oid]: cur.includes(eid) ? cur.filter(x => x !== eid) : [...cur, eid] };
-    });
-  }
+  useEffect(() => {
+    let alive = true;
+    setLoading(true);
+    setErr("");
+    Promise.all([apiGet("/trainees"), apiGet("/companies").catch(() => [])])
+      .then(async ([list, companies]) => {
+        const trainees = Array.isArray(list) ? list : [];
+        const companyNameById = Object.fromEntries((Array.isArray(companies) ? companies : []).map(c => [c.companyId, c.name]));
+        // 候補ごとのPortfolio取得。件数が増えたらBackend集約API化を検討（他の運用一覧と同様の前提）。
+        const pairs = await Promise.all(trainees.map(t => {
+          const id = t.userId || t.id;
+          return apiGet(`/skills/${id}`).then(p => [id, p]).catch(() => [id, null]);
+        }));
+        if (!alive) return;
+        const portfolioById = Object.fromEntries(pairs);
+        setCandidates(trainees.map(t => {
+          const id = t.userId || t.id;
+          return { ...t, userId: id, company: companyNameById[t.company] || t.company || "", portfolio: portfolioById[id] || null };
+        }));
+      })
+      .catch(e => alive && setErr("受講生一覧の取得に失敗しました：" + (e?.errorMessage || e?.message || e)))
+      .finally(() => alive && setLoading(false));
+    return () => { alive = false; };
+  }, []);
 
-  return { oid, setOid, assign, preview, setPreview, opening, ranked, assigned, toggleAssign };
+  const ranked = useMemo(() => candidates
+    .map(c => ({ c, ...matchOf(c.portfolio?.skills, opening), hasSkills: !!c.portfolio?.skills?.length }))
+    .sort((a, b) => b.score - a.score),
+  [candidates, opening]);
+
+  return { oid, setOid, opening, ranked, loading, err, preview, setPreview, candidates };
 }

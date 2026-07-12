@@ -2310,6 +2310,7 @@ function AttendanceManage({ role }) {
   const [attendanceQuery, setAttendanceQuery] = useState("");
   const [attendanceStatus, setAttendanceStatus] = useState("すべて");
   const [attendanceSort, setAttendanceSort] = useState("name");
+  const [bulkBusy, setBulkBusy] = useState(false);
   const opsFilter = useOpsFilter(true);
   const canEdit = role === "admin" || (role === "instructor" && Array.isArray(opsFilter.selectedCourse?.instructorIds) && opsFilter.selectedCourse.instructorIds.includes(opsFilter.currentUserId));
   function load() {
@@ -2346,6 +2347,27 @@ function AttendanceManage({ role }) {
       setEId(null); load();
     } catch (e) { setErr("保存に失敗しました：" + (e?.message || e)); }
   }
+  // 未打刻者の一括登録: 選択中コースの定時（未設定なら09:00-18:00）で「正常」出勤として登録する。
+  // 個別の遅刻・欠席・早退は登録後にその行だけ修正する運用を想定。
+  async function bulkMarkPresent(targets) {
+    if (!targets.length || bulkBusy) return;
+    if (!window.confirm(`${targets.length}名を本日「正常」出勤として一括登録します。よろしいですか？`)) return;
+    setBulkBusy(true);
+    setErr("");
+    const stdIn = courseStandardIn(opsFilter.selectedCourse) || "09:00";
+    const stdOut = courseStandardOut(opsFilter.selectedCourse) || "18:00";
+    try {
+      for (const row of targets) {
+        await apiPut("/attendance/" + row.traineeId, { date, clockIn: stdIn, clockOut: stdOut, status: "正常" });
+      }
+      emitNotificationRefresh();
+      load();
+    } catch (e) {
+      setErr("一括登録に失敗しました：" + (e?.message || e));
+    } finally {
+      setBulkBusy(false);
+    }
+  }
   const attendanceMatchesQuery = (row) => {
     const q = attendanceQuery.trim().toLowerCase();
     if (!q) return true;
@@ -2376,6 +2398,8 @@ function AttendanceManage({ role }) {
     .map(t => ({ traineeId: t.userId, date, name: t.name || nameMap[t.userId] || fallbackName(t.userId), in: "", out: "", s: "", note: "" }));
   const filteredRows = sortAttendanceRows(registeredRows.concat(missingRows).filter(attendanceMatchesQuery).filter(attendanceMatchesStatus));
   const present = filteredRows.filter(r => r.in && statusKind(r.s) === "present").length, late = filteredRows.filter(r => statusKind(r.s) === "late").length, absent = filteredRows.filter(r => statusKind(r.s) === "absent").length;
+  // 一括登録の対象は、検索/状態フィルタを反映した表示中の未打刻者のみ（絞り込み結果を裏切らない）
+  const unregisteredForBulk = filteredRows.filter(r => !r.in);
   const unregistered = filteredRows.filter(r => !r.in && !r.s).length;
   const monthDates = datesInMonth(month);
   const monthlyAttendance = opsFilter.targetTrainees.map(t => {
@@ -2423,7 +2447,7 @@ function AttendanceManage({ role }) {
           } else {
             exportAttendanceExcel(filteredRows, date);
           }
-        }}>Excelで出力</Btn></div>} />
+        }}>Excelで出力</Btn>{canEdit && periodMode === "日次" && unregisteredForBulk.length > 0 && <Btn size="sm" icon={CheckCircle2} disabled={bulkBusy} onClick={() => bulkMarkPresent(unregisteredForBulk)}>{bulkBusy ? "登録中…" : `未打刻${unregisteredForBulk.length}名を一括登録`}</Btn>}</div>} />
       {err && <div className="mb-4 rounded-lg px-3 py-2 text-xs" style={{ background: T.dangerSubtle, color: T.danger }}>{err}</div>}
       <OpsFilterPanel filter={opsFilter} summary={periodMode === "月次" ? `表示対象: ${opsFilter.targetTrainees.length}名 / 集計月: ${month}` : `表示対象: ${opsFilter.targetTrainees.length}名 / 勤怠登録: ${registeredRows.length}件`} />
       <Card className="mb-4 p-4">
@@ -2845,6 +2869,7 @@ function Reports({ role }) {
   const [date, setDate] = useState(todayStr());
   const [draft, setDraft] = useState({ morningGoal: "", goalItems: [], learned: "", question: "", nextday: "", reflection: "", blockers: "", tomorrowGoal: "" });
   const [cText, setCText] = useState({});
+  const [commenting, setCommenting] = useState(null);
   const [open, setOpen] = useState(null);
   const [saveErr, setSaveErr] = useState("");
   const [saving, setSaving] = useState(false);
@@ -2983,21 +3008,46 @@ function Reports({ role }) {
     }
   }
   async function addC(id) {
-    const t = (cText[id] || "").trim(); if (!t) return;
+    const t = (cText[id] || "").trim(); if (!t) return false;
     const rep = reports.find(r => r.id === id);
-    if (!rep) return;
-    if (!canCommentReport(rep)) { setSaveErr("この日報へのコメント権限がありません。"); return; }
+    if (!rep) return false;
+    if (!canCommentReport(rep)) { setSaveErr("この日報へのコメント権限がありません。"); return false; }
+    setCommenting(id);
     try {
       const res = await apiPut("/reports/" + rep.traineeId + "/comment", { date: rep.rawDate, comment: t });
       emitNotificationRefresh();
       const savedComment = normalizeReportComments({ comments: [res?.comment || { text: t, authorRole: role, createdAt: new Date().toISOString() }] })[0];
       setReports(reports.map(r => r.id === id ? { ...r, comments: [...(r.comments || []), savedComment] } : r));
       setCText({ ...cText, [id]: "" });
+      return true;
     } catch (e) {
       setSaveErr("コメント送信に失敗しました: " + (e?.errorMessage || e?.message || e));
+      return false;
+    } finally {
+      setCommenting(null);
+    }
+  }
+  // 未コメントの日報を、一覧表示順で次へ回すための順序。addCAndNextはコメント送信直後、
+  // 保存前時点のこの順序から「今開いている日報の次」を探す（送信直後のstate反映を待たない）。
+  function nextUncommentedId(afterId) {
+    const list = displayDailyReportRows.filter(row => row.report && !row.hasComment).map(row => row.trainee.userId || row.report?.traineeId).filter(Boolean);
+    const idx = list.indexOf(afterId);
+    if (idx === -1) return list[0] || null;
+    return list[idx + 1] || null;
+  }
+  async function addCAndNext(id) {
+    const nextId = nextUncommentedId(id);
+    const ok = await addC(id);
+    if (!ok) return;
+    if (nextId && nextId !== id) {
+      setOpen(nextId);
+      window.setTimeout(() => document.getElementById(`report-detail-${nextId}`)?.parentElement?.scrollIntoView({ behavior: "smooth", block: "start" }), 80);
+    } else {
+      setOpen(null);
     }
   }
   function aiComment(id) { aiC.draft(() => setCText({ ...cText, [id]: "良い気づきです。止め時の目安は「打ち手が具体的に見えたら」。なぜを重ねても抽象的なままなら、一段戻して論点を分け直すと整理しやすいですよ。" }), id); }
+  const COMMENT_TEMPLATES = ["よく理解できています。この調子で進めましょう。", "具体的に書けていて良い記録です。", "つまずいた点は次回の授業で一緒に確認しましょう。", "毎日の積み重ねが力になっています。"];
   function addGoalItem() {
     setDraft(d => ({ ...d, goalItems: [...d.goalItems, { id: "goal_" + Date.now(), text: "", done: false }] }));
   }
@@ -3101,7 +3151,13 @@ function Reports({ role }) {
   return (
     <div>
       <SectionHead title="日報" desc={canWrite ? "今日の学びを記録し、講師からフィードバックを受け取ります" : canComment ? "コース・企業・日付で日報を確認し、フィードバックします" : "自社受講生の日報を閲覧できます"}
-        action={canViewReports ? <div className="flex flex-wrap items-center gap-2"><Seg value={periodMode} onChange={setPeriodMode} options={["日次", "月次"]} /><span className="text-xs font-semibold" style={{ color: T.textMuted }}>{periodMode === "月次" ? "対象月" : "日報確認日"}</span>{periodMode === "月次" ? <MonthPicker value={month} onChange={setMonth} /> : <input type="date" value={date} onChange={e => setDate(e.target.value)} className="rounded-xl px-3 py-2 text-sm outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary, background: "#fff" }} />}</div> : null} />
+        action={canViewReports ? <div className="flex flex-wrap items-center gap-2">
+          {canComment && periodMode === "日次" && <Btn size="sm" icon={ChevronRight} onClick={() => {
+            setReportStatus("未コメント");
+            const firstId = nextUncommentedId(null);
+            if (firstId) { setOpen(firstId); window.setTimeout(() => document.getElementById(`report-detail-${firstId}`)?.parentElement?.scrollIntoView({ behavior: "smooth", block: "start" }), 80); }
+          }}>未コメントから処理する</Btn>}
+          <Seg value={periodMode} onChange={setPeriodMode} options={["日次", "月次"]} /><span className="text-xs font-semibold" style={{ color: T.textMuted }}>{periodMode === "月次" ? "対象月" : "日報確認日"}</span>{periodMode === "月次" ? <MonthPicker value={month} onChange={setMonth} /> : <input type="date" value={date} onChange={e => setDate(e.target.value)} className="rounded-xl px-3 py-2 text-sm outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary, background: "#fff" }} />}</div> : null} />
       {saveErr && !canWrite && <div className="mb-4 rounded-lg px-3 py-2 text-xs" style={{ background: T.dangerSubtle, color: T.danger }}>{saveErr}</div>}
       {canViewReports && <OpsFilterPanel filter={opsFilter} summary={periodMode === "月次" ? `表示対象: ${opsFilter.targetTrainees.length}名 / 集計月: ${month}` : `表示対象: ${opsFilter.targetTrainees.length}名 / 日報保存: ${visibleReports.length}件`} />}
       {canViewReports && (
@@ -3331,8 +3387,20 @@ function Reports({ role }) {
                   <p className="text-sm leading-relaxed" style={{ color: T.textSecondary }}>{c.text}</p></div>
               ))}{!r.comments.length && <div className="rounded-xl p-3.5 text-sm" style={{ background: T.bgBase, color: T.textMuted }}>まだコメントはありません</div>}</div>
               {canCommentReport(r) && <div className="mt-3">
-                <div className="mb-2 flex justify-end"><Btn kind="soft" size="sm" icon={Sparkles} onClick={() => aiComment(r.id)}>{aiC.busy ? "生成中…" : "AIで返信案"}</Btn></div>
-                <div className="flex gap-2"><input value={cText[r.id] || ""} onChange={e => setCText({ ...cText, [r.id]: e.target.value })} placeholder="コメントを入力…" onKeyDown={e => e.key === "Enter" && addC(r.id)} className="flex-1 rounded-xl px-3 py-2.5 text-sm outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary }} /><Btn icon={Send} onClick={() => addC(r.id)}>送信</Btn></div></div>}
+                <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+                  <div className="flex flex-wrap gap-1.5">
+                    {COMMENT_TEMPLATES.map(tpl => (
+                      <button key={tpl} type="button" onClick={() => setCText({ ...cText, [r.id]: tpl })} className="rounded-full px-2.5 py-1 text-xs font-medium transition hover:opacity-80" style={{ background: T.bgBase, color: T.textSecondary, border: `1px solid ${T.border}` }}>{tpl}</button>
+                    ))}
+                  </div>
+                  <Btn kind="soft" size="sm" icon={Sparkles} onClick={() => aiComment(r.id)}>{aiC.busy ? "生成中…" : "AIで返信案"}</Btn>
+                </div>
+                <div className="flex gap-2">
+                  <input value={cText[r.id] || ""} onChange={e => setCText({ ...cText, [r.id]: e.target.value })} placeholder="コメントを入力…" onKeyDown={e => e.key === "Enter" && addC(r.id)} className="flex-1 rounded-xl px-3 py-2.5 text-sm outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary }} />
+                  <Btn kind="ghost" icon={Send} disabled={commenting === r.id} onClick={() => addC(r.id)}>送信</Btn>
+                  <Btn icon={ChevronRight} disabled={commenting === r.id} onClick={() => addCAndNext(r.id)}>{commenting === r.id ? "送信中…" : "保存して次へ"}</Btn>
+                </div>
+              </div>}
             </div></div>}
         </Card>
       ))}</div>}

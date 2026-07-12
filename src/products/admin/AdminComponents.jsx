@@ -15,6 +15,18 @@ import {
   GitBranch, Briefcase, Gauge, MapPin, User, Printer, RefreshCw, Receipt
 } from "lucide-react";
 
+async function exportAdminListExcel(rows, columns, sheetName, fileLabel) {
+  try {
+    const XLSX = await import("xlsx");
+    const data = (rows || []).map(r => Object.fromEntries(columns.map(([key, label]) => [label, key(r)])));
+    const ws = XLSX.utils.json_to_sheet(data);
+    ws["!cols"] = columns.map(() => ({ wch: 22 }));
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, sheetName);
+    const stamp = new Date().toISOString().slice(0, 10).replace(/-/g, "");
+    XLSX.writeFile(wb, `${fileLabel}_${stamp}.xlsx`);
+  } catch (e) { console.error(e); }
+}
 const monthStr = () => todayStr().slice(0, 7);
 const datesInMonth = (ym) => {
   if (!ym) return [];
@@ -374,7 +386,12 @@ function AdminCompanies() {
   );
   return (
     <div>
-      <SectionHead title="企業管理" desc="契約企業の管理" action={<Btn size="sm" icon={Plus} onClick={() => { setOpen(true); setErr(""); setMsg(""); }}>企業を追加</Btn>} />
+      <SectionHead title="企業管理" desc="契約企業の管理" action={<div className="flex flex-wrap items-center gap-2">
+        <Btn size="sm" kind="ghost" icon={FileSpreadsheet} onClick={() => exportAdminListExcel(visibleRows, [
+          [r => r.name || "", "企業名"], [r => memoOf(r), "メモ"], [r => r.companyId || "", "企業ID"],
+        ], "企業一覧", "企業一覧")}>Excel出力</Btn>
+        <Btn size="sm" icon={Plus} onClick={() => { setOpen(true); setErr(""); setMsg(""); }}>企業を追加</Btn>
+      </div>} />
       {msg && <div className="mb-4 rounded-lg px-3 py-2 text-xs" style={adminMsgStyle}>{msg}</div>}
       {err && !open && <div className="mb-4 rounded-lg px-3 py-2 text-xs" style={adminErrStyle}>{err}</div>}
       <div>
@@ -716,7 +733,12 @@ function AdminCourses({ go }) {
   );
   return (
     <div>
-      <SectionHead title="コース管理" desc="研修・Eラーニング・継続支援枠をコースとして管理します" action={<Btn size="sm" icon={Plus} onClick={() => { setOpen(true); setErr(""); setMsg(""); }}>コースを作成</Btn>} />
+      <SectionHead title="コース管理" desc="研修・Eラーニング・継続支援枠をコースとして管理します" action={<div className="flex flex-wrap items-center gap-2">
+        <Btn size="sm" kind="ghost" icon={FileSpreadsheet} onClick={() => exportAdminListExcel(visibleRows, [
+          [r => r.name || "", "コース名"], [r => kindLabel(typeOf(r)), "種別"], [r => memoOf(r), "メモ"], [r => (r.instructorIds || []).length, "担当講師数"], [r => r.courseId || "", "コースID"],
+        ], "コース一覧", "コース一覧")}>Excel出力</Btn>
+        <Btn size="sm" icon={Plus} onClick={() => { setOpen(true); setErr(""); setMsg(""); }}>コースを作成</Btn>
+      </div>} />
       {msg && <div className="mb-4 rounded-lg px-3 py-2 text-xs" style={adminMsgStyle}>{msg}</div>}
       {err && !open && <div className="mb-4 rounded-lg px-3 py-2 text-xs" style={adminErrStyle}>{err}</div>}
       <div>
@@ -1044,7 +1066,12 @@ function AdminUsers() {
   return (
     <div>
       <SectionHead title="ユーザー管理" desc="アカウントとロールの管理・追加"
-        action={<Btn size="sm" icon={Plus} onClick={() => { setOpen(true); setErr(""); setMsg(""); }}>ユーザーを追加</Btn>} />
+        action={<div className="flex flex-wrap items-center gap-2">
+          <Btn size="sm" kind="ghost" icon={FileSpreadsheet} onClick={() => exportAdminListExcel(visibleUsers, [
+            [u => u.name || "", "氏名"], [u => u.email || "", "メールアドレス"], [u => roleLabel(u.role), "ロール"], [u => u.userId || "", "ユーザーID"],
+          ], "ユーザー一覧", "ユーザー一覧")}>Excel出力</Btn>
+          <Btn size="sm" icon={Plus} onClick={() => { setOpen(true); setErr(""); setMsg(""); }}>ユーザーを追加</Btn>
+        </div>} />
       {msg && <div className="mb-4 rounded-lg px-3 py-2 text-xs" style={adminMsgStyle}>{msg}</div>}
       {err && !open && <div className="mb-4 rounded-lg px-3 py-2 text-xs" style={adminErrStyle}>{err}</div>}
       <div>

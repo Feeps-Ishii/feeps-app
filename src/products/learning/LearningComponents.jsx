@@ -1084,7 +1084,7 @@ function ElCourseDetail({ course, lrn, onBack, onOpenLesson, onStartFinalTest, o
           <Card className="p-5">
             <h3 className="mb-4 font-bold" style={{ color: C.ink }}>レッスン一覧</h3>
             {lessons.length === 0
-              ? <div className="py-4 text-center text-sm" style={{ color: C.muted }}>レッスンは準備中です。</div>
+              ? <div className="py-4 text-center text-sm" style={{ color: C.muted }}>レッスンはまだ登録されていません。</div>
               : <div className="space-y-2">
                   {lessons.map((ls, idx) => {
                     const done = !!lessonsDone[ls.id]?.completed;

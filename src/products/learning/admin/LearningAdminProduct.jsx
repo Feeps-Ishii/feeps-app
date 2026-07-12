@@ -18,8 +18,8 @@ const VIEW_TABS = [
   { value: "ai-lesson-designer", label: "AI Lesson Designer" },
 ];
 
-export default function LearningAdminProduct() {
-  const [view, setView] = useState("courses");
+export default function LearningAdminProduct({ initialView = "courses" }) {
+  const [view, setView] = useState(initialView);
   const [selectedCourseId, setSelectedCourseId] = useState("");
   const [designerOpen, setDesignerOpen] = useState(false);
 

@@ -15,7 +15,6 @@ import {
   ElLessonView,
 } from "./LearningComponents.jsx";
 import LearningAdminProduct from "./admin/LearningAdminProduct.jsx";
-import EnrollmentManager from "./admin/EnrollmentManager.jsx";
 export default function LearningProduct({ subView, goSub, goProduct, role, themeColor }) {
   const lrn = useLearning(role);
   const [completionCourse, setCompletionCourse] = useState(null);
@@ -86,11 +85,13 @@ export default function LearningProduct({ subView, goSub, goProduct, role, theme
     el_skills:     <ElSkillsView     {...sp} />,
     el_cert:       <ElCertificateView {...sp} />,
     el_manage:     role === "admin" || role === "instructor"
-      ? <LearningAdminProduct role={role} />
+      ? <LearningAdminProduct initialView="courses" />
       : <LearningPlaceholder title="コース管理"  desc="Eラーニングコースを作成・編集・公開できます。" />,
-    el_lessons:    <LearningPlaceholder title="レッスン管理" desc="コースのレッスンと教材を管理できます。" />,
-    el_students:   role === "admin"
-      ? <EnrollmentManager />
+    el_lessons:    role === "admin" || role === "instructor"
+      ? <LearningAdminProduct initialView="lessons" />
+      : <LearningPlaceholder title="レッスン管理" desc="コースのレッスンと教材を管理できます。" />,
+    el_students:   role === "admin" || role === "instructor"
+      ? <LearningAdminProduct initialView="enrollments" />
       : <LearningPlaceholder title="受講状況"   desc="受講生の進捗と完了状況を確認できます。" />,
   };
   return (
