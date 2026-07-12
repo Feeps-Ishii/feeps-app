@@ -140,6 +140,8 @@ function LessonRow({ lesson, index, total, onEdit, onEditSlides, onTogglePublish
 export default function LessonManager({ initialCourseId }) {
   const {
     courses,
+    coursesLoading,
+    coursesError,
     lessonsForCourse,
     createLesson,
     updateLesson,
@@ -147,6 +149,8 @@ export default function LessonManager({ initialCourseId }) {
     toggleLessonPublish,
     moveLesson,
     createMaterialAwaitingApi,
+    actionError,
+    clearActionError,
   } = useLearningAdmin();
   const [selectedCourseId, setSelectedCourseId] = useState(initialCourseId || courses[0]?.id || "");
   const [query, setQuery] = useState("");
@@ -219,6 +223,16 @@ export default function LessonManager({ initialCourseId }) {
     <div className="space-y-5">
       <SectionHead title="レッスン管理" desc="コースごとにレッスンの作成・編集・公開状態・並び順を管理します。" />
 
+      {coursesError && (
+        <div className="rounded-lg px-3 py-2 text-xs" style={{ background: T.dangerSubtle, color: T.danger }}>{coursesError}</div>
+      )}
+      {actionError && (
+        <div className="flex items-center justify-between gap-3 rounded-lg px-3 py-2 text-xs" style={{ background: T.dangerSubtle, color: T.danger }}>
+          <span>{actionError}</span>
+          <button type="button" onClick={clearActionError} className="shrink-0 font-bold underline">閉じる</button>
+        </div>
+      )}
+
       <Card className="p-5">
         <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_280px] lg:items-end">
           <div>
@@ -272,41 +286,21 @@ export default function LessonManager({ initialCourseId }) {
                 />
               ))}
             </div>
+          ) : coursesLoading ? (
+            <EmptyState title="読み込み中..." desc="コース一覧を取得しています。" />
           ) : (
-            <EmptyState title="レッスンがありません" desc="検索条件を変更するか、新規レッスンを作成してください。" />
+            <EmptyState
+              title={lessons.length ? "レッスンがありません" : "このコースにはまだレッスンがありません"}
+              desc={lessons.length ? "検索条件を変更するか、新規レッスンを作成してください。" : "「新規レッスン」からレッスンを作成してください。"}
+            />
           )}
-        </div>
-
-        <div className="hidden">
-          {deleteTarget && (
-            <Card className="p-4" style={{ borderColor: "#FCA5A5" }}>
-              <div className="flex items-start gap-3">
-                <div className="rounded-xl p-2" style={{ background: "#FEE2E2", color: C.red }}><Trash2 size={18} /></div>
-                <div>
-                  <div className="text-sm font-bold" style={{ color: C.ink }}>削除確認</div>
-                  <p className="mt-1 text-xs" style={{ color: C.body }}>「{deleteTarget.title}」を削除します。localStorage上の管理データから削除されます。</p>
-                  <div className="mt-3 flex flex-wrap gap-2">
-                    <Btn kind="ghost" size="sm" onClick={() => setDeleteTarget(null)}>キャンセル</Btn>
-                    <Btn kind="ghost" size="sm" icon={Trash2} onClick={confirmDelete}>削除する</Btn>
-                  </div>
-                </div>
-              </div>
-            </Card>
-          )}
-          <LessonForm
-            mode={editingLesson ? "edit" : "new"}
-            form={form}
-            onChange={setForm}
-            onSubmit={submit}
-            onCancel={startNew}
-          />
         </div>
       </div>
 
       <AdminModal
         open={formOpen}
-        title={editingLesson ? "Lesson edit" : "New lesson"}
-        desc={selectedCourse ? `Course: ${selectedCourse.title}` : ""}
+        title={editingLesson ? "レッスン編集" : "レッスン新規作成"}
+        desc={selectedCourse ? `対象コース: ${selectedCourse.title}` : ""}
         onClose={closeForm}
       >
         <LessonForm
@@ -320,8 +314,8 @@ export default function LessonManager({ initialCourseId }) {
 
       <AdminModal
         open={Boolean(deleteTarget)}
-        title="Delete lesson"
-        desc={deleteTarget ? `Delete "${deleteTarget.title}" from this course.` : ""}
+        title="レッスンの削除"
+        desc={deleteTarget ? `「${deleteTarget.title}」をこのコースから削除します。` : ""}
         onClose={() => setDeleteTarget(null)}
         danger
         width={520}
@@ -329,11 +323,11 @@ export default function LessonManager({ initialCourseId }) {
         <div className="space-y-4">
           <div className="flex items-start gap-3 rounded-2xl p-4" style={{ background: "#FEE2E2", color: C.red }}>
             <Trash2 size={18} />
-            <div className="text-sm font-bold">This lesson will be removed from localStorage admin data.</div>
+            <div className="text-sm font-bold">この操作は取り消せません。</div>
           </div>
           <div className="flex flex-wrap justify-end gap-2">
-            <Btn kind="ghost" onClick={() => setDeleteTarget(null)}>Cancel</Btn>
-            <Btn kind="ghost" icon={Trash2} onClick={confirmDelete}>Delete</Btn>
+            <Btn kind="ghost" onClick={() => setDeleteTarget(null)}>キャンセル</Btn>
+            <Btn kind="ghost" icon={Trash2} onClick={confirmDelete}>削除する</Btn>
           </div>
         </div>
       </AdminModal>

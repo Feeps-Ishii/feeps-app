@@ -243,11 +243,15 @@ export default function MaterialManager() {
     courses,
     lessonsForCourse,
     materials,
+    materialsLoading,
+    materialsError,
     materialStats,
     createMaterial,
     updateMaterial,
     deleteMaterial,
     toggleMaterialPublish,
+    actionError,
+    clearActionError,
   } = useLearningAdmin();
   const initialCourseId = courses[0]?.id || "";
   const initialLessonId = initialCourseId ? lessonsForCourse(initialCourseId)[0]?.id || "" : "";
@@ -325,12 +329,22 @@ export default function MaterialManager() {
     <div className="space-y-5">
       <SectionHead title="教材管理" desc="コース・レッスンに紐づく教材メタデータを管理します。" />
 
+      {materialsError && (
+        <div className="rounded-lg px-3 py-2 text-xs" style={{ background: T.dangerSubtle, color: T.danger }}>{materialsError}</div>
+      )}
+      {actionError && (
+        <div className="flex items-center justify-between gap-3 rounded-lg px-3 py-2 text-xs" style={{ background: T.dangerSubtle, color: T.danger }}>
+          <span>{actionError}</span>
+          <button type="button" onClick={clearActionError} className="shrink-0 font-bold underline">閉じる</button>
+        </div>
+      )}
+
       <Card className="p-5">
         <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
           <div>
             <div className="text-sm font-bold" style={{ color: C.ink }}>管理者向け教材メタデータ</div>
             <p className="mt-1 text-xs" style={{ color: C.body }}>
-              今回はURLと管理情報のみを保存します。アップロードやS3連携は後続フェーズで接続します。
+              URLリンク教材、またはファイルアップロード（PDF / PPTX / DOCX / MP4 / PNG / JPG）を登録できます。
             </p>
           </div>
           <Btn icon={Plus} onClick={startNew}>新規教材</Btn>
@@ -379,43 +393,21 @@ export default function MaterialManager() {
                 />
               ))}
             </div>
+          ) : materialsLoading ? (
+            <EmptyState title="読み込み中..." desc="教材一覧を取得しています。" />
           ) : (
-            <EmptyState title="教材がありません" desc="検索条件を変更するか、新規教材を作成してください。" />
+            <EmptyState
+              title={materials.length ? "教材がありません" : "教材がまだ登録されていません"}
+              desc={materials.length ? "検索条件を変更するか、新規教材を作成してください。" : "「新規教材」からURLまたはファイルを登録してください。"}
+            />
           )}
-        </div>
-
-        <div className="hidden">
-          {deleteTarget && (
-            <Card className="p-4" style={{ borderColor: "#FCA5A5" }}>
-              <div className="flex items-start gap-3">
-                <div className="rounded-xl p-2" style={{ background: "#FEE2E2", color: C.red }}><Trash2 size={18} /></div>
-                <div>
-                  <div className="text-sm font-bold" style={{ color: C.ink }}>削除確認</div>
-                  <p className="mt-1 text-xs" style={{ color: C.body }}>「{deleteTarget.title}」を削除します。実ファイルは扱わず、localStorage上のメタデータのみ削除します。</p>
-                  <div className="mt-3 flex flex-wrap gap-2">
-                    <Btn kind="ghost" size="sm" onClick={() => setDeleteTarget(null)}>キャンセル</Btn>
-                    <Btn kind="ghost" size="sm" icon={Trash2} onClick={confirmDelete}>削除する</Btn>
-                  </div>
-                </div>
-              </div>
-            </Card>
-          )}
-          <MaterialForm
-            mode={editingMaterial ? "edit" : "new"}
-            form={form}
-            courses={courses}
-            lessons={lessonsForForm}
-            onChange={setForm}
-            onSubmit={submit}
-            onCancel={startNew}
-          />
         </div>
       </div>
 
       <AdminModal
         open={formOpen}
-        title={editingMaterial ? "Material edit" : "New material"}
-        desc="Register a material by URL, or upload a file (PDF / PPTX / DOCX / MP4 / PNG / JPG)."
+        title={editingMaterial ? "教材編集" : "教材新規作成"}
+        desc="URLリンク教材、またはファイルアップロード（PDF / PPTX / DOCX / MP4 / PNG / JPG）を登録できます。"
         onClose={closeForm}
       >
         <MaterialForm
@@ -431,8 +423,8 @@ export default function MaterialManager() {
 
       <AdminModal
         open={Boolean(deleteTarget)}
-        title="Delete material"
-        desc={deleteTarget ? `Delete "${deleteTarget.title}" metadata.` : ""}
+        title="教材の削除"
+        desc={deleteTarget ? `「${deleteTarget.title}」を削除します。` : ""}
         onClose={() => setDeleteTarget(null)}
         danger
         width={520}
@@ -440,11 +432,11 @@ export default function MaterialManager() {
         <div className="space-y-4">
           <div className="flex items-start gap-3 rounded-2xl p-4" style={{ background: "#FEE2E2", color: C.red }}>
             <Trash2 size={18} />
-            <div className="text-sm font-bold">Only localStorage metadata is deleted.</div>
+            <div className="text-sm font-bold">この操作は取り消せません。</div>
           </div>
           <div className="flex flex-wrap justify-end gap-2">
-            <Btn kind="ghost" onClick={() => setDeleteTarget(null)}>Cancel</Btn>
-            <Btn kind="ghost" icon={Trash2} onClick={confirmDelete}>Delete</Btn>
+            <Btn kind="ghost" onClick={() => setDeleteTarget(null)}>キャンセル</Btn>
+            <Btn kind="ghost" icon={Trash2} onClick={confirmDelete}>削除する</Btn>
           </div>
         </div>
       </AdminModal>

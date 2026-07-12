@@ -86,14 +86,6 @@ export const ENROLLMENT_STATUS_OPTIONS = [
   { value: "completed", label: "修了" },
 ];
 
-export const ENROLLMENT_SEED_TRAINEES = [
-  { traineeId: "trainee_001", traineeName: "田中 太郎", companyName: "サンプル株式会社" },
-  { traineeId: "trainee_002", traineeName: "佐藤 花子", companyName: "サンプル株式会社" },
-  { traineeId: "trainee_003", traineeName: "鈴木 一郎", companyName: "Feeps Partner" },
-  { traineeId: "trainee_004", traineeName: "高橋 美咲", companyName: "Feeps Partner" },
-  { traineeId: "trainee_005", traineeName: "伊藤 健", companyName: "Next Cloud Inc." },
-];
-
 export const LEARNING_ADMIN_QUIZZES_STORAGE_KEY = "feeps.el.admin.quizzes";
 export const LEARNING_LESSON_REVIEW_STORAGE_KEY = "feeps.el.lesson.review";
 export const LEARNING_FINAL_TEST_SETTINGS_STORAGE_KEY = "feeps.el.admin.finalTestSettings";

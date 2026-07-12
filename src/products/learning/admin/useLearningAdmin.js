@@ -1,9 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { apiDelete, apiGet, apiPost, apiPut } from "../../../api.js";
-import { LearningCatalog, LESSON_CATALOG } from "../LearningCatalog.js";
 import {
   DEFAULT_FINAL_TEST_SETTINGS,
-  ENROLLMENT_SEED_TRAINEES,
   EMPTY_COURSE_FORM,
   EMPTY_LESSON_FORM,
   EMPTY_MATERIAL_FORM,
@@ -36,19 +34,17 @@ function normalizeCourse(course) {
   };
 }
 
-function seedCourses() {
-  return LearningCatalog.map(normalizeCourse);
-}
-
+// Backend APIを正本とする。localStorageはAPI応答が届くまでの一時キャッシュとしてのみ使う
+// （キャッシュが無ければ空配列を返し、API失敗時にモックへフォールバックすることはない）。
 function readCourses() {
   try {
     const raw = window.localStorage.getItem(LEARNING_ADMIN_STORAGE_KEY);
-    if (!raw) return seedCourses();
+    if (!raw) return [];
     const parsed = JSON.parse(raw);
-    if (!Array.isArray(parsed)) return seedCourses();
+    if (!Array.isArray(parsed)) return [];
     return parsed.map(normalizeCourse);
   } catch (e) {
-    return seedCourses();
+    return [];
   }
 }
 
@@ -159,21 +155,12 @@ function normalizeLesson(lesson, index = 0) {
   };
 }
 
-function seedLessons() {
-  return Object.fromEntries(
-    LearningCatalog.map(course => [
-      course.id,
-      (LESSON_CATALOG[course.id] || []).map((lesson, index) => normalizeLesson({ ...lesson, order: index }, index)),
-    ])
-  );
-}
-
 function readLessons() {
   try {
     const raw = window.localStorage.getItem(LEARNING_ADMIN_LESSONS_STORAGE_KEY);
-    if (!raw) return seedLessons();
+    if (!raw) return {};
     const parsed = JSON.parse(raw);
-    if (!parsed || Array.isArray(parsed) || typeof parsed !== "object") return seedLessons();
+    if (!parsed || Array.isArray(parsed) || typeof parsed !== "object") return {};
     return Object.fromEntries(
       Object.entries(parsed).map(([courseId, lessons]) => [
         courseId,
@@ -181,7 +168,7 @@ function readLessons() {
       ])
     );
   } catch (e) {
-    return seedLessons();
+    return {};
   }
 }
 
@@ -298,19 +285,15 @@ function normalizeMaterial(material, index = 0) {
   };
 }
 
-function seedMaterials() {
-  return [];
-}
-
 function readMaterials() {
   try {
     const raw = window.localStorage.getItem(LEARNING_ADMIN_MATERIALS_STORAGE_KEY);
-    if (!raw) return seedMaterials();
+    if (!raw) return [];
     const parsed = JSON.parse(raw);
-    if (!Array.isArray(parsed)) return seedMaterials();
+    if (!Array.isArray(parsed)) return [];
     return parsed.map(normalizeMaterial).sort((a, b) => a.order - b.order);
   } catch (e) {
-    return seedMaterials();
+    return [];
   }
 }
 
@@ -410,13 +393,9 @@ export function materialToForm(material, fallback = {}) {
   };
 }
 
-function courseById(courseId) {
-  return LearningCatalog.find(course => course.id === courseId) || {};
-}
-
-function normalizeEnrollment(enrollment, index = 0) {
-  const course = courseById(enrollment.courseId);
-  const totalLessons = Number(enrollment.totalLessons || course.lessons || (LESSON_CATALOG[enrollment.courseId] || []).length || 0);
+function normalizeEnrollment(enrollment, index = 0, courseLookup = {}) {
+  const course = courseLookup[enrollment.courseId] || {};
+  const totalLessons = Number(enrollment.totalLessons || course.lessons || 0);
   const progress = Math.max(0, Math.min(100, Number(enrollment.progress || 0)));
   const completedLessons = Number.isFinite(Number(enrollment.completedLessons))
     ? Number(enrollment.completedLessons)
@@ -447,48 +426,15 @@ function normalizeEnrollment(enrollment, index = 0) {
   };
 }
 
-function seedEnrollments() {
-  const courseIds = LearningCatalog.slice(0, 4).map(course => course.id);
-  const statuses = ["in_progress", "completed", "not_started", "in_progress", "completed"];
-  return ENROLLMENT_SEED_TRAINEES.flatMap((trainee, traineeIndex) => (
-    courseIds.slice(0, traineeIndex % 2 === 0 ? 3 : 2).map((courseId, courseIndex) => {
-      const course = courseById(courseId);
-      const status = statuses[(traineeIndex + courseIndex) % statuses.length];
-      const totalLessons = Number(course.lessons || (LESSON_CATALOG[courseId] || []).length || 0);
-      const progress = status === "completed" ? 100 : status === "not_started" ? 0 : [35, 50, 65, 80][(traineeIndex + courseIndex) % 4];
-      const completedLessons = totalLessons ? Math.round((progress / 100) * totalLessons) : 0;
-      return normalizeEnrollment({
-        id: `enr_${trainee.traineeId}_${courseId}`,
-        ...trainee,
-        courseId,
-        courseTitle: course.title,
-        status,
-        progress,
-        completedLessons,
-        totalLessons,
-        lastStudiedAt: status === "not_started" ? "" : `2026-07-${String((traineeIndex + courseIndex) % 9 + 1).padStart(2, "0")}`,
-        completedAt: status === "completed" ? `2026-07-${String((traineeIndex + courseIndex) % 9 + 1).padStart(2, "0")}` : null,
-        skills: course.skills || [],
-        learningMinutes: status === "not_started" ? 0 : 45 + (traineeIndex + courseIndex) * 35,
-        recentHistory: status === "not_started" ? [] : [
-          `${course.title} のレッスンを学習`,
-          `${completedLessons} / ${totalLessons} Lessons 完了`,
-        ],
-        memo: status === "in_progress" ? "次回面談で進捗確認" : "",
-      });
-    })
-  ));
-}
-
 function readEnrollments() {
   try {
     const raw = window.localStorage.getItem(LEARNING_ADMIN_ENROLLMENTS_STORAGE_KEY);
-    if (!raw) return seedEnrollments();
+    if (!raw) return [];
     const parsed = JSON.parse(raw);
-    if (!Array.isArray(parsed)) return seedEnrollments();
-    return parsed.map(normalizeEnrollment);
+    if (!Array.isArray(parsed)) return [];
+    return parsed.map((item, index) => normalizeEnrollment(item, index));
   } catch (e) {
-    return seedEnrollments();
+    return [];
   }
 }
 
@@ -523,41 +469,17 @@ function normalizeQuizQuestion(item, index = 0) {
   };
 }
 
-function seedQuizQuestions() {
-  return LearningCatalog.slice(0, 3).flatMap((course, courseIndex) => {
-    const lesson = (LESSON_CATALOG[course.id] || [])[0];
-    if (!lesson) return [];
-    return [
-      normalizeQuizQuestion({
-        id: `quiz_seed_${course.id}`,
-        courseId: course.id,
-        lessonId: lesson.id,
-        type: courseIndex === 2 ? "review" : "lesson",
-        question: `${lesson.title} の理解確認として正しいものは？`,
-        choices: ["基本概念を説明できる", "教材を開かなくてよい", "復習は不要", "配点は常に0点"],
-        answer: 0,
-        explanation: "レッスンの基本概念を説明できる状態を確認します。",
-        difficulty: courseIndex === 0 ? "入門" : "標準",
-        tags: [course.category, "確認"],
-        skill: (course.skills || [])[0] || "",
-        pageId: "page-1",
-        chapterId: "chapter-1",
-        points: 10,
-        published: true,
-      }),
-    ];
-  });
-}
-
+// quizQuestions: Backend APIが存在しない機能のため、localStorageのみで完結するローカル管理データ。
+// （不足API一覧: POST/GET/PUT/DELETE /learning/admin/quiz-questions 相当が未実装）
 function readQuizQuestions() {
   try {
     const raw = window.localStorage.getItem(LEARNING_ADMIN_QUIZZES_STORAGE_KEY);
-    if (!raw) return seedQuizQuestions();
+    if (!raw) return [];
     const parsed = JSON.parse(raw);
-    if (!Array.isArray(parsed)) return seedQuizQuestions();
+    if (!Array.isArray(parsed)) return [];
     return parsed.map(normalizeQuizQuestion);
   } catch (e) {
-    return seedQuizQuestions();
+    return [];
   }
 }
 
@@ -626,28 +548,17 @@ function normalizeReviewFlag(item, index = 0) {
   };
 }
 
-function seedReviewFlags() {
-  const lessons = Object.values(LESSON_CATALOG).flat().slice(0, 4);
-  return lessons.map((lesson, index) => normalizeReviewFlag({
-    id: `review_seed_${lesson.id}`,
-    lessonId: lesson.id,
-    pageId: `page-${index + 1}`,
-    status: index % 3 === 0 ? "understood" : index % 3 === 1 ? "uncertain" : "review_later",
-    understood: index % 3 === 0,
-    reviewLater: index % 3 === 2,
-    reviewed: false,
-  }, index));
-}
-
+// reviewFlags: Backend APIが存在しない機能のため、localStorageのみで完結するローカル管理データ。
+// （不足API一覧: POST/GET/PUT/DELETE /learning/admin/review-flags 相当が未実装）
 function readReviewFlags() {
   try {
     const raw = window.localStorage.getItem(LEARNING_LESSON_REVIEW_STORAGE_KEY);
-    if (!raw) return seedReviewFlags();
+    if (!raw) return [];
     const parsed = JSON.parse(raw);
-    if (!Array.isArray(parsed)) return seedReviewFlags();
+    if (!Array.isArray(parsed)) return [];
     return parsed.map(normalizeReviewFlag);
   } catch (e) {
-    return seedReviewFlags();
+    return [];
   }
 }
 
@@ -701,6 +612,11 @@ function saveFinalTestSettings(settings) {
   }
 }
 
+function apiErrorMessage(e, fallback) {
+  if (e?.status === 403) return "この操作を行う権限がありません。";
+  return e?.errorMessage || e?.message || fallback;
+}
+
 export function useLearningAdmin() {
   const [courses, setCourses] = useState(readCourses);
   const [lessonsByCourse, setLessonsByCourse] = useState(readLessons);
@@ -710,16 +626,28 @@ export function useLearningAdmin() {
   const [reviewFlags, setReviewFlags] = useState(readReviewFlags);
   const [finalTestSettings, setFinalTestSettings] = useState(readFinalTestSettings);
 
+  const [coursesLoading, setCoursesLoading] = useState(true);
+  const [coursesError, setCoursesError] = useState("");
+  const [materialsLoading, setMaterialsLoading] = useState(true);
+  const [materialsError, setMaterialsError] = useState("");
+  const [enrollmentsLoading, setEnrollmentsLoading] = useState(true);
+  const [enrollmentsError, setEnrollmentsError] = useState("");
+  // 作成/更新/削除など書き込み系操作の失敗を通知するための共通エラー。
+  // 楽観的にローカル状態を更新した後、サーバー側が失敗した場合にユーザーへ知らせる。
+  const [actionError, setActionError] = useState("");
+
   useEffect(() => {
     let alive = true;
     apiGet("/learning/admin/courses")
       .then(items => {
-        if (!alive || !Array.isArray(items) || items.length === 0) return;
+        if (!alive || !Array.isArray(items)) return;
         const normalized = items.map(normalizeCourse).filter(course => course.id && course.deleted !== true);
         setCourses(normalized);
         saveCourses(normalized);
+        setCoursesError("");
       })
-      .catch(() => {});
+      .catch(e => { if (alive) setCoursesError(apiErrorMessage(e, "コース一覧の取得に失敗しました。")); })
+      .finally(() => { if (alive) setCoursesLoading(false); });
     return () => { alive = false; };
   }, []);
 
@@ -731,7 +659,7 @@ export function useLearningAdmin() {
       if (!course.id) return;
       apiGet(`/learning/admin/courses/${encodeURIComponent(course.id)}/lessons`)
         .then(items => {
-          if (!alive || !Array.isArray(items) || items.length === 0) return;
+          if (!alive || !Array.isArray(items)) return;
           const normalized = items.map(normalizeLesson).filter(lesson => lesson.id && lesson.deleted !== true).sort((a, b) => a.order - b.order);
           setLessonsByCourse(prev => {
             const next = { ...prev, [course.id]: normalized };
@@ -748,22 +676,24 @@ export function useLearningAdmin() {
     let alive = true;
     apiGet("/learning/admin/materials")
       .then(items => {
-        if (!alive || !Array.isArray(items) || items.length === 0) return;
+        if (!alive || !Array.isArray(items)) return;
         const normalized = items.map(normalizeMaterial).filter(material => material.id && material.deleted !== true);
         setMaterials(normalized);
         saveMaterials(normalized);
+        setMaterialsError("");
       })
-      .catch(() => {});
+      .catch(e => { if (alive) setMaterialsError(apiErrorMessage(e, "教材一覧の取得に失敗しました。")); })
+      .finally(() => { if (alive) setMaterialsLoading(false); });
     return () => { alive = false; };
   }, []);
 
   useEffect(() => {
     let alive = true;
     Promise.all([
-      apiGet("/learning/admin/enrollments").catch(() => null),
+      apiGet("/learning/admin/enrollments"),
       apiGet("/admin/users").catch(() => null),
     ]).then(([enrollmentItems, userItems]) => {
-      if (!alive || !Array.isArray(enrollmentItems) || enrollmentItems.length === 0) return;
+      if (!alive || !Array.isArray(enrollmentItems)) return;
       // /admin/users の正確なフィールド名は未確認のため、想定される候補を防御的に試す。
       // 一致しなければ traineeName/companyName は空のまま（normalizeEnrollment側でフォールバック済み）。
       const usersById = new Map();
@@ -771,6 +701,7 @@ export function useLearningAdmin() {
         const key = user?.userId || user?.id || user?.sub;
         if (key) usersById.set(key, user);
       });
+      const courseLookup = Object.fromEntries(courses.map(course => [course.id, course]));
       const normalized = enrollmentItems.map((item, index) => {
         const user = usersById.get(item.traineeId);
         return normalizeEnrollment({
@@ -778,13 +709,16 @@ export function useLearningAdmin() {
           id: `enr_${item.traineeId}_${item.courseId}`, // 再取得のたびにIDが変わらないよう固定
           traineeName: user?.name || item.traineeName || "",
           companyName: user?.companyName || user?.company || item.companyName || "",
-        }, index);
+        }, index, courseLookup);
       });
       setEnrollments(normalized);
       saveEnrollments(normalized);
-    });
+      setEnrollmentsError("");
+    })
+      .catch(e => { if (alive) setEnrollmentsError(apiErrorMessage(e, "受講状況の取得に失敗しました。")); })
+      .finally(() => { if (alive) setEnrollmentsLoading(false); });
     return () => { alive = false; };
-  }, []);
+  }, [courseIds]);
 
   function commit(next) {
     setCourses(next);
@@ -800,7 +734,7 @@ export function useLearningAdmin() {
         if (!saved?.id) return;
         commit([saved, ...courses.filter(item => item.id !== course.id && item.id !== saved.id)]);
       })
-      .catch(() => {});
+      .catch(e => setActionError(apiErrorMessage(e, "コースの作成に失敗しました。")));
     return course;
   }
 
@@ -829,7 +763,7 @@ export function useLearningAdmin() {
           if (!saved?.id) return;
           commit(next.map(course => (course.id === courseId ? saved : course)));
         })
-        .catch(() => {});
+        .catch(e => setActionError(apiErrorMessage(e, "コースの更新に失敗しました。")));
     }
   }
 
@@ -848,7 +782,7 @@ export function useLearningAdmin() {
           if (!saved?.id) return;
           commit(next.map(course => (course.id === courseId ? saved : course)));
         })
-        .catch(() => {});
+        .catch(e => setActionError(apiErrorMessage(e, "コースの更新に失敗しました。")));
     }
   }
 
@@ -856,7 +790,8 @@ export function useLearningAdmin() {
     const deletedIds = readDeletedCourseIds();
     saveDeletedCourseIds([...deletedIds, courseId]);
     commit(courses.filter(course => course.id !== courseId));
-    apiDelete(`/learning/admin/courses/${encodeURIComponent(courseId)}`).catch(() => {});
+    apiDelete(`/learning/admin/courses/${encodeURIComponent(courseId)}`)
+      .catch(e => setActionError(apiErrorMessage(e, "コースの削除に失敗しました。")));
   }
 
   function commitLessons(next) {
@@ -880,7 +815,7 @@ export function useLearningAdmin() {
         const synced = (nextLocal[courseId] || []).map(item => (item.id === lesson.id ? saved : item));
         commitLessons({ ...nextLocal, [courseId]: synced.sort((a, b) => a.order - b.order) });
       })
-      .catch(() => {});
+      .catch(e => setActionError(apiErrorMessage(e, "レッスンの作成に失敗しました。")));
     return lesson;
   }
 
@@ -914,7 +849,7 @@ export function useLearningAdmin() {
           if (!saved?.id) return;
           commitLessons({ ...nextLocal, [courseId]: nextLessons.map(lesson => (lesson.id === lessonId ? saved : lesson)) });
         })
-        .catch(() => {});
+        .catch(e => setActionError(apiErrorMessage(e, "レッスンの更新に失敗しました。")));
     }
   }
 
@@ -923,7 +858,8 @@ export function useLearningAdmin() {
       .filter(lesson => lesson.id !== lessonId)
       .map((lesson, index) => normalizeLesson({ ...lesson, order: index }, index));
     commitLessons({ ...lessonsByCourse, [courseId]: nextLessons });
-    apiDelete(`/learning/admin/courses/${encodeURIComponent(courseId)}/lessons/${encodeURIComponent(lessonId)}`).catch(() => {});
+    apiDelete(`/learning/admin/courses/${encodeURIComponent(courseId)}/lessons/${encodeURIComponent(lessonId)}`)
+      .catch(e => setActionError(apiErrorMessage(e, "レッスンの削除に失敗しました。")));
   }
 
   function toggleLessonPublish(courseId, lessonId) {
@@ -942,7 +878,7 @@ export function useLearningAdmin() {
           if (!saved?.id) return;
           commitLessons({ ...nextLocal, [courseId]: nextLessons.map(lesson => (lesson.id === lessonId ? saved : lesson)) });
         })
-        .catch(() => {});
+        .catch(e => setActionError(apiErrorMessage(e, "レッスンの更新に失敗しました。")));
     }
   }
 
@@ -958,7 +894,8 @@ export function useLearningAdmin() {
     const nextLocal = { ...lessonsByCourse, [courseId]: normalized };
     commitLessons(nextLocal);
     normalized.forEach(lesson => {
-      apiPut(`/learning/admin/courses/${encodeURIComponent(courseId)}/lessons/${encodeURIComponent(lesson.id)}`, toLessonApiPayload(lesson)).catch(() => {});
+      apiPut(`/learning/admin/courses/${encodeURIComponent(courseId)}/lessons/${encodeURIComponent(lesson.id)}`, toLessonApiPayload(lesson))
+        .catch(e => setActionError(apiErrorMessage(e, "並び替えの保存に失敗しました。")));
     });
   }
 
@@ -999,7 +936,7 @@ export function useLearningAdmin() {
         if (!saved?.id) return;
         commitMaterials(nextLocal.map(item => (item.id === material.id ? saved : item)));
       })
-      .catch(() => {});
+      .catch(e => setActionError(apiErrorMessage(e, "教材の作成に失敗しました。")));
     return material;
   }
 
@@ -1018,13 +955,14 @@ export function useLearningAdmin() {
           if (!saved?.id) return;
           commitMaterials(next.map(material => (material.id === materialId ? saved : material)));
         })
-        .catch(() => {});
+        .catch(e => setActionError(apiErrorMessage(e, "教材の更新に失敗しました。")));
     }
   }
 
   function deleteMaterial(materialId) {
     commitMaterials(materials.filter(material => material.id !== materialId));
-    apiDelete(`/learning/admin/materials/${encodeURIComponent(materialId)}`).catch(() => {});
+    apiDelete(`/learning/admin/materials/${encodeURIComponent(materialId)}`)
+      .catch(e => setActionError(apiErrorMessage(e, "教材の削除に失敗しました。")));
   }
 
   function toggleMaterialPublish(materialId) {
@@ -1046,7 +984,7 @@ export function useLearningAdmin() {
           if (!saved?.id) return;
           commitMaterials(next.map(material => (material.id === materialId ? saved : material)));
         })
-        .catch(() => {});
+        .catch(e => setActionError(apiErrorMessage(e, "教材の更新に失敗しました。")));
     }
   }
 
@@ -1065,7 +1003,7 @@ export function useLearningAdmin() {
     }));
     if (target?.traineeId && target?.courseId) {
       apiPut(`/learning/admin/enrollments/${encodeURIComponent(target.traineeId)}/${encodeURIComponent(target.courseId)}/memo`, { memo })
-        .catch(() => {});
+        .catch(e => setActionError(apiErrorMessage(e, "メモの保存に失敗しました。")));
     }
   }
 
@@ -1176,6 +1114,8 @@ export function useLearningAdmin() {
 
   return {
     courses,
+    coursesLoading,
+    coursesError,
     stats,
     createCourse,
     createCourseAwaitingApi,
@@ -1191,6 +1131,8 @@ export function useLearningAdmin() {
     toggleLessonPublish,
     moveLesson,
     materials,
+    materialsLoading,
+    materialsError,
     materialStats,
     createMaterial,
     createMaterialAwaitingApi,
@@ -1198,8 +1140,12 @@ export function useLearningAdmin() {
     deleteMaterial,
     toggleMaterialPublish,
     enrollments,
+    enrollmentsLoading,
+    enrollmentsError,
     enrollmentStats,
     updateEnrollmentMemo,
+    actionError,
+    clearActionError: () => setActionError(""),
     quizQuestions,
     quizStats,
     createQuizQuestion,

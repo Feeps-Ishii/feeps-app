@@ -5,7 +5,6 @@ import {
   Sparkles, Flame, ChevronRight, ChevronLeft, Check, CheckCircle2,
   Circle, AlertCircle, Lightbulb, Calendar, Clock, RefreshCw, Download
 } from "lucide-react";
-import { LearningCatalog } from "./LearningCatalog.js";
 import { Card, Badge, Btn, EmptyState, SectionHead, PageHeader, ProductNavCard, T, PRODUCT_ACCENT } from "../../components/common";
 import ElSlideLessonView from "./ElSlideLessonView.jsx";
 
@@ -430,7 +429,7 @@ function ElCompletedView({ lrn, goSub, onOpenDetail }) {
               {[
                 { label: "修了コース", value: `${lrn.completed.length}本`, color: C.green },
                 { label: "取得スキル", value: `${lrn.getEarnedSkills().length}件`, color: C.cyan },
-                { label: "学習時間",   value: `${lrn.completed.reduce((s, c) => s + courseHours(c.duration), 0)}時間`, color: PRODUCT_ACCENT.talent.accent },
+                { label: "推定学習時間", value: `${lrn.completed.reduce((s, c) => s + courseHours(c.duration), 0)}時間`, color: PRODUCT_ACCENT.talent.accent },
               ].map(({ label, value, color }) => (
                 <div key={label} className="rounded-2xl p-4" style={{ background: C.canvas }}>
                   <div className="text-xs font-bold" style={{ color: C.muted }}>{label}</div>

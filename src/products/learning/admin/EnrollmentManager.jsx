@@ -98,20 +98,20 @@ function EnrollmentDetail({ enrollment, onMemoSave, lessonsForCourse }) {
 
         <div className="grid gap-3 md:grid-cols-2">
           <div className="rounded-xl p-3" style={{ background: C.canvas }}>
-            <div className="text-xs" style={{ color: C.muted }}>受講中コース</div>
-            <div className="mt-1 text-sm font-bold" style={{ color: C.ink }}>{enrollment.status === "in_progress" ? 1 : 0}</div>
+            <div className="text-xs" style={{ color: C.muted }}>完了レッスン</div>
+            <div className="mt-1 text-sm font-bold" style={{ color: C.ink }}>{enrollment.completedLessons} / {enrollment.totalLessons}</div>
           </div>
           <div className="rounded-xl p-3" style={{ background: C.canvas }}>
-            <div className="text-xs" style={{ color: C.muted }}>修了済みコース</div>
-            <div className="mt-1 text-sm font-bold" style={{ color: C.ink }}>{enrollment.status === "completed" ? 1 : 0}</div>
-          </div>
-          <div className="rounded-xl p-3" style={{ background: C.canvas }}>
-            <div className="text-xs" style={{ color: C.muted }}>総学習時間</div>
-            <div className="mt-1 text-sm font-bold" style={{ color: C.ink }}>{enrollment.learningMinutes}分</div>
+            <div className="text-xs" style={{ color: C.muted }}>最終学習日</div>
+            <div className="mt-1 text-sm font-bold" style={{ color: C.ink }}>{enrollment.lastStudiedAt || "-"}</div>
           </div>
           <div className="rounded-xl p-3" style={{ background: C.canvas }}>
             <div className="text-xs" style={{ color: C.muted }}>修了日</div>
             <div className="mt-1 text-sm font-bold" style={{ color: C.ink }}>{enrollment.completedAt || "-"}</div>
+          </div>
+          <div className="rounded-xl p-3" style={{ background: C.canvas }}>
+            <div className="text-xs" style={{ color: C.muted }}>進捗率</div>
+            <div className="mt-1 text-sm font-bold" style={{ color: C.ink }}>{enrollment.progress}%</div>
           </div>
         </div>
 
@@ -155,7 +155,11 @@ function EnrollmentDetail({ enrollment, onMemoSave, lessonsForCourse }) {
 }
 
 export default function EnrollmentManager() {
-  const { courses, enrollments, enrollmentStats, updateEnrollmentMemo, lessonsForCourse } = useLearningAdmin();
+  const {
+    courses, enrollments, enrollmentsLoading, enrollmentsError,
+    enrollmentStats, updateEnrollmentMemo, lessonsForCourse,
+    actionError, clearActionError,
+  } = useLearningAdmin();
   const [query, setQuery] = useState("");
   const [courseFilter, setCourseFilter] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
@@ -189,6 +193,16 @@ export default function EnrollmentManager() {
   return (
     <div className="space-y-5">
       <SectionHead title="受講状況" desc="受講者ごとのEラーニング進捗、修了状況、獲得スキルを確認します。" />
+
+      {enrollmentsError && (
+        <div className="rounded-lg px-3 py-2 text-xs" style={{ background: T.dangerSubtle, color: T.danger }}>{enrollmentsError}</div>
+      )}
+      {actionError && (
+        <div className="flex items-center justify-between gap-3 rounded-lg px-3 py-2 text-xs" style={{ background: T.dangerSubtle, color: T.danger }}>
+          <span>{actionError}</span>
+          <button type="button" onClick={clearActionError} className="shrink-0 font-bold underline">閉じる</button>
+        </div>
+      )}
 
       <Card className="p-5">
         <div className="flex flex-col gap-2">
@@ -246,8 +260,13 @@ export default function EnrollmentManager() {
               />
             ))}
           </div>
+        ) : enrollmentsLoading ? (
+          <EmptyState title="読み込み中..." desc="受講状況を取得しています。" />
         ) : (
-          <EmptyState title="該当する受講状況がありません" desc="検索条件またはフィルタを変更してください。" />
+          <EmptyState
+            title={enrollments.length ? "該当する受講状況がありません" : "受講状況データがありません"}
+            desc={enrollments.length ? "検索条件またはフィルタを変更してください。" : "受講生がコースを開始すると、ここに進捗が表示されます。"}
+          />
         )}
       </div>
 

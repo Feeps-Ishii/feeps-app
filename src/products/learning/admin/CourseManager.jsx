@@ -117,7 +117,11 @@ function CourseRow({ course, onEdit, onOpenLessons, onTogglePublish, onDeleteReq
 }
 
 export default function CourseManager({ onOpenLessons = () => {} }) {
-  const { courses, stats, createCourse, updateCourse, togglePublish, deleteCourse } = useLearningAdmin();
+  const {
+    courses, coursesLoading, coursesError, stats,
+    createCourse, updateCourse, togglePublish, deleteCourse,
+    actionError, clearActionError,
+  } = useLearningAdmin();
   const [query, setQuery] = useState("");
   const [editingCourse, setEditingCourse] = useState(null);
   const [form, setForm] = useState({ ...EMPTY_COURSE_FORM });
@@ -176,12 +180,22 @@ export default function CourseManager({ onOpenLessons = () => {} }) {
     <div className="space-y-5">
       <SectionHead title="コース管理" desc="Eラーニングコースの作成・編集・公開状態を管理します。" />
 
+      {coursesError && (
+        <div className="rounded-lg px-3 py-2 text-xs" style={{ background: T.dangerSubtle, color: T.danger }}>{coursesError}</div>
+      )}
+      {actionError && (
+        <div className="flex items-center justify-between gap-3 rounded-lg px-3 py-2 text-xs" style={{ background: T.dangerSubtle, color: T.danger }}>
+          <span>{actionError}</span>
+          <button type="button" onClick={clearActionError} className="shrink-0 font-bold underline">閉じる</button>
+        </div>
+      )}
+
       <Card className="p-5">
         <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
           <div>
             <div className="text-sm font-bold" style={{ color: C.ink }}>管理者向けコース運用</div>
             <p className="mt-1 text-xs" style={{ color: C.body }}>
-              まずはローカル管理でコース情報を整備します。API化後は同じ画面から保存先を差し替えます。
+              コース情報はBackend APIに保存され、受講生・講師画面にも即時反映されます。
             </p>
           </div>
           <Btn icon={Plus} onClick={startNew}>新規コース</Btn>
@@ -223,8 +237,13 @@ export default function CourseManager({ onOpenLessons = () => {} }) {
                 />
               ))}
             </div>
+          ) : coursesLoading ? (
+            <EmptyState title="読み込み中..." desc="コース一覧を取得しています。" />
           ) : (
-            <EmptyState title="該当するコースがありません" desc="検索条件を変更するか、新規コースを作成してください。" />
+            <EmptyState
+              title={courses.length ? "該当するコースがありません" : "コースがまだ登録されていません"}
+              desc={courses.length ? "検索条件を変更するか、新規コースを作成してください。" : "「新規コース」からEラーニングコースを作成してください。"}
+            />
           )}
         </div>
 
