@@ -207,7 +207,7 @@ function ForgotPasswordFlow({ onBack }) {
           <div className="mb-1.5 text-xs font-semibold" style={{ color: T.textSecondary }}>メールアドレス</div>
           <div className="feeps-login-field flex items-center gap-2 rounded-xl px-3" style={loginFieldVars}>
             <Mail size={16} style={{ color: T.textMuted }} />
-            <input value={email} onChange={e => setEmail(e.target.value)} onKeyDown={e => { if (e.key === "Enter") sendCode(); }} type="email" autoComplete="username" placeholder="name@example.com" className="w-full bg-transparent py-3 text-sm outline-none" style={{ color: T.textPrimary }} />
+            <input value={email} onChange={e => setEmail(e.target.value)} onKeyDown={e => { if (e.key === "Enter") sendCode(); }} type="email" autoComplete="username" autoFocus placeholder="name@example.com" className="w-full bg-transparent py-3 text-sm outline-none" style={{ color: T.textPrimary }} />
           </div>
         </label>
         <button type="button" onClick={sendCode} disabled={busy} className="feeps-login-cta w-full rounded-xl px-4 py-3 text-sm font-bold text-white disabled:opacity-60" style={{ background: T.accent }}>
