@@ -178,59 +178,60 @@ function TaskCard({ icon: Icon, title, value, desc, action, tone = "home", onCli
 
 function Hero({ role, displayName, contextLine }) {
   const roleAccent = ROLE_ACCENT[role] || ROLE_ACCENT.default;
-  // 正式版デザイン方針: Feeps One統合Homeは黒〜濃いグレーのダークグラデーション（高級感・管理画面らしさ）、文字は白で統一。
-  // 新規に色を発明せず、既存のPRODUCT_ACCENT.admin（dark/neutral identity）のgradFrom/gradToを再利用する。
-  const heroBg = `linear-gradient(135deg, ${PRODUCT_ACCENT.admin.gradFrom} 0%, ${PRODUCT_ACCENT.admin.gradTo} 100%)`;
+  // 正式版デザイン方針（再調整、Phase7-4）: 黒基調は企業向けSaaSとして重く見えるため、
+  // 白〜淡いブルー〜ブランドブルーの明るいグラデーションへ変更。文字は濃色（T.textPrimary/T.textSecondary）
+  // で統一し、Welcomeメッセージを主役にして余白を広くとる（Microsoft 365 / Azure Portal / Notion / Linear
+  // 系の明るく洗練された企業向けSaaSトーン）。PRODUCT_ACCENT.training/adminの濃いブランドブルーとは別に、
+  // Home自体は白地を主役にした固有のグラデーションを直接組み立てる（既存トークンT.bgSurface/accentSubtle/accentのみ使用）。
+  const heroBg = `linear-gradient(120deg, ${T.bgSurface} 0%, ${T.accentSubtle} 48%, ${T.accent} 100%)`;
   return (
-    <section className="overflow-hidden rounded-[24px] p-4 sm:p-9" style={{ background: heroBg, boxShadow: "0 14px 36px rgba(10,12,16,.3)" }}>
-      <div className="flex flex-wrap items-center justify-between gap-3 border-b pb-4" style={{ borderColor: "rgba(255,255,255,0.14)" }}>
+    <section className="overflow-hidden rounded-[24px] p-5 sm:p-10" style={{ background: heroBg, border: `1px solid ${T.border}`, boxShadow: "0 14px 36px rgba(61,107,255,.12)" }}>
+      <div className="flex flex-wrap items-center justify-between gap-3 border-b pb-4" style={{ borderColor: "rgba(26,28,32,0.08)" }}>
         <div className="flex min-w-0 items-center gap-3">
           <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl" style={{ background: T.accent, color: "#fff" }}>
             <TrendingUp size={20} />
           </span>
           <div className="min-w-0">
-            <div className="text-lg font-extrabold leading-none text-white">Feeps One</div>
-            <div className="mt-1 text-xs font-semibold" style={{ color: "rgba(255,255,255,0.62)" }}>Integrated Training & Growth Platform</div>
+            <div className="text-lg font-extrabold leading-none" style={{ color: T.textPrimary }}>Feeps One</div>
+            <div className="mt-1 text-xs font-semibold" style={{ color: T.textMuted }}>Integrated Training & Growth Platform</div>
           </div>
           <span className="ml-1 rounded-full px-3 py-1 text-xs font-bold" style={{ background: roleAccent.subtle, color: roleAccent.accent }}>
             {ROLE_LABEL[role] || role}
           </span>
         </div>
-        <div className="flex items-center gap-2 rounded-full px-3 py-1.5 text-xs font-semibold text-white" style={{ background: "rgba(255,255,255,0.10)", border: "1px solid rgba(255,255,255,0.16)" }}>
+        <div className="flex items-center gap-2 rounded-full px-3 py-1.5 text-xs font-semibold" style={{ background: "rgba(255,255,255,0.75)", color: T.textSecondary, border: `1px solid ${T.border}` }}>
           <CalendarDays size={14} />
           {dateLabel()}
         </div>
       </div>
 
-      <div className="grid gap-4 pt-4 sm:gap-6 sm:pt-6 lg:grid-cols-[minmax(0,1fr)_460px] lg:items-end">
+      <div className="grid gap-6 pt-6 sm:gap-8 sm:pt-8 lg:grid-cols-[minmax(0,1fr)_460px] lg:items-end">
+        {/* Welcomeメッセージを主役に: 最大の見出しとして配置し、タグラインは控えめなキッカー文言へ */}
         <div className="min-w-0">
-          <h1 className="hidden text-3xl font-semibold leading-tight text-white sm:block sm:text-4xl" style={{ letterSpacing: "-0.02em" }}>研修・学習・成長を、ひとつに。</h1>
-          <p className="mt-2 hidden text-sm font-semibold sm:block" style={{ color: "rgba(255,255,255,0.72)" }}>Integrated Training & Growth Platform</p>
-          <div className="mt-0 rounded-2xl p-4 sm:mt-6 sm:p-5" style={{ background: "rgba(255,255,255,0.08)", border: "1px solid rgba(255,255,255,0.14)" }}>
-            <p className="text-base font-bold leading-relaxed text-white">
-              {displayName}さん、<br className="sm:hidden" />おかえりなさい。
-            </p>
-            <p className="mt-2 text-sm leading-relaxed" style={{ color: "rgba(255,255,255,0.72)" }}>{contextLine}</p>
-          </div>
+          <div className="text-xs font-bold uppercase tracking-wide" style={{ color: T.accent }}>研修・学習・成長を、ひとつに。</div>
+          <h1 className="mt-2 text-3xl font-semibold leading-tight sm:text-4xl" style={{ color: T.textPrimary, letterSpacing: "-0.02em" }}>
+            {displayName}さん、おかえりなさい。
+          </h1>
+          <p className="mt-3 text-sm leading-relaxed sm:text-base" style={{ color: T.textSecondary }}>{contextLine}</p>
         </div>
 
-        <div className="hidden rounded-2xl p-3 lg:block" style={{ background: "rgba(255,255,255,0.08)", border: "1px solid rgba(255,255,255,0.14)" }}>
+        <div className="hidden rounded-2xl p-3 lg:block" style={{ background: "rgba(255,255,255,0.7)", border: `1px solid ${T.border}` }}>
           <div className="flex items-center justify-between gap-3">
-            <div className="text-xs font-bold uppercase" style={{ color: "rgba(255,255,255,0.62)" }}>Learning Journey</div>
+            <div className="text-xs font-bold uppercase" style={{ color: T.textMuted }}>Learning Journey</div>
             <Sparkles size={14} style={{ color: PRODUCT_ACCENT.learning.accent }} />
           </div>
           {/* 1行固定: flex-nowrap + 縮小したpadding/文字/矢印サイズで6ステップ+矢印5本を無理なく収める */}
           <div className="mt-2.5 flex flex-nowrap items-center gap-1 overflow-hidden">
             {JOURNEY.map((step, index) => (
               <React.Fragment key={step}>
-                <div className="shrink-0 whitespace-nowrap rounded-full px-2 py-1 text-[11px] font-semibold text-white" style={{ background: "rgba(255,255,255,0.10)" }}>
+                <div className="shrink-0 whitespace-nowrap rounded-full px-2 py-1 text-[11px] font-semibold" style={{ background: T.accentSubtle, color: T.accentHover }}>
                   {step}
                 </div>
-                {index < JOURNEY.length - 1 && <ArrowRight size={10} className="shrink-0" style={{ color: "rgba(255,255,255,0.4)" }} />}
+                {index < JOURNEY.length - 1 && <ArrowRight size={10} className="shrink-0" style={{ color: T.textMuted }} />}
               </React.Fragment>
             ))}
           </div>
-          <p className="mt-2.5 text-xs leading-relaxed" style={{ color: "rgba(255,255,255,0.55)" }}>研修で終わらず、現場参画後の継続学習まで循環させます。</p>
+          <p className="mt-2.5 text-xs leading-relaxed" style={{ color: T.textMuted }}>研修で終わらず、現場参画後の継続学習まで循環させます。</p>
         </div>
       </div>
     </section>

@@ -63,13 +63,16 @@ export const T = {
 // Product-nav active underline (2px) / Sidebar active bg (subtle) + text (deep).
 // Buttons, links, forms and focus stay on the shared T.accent; aiAccent rules unchanged.
 // gradFrom is the DARK side, gradTo the light side (approved mock: 濃→明, 120deg).
-// training's gradFrom/gradTo were split off from admin (Phase7-3 正式版デザイン調整):
-// 研修管理Home（PageHeader経由、trainee/client）はFeepsブランドブルーの明るいグラデーションへ、
-// Feeps One統合Home（黒〜濃いグレー、FeepsOneHome.jsx）・管理者Product（admin、従来通り）とは
-// 意図的に差別化。training.accent/deep/subtleはアイコンチップ・サイドバー等で広く使われているため
-// 変更していない（gradFrom/gradToはPageHeaderのHero背景専用）。
+// training/adminのgradFrom/gradToはFeepsブランドブルー（Phase7-3デザインブラッシュアップで統一）:
+// 研修管理Home（PageHeader経由のtrainee/client、InstructorWorkspace）と、admin役の研修管理導線
+// （TrainingApp.jsxはproduct==="training"&&role==="admin"のときAdminProductを描画する。つまり
+// 管理者にとって「研修管理」＝AdminProduct）が同じ青系グラデーションになるよう、training/admin
+// 両方のgradFrom/gradToを揃えている。accent/deep/subtleはアイコンチップ・サイドバー等で広く
+// 使われているため変更していない（gradFrom/gradToはPageHeader/Heroの背景専用）。
+// Feeps One統合Home（FeepsOneHome.jsx）は白〜淡いブルー〜ブランドブルーの独自グラデーションを
+// 直接組み立てており、このPRODUCT_ACCENTの値には依存しない（Home自体を主役にするための意図的な差別化）。
 // analytics was moved off cyan (it collided with learning) onto a rose/wine family so
-// every Product now has a visually distinct hue: gray(admin) / blue(training) / teal(learning) /
+// every Product now has a visually distinct hue: blue(training/admin) / teal(learning) /
 // purple(talent) / orange(matching) / rose(analytics).
 export const PRODUCT_ACCENT = {
   home:      { accent: "#3D6BFF", deep: "#2F56D9", subtle: "#EDF1FF", gradFrom: "#2F56D9", gradTo: "#14A3B8" },
@@ -78,7 +81,7 @@ export const PRODUCT_ACCENT = {
   talent:    { accent: "#7C5CE0", deep: "#6247B8", subtle: "#F3F0FC", gradFrom: "#4B32A8", gradTo: "#7C5CE0" },
   matching:  { accent: "#E07B39", deep: "#B25E1F", subtle: "#FBF0E7", gradFrom: "#B25E1F", gradTo: "#E07B39" },
   analytics: { accent: "#B23A55", deep: "#8C2C43", subtle: "#F8E9ED", gradFrom: "#8C2C43", gradTo: "#B23A55" },
-  admin:     { accent: "#3A404C", deep: "#23272F", subtle: "#EDEEF1", gradFrom: "#23272F", gradTo: "#3A404C" },
+  admin:     { accent: "#3A404C", deep: "#23272F", subtle: "#EDEEF1", gradFrom: "#2F56D9", gradTo: "#5B8CFF" },
 };
 
 // Role accent (2026-07-03). Independent from PRODUCT_ACCENT — this is ONLY for the
