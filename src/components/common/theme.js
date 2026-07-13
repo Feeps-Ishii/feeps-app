@@ -63,15 +63,17 @@ export const T = {
 // Product-nav active underline (2px) / Sidebar active bg (subtle) + text (deep).
 // Buttons, links, forms and focus stay on the shared T.accent; aiAccent rules unchanged.
 // gradFrom is the DARK side, gradTo the light side (approved mock: 濃→明, 120deg).
-// training is intentionally identical to admin (2026-07-03 palette reorganization):
-// 研修管理 is now the shared dark/neutral identity across every role, matching the
-// admin-only screens embedded in it (AdminProduct views set product="admin" directly).
+// training's gradFrom/gradTo were split off from admin (Phase7-3 正式版デザイン調整):
+// 研修管理Home（PageHeader経由、trainee/client）はFeepsブランドブルーの明るいグラデーションへ、
+// Feeps One統合Home（黒〜濃いグレー、FeepsOneHome.jsx）・管理者Product（admin、従来通り）とは
+// 意図的に差別化。training.accent/deep/subtleはアイコンチップ・サイドバー等で広く使われているため
+// 変更していない（gradFrom/gradToはPageHeaderのHero背景専用）。
 // analytics was moved off cyan (it collided with learning) onto a rose/wine family so
-// every Product now has a visually distinct hue: gray(training/admin) / teal(learning) /
+// every Product now has a visually distinct hue: gray(admin) / blue(training) / teal(learning) /
 // purple(talent) / orange(matching) / rose(analytics).
 export const PRODUCT_ACCENT = {
   home:      { accent: "#3D6BFF", deep: "#2F56D9", subtle: "#EDF1FF", gradFrom: "#2F56D9", gradTo: "#14A3B8" },
-  training:  { accent: "#3A404C", deep: "#23272F", subtle: "#EDEEF1", gradFrom: "#23272F", gradTo: "#3A404C" },
+  training:  { accent: "#3A404C", deep: "#23272F", subtle: "#EDEEF1", gradFrom: "#2F56D9", gradTo: "#5B8CFF" },
   learning:  { accent: "#14A3B8", deep: "#0E7A8A", subtle: "#E7F5F7", gradFrom: "#0E7A8A", gradTo: "#14A3B8" },
   talent:    { accent: "#7C5CE0", deep: "#6247B8", subtle: "#F3F0FC", gradFrom: "#4B32A8", gradTo: "#7C5CE0" },
   matching:  { accent: "#E07B39", deep: "#B25E1F", subtle: "#FBF0E7", gradFrom: "#B25E1F", gradTo: "#E07B39" },

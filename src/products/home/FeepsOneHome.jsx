@@ -178,60 +178,59 @@ function TaskCard({ icon: Icon, title, value, desc, action, tone = "home", onCli
 
 function Hero({ role, displayName, contextLine }) {
   const roleAccent = ROLE_ACCENT[role] || ROLE_ACCENT.default;
-  const heroBg = `linear-gradient(135deg, ${T.bgSurface} 0%, ${T.accentSubtle} 58%, ${PRODUCT_ACCENT.learning.subtle} 100%)`;
+  // 正式版デザイン方針: Feeps One統合Homeは黒〜濃いグレーのダークグラデーション（高級感・管理画面らしさ）、文字は白で統一。
+  // 新規に色を発明せず、既存のPRODUCT_ACCENT.admin（dark/neutral identity）のgradFrom/gradToを再利用する。
+  const heroBg = `linear-gradient(135deg, ${PRODUCT_ACCENT.admin.gradFrom} 0%, ${PRODUCT_ACCENT.admin.gradTo} 100%)`;
   return (
-    <section className="overflow-hidden rounded-[24px] p-4 sm:p-9" style={{ background: heroBg, border: `1px solid ${T.border}`, boxShadow: "0 14px 36px rgba(21,38,47,.07)" }}>
-      <div className="flex flex-wrap items-center justify-between gap-3 border-b pb-4" style={{ borderColor: T.border }}>
+    <section className="overflow-hidden rounded-[24px] p-4 sm:p-9" style={{ background: heroBg, boxShadow: "0 14px 36px rgba(10,12,16,.3)" }}>
+      <div className="flex flex-wrap items-center justify-between gap-3 border-b pb-4" style={{ borderColor: "rgba(255,255,255,0.14)" }}>
         <div className="flex min-w-0 items-center gap-3">
           <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl" style={{ background: T.accent, color: "#fff" }}>
             <TrendingUp size={20} />
           </span>
           <div className="min-w-0">
-            <div className="text-lg font-extrabold leading-none" style={{ color: T.textPrimary }}>Feeps One</div>
-            <div className="mt-1 text-xs font-semibold" style={{ color: T.textMuted }}>Integrated Training & Growth Platform</div>
+            <div className="text-lg font-extrabold leading-none text-white">Feeps One</div>
+            <div className="mt-1 text-xs font-semibold" style={{ color: "rgba(255,255,255,0.62)" }}>Integrated Training & Growth Platform</div>
           </div>
           <span className="ml-1 rounded-full px-3 py-1 text-xs font-bold" style={{ background: roleAccent.subtle, color: roleAccent.accent }}>
             {ROLE_LABEL[role] || role}
           </span>
         </div>
-        <div className="flex items-center gap-2 rounded-full px-3 py-1.5 text-xs font-semibold" style={{ background: T.bgSurface, color: T.textSecondary, border: `1px solid ${T.border}` }}>
+        <div className="flex items-center gap-2 rounded-full px-3 py-1.5 text-xs font-semibold text-white" style={{ background: "rgba(255,255,255,0.10)", border: "1px solid rgba(255,255,255,0.16)" }}>
           <CalendarDays size={14} />
           {dateLabel()}
         </div>
       </div>
 
-      <div className="grid gap-4 pt-4 sm:gap-6 sm:pt-6 lg:grid-cols-[minmax(0,1fr)_430px] lg:items-end">
+      <div className="grid gap-4 pt-4 sm:gap-6 sm:pt-6 lg:grid-cols-[minmax(0,1fr)_460px] lg:items-end">
         <div className="min-w-0">
-          <h1 className="hidden text-3xl font-semibold leading-tight sm:block sm:text-4xl" style={{ color: T.textPrimary, letterSpacing: "-0.02em" }}>研修・学習・成長を、ひとつに。</h1>
-          <p className="mt-2 hidden text-sm font-semibold sm:block" style={{ color: T.textSecondary }}>Integrated Training & Growth Platform</p>
-          <div className="mt-0 rounded-2xl p-4 sm:mt-6 sm:p-5" style={{ background: "rgba(255,255,255,.72)", border: `1px solid ${T.border}` }}>
-            <p className="text-base font-bold leading-relaxed" style={{ color: T.textPrimary }}>
+          <h1 className="hidden text-3xl font-semibold leading-tight text-white sm:block sm:text-4xl" style={{ letterSpacing: "-0.02em" }}>研修・学習・成長を、ひとつに。</h1>
+          <p className="mt-2 hidden text-sm font-semibold sm:block" style={{ color: "rgba(255,255,255,0.72)" }}>Integrated Training & Growth Platform</p>
+          <div className="mt-0 rounded-2xl p-4 sm:mt-6 sm:p-5" style={{ background: "rgba(255,255,255,0.08)", border: "1px solid rgba(255,255,255,0.14)" }}>
+            <p className="text-base font-bold leading-relaxed text-white">
               {displayName}さん、<br className="sm:hidden" />おかえりなさい。
             </p>
-            <p className="mt-2 text-sm leading-relaxed" style={{ color: T.textSecondary }}>{contextLine}</p>
+            <p className="mt-2 text-sm leading-relaxed" style={{ color: "rgba(255,255,255,0.72)" }}>{contextLine}</p>
           </div>
         </div>
 
-        <div className="hidden rounded-2xl p-4 lg:block" style={{ background: T.bgSurface, border: `1px solid ${T.border}` }}>
+        <div className="hidden rounded-2xl p-3 lg:block" style={{ background: "rgba(255,255,255,0.08)", border: "1px solid rgba(255,255,255,0.14)" }}>
           <div className="flex items-center justify-between gap-3">
-            <div className="text-xs font-bold uppercase" style={{ color: T.textMuted }}>Learning Journey</div>
-            <Sparkles size={15} style={{ color: PRODUCT_ACCENT.learning.deep }} />
+            <div className="text-xs font-bold uppercase" style={{ color: "rgba(255,255,255,0.62)" }}>Learning Journey</div>
+            <Sparkles size={14} style={{ color: PRODUCT_ACCENT.learning.accent }} />
           </div>
-          <div className="mt-3 flex flex-wrap items-center gap-2">
-            {JOURNEY.map((step, index) => {
-              const productKey = index < 1 ? "training" : index < 2 ? "learning" : index < 3 ? "talent" : index < 5 ? "matching" : "learning";
-              const pa = PRODUCT_ACCENT[productKey];
-              return (
-                <React.Fragment key={step}>
-                  <div className="rounded-full px-2.5 py-1.5 text-xs font-semibold" style={{ background: pa.subtle, color: pa.deep }}>
-                    {step}
-                  </div>
-                  {index < JOURNEY.length - 1 && <ArrowRight size={13} style={{ color: T.textMuted }} />}
-                </React.Fragment>
-              );
-            })}
+          {/* 1行固定: flex-nowrap + 縮小したpadding/文字/矢印サイズで6ステップ+矢印5本を無理なく収める */}
+          <div className="mt-2.5 flex flex-nowrap items-center gap-1 overflow-hidden">
+            {JOURNEY.map((step, index) => (
+              <React.Fragment key={step}>
+                <div className="shrink-0 whitespace-nowrap rounded-full px-2 py-1 text-[11px] font-semibold text-white" style={{ background: "rgba(255,255,255,0.10)" }}>
+                  {step}
+                </div>
+                {index < JOURNEY.length - 1 && <ArrowRight size={10} className="shrink-0" style={{ color: "rgba(255,255,255,0.4)" }} />}
+              </React.Fragment>
+            ))}
           </div>
-          <p className="mt-3 text-xs leading-relaxed" style={{ color: T.textMuted }}>研修で終わらず、現場参画後の継続学習まで循環させます。</p>
+          <p className="mt-2.5 text-xs leading-relaxed" style={{ color: "rgba(255,255,255,0.55)" }}>研修で終わらず、現場参画後の継続学習まで循環させます。</p>
         </div>
       </div>
     </section>

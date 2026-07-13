@@ -4,7 +4,7 @@ import {
   Clock, FileText, GraduationCap, Megaphone, NotebookPen, RefreshCw, Save
 } from "lucide-react";
 import { apiGet, apiPut } from "../../api.js";
-import { Badge, Btn, Card, SkeletonCards, SkeletonRows, T } from "../../components/common";
+import { Badge, Btn, Card, SkeletonCards, SkeletonRows, T, PRODUCT_ACCENT } from "../../components/common";
 
 function textOf(value, fallback = "") {
   if (value == null || value === "") return fallback;
@@ -275,7 +275,9 @@ export default function InstructorWorkspace({ go, displayName = "講師" }) {
 
   return (
     <div className="space-y-5">
-      <div className="relative overflow-hidden rounded-2xl p-5 sm:p-6" style={{ background: "linear-gradient(120deg, #23272F 0%, #3A404C 100%)" }}>
+      {/* Phase7-3正式版デザイン調整: 研修管理HomeはFeepsブランドブルーのグラデーション（KPIカードは白文字基本）。
+          PRODUCT_ACCENT.trainingのgradFrom/gradToを再利用し、PageHeader経由のtrainee/client向け研修管理Homeと統一する。 */}
+      <div className="relative overflow-hidden rounded-2xl p-5 sm:p-6" style={{ background: `linear-gradient(120deg, ${PRODUCT_ACCENT.training.gradFrom} 0%, ${PRODUCT_ACCENT.training.gradTo} 100%)` }}>
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div>
             <div className="text-xs font-bold uppercase" style={{ color: "rgba(255,255,255,0.75)", letterSpacing: "0.14em" }}>Instructor Workspace</div>
