@@ -6,6 +6,8 @@ import { MATCHING_NAV } from "./products/matching/MatchingCatalog.js";
 import { TALENT_NAV } from "./products/talent/TalentCatalog.js";
 import FeepsOneHome from "./products/home/FeepsOneHome.jsx";
 import TrainingProduct from "./products/training/TrainingProduct.jsx";
+import Login from "./products/auth/Login.jsx";
+import { LegalPageView } from "./components/common/LegalPages.jsx";
 import { Card, Badge, Btn, Avatar, Stat, SectionHead, T, PRODUCT_ACCENT, ROLE_ACCENT, Z, PageLoading, EmptyState as CommonEmptyState, SkeletonRows } from "./components/common";
 import { SAMPLE_VIEWS } from "./products/training/TrainingComponents.jsx";
 import { GOALS, GOAL_ICON_MAP, NAV, ROLES } from "./products/training/TrainingCatalog.js";
@@ -106,211 +108,6 @@ function storageGet(key, fallback) {
 }
 function storageSet(key, value) {
   try { window.localStorage.setItem(key, value); } catch {}
-}
-
-function Login({ onLogin }) {
-  const [sel, setSel] = useState("trainee");
-  const me = ROLES[sel];
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
-  const [busy, setBusy] = useState(false);
-  const [err, setErr] = useState("");
-  const [needNewPw, setNeedNewPw] = useState(false);
-  const [newPw, setNewPw] = useState("");
-
-  async function handleLogin() {
-    if (busy) return;
-    setErr("");
-    if (!email || !password) { setErr("メールアドレスとパスワードを入力してください。"); return; }
-    setBusy(true);
-    try {
-      try { await signOut(); } catch (e) {}
-      const { isSignedIn, nextStep } = await signIn({ username: email.trim(), password });
-      if (isSignedIn || nextStep?.signInStep === "DONE") {
-        onLogin(sel);
-      } else if (nextStep?.signInStep === "CONFIRM_SIGN_IN_WITH_NEW_PASSWORD_REQUIRED") {
-        setNeedNewPw(true);
-        setErr("初回ログインです。新しいパスワードを設定してください。");
-      } else if (nextStep?.signInStep === "CONFIRM_SIGN_UP") {
-        setErr("メールアドレスの確認が未完了です。確認コードでの認証が必要です。");
-      } else {
-        setErr("追加の認証ステップが必要です：" + (nextStep?.signInStep || "不明"));
-      }
-    } catch (e) {
-      const n = e?.name || "";
-      if (n === "UserNotFoundException" || n === "NotAuthorizedException") setErr("メールアドレスまたはパスワードが正しくありません。");
-      else if (n === "UserNotConfirmedException") setErr("メールアドレスの確認が未完了です。");
-      else setErr(e?.message || "ログインに失敗しました。");
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  async function handleNewPassword() {
-    if (busy) return;
-    setErr("");
-    if (!newPw) { setErr("新しいパスワードを入力してください。"); return; }
-    setBusy(true);
-    try {
-      const { isSignedIn, nextStep } = await confirmSignIn({ challengeResponse: newPw });
-      if (isSignedIn || nextStep?.signInStep === "DONE") {
-        onLogin(sel);
-      } else {
-        setErr("パスワード設定後、追加のステップが必要です：" + (nextStep?.signInStep || "不明"));
-      }
-    } catch (e) {
-      setErr(e?.message || "パスワード設定に失敗しました（8文字以上・大小英字・数字・記号が必要です）。");
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  const loginRate = useCountUp(86.2, { decimals: 1 });
-  // CSS custom properties bridge these theme.js tokens into index.css's
-  // .feeps-login-field rules (:focus-within / :-webkit-autofill), which inline
-  // style alone cannot reach.
-  const loginFieldVars = {
-    "--field-bg": T.bgSurface,
-    "--field-border": T.border,
-    "--field-text": T.textPrimary,
-    "--field-focus": T.accent,
-    "--field-focus-ring": T.accentSubtle,
-  };
-  return (
-    <div className="grid min-h-screen lg:grid-cols-[1.15fr_1fr]" style={{ background: T.bgBase, minHeight: "100dvh", fontFamily: "'Inter','Noto Sans JP',sans-serif" }}>
-      {/* ===== 左: 製品ショーケース ===== */}
-      <div className="relative hidden flex-col justify-between overflow-hidden p-12 lg:flex" style={{ borderRight: `1px solid ${T.border}` }}>
-        {/* 背景装飾: 細線の同心円のみ */}
-        <svg className="pointer-events-none absolute -right-24 -top-24" width="520" height="520" viewBox="0 0 520 520" fill="none" aria-hidden="true">
-          <circle cx="260" cy="260" r="160" stroke="rgba(124,92,224,0.10)" strokeWidth="1.5" />
-          <circle cx="260" cy="260" r="230" stroke="rgba(61,107,255,0.08)" strokeWidth="1.5" />
-        </svg>
-        <div className="feeps-stagger-in relative flex items-center gap-2.5" style={{ animationDelay: "0ms" }}>
-          <span className="flex h-10 w-10 items-center justify-center rounded-xl" style={{ background: T.accent }}><TrendingUp size={20} color="#fff" /></span>
-          <span className="text-lg font-bold" style={{ color: T.textPrimary, letterSpacing: "-0.02em" }}>{BRAND.name}</span>
-        </div>
-
-        <div className="relative">
-          <h1 className="feeps-stagger-in text-4xl font-bold leading-snug" style={{ color: T.textPrimary, letterSpacing: "-0.02em", animationDelay: "80ms" }}>企業研修を「学ぶ」で<br />終わらせない。</h1>
-          <p className="feeps-stagger-in mt-4 max-w-md text-sm leading-relaxed" style={{ color: T.textSecondary, animationDelay: "160ms" }}>
-            研修管理、Eラーニング、AI問題作成、スキル可視化まで。ひとつにつながる人材育成プラットフォーム。
-          </p>
-
-          {/* ミニダッシュボード群 */}
-          <div className="relative mt-10 h-[330px] max-w-lg">
-            {/* スキル達成率 */}
-            <div className="feeps-stagger-in absolute left-0 top-0 w-[62%]" style={{ animationDelay: "300ms" }}>
-              <div className="feeps-float rounded-xl p-5" style={{ background: "#fff", border: `1px solid ${T.border}`, boxShadow: "0 12px 32px rgba(26,28,32,.07)", animationDuration: "7s" }}>
-                <div className="flex items-center justify-between">
-                  <span className="text-xs font-semibold" style={{ color: T.textMuted, letterSpacing: "0.06em" }}>スキル達成率</span>
-                  <span className="rounded-full px-2 py-0.5 text-[10px] font-bold" style={{ background: T.successSubtle, color: T.success }}>+12% 前月比</span>
-                </div>
-                <div className="mt-2 text-4xl font-bold" style={{ color: T.textPrimary, fontVariantNumeric: "tabular-nums", letterSpacing: "-0.02em" }}>
-                  {loginRate.toFixed(1)}<span className="text-base font-semibold" style={{ color: T.textMuted }}>%</span>
-                </div>
-                <svg className="mt-3 w-full" viewBox="0 0 240 60" fill="none" aria-hidden="true">
-                  <path className="feeps-draw" style={{ animationDelay: "700ms" }} pathLength="1" d="M4 50 L36 44 L68 46 L100 36 L132 40 L164 28 L196 30 L236 14" stroke={T.accent} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
-                </svg>
-              </div>
-            </div>
-            {/* AI問題生成 */}
-            <div className="feeps-stagger-in absolute right-0 top-[108px] w-[56%]" style={{ animationDelay: "400ms" }}>
-              <div className="feeps-float rounded-xl p-4" style={{ background: "#fff", border: `1px solid ${T.border}`, boxShadow: "0 12px 32px rgba(26,28,32,.08)", animationDuration: "6s", animationDelay: "-2s" }}>
-                <div className="flex items-center justify-between gap-2">
-                  <div className="flex items-center gap-2">
-                    <span className="flex h-7 w-7 items-center justify-center rounded-lg" style={{ background: T.aiAccentDeep }}><Sparkles size={13} color="#fff" /></span>
-                    <span className="text-sm font-bold" style={{ color: T.textPrimary }}>AI問題生成</span>
-                  </div>
-                  <span className="text-[11px] font-semibold" style={{ color: T.aiAccent }}>生成中…</span>
-                </div>
-                <div className="feeps-shimmer mt-3 h-1.5 w-full rounded-full" />
-                <div className="mt-3 space-y-2">
-                  <div className="h-2 w-[85%] rounded-full" style={{ background: T.border }} />
-                  <div className="h-2 w-[70%] rounded-full" style={{ background: T.border }} />
-                  <div className="h-2 w-[78%] rounded-full" style={{ background: T.border }} />
-                </div>
-              </div>
-            </div>
-            {/* 研修進捗 */}
-            <div className="feeps-stagger-in absolute bottom-0 left-[8%] w-[52%]" style={{ animationDelay: "500ms" }}>
-              <div className="feeps-float rounded-xl p-4" style={{ background: "#fff", border: `1px solid ${T.border}`, boxShadow: "0 12px 32px rgba(26,28,32,.07)", animationDuration: "8s", animationDelay: "-4s" }}>
-                <div className="text-xs font-semibold" style={{ color: T.textMuted, letterSpacing: "0.06em" }}>研修進捗</div>
-                <div className="mt-3 space-y-3">
-                  {[["Java基礎", 78], ["AWS入門", 45]].map(([name, pct]) => (
-                    <div key={name} className="flex items-center gap-2.5">
-                      <span className="w-16 shrink-0 text-xs font-semibold" style={{ color: T.textPrimary }}>{name}</span>
-                      <div className="h-1.5 flex-1 overflow-hidden rounded-full" style={{ background: T.border }}>
-                        <div className="h-full rounded-full" style={{ width: `${pct}%`, background: T.accent }} />
-                      </div>
-                      <span className="shrink-0 text-xs" style={{ color: T.textMuted, fontVariantNumeric: "tabular-nums" }}>{pct}%</span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <div className="feeps-stagger-in relative flex items-center justify-between text-xs" style={{ color: T.textMuted, animationDelay: "600ms" }}>
-          <div className="flex items-center gap-3">
-            {["研修管理", "AI活用", "スキル可視化"].map((f, i) => (
-              <React.Fragment key={f}>
-                {i > 0 && <span style={{ color: T.border }}>・</span>}
-                <span className="font-semibold">{f}</span>
-              </React.Fragment>
-            ))}
-          </div>
-          <span>© 2026 Feeps Inc.</span>
-        </div>
-      </div>
-
-      {/* ===== 右: ログインフォーム ===== */}
-      <div className="feeps-fade-in flex items-center justify-center p-6 sm:p-12" style={{ background: T.bgSurface }}>
-        <div className="w-full max-w-sm">
-          <div className="mb-4 lg:hidden">
-            <div className="flex items-center gap-2.5">
-              <span className="flex h-9 w-9 items-center justify-center rounded-xl" style={{ background: T.accent }}><TrendingUp size={18} color="#fff" /></span>
-              <span className="text-lg font-bold" style={{ color: T.textPrimary, letterSpacing: "-0.02em" }}>{BRAND.name}</span>
-            </div>
-          </div>
-          <h2 className="text-2xl font-bold" style={{ color: T.textPrimary, letterSpacing: "-0.02em" }}>ログイン</h2>
-          <p className="mt-1 text-sm" style={{ color: T.textMuted }}>アカウント情報を入力してください</p>
-
-          <div className="mt-6 space-y-4">
-            <label className="block">
-              <div className="mb-1.5 text-xs font-semibold" style={{ color: T.textSecondary }}>メールアドレス</div>
-              <div className="feeps-login-field flex items-center gap-2 rounded-xl px-3" style={loginFieldVars}>
-                <Mail size={16} style={{ color: T.textMuted }} />
-                <input value={email} onChange={e => setEmail(e.target.value)} placeholder={me.mail} type="email" autoComplete="username" className="w-full bg-transparent py-3 text-sm outline-none" style={{ color: T.textPrimary }} />
-              </div>
-            </label>
-            <label className="block">
-              <div className="mb-1.5 text-xs font-semibold" style={{ color: T.textSecondary }}>パスワード</div>
-              <div className="feeps-login-field flex items-center gap-2 rounded-xl px-3" style={loginFieldVars}>
-                <Lock size={16} style={{ color: T.textMuted }} />
-                <input type="password" value={password} onChange={e => setPassword(e.target.value)} onKeyDown={e => { if (e.key === "Enter") handleLogin(); }} placeholder="パスワード" autoComplete="current-password" className="w-full bg-transparent py-3 text-sm outline-none" style={{ color: T.textPrimary }} />
-              </div>
-            </label>
-            {err && <div className="rounded-lg px-3 py-2 text-xs" style={{ background: needNewPw ? T.warningSubtle : T.dangerSubtle, color: needNewPw ? T.warning : T.danger }}>{err}</div>}
-            {needNewPw && (
-              <label className="block">
-                <div className="mb-1.5 text-xs font-semibold" style={{ color: T.textSecondary }}>新しいパスワード</div>
-                <div className="feeps-login-field flex items-center gap-2 rounded-xl px-3" style={loginFieldVars}>
-                  <Lock size={16} style={{ color: T.textMuted }} />
-                  <input type="password" value={newPw} onChange={e => setNewPw(e.target.value)} onKeyDown={e => { if (e.key === "Enter") handleNewPassword(); }} placeholder="新しいパスワード" autoComplete="new-password" className="w-full bg-transparent py-3 text-sm outline-none" style={{ color: T.textPrimary }} />
-                </div>
-              </label>
-            )}
-            {needNewPw
-              ? <button type="button" onClick={handleNewPassword} disabled={busy} className="feeps-login-cta w-full rounded-xl px-4 py-3 text-sm font-bold text-white disabled:opacity-60" style={{ background: T.accent }}>{busy ? "設定中…" : "パスワードを設定して続行"}</button>
-              : <button type="button" onClick={handleLogin} disabled={busy} className="feeps-login-cta w-full rounded-xl px-4 py-3 text-sm font-bold text-white disabled:opacity-60" style={{ background: T.accent }}>{busy ? "ログイン中…" : "ログイン"}</button>}
-            <div className="text-center text-xs" style={{ color: T.textMuted }}>パスワードをお忘れですか？</div>
-          </div>
-
-        </div>
-      </div>
-    </div>
-  );
 }
 
 /* ===== 受講生：ホーム ===== */
@@ -645,12 +442,37 @@ function SideNav({ groups, view, karte, go, badges = {}, collapsed = false, pa =
     </div>
   );
 }
-function UserProfileView({ me, displayName, userProfile }) {
+function UserProfileView({ me, displayName, userProfile, onSaved }) {
+  const [name, setName] = useState(userProfile?.name || "");
+  const [saving, setSaving] = useState(false);
+  const [message, setMessage] = useState("");
+  const nameInputRef = useRef(null);
+  useEffect(() => { setName(userProfile?.name || ""); }, [userProfile]);
+  async function save() {
+    if (saving) return;
+    if (!name.trim()) { setMessage("氏名を入力してください。"); return; }
+    setSaving(true); setMessage("");
+    try {
+      await apiPut("/profile/me", { name: name.trim(), company: userProfile?.company ?? "", course: userProfile?.course ?? "" });
+      const fresh = await apiGet("/profile/me");
+      onSaved?.(fresh);
+      setMessage("保存しました");
+    } catch (e) {
+      setMessage("保存に失敗しました: " + (e?.errorMessage || e?.message || e));
+    } finally {
+      setSaving(false);
+    }
+  }
   return (
     <div className="mx-auto max-w-xl space-y-5">
       {!userProfile?.name && (
         <div className="rounded-xl px-4 py-3 text-sm font-semibold" style={{ background: T.warningSubtle, color: T.warning }}>
-          プロフィールが未登録です。プロフィールを登録してください。
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <span>プロフィールが未登録です。プロフィールを登録してください。</span>
+            <button type="button" onClick={() => nameInputRef.current?.focus()} className="shrink-0 rounded-lg px-3 py-1.5 text-xs font-bold text-white" style={{ background: T.warning }}>
+              プロフィールを登録
+            </button>
+          </div>
         </div>
       )}
       <Card className="overflow-hidden">
@@ -662,21 +484,26 @@ function UserProfileView({ me, displayName, userProfile }) {
         </div>
       </Card>
       <Card>
-        <div className="px-4 pt-4 pb-1">
+        <div className="flex items-center justify-between px-4 pt-4 pb-1">
           <div className="text-xs font-bold uppercase tracking-widest" style={{ color: T.textMuted }}>アカウント情報</div>
+          <Btn size="sm" onClick={save} disabled={saving}>{saving ? "保存中..." : "保存"}</Btn>
         </div>
-        <div className="divide-y px-4" style={{ borderColor: T.border }}>
+        <div className="space-y-3 px-4 py-3">
+          <label className="block">
+            <div className="mb-1 text-xs font-semibold" style={{ color: T.textMuted }}>氏名</div>
+            <input ref={nameInputRef} value={name} onChange={e => setName(e.target.value)} placeholder="氏名を入力してください" className="w-full rounded-xl px-3 py-2 text-sm outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary }} />
+          </label>
           {[
-            ["氏名", displayName],
             ["メールアドレス", userProfile?.email || "未登録"],
             ["所属", userProfile?.company || "未登録"],
             ["ロール", me.label],
           ].map(([label, value]) => (
-            <div key={label} className="flex items-center justify-between py-3">
+            <div key={label} className="flex items-center justify-between py-1">
               <span className="text-sm" style={{ color: T.textMuted }}>{label}</span>
               <span className="text-sm font-semibold" style={{ color: T.textPrimary }}>{value || "—"}</span>
             </div>
           ))}
+          {message && <div className="text-sm font-semibold" style={{ color: message.includes("失敗") || message.includes("入力してください") ? T.danger : T.success }}>{message}</div>}
         </div>
       </Card>
     </div>
@@ -865,6 +692,8 @@ export default function App() {
   const viewTitle = karte ? "カルテ"
     : view === "notifications" ? "通知センター"
     : view === "profile" ? "プロフィール"
+    : view === "terms" ? "利用規約"
+    : view === "privacy" ? "プライバシーポリシー"
     : (nav.flatMap(g => g.items).find(([k]) => k === activeView)?.[1] || "ホーム");
 
   useEffect(() => {
@@ -915,7 +744,7 @@ export default function App() {
   }
 
   if (!authChecked) return null;
-  if (!loggedIn) return <Login onLogin={login} />;
+  if (!loggedIn) return <Login onLogin={() => login("trainee")} />;
   if (!profileChecked) return null;
 
   const screen = (() => {
@@ -929,7 +758,9 @@ export default function App() {
     if (view === "risk") return <RiskBoard />;
     if (view === "awscosts") return <AwsCostDashboard />;
     if (view === "notifications") return <NotificationCenter notifications={notifications} loading={notifLoading} error={notifErr} role={role} go={go} goProduct={goProduct} goSub={goSub} />;
-    if (view === "profile") return <UserProfileView me={me} displayName={displayName} userProfile={userProfile} />;
+    if (view === "profile") return <UserProfileView me={me} displayName={displayName} userProfile={userProfile} onSaved={setUserProfile} />;
+    if (view === "terms") return <LegalPageView doc="terms" />;
+    if (view === "privacy") return <LegalPageView doc="privacy" />;
     if (product === "training" && role === "admin" && ["home", "companies", "courses", "users"].includes(view)) return <AdminProduct view={view} go={go} goProduct={goProduct} goSub={goSub} />;
     return <TrainingProduct
       view={view}
@@ -1125,6 +956,13 @@ export default function App() {
                       </button>;
                     })}
                     <div className="my-1 h-px" style={{ background: T.border }} />
+                    <button type="button" onClick={() => { setSidebarUserOpen(false); goProduct("training"); go("terms"); }} className="flex w-full items-center gap-2 px-3 py-2 text-xs font-semibold transition hover:bg-black/5" style={{ color: T.textSecondary }}>
+                      <FileText size={13} />利用規約
+                    </button>
+                    <button type="button" onClick={() => { setSidebarUserOpen(false); goProduct("training"); go("privacy"); }} className="flex w-full items-center gap-2 px-3 py-2 text-xs font-semibold transition hover:bg-black/5" style={{ color: T.textSecondary }}>
+                      <Lock size={13} />プライバシーポリシー
+                    </button>
+                    <div className="my-1 h-px" style={{ background: T.border }} />
                     <button type="button" onClick={logout} className="flex w-full items-center gap-2 px-3 py-2 text-xs font-semibold transition hover:bg-black/5" style={{ color: T.danger }}>
                       <LogOut size={13} />ログアウト
                     </button>
@@ -1251,6 +1089,11 @@ export default function App() {
               <button type="button" onClick={() => { setMobileMenuOpen(false); logout(); }} className="flex min-h-[48px] flex-col items-center justify-center gap-1 rounded-xl" style={{ background: T.bgBase, color: T.textSecondary }}>
                 <LogOut size={17} /><span className="text-[11px] font-semibold">ログアウト</span>
               </button>
+            </div>
+            <div className="mt-2 flex items-center justify-center gap-3 pb-1 text-[11px]" style={{ color: T.textMuted }}>
+              <button type="button" onClick={() => { setMobileMenuOpen(false); goProduct("training"); go("terms"); }} className="hover:underline">利用規約</button>
+              <span style={{ color: T.border }}>・</span>
+              <button type="button" onClick={() => { setMobileMenuOpen(false); goProduct("training"); go("privacy"); }} className="hover:underline">プライバシーポリシー</button>
             </div>
           </div>
         </div>

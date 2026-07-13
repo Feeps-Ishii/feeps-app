@@ -3739,6 +3739,7 @@ function ClientHome({ openKarte, go }) {
   const [clientTestResults, setClientTestResults] = useState({});
   const [clientLoading, setClientLoading] = useState(true);
   const [clientErr, setClientErr] = useState("");
+  const [clientCompanyName, setClientCompanyName] = useState("");
   const clientDate = todayStr();
   useEffect(() => {
     let alive = true;
@@ -3749,8 +3750,9 @@ function ClientHome({ openKarte, go }) {
       apiGet("/reports?date=" + clientDate),
       apiGet("/attendance?date=" + clientDate),
       apiGet("/tests"),
+      apiGet("/companies").catch(() => []),
     ])
-      .then(async ([ts, cs, rs, atts, tests]) => {
+      .then(async ([ts, cs, rs, atts, tests, companies]) => {
         const visibleTests = (Array.isArray(tests) ? tests : []).filter(t => (t.status || "published") !== "archived").slice(0, 8);
         const resultPairs = await Promise.all(visibleTests.map(t => {
           const tid = t.testId || t.id;
@@ -3763,6 +3765,8 @@ function ClientHome({ openKarte, go }) {
         setClientAttendance(Array.isArray(atts) ? atts : []);
         setClientTests(visibleTests);
         setClientTestResults(Object.fromEntries(resultPairs));
+        // /companies はclient権限では自社のみ返る（common.mjs）。Excel出力のraw ID表示回避のため企業名を保持する。
+        setClientCompanyName(Array.isArray(companies) && companies[0]?.name || "");
       })
       .catch(e => alive && setClientErr("自社受講生情報の取得に失敗しました: " + (e?.errorMessage || e?.message || e)))
       .finally(() => alive && setClientLoading(false));
@@ -3820,7 +3824,7 @@ function ClientHome({ openKarte, go }) {
         cta={{ label: "自社受講生を見る", icon: Users, onClick: () => go("trainees") }}
       />
       {clientErr && <div className="mb-4 rounded-lg px-3 py-2 text-xs" style={{ background: T.dangerSubtle, color: T.danger }}>{clientErr}</div>}
-      <div className="flex justify-end"><Btn kind="ghost" size="sm" icon={FileSpreadsheet} onClick={() => exportAttendanceExcel(clientAttendanceForToday.map(a => { const t = clientTrainees.find(x => (x.userId || x.id) === (a.traineeId || a.userId)); return { date: a.date, name: clientName(t || {}), org: t?.company || "", in: a.clockIn || "", out: a.clockOut || "", s: a.status || "", note: a.note || "" }; }), clientDate)}>勤怠を出力</Btn></div>
+      <div className="flex justify-end"><Btn kind="ghost" size="sm" icon={FileSpreadsheet} onClick={() => exportAttendanceExcel(clientAttendanceForToday.map(a => { const t = clientTrainees.find(x => (x.userId || x.id) === (a.traineeId || a.userId)); return { date: a.date, name: clientName(t || {}), org: clientCompanyName || t?.company || "", in: a.clockIn || "", out: a.clockOut || "", s: a.status || "", note: a.note || "" }; }), clientDate)}>勤怠を出力</Btn></div>
       <div className="mt-4 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <Stat icon={Clock} label="勤怠未登録" value={`${clientAttendanceMissing.length}名`} tone={clientAttendanceMissing.length ? "amber" : "green"} />
         <Stat icon={ClipboardCheck} label="テスト未受験" value={clientTests.length ? `${clientTestMissing.length}名` : "データなし"} tone={clientTestMissing.length ? "amber" : "muted"} />
