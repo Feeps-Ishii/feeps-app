@@ -1,8 +1,7 @@
 import React, { useEffect, useMemo, useState } from "react";
 import {
-  Activity, ArrowRight, BarChart3, BookOpen, Briefcase, Building2, CalendarDays,
-  CheckCircle2, ClipboardCheck, Clock, FileText, GraduationCap,
-  Megaphone, RefreshCw, School, Target, TrendingUp, Users
+  ArrowRight, BarChart3, BookOpen, Briefcase, CalendarDays,
+  CheckCircle2, FileText, Megaphone, RefreshCw, School, TrendingUp
 } from "lucide-react";
 import { apiGet } from "../../api.js";
 import { Badge, Btn, Card, T, PRODUCT_ACCENT, ROLE_ACCENT } from "../../components/common";
@@ -57,7 +56,8 @@ const PRODUCT_LAYOUT_BY_ROLE = {
   admin: { primary: [["training", "large"], ["learning", "large"]], secondary: ["talent", "matching", "analytics"], recommended: ["training", "learning"] },
   instructor: { primary: [["training", "large"], ["learning", "medium"]], secondary: [], recommended: [] },
   client: { primary: [["training", "large"]], secondary: [], recommended: [] },
-  trainee: { primary: [["learning", "large"], ["training", "medium"]], secondary: [], recommended: [] },
+  // 受講生は日常利用頻度の高い研修管理(日報・勤怠)を先に表示する。サイズはlearning=large/training=mediumを維持。
+  trainee: { primary: [["training", "medium"], ["learning", "large"]], secondary: [], recommended: [] },
 };
 
 function asArray(value) {
@@ -133,26 +133,6 @@ function SectionTitle({ title, desc, action }) {
   );
 }
 
-function SmallStatus({ label, value, hint, icon: Icon, tone = "home" }) {
-  const pa = PRODUCT_ACCENT[tone] || PRODUCT_ACCENT.home;
-  const valueText = textOf(value);
-  const isLongValue = valueText.length > 12;
-  return (
-    <Card className="p-4 sm:p-5">
-      <div className="flex h-full items-start gap-3">
-        <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl" style={{ background: pa.subtle, color: pa.deep }}>
-          <Icon size={19} />
-        </span>
-        <div className="min-w-0">
-          <div className="text-xs font-semibold" style={{ color: T.textMuted }}>{label}</div>
-          <div className={isLongValue ? "mt-2 break-words text-base font-bold leading-snug" : "mt-2 text-2xl font-bold leading-none tabular-nums"} style={{ color: T.textPrimary }}>{valueText}</div>
-          {hint && <div className="mt-2 text-xs leading-relaxed" style={{ color: T.textMuted }}>{hint}</div>}
-        </div>
-      </div>
-    </Card>
-  );
-}
-
 function Hero({ role, displayName, contextLine }) {
   const roleAccent = ROLE_ACCENT[role] || ROLE_ACCENT.default;
   // 正式版デザイン方針（再調整、Phase7-4）: 黒基調は企業向けSaaSとして重く見えるため、
@@ -199,32 +179,35 @@ function ProductHeroCard({ product, size, iconSide, recommended, onClick }) {
   const pa = PRODUCT_ACCENT[product.key] || PRODUCT_ACCENT.training;
   const Icon = product.icon;
   const isLarge = size === "large";
-  const iconBoxClass = isLarge ? "h-24 w-24 sm:h-28 sm:w-28" : "h-20 w-20 sm:h-24 sm:w-24";
-  const iconSize = isLarge ? 52 : 40;
-  const padClass = isLarge ? "p-6 sm:p-10" : "p-5 sm:p-7";
+  // large/mediumの大小差はアイコンブロックの高さ・アイコンサイズ・文字サイズの3軸で明確に付ける。
+  // アイコンブロックはproduct固有のgradFrom/gradTo（PageHeader.jsx等で既に使われているブランド色）を
+  // フルブリードの背景として使い、白アイコンでコントラストを強める（既存トークンのみ使用、新規色なし）。
+  const iconBlockSizeClass = isLarge ? "h-44 sm:h-auto sm:w-1/3 sm:min-h-[260px]" : "h-24 sm:h-auto sm:w-[28%] sm:min-h-[140px]";
+  const iconSize = isLarge ? 72 : 36;
+  const contentPadClass = isLarge ? "p-6 sm:p-9" : "p-5 sm:p-6";
   return (
-    <Card className={`${padClass} overflow-hidden`}>
-      <div className={`flex flex-col gap-6 sm:items-center sm:gap-8 ${iconSide === "right" ? "sm:flex-row-reverse" : "sm:flex-row"}`}>
-        <span className={`flex ${iconBoxClass} shrink-0 items-center justify-center rounded-[28px]`} style={{ background: pa.subtle, color: pa.deep }}>
-          <Icon size={iconSize} />
-        </span>
-        <div className="min-w-0 flex-1">
+    <Card className="overflow-hidden p-0">
+      <div className={`flex flex-col ${iconSide === "right" ? "sm:flex-row-reverse" : "sm:flex-row"}`}>
+        <div className={`flex shrink-0 items-center justify-center ${iconBlockSizeClass}`} style={{ background: `linear-gradient(135deg, ${pa.gradFrom} 0%, ${pa.gradTo} 100%)` }}>
+          <Icon size={iconSize} color="#fff" strokeWidth={1.6} />
+        </div>
+        <div className={`min-w-0 flex-1 ${contentPadClass}`}>
           <div className="flex flex-wrap items-center gap-2">
-            <h3 className={isLarge ? "text-xl font-bold sm:text-2xl" : "text-lg font-bold sm:text-xl"} style={{ color: T.textPrimary, letterSpacing: "-0.02em" }}>{product.label}</h3>
+            <h3 className={isLarge ? "text-2xl font-bold sm:text-[28px]" : "text-lg font-bold"} style={{ color: T.textPrimary, letterSpacing: "-0.02em" }}>{product.label}</h3>
             {recommended && <Badge>おすすめ</Badge>}
           </div>
-          <p className={isLarge ? "mt-3 text-sm leading-relaxed sm:text-base" : "mt-2 text-sm leading-relaxed"} style={{ color: T.textSecondary }}>{product.tagline}</p>
+          <p className={isLarge ? "mt-3 text-base font-semibold leading-relaxed sm:text-lg" : "mt-2 text-sm leading-relaxed"} style={{ color: T.textSecondary }}>{product.tagline}</p>
           {product.features.length > 0 && (
-            <ul className="mt-4 space-y-2">
+            <ul className={isLarge ? "mt-4 space-y-2.5" : "mt-3 space-y-1.5"}>
               {product.features.map(feature => (
-                <li key={feature} className="flex items-start gap-2 text-sm" style={{ color: T.textSecondary }}>
-                  <CheckCircle2 size={16} className="mt-0.5 shrink-0" style={{ color: pa.deep }} />
+                <li key={feature} className={isLarge ? "flex items-start gap-2 text-sm font-medium sm:text-base" : "flex items-start gap-2 text-xs"} style={{ color: T.textSecondary }}>
+                  <CheckCircle2 size={isLarge ? 18 : 14} className="mt-0.5 shrink-0" style={{ color: pa.deep }} />
                   <span>{feature}</span>
                 </li>
               ))}
             </ul>
           )}
-          <div className="mt-6">
+          <div className={isLarge ? "mt-6" : "mt-4"}>
             <Btn size={isLarge ? "md" : "sm"} kind="soft" icon={ArrowRight} onClick={onClick}>{product.label}を開く</Btn>
           </div>
         </div>
@@ -311,84 +294,10 @@ export default function FeepsOneHome({ role, displayName, goProduct, goTraining,
     loadDashboard();
   }, [loadDashboard]);
 
-  // client/adminのHome指標は既存APIのフロント集計で表示する（specs/feeps-one-feature-role-matrix.md §D。専用Dashboard APIは将来拡張）
-  const [ops, setOps] = useState(null);
-  const [opsLoading, setOpsLoading] = useState(false);
-  useEffect(() => {
-    if (role !== "client" && role !== "admin") { setOps(null); return; }
-    let alive = true;
-    const d = new Date();
-    const today = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
-    const month = today.slice(0, 7);
-    setOpsLoading(true);
-    (async () => {
-      try {
-        if (role === "client") {
-          const [trainees, attendance, reports, tests] = await Promise.all([
-            apiGet("/trainees").catch(() => []),
-            apiGet(`/attendance?date=${today}`).catch(() => []),
-            apiGet(`/reports?date=${today}`).catch(() => []),
-            apiGet("/tests").catch(() => []),
-          ]);
-          const activeTests = asArray(tests).filter(t => (t?.status || "published") !== "archived");
-          const resultLists = await Promise.all(activeTests.map(t => apiGet(`/tests/${t.testId || t.id}/results`).catch(() => [])));
-          const scores = resultLists.flatMap(r => asArray(r)).map(r => Number(r?.score)).filter(n => Number.isFinite(n));
-          if (!alive) return;
-          setOps({
-            trainees: asArray(trainees).length,
-            present: asArray(attendance).filter(a => a?.clockIn).length,
-            reports: asArray(reports).length,
-            avgScore: scores.length ? Math.round(scores.reduce((s, n) => s + n, 0) / scores.length) : null,
-            lowScores: scores.filter(n => n < 70).length,
-          });
-        } else {
-          const [companies, users, courses, reports, attendance, aiUsage, awsCosts] = await Promise.all([
-            apiGet("/companies").catch(() => []),
-            apiGet("/admin/users").catch(() => []),
-            apiGet("/courses").catch(() => []),
-            apiGet(`/reports?date=${today}`).catch(() => []),
-            apiGet(`/attendance?date=${today}`).catch(() => []),
-            apiGet(`/admin/ai-usage?month=${month}`).catch(() => null),
-            apiGet(`/admin/aws-costs?month=${month}`).catch(() => null),
-          ]);
-          const traineeUsers = asArray(users).filter(u => (u?.role || "trainee") === "trainee" && u?.deleted !== true);
-          const reportIds = new Set(asArray(reports).map(r => r?.traineeId || r?.userId));
-          const attIds = new Set(asArray(attendance).map(a => a?.traineeId || a?.userId));
-          const absent = asArray(attendance).filter(a => /欠|absent/i.test(String(a?.status || ""))).length;
-          // AdminProduct本日のアラートと同じ考え方（日報未保存+勤怠未登録+欠席）
-          const alerts = traineeUsers.filter(t => !reportIds.has(t.userId)).length
-            + traineeUsers.filter(t => !attIds.has(t.userId)).length
-            + absent;
-          if (!alive) return;
-          setOps({
-            companies: asArray(companies).length,
-            trainees: traineeUsers.length,
-            courses: asArray(courses).length,
-            alerts,
-            aiRequests: aiUsage?.totalRequests ?? null,
-            aiCost: aiUsage?.totalEstimatedCostUsd ?? null,
-            awsTotal: awsCosts?.total?.amount ?? null,
-          });
-        }
-      } finally {
-        if (alive) setOpsLoading(false);
-      }
-    })();
-    return () => { alive = false; };
-  }, [role]);
-  const opsText = (make) => (opsLoading ? "取得中" : ops ? make(ops) : "未取得");
-
-  const summary = dashboard?.summary || {};
   const todayCourses = asArray(dashboard?.todayCourses);
   const traineeCourses = asArray(dashboard?.activeCourses);
-  const traineeTasks = asArray(dashboard?.todayTasks);
   const traineeAnnouncements = asArray(dashboard?.dailyAnnouncements);
   const traineeComments = asArray(dashboard?.comments);
-  const pendingReports = num(summary.pendingReports);
-  const attendanceAlerts = num(summary.attendanceAlerts);
-  const activeStudents = num(summary.activeStudents);
-  const assignedCourses = num(summary.assignedCourses);
-  const traineeActiveCourses = num(summary.activeCourses ?? traineeCourses.length);
 
   const primaryCourse = textOf(todayCourses[0]?.courseName);
   const traineePrimaryCourse = textOf(traineeCourses[0]?.courseName);
@@ -399,34 +308,6 @@ export default function FeepsOneHome({ role, displayName, goProduct, goTraining,
     : ROLE_WELCOME[role] || ROLE_WELCOME.trainee;
 
   const openDashboardTarget = (targetUrl) => openTargetUrl(targetUrl, { goProduct, goTraining, goSub });
-  const traineeTaskByType = new Map(traineeTasks.map(task => [task?.type, task]));
-  const traineeTask = (types) => {
-    const list = Array.isArray(types) ? types : [types];
-    return list.map(type => traineeTaskByType.get(type)).find(Boolean) || null;
-  };
-  const traineeGoalTask = traineeTask("check_goal");
-
-  const statusCards = role === "instructor" ? [
-    { label: "担当コース", value: loadingDashboard ? "取得中" : `${assignedCourses}件`, hint: dashboardError ? "取得失敗" : "担当範囲", icon: GraduationCap, tone: "training" },
-    { label: "受講生数", value: loadingDashboard ? "取得中" : `${activeStudents}名`, hint: "担当コース内", icon: Users, tone: "training" },
-    { label: "未確認日報", value: loadingDashboard ? "取得中" : `${pendingReports}件`, hint: "今日見るもの", icon: FileText, tone: "training" },
-    { label: "勤怠異常", value: loadingDashboard ? "取得中" : `${attendanceAlerts}件`, hint: "確認が必要", icon: Clock, tone: "training" },
-  ] : role === "trainee" ? [
-    { label: "受講中コース", value: loadingDashboard ? "取得中" : `${traineeActiveCourses}件`, hint: textOf(traineeCourses[0]?.courseName, "研修管理で確認"), icon: GraduationCap, tone: "training" },
-    { label: "学習進捗", value: dashboard?.summary?.learningProgress?.label || (loadingDashboard ? "取得中" : "Learningで確認"), hint: dashboard?.learning?.currentLessonTitle || "Eラーニングで確認", icon: BookOpen, tone: "learning" },
-    { label: "日報状態", value: textOf(dashboard?.summary?.dailyReportStatus === "submitted" ? "提出済み" : dashboard?.summary?.dailyReportStatus === "commented" ? "コメントあり" : dashboard?.summary?.dailyReportStatus === "not_submitted" ? "未提出" : loadingDashboard ? "取得中" : "確認する"), hint: "今日の日報", icon: FileText, tone: "training" },
-    { label: "現在目標", value: textOf(dashboard?.summary?.currentGoal?.title, loadingDashboard ? "取得中" : "スキル・成長で確認"), hint: textOf(traineeGoalTask?.description, "Talentで確認"), icon: Target, tone: "talent" },
-  ] : role === "client" ? [
-    { label: "自社受講生", value: opsText(o => `${o.trainees}名`), hint: "自社範囲", icon: Users, tone: "training" },
-    { label: "本日出席率", value: opsText(o => o.trainees ? `${Math.round((o.present / o.trainees) * 100)}%` : "—"), hint: "本日の勤怠登録", icon: Clock, tone: "training" },
-    { label: "日報提出率", value: opsText(o => o.trainees ? `${Math.round((o.reports / o.trainees) * 100)}%` : "—"), hint: "本日の日報", icon: FileText, tone: "training" },
-    { label: "テスト平均", value: opsText(o => o.avgScore != null ? `${o.avgScore}点` : "結果なし"), hint: "自社受講生の結果", icon: ClipboardCheck, tone: "talent" },
-  ] : [
-    { label: "企業数", value: opsText(o => `${o.companies}社`), hint: "契約企業", icon: Building2, tone: "admin" },
-    { label: "受講生数", value: opsText(o => `${o.trainees}名`), hint: "全体", icon: Users, tone: "admin" },
-    { label: "AI利用", value: opsText(o => o.aiRequests != null ? `${o.aiRequests}回` : "未取得"), hint: "今月", icon: Activity, tone: "analytics" },
-    { label: "AWS利用", value: opsText(o => o.awsTotal != null ? `$${Number(o.awsTotal).toFixed(2)}` : "未取得"), hint: "今月", icon: BarChart3, tone: "analytics" },
-  ];
 
   return (
     <div className="flex flex-col gap-6 sm:gap-7">
@@ -445,17 +326,6 @@ export default function FeepsOneHome({ role, displayName, goProduct, goTraining,
       )}
 
       <ProductShowcase role={role} goProduct={goProduct} />
-
-      <section>
-        <SectionTitle
-          title="現在の状況"
-          desc="Homeでは状況把握に必要な最小限だけ表示します。"
-          action={role === "instructor" ? <Btn size="sm" kind="ghost" icon={RefreshCw} onClick={loadDashboard} disabled={loadingDashboard}>更新</Btn> : null}
-        />
-        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-          {statusCards.map(card => <SmallStatus key={card.label} {...card} />)}
-        </div>
-      </section>
 
       {role === "instructor" && todayCourses.length > 0 && (
         <section className="order-5">
