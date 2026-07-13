@@ -1,11 +1,11 @@
 import React, { useEffect, useMemo, useState } from "react";
 import {
   Activity, ArrowRight, BarChart3, BookOpen, Briefcase, Building2, CalendarDays,
-  CheckCircle2, ClipboardCheck, Clock, ExternalLink, FileText, GraduationCap,
-  Megaphone, RefreshCw, Settings, Sparkles, Target, TrendingUp, Users
+  CheckCircle2, ClipboardCheck, Clock, FileText, GraduationCap,
+  Megaphone, RefreshCw, School, Target, TrendingUp, Users
 } from "lucide-react";
 import { apiGet } from "../../api.js";
-import { Badge, Btn, Card, SkeletonCards, T, PRODUCT_ACCENT, ROLE_ACCENT } from "../../components/common";
+import { Badge, Btn, Card, T, PRODUCT_ACCENT, ROLE_ACCENT } from "../../components/common";
 
 const ROLE_WELCOME = {
   instructor: "今日の授業と受講生の状態を確認しましょう。",
@@ -21,31 +21,44 @@ const ROLE_LABEL = {
   admin: "管理者",
 };
 
-const RECOMMENDED = {
-  instructor: ["training", "learning", "talent", "matching"],
-  trainee: ["learning", "training", "talent", "matching"],
-  client: ["training", "talent", "matching"],
-  admin: ["admin", "analytics", "training", "learning", "talent", "matching"],
-};
-
-const PRODUCT_BY_ROLE = {
-  instructor: ["training", "learning", "talent", "matching"],
-  trainee: ["learning", "training", "talent", "matching"],
-  client: ["training", "talent", "matching"],
-  admin: ["admin", "analytics", "training", "learning", "talent", "matching"],
-  default: ["training", "learning", "talent"],
-};
-
-const PRODUCTS = [
-  { key: "training", label: "研修管理", value: "研修運営をスムーズに", tags: ["勤怠", "日報", "テスト", "カリキュラム"], icon: GraduationCap },
-  { key: "learning", label: "Eラーニング", value: "学びを止めない", tags: ["教材", "AI Lesson", "理解度", "AI採点"], icon: BookOpen },
-  { key: "talent", label: "スキル・成長", value: "成長を見える化する", tags: ["目標", "スキル", "成長履歴", "ポートフォリオ"], icon: TrendingUp },
-  { key: "matching", label: "案件", value: "成長を仕事へつなげる", tags: ["案件候補", "スキル条件", "マッチング"], icon: Briefcase },
-  { key: "analytics", label: "分析", value: "研修成果を分析する", tags: ["AI利用", "AWS利用", "研修成果", "利用状況"], icon: BarChart3 },
-  { key: "admin", label: "管理", value: "運営基盤を管理する", tags: ["企業", "ユーザー", "権限", "設定"], icon: Settings },
+// プロダクト紹介セクション用データ（Phase7-5: ランディングページ風の全面再設計）。
+// featuresが空の製品はsmallカードのみに割り当てられ、箇条書きは表示しない。
+const PRODUCT_INTRO = [
+  {
+    key: "training", label: "研修管理", icon: School,
+    tagline: "受講生・企業・講師をひとつの画面で。日々の運営をスムーズにします。",
+    features: ["日報・勤怠をロール別に自動集計", "企業担当者は自社の受講生だけを閲覧", "カリキュラム・テストを一元管理"],
+  },
+  {
+    key: "learning", label: "Eラーニング", icon: BookOpen,
+    tagline: "AIがコース設計からスライド作成まで。教材づくりの時間を大幅に削減します。",
+    features: ["AIが学習目標からレッスンを自動生成", "PDF/PowerPointをそのままスライド化"],
+  },
+  {
+    key: "talent", label: "スキル・成長", icon: TrendingUp,
+    tagline: "研修の成果を、そのままキャリアの資産に。",
+    features: [],
+  },
+  {
+    key: "matching", label: "案件管理", icon: Briefcase,
+    tagline: "育った人材を、次の現場へつなげる。",
+    features: [],
+  },
+  {
+    key: "analytics", label: "分析・レポート", icon: BarChart3,
+    tagline: "研修運営とAI利用のコストを、ひと目で把握。",
+    features: [],
+  },
 ];
 
-const JOURNEY = ["研修", "学習", "成長", "案件", "現場参画", "継続学習"];
+// ロール別のカード構成: primaryは[key, size]の並び順どおりに縦積みする大型/中型カード、
+// secondaryは3列グリッドの小型カード。recommendedは「おすすめ」バッジを付けるkey一覧。
+const PRODUCT_LAYOUT_BY_ROLE = {
+  admin: { primary: [["training", "large"], ["learning", "large"]], secondary: ["talent", "matching", "analytics"], recommended: ["training", "learning"] },
+  instructor: { primary: [["training", "large"], ["learning", "medium"]], secondary: [], recommended: [] },
+  client: { primary: [["training", "large"]], secondary: [], recommended: [] },
+  trainee: { primary: [["learning", "large"], ["training", "medium"]], secondary: [], recommended: [] },
+};
 
 function asArray(value) {
   return Array.isArray(value) ? value : [];
@@ -108,15 +121,6 @@ function openTargetUrl(targetUrl, { goProduct, goTraining, goSub }) {
   goProduct("training");
 }
 
-function openProduct(key, { goProduct, goTraining }) {
-  if (key === "admin") {
-    goProduct("training");
-    goTraining("home");
-    return;
-  }
-  goProduct(key);
-}
-
 function SectionTitle({ title, desc, action }) {
   return (
     <div className="mb-3 flex flex-wrap items-end justify-between gap-3">
@@ -144,33 +148,6 @@ function SmallStatus({ label, value, hint, icon: Icon, tone = "home" }) {
           <div className={isLongValue ? "mt-2 break-words text-base font-bold leading-snug" : "mt-2 text-2xl font-bold leading-none tabular-nums"} style={{ color: T.textPrimary }}>{valueText}</div>
           {hint && <div className="mt-2 text-xs leading-relaxed" style={{ color: T.textMuted }}>{hint}</div>}
         </div>
-      </div>
-    </Card>
-  );
-}
-
-function TaskCard({ icon: Icon, title, value, desc, action, tone = "home", onClick, disabled }) {
-  const pa = PRODUCT_ACCENT[tone] || PRODUCT_ACCENT.home;
-  return (
-    <Card className="p-4 sm:p-5">
-      <div className="flex h-full flex-col gap-4">
-        <div className="flex items-start gap-3">
-          <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl" style={{ background: pa.subtle, color: pa.deep }}>
-            <Icon size={19} />
-          </span>
-          <div className="min-w-0">
-            <div className="text-base font-bold" style={{ color: T.textPrimary, letterSpacing: "-0.02em" }}>{title}</div>
-            <div className="mt-2 text-2xl font-bold leading-none tabular-nums" style={{ color: T.textPrimary }}>{value}</div>
-          </div>
-        </div>
-        <div className="text-xs leading-relaxed" style={{ color: T.textMuted }}>{desc}</div>
-        {action && (
-          <div className="mt-auto pt-1">
-            <Btn size="sm" kind={disabled ? "ghost" : "soft"} icon={ArrowRight} onClick={onClick} disabled={disabled} full>
-              {action}
-            </Btn>
-          </div>
-        )}
       </div>
     </Card>
   );
@@ -205,102 +182,107 @@ function Hero({ role, displayName, contextLine }) {
         </div>
       </div>
 
-      <div className="grid gap-6 pt-6 sm:gap-8 sm:pt-8 lg:grid-cols-[minmax(0,1fr)_460px] lg:items-end">
-        {/* Welcomeメッセージを主役に: 最大の見出しとして配置し、タグラインは控えめなキッカー文言へ */}
-        <div className="min-w-0">
-          <div className="text-xs font-bold uppercase tracking-wide" style={{ color: T.accent }}>研修・学習・成長を、ひとつに。</div>
-          <h1 className="mt-2 text-3xl font-semibold leading-tight sm:text-4xl" style={{ color: T.textPrimary, letterSpacing: "-0.02em" }}>
-            {displayName}さん、おかえりなさい。
-          </h1>
-          <p className="mt-3 text-sm leading-relaxed sm:text-base" style={{ color: T.textSecondary }}>{contextLine}</p>
-        </div>
-
-        <div className="hidden rounded-2xl p-3 lg:block" style={{ background: "rgba(255,255,255,0.7)", border: `1px solid ${T.border}` }}>
-          <div className="flex items-center justify-between gap-3">
-            <div className="text-xs font-bold uppercase" style={{ color: T.textMuted }}>Learning Journey</div>
-            <Sparkles size={14} style={{ color: PRODUCT_ACCENT.learning.accent }} />
-          </div>
-          {/* 1行固定: flex-nowrap + 縮小したpadding/文字/矢印サイズで6ステップ+矢印5本を無理なく収める */}
-          <div className="mt-2.5 flex flex-nowrap items-center gap-1 overflow-hidden">
-            {JOURNEY.map((step, index) => (
-              <React.Fragment key={step}>
-                <div className="shrink-0 whitespace-nowrap rounded-full px-2 py-1 text-[11px] font-semibold" style={{ background: T.accentSubtle, color: T.accentHover }}>
-                  {step}
-                </div>
-                {index < JOURNEY.length - 1 && <ArrowRight size={10} className="shrink-0" style={{ color: T.textMuted }} />}
-              </React.Fragment>
-            ))}
-          </div>
-          <p className="mt-2.5 text-xs leading-relaxed" style={{ color: T.textMuted }}>研修で終わらず、現場参画後の継続学習まで循環させます。</p>
-        </div>
+      {/* プロダクト紹介型リニューアル（Phase7-5）: 右側のLearning Journeyチップは新設のプロダクト紹介
+          セクションと内容が重複するため削除し、Welcomeメッセージのみのシンプルな挨拶バナーへ整理。 */}
+      <div className="pt-6 sm:pt-8">
+        <div className="text-xs font-bold uppercase tracking-wide" style={{ color: T.accent }}>研修・学習・成長を、ひとつに。</div>
+        <h1 className="mt-2 text-3xl font-semibold leading-tight sm:text-4xl" style={{ color: T.textPrimary, letterSpacing: "-0.02em" }}>
+          {displayName}さん、おかえりなさい。
+        </h1>
+        <p className="mt-3 text-sm leading-relaxed sm:text-base" style={{ color: T.textSecondary }}>{contextLine}</p>
       </div>
     </section>
   );
 }
 
-function ProductNavigator({ role, goProduct, goTraining, goSub }) {
-  const availableKeys = PRODUCT_BY_ROLE[role] || PRODUCT_BY_ROLE.default;
-  const recommended = RECOMMENDED[role] || PRODUCT_BY_ROLE.default;
-  const ordered = availableKeys.map(key => PRODUCTS.find(product => product.key === key)).filter(Boolean);
+function ProductHeroCard({ product, size, iconSide, recommended, onClick }) {
+  const pa = PRODUCT_ACCENT[product.key] || PRODUCT_ACCENT.training;
+  const Icon = product.icon;
+  const isLarge = size === "large";
+  const iconBoxClass = isLarge ? "h-24 w-24 sm:h-28 sm:w-28" : "h-20 w-20 sm:h-24 sm:w-24";
+  const iconSize = isLarge ? 52 : 40;
+  const padClass = isLarge ? "p-6 sm:p-10" : "p-5 sm:p-7";
+  return (
+    <Card className={`${padClass} overflow-hidden`}>
+      <div className={`flex flex-col gap-6 sm:items-center sm:gap-8 ${iconSide === "right" ? "sm:flex-row-reverse" : "sm:flex-row"}`}>
+        <span className={`flex ${iconBoxClass} shrink-0 items-center justify-center rounded-[28px]`} style={{ background: pa.subtle, color: pa.deep }}>
+          <Icon size={iconSize} />
+        </span>
+        <div className="min-w-0 flex-1">
+          <div className="flex flex-wrap items-center gap-2">
+            <h3 className={isLarge ? "text-xl font-bold sm:text-2xl" : "text-lg font-bold sm:text-xl"} style={{ color: T.textPrimary, letterSpacing: "-0.02em" }}>{product.label}</h3>
+            {recommended && <Badge>おすすめ</Badge>}
+          </div>
+          <p className={isLarge ? "mt-3 text-sm leading-relaxed sm:text-base" : "mt-2 text-sm leading-relaxed"} style={{ color: T.textSecondary }}>{product.tagline}</p>
+          {product.features.length > 0 && (
+            <ul className="mt-4 space-y-2">
+              {product.features.map(feature => (
+                <li key={feature} className="flex items-start gap-2 text-sm" style={{ color: T.textSecondary }}>
+                  <CheckCircle2 size={16} className="mt-0.5 shrink-0" style={{ color: pa.deep }} />
+                  <span>{feature}</span>
+                </li>
+              ))}
+            </ul>
+          )}
+          <div className="mt-6">
+            <Btn size={isLarge ? "md" : "sm"} kind="soft" icon={ArrowRight} onClick={onClick}>{product.label}を開く</Btn>
+          </div>
+        </div>
+      </div>
+    </Card>
+  );
+}
+
+function ProductSmallCard({ product, onClick }) {
+  const pa = PRODUCT_ACCENT[product.key] || PRODUCT_ACCENT.training;
+  const Icon = product.icon;
+  return (
+    <Card className="flex flex-col gap-3 p-5">
+      <span className="flex h-11 w-11 items-center justify-center rounded-xl" style={{ background: pa.subtle, color: pa.deep }}>
+        <Icon size={20} />
+      </span>
+      <div className="min-w-0 flex-1">
+        <h3 className="text-base font-bold" style={{ color: T.textPrimary, letterSpacing: "-0.02em" }}>{product.label}</h3>
+        <p className="mt-1.5 text-xs leading-relaxed" style={{ color: T.textSecondary }}>{product.tagline}</p>
+      </div>
+      <div className="mt-auto pt-1">
+        <Btn size="sm" kind="ghost" icon={ArrowRight} full onClick={onClick}>{product.label}を開く</Btn>
+      </div>
+    </Card>
+  );
+}
+
+function ProductShowcase({ role, goProduct }) {
+  const layout = PRODUCT_LAYOUT_BY_ROLE[role] || PRODUCT_LAYOUT_BY_ROLE.trainee;
+  const byKey = key => PRODUCT_INTRO.find(product => product.key === key);
   return (
     <section>
-      <SectionTitle title="利用できるサービス" desc="あなたのロールで利用できるサービスへ移動できます。" />
-      {/* モバイルは2列コンパクト（アイコン+名前、カード全体タップ）。sm以上は従来のリッチカード */}
-      <div className="grid grid-cols-2 gap-3 sm:hidden">
-        {ordered.map(product => {
-          const pa = PRODUCT_ACCENT[product.key] || PRODUCT_ACCENT.training;
-          const Icon = product.icon;
+      <SectionTitle title="Feeps Oneでできること" desc="ロールに合わせて利用できる機能をご紹介します。" />
+      <div className="flex flex-col gap-5">
+        {layout.primary.map(([key, size], index) => {
+          const product = byKey(key);
+          if (!product) return null;
           return (
-            <Card key={product.key} hover onClick={() => openProduct(product.key, { goProduct, goTraining, goSub })} className="p-4">
-              <div className="flex min-h-[56px] items-center gap-3">
-                <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl" style={{ background: pa.subtle, color: pa.deep }}>
-                  <Icon size={20} />
-                </span>
-                <div className="min-w-0">
-                  <div className="text-sm font-bold" style={{ color: T.textPrimary, letterSpacing: "-0.02em" }}>{product.label}</div>
-                  <div className="mt-0.5 truncate text-[11px]" style={{ color: T.textMuted }}>{product.value}</div>
-                </div>
-              </div>
-            </Card>
+            <ProductHeroCard
+              key={key}
+              product={product}
+              size={size}
+              iconSide={index % 2 === 0 ? "left" : "right"}
+              recommended={layout.recommended.includes(key)}
+              onClick={() => goProduct(key)}
+            />
           );
         })}
       </div>
-      <div className="hidden gap-5 sm:grid md:grid-cols-2 xl:grid-cols-3">
-        {ordered.map(product => {
-          const pa = PRODUCT_ACCENT[product.key] || PRODUCT_ACCENT.training;
-          const recommendedHere = recommended.includes(product.key);
-          const Icon = product.icon;
-          return (
-            <Card key={product.key} className="p-6 sm:p-7" hover>
-              <div className="flex min-h-[220px] flex-col gap-5">
-                <div className="flex items-start gap-4">
-                  <span className="flex h-16 w-16 shrink-0 items-center justify-center rounded-2xl" style={{ background: pa.subtle, color: pa.deep }}>
-                    <Icon size={30} />
-                  </span>
-                  <div className="min-w-0 flex-1">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <h3 className="text-lg font-bold" style={{ color: T.textPrimary, letterSpacing: "-0.02em" }}>{product.label}</h3>
-                      {recommendedHere && <Badge>おすすめ</Badge>}
-                      {product.note && <Badge>{product.note}</Badge>}
-                    </div>
-                    <p className="mt-2 text-sm font-semibold" style={{ color: T.textSecondary }}>{product.value}</p>
-                  </div>
-                </div>
-                <div className="flex flex-wrap gap-2">
-                  {product.tags.map(tag => (
-                    <span key={tag} className="rounded-full px-3 py-1.5 text-xs font-semibold" style={{ background: T.bgBase, color: T.textSecondary }}>{tag}</span>
-                  ))}
-                </div>
-                <div className="mt-auto pt-1">
-                  <Btn size="sm" kind="soft" icon={ExternalLink} full onClick={() => openProduct(product.key, { goProduct, goTraining, goSub })}>
-                    開く
-                  </Btn>
-                </div>
-              </div>
-            </Card>
-          );
-        })}
-      </div>
+      {layout.secondary.length > 0 && (
+        <div className="mt-5 grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
+          {layout.secondary.map(key => {
+            const product = byKey(key);
+            if (!product) return null;
+            return <ProductSmallCard key={key} product={product} onClick={() => goProduct(key)} />;
+          })}
+        </div>
+      )}
     </section>
   );
 }
@@ -401,15 +383,12 @@ export default function FeepsOneHome({ role, displayName, goProduct, goTraining,
   const traineeCourses = asArray(dashboard?.activeCourses);
   const traineeTasks = asArray(dashboard?.todayTasks);
   const traineeAnnouncements = asArray(dashboard?.dailyAnnouncements);
-  const traineeTests = asArray(dashboard?.tests);
   const traineeComments = asArray(dashboard?.comments);
-  const lessonPrep = asArray(dashboard?.lessonPrep);
   const pendingReports = num(summary.pendingReports);
   const attendanceAlerts = num(summary.attendanceAlerts);
   const activeStudents = num(summary.activeStudents);
   const assignedCourses = num(summary.assignedCourses);
   const traineeActiveCourses = num(summary.activeCourses ?? traineeCourses.length);
-  const traineeUnsubmittedTests = num(summary.unsubmittedTests ?? traineeTests.filter(t => t?.status === "unsubmitted").length);
 
   const primaryCourse = textOf(todayCourses[0]?.courseName);
   const traineePrimaryCourse = textOf(traineeCourses[0]?.courseName);
@@ -419,44 +398,13 @@ export default function FeepsOneHome({ role, displayName, goProduct, goTraining,
       ? `今日は${traineePrimaryCourse}の状況を確認できます。`
     : ROLE_WELCOME[role] || ROLE_WELCOME.trainee;
 
-  const instructorTaskClick = (view) => {
-    goProduct("training");
-    goTraining(view);
-  };
   const openDashboardTarget = (targetUrl) => openTargetUrl(targetUrl, { goProduct, goTraining, goSub });
   const traineeTaskByType = new Map(traineeTasks.map(task => [task?.type, task]));
   const traineeTask = (types) => {
     const list = Array.isArray(types) ? types : [types];
     return list.map(type => traineeTaskByType.get(type)).find(Boolean) || null;
   };
-  const traineeAttendanceTask = traineeTask(["attendance_checkin", "attendance_checked"]);
-  const traineeReportTask = traineeTask(["daily_report_submit", "daily_report_submitted"]);
-  const traineeLearningTask = traineeTask("continue_learning");
-  const traineeTestTask = traineeTask("take_test");
   const traineeGoalTask = traineeTask("check_goal");
-  const traineeLoadingText = loadingDashboard ? "取得中" : "確認する";
-
-  const todoCards = role === "instructor" ? [
-    { icon: Megaphone, title: "本日のお知らせ", value: todayCourses.some(c => textOf(c?.dailyNote)) ? "登録済" : "未登録", desc: "講師から受講生への日次連絡です。研修管理で登録します。", action: "研修管理へ", tone: "training", onClick: () => instructorTaskClick("home") },
-    { icon: Clock, title: "勤怠確認", value: `${attendanceAlerts}件`, desc: "欠席・遅刻・未打刻など、今日確認したい勤怠です。", action: "確認する", tone: "training", onClick: () => instructorTaskClick("attendance") },
-    { icon: FileText, title: "日報確認", value: `${pendingReports}件`, desc: "未確認の日報を一覧で確認します。", action: "確認する", tone: "training", onClick: () => instructorTaskClick("reports") },
-    { icon: ClipboardCheck, title: "授業準備", value: `${lessonPrep.length || todayCourses.length}件`, desc: "今日のカリキュラム・教材・テストを開きます。", action: "開く", tone: "learning", onClick: () => instructorTaskClick("curriculum") },
-  ] : role === "trainee" ? [
-    { icon: Clock, title: "勤怠登録", value: textOf(traineeAttendanceTask?.status === "done" ? "登録済み" : traineeAttendanceTask?.status === "needs_action" ? "未登録" : traineeLoadingText), desc: textOf(traineeAttendanceTask?.description, dashboardError || "今日の勤怠状態を確認できます。"), action: textOf(traineeAttendanceTask?.actionLabel, "開く"), tone: "training", onClick: () => openDashboardTarget(traineeAttendanceTask?.targetUrl || "/training/attendance") },
-    { icon: FileText, title: "日報提出", value: textOf(traineeReportTask?.status === "done" ? "提出済み" : traineeReportTask?.status === "needs_action" ? "未提出" : traineeLoadingText), desc: textOf(traineeReportTask?.description, "今日の日報状態を確認できます。"), action: textOf(traineeReportTask?.actionLabel, "開く"), tone: "training", onClick: () => openDashboardTarget(traineeReportTask?.targetUrl || "/training/reports") },
-    { icon: BookOpen, title: Number(dashboard?.learning?.progressPercent) >= 100 ? "次の学習へ" : "前回の続き", value: dashboard?.learning?.progressPercent != null ? `${dashboard.learning.progressPercent}%` : textOf(traineeLearningTask?.status === "unavailable" ? "Learningで確認" : traineeLoadingText), desc: Number(dashboard?.learning?.progressPercent) >= 100 ? "修了しました。次のコースや復習に進めます。" : textOf(traineeLearningTask?.description, "学習の続きはEラーニングで確認できます。"), action: textOf(traineeLearningTask?.actionLabel, "Learningへ"), tone: "learning", onClick: () => openDashboardTarget(traineeLearningTask?.targetUrl || "/learning/inprogress") },
-    { icon: ClipboardCheck, title: "未受験テスト", value: loadingDashboard ? "取得中" : `${traineeUnsubmittedTests}件`, desc: textOf(traineeTestTask?.description, "未受験テストを確認できます。"), action: textOf(traineeTestTask?.actionLabel, "開く"), tone: "training", onClick: () => openDashboardTarget(traineeTestTask?.targetUrl || "/training/tests") },
-  ] : role === "client" ? [
-    { icon: Users, title: "自社受講生", value: opsText(o => `${o.trainees}名`), desc: "自社範囲の受講生一覧を確認します。", action: "開く", tone: "training", onClick: () => instructorTaskClick("trainees") },
-    { icon: Clock, title: "本日の出席", value: opsText(o => `${o.present}/${o.trainees}名`), desc: "本日の出席状況を確認します。", action: "開く", tone: "training", onClick: () => instructorTaskClick("attendance") },
-    { icon: FileText, title: "日報提出", value: opsText(o => `${o.reports}/${o.trainees}名`), desc: "日報の提出状況とコメントを確認します。", action: "開く", tone: "training", onClick: () => instructorTaskClick("reports") },
-    { icon: ClipboardCheck, title: "テスト結果", value: opsText(o => o.avgScore != null ? `平均${o.avgScore}点` : "結果なし"), desc: opsLoading || !ops ? "自社受講生の結果を確認します。" : `低スコア（70点未満）${ops.lowScores}件`, action: "開く", tone: "talent", onClick: () => instructorTaskClick("tests") },
-  ] : [
-    { icon: CheckCircle2, title: "未処理アラート", value: opsText(o => `${o.alerts}件`), desc: "本日の日報未保存・勤怠未登録・欠席の合計です。", action: "確認する", tone: "admin", onClick: () => instructorTaskClick("home") },
-    { icon: Building2, title: "企業/コース管理", value: opsText(o => `${o.companies}社/${o.courses}件`), desc: "企業・コース・ユーザーを管理します。", action: "管理へ", tone: "admin", onClick: () => openProduct("admin", { goProduct, goTraining }) },
-    { icon: Activity, title: "AI利用", value: opsText(o => o.aiRequests != null ? `${o.aiRequests}回` : "未取得"), desc: opsLoading || !ops || ops.aiCost == null ? "AI利用状況は分析Productで確認します。" : `今月の推定 $${Number(ops.aiCost).toFixed(4)}`, action: "分析へ", tone: "analytics", onClick: () => openProduct("analytics", { goProduct, goTraining }) },
-    { icon: BarChart3, title: "AWS利用", value: opsText(o => o.awsTotal != null ? `$${Number(o.awsTotal).toFixed(2)}` : "未取得"), desc: "AWSコストは分析Productで確認します。", action: "分析へ", tone: "analytics", onClick: () => openProduct("analytics", { goProduct, goTraining }) },
-  ];
 
   const statusCards = role === "instructor" ? [
     { label: "担当コース", value: loadingDashboard ? "取得中" : `${assignedCourses}件`, hint: dashboardError ? "取得失敗" : "担当範囲", icon: GraduationCap, tone: "training" },
@@ -482,13 +430,10 @@ export default function FeepsOneHome({ role, displayName, goProduct, goTraining,
 
   return (
     <div className="flex flex-col gap-6 sm:gap-7">
-      {/* モバイルは「今日やること」を最上段へ（order制御）。lg+は従来どおりHero先頭 */}
-      <div className="order-2 lg:order-1">
-        <Hero role={role} displayName={displayName} contextLine={contextLine} />
-      </div>
+      <Hero role={role} displayName={displayName} contextLine={contextLine} />
 
       {(role === "instructor" || role === "trainee") && dashboardError && (
-        <Card className="order-1 p-4">
+        <Card className="p-4">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div>
               <div className="text-sm font-bold" style={{ color: T.danger }}>Dashboard APIを取得できませんでした</div>
@@ -499,22 +444,9 @@ export default function FeepsOneHome({ role, displayName, goProduct, goTraining,
         </Card>
       )}
 
-      <section className="order-1 lg:order-2">
-        <SectionTitle title="今日やること" desc="まず確認するものだけを並べています。" />
-        {(role === "instructor" || role === "trainee") && loadingDashboard && !dashboard ? (
-          <SkeletonCards count={4} />
-        ) : (
-          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-            {todoCards.map(card => <TaskCard key={card.title} {...card} />)}
-          </div>
-        )}
-      </section>
+      <ProductShowcase role={role} goProduct={goProduct} />
 
-      <div className="order-3">
-        <ProductNavigator role={role} goProduct={goProduct} goTraining={goTraining} goSub={goSub} />
-      </div>
-
-      <section className="order-4">
+      <section>
         <SectionTitle
           title="現在の状況"
           desc="Homeでは状況把握に必要な最小限だけ表示します。"
