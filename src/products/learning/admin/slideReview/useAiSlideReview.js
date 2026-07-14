@@ -44,7 +44,15 @@ export function useAiSlideReview() {
         instruction,
       });
       if (!data?.slide) throw new Error("修正結果が返りませんでした。");
-      setPending({ type: "revise", original: currentSlide, revised: { ...currentSlide, ...data.slide }, instruction });
+      setPending({
+        type: "revise",
+        original: currentSlide,
+        revised: { ...currentSlide, ...data.slide },
+        instruction,
+        intent: data.intent || "",
+        reason: data.reason || "",
+        kindChanged: data.kindChanged || null,
+      });
       setState("idle");
     } catch (e) {
       const debug = [e?.errorCode, e?.errorMessage, e?.hint].filter(Boolean).join("\n");
@@ -65,7 +73,14 @@ export function useAiSlideReview() {
       });
       const slides = Array.isArray(data?.slides) ? data.slides : [];
       if (!slides.length) throw new Error("追加スライドが返りませんでした。");
-      setPending({ type: "add", slides, instruction });
+      setPending({
+        type: "add",
+        slides,
+        instruction,
+        intent: data.intent || "",
+        reason: data.reason || "",
+        generatedKinds: Array.isArray(data.generatedKinds) ? data.generatedKinds : [],
+      });
       setState("idle");
     } catch (e) {
       const debug = [e?.errorCode, e?.errorMessage, e?.hint].filter(Boolean).join("\n");

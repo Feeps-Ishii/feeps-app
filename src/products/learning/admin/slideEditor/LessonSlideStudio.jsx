@@ -44,6 +44,19 @@ const KIND_META = {
   interactive_form: { label: "Interactive", icon: Settings2 },
 };
 const BASIC_KINDS = ["concept", "image", "video"];
+// 2026-07-16 Phase5: AIが返すintent(自然文の依頼種別)を差分プレビューで日本語表示するための辞書。
+const INTENT_LABEL = {
+  revise_current: "表現・難易度の書き換え",
+  add_explanation: "説明の追加",
+  add_comparison: "比較表の追加/変換",
+  add_diagram: "図解の追加/変換",
+  add_selection_task: "選択問題の追加/変換",
+  add_ordering_puzzle: "並び替え問題の追加/変換",
+  add_fill_blank: "穴埋め問題の追加/変換",
+  add_interactive_form: "疑似操作の追加/変換",
+  add_quiz: "クイズの追加/変換",
+  add_summary: "まとめの追加",
+};
 const STATUS_META = {
   draft: { label: "Draft", tone: "amber" },
   published: { label: "公開", tone: "green" },
@@ -137,6 +150,24 @@ function AiAssistBox({ activeSlide, ai, onRevise, onAddSlides, onApply, onDiscar
             {ai.pending.type === "revise" ? "AIによる修正案" : `AIによる追加スライド案（${ai.pending.slides.length}枚）`}
           </div>
           <div className="text-[11px]" style={{ color: C.muted }}>依頼内容: {ai.pending.instruction}</div>
+          <div className="space-y-1 rounded-lg p-2.5 text-[11px]" style={{ background: C.canvas }}>
+            <div><span className="font-bold" style={{ color: C.ink }}>AIが判定した依頼種別: </span>{INTENT_LABEL[ai.pending.intent] || ai.pending.intent || "不明"}</div>
+            {ai.pending.reason && <div><span className="font-bold" style={{ color: C.ink }}>生成理由: </span>{ai.pending.reason}</div>}
+            {ai.pending.type === "revise" && ai.pending.kindChanged && (
+              <div className="flex items-center gap-1.5">
+                <span className="font-bold" style={{ color: C.ink }}>kind変更: </span>
+                <Badge tone="muted">{KIND_META[ai.pending.kindChanged.from]?.label || ai.pending.kindChanged.from}</Badge>
+                <span style={{ color: C.muted }}>→</span>
+                <Badge tone="cyan">{KIND_META[ai.pending.kindChanged.to]?.label || ai.pending.kindChanged.to}</Badge>
+              </div>
+            )}
+            {ai.pending.type === "add" && ai.pending.generatedKinds?.length > 0 && (
+              <div className="flex flex-wrap items-center gap-1.5">
+                <span className="font-bold" style={{ color: C.ink }}>生成kind: </span>
+                {ai.pending.generatedKinds.map(k => <Badge key={k} tone="cyan">{KIND_META[k]?.label || k}</Badge>)}
+              </div>
+            )}
+          </div>
           {ai.pending.type === "revise" ? (
             <div className="rounded-lg p-3" style={{ background: C.canvas }}>
               <SlideRenderer slide={ai.pending.revised} accent={T.accent} />
@@ -254,9 +285,254 @@ function SlideDraftForm({ kind, draft, onChange, onSubmit, onCancel }) {
   );
 }
 
+// 2026-07-16 Phase5: diagram/selection_task/ordering_puzzle/fill_blank/interactive_formの
+// 5kindを、自由JSON直接編集ではなく構造化フォームで手動修正できるようにする最低限の実装。
+// いずれもonChange(patch)を呼ぶだけで、実際の反映はEditPanel経由のonChangeContent(浅いマージ)
+// が担う。
+
+function DiagramEditor({ content, onChange }) {
+  const nodes = Array.isArray(content.nodes) ? content.nodes : [];
+  const edges = Array.isArray(content.edges) ? content.edges : [];
+  const diagramType = content.diagramType || "flow";
+
+  if (!nodes.length) {
+    return (
+      <div className="rounded-xl p-3 text-xs leading-relaxed" style={{ background: C.canvas, color: C.muted }}>
+        レガシー形式（layers）の図解です。ノード編集は「AIアシスト」で新形式（ノード/つながり）へ作り直してから行えます。
+      </div>
+    );
+  }
+
+  function updateNode(id, label) { onChange({ nodes: nodes.map(n => (n.id === id ? { ...n, label } : n)) }); }
+  function addNode() { onChange({ nodes: [...nodes, { id: `n${Date.now().toString(36)}`, label: "新しい項目" }] }); }
+  function removeNode(id) { onChange({ nodes: nodes.filter(n => n.id !== id), edges: edges.filter(e => e.from !== id && e.to !== id) }); }
+  function updateEdge(idx, patch) { onChange({ edges: edges.map((e, i) => (i === idx ? { ...e, ...patch } : e)) }); }
+  function addEdge() { if (nodes.length >= 2) onChange({ edges: [...edges, { from: nodes[0].id, to: nodes[1].id, label: "" }] }); }
+  function removeEdge(idx) { onChange({ edges: edges.filter((_, i) => i !== idx) }); }
+
+  return (
+    <div className="space-y-3">
+      <Field label="図の種類">
+        <select style={fieldStyle} value={diagramType} onChange={e => onChange({ diagramType: e.target.value })}>
+          <option value="flow">flow（手順・流れ）</option>
+          <option value="hierarchy">hierarchy（階層）</option>
+          <option value="relationship">relationship（関係性）</option>
+          <option value="architecture">architecture（構成図）</option>
+          <option value="timeline">timeline（時系列）</option>
+        </select>
+      </Field>
+      <div>
+        <div className="mb-1.5 flex items-center justify-between">
+          <span className="text-xs font-semibold" style={{ color: C.body }}>ノード</span>
+          <IconBtn title="ノードを追加" onClick={addNode}><Plus size={13} /></IconBtn>
+        </div>
+        <div className="space-y-1.5">
+          {nodes.map(n => (
+            <div key={n.id} className="flex items-center gap-1.5">
+              <input style={{ ...fieldStyle, flex: 1 }} value={n.label} onChange={e => updateNode(n.id, e.target.value)} />
+              <IconBtn title="削除" danger onClick={() => removeNode(n.id)}><Trash2 size={13} /></IconBtn>
+            </div>
+          ))}
+        </div>
+      </div>
+      <div>
+        <div className="mb-1.5 flex items-center justify-between">
+          <span className="text-xs font-semibold" style={{ color: C.body }}>つながり（矢印）</span>
+          <IconBtn title="つながりを追加" onClick={addEdge} disabled={nodes.length < 2}><Plus size={13} /></IconBtn>
+        </div>
+        <div className="space-y-1.5">
+          {edges.map((e, i) => (
+            <div key={i} className="flex items-center gap-1.5">
+              <select style={{ ...fieldStyle, flex: 1 }} value={e.from} onChange={ev => updateEdge(i, { from: ev.target.value })}>
+                {nodes.map(n => <option key={n.id} value={n.id}>{n.label}</option>)}
+              </select>
+              <span style={{ color: C.muted }}>→</span>
+              <select style={{ ...fieldStyle, flex: 1 }} value={e.to} onChange={ev => updateEdge(i, { to: ev.target.value })}>
+                {nodes.map(n => <option key={n.id} value={n.id}>{n.label}</option>)}
+              </select>
+              <IconBtn title="削除" danger onClick={() => removeEdge(i)}><Trash2 size={13} /></IconBtn>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function SelectionTaskEditor({ content, onChange }) {
+  const choices = content.choices?.length ? content.choices : ["", "", "", ""];
+  function updateChoice(i, v) { const next = choices.slice(); next[i] = v; onChange({ choices: next }); }
+  return (
+    <div className="space-y-3">
+      <Field label="問題文">
+        <textarea style={{ ...fieldStyle, minHeight: 60 }} value={content.question || ""} onChange={e => onChange({ question: e.target.value })} />
+      </Field>
+      <Field label="選択肢（左のラジオボタンで正解を選択）">
+        <div className="space-y-1.5">
+          {choices.map((c, i) => (
+            <div key={i} className="flex items-center gap-1.5">
+              <input type="radio" checked={content.correctIndex === i} onChange={() => onChange({ correctIndex: i })} />
+              <input style={{ ...fieldStyle, flex: 1 }} value={c} onChange={e => updateChoice(i, e.target.value)} />
+            </div>
+          ))}
+        </div>
+      </Field>
+      <Field label="解説">
+        <textarea style={{ ...fieldStyle, minHeight: 60 }} value={content.explanation || ""} onChange={e => onChange({ explanation: e.target.value })} />
+      </Field>
+    </div>
+  );
+}
+
+function OrderingPuzzleEditor({ content, onChange }) {
+  const items = content.items || [];
+  function updateItem(i, v) { const next = items.slice(); next[i] = v; onChange({ items: next }); }
+  function addItem() { onChange({ items: [...items, "新しい項目"] }); }
+  function removeItem(i) { onChange({ items: items.filter((_, idx) => idx !== i) }); }
+  function moveItem(i, dir) {
+    const target = i + dir;
+    if (target < 0 || target >= items.length) return;
+    const next = items.slice();
+    [next[i], next[target]] = [next[target], next[i]];
+    onChange({ items: next });
+  }
+  return (
+    <div className="space-y-3">
+      <Field label="問題文（任意）">
+        <textarea style={{ ...fieldStyle, minHeight: 50 }} value={content.instruction || ""} onChange={e => onChange({ instruction: e.target.value })} />
+      </Field>
+      <div>
+        <div className="mb-1.5 flex items-center justify-between">
+          <span className="text-xs font-semibold" style={{ color: C.body }}>項目（正しい順序で入力）</span>
+          <IconBtn title="項目を追加" onClick={addItem}><Plus size={13} /></IconBtn>
+        </div>
+        <div className="space-y-1.5">
+          {items.map((item, i) => (
+            <div key={i} className="flex items-center gap-1">
+              <span className="w-4 shrink-0 text-center text-[10px]" style={{ color: C.muted }}>{i + 1}</span>
+              <input style={{ ...fieldStyle, flex: 1 }} value={item} onChange={e => updateItem(i, e.target.value)} />
+              <IconBtn title="上へ" onClick={() => moveItem(i, -1)} disabled={i === 0}><ArrowUp size={12} /></IconBtn>
+              <IconBtn title="下へ" onClick={() => moveItem(i, 1)} disabled={i === items.length - 1}><ArrowDown size={12} /></IconBtn>
+              <IconBtn title="削除" danger onClick={() => removeItem(i)}><Trash2 size={12} /></IconBtn>
+            </div>
+          ))}
+        </div>
+      </div>
+      <Field label="ヒント（任意）">
+        <input style={fieldStyle} value={content.hint || ""} onChange={e => onChange({ hint: e.target.value })} />
+      </Field>
+      <Field label="解説">
+        <textarea style={{ ...fieldStyle, minHeight: 60 }} value={content.explanation || ""} onChange={e => onChange({ explanation: e.target.value })} />
+      </Field>
+    </div>
+  );
+}
+
+function FillBlankEditor({ content, onChange }) {
+  const acceptableAnswers = content.acceptableAnswers || [];
+  function updateAcceptable(i, v) { const next = acceptableAnswers.slice(); next[i] = v; onChange({ acceptableAnswers: next }); }
+  function addAcceptable() { if (acceptableAnswers.length < 3) onChange({ acceptableAnswers: [...acceptableAnswers, ""] }); }
+  function removeAcceptable(i) { onChange({ acceptableAnswers: acceptableAnswers.filter((_, idx) => idx !== i) }); }
+  return (
+    <div className="space-y-3">
+      <Field label="空欄より前の文">
+        <input style={fieldStyle} value={content.textBefore || ""} onChange={e => onChange({ textBefore: e.target.value })} />
+      </Field>
+      <Field label="正解">
+        <input style={fieldStyle} value={content.answer || ""} onChange={e => onChange({ answer: e.target.value })} />
+      </Field>
+      <Field label="空欄より後の文">
+        <input style={fieldStyle} value={content.textAfter || ""} onChange={e => onChange({ textAfter: e.target.value })} />
+      </Field>
+      <div>
+        <div className="mb-1.5 flex items-center justify-between">
+          <span className="text-xs font-semibold" style={{ color: C.body }}>別解（任意、最大3件）</span>
+          <IconBtn title="別解を追加" onClick={addAcceptable} disabled={acceptableAnswers.length >= 3}><Plus size={13} /></IconBtn>
+        </div>
+        <div className="space-y-1.5">
+          {acceptableAnswers.map((a, i) => (
+            <div key={i} className="flex items-center gap-1.5">
+              <input style={{ ...fieldStyle, flex: 1 }} value={a} onChange={e => updateAcceptable(i, e.target.value)} />
+              <IconBtn title="削除" danger onClick={() => removeAcceptable(i)}><Trash2 size={13} /></IconBtn>
+            </div>
+          ))}
+        </div>
+      </div>
+      <Field label="解説">
+        <textarea style={{ ...fieldStyle, minHeight: 60 }} value={content.explanation || ""} onChange={e => onChange({ explanation: e.target.value })} />
+      </Field>
+    </div>
+  );
+}
+
+function InteractiveFormEditor({ content, onChange }) {
+  const fields = content.fields || [];
+  function updateField(i, patch) { const next = fields.slice(); next[i] = { ...next[i], ...patch }; onChange({ fields: next }); }
+  function addField() {
+    if (fields.length >= 5) return;
+    onChange({ fields: [...fields, { key: `field${fields.length + 1}`, label: "新しい項目", type: "text", options: [], placeholder: "", correctValue: "", hint: "" }] });
+  }
+  function removeField(i) { onChange({ fields: fields.filter((_, idx) => idx !== i) }); }
+  function updateOptions(i, text) { updateField(i, { options: text.split(",").map(s => s.trim()).filter(Boolean) }); }
+  return (
+    <div className="space-y-3">
+      <Field label="タイトル">
+        <input style={fieldStyle} value={content.title || ""} onChange={e => onChange({ title: e.target.value })} />
+      </Field>
+      <Field label="操作指示">
+        <textarea style={{ ...fieldStyle, minHeight: 50 }} value={content.instruction || ""} onChange={e => onChange({ instruction: e.target.value })} />
+      </Field>
+      <div>
+        <div className="mb-1.5 flex items-center justify-between">
+          <span className="text-xs font-semibold" style={{ color: C.body }}>入力項目（2〜5件）</span>
+          <IconBtn title="項目を追加" onClick={addField} disabled={fields.length >= 5}><Plus size={13} /></IconBtn>
+        </div>
+        <div className="space-y-2">
+          {fields.map((f, i) => (
+            <div key={i} className="space-y-1.5 rounded-lg p-2" style={{ background: "#fff", border: `1px solid ${C.line}` }}>
+              <div className="flex items-center gap-1.5">
+                <input style={{ ...fieldStyle, flex: 1 }} value={f.label} onChange={e => updateField(i, { label: e.target.value })} placeholder="ラベル" />
+                <select style={{ ...fieldStyle, width: 90 }} value={f.type} onChange={e => updateField(i, { type: e.target.value })}>
+                  <option value="text">text</option>
+                  <option value="select">select</option>
+                  <option value="toggle">toggle</option>
+                </select>
+                <IconBtn title="削除" danger onClick={() => removeField(i)}><Trash2 size={13} /></IconBtn>
+              </div>
+              {(f.type === "select" || f.type === "toggle") && (
+                <input style={fieldStyle} value={(f.options || []).join(", ")} onChange={e => updateOptions(i, e.target.value)} placeholder="選択肢をカンマ区切りで入力" />
+              )}
+              {f.type === "text" && (
+                <input style={fieldStyle} value={f.placeholder || ""} onChange={e => updateField(i, { placeholder: e.target.value })} placeholder="プレースホルダー（任意）" />
+              )}
+              <input style={fieldStyle} value={f.correctValue || ""} onChange={e => updateField(i, { correctValue: e.target.value })} placeholder="正解値" />
+              <input style={fieldStyle} value={f.hint || ""} onChange={e => updateField(i, { hint: e.target.value })} placeholder="ヒント（任意）" />
+            </div>
+          ))}
+        </div>
+      </div>
+      <Field label="完成イメージ（任意、例: int age = 20;）">
+        <input style={fieldStyle} value={content.completionPreview || ""} onChange={e => onChange({ completionPreview: e.target.value })} />
+      </Field>
+      <Field label="解説">
+        <textarea style={{ ...fieldStyle, minHeight: 60 }} value={content.explanation || ""} onChange={e => onChange({ explanation: e.target.value })} />
+      </Field>
+    </div>
+  );
+}
+
+const STRUCTURED_EDIT_KINDS = {
+  diagram: DiagramEditor,
+  selection_task: SelectionTaskEditor,
+  ordering_puzzle: OrderingPuzzleEditor,
+  fill_blank: FillBlankEditor,
+  interactive_form: InteractiveFormEditor,
+};
+
 function EditPanel({ slide, onChangeCommon, onChangeContent, onDuplicate, onDeleteRequest }) {
   const meta = KIND_META[slide.kind] || { label: slide.kind };
   const isBasic = BASIC_KINDS.includes(slide.kind);
+  const StructuredEditor = STRUCTURED_EDIT_KINDS[slide.kind];
   const content = slide.content || {};
   return (
     <div className="space-y-3">
@@ -304,6 +580,8 @@ function EditPanel({ slide, onChangeCommon, onChangeContent, onDuplicate, onDele
             </Field>
           )}
         </>
+      ) : StructuredEditor ? (
+        <StructuredEditor content={content} onChange={onChangeContent} />
       ) : (
         <div className="rounded-xl p-3 text-xs leading-relaxed" style={{ background: C.canvas, color: C.muted }}>
           この種別（{meta.label}）のコンテンツはAIが生成・修正します。内容は右側のプレビューで確認できます。変更したい場合は下の「AIアシスト」から依頼してください。

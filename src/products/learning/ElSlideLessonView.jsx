@@ -451,7 +451,8 @@ function OrderingPuzzleBody({ slide }) {
   return (
     <div>
       <h3 className="mb-3 text-xl font-bold" style={{ color: C.ink, letterSpacing: "-0.02em" }}>{slide.title}</h3>
-      {content.instruction && <p className="mb-4 text-sm" style={{ color: C.body }}>{content.instruction}</p>}
+      {content.instruction && <p className="mb-1 text-sm" style={{ color: C.body }}>{content.instruction}</p>}
+      <p className="mb-4 text-xs" style={{ color: C.muted }}>項目を正しい順番へ並べ替える教材です。↑↓ボタンで移動できます。</p>
       <div className="space-y-2">
         {order.map((itemIdx, pos) => {
           const isRight = checked && itemIdx === pos;
@@ -472,6 +473,9 @@ function OrderingPuzzleBody({ slide }) {
           );
         })}
       </div>
+      {content.hint && !checked && (
+        <p className="mt-3 text-xs" style={{ color: C.muted }}>ヒント: {content.hint}</p>
+      )}
       {!checked ? (
         <Btn className="mt-4" size="sm" icon={Check} onClick={() => setChecked(true)}>判定する</Btn>
       ) : (
@@ -612,7 +616,154 @@ function InteractiveFormBody({ slide, accent }) {
       ) : (
         <div className="mt-4 rounded-xl p-4" style={{ background: allCorrect ? "#f0fdf4" : "#fffbeb", border: `1px solid ${allCorrect ? "#bbf7d0" : "#fde68a"}` }}>
           <div className="mb-1 text-sm font-bold" style={{ color: allCorrect ? "#15803d" : "#b45309" }}>{allCorrect ? "正しく設定できました！" : "一部の設定を見直しましょう"}</div>
+          {allCorrect && content.completionPreview && (
+            <pre className="my-2 overflow-x-auto rounded-lg px-3 py-2 text-xs" style={{ background: "#0f172a", color: "#e2e8f0" }}>{content.completionPreview}</pre>
+          )}
           <p className="text-sm leading-relaxed" style={{ color: C.body }}>{content.explanation}</p>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// 2026-07-16 Phase5: diagram(structured node/edge)の描画。AIは値(ノード/エッジ)のみを生成し、
+// 実際の描画レイアウトはここで固定的に決める(自由なSVG/HTML/JSは一切生成させない)。
+// diagramType別に3つの表示モードへ振り分ける最小実装:
+// - hierarchy: 親子関係をインデントで表現するツリー表示
+// - flow/timeline: edgeを辿って一直線の手順として並べる(辿れない場合はnodes宣言順にフォールバック)
+// - relationship/architecture/その他: ノードをチップ表示し、edgeを「A → B」のリストで補足
+// legacy: content.nodesが無い(＝content.layersのみの)既存スライドはこれまで通りlayers表示のまま。
+function chainOrderFromEdges(nodes, edges) {
+  const outMap = new Map();
+  const inDegree = new Map(nodes.map(n => [n.id, 0]));
+  edges.forEach(e => {
+    if (!outMap.has(e.from)) outMap.set(e.from, []);
+    outMap.get(e.from).push(e.to);
+    inDegree.set(e.to, (inDegree.get(e.to) || 0) + 1);
+  });
+  const roots = nodes.filter(n => (inDegree.get(n.id) || 0) === 0);
+  if (roots.length !== 1) return null;
+  const nodeById = new Map(nodes.map(n => [n.id, n]));
+  const order = [];
+  const visited = new Set();
+  let cur = roots[0].id;
+  while (cur && !visited.has(cur)) {
+    visited.add(cur);
+    order.push(cur);
+    const nexts = outMap.get(cur) || [];
+    cur = nexts.length === 1 ? nexts[0] : null;
+  }
+  if (order.length !== nodes.length) return null;
+  return order.map(id => nodeById.get(id));
+}
+
+function buildDiagramTree(nodes, edges) {
+  const nodeById = new Map(nodes.map(n => [n.id, n]));
+  const childrenMap = new Map();
+  const hasParent = new Set();
+  edges.forEach(e => {
+    if (!childrenMap.has(e.from)) childrenMap.set(e.from, []);
+    childrenMap.get(e.from).push(e.to);
+    hasParent.add(e.to);
+  });
+  const roots = nodes.filter(n => !hasParent.has(n.id));
+  const rows = [];
+  const visit = (id, depth) => {
+    const node = nodeById.get(id);
+    if (!node) return;
+    rows.push({ node, depth });
+    (childrenMap.get(id) || []).forEach(childId => visit(childId, depth + 1));
+  };
+  (roots.length ? roots : nodes).forEach(n => visit(n.id, 0));
+  return rows;
+}
+
+function DiagramBody({ slide, accent }) {
+  const content = slide.content || {};
+  const nodes = content.nodes || [];
+  const edges = content.edges || [];
+  const layers = content.layers || [];
+
+  if (!nodes.length) {
+    return (
+      <div>
+        <h3 className="mb-4 text-xl font-bold" style={{ color: C.ink, letterSpacing: "-0.02em" }}>{slide.title}</h3>
+        <div className="space-y-2">
+          {layers.map((layer, i, arr) => (
+            <div key={layer.label}>
+              <div className="flex items-center justify-between gap-3 rounded-xl px-4 py-3" style={{ background: `${accent}${14 - i * 3}`, border: `1px solid ${accent}30` }}>
+                <span className="text-sm font-bold" style={{ color: C.ink }}>{layer.label}</span>
+                <span className="text-xs" style={{ color: C.muted }}>{layer.who}</span>
+              </div>
+              {i < arr.length - 1 && <div className="mx-auto h-3 w-px" style={{ background: C.line }} />}
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+  }
+
+  const diagramType = content.diagramType || "flow";
+
+  if (diagramType === "hierarchy") {
+    const rows = buildDiagramTree(nodes, edges);
+    return (
+      <div>
+        <h3 className="mb-4 text-xl font-bold" style={{ color: C.ink, letterSpacing: "-0.02em" }}>{slide.title}</h3>
+        <div className="space-y-1.5">
+          {rows.map(({ node, depth }) => (
+            <div key={node.id} className="flex items-center gap-2" style={{ marginLeft: depth * 24 }}>
+              {depth > 0 && <span style={{ color: C.muted }}>└</span>}
+              <span className="rounded-lg px-3 py-1.5 text-sm font-semibold" style={{ background: `${accent}14`, border: `1px solid ${accent}30`, color: C.ink }}>{node.label}</span>
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+  }
+
+  if (diagramType === "flow" || diagramType === "timeline") {
+    const chain = chainOrderFromEdges(nodes, edges) || nodes;
+    return (
+      <div>
+        <h3 className="mb-4 text-xl font-bold" style={{ color: C.ink, letterSpacing: "-0.02em" }}>{slide.title}</h3>
+        <div className="space-y-2">
+          {chain.map((node, i, arr) => (
+            <div key={node.id}>
+              <div className="flex items-center gap-3 rounded-xl px-4 py-3" style={{ background: `${accent}${14 - i * 2}`, border: `1px solid ${accent}30` }}>
+                <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-xs font-bold" style={{ background: T.bgBase, color: C.muted }}>{i + 1}</span>
+                <span className="text-sm font-bold" style={{ color: C.ink }}>{node.label}</span>
+              </div>
+              {i < arr.length - 1 && <div className="mx-auto h-3 w-px" style={{ background: C.line }} />}
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div>
+      <h3 className="mb-4 text-xl font-bold" style={{ color: C.ink, letterSpacing: "-0.02em" }}>{slide.title}</h3>
+      <div className="mb-3 flex flex-wrap gap-2">
+        {nodes.map(node => (
+          <span key={node.id} className="rounded-lg px-3 py-1.5 text-sm font-semibold" style={{ background: `${accent}14`, border: `1px solid ${accent}30`, color: C.ink }}>{node.label}</span>
+        ))}
+      </div>
+      {edges.length > 0 && (
+        <div className="space-y-1">
+          {edges.map((e, i) => {
+            const fromNode = nodes.find(n => n.id === e.from);
+            const toNode = nodes.find(n => n.id === e.to);
+            return (
+              <div key={i} className="flex flex-wrap items-center gap-1.5 text-xs" style={{ color: C.body }}>
+                <span className="font-semibold">{fromNode?.label || e.from}</span>
+                <span style={{ color: C.muted }}>→</span>
+                <span className="font-semibold">{toNode?.label || e.to}</span>
+                {e.label && <span style={{ color: C.muted }}>（{e.label}）</span>}
+              </div>
+            );
+          })}
         </div>
       )}
     </div>
@@ -635,22 +786,7 @@ export function SlideRenderer({ slide, accent, lrn }) {
     case "image":
       return <ImageSlideBody key={slide.id} slide={slide} content={content} lrn={lrn} />;
     case "diagram":
-      return (
-        <div>
-          <h3 className="mb-4 text-xl font-bold" style={{ color: C.ink, letterSpacing: "-0.02em" }}>{slide.title}</h3>
-          <div className="space-y-2">
-            {(content.layers || []).map((layer, i, arr) => (
-              <div key={layer.label}>
-                <div className="flex items-center justify-between gap-3 rounded-xl px-4 py-3" style={{ background: `${accent}${14 - i * 3}`, border: `1px solid ${accent}30` }}>
-                  <span className="text-sm font-bold" style={{ color: C.ink }}>{layer.label}</span>
-                  <span className="text-xs" style={{ color: C.muted }}>{layer.who}</span>
-                </div>
-                {i < arr.length - 1 && <div className="mx-auto h-3 w-px" style={{ background: C.line }} />}
-              </div>
-            ))}
-          </div>
-        </div>
-      );
+      return <DiagramBody slide={slide} accent={accent} />;
     case "table":
       return (
         <div>
