@@ -369,7 +369,7 @@ export function useLearning(role = "trainee") {
   function getCourseReviewItems(courseId) {
     return lessonReviews.filter(r => (
       r.courseId === courseId &&
-      (r.status === "uncertain" || r.status === "review_later" || r.reviewLater === true) &&
+      (r.status === "uncertain" || r.status === "need_help" || r.status === "review_later" || r.reviewLater === true) &&
       r.reviewed !== true
     ));
   }
@@ -418,14 +418,14 @@ export function useLearning(role = "trainee") {
 
     const weakByLesson = new Map();
     reviews.forEach(r => {
-      if (r.status !== "uncertain" && r.status !== "review_later" && r.reviewLater !== true) return;
+      if (r.status !== "uncertain" && r.status !== "need_help" && r.status !== "review_later" && r.reviewLater !== true) return;
       const ls = lessons.find(item => item.id === r.lessonId);
       if (!ls) return;
       const high = r.status === "review_later" || r.reviewLater === true || r.reviewed !== true;
       weakByLesson.set(r.lessonId, {
         lessonId: r.lessonId,
         lessonTitle: ls.title,
-        reason: r.status === "review_later" || r.reviewLater === true ? "後で復習したい" : "少し不安",
+        reason: r.status === "review_later" || r.reviewLater === true ? "後で復習したい" : r.status === "need_help" ? "質問したい" : "少し不安",
         priority: high ? "high" : "medium",
         reviewLater: r.status === "review_later" || r.reviewLater === true,
         reviewed: r.reviewed === true,

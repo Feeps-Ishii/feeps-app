@@ -2,6 +2,7 @@ import React, { useEffect, useState } from "react";
 import {
   ChevronLeft, ChevronRight, Lightbulb, FileText, Download, Check, X,
   Play, PlayCircle, Circle, CheckCircle2, Loader2, Sparkles, PanelRightClose, PanelRightOpen,
+  Clock, HelpCircle,
 } from "lucide-react";
 import { Btn, T, PRODUCT_ACCENT } from "../../components/common";
 import { LessonBodyText } from "./LearningComponents.jsx";
@@ -20,10 +21,14 @@ const C = {
   ink: T.textPrimary, body: T.textSecondary, muted: T.textMuted, line: T.border, canvas: T.bgBase,
 };
 
+// 2026-07-14 AI Lesson Studio Phase2: 絵文字を廃止しアイコン+ラベルのボタンUIへ変更。
+// uncertain(旧・少し不安)は選択肢から外し、need_help(質問したい)に置き換え。過去データの
+// uncertainは引き続きLearningComponents.jsx/QuizManager.jsxのラベル表示・useLearning.jsの
+// 集計ロジックでは認識する(後方互換)。新規保存はこの3値(understood/review_later/need_help)のみ。
 const REACTIONS = [
-  { key: "understood", emoji: "🙂", label: "理解できた" },
-  { key: "uncertain", emoji: "😐", label: "少し不安" },
-  { key: "review_later", emoji: "🤔", label: "後で復習したい" },
+  { key: "understood", icon: CheckCircle2, label: "理解できた" },
+  { key: "review_later", icon: Clock, label: "あとで復習する" },
+  { key: "need_help", icon: HelpCircle, label: "質問したい" },
 ];
 
 function orderedSlides(lesson) {
@@ -623,19 +628,25 @@ function ReactionBar({ course, lesson, lrn, accent }) {
   const review = lrn.getLessonReview(course.id, lesson.id);
   function select(status) { lrn.setLessonReview(course.id, lesson.id, { status, reviewed: false }); }
   return (
-    <div className="flex items-center gap-1.5">
-      {REACTIONS.map(r => (
-        <button
-          key={r.key}
-          type="button"
-          title={r.label}
-          onClick={() => select(r.key)}
-          className="rounded-full px-2.5 py-1.5 text-base transition"
-          style={{ background: review?.status === r.key ? `${accent}1A` : "transparent" }}
-        >
-          {r.emoji}
-        </button>
-      ))}
+    <div className="flex flex-wrap items-center gap-2">
+      {REACTIONS.map(r => {
+        const active = review?.status === r.key;
+        const Icon = r.icon;
+        return (
+          <button
+            key={r.key}
+            type="button"
+            onClick={() => select(r.key)}
+            className="flex items-center gap-1.5 rounded-xl px-3 py-2 text-xs font-semibold transition"
+            style={active
+              ? { background: accent, border: `1px solid ${accent}`, color: "#fff" }
+              : { background: "#fff", border: `1px solid ${C.line}`, color: C.body }}
+          >
+            <Icon size={14} />
+            {r.label}
+          </button>
+        );
+      })}
     </div>
   );
 }

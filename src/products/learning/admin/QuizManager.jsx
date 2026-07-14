@@ -22,6 +22,7 @@ const typeLabel = {
 const reviewStatusLabel = {
   understood: "理解できた",
   uncertain: "少し不安",
+  need_help: "質問したい",
   review_later: "後で復習したい",
 };
 
@@ -199,6 +200,7 @@ function ReviewPanel({ lessons, reviewFlags, onSave, onDelete }) {
           <select style={fieldStyle} value={form.status} onChange={e => set("status", e.target.value)}>
             <option value="understood">理解できた</option>
             <option value="uncertain">少し不安</option>
+            <option value="need_help">質問したい</option>
             <option value="review_later">後で復習したい</option>
           </select>
         </Field>

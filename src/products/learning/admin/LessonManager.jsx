@@ -3,6 +3,7 @@ import {
   ArrowDown,
   ArrowUp,
   BookOpen,
+  ClipboardCheck,
   Clock,
   Eye,
   EyeOff,
@@ -22,6 +23,7 @@ import { EMPTY_LESSON_FORM, LESSON_TYPE_OPTIONS } from "./LearningAdminCatalog.j
 import { lessonToForm, useLearningAdmin } from "./useLearningAdmin.js";
 import AdminModal from "./AdminModal.jsx";
 import LessonSlideEditor from "./slideEditor/LessonSlideEditor.jsx";
+import LessonSlideReview from "./slideReview/LessonSlideReview.jsx";
 
 const C = { ink: T.textPrimary, body: T.textSecondary, muted: T.textMuted, line: T.border, canvas: T.bgBase, green: PRODUCT_ACCENT.learning.accent, red: T.danger };
 
@@ -95,7 +97,7 @@ function LessonForm({ mode, form, onChange, onSubmit, onCancel }) {
   );
 }
 
-function LessonRow({ lesson, index, total, onEdit, onEditSlides, onTogglePublish, onMove, onDeleteRequest }) {
+function LessonRow({ lesson, index, total, onEdit, onEditSlides, onReviewSlides, onTogglePublish, onMove, onDeleteRequest }) {
   const published = lesson.published !== false;
   const Icon = typeIcon[lesson.type] || BookOpen;
   const slideCount = (lesson.slides || []).length;
@@ -127,6 +129,7 @@ function LessonRow({ lesson, index, total, onEdit, onEditSlides, onTogglePublish
           <Btn kind="ghost" size="sm" icon={ArrowDown} onClick={() => onMove(lesson.id, 1)} disabled={index === total - 1}>下へ</Btn>
           <Btn kind="ghost" size="sm" icon={Pencil} onClick={() => onEdit(lesson)}>編集</Btn>
           <Btn kind="ghost" size="sm" icon={Layers} onClick={() => onEditSlides(lesson)}>スライド編集</Btn>
+          <Btn kind="ghost" size="sm" icon={ClipboardCheck} onClick={() => onReviewSlides(lesson)}>スライド確認</Btn>
           <Btn kind="ghost" size="sm" icon={published ? EyeOff : Eye} onClick={() => onTogglePublish(lesson.id)}>
             {published ? "非公開" : "公開"}
           </Btn>
@@ -159,6 +162,7 @@ export default function LessonManager({ initialCourseId }) {
   const [deleteTarget, setDeleteTarget] = useState(null);
   const [formOpen, setFormOpen] = useState(false);
   const [slideEditingLesson, setSlideEditingLesson] = useState(null);
+  const [slideReviewingLesson, setSlideReviewingLesson] = useState(null);
 
   const selectedCourse = courses.find(course => course.id === selectedCourseId) || courses[0];
   const lessons = selectedCourse ? lessonsForCourse(selectedCourse.id) : [];
@@ -280,6 +284,7 @@ export default function LessonManager({ initialCourseId }) {
                   total={lessons.length}
                   onEdit={startEdit}
                   onEditSlides={setSlideEditingLesson}
+                  onReviewSlides={setSlideReviewingLesson}
                   onTogglePublish={(lessonId) => selectedCourse && toggleLessonPublish(selectedCourse.id, lessonId)}
                   onMove={(lessonId, direction) => selectedCourse && moveLesson(selectedCourse.id, lessonId, direction)}
                   onDeleteRequest={setDeleteTarget}
@@ -339,6 +344,14 @@ export default function LessonManager({ initialCourseId }) {
         updateLesson={updateLesson}
         createMaterialAwaitingApi={createMaterialAwaitingApi}
         onClose={() => setSlideEditingLesson(null)}
+      />
+
+      <LessonSlideReview
+        open={Boolean(slideReviewingLesson)}
+        course={selectedCourse}
+        lesson={slideReviewingLesson}
+        updateLesson={updateLesson}
+        onClose={() => setSlideReviewingLesson(null)}
       />
     </div>
   );

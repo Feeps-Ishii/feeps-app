@@ -61,11 +61,13 @@ function getLearningResume(lrn) {
 const REVIEW_STATUS_LABEL = {
   understood: "理解できた",
   uncertain: "少し不安",
+  need_help: "質問したい",
   review_later: "後で復習したい",
 };
 const REVIEW_STATUS_TONE = {
   understood: "green",
   uncertain: "amber",
+  need_help: "amber",
   review_later: "red",
 };
 function reviewStatusLabel(review) {
