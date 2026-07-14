@@ -11,7 +11,7 @@ import {
 import {
   candidateToSheet, fetchTraineePortfolio, matchTone, placementFormToPayload, projectFormToPayload,
   projectToForm, useCompanies, useInstructorTrainees, useMatchingMe, useMatchingPlacements,
-  useMatchingProjects, useProjectCandidates, useTraineeMatching,
+  useMatchingProjects, useProjectCandidates,
 } from "./useMatching.js";
 import { Card, Badge, Btn, Avatar, Field, fieldStyle, SectionHead, PageHeader, ProductNavCard, Modal, T, EmptyState as CommonEmptyState, SkeletonRows } from "../../components/common";
 
@@ -837,40 +837,7 @@ export function MatchingMeView() {
   );
 }
 
-// ================= instructor向け: 担当受講生の参画状況（閲覧のみ、単価非表示） =================
-export function InstructorPlacementsView() {
-  const { trainees, loading: tLoading, error: tError } = useInstructorTrainees();
-  const [traineeId, setTraineeId] = useState("");
-  useEffect(() => { if (!traineeId && trainees.length) setTraineeId(trainees[0].userId || trainees[0].id); }, [trainees, traineeId]);
-  const { items, loading, error } = useTraineeMatching(traineeId);
-
-  return (
-    <div>
-      <SectionHead title="担当受講生の参画状況" desc="担当受講生の案件参画結果を確認します（閲覧のみ、単価は表示されません）。" />
-      <ErrorBanner message={tError} />
-      <Card className="mb-4 p-4">
-        <Field label="受講生を選択">
-          <select value={traineeId} onChange={e => setTraineeId(e.target.value)} style={fieldStyle} disabled={tLoading}>
-            {trainees.map(t => <option key={t.userId || t.id} value={t.userId || t.id}>{t.name || t.email}</option>)}
-          </select>
-        </Field>
-      </Card>
-      <ErrorBanner message={error} />
-      {loading ? <Card><SkeletonRows rows={3} /></Card> : !items.length ? (
-        <Card><EmptyState title="参画データがありません" desc="この受講生の参画データはまだ登録されていません。" /></Card>
-      ) : (
-        <div className="space-y-2">{items.map(pl => (
-          <Card key={pl.placementId} className="p-4">
-            <div className="flex flex-wrap items-center justify-between gap-2">
-              <div>
-                <div className="text-sm font-bold" style={{ color: T.textPrimary }}>{pl.projectTitle}</div>
-                <div className="mt-0.5 text-xs" style={{ color: T.textMuted }}>{pl.startDate && `${pl.startDate}〜${pl.expectedEndDate || pl.actualEndDate || ""}`}</div>
-              </div>
-              <Badge tone={pl.status === "active" ? "green" : pl.status === "completed" ? "cyan" : "muted"}>{pl.statusLabel}</Badge>
-            </div>
-          </Card>
-        ))}</div>
-      )}
-    </div>
-  );
-}
+// 2026-07-14 講師の参画状況閲覧は研修管理の受講生カルテへ統合したため、独立Matching Product専用
+// だったInstructorPlacementsView（このコンポーネント）は撤去。カルテ側は
+// products/training/TrainingComponents.jsx の TraineeParticipationStatus が
+// useTraineeMatching（useMatching.js）を直接再利用する。

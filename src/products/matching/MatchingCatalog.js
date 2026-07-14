@@ -1,7 +1,9 @@
-import { Activity, Briefcase, LayoutDashboard, MapPin, Sparkles, Users } from "lucide-react";
+import { Activity, Briefcase, LayoutDashboard, MapPin, Sparkles } from "lucide-react";
 
-// サイドナビはロール別。admin/clientは案件管理者向け、instructorは担当受講生の参画確認のみ、
-// traineeは自分向けのおすすめ・参画状況のみを表示する（Backend権限と対応させる）。
+// サイドナビはロール別。admin/clientは案件管理者向け、traineeは自分向けのおすすめ・参画状況のみを
+// 表示する（Backend権限と対応させる）。instructorはMatching Productに到達しない
+// （TrainingApp.jsxのPRODUCTSから2026-07-14に除外済み）。担当受講生の参画状況は研修管理の
+// 受講生カルテ内（TrainingComponents.jsxのTraineeParticipationStatus）で読み取り専用表示する。
 export const MATCHING_NAV = {
   admin: [
     { sec: null, items: [["mt_home", "ホーム", LayoutDashboard]] },
@@ -19,10 +21,6 @@ export const MATCHING_NAV = {
       ["mt_placement", "自社参画状況",   MapPin],
     ]},
   ],
-  instructor: [
-    { sec: null, items: [["mt_home", "ホーム", LayoutDashboard]] },
-    { sec: "案件管理", items: [["mt_placement", "担当受講生の参画状況", Users]] },
-  ],
   trainee: [
     { sec: null, items: [["mt_home", "ホーム", LayoutDashboard]] },
     { sec: "案件管理", items: [["mt_placement", "おすすめ・参画状況", Activity]] },
@@ -39,9 +37,6 @@ export const MATCHING_HOME_CARDS = {
     { key: "mt_list",      icon: Briefcase, label: "自社案件",         desc: "自社に紐づく案件を確認します。" },
     { key: "mt_matching",  icon: Sparkles,  label: "候補者マッチング", desc: "自社受講生の実スキルから案件候補を探します。" },
     { key: "mt_placement", icon: MapPin,    label: "自社参画状況",     desc: "自社人材の参画先と進捗を確認します。" },
-  ],
-  instructor: [
-    { key: "mt_placement", icon: Users,     label: "担当受講生の参画状況", desc: "担当受講生の案件参画結果を確認します（閲覧のみ）。" },
   ],
   trainee: [
     { key: "mt_placement", icon: Activity,  label: "おすすめ案件・参画状況", desc: "自分に合う案件候補と、現在の参画状況・履歴を確認します。" },

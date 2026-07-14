@@ -1,6 +1,5 @@
 import React, { useState } from "react";
 import {
-  InstructorPlacementsView,
   MatchingHome,
   MatchingMeView,
   PlacementManager,
@@ -26,10 +25,10 @@ export default function MatchingProduct({ subView, goSub, role, themeColor }) {
     mt_matching: isManager
       ? <ProjectMatching role={role} initialProjectId={activeProjectId} />
       : <MatchingHome goSub={goSub} role={role} themeColor={themeColor} />,
+    // instructorはPRODUCTS(TrainingApp.jsx)からmatchingを除外済みでこの画面に到達しない。
+    // 担当受講生の参画状況は研修管理のカルテ内(TraineeParticipationStatus)で閲覧する。
     mt_placement: isManager
       ? <PlacementManager role={role} />
-      : role === "instructor"
-      ? <InstructorPlacementsView />
       : <MatchingMeView />,
   };
   return screens[subView] || screens.mt_home;
