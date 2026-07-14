@@ -6,19 +6,15 @@ import {
 import { apiGet } from "../../api.js";
 import { Badge, Btn, Card, T, PRODUCT_ACCENT, ROLE_ACCENT } from "../../components/common";
 
-const ROLE_WELCOME = {
-  instructor: "今日の授業と受講生の状態を確認しましょう。",
-  trainee: "今日の学習、提出、コメントを確認しましょう。",
-  client: "自社受講生の出席、提出、成長状況を確認しましょう。",
-  admin: "全体運営、未処理、コストの状態を確認しましょう。",
-};
-
 const ROLE_LABEL = {
   instructor: "講師",
   trainee: "受講生",
   client: "企業担当者",
   admin: "管理者",
 };
+
+// バナーの特徴バッジ。ロール共通・プロダクト全体の強みを短く伝える（マーケティング用途、機能一覧ではない）。
+const HERO_FEATURE_BADGES = ["AI搭載", "オールインワン管理", "リアルタイム集計"];
 
 // プロダクト紹介セクション用データ（Phase7-5: ランディングページ風の全面再設計）。
 // featuresが空の製品はsmallカードのみに割り当てられ、箇条書きは表示しない。
@@ -133,18 +129,18 @@ function SectionTitle({ title, desc, action }) {
   );
 }
 
-function Hero({ role, displayName, contextLine }) {
+function Hero({ role, displayName }) {
   const roleAccent = ROLE_ACCENT[role] || ROLE_ACCENT.default;
   // 正式版デザイン方針（再調整、Phase7-4）: 黒基調は企業向けSaaSとして重く見えるため、
   // 白〜淡いブルー〜ブランドブルーの明るいグラデーションへ変更。文字は濃色（T.textPrimary/T.textSecondary）
-  // で統一し、Welcomeメッセージを主役にして余白を広くとる（Microsoft 365 / Azure Portal / Notion / Linear
-  // 系の明るく洗練された企業向けSaaSトーン）。PRODUCT_ACCENT.training/adminの濃いブランドブルーとは別に、
-  // Home自体は白地を主役にした固有のグラデーションを直接組み立てる（既存トークンT.bgSurface/accentSubtle/accentのみ使用）。
+  // で統一する（Microsoft 365 / Azure Portal / Notion / Linear系の明るく洗練された企業向けSaaSトーン）。
+  // PRODUCT_ACCENT.training/adminの濃いブランドブルーとは別に、Home自体は白地を主役にした固有のグラデーションを
+  // 直接組み立てる（既存トークンT.bgSurface/accentSubtle/accentのみ使用）。
   const heroBg = `linear-gradient(120deg, ${T.bgSurface} 0%, ${T.accentSubtle} 48%, ${T.accent} 100%)`;
   return (
     <section className="overflow-hidden rounded-[24px] p-5 sm:p-10" style={{ background: heroBg, border: `1px solid ${T.border}`, boxShadow: "0 14px 36px rgba(61,107,255,.12)" }}>
       <div className="flex flex-wrap items-center justify-between gap-3 border-b pb-4" style={{ borderColor: "rgba(26,28,32,0.08)" }}>
-        <div className="flex min-w-0 items-center gap-3">
+        <div className="flex min-w-0 flex-wrap items-center gap-3">
           <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl" style={{ background: T.accent, color: "#fff" }}>
             <TrendingUp size={20} />
           </span>
@@ -155,6 +151,8 @@ function Hero({ role, displayName, contextLine }) {
           <span className="ml-1 rounded-full px-3 py-1 text-xs font-bold" style={{ background: roleAccent.subtle, color: roleAccent.accent }}>
             {ROLE_LABEL[role] || role}
           </span>
+          {/* ログイン中であることが分かる程度の小さな個人名表示（Phase7-5: バナーの主役はプロダクト紹介） */}
+          <span className="text-xs font-semibold" style={{ color: T.textMuted }}>{displayName}さん</span>
         </div>
         <div className="flex items-center gap-2 rounded-full px-3 py-1.5 text-xs font-semibold" style={{ background: "rgba(255,255,255,0.75)", color: T.textSecondary, border: `1px solid ${T.border}` }}>
           <CalendarDays size={14} />
@@ -162,14 +160,22 @@ function Hero({ role, displayName, contextLine }) {
         </div>
       </div>
 
-      {/* プロダクト紹介型リニューアル（Phase7-5）: 右側のLearning Journeyチップは新設のプロダクト紹介
-          セクションと内容が重複するため削除し、Welcomeメッセージのみのシンプルな挨拶バナーへ整理。 */}
+      {/* プロダクト紹介型バナー（Phase7-5）: 個人向け挨拶ではなく製品全体の価値訴求を主役にする。
+          全ロール共通のマーケティング文言＋特徴バッジのみで構成し、ロール別の個別文言は持たない。 */}
       <div className="pt-6 sm:pt-8">
-        <div className="text-xs font-bold uppercase tracking-wide" style={{ color: T.accent }}>研修・学習・成長を、ひとつに。</div>
-        <h1 className="mt-2 text-3xl font-semibold leading-tight sm:text-4xl" style={{ color: T.textPrimary, letterSpacing: "-0.02em" }}>
-          {displayName}さん、おかえりなさい。
+        <h1 className="text-3xl font-bold leading-tight sm:text-5xl" style={{ color: T.textPrimary, letterSpacing: "-0.02em" }}>
+          研修・学習・成長を、ひとつに。
         </h1>
-        <p className="mt-3 text-sm leading-relaxed sm:text-base" style={{ color: T.textSecondary }}>{contextLine}</p>
+        <p className="mt-4 max-w-2xl text-base leading-relaxed sm:text-lg" style={{ color: T.textSecondary }}>
+          研修管理からEラーニング、スキル可視化、案件連携まで。人材育成の全工程をワンプラットフォームで。
+        </p>
+        <div className="mt-5 flex flex-wrap gap-2">
+          {HERO_FEATURE_BADGES.map(badge => (
+            <span key={badge} className="rounded-full px-3 py-1 text-xs font-bold" style={{ background: "rgba(255,255,255,0.75)", color: T.accentHover, border: `1px solid ${T.border}` }}>
+              {badge}
+            </span>
+          ))}
+        </div>
       </div>
     </section>
   );
@@ -295,23 +301,14 @@ export default function FeepsOneHome({ role, displayName, goProduct, goTraining,
   }, [loadDashboard]);
 
   const todayCourses = asArray(dashboard?.todayCourses);
-  const traineeCourses = asArray(dashboard?.activeCourses);
   const traineeAnnouncements = asArray(dashboard?.dailyAnnouncements);
   const traineeComments = asArray(dashboard?.comments);
-
-  const primaryCourse = textOf(todayCourses[0]?.courseName);
-  const traineePrimaryCourse = textOf(traineeCourses[0]?.courseName);
-  const contextLine = role === "instructor" && primaryCourse
-    ? `今日は${primaryCourse}があります。`
-    : role === "trainee" && traineePrimaryCourse
-      ? `今日は${traineePrimaryCourse}の状況を確認できます。`
-    : ROLE_WELCOME[role] || ROLE_WELCOME.trainee;
 
   const openDashboardTarget = (targetUrl) => openTargetUrl(targetUrl, { goProduct, goTraining, goSub });
 
   return (
     <div className="flex flex-col gap-6 sm:gap-7">
-      <Hero role={role} displayName={displayName} contextLine={contextLine} />
+      <Hero role={role} displayName={displayName} />
 
       {(role === "instructor" || role === "trainee") && dashboardError && (
         <Card className="p-4">
