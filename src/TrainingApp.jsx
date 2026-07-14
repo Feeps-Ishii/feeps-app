@@ -116,7 +116,11 @@ const PRODUCTS = [
   { key: "training",  label: "研修管理",       icon: GraduationCap, color: PRODUCT_ACCENT.training.accent, roles: ["trainee","instructor","client","admin"] },
   { key: "learning",  label: "Eラーニング",    icon: BookOpen,      color: PRODUCT_ACCENT.learning.accent, roles: ["trainee","instructor","client","admin"] },
   { key: "talent",    label: "スキル・成長",   icon: TrendingUp,    color: PRODUCT_ACCENT.talent.accent, roles: ["trainee","instructor","client","admin"] },
-  { key: "matching",  label: "案件管理",       icon: Briefcase,     color: PRODUCT_ACCENT.matching.accent, roles: ["trainee","instructor","client","admin"] },
+  // 2026-07-14 Home緊急修正: 講師は案件管理を業務上使わないためHome/上部タブ/サイドバー/
+  // Bottom Navigation/モバイルメニューから除外（PRODUCTSがこれら全ての表示元を兼ねる）。
+  // Backend(routes/matching.mjs)もGET /projects等の主要操作をinstructorに403で返しており、
+  // 唯一「担当受講生の参画状況」のみ限定的にGET許可されている(詳細はHANDOFF参照)。
+  { key: "matching",  label: "案件管理",       icon: Briefcase,     color: PRODUCT_ACCENT.matching.accent, roles: ["trainee","client","admin"] },
   { key: "analytics", label: "分析・レポート", icon: Activity,      color: PRODUCT_ACCENT.analytics.accent, roles: ["admin"] },
 ];
 
