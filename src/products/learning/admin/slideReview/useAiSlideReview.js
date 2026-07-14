@@ -1,10 +1,11 @@
 import { useState } from "react";
 import { apiPost } from "../../../../api.js";
 
-// AI Lesson Studio Phase2「スライド確認」画面用Hook。既存スライドへの自然文修正依頼、および
+// AI Lesson Studio Phase2で追加したAI修正/追加依頼用Hook。既存スライドへの自然文修正依頼、および
 // 追加スライド生成の呼び出しと、適用前の差分プレビュー状態・履歴(Lesson保存前のみ、DB保存なし)
-// を管理する。保存(Lessonへの反映)は行わない — 呼び出し側(LessonSlideReview)が適用時に
-// 自身のslides配列stateを更新し、最終的な永続化は既存の「保存する」ボタン経由で行う。
+// を管理する。保存(Lessonへの反映)は行わない — 呼び出し側(2026-07-15〜 LessonSlideStudio、
+// 旧LessonSlideReview画面から移設)が適用時に自身のslides配列stateを更新し、最終的な永続化は
+// 既存の「保存する」ボタン経由で行う。
 
 // AI修正の対象外kind(実素材依存。ADR0005/0006参照): image/video/terminal
 // 2026-07-14 Phase3: selection_task/ordering_puzzle/fill_blank/interactive_form(操作できる

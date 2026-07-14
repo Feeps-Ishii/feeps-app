@@ -7,7 +7,7 @@ import { apiPost } from "../../../../api.js";
 // 図解/AI画像はこのPhaseではUI(トグル)のみで、生成内容には影響しない(次Phase以降で対応、
 // モーダル側にその旨を明記する)。「疑似環境」トグルのみ2026-07-14 Phase3から実際に生成内容へ
 // 反映される(selection_task/ordering_puzzle/fill_blank/interactive_formのいずれかを追加生成)。
-// 保存はしない。生成結果は呼び出し側(LessonSlideEditor)がslides配列へ追加する。
+// 保存はしない。生成結果は呼び出し側(2026-07-15〜 LessonSlideStudio)がslides配列へ追加する。
 
 const EMPTY_SETTINGS = {
   level: "beginner", // beginner | practical | certification | manager | custom

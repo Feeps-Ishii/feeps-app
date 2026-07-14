@@ -619,7 +619,9 @@ function InteractiveFormBody({ slide, accent }) {
   );
 }
 
-function SlideRenderer({ slide, accent, lrn }) {
+// CMS(admin/slideEditor/LessonSlideStudio.jsx)のプレビューパネルから「受講者画面と全く同じ表示」を
+// 再現するために再利用する。ここでexportしても受講画面側の挙動・呼び出し方は一切変えない。
+export function SlideRenderer({ slide, accent, lrn }) {
   if (!slide) return null;
   const content = slide.content || {};
   switch (slide.kind) {
