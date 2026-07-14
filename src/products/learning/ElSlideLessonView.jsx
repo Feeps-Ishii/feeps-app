@@ -423,6 +423,33 @@ function SlideRenderer({ slide, accent, lrn }) {
       return <TerminalSlideBody slide={slide} accent={accent} />;
     case "quiz":
       return <QuizSlideBody slide={slide} accent={accent} />;
+    case "compare": {
+      // AI Lesson Studio Phase1で追加。content: { left: {label, items[]}, right: {label, items[]} }
+      // (docs/specs/ai-lesson-studio-spec.md §4.3)。既存kindと同じくcontentが空でもクラッシュしない。
+      const left = content.left || {};
+      const right = content.right || {};
+      const Column = ({ side }) => (
+        <div className="min-w-0 flex-1 rounded-xl p-4" style={{ background: T.bgBase, border: `1px solid ${C.line}` }}>
+          <div className="mb-2.5 text-sm font-bold" style={{ color: C.ink }}>{side.label}</div>
+          <ul className="space-y-2">
+            {(side.items || []).map((item, i) => (
+              <li key={i} className="flex items-start gap-2 text-sm" style={{ color: C.body }}>
+                <Check size={14} className="mt-0.5 shrink-0" style={{ color: accent }} />{item}
+              </li>
+            ))}
+          </ul>
+        </div>
+      );
+      return (
+        <div>
+          <h3 className="mb-4 text-xl font-bold" style={{ color: C.ink, letterSpacing: "-0.02em" }}>{slide.title}</h3>
+          <div className="flex flex-col gap-3 sm:flex-row">
+            <Column side={left} />
+            <Column side={right} />
+          </div>
+        </div>
+      );
+    }
     case "summary":
     default:
       return (
