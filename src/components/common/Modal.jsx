@@ -3,7 +3,7 @@ import { createPortal } from "react-dom";
 import { X } from "lucide-react";
 import { T, Z } from "./theme.js";
 
-const SIZES = { sm: 400, md: 560, lg: 720 };
+const SIZES = { sm: 400, md: 560, lg: 720, xl: 960 };
 
 // Shared modal foundation (Header / Body / Footer), rendered through a portal on
 // document.body so the overlay always covers the full viewport (sidebar/header

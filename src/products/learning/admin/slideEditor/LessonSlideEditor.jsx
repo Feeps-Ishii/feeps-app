@@ -1,9 +1,10 @@
 import React, { useEffect, useState } from "react";
-import { ArrowDown, ArrowUp, FileText, FileUp, Image as ImageIcon, Plus, Save, Trash2, Video, X } from "lucide-react";
+import { ArrowDown, ArrowUp, CheckCircle2, FileText, FileUp, HelpCircle, Image as ImageIcon, LayoutGrid, Plus, Save, Scale, Sparkles, Table2, Trash2, Video, X } from "lucide-react";
 import { Btn, Field, fieldStyle, T } from "../../../../components/common";
 import AdminModal from "../AdminModal.jsx";
 import { lessonToForm } from "../useLearningAdmin.js";
 import SlideDeckImporter from "./SlideDeckImporter.jsx";
+import AiLessonStudioModal from "../aiLessonStudio/AiLessonStudioModal.jsx";
 
 // (e)最小版: Lessonのslides配列に対する追加・並べ替え・削除のみのシンプルなUI。
 // 対応kindはtext(concept)/image/video の3種のみ(diagram/table/terminal/quiz/summaryは
@@ -18,6 +19,17 @@ const KIND_OPTIONS = [
   { kind: "image", label: "画像", icon: ImageIcon },
   { kind: "video", label: "動画", icon: Video },
 ];
+
+// 一覧表示のみで使うラベル・アイコン（追加ボタンの対象ではない）。AI Lesson Studio(Phase1)が
+// 生成するcompare/quiz/summary、既存STEP2が生成するdiagram/tableを一覧上で見分けられるようにする。
+// 内容編集はできない点は変わらない(削除・並べ替えのみ、ファイル冒頭コメント参照)。
+const READONLY_KIND_META = {
+  diagram: { label: "図解", icon: LayoutGrid },
+  table: { label: "比較表", icon: Table2 },
+  compare: { label: "比較", icon: Scale },
+  quiz: { label: "クイズ", icon: HelpCircle },
+  summary: { label: "まとめ", icon: CheckCircle2 },
+};
 
 let idSeq = 0;
 function nextSlideId() {
@@ -75,7 +87,7 @@ function SlideDraftForm({ kind, draft, onChange, onSubmit, onCancel }) {
 }
 
 function SlideRow({ slide, index, total, onMove, onDelete }) {
-  const option = KIND_OPTIONS.find(k => k.kind === slide.kind);
+  const option = KIND_OPTIONS.find(k => k.kind === slide.kind) || READONLY_KIND_META[slide.kind];
   const Icon = option?.icon || FileText;
   return (
     <div className="flex items-center gap-3 rounded-xl p-3" style={{ background: "#fff", border: `1px solid ${C.line}` }}>
@@ -100,6 +112,7 @@ export default function LessonSlideEditor({ open, course, lesson, updateLesson, 
   const [addingKind, setAddingKind] = useState(null);
   const [draft, setDraft] = useState({ ...EMPTY_DRAFT });
   const [importerOpen, setImporterOpen] = useState(false);
+  const [aiStudioOpen, setAiStudioOpen] = useState(false);
 
   useEffect(() => {
     if (open) {
@@ -107,6 +120,7 @@ export default function LessonSlideEditor({ open, course, lesson, updateLesson, 
       setAddingKind(null);
       setDraft({ ...EMPTY_DRAFT });
       setImporterOpen(false);
+      setAiStudioOpen(false);
     }
   }, [open, lesson]);
 
@@ -176,13 +190,15 @@ export default function LessonSlideEditor({ open, course, lesson, updateLesson, 
         {addingKind ? (
           <SlideDraftForm kind={addingKind} draft={draft} onChange={setDraft} onSubmit={submitDraft} onCancel={() => setAddingKind(null)} />
         ) : (
-          <div className="flex flex-wrap gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             {KIND_OPTIONS.map(option => (
               <Btn key={option.kind} kind="ghost" size="sm" icon={Plus} onClick={() => startAdd(option.kind)}>
                 {option.label}を追加
               </Btn>
             ))}
             <Btn kind="ghost" size="sm" icon={FileUp} onClick={() => setImporterOpen(true)}>資料をインポート</Btn>
+            <span className="mx-1 h-5 w-px shrink-0" style={{ background: C.line }} aria-hidden="true" />
+            <Btn kind="ai" size="sm" icon={Sparkles} onClick={() => setAiStudioOpen(true)}>AIでスライド作成</Btn>
           </div>
         )}
 
@@ -200,6 +216,15 @@ export default function LessonSlideEditor({ open, course, lesson, updateLesson, 
         existingSlideCount={slides.length}
         onImported={newSlides => setSlides(prev => [...prev, ...newSlides])}
         onClose={() => setImporterOpen(false)}
+      />
+
+      <AiLessonStudioModal
+        open={aiStudioOpen}
+        course={course}
+        lesson={lesson}
+        existingSlideCount={slides.length}
+        onImported={newSlides => setSlides(prev => [...prev, ...newSlides])}
+        onClose={() => setAiStudioOpen(false)}
       />
     </AdminModal>
   );
