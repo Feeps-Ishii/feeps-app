@@ -371,7 +371,8 @@ function ProductSegmentSwitcher({ products, active, onSelect }) {
           <button key={p.key} data-product={p.key} onClick={() => onSelect(p.key)}
             className="relative z-[1] flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-lg px-3 py-1.5 text-sm transition-colors"
             style={{ color: isActive ? T.textPrimary : T.textSecondary, fontWeight: isActive ? 600 : 500 }}>
-            <span className="h-[6px] w-[6px] shrink-0 rounded-full" style={{ background: pa.accent, opacity: isActive ? 1 : .5 }} />
+            {/* Home画面のプロダクトカード(ProductHeroCard)と同じgradFromを参照し、色トークンの参照元を統一する（Phase7-5） */}
+            <span className="h-[6px] w-[6px] shrink-0 rounded-full" style={{ background: pa.gradFrom, opacity: isActive ? 1 : .5 }} />
             <p.icon size={13} />{p.label}
           </button>
         );

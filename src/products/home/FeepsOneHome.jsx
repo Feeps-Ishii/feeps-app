@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useState } from "react";
 import {
   ArrowRight, BarChart3, BookOpen, Briefcase, CalendarDays,
-  CheckCircle2, FileText, Megaphone, RefreshCw, School, TrendingUp
+  CheckCircle2, FileText, Megaphone, RefreshCw, School, Sparkles, TrendingUp, Users
 } from "lucide-react";
 import { apiGet } from "../../api.js";
 import { Badge, Btn, Card, T, PRODUCT_ACCENT, ROLE_ACCENT } from "../../components/common";
@@ -15,6 +15,18 @@ const ROLE_LABEL = {
 
 // バナーの特徴バッジ。ロール共通・プロダクト全体の強みを短く伝える（マーケティング用途、機能一覧ではない）。
 const HERO_FEATURE_BADGES = ["AI搭載", "オールインワン管理", "リアルタイム集計"];
+
+// Heroバナー背景の装飾アイコン（Phase7-5: 写真を使わない軽量なイラスト風装飾）。
+// 各製品を象徴するアイコンを低opacityで散らし配置する。テキストより背面に置くため
+// z-indexはHero側で明示的に管理する（position:absolute要素はDOM順に関わらず
+// 静的コンテンツより手前に来るため、本文側にも relative z-[1] を付けて明示的に上へ出す）。
+const HERO_DECORATIONS = [
+  { icon: School, size: 132, style: { top: "-18px", right: "8%" }, rotate: -12, opacity: 0.1, float: true },
+  { icon: BookOpen, size: 84, style: { top: "46%", right: "26%" }, rotate: 14, opacity: 0.09, float: false },
+  { icon: Users, size: 66, style: { top: "6%", right: "38%" }, rotate: 8, opacity: 0.12, float: true },
+  { icon: Sparkles, size: 56, style: { bottom: "4%", right: "4%" }, rotate: -14, opacity: 0.15, float: false },
+  { icon: BarChart3, size: 74, style: { bottom: "10%", right: "44%" }, rotate: 16, opacity: 0.08, float: true },
+];
 
 // プロダクト紹介セクション用データ（Phase7-5: ランディングページ風の全面再設計）。
 // featuresが空の製品はsmallカードのみに割り当てられ、箇条書きは表示しない。
@@ -138,8 +150,22 @@ function Hero({ role, displayName }) {
   // 直接組み立てる（既存トークンT.bgSurface/accentSubtle/accentのみ使用）。
   const heroBg = `linear-gradient(120deg, ${T.bgSurface} 0%, ${T.accentSubtle} 48%, ${T.accent} 100%)`;
   return (
-    <section className="overflow-hidden rounded-[24px] p-5 sm:p-10" style={{ background: heroBg, border: `1px solid ${T.border}`, boxShadow: "0 14px 36px rgba(61,107,255,.12)" }}>
-      <div className="flex flex-wrap items-center justify-between gap-3 border-b pb-4" style={{ borderColor: "rgba(26,28,32,0.08)" }}>
+    <section className="relative overflow-hidden rounded-[24px] p-5 sm:p-10" style={{ background: heroBg, border: `1px solid ${T.border}`, boxShadow: "0 14px 36px rgba(61,107,255,.12)" }}>
+      {/* イラスト風背景装飾（Phase7-5）: 写真は使わず、製品を象徴するアイコンを低opacityで散らして
+          奥行きを出す。pointer-events-noneでクリックを妨げず、本文側のrelative z-[1]より背面に置く。 */}
+      <div className="pointer-events-none absolute inset-0 overflow-hidden" aria-hidden="true">
+        {HERO_DECORATIONS.map(({ icon: Icon, size, style, rotate, opacity, float }, i) => (
+          <Icon
+            key={i}
+            size={size}
+            strokeWidth={1.4}
+            className={`absolute ${float ? "feeps-float" : ""}`}
+            style={{ ...style, color: T.textPrimary, opacity, transform: `rotate(${rotate}deg)`, animationDuration: `${7 + i}s` }}
+          />
+        ))}
+      </div>
+
+      <div className="relative z-[1] flex flex-wrap items-center justify-between gap-3 border-b pb-4" style={{ borderColor: "rgba(26,28,32,0.08)" }}>
         <div className="flex min-w-0 flex-wrap items-center gap-3">
           <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl" style={{ background: T.accent, color: "#fff" }}>
             <TrendingUp size={20} />
@@ -162,7 +188,7 @@ function Hero({ role, displayName }) {
 
       {/* プロダクト紹介型バナー（Phase7-5）: 個人向け挨拶ではなく製品全体の価値訴求を主役にする。
           全ロール共通のマーケティング文言＋特徴バッジのみで構成し、ロール別の個別文言は持たない。 */}
-      <div className="pt-6 sm:pt-8">
+      <div className="relative z-[1] pt-6 sm:pt-8">
         <h1 className="text-3xl font-bold leading-tight sm:text-5xl" style={{ color: T.textPrimary, letterSpacing: "-0.02em" }}>
           研修・学習・成長を、ひとつに。
         </h1>
