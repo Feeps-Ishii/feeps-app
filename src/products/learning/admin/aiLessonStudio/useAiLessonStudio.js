@@ -4,8 +4,9 @@ import { apiPost } from "../../../../api.js";
 // AI Lesson Studio Phase1(既存Lessonへの「AIでスライド作成」)用のHook。
 // docs/specs/ai-lesson-studio-spec.md / docs/decisions/0006-ai-lesson-studio-kind-taxonomy.md
 // Phase1範囲: 生成対象kindはconcept(TEXT)/compare/summary/quizの4種のみ。
-// 図解/AI画像/疑似環境はこのPhaseではUI(トグル)のみで、生成内容には影響しない
-// (次Phase以降で対応、モーダル側にその旨を明記する)。
+// 図解/AI画像はこのPhaseではUI(トグル)のみで、生成内容には影響しない(次Phase以降で対応、
+// モーダル側にその旨を明記する)。「疑似環境」トグルのみ2026-07-14 Phase3から実際に生成内容へ
+// 反映される(selection_task/ordering_puzzle/fill_blank/interactive_formのいずれかを追加生成)。
 // 保存はしない。生成結果は呼び出し側(LessonSlideEditor)がslides配列へ追加する。
 
 const EMPTY_SETTINGS = {
@@ -15,7 +16,7 @@ const EMPTY_SETTINGS = {
   diagramEnabled: true, // Phase1はUIのみ（生成内容に影響しない）
   exerciseVolume: "standard", // none | light | standard | heavy
   aiImageEnabled: false, // Phase1はUIのみ（次Phaseで画像生成）
-  simulatedEnvEnabled: false, // Phase1はUIのみ（次Phaseで疑似環境生成）
+  simulatedEnvEnabled: false, // 2026-07-14 Phase3から実際に効く（操作できる教材を2枚追加生成）
 };
 
 let idSeq = 0;
@@ -27,7 +28,7 @@ function nextId(prefix) {
 // Backend(services/bedrock.mjs generateLessonStudioSlidesWithBedrock)のstudioSlideCountHint()
 // と同じロジックの簡易版。生成前プレビューで「何枚生成されるか」の目安を示すためだけに使う
 // (実際の生成結果はAIの裁量で多少前後する)。
-function estimateSlideCounts({ style, exerciseVolume }) {
+function estimateSlideCounts({ style, exerciseVolume, simulatedEnvEnabled }) {
   let concept = 3;
   if (style === "explanation" || style === "diagram") concept += 1;
   if (style === "quiz") concept -= 1;
@@ -40,7 +41,8 @@ function estimateSlideCounts({ style, exerciseVolume }) {
   quiz = Math.max(0, Math.min(4, quiz));
 
   const summary = 1;
-  return { concept, compare, quiz, summary, total: concept + compare + quiz + summary };
+  const interactive = simulatedEnvEnabled ? 2 : 0;
+  return { concept, compare, quiz, interactive, summary, total: concept + compare + quiz + interactive + summary };
 }
 
 export function useAiLessonStudio() {

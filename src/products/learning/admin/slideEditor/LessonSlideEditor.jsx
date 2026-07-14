@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import { ArrowDown, ArrowUp, CheckCircle2, FileText, FileUp, HelpCircle, Image as ImageIcon, LayoutGrid, Plus, Save, Scale, Sparkles, Table2, Trash2, Video, X } from "lucide-react";
+import { ArrowDown, ArrowUp, CheckCircle2, FileText, FileUp, HelpCircle, Image as ImageIcon, LayoutGrid, ListOrdered, MousePointerClick, PenLine, Plus, Save, Scale, Settings2, Sparkles, Table2, Trash2, Video, X } from "lucide-react";
 import { Btn, Field, fieldStyle, T } from "../../../../components/common";
 import AdminModal from "../AdminModal.jsx";
 import { lessonToForm } from "../useLearningAdmin.js";
@@ -29,6 +29,11 @@ const READONLY_KIND_META = {
   compare: { label: "比較", icon: Scale },
   quiz: { label: "クイズ", icon: HelpCircle },
   summary: { label: "まとめ", icon: CheckCircle2 },
+  // 2026-07-14 Phase3: 操作できる教材(AI Lesson Studioが生成、一覧上の見分け用。編集は不可)。
+  selection_task: { label: "選択問題", icon: MousePointerClick },
+  ordering_puzzle: { label: "並び替え", icon: ListOrdered },
+  fill_blank: { label: "穴埋め", icon: PenLine },
+  interactive_form: { label: "疑似操作", icon: Settings2 },
 };
 
 let idSeq = 0;

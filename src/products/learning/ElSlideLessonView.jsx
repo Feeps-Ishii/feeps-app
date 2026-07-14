@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from "react";
 import {
-  ChevronLeft, ChevronRight, Lightbulb, FileText, Download, Check, X,
+  ChevronLeft, ChevronRight, ChevronUp, ChevronDown, Lightbulb, FileText, Download, Check, X,
   Play, PlayCircle, Circle, CheckCircle2, Loader2, Sparkles, PanelRightClose, PanelRightOpen,
   Clock, HelpCircle,
 } from "lucide-react";
@@ -368,6 +368,257 @@ function ImageSlideBody({ slide, content, lrn }) {
   );
 }
 
+// ---- AI Lesson Studio Phase3: 操作できる教材(2026-07-14追加) ----
+// selection_task/ordering_puzzle/fill_blank/interactive_formの4kind。いずれも
+// 操作→判定→解説→(既存の"次へ"ボタンで)次へ、という流れを各コンポーネント内で完結させる。
+// ドラッグ操作・CLI・コード入力は対象外(並び替えはボタンでの入れ替えのみ)。回答・採点結果は
+// 永続化しない(既存quiz/terminalと同じくフロント内デモで完結、ページ離脱で消える)。
+
+function SelectionTaskBody({ slide }) {
+  const content = slide.content || {};
+  const [selected, setSelected] = useState(null);
+  const answered = selected !== null;
+  const isCorrect = answered && selected === content.correctIndex;
+  const choices = content.choices || [];
+  return (
+    <div>
+      <h3 className="mb-4 text-xl font-bold" style={{ color: C.ink, letterSpacing: "-0.02em" }}>{slide.title}</h3>
+      <p className="mb-4 text-[16px] font-bold leading-relaxed" style={{ color: C.ink }}>{content.question}</p>
+      <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+        {choices.map((choice, i) => {
+          const isAnswer = i === content.correctIndex;
+          const isSelected = selected === i;
+          let border = C.line;
+          let bg = "#fff";
+          if (answered && isAnswer) { border = "#22c55e"; bg = "#f0fdf4"; }
+          else if (answered && isSelected) { border = "#ef4444"; bg = "#fef2f2"; }
+          return (
+            <button
+              key={i}
+              type="button"
+              disabled={answered}
+              onClick={() => setSelected(i)}
+              className="flex items-center justify-between gap-2 rounded-xl px-4 py-3 text-left text-sm font-semibold transition disabled:cursor-default"
+              style={{ border: `1.5px solid ${border}`, background: bg, color: C.ink }}
+            >
+              {choice}
+              {answered && isAnswer && <Check size={16} style={{ color: "#22c55e" }} />}
+              {answered && isSelected && !isCorrect && <X size={16} style={{ color: "#ef4444" }} />}
+            </button>
+          );
+        })}
+      </div>
+      {answered && (
+        <div className="mt-4 rounded-xl p-4" style={{ background: isCorrect ? "#f0fdf4" : "#fffbeb", border: `1px solid ${isCorrect ? "#bbf7d0" : "#fde68a"}` }}>
+          <div className="mb-1 text-sm font-bold" style={{ color: isCorrect ? "#15803d" : "#b45309" }}>{isCorrect ? "正解です！" : "不正解です"}</div>
+          <p className="text-sm leading-relaxed" style={{ color: C.body }}>{content.explanation}</p>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function shuffleIndexes(n) {
+  const a = Array.from({ length: n }, (_, i) => i);
+  for (let i = a.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [a[i], a[j]] = [a[j], a[i]];
+  }
+  // 元の並びのままだと判定が最初から正解になってしまうため、シャッフル結果が
+  // 元の順序と完全一致した場合は先頭2つを入れ替えて必ず並び替えが必要な状態にする。
+  if (n > 1 && a.every((v, i) => v === i)) [a[0], a[1]] = [a[1], a[0]];
+  return a;
+}
+
+function OrderingPuzzleBody({ slide }) {
+  const content = slide.content || {};
+  const correctItems = content.items || [];
+  const [order, setOrder] = useState(() => shuffleIndexes(correctItems.length));
+  const [checked, setChecked] = useState(false);
+  const isCorrect = checked && order.every((idx, pos) => idx === pos);
+
+  function move(pos, dir) {
+    if (checked) return;
+    const target = pos + dir;
+    if (target < 0 || target >= order.length) return;
+    setOrder(prev => {
+      const next = [...prev];
+      [next[pos], next[target]] = [next[target], next[pos]];
+      return next;
+    });
+  }
+
+  return (
+    <div>
+      <h3 className="mb-3 text-xl font-bold" style={{ color: C.ink, letterSpacing: "-0.02em" }}>{slide.title}</h3>
+      {content.instruction && <p className="mb-4 text-sm" style={{ color: C.body }}>{content.instruction}</p>}
+      <div className="space-y-2">
+        {order.map((itemIdx, pos) => {
+          const isRight = checked && itemIdx === pos;
+          const isWrong = checked && itemIdx !== pos;
+          return (
+            <div
+              key={itemIdx}
+              className="flex items-center gap-3 rounded-xl px-4 py-3"
+              style={{ border: `1.5px solid ${isRight ? "#22c55e" : isWrong ? "#ef4444" : C.line}`, background: isRight ? "#f0fdf4" : isWrong ? "#fef2f2" : "#fff" }}
+            >
+              <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-xs font-bold" style={{ background: T.bgBase, color: C.muted }}>{pos + 1}</span>
+              <span className="min-w-0 flex-1 text-sm font-semibold" style={{ color: C.ink }}>{correctItems[itemIdx]}</span>
+              <div className="flex shrink-0 gap-1">
+                <button type="button" disabled={checked || pos === 0} onClick={() => move(pos, -1)} className="flex h-7 w-7 items-center justify-center rounded-lg transition hover:bg-black/5 disabled:opacity-25" style={{ color: C.ink }}><ChevronUp size={15} /></button>
+                <button type="button" disabled={checked || pos === order.length - 1} onClick={() => move(pos, 1)} className="flex h-7 w-7 items-center justify-center rounded-lg transition hover:bg-black/5 disabled:opacity-25" style={{ color: C.ink }}><ChevronDown size={15} /></button>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+      {!checked ? (
+        <Btn className="mt-4" size="sm" icon={Check} onClick={() => setChecked(true)}>判定する</Btn>
+      ) : (
+        <div className="mt-4 rounded-xl p-4" style={{ background: isCorrect ? "#f0fdf4" : "#fffbeb", border: `1px solid ${isCorrect ? "#bbf7d0" : "#fde68a"}` }}>
+          <div className="mb-1 text-sm font-bold" style={{ color: isCorrect ? "#15803d" : "#b45309" }}>{isCorrect ? "正解です！" : "順番が違います"}</div>
+          <p className="text-sm leading-relaxed" style={{ color: C.body }}>{content.explanation}</p>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function FillBlankBody({ slide, accent }) {
+  const content = slide.content || {};
+  const [value, setValue] = useState("");
+  const [checked, setChecked] = useState(false);
+  const accepted = [content.answer, ...(content.acceptableAnswers || [])]
+    .map(s => String(s || "").trim().toLowerCase())
+    .filter(Boolean);
+  const isCorrect = checked && accepted.includes(value.trim().toLowerCase());
+
+  function submit() {
+    if (!value.trim() || checked) return;
+    setChecked(true);
+  }
+
+  return (
+    <div>
+      <h3 className="mb-4 text-xl font-bold" style={{ color: C.ink, letterSpacing: "-0.02em" }}>{slide.title}</h3>
+      <p className="mb-4 flex flex-wrap items-center gap-2 text-[16px] leading-relaxed" style={{ color: C.ink }}>
+        <span>{content.textBefore}</span>
+        <input
+          value={value}
+          onChange={e => setValue(e.target.value)}
+          onKeyDown={e => { if (e.key === "Enter") submit(); }}
+          disabled={checked}
+          placeholder="ここに入力"
+          className="w-40 max-w-full rounded-lg px-2.5 py-1.5 text-center text-[16px] font-bold outline-none disabled:opacity-70"
+          style={{ border: `1.5px solid ${checked ? (isCorrect ? "#22c55e" : "#ef4444") : accent}`, color: C.ink }}
+        />
+        <span>{content.textAfter}</span>
+      </p>
+      {!checked ? (
+        <Btn size="sm" icon={Check} onClick={submit} disabled={!value.trim()}>判定する</Btn>
+      ) : (
+        <div className="mt-2 rounded-xl p-4" style={{ background: isCorrect ? "#f0fdf4" : "#fffbeb", border: `1px solid ${isCorrect ? "#bbf7d0" : "#fde68a"}` }}>
+          <div className="mb-1 text-sm font-bold" style={{ color: isCorrect ? "#15803d" : "#b45309" }}>{isCorrect ? "正解です！" : `不正解です（正解: ${content.answer}）`}</div>
+          <p className="text-sm leading-relaxed" style={{ color: C.body }}>{content.explanation}</p>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// 疑似設定画面。ADR0006の「テンプレート方式」思想を踏襲し、AIはfields(値)のみ生成、描画・
+// 判定ロジックはこの固定コンポーネントが担う。判定はAIではなくルールベース(correctValueとの
+// 文字列一致)。実際のAWS/Azureコンソールに似せる必要はなく、教育用のシンプルなUIで構成する。
+function InteractiveFormBody({ slide, accent }) {
+  const content = slide.content || {};
+  const fields = content.fields || [];
+  const [values, setValues] = useState(() => Object.fromEntries(fields.map(f => [f.key, ""])));
+  const [checked, setChecked] = useState(false);
+
+  function setFieldValue(key, v) {
+    if (checked) return;
+    setValues(prev => ({ ...prev, [key]: v }));
+  }
+
+  function isFieldCorrect(field) {
+    const v = String(values[field.key] || "").trim().toLowerCase();
+    const correct = String(field.correctValue || "").trim().toLowerCase();
+    return v === correct;
+  }
+
+  const allFilled = fields.every(f => String(values[f.key] || "").trim());
+  const allCorrect = checked && fields.every(isFieldCorrect);
+
+  return (
+    <div>
+      <h3 className="mb-1 text-xl font-bold" style={{ color: C.ink, letterSpacing: "-0.02em" }}>{slide.title || content.title}</h3>
+      {content.instruction && <p className="mb-4 text-sm" style={{ color: C.body }}>{content.instruction}</p>}
+      <div className="space-y-3 rounded-xl p-4" style={{ background: T.bgBase, border: `1px solid ${C.line}` }}>
+        {fields.map(field => {
+          const isRight = checked && isFieldCorrect(field);
+          const isWrong = checked && !isFieldCorrect(field);
+          const fieldBorder = checked ? (isRight ? "#22c55e" : "#ef4444") : C.line;
+          return (
+            <div key={field.key}>
+              <div className="mb-1 flex items-center gap-1.5 text-xs font-bold" style={{ color: C.muted }}>
+                {field.label}
+                {checked && (isRight ? <Check size={13} style={{ color: "#22c55e" }} /> : <X size={13} style={{ color: "#ef4444" }} />)}
+              </div>
+              {field.type === "select" ? (
+                <select
+                  value={values[field.key] || ""}
+                  onChange={e => setFieldValue(field.key, e.target.value)}
+                  disabled={checked}
+                  className="w-full rounded-lg px-3 py-2 text-sm outline-none disabled:opacity-70"
+                  style={{ border: `1.5px solid ${fieldBorder}`, color: C.ink, background: "#fff" }}
+                >
+                  <option value="">選択してください</option>
+                  {(field.options || []).map(o => <option key={o} value={o}>{o}</option>)}
+                </select>
+              ) : field.type === "toggle" ? (
+                <div className="flex gap-2">
+                  {(field.options || []).map(o => (
+                    <button
+                      key={o}
+                      type="button"
+                      disabled={checked}
+                      onClick={() => setFieldValue(field.key, o)}
+                      className="rounded-lg px-3 py-1.5 text-xs font-semibold transition disabled:cursor-default"
+                      style={values[field.key] === o
+                        ? { background: accent, color: "#fff" }
+                        : { background: "#fff", color: C.body, border: `1px solid ${C.line}` }}
+                    >
+                      {o}
+                    </button>
+                  ))}
+                </div>
+              ) : (
+                <input
+                  value={values[field.key] || ""}
+                  onChange={e => setFieldValue(field.key, e.target.value)}
+                  disabled={checked}
+                  placeholder={field.placeholder}
+                  className="w-full rounded-lg px-3 py-2 text-sm outline-none disabled:opacity-70"
+                  style={{ border: `1.5px solid ${fieldBorder}`, color: C.ink }}
+                />
+              )}
+              {field.hint && !checked && <p className="mt-1 text-[11px]" style={{ color: C.muted }}>{field.hint}</p>}
+            </div>
+          );
+        })}
+      </div>
+      {!checked ? (
+        <Btn className="mt-4" size="sm" icon={Check} onClick={() => setChecked(true)} disabled={!allFilled}>作成する</Btn>
+      ) : (
+        <div className="mt-4 rounded-xl p-4" style={{ background: allCorrect ? "#f0fdf4" : "#fffbeb", border: `1px solid ${allCorrect ? "#bbf7d0" : "#fde68a"}` }}>
+          <div className="mb-1 text-sm font-bold" style={{ color: allCorrect ? "#15803d" : "#b45309" }}>{allCorrect ? "正しく設定できました！" : "一部の設定を見直しましょう"}</div>
+          <p className="text-sm leading-relaxed" style={{ color: C.body }}>{content.explanation}</p>
+        </div>
+      )}
+    </div>
+  );
+}
+
 function SlideRenderer({ slide, accent, lrn }) {
   if (!slide) return null;
   const content = slide.content || {};
@@ -455,6 +706,14 @@ function SlideRenderer({ slide, accent, lrn }) {
         </div>
       );
     }
+    case "selection_task":
+      return <SelectionTaskBody slide={slide} />;
+    case "ordering_puzzle":
+      return <OrderingPuzzleBody slide={slide} />;
+    case "fill_blank":
+      return <FillBlankBody slide={slide} accent={accent} />;
+    case "interactive_form":
+      return <InteractiveFormBody slide={slide} accent={accent} />;
     case "summary":
     default:
       return (

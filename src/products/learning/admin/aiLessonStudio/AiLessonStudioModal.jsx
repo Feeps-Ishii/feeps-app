@@ -1,13 +1,15 @@
 import React from "react";
-import { AlertCircle, CheckCircle2, FileText, HelpCircle, Loader2, Scale, Sparkles } from "lucide-react";
+import { AlertCircle, CheckCircle2, FileText, HelpCircle, ListOrdered, Loader2, MousePointerClick, PenLine, Scale, Settings2, Sparkles } from "lucide-react";
 import { Btn, T } from "../../../../components/common";
 import AdminModal from "../AdminModal.jsx";
 import { useAiLessonStudio } from "./useAiLessonStudio.js";
 
 // AI Lesson Studio Phase1のモーダル。docs/design/ai-lesson-studio-wireframe.md §2-4準拠。
 // 左: 生成設定 / 右: 生成予定プレビュー → 生成後は右側が生成結果一覧(採用/除外)に切り替わる。
-// 生成対象kindはconcept/compare/quiz/summaryの4種のみ(Phase1)。図解/AI画像/疑似環境の
-// トグルはこのPhaseでは生成内容に影響しない(次Phase以降で対応、UIのみ先行実装)。
+// 生成対象kindはconcept/compare/quiz/summaryの4種のみ(Phase1)。図解/AI画像のトグルはこの
+// Phaseでは生成内容に影響しない(次Phase以降で対応、UIのみ先行実装)。「疑似環境」トグルは
+// 2026-07-14 Phase3から実際に生成内容へ反映される(selection_task/ordering_puzzle/
+// fill_blank/interactive_formのいずれかを2枚追加生成)。
 
 const C = { ink: T.textPrimary, body: T.textSecondary, muted: T.textMuted, line: T.border, canvas: T.bgBase };
 
@@ -34,8 +36,14 @@ const EXERCISE_VOLUME_OPTIONS = [
   { value: "heavy", label: "多め" },
 ];
 
-const KIND_ICON = { concept: FileText, compare: Scale, quiz: HelpCircle, summary: CheckCircle2 };
-const KIND_LABEL = { concept: "説明", compare: "比較", quiz: "クイズ", summary: "まとめ" };
+const KIND_ICON = {
+  concept: FileText, compare: Scale, quiz: HelpCircle, summary: CheckCircle2,
+  selection_task: MousePointerClick, ordering_puzzle: ListOrdered, fill_blank: PenLine, interactive_form: Settings2,
+};
+const KIND_LABEL = {
+  concept: "説明", compare: "比較", quiz: "クイズ", summary: "まとめ",
+  selection_task: "選択問題", ordering_puzzle: "並び替え", fill_blank: "穴埋め", interactive_form: "疑似操作",
+};
 
 function SegmentGroup({ options, value, onChange, disabled }) {
   return (
@@ -82,6 +90,7 @@ function buildPreviewRows(counts) {
   if (counts.concept > 2) rows.push({ label: "説明", count: counts.concept - 2 });
   if (counts.compare > 0) rows.push({ label: "比較", count: counts.compare });
   if (counts.quiz > 0) rows.push({ label: "クイズ", count: counts.quiz });
+  if (counts.interactive > 0) rows.push({ label: "操作できる教材", count: counts.interactive });
   if (counts.summary > 0) rows.push({ label: "まとめ", count: counts.summary });
   return rows;
 }
@@ -180,7 +189,7 @@ export default function AiLessonStudioModal({ open, course, lesson, existingSlid
 
                 <ToggleRow label="図解" note="次Phase以降で対応予定です。今回は生成内容に反映されません。" value={settings.diagramEnabled} onChange={v => setField("diagramEnabled", v)} />
                 <ToggleRow label="AI画像" note="有効化すると画像1枚ごとにAI生成コストが発生します（次Phaseで対応予定。今回は生成されません）。" value={settings.aiImageEnabled} onChange={v => setField("aiImageEnabled", v)} />
-                <ToggleRow label="疑似環境" note="AWS/Linux等の疑似操作・CLI体験スライドを含めます（次Phaseで対応予定。今回は生成されません）。" value={settings.simulatedEnvEnabled} onChange={v => setField("simulatedEnvEnabled", v)} />
+                <ToggleRow label="疑似環境" note="有効にすると、クリック選択・並び替え・穴埋め・疑似操作画面のいずれかを2枚追加生成します（CLI体験・コード入力は次Phase以降）。" value={settings.simulatedEnvEnabled} onChange={v => setField("simulatedEnvEnabled", v)} />
               </div>
 
               {/* 右: 生成予定プレビュー */}

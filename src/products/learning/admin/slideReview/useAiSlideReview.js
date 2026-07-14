@@ -7,7 +7,9 @@ import { apiPost } from "../../../../api.js";
 // 自身のslides配列stateを更新し、最終的な永続化は既存の「保存する」ボタン経由で行う。
 
 // AI修正の対象外kind(実素材依存。ADR0005/0006参照): image/video/terminal
-export const REVISABLE_KINDS = ["concept", "diagram", "table", "compare", "quiz", "summary"];
+// 2026-07-14 Phase3: selection_task/ordering_puzzle/fill_blank/interactive_form(操作できる
+// 教材)を追加。Backend側のREVISABLE_KINDS(services/bedrock.mjs)と一致させること。
+export const REVISABLE_KINDS = ["concept", "diagram", "table", "compare", "quiz", "summary", "selection_task", "ordering_puzzle", "fill_blank", "interactive_form"];
 
 let idSeq = 0;
 function nextId(prefix) {

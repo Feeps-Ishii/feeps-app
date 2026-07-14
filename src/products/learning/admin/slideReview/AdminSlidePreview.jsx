@@ -120,6 +120,65 @@ export default function AdminSlidePreview({ slide }) {
     case "terminal":
       body = <p className="text-xs" style={{ color: C.muted }}>ターミナル演習スライドです（AI修正の対象外）。</p>;
       break;
+    case "selection_task":
+      body = (
+        <div className="space-y-1.5">
+          <p className="text-sm font-semibold" style={{ color: C.ink }}>{content.question}</p>
+          <ul className="space-y-1">
+            {(content.choices || []).map((c, i) => (
+              <li key={i} className="flex items-center gap-1.5 text-xs" style={{ color: i === content.correctIndex ? "#15803d" : C.body }}>
+                {i === content.correctIndex && <Check size={12} />}{c}
+              </li>
+            ))}
+          </ul>
+          {content.explanation && <p className="text-xs" style={{ color: C.muted }}>解説: {content.explanation}</p>}
+        </div>
+      );
+      break;
+    case "ordering_puzzle":
+      body = (
+        <div className="space-y-1.5">
+          {content.instruction && <p className="text-xs" style={{ color: C.muted }}>{content.instruction}</p>}
+          <ol className="space-y-1">
+            {(content.items || []).map((item, i) => (
+              <li key={i} className="flex items-center gap-1.5 text-sm" style={{ color: C.ink }}>
+                <span className="flex h-4 w-4 shrink-0 items-center justify-center rounded-full text-[10px] font-bold" style={{ background: C.canvas, color: C.muted }}>{i + 1}</span>
+                {item}
+              </li>
+            ))}
+          </ol>
+          {content.explanation && <p className="text-xs" style={{ color: C.muted }}>解説: {content.explanation}</p>}
+        </div>
+      );
+      break;
+    case "fill_blank":
+      body = (
+        <div className="space-y-1.5">
+          <p className="text-sm" style={{ color: C.ink }}>
+            {content.textBefore}
+            <span className="mx-1 rounded px-1.5 py-0.5 text-xs font-bold" style={{ background: C.canvas, color: "#15803d" }}>{content.answer || "（正解未設定）"}</span>
+            {content.textAfter}
+          </p>
+          {content.explanation && <p className="text-xs" style={{ color: C.muted }}>解説: {content.explanation}</p>}
+        </div>
+      );
+      break;
+    case "interactive_form":
+      body = (
+        <div className="space-y-1.5">
+          {content.instruction && <p className="text-xs" style={{ color: C.muted }}>{content.instruction}</p>}
+          <div className="space-y-1">
+            {(content.fields || []).map((f, i) => (
+              <div key={i} className="flex items-center justify-between gap-2 rounded-lg px-2.5 py-1.5 text-xs" style={{ background: C.canvas }}>
+                <span style={{ color: C.ink }}>{f.label}</span>
+                <span className="font-semibold" style={{ color: "#15803d" }}>{f.correctValue}</span>
+              </div>
+            ))}
+          </div>
+          {content.explanation && <p className="text-xs" style={{ color: C.muted }}>解説: {content.explanation}</p>}
+        </div>
+      );
+      break;
     case "summary":
     default:
       body = (
