@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import { Save, Sparkles } from "lucide-react";
-import { Btn, Field, fieldStyle, T, PRODUCT_ACCENT, SuccessCheck } from "../../../../components/common";
+import { Btn, Field, fieldStyle, T, SuccessCheck } from "../../../../components/common";
 import AdminModal from "../AdminModal.jsx";
 import { COURSE_CATEGORY_OPTIONS, COURSE_LEVEL_OPTIONS } from "../LearningAdminCatalog.js";
 import { useLearningAdmin } from "../useLearningAdmin.js";

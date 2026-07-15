@@ -25,7 +25,3 @@ export function emitNotificationRefresh() {
 }
 
 export const navViewSet = role => new Set([...(NAV[role] || []).flatMap(g => g.items.map(([k]) => k)), "notifications", "profile", "terms", "privacy"]);
-
-export default function useTraining() {
-  return { todayStr, statusKind, testIdOf, emitNotificationRefresh, navViewSet };
-}

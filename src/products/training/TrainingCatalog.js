@@ -3,10 +3,10 @@ import { LayoutDashboard, FileText, ClipboardCheck, Clock, NotebookPen, Users, B
 
 /* ===== ロール ===== */
 const ROLES = {
-  trainee: { key: "trainee", label: "受講生", who: "田中 翔太", org: "株式会社アクシス", icon: GraduationCap, mail: "tanaka@axis.co.jp" },
-  instructor: { key: "instructor", label: "講師", who: "石井 啓輔", org: "株式会社Feeps", icon: BookOpen, mail: "ishii@feeps.co.jp" },
-  client: { key: "client", label: "企業担当者", who: "高橋 由美", org: "株式会社アクシス", icon: Building2, mail: "takahashi@axis.co.jp" },
-  admin: { key: "admin", label: "管理者", who: "寺田 正哉", org: "株式会社Feeps", icon: Settings, mail: "admin@feeps.co.jp" },
+  trainee: { key: "trainee", label: "受講生", icon: GraduationCap },
+  instructor: { key: "instructor", label: "講師", icon: BookOpen },
+  client: { key: "client", label: "企業担当者", icon: Building2 },
+  admin: { key: "admin", label: "管理者", icon: Settings },
 };
 
 /* ===== 研修目標①〜④ × タスク ===== */

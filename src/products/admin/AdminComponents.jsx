@@ -5,14 +5,14 @@ import { Card, Badge, Btn, Avatar, Stat, SectionHead, Field, Modal, T, PageHeade
 import { EmptyState } from "../training/TrainingComponents.jsx";
 import { statusKind, todayStr } from "../training/useTraining.js";
 import {
-  LayoutDashboard, FileText, ClipboardCheck, Clock, NotebookPen, Users,
-  Building2, BookOpen, Settings, GraduationCap, Search, Upload, Download,
-  CheckCircle2, Circle, AlertCircle, ChevronRight, ChevronLeft, ChevronUp, ChevronDown, Trash2, LogOut,
-  Bell, Plus, Send, MessageSquare, TrendingUp, Calendar, PlayCircle, Award,
-  Sparkles, Flame, X, Eye, Pencil, StickyNote, Megaphone, ArrowUpRight,
-  MoreHorizontal, Check, Filter, Target, ListChecks, Lock, Mail, Lightbulb,
-  Wrench, Compass, ShieldCheck, FileSpreadsheet, LogIn, Menu, Star, Activity,
-  GitBranch, Briefcase, Gauge, MapPin, User, Printer, RefreshCw, Receipt
+  ClipboardCheck, Clock, NotebookPen, Users,
+  Building2, BookOpen, GraduationCap, Search,
+  AlertCircle, ChevronRight, ChevronLeft, ChevronUp, ChevronDown, Trash2,
+  Plus, Calendar,
+  X, Pencil, StickyNote,
+  Check, Filter, Mail,
+  ShieldCheck, FileSpreadsheet,
+  Gauge, User
 } from "lucide-react";
 
 async function exportAdminListExcel(rows, columns, sheetName, fileLabel) {
@@ -198,7 +198,6 @@ function AdminHome({ go, openRisk }) {
 const fieldCls = "w-full rounded-xl px-3 py-2 text-sm outline-none";
 const adminGridCls = "grid gap-4 lg:grid-cols-5";
 const adminListCardCls = "overflow-hidden lg:col-span-3";
-const adminDetailCardCls = "p-4 sm:p-5 lg:col-span-2";
 const adminToolbarCls = "flex flex-wrap items-center gap-2 p-3 sm:p-4";
 const adminSearchCls = "flex h-10 min-w-0 flex-1 items-center gap-2 rounded-xl px-3";
 const adminHeaderCls = "hidden grid-cols-12 gap-3 px-4 py-2 text-xs font-bold sm:grid";
@@ -422,34 +421,6 @@ function AdminCompanies() {
             })}
           <ListPager page={visiblePage.page} totalPages={visiblePage.totalPages} total={visiblePage.total} onPage={setPage} />
         </Card>
-        <Card className={adminDetailCardCls + " hidden"}>
-          {!selected ? <EmptyState title="企業を選択してください" desc="一覧の行をクリックすると詳細を表示します" />
-            : <div>
-              <div className="mb-4 flex items-center gap-2">
-                <div className="flex h-9 w-9 items-center justify-center rounded-xl" style={{ background: T.accentSubtle, color: T.accent }}><Building2 size={17} /></div>
-                <div className="min-w-0"><h3 className="truncate font-bold" style={{ color: T.textPrimary }}>{selected.name}</h3><p className="text-xs" style={{ color: T.textMuted }}>企業詳細</p></div>
-              </div>
-              <div className="space-y-3">
-                <Field label="企業名"><input value={edit.name} onChange={e => setEdit({ ...edit, name: e.target.value })} className={fieldCls} style={{ border: `1px solid ${T.border}`, color: T.textPrimary }} /></Field>
-                <Field label="メモ"><textarea value={edit.memo} onChange={e => setEdit({ ...edit, memo: e.target.value })} rows={3} className={fieldCls + " resize-none"} style={{ border: `1px solid ${T.border}`, color: T.textPrimary }} /></Field>
-                <div className="flex justify-end"><Btn icon={Check} onClick={save}>{busy ? "保存中…" : "保存する"}</Btn></div>
-              </div>
-              <div className="mt-6">
-                <div className="mb-2 flex items-center justify-between">
-                  <h4 className="flex items-center gap-1.5 text-sm font-bold" style={{ color: T.textPrimary }}><Users size={15} />所属受講生</h4>
-                  <Badge tone="cyan">{trainees.length}名</Badge>
-                </div>
-                {detailLoading ? <SkeletonCards count={2} />
-                  : trainees.length === 0 ? <div className="rounded-xl px-4 py-5 text-center text-sm" style={adminPanelStyle}>所属受講生はいません。</div>
-                  : <div className="space-y-2">{trainees.map(t => (
-                    <div key={t.userId} className="flex items-center gap-2 rounded-xl p-2" style={{ background: T.bgBase }}>
-                      <Avatar name={t.name || t.email} size={28} />
-                      <div className="min-w-0"><div className="truncate text-sm font-semibold" style={{ color: T.textPrimary }}>{t.name || "（氏名未設定）"}</div>{t.email && <div className="truncate text-xs" style={{ color: T.textMuted }}>{t.email}</div>}</div>
-                    </div>
-                  ))}</div>}
-              </div>
-            </div>}
-        </Card>
       </div>
       {open && (
         <Modal title="企業を追加" onClose={() => setOpen(false)}
@@ -516,9 +487,9 @@ function AdminCourses({ go }) {
   }
   useEffect(() => { load(); }, []);
   useEffect(() => {
-    apiGet("/admin/users").then(l => setUsers(l || [])).catch(() => {});
-    apiGet("/admin/instructors").then(l => setInstructors(l || [])).catch(() => {});
-    apiGet("/companies").then(l => setCompanies(l || [])).catch(() => {});
+    apiGet("/admin/users").then(l => setUsers(l || [])).catch(() => setErr("ユーザー一覧の取得に失敗しました。"));
+    apiGet("/admin/instructors").then(l => setInstructors(l || [])).catch(() => setErr("講師一覧の取得に失敗しました。"));
+    apiGet("/companies").then(l => setCompanies(l || [])).catch(() => setErr("企業一覧の取得に失敗しました。"));
   }, []);
   useEffect(() => {
     if (!selected?.courseId) return;
@@ -774,89 +745,6 @@ function AdminCourses({ go }) {
             })}
           <ListPager page={visiblePage.page} totalPages={visiblePage.totalPages} total={visiblePage.total} onPage={setPage} />
         </Card>
-        <Card className={adminDetailCardCls + " hidden"}>
-          {!selected ? <EmptyState title="コースを選択してください" desc="一覧の行をクリックすると詳細を表示します" />
-            : <div>
-              <div className="mb-4 flex items-center gap-2">
-                <div className="flex h-9 w-9 items-center justify-center rounded-xl" style={{ background: T.accentSubtle, color: T.accent }}><BookOpen size={17} /></div>
-                <div className="min-w-0"><h3 className="truncate font-bold" style={{ color: T.textPrimary }}>{selected.name}</h3><p className="text-xs" style={{ color: T.textMuted }}>コース詳細</p></div>
-              </div>
-              <div className="space-y-3">
-                <Field label="コース名"><input value={edit.name} onChange={e => setEdit({ ...edit, name: e.target.value })} className={fieldCls} style={{ border: `1px solid ${T.border}`, color: T.textPrimary }} /></Field>
-                <Field label="種別"><select value={edit.type} onChange={e => setEdit({ ...edit, type: e.target.value })} className={fieldCls} style={{ border: `1px solid ${T.border}`, color: T.textPrimary }}>{COURSE_KINDS.map(([v, l]) => <option key={v} value={v}>{l}</option>)}</select></Field>
-                <Field label="メモ"><textarea value={edit.memo} onChange={e => setEdit({ ...edit, memo: e.target.value })} rows={3} className={fieldCls + " resize-none"} style={{ border: `1px solid ${T.border}`, color: T.textPrimary }} /></Field>
-                <div className="flex flex-wrap justify-end gap-2">
-                  <Btn kind="ghost" icon={Calendar} onClick={() => go && go("curriculum")}>カリキュラムを編集</Btn>
-                  <Btn icon={Check} onClick={save}>{busy ? "保存中…" : "保存する"}</Btn>
-                </div>
-              </div>
-              <div className="mt-6">
-                <div className="mb-2 flex items-center justify-between">
-                  <h4 className="flex items-center gap-1.5 text-sm font-bold" style={{ color: T.textPrimary }}><Users size={15} />所属受講生</h4>
-                  <Badge tone="cyan">{trainees.length}名</Badge>
-                </div>
-                <div className="mb-3 rounded-xl p-3 text-xs leading-relaxed" style={adminPanelStyle}>このコースには複数企業の受講生を所属できます。合同研修や研修後のEラーニング利用にも対応します。</div>
-                <div className="mb-3 flex flex-wrap items-end gap-2">
-                  <div className="min-w-0 flex-1">
-                    <Field label="未所属の受講生を追加">
-                      <select value={addTraineeId} onChange={e => setAddTraineeId(e.target.value)} className={fieldCls} style={{ border: `1px solid ${T.border}`, color: T.textPrimary }}>
-                        <option value="">（選択してください）</option>
-                        {traineeOptions.map(t => <option key={t.userId} value={t.userId}>{t.name || t.email} / {companyName(t.company)}</option>)}
-                      </select>
-                    </Field>
-                  </div>
-                  <Btn size="sm" icon={Plus} onClick={addTrainee}>{busy ? "追加中…" : "追加"}</Btn>
-                </div>
-                {detailLoading ? <SkeletonCards count={2} />
-                  : trainees.length === 0 ? <div className="rounded-xl px-4 py-5 text-center text-sm" style={adminPanelStyle}>所属受講生はいません。</div>
-                  : <div className="space-y-2">{trainees.map(t => (
-                    <div key={t.userId} className="flex items-center gap-2 rounded-xl p-2" style={{ background: T.bgBase }}>
-                      <Avatar name={t.name || t.email} size={28} />
-                      <div className="min-w-0 flex-1"><div className="truncate text-sm font-semibold" style={{ color: T.textPrimary }}>{t.name || "（氏名未設定）"}</div><div className="truncate text-xs" style={{ color: T.textMuted }}>{t.email || t.userId} / {companyName(t.company)}</div></div>
-                      <Btn kind="ghost" size="sm" icon={X} onClick={() => removeTrainee(t.userId)}>解除</Btn>
-                    </div>
-                  ))}</div>}
-              </div>
-              <div className="mt-6">
-                <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
-                  <div>
-                    <h4 className="flex items-center gap-1.5 text-sm font-bold" style={{ color: T.textPrimary }}><Calendar size={15} />研修カレンダー</h4>
-                    <p className="mt-1 text-xs" style={{ color: T.textMuted }}>月次集計では今後この研修日カレンダーを使って未提出・未登録判定から除外します。</p>
-                  </div>
-                  <div className="flex flex-wrap items-center gap-2">
-                    <Badge tone="green">研修日 {workdays.trainingDaysCount || 0}日</Badge>
-                    <input type="month" value={calendarMonth} onChange={e => setCalendarMonth(e.target.value)} className="rounded-xl px-3 py-2 text-sm outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary }} />
-                    <Btn size="sm" icon={Check} onClick={saveCalendar}>{calendarBusy ? "保存中…" : "保存"}</Btn>
-                  </div>
-                </div>
-                {calendarLoading ? <SkeletonRows rows={3} />
-                  : <div className="overflow-x-auto">
-                    <div className="grid grid-cols-7 gap-1.5" style={{ minWidth: 760 }}>
-                      {["月", "火", "水", "木", "金", "土", "日"].map(d => <div key={d} className="px-2 py-1 text-center text-xs font-bold" style={{ color: T.textMuted }}>{d}</div>)}
-                      {calendarCells.map((row, i) => row.blank ? <div key={row.key || i} className="min-h-[150px] rounded-xl" style={{ background: T.bgBase, border: `1px dashed ${T.border}` }} />
-                        : <div key={row.date} className="min-h-[150px] rounded-xl p-2" style={{ background: row.isTrainingDay ? "#fff" : T.bgBase, border: `1px solid ${row.dirty ? T.accent : T.border}` }}>
-                          <div className="mb-1 flex items-center justify-between gap-1">
-                            <span className="text-sm font-bold" style={{ color: T.textPrimary }}>{Number(row.date.slice(8, 10))}</span>
-                            {row.dirty && <span className="h-2 w-2 rounded-full" style={{ background: T.accent }} title="変更あり" />}
-                          </div>
-                          <div className="mb-1 flex flex-wrap gap-1">
-                            <Badge tone={row.isTrainingDay ? "green" : "muted"}>{row.isTrainingDay ? "研修日" : "非研修日"}</Badge>
-                            <Badge tone={calTypeTone(row.type)}>{calTypeLabel(row.type)}</Badge>
-                          </div>
-                          {(row.title || row.note) && <div className="mb-1 line-clamp-2 text-xs" style={{ color: T.textMuted }}>{row.title || row.note}</div>}
-                          <div className="space-y-1.5">
-                            <select value={row.type} onChange={e => updateCalendar(row.date, { type: e.target.value })} className="w-full rounded-lg px-2 py-1.5 text-xs outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary }}>
-                              {CAL_TYPES.map(([v, l]) => <option key={v} value={v}>{l}</option>)}
-                            </select>
-                            <input value={row.title} onChange={e => updateCalendar(row.date, { title: e.target.value })} placeholder="タイトル" className="w-full rounded-lg px-2 py-1.5 text-xs outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary }} />
-                            <input value={row.note} onChange={e => updateCalendar(row.date, { note: e.target.value })} placeholder="メモ" className="w-full rounded-lg px-2 py-1.5 text-xs outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary }} />
-                          </div>
-                        </div>)}
-                    </div>
-                  </div>}
-              </div>
-            </div>}
-        </Card>
       </div>
       {open && (
         <Modal title="コースを作成" onClose={() => setOpen(false)}
@@ -896,8 +784,8 @@ function AdminUsers() {
   const [err, setErr] = useState("");
 
   useEffect(() => {
-    apiGet("/companies").then(l => setCompanies(l || [])).catch(() => {});
-    apiGet("/courses").then(l => setCourses(l || [])).catch(() => {});
+    apiGet("/companies").then(l => setCompanies(l || [])).catch(() => setErr("企業一覧の取得に失敗しました。"));
+    apiGet("/courses").then(l => setCourses(l || [])).catch(() => setErr("コース一覧の取得に失敗しました。"));
   }, []);
 
   function load() {
@@ -1101,51 +989,6 @@ function AdminUsers() {
               );
             })}
           <ListPager page={visiblePage.page} totalPages={visiblePage.totalPages} total={visiblePage.total} onPage={setPage} />
-        </Card>
-        <Card className={adminDetailCardCls + " hidden"}>
-          {!selected ? <EmptyState title="ユーザーを選択してください" desc="一覧の行をクリックすると詳細を表示します" />
-            : <div>
-              <div className="mb-4 flex items-center gap-2">
-                <Avatar name={selected.name || selected.email} />
-                <div className="min-w-0"><h3 className="truncate font-bold" style={{ color: T.textPrimary }}>{selected.name || "（氏名未設定）"}</h3><p className="truncate text-xs" style={{ color: T.textMuted }}>{selected.email}</p></div>
-              </div>
-              <div className="space-y-3">
-                <Field label="氏名"><input value={edit.name} onChange={e => setEdit({ ...edit, name: e.target.value })} className={fieldCls} style={{ border: `1px solid ${T.border}`, color: T.textPrimary }} /></Field>
-                <Field label="所属企業"><select value={edit.company} onChange={e => setEdit({ ...edit, company: e.target.value })} className={fieldCls} style={{ border: `1px solid ${T.border}`, color: T.textPrimary }}>
-                  <option value="">（未選択）</option>{companies.map(c => <option key={c.companyId} value={c.companyId}>{c.name}</option>)}</select></Field>
-                <Field label="ロール"><select value={edit.role} onChange={e => setEdit({ ...edit, role: e.target.value })} className={fieldCls} style={{ border: `1px solid ${T.border}`, color: T.textPrimary }}>
-                  {ROLE_OPTS.map(([v, l]) => <option key={v} value={v}>{l}</option>)}</select></Field>
-                {edit.role !== selected.role && <div className="rounded-lg px-3 py-2 text-xs" style={{ background: T.warningSubtle, color: T.warning }}>ロール変更は再ログイン後に反映されます。</div>}
-                <div className="rounded-xl p-3 text-xs" style={adminPanelStyle}>
-                  現在の所属企業: {companyName(selected.company)}
-                </div>
-                <div className="flex justify-end"><Btn icon={Check} onClick={save}>{busy ? "保存中…" : "保存する"}</Btn></div>
-                {edit.role === "trainee" ? (
-                  <div className="mt-5 rounded-xl p-3" style={{ border: `1px solid ${T.border}` }}>
-                    <div className="mb-2 flex items-center justify-between">
-                      <h4 className="flex items-center gap-1.5 text-sm font-bold" style={{ color: T.textPrimary }}><BookOpen size={15} />所属コース</h4>
-                      <Badge tone="cyan">{courseIds.length}件</Badge>
-                    </div>
-                    <p className="mb-3 text-xs leading-relaxed" style={{ color: T.textMuted }}>複数コースに所属できます。合同研修、Eラーニング、研修後の継続利用枠をここで管理します。</p>
-                    {courseLoading ? <SkeletonRows rows={3} />
-                      : courses.length === 0 ? <div className="rounded-xl px-4 py-5 text-center text-sm" style={adminPanelStyle}>コースがありません。</div>
-                      : <div className="space-y-2">{courses.map(c => {
-                        const id = c.courseId;
-                        const checked = courseIds.includes(id);
-                        return (
-                          <label key={id} className="flex cursor-pointer items-center gap-2 rounded-xl p-2 transition hover:bg-slate-50" style={{ background: checked ? T.accentSubtle : T.bgBase }}>
-                            <input type="checkbox" checked={checked} onChange={() => toggleCourse(id)} />
-                            <div className="min-w-0 flex-1"><div className="truncate text-sm font-semibold" style={{ color: T.textPrimary }}>{c.name}</div><div className="text-xs" style={{ color: T.textMuted }}>{kindLabel(c.type || c.kind)}</div></div>
-                          </label>
-                        );
-                      })}</div>}
-                    <div className="mt-3 flex justify-end"><Btn size="sm" icon={Check} onClick={saveCourses}>{busy ? "保存中…" : "所属コースを保存"}</Btn></div>
-                  </div>
-                ) : (
-                  <div className="mt-5 rounded-xl p-3 text-xs" style={adminPanelStyle}>所属コースは受講生ロールのユーザーに設定します。</div>
-                )}
-              </div>
-            </div>}
         </Card>
       </div>
 

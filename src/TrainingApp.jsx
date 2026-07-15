@@ -9,7 +9,6 @@ import TrainingProduct from "./products/training/TrainingProduct.jsx";
 import Login from "./products/auth/Login.jsx";
 import { LegalPageView } from "./components/common/LegalPages.jsx";
 import { Card, Badge, Btn, Avatar, Stat, SectionHead, T, PRODUCT_ACCENT, ROLE_ACCENT, Z, PageLoading, EmptyState as CommonEmptyState, SkeletonRows } from "./components/common";
-import { SAMPLE_VIEWS } from "./products/training/TrainingComponents.jsx";
 import { GOALS, GOAL_ICON_MAP, NAV, ROLES } from "./products/training/TrainingCatalog.js";
 import { navViewSet, statusKind, testIdOf, todayStr } from "./products/training/useTraining.js";
 import useCountUp from "./hooks/common/useCountUp.js";
@@ -1027,11 +1026,6 @@ export default function App() {
           </header>
           <main className="mx-auto w-full max-w-full p-4 sm:p-6 lg:p-8" style={{ maxWidth: isHomeProduct ? 1320 : 1120 }}>
             <div key={role + product + activeView + (karte ? karte.id : "")} className="view-anim min-w-0 max-w-full">
-              {product === "training" && !karte && SAMPLE_VIEWS.has(view) && (
-                <div className="mb-4 flex items-center gap-2 rounded-xl px-3 py-2 text-xs font-semibold" style={{ background: T.warningSubtle, color: T.warning }}>
-                  <AlertCircle size={14} />この画面はサンプルデータです（DB未連携）。今後の実装で本物のデータに置き換わります。
-                </div>
-              )}
               <ScreenErrorBoundary><Suspense fallback={<PageLoading />}>{screen}</Suspense></ScreenErrorBoundary>
             </div>
             <div className="mt-12 pt-4 text-center text-xs" style={{ borderTop: `1px solid ${T.border}`, color: T.textMuted }}>{FOOTER}</div></main>

@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import {
-  Activity, AlertCircle, ArrowUpRight, ChevronRight, Download,
+  Activity, AlertCircle, ChevronRight, Download,
   Receipt, ShieldCheck, Sparkles, Upload
 } from "lucide-react";
 import { ANALYTICS_HOME_CARDS, RISK_SIG_LABEL } from "./AnalyticsCatalog.js";
@@ -314,7 +314,6 @@ export function RiskBoard() {
                     {r.reasons.length === 0 && (
                       <div className="mt-3 rounded-xl p-3 text-sm" style={adminPanelStyle}>本日のリスク項目なし</div>
                     )}
-                    <div className="mt-3 flex justify-end"><Btn kind="ghost" size="sm">面談を設定</Btn></div>
                   </div>
                 )}
               </div>
