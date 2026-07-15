@@ -13,7 +13,7 @@ import {
   projectToForm, useCompanies, useInstructorTrainees, useMatchingMe, useMatchingPlacements,
   useMatchingProjects, useProjectCandidates,
 } from "./useMatching.js";
-import { Card, Badge, Btn, Avatar, Field, fieldStyle, SectionHead, PageHeader, ProductNavCard, Modal, T, EmptyState as CommonEmptyState, SkeletonRows } from "../../components/common";
+import { Card, Badge, Btn, Avatar, Field, fieldStyle, SectionHead, PageHeader, ProductNavCard, Modal, Stat, T, EmptyState as CommonEmptyState, SkeletonRows } from "../../components/common";
 
 const GRAD = `linear-gradient(135deg, ${T.accent} 0%, #5B8CFF 100%)`;
 const FOOTER = "Copyright © 2025 Feeps Inc. All Rights Reserved.";
@@ -237,6 +237,12 @@ export function ProjectManager({ role, onOpenCandidates }) {
   }, [projects, query, statusFilter, companyFilter, sort, companies]);
   useEffect(() => { setPage(1); }, [query, statusFilter, companyFilter, sort.key, sort.dir]);
   const visible = pageSlice(filtered, page);
+  const projectStats = {
+    total: projects.length,
+    recruiting: projects.filter(project => project.status === "recruiting").length,
+    preparation: projects.filter(project => ["draft", "published"].includes(project.status)).length,
+    closed: projects.filter(project => ["closed", "archived"].includes(project.status)).length,
+  };
 
   function changeSort(key) { setSort(s => s.key === key ? { key, dir: s.dir === "asc" ? "desc" : "asc" } : { key, dir: "asc" }); }
   const SortMark = ({ k }) => sort.key === k ? (sort.dir === "asc" ? <ChevronUp size={13} /> : <ChevronDown size={13} />) : null;
@@ -278,6 +284,12 @@ export function ProjectManager({ role, onOpenCandidates }) {
         </div>} />
       <ErrorBanner message={error} />
       <ErrorBanner message={actionError} onClose={clearActionError} />
+      {!loading && projects.length > 0 && <div className="mb-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+        <Stat icon={Briefcase} label="登録案件" value={`${projectStats.total}件`} sub="登録済み全体" />
+        <Stat icon={Activity} label="募集中" value={`${projectStats.recruiting}件`} sub="候補者確認の対象" tone="green" />
+        <Stat icon={AlertCircle} label="公開前・準備中" value={`${projectStats.preparation}件`} sub="内容と公開状態を確認" tone="amber" />
+        <Stat icon={CheckCircle2} label="終了・保管" value={`${projectStats.closed}件`} sub="募集終了・アーカイブ" tone="muted" />
+      </div>}
       <Card className="overflow-hidden">
         <div className="flex flex-wrap items-center gap-2 p-3 sm:p-4" style={{ borderBottom: `1px solid ${T.border}` }}>
           <div className="flex h-10 min-w-0 flex-1 items-center gap-2 rounded-xl px-3" style={{ border: `1px solid ${T.border}` }}>
@@ -313,6 +325,7 @@ export function ProjectManager({ role, onOpenCandidates }) {
                   <span className="inline-flex items-center gap-1"><Building2 size={11} />{companyName(p.companyId) || "Feeps社内"}</span>
                   {p.location && <span className="inline-flex items-center gap-1"><MapPin size={11} />{p.location}</span>}
                   <span>募集{p.openings}名</span>
+                  {p.updatedAt && <span>更新 {String(p.updatedAt).slice(0, 10)}</span>}
                   {(p.requiredSkills || []).slice(0, 3).map(s => <Badge key={s.skill} tone="muted">{s.skill}{s.level}+</Badge>)}
                 </div>
               </div>
@@ -673,6 +686,12 @@ export function PlacementManager({ role }) {
   }, [items, query, statusFilter, sort]);
   useEffect(() => { setPage(1); }, [query, statusFilter, sort.key, sort.dir]);
   const visible = pageSlice(filtered, page);
+  const placementStats = {
+    total: items.length,
+    adjusting: items.filter(item => ["proposed", "interviewing"].includes(item.status)).length,
+    accepted: items.filter(item => item.status === "accepted").length,
+    active: items.filter(item => item.status === "active").length,
+  };
   function changeSort(key) { setSort(s => s.key === key ? { key, dir: s.dir === "asc" ? "desc" : "asc" } : { key, dir: "asc" }); }
   const SortMark = ({ k }) => sort.key === k ? (sort.dir === "asc" ? <ChevronUp size={13} /> : <ChevronDown size={13} />) : null;
 
@@ -682,6 +701,7 @@ export function PlacementManager({ role }) {
     setForm({ projectId: pl.projectId, traineeId: pl.traineeId, status: pl.status, interviewAt: pl.interviewAt || "", acceptedAt: pl.acceptedAt || "", startDate: pl.startDate || "", expectedEndDate: pl.expectedEndDate || "", actualEndDate: pl.actualEndDate || "", rate: pl.rate != null ? String(pl.rate) : "", contractType: pl.contractType || "", notes: pl.notes || "" });
     clearActionError();
   }
+  function startView(pl) { setEditing({ ...pl, __readOnly: true }); clearActionError(); }
   function closeForm() { setEditing(null); }
 
   async function submit() {
@@ -715,6 +735,12 @@ export function PlacementManager({ role }) {
         </div>} />
       <ErrorBanner message={error} />
       <ErrorBanner message={actionError} onClose={clearActionError} />
+      {!loading && items.length > 0 && <div className="mb-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+        <Stat icon={Briefcase} label="参画データ" value={`${placementStats.total}件`} sub="登録済み全体" />
+        <Stat icon={Calendar} label="提案・面談調整" value={`${placementStats.adjusting}件`} sub="次の対応を確認" tone="amber" />
+        <Stat icon={CheckCircle2} label="内定・合意済み" value={`${placementStats.accepted}件`} sub="参画開始前" tone="cyan" />
+        <Stat icon={Activity} label="参画中" value={`${placementStats.active}件`} sub="現在稼働中" tone="green" />
+      </div>}
       <Card className="overflow-hidden">
         <div className="flex flex-wrap items-center gap-2 p-3 sm:p-4" style={{ borderBottom: `1px solid ${T.border}` }}>
           <div className="flex h-10 min-w-0 flex-1 items-center gap-2 rounded-xl px-3" style={{ border: `1px solid ${T.border}` }}>
@@ -742,21 +768,34 @@ export function PlacementManager({ role }) {
                 <div className="mt-0.5 text-xs" style={{ color: T.textMuted }}>{pl.projectTitle}
                   {pl.startDate && ` ・ ${pl.startDate}〜${pl.expectedEndDate || ""}`}
                   {pl.rate != null && ` ・ ${money(pl.rate)}`}
+                  {pl.updatedAt && ` ・ 更新 ${String(pl.updatedAt).slice(0, 10)}`}
                 </div>
               </div>
-              {isAdmin && <div className="flex shrink-0 gap-2">
-                <Btn kind="ghost" size="sm" icon={Pencil} onClick={() => startEdit(pl)}>編集</Btn>
-                <Btn kind="ghost" size="sm" icon={Trash2} onClick={() => { setDeleteTarget(pl); setDeleteError(""); }}>削除</Btn>
-              </div>}
+              <div className="flex shrink-0 gap-2">
+                {isAdmin ? <>
+                  <Btn kind="ghost" size="sm" icon={Pencil} onClick={() => startEdit(pl)}>編集</Btn>
+                  <Btn kind="ghost" size="sm" icon={Trash2} onClick={() => { setDeleteTarget(pl); setDeleteError(""); }}>削除</Btn>
+                </> : <Btn kind="ghost" size="sm" icon={FileText} onClick={() => startView(pl)}>詳細</Btn>}
+              </div>
             </div>
           ))}</div>}
         <ListPager page={visible.page} totalPages={visible.totalPages} total={visible.total} onPage={setPage} />
       </Card>
 
       {editing && (
-        <Modal title={editing.placementId ? "参画編集" : "参画登録"} onClose={closeForm} size="lg"
-          footer={<><Btn kind="ghost" onClick={closeForm} disabled={saving}>キャンセル</Btn><Btn icon={Check} onClick={submit} disabled={saving || !form.projectId || !form.traineeId}>{saving ? "保存中…" : "保存する"}</Btn></>}>
-          <PlacementForm form={form} onChange={setForm} projects={projects} trainees={trainees} mode={editing.placementId ? "edit" : "new"} />
+        <Modal title={editing.__readOnly ? "参画詳細" : editing.placementId ? "参画編集" : "参画登録"} onClose={closeForm} size="lg"
+          footer={editing.__readOnly ? <Btn kind="ghost" onClick={closeForm}>閉じる</Btn> : <><Btn kind="ghost" onClick={closeForm} disabled={saving}>キャンセル</Btn><Btn icon={Check} onClick={submit} disabled={saving || !form.projectId || !form.traineeId}>{saving ? "保存中…" : "保存する"}</Btn></>}>
+          {editing.__readOnly ? <div className="space-y-4">
+            <div className="grid gap-3 sm:grid-cols-2">
+              <Field label="受講生"><div className="text-sm font-semibold" style={{ color: T.textPrimary }}>{editing.traineeName || "氏名未設定"}</div></Field>
+              <Field label="案件"><div className="text-sm font-semibold" style={{ color: T.textPrimary }}>{editing.projectTitle || "案件名未設定"}</div></Field>
+              <Field label="ステータス"><Badge tone={editing.status === "active" ? "green" : "amber"}>{editing.statusLabel}</Badge></Field>
+              <Field label="面談日"><div className="text-sm" style={{ color: T.textSecondary }}>{editing.interviewAt ? String(editing.interviewAt).slice(0, 10) : "未設定"}</div></Field>
+              <Field label="参画期間"><div className="text-sm" style={{ color: T.textSecondary }}>{editing.startDate || "未設定"}〜{editing.expectedEndDate || editing.actualEndDate || ""}</div></Field>
+              <Field label="契約形態"><div className="text-sm" style={{ color: T.textSecondary }}>{editing.contractType || "未設定"}</div></Field>
+            </div>
+            {editing.notes && <Field label="メモ"><div className="whitespace-pre-wrap text-sm leading-relaxed" style={{ color: T.textSecondary }}>{editing.notes}</div></Field>}
+          </div> : <PlacementForm form={form} onChange={setForm} projects={projects} trainees={trainees} mode={editing.placementId ? "edit" : "new"} />}
         </Modal>
       )}
       {deleteTarget && (
