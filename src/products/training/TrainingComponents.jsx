@@ -230,6 +230,12 @@ function TraineeHome({ go, done, toggle, goals }) {
   const thDoneTasks = thTaskCards.filter(t => t.done);
   const thNum = { fontVariantNumeric: "tabular-nums" };
 
+  const traineeTestGroups = groupTestsByCurriculum(tests, t => myCourseNames[t.courseId], testCurricula);
+  const orderedTraineeTests = traineeTestGroups.flatMap(group => group.tests);
+  const completedTestCount = orderedTraineeTests.filter(test => test.status === "graded").length;
+  const testProgress = orderedTraineeTests.length ? Math.round(completedTestCount / orderedTraineeTests.length * 100) : 0;
+  const nextTest = orderedTraineeTests.find(test => test.status !== "graded") || null;
+  const nextTestGroup = nextTest ? traineeTestGroups.find(group => group.tests.some(test => testIdOf(test) === testIdOf(nextTest))) : null;
   return (
     <div className="min-w-0 max-w-full overflow-x-hidden">
       {thErr && <div className="mb-4 rounded-lg px-3 py-2 text-xs" style={adminErrStyle}>{thErr}</div>}
@@ -1507,17 +1513,25 @@ const normalizeTest = (t) => {
     limitMinutes,
   };
 };
-function groupTestsByCurriculum(tests, courseNameOf = () => "") {
+function groupTestsByCurriculum(tests, courseNameOf = () => "", curriculaByCourse = {}) {
   const groups = new Map();
   (tests || []).forEach(test => {
     const course = test.curriculumTitle || test.curriculumName || test.courseName || courseNameOf(test) || "コース未設定";
-    const section = test.sectionTitle || test.chapterTitle || "コース共通テスト";
+    const section = test.sectionTitle || "コース共通テスト";
+    const chapter = test.chapterTitle || "";
     const lesson = test.lessonTitle || test.lessonName || "単元全体";
-    const key = [test.courseId || course, section, lesson].join("::");
-    if (!groups.has(key)) groups.set(key, { key, course, section, lesson, tests: [] });
+    const scopes = flattenCurriculumScopes(curriculaByCourse[test.courseId] || []);
+    const scopeIndex = scopes.findIndex(scope => test.lessonId ? scope.lessonId === test.lessonId : test.chapterId ? scope.chapterId === test.chapterId && scope.scopeType === "chapter" : test.sectionId ? scope.sectionId === test.sectionId && scope.scopeType === "section" : false);
+    const key = [test.courseId || course, test.sectionId || section, test.chapterId || chapter, test.lessonId || lesson].join("::");
+    if (!groups.has(key)) groups.set(key, { key, courseId: test.courseId || "", course, section, chapter, lesson, order: scopeIndex < 0 ? 9999 : scopeIndex, tests: [] });
     groups.get(key).tests.push(test);
   });
-  return [...groups.values()];
+  const courseOrder = Object.keys(curriculaByCourse);
+  return [...groups.values()].sort((a, b) => {
+    const ai = courseOrder.indexOf(a.courseId), bi = courseOrder.indexOf(b.courseId);
+    const ac = ai < 0 ? 9999 : ai, bc = bi < 0 ? 9999 : bi;
+    return ac - bc || a.order - b.order || a.section.localeCompare(b.section, "ja") || a.lesson.localeCompare(b.lesson, "ja");
+  });
 }
 function Tests({ role }) {
   const nameMap = useNameMap();
@@ -1555,10 +1569,24 @@ function Tests({ role }) {
   const canGradeResults = role === "admin" || (role === "instructor" && instructorAssignedCourseIds.size > 0);
   // 受講生カードのコース名表示用（opsFilterはtraineeでは無効のため自分のコースだけ取得）
   const [myCourseNames, setMyCourseNames] = useState({});
+  const [myTestCourses, setMyTestCourses] = useState([]);
+  const [testCurricula, setTestCurricula] = useState({});
   useEffect(() => {
     if (role !== "trainee") return;
-    apiGet("/me/courses").then(list => setMyCourseNames(Object.fromEntries((list || []).filter(c => c?.courseId && c?.name).map(c => [c.courseId, c.name])))).catch(() => {});
+    apiGet("/me/courses").then(list => { const courses = list || []; setMyTestCourses(courses); setMyCourseNames(Object.fromEntries(courses.filter(c => c?.courseId && c?.name).map(c => [c.courseId, c.name]))); }).catch(() => {});
   }, [role]);
+  const testCurriculumCourseIds = useMemo(() => {
+    const ids = role === "trainee" ? myTestCourses.map(course => course.courseId) : tests.map(test => test.courseId);
+    return [...new Set(ids.filter(Boolean))];
+  }, [role, myTestCourses, tests]);
+  const testCurriculumCourseKey = testCurriculumCourseIds.join("|");
+  useEffect(() => {
+    if (!testCurriculumCourseIds.length) { setTestCurricula({}); return; }
+    let alive = true;
+    Promise.all(testCurriculumCourseIds.map(courseId => apiGet(`/courses/${courseId}/curriculum`).then(data => [courseId, normalizeCurriculumSections(data)]).catch(() => [courseId, []])))
+      .then(pairs => { if (alive) setTestCurricula(Object.fromEntries(pairs)); });
+    return () => { alive = false; };
+  }, [testCurriculumCourseKey]);
 
   async function loadTests() {
     setTestErr("");
@@ -1747,8 +1775,9 @@ function Tests({ role }) {
           </select>
         </div>
       </Card>
-      <div className="space-y-4">{visibleTests.length === 0 ? <Card><div className="px-4 py-8 text-center text-sm" style={{ color: T.textMuted }}>該当するテストがありません。</div></Card> : groupTestsByCurriculum(visibleTests, t => opsFilter.courses.find(c => c.courseId === t.courseId)?.name).map(group => <Card key={group.key} className="overflow-hidden"><div className="px-4 py-3" style={{ background: T.accentSubtle, borderBottom: `1px solid ${T.border}` }}><div className="flex flex-wrap items-center gap-2"><BookOpen size={16} style={{ color: T.accent }} /><span className="text-sm font-bold" style={{ color: T.textPrimary }}>{group.course}</span><Badge tone="cyan">{group.tests.length}件</Badge></div><div className="mt-1 flex flex-wrap items-center gap-1 text-xs" style={{ color: T.textMuted }}><span>{group.section}</span><ChevronRight size={12} /><span>{group.lesson}</span></div></div>{group.tests.map((t, i) => (
-        <div key={testIdOf(t) || i} className="flex flex-col gap-3 px-4 py-3.5 lg:flex-row lg:items-center lg:justify-between" style={{ borderBottom: i < visibleTests.length - 1 ? `1px solid ${T.border}` : "none" }}>
+      <div className="mb-3 flex items-center gap-2 text-xs font-semibold" style={{ color: T.textMuted }}><GitBranch size={14} /><span>カリキュラムの登録順で表示</span></div>
+      <div className="space-y-4">{visibleTests.length === 0 ? <Card><div className="px-4 py-8 text-center text-sm" style={{ color: T.textMuted }}>該当するテストがありません。</div></Card> : groupTestsByCurriculum(visibleTests, t => opsFilter.courses.find(c => c.courseId === t.courseId)?.name, testCurricula).map(group => <Card key={group.key} className="overflow-hidden"><div className="px-4 py-3" style={{ background: T.accentSubtle, borderBottom: `1px solid ${T.border}` }}><div className="flex flex-wrap items-center gap-2"><BookOpen size={16} style={{ color: T.accent }} /><span className="text-sm font-bold" style={{ color: T.textPrimary }}>{group.course}</span><Badge tone="cyan">{group.tests.length}件</Badge></div><div className="mt-1 flex flex-wrap items-center gap-1 text-xs" style={{ color: T.textMuted }}><span>{group.section}</span>{group.chapter && <><ChevronRight size={12} /><span>{group.chapter}</span></>}<ChevronRight size={12} /><span>{group.lesson}</span></div></div>{group.tests.map((t, i) => (
+        <div key={testIdOf(t) || i} className="flex flex-col gap-3 px-4 py-3.5 lg:flex-row lg:items-center lg:justify-between" style={{ borderBottom: i < group.tests.length - 1 ? `1px solid ${T.border}` : "none" }}>
           <div><div className="flex flex-wrap items-center gap-2"><div className="text-sm font-semibold" style={{ color: T.textPrimary }}>{t.title}</div><Badge tone={t.status === "draft" ? "amber" : t.status === "published" ? "green" : "muted"}>{t.status === "draft" ? "下書き" : t.status === "published" ? "公開" : t.status}</Badge>{t.courseId && <Badge tone="cyan">{opsFilter.courses.find(c => c.courseId === t.courseId)?.name || t.courseId}</Badge>}</div><div className="text-xs" style={{ color: T.textMuted }}>{t.q}問 ・ 制限 {t.limit} ・ 自動採点</div></div>
           <div className="flex items-center gap-4">
             <div className="hidden text-right sm:block"><div className="text-sm font-bold" style={{ color: T.textPrimary }}>{testStats[testIdOf(t)]?.avgScore == null ? "結果なし" : `平均 ${testStats[testIdOf(t)].avgScore}点`}</div><div className="text-xs" style={{ color: T.textMuted }}>提出 {testStats[testIdOf(t)]?.submitted || 0}{opsFilter.targetTrainees.length ? ` / 未受験 ${testStats[testIdOf(t)]?.unsubmitted || 0}` : ""}{testStats[testIdOf(t)]?.needsReview ? ` / 採点確認 ${testStats[testIdOf(t)].needsReview}` : ""}</div></div>
@@ -1799,26 +1828,15 @@ function Tests({ role }) {
     <div>
       <SectionHead title="テスト" desc="受験後すぐに得点が表示されます" />
       {testErr && <div className="mb-4 rounded-lg px-3 py-2 text-xs" style={{ background: T.warningSubtle, color: T.warning }}>{testErr}</div>}
-      <div className="space-y-5">{tests.length === 0 ? <Card><EmptyState title="受験できるテストがありません" desc="公開されたテストがあるとここに表示されます。" /></Card> : groupTestsByCurriculum(tests, t => myCourseNames[t.courseId]).map(group => <section key={group.key}><div className="mb-2 flex flex-wrap items-center gap-2"><div className="rounded-lg p-2" style={{ background: T.accentSubtle }}><BookOpen size={17} style={{ color: T.accent }} /></div><div><h3 className="text-sm font-bold" style={{ color: T.textPrimary }}>{group.course}</h3><p className="text-xs" style={{ color: T.textMuted }}>{group.section} ／ {group.lesson}</p></div><Badge tone="cyan">{group.tests.length}件</Badge></div><div className="grid min-w-0 gap-4 md:grid-cols-2 xl:grid-cols-3">{group.tests.map(t => {
+      {tests.length > 0 && <Card className="mb-5 overflow-hidden"><div className="grid gap-5 p-5 lg:grid-cols-[220px_1fr]"><div><div className="flex items-end gap-2"><span className="text-3xl font-bold" style={{ color: T.textPrimary }}>{completedTestCount}</span><span className="pb-1 text-sm font-semibold" style={{ color: T.textMuted }}>/ {orderedTraineeTests.length}件 受験済み</span></div><div className="mt-3 h-2.5 overflow-hidden rounded-full" style={{ background: T.border }}><div className="h-full rounded-full transition-all" style={{ width: `${testProgress}%`, background: T.success }} /></div><div className="mt-2 text-xs font-bold" style={{ color: testProgress === 100 ? T.success : T.accentHover }}>テスト進捗 {testProgress}%</div></div><div className="rounded-xl p-4" style={{ background: nextTest ? T.accentSubtle : T.successSubtle }}><div className="mb-1 flex items-center gap-2 text-xs font-bold" style={{ color: nextTest ? T.accentHover : T.success }}>{nextTest ? <><PlayCircle size={14} />次に受けるテスト</> : <><CheckCircle2 size={14} />公開中のテストはすべて完了</>}</div>{nextTest ? <><div className="font-bold" style={{ color: T.textPrimary }}>{nextTest.title}</div><div className="mt-1 text-xs" style={{ color: T.textMuted }}>{[nextTestGroup?.course, nextTestGroup?.section, nextTestGroup?.chapter, nextTestGroup?.lesson].filter(Boolean).join(" ＞ ")}</div><div className="mt-3"><Btn size="sm" icon={PlayCircle} disabled={!testQuestionsOf(nextTest).length} onClick={() => testQuestionsOf(nextTest).length && setTaking(nextTest)}>このテストを受ける</Btn></div></> : <div className="font-bold" style={{ color: T.textPrimary }}>おつかれさまでした</div>}</div></div></Card>}
+      <div className="mb-3 flex items-center gap-2 text-xs font-semibold" style={{ color: T.textMuted }}><GitBranch size={14} /><span>カリキュラムの順番に沿って、上から進めてください</span></div>
+      <div className="space-y-4">{tests.length === 0 ? <Card><EmptyState title="受験できるテストがありません" desc="公開されたテストがあるとここに表示されます。" /></Card> : traineeTestGroups.map(group => <Card key={group.key} className="overflow-hidden"><div className="flex flex-wrap items-center justify-between gap-2 px-4 py-3.5" style={{ background: T.bgBase, borderBottom: `1px solid ${T.border}` }}><div className="flex min-w-0 items-start gap-3"><div className="rounded-lg p-2" style={{ background: T.accentSubtle }}><BookOpen size={17} style={{ color: T.accent }} /></div><div className="min-w-0"><h3 className="text-sm font-bold" style={{ color: T.textPrimary }}>{group.course}</h3><div className="mt-1 flex flex-wrap items-center gap-1 text-xs" style={{ color: T.textMuted }}><span>{group.section}</span>{group.chapter && <><ChevronRight size={12} /><span>{group.chapter}</span></>}<ChevronRight size={12} /><span>{group.lesson}</span></div></div></div><Badge tone={group.tests.every(test => test.status === "graded") ? "green" : "cyan"}>{group.tests.filter(test => test.status === "graded").length} / {group.tests.length} 完了</Badge></div><div>{group.tests.map(t => {
         const hasQuestions = testQuestionsOf(t).length > 0;
+        const sequence = orderedTraineeTests.findIndex(test => testIdOf(test) === testIdOf(t)) + 1;
+        const isNext = nextTest && testIdOf(nextTest) === testIdOf(t);
         return (
-        <Card key={testIdOf(t)} className="flex flex-col p-5">
-          <div className="mb-2 flex items-start justify-between">
-            {t.status === "graded" ? <Badge tone="green">受験済</Badge> : <Badge tone="muted">未受験</Badge>}
-            <span className="text-xs" style={{ color: T.textMuted }}>{t.q}問・{t.limit}</span></div>
-          <div className="mb-3 min-w-0 rounded-xl p-3 text-xs" style={{ background: T.bgBase, color: T.textMuted }}>
-            <div className="truncate">コース: {t.curriculumTitle || t.curriculumName || t.courseName || myCourseNames[t.courseId] || "未設定"}</div>
-            <div className="truncate">章: {t.chapterTitle || t.sectionTitle || "確認テスト"}</div>
-            <div className="truncate">レッスン: {t.lessonTitle || t.lessonName || "対象レッスン未設定"}</div>
-          </div>
-          <h3 className="mb-4 min-w-0 flex-1 break-words font-bold leading-snug" style={{ color: T.textPrimary }}>{t.title}</h3>
-          {t.status === "graded" ? <div>
-            <div className="flex items-end justify-between rounded-xl p-3" style={{ background: t.score >= 70 ? T.successSubtle : T.warningSubtle }}>
-              <span className="text-sm font-semibold" style={{ color: t.score >= 70 ? T.success : T.warning }}>スコア</span>
-              <span className="text-3xl font-bold leading-none" style={{ color: t.score >= 70 ? T.success : T.warning }}>{t.score}<span className="text-sm">点</span></span></div>
-            <button disabled={!hasQuestions} onClick={() => hasQuestions && setTaking(t)} className="mt-2 w-full text-center text-xs font-semibold disabled:opacity-50" style={{ color: T.accentHover }}>{hasQuestions ? "もう一度受ける" : "設問がありません"}</button></div>
-          : hasQuestions ? <Btn icon={PlayCircle} full onClick={() => setTaking(t)}>受験を開始</Btn> : <Btn icon={AlertCircle} kind="ghost" full disabled>設問がありません</Btn>}</Card>
-      );})}</div></section>)}</div>
+        <div key={testIdOf(t)} className="flex flex-col gap-3 px-4 py-4 sm:flex-row sm:items-center" style={{ background: isNext ? T.accentSubtle : "#fff", borderBottom: `1px solid ${T.border}` }}><div className="flex min-w-0 flex-1 items-start gap-3"><div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-xs font-bold" style={{ background: t.status === "graded" ? T.success : isNext ? T.accent : T.border, color: t.status === "graded" || isNext ? "#fff" : T.textMuted }}>{t.status === "graded" ? <Check size={16} /> : sequence}</div><div className="min-w-0"><div className="flex flex-wrap items-center gap-2"><h4 className="font-bold" style={{ color: T.textPrimary }}>{t.title}</h4>{isNext && <Badge tone="cyan">次に受験</Badge>}{t.status === "graded" ? <Badge tone="green">受験済み</Badge> : <Badge tone="muted">未受験</Badge>}</div><div className="mt-1 text-xs" style={{ color: T.textMuted }}>{t.q}問 ・ 制限 {t.limit} ・ 自動採点</div></div></div><div className="flex shrink-0 items-center justify-end gap-3">{t.status === "graded" && <div className="text-right"><div className="text-lg font-bold" style={{ color: t.score >= 70 ? T.success : T.warning }}>{t.score}点</div><button disabled={!hasQuestions} onClick={() => hasQuestions && setTaking(t)} className="text-xs font-semibold disabled:opacity-50" style={{ color: T.accentHover }}>もう一度受ける</button></div>}{t.status !== "graded" && (hasQuestions ? <Btn size="sm" icon={PlayCircle} onClick={() => setTaking(t)}>受験する</Btn> : <Btn size="sm" icon={AlertCircle} kind="ghost" disabled>設問なし</Btn>)}</div></div>
+      );})}</div></Card>)}</div>
     </div>
   );
 }
