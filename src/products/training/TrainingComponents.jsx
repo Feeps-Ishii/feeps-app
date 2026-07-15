@@ -2477,6 +2477,8 @@ function TraineeAttendance() {
   const [calendarEditDate, setCalendarEditDate] = useState("");
   const [calendarDraft, setCalendarDraft] = useState({ in: "", out: "", s: "出勤" });
   const [calendarSaving, setCalendarSaving] = useState(false);
+  const [attendanceTrainingDates, setAttendanceTrainingDates] = useState([]);
+  const [workdaysLoading, setWorkdaysLoading] = useState(true);
 
   function load() {
     Promise.all([
@@ -2496,8 +2498,29 @@ function TraineeAttendance() {
       .catch(() => setErr("勤怠の読み込みに失敗しました。再ログインをお試しください。"));
   }
   useEffect(() => { load(); }, []);
+  useEffect(() => {
+    let alive = true;
+    const courseIds = enrolledCourses.map(course => course.courseId).filter(Boolean);
+    const months = [...new Set([histMonth, today.slice(0, 7)].filter(Boolean))];
+    if (!courseIds.length) { setAttendanceTrainingDates([]); setWorkdaysLoading(false); return () => { alive = false; }; }
+    setAttendanceTrainingDates([]);
+    setWorkdaysLoading(true);
+    Promise.all(courseIds.flatMap(courseId => months.map(targetMonth => apiGet(`/courses/${courseId}/workdays?month=${targetMonth}`))))
+      .then(results => {
+        if (!alive) return;
+        const dates = new Set(results.flatMap(result => (result?.days || []).filter(day => day.isTrainingDay).map(day => day.date)));
+        setAttendanceTrainingDates([...dates]);
+      })
+      .catch(() => { if (alive) { setAttendanceTrainingDates([]); setErr("研修カレンダーの読み込みに失敗しました。再読み込みをお試しください。"); } })
+      .finally(() => { if (alive) setWorkdaysLoading(false); });
+    return () => { alive = false; };
+  }, [enrolledCourses, histMonth, today]);
+
+  const attendanceTrainingDateSet = useMemo(() => new Set(attendanceTrainingDates), [attendanceTrainingDates]);
+  const todayIsTrainingDay = attendanceTrainingDateSet.has(today);
 
   async function saveToday(next) {
+    if (!todayIsTrainingDay) { setErr("本日は所属コースの研修日ではないため、勤怠を登録できません。"); return; }
     setErr("");
     try {
       await apiPut("/attendance/me", { date: today, clockIn: next.in, clockOut: next.out, status: "出勤" });
@@ -2512,17 +2535,19 @@ function TraineeAttendance() {
   function saveTodayEdit() { setEditToday(false); saveToday(att); }
   function startEdit(rowOrIndex) {
     const row = typeof rowOrIndex === "number" ? hist[rowOrIndex] : rowOrIndex;
+    if (!attendanceTrainingDateSet.has(row?.date)) { setErr("非研修日の勤怠は閲覧のみ可能です。"); return; }
     const idx = hist.findIndex(h => h.date === row?.date);
     setEIdx(idx);
     setDraft({ ...row });
   }
   function openCalendarAttendance(dateValue, row) {
-    if (dateValue > today) return;
+    if (dateValue > today || !attendanceTrainingDateSet.has(dateValue)) return;
     setCalendarEditDate(dateValue);
     setCalendarDraft({ in: row?.in || "", out: row?.out || "", s: row?.s || "出勤" });
   }
   async function saveCalendarAttendance() {
     if (!calendarEditDate || !calendarDraft.in || calendarSaving) { if (!calendarDraft.in) setErr("出勤時刻を入力してください。"); return; }
+    if (!attendanceTrainingDateSet.has(calendarEditDate)) { setErr("非研修日の勤怠は登録できません。"); setCalendarEditDate(""); return; }
     setCalendarSaving(true); setErr("");
     try {
       await apiPut("/attendance/me", { date: calendarEditDate, clockIn: calendarDraft.in, clockOut: calendarDraft.out, status: calendarDraft.s || "出勤" });
@@ -2544,6 +2569,7 @@ function TraineeAttendance() {
   const calendarCells = [...Array(calendarOffset).fill(null), ...Array.from({ length: calendarCount }, (_, index) => `${calendarYear}-${String(calendarMonth).padStart(2, "0")}-${String(index + 1).padStart(2, "0")}`)];
   async function saveEdit() {
     const row = hist[eIdx]; setErr("");
+    if (!attendanceTrainingDateSet.has(row?.date)) { setErr("非研修日の勤怠は修正できません。"); setEIdx(-1); return; }
     try {
       await apiPut("/attendance/me", { date: row.date, clockIn: draft.in, clockOut: draft.out, status: row.s });
       emitNotificationRefresh();
@@ -2570,7 +2596,7 @@ function TraineeAttendance() {
               <div className="mt-2 flex flex-wrap items-center gap-4 text-sm" style={{ color: T.textSecondary }}>
                 <span>出勤 <b style={{ color: T.textPrimary }}>{att.in || "—"}</b></span>
                 <span>退勤 <b style={{ color: T.textPrimary }}>{att.out || "—"}</b></span>
-                <button onClick={() => setEditToday(true)} className="inline-flex items-center gap-1 text-xs font-semibold" style={{ color: T.accentHover }}><Pencil size={12} />時刻を修正</button>
+                {todayIsTrainingDay && <button onClick={() => setEditToday(true)} className="inline-flex items-center gap-1 text-xs font-semibold" style={{ color: T.accentHover }}><Pencil size={12} />時刻を修正</button>}
               </div>
             )}
           </div>
@@ -2582,11 +2608,12 @@ function TraineeAttendance() {
               </select>
             )}
             <div className="flex flex-wrap justify-center gap-3 sm:justify-end">
-              <button onClick={() => doClockIn()} className="flex h-24 w-24 flex-col items-center justify-center rounded-2xl font-bold" style={{ background: att.in ? T.border : GRAD, color: att.in ? T.textMuted : "#fff" }}><Clock size={22} /><span className="mt-1 text-sm">現在時刻で出勤</span></button>
-              {selectedStandardCourse && courseStandardIn(selectedStandardCourse) && <button onClick={() => doClockIn(courseStandardIn(selectedStandardCourse))} disabled={!!att.in} className="flex h-24 w-28 flex-col items-center justify-center rounded-2xl font-bold disabled:opacity-50" style={{ background: T.accentSubtle, color: T.accentHover }}><Clock size={22} /><span className="mt-1 text-xs">定時{courseStandardIn(selectedStandardCourse)}で出勤</span></button>}
-              <button onClick={() => doClockOut()} disabled={!att.in || !!att.out} className="flex h-24 w-24 flex-col items-center justify-center rounded-2xl font-bold disabled:opacity-50" style={{ background: att.out ? T.border : T.textPrimary, color: att.out ? T.textMuted : "#fff" }}><LogOut size={22} /><span className="mt-1 text-sm">現在時刻で退勤</span></button>
-              {selectedStandardCourse && courseStandardOut(selectedStandardCourse) && <button onClick={() => doClockOut(courseStandardOut(selectedStandardCourse))} disabled={!att.in || !!att.out} className="flex h-24 w-28 flex-col items-center justify-center rounded-2xl font-bold disabled:opacity-50" style={{ background: T.warningSubtle, color: T.warning }}><LogOut size={22} /><span className="mt-1 text-xs">定時{courseStandardOut(selectedStandardCourse)}で退勤</span></button>}
+              <button onClick={() => doClockIn()} disabled={workdaysLoading || !todayIsTrainingDay} className="flex h-24 w-24 flex-col items-center justify-center rounded-2xl font-bold disabled:opacity-50" style={{ background: att.in ? T.border : GRAD, color: att.in ? T.textMuted : "#fff" }}><Clock size={22} /><span className="mt-1 text-sm">現在時刻で出勤</span></button>
+              {selectedStandardCourse && courseStandardIn(selectedStandardCourse) && <button onClick={() => doClockIn(courseStandardIn(selectedStandardCourse))} disabled={workdaysLoading || !todayIsTrainingDay || !!att.in} className="flex h-24 w-28 flex-col items-center justify-center rounded-2xl font-bold disabled:opacity-50" style={{ background: T.accentSubtle, color: T.accentHover }}><Clock size={22} /><span className="mt-1 text-xs">定時{courseStandardIn(selectedStandardCourse)}で出勤</span></button>}
+              <button onClick={() => doClockOut()} disabled={workdaysLoading || !todayIsTrainingDay || !att.in || !!att.out} className="flex h-24 w-24 flex-col items-center justify-center rounded-2xl font-bold disabled:opacity-50" style={{ background: att.out ? T.border : T.textPrimary, color: att.out ? T.textMuted : "#fff" }}><LogOut size={22} /><span className="mt-1 text-sm">現在時刻で退勤</span></button>
+              {selectedStandardCourse && courseStandardOut(selectedStandardCourse) && <button onClick={() => doClockOut(courseStandardOut(selectedStandardCourse))} disabled={workdaysLoading || !todayIsTrainingDay || !att.in || !!att.out} className="flex h-24 w-28 flex-col items-center justify-center rounded-2xl font-bold disabled:opacity-50" style={{ background: T.warningSubtle, color: T.warning }}><LogOut size={22} /><span className="mt-1 text-xs">定時{courseStandardOut(selectedStandardCourse)}で退勤</span></button>}
             </div>
+            {!workdaysLoading && !todayIsTrainingDay && <div className="rounded-lg px-3 py-2 text-xs font-semibold" style={{ background: T.bgBase, color: T.textMuted }}>本日は研修カレンダーの非研修日です。勤怠登録はできません。</div>}
             {standardCourses.length > 1 && !selectedStandardCourse && <div className="text-xs" style={{ color: T.textMuted }}>複数コースに所属しているため、定時打刻を使うコースを選んでください。</div>}
           </div>
         </div>
@@ -2604,18 +2631,17 @@ function TraineeAttendance() {
         </div>
       </div>
       <Card className="mb-5 overflow-hidden">
-        <div className="flex flex-wrap items-center justify-between gap-2 px-4 py-3" style={{ borderBottom: `1px solid ${T.border}` }}><div><h3 className="text-sm font-bold" style={{ color: T.textPrimary }}>{histMonth.replace("-", "年")}月の勤怠カレンダー</h3><p className="text-xs" style={{ color: T.textMuted }}>平日の「未登録」をひと目で確認できます。登録済みの日はクリックして修正できます。</p></div><div className="flex gap-2"><Badge tone="green">登録済み</Badge><Badge tone="amber">未登録</Badge></div></div>
+        <div className="flex flex-wrap items-center justify-between gap-2 px-4 py-3" style={{ borderBottom: `1px solid ${T.border}` }}><div><h3 className="text-sm font-bold" style={{ color: T.textPrimary }}>{histMonth.replace("-", "年")}月の勤怠カレンダー</h3><p className="text-xs" style={{ color: T.textMuted }}>管理者が設定した研修日だけ登録できます。非研修日の既存データは閲覧のみ可能です。</p></div><div className="flex gap-2"><Badge tone="green">登録済み</Badge><Badge tone="amber">研修日・未登録</Badge><Badge tone="muted">非研修日</Badge></div></div>
         <div className="grid grid-cols-7" style={{ background: T.border, gap: 1 }}>
           {WD.map((weekday, index) => <div key={weekday} className="bg-white py-2 text-center text-xs font-bold" style={{ color: index === 0 ? T.danger : index === 6 ? T.accent : T.textMuted }}>{weekday}</div>)}
           {calendarCells.map((dateValue, index) => {
             if (!dateValue) return <div key={`blank-${index}`} className="min-h-24 bg-white" />;
             const row = attendanceByDate[dateValue];
-            const day = new Date(dateValue + "T00:00:00").getDay();
             const future = dateValue > today;
-            const weekend = day === 0 || day === 6;
-            const missing = !row && !future && !weekend;
+            const isTrainingDay = attendanceTrainingDateSet.has(dateValue);
+            const missing = !row && !future && isTrainingDay;
             const isToday = dateValue === today;
-            return <button key={dateValue} type="button" disabled={future} onClick={() => openCalendarAttendance(dateValue, row)} className="min-h-24 bg-white p-2 text-left transition enabled:cursor-pointer enabled:hover:brightness-95 disabled:cursor-default" style={isToday ? { boxShadow: `inset 0 0 0 2px ${T.accent}` } : undefined} aria-label={`${dateValue}の勤怠を${row ? "修正" : "登録"}`}><div className="flex items-center justify-between"><span className="text-xs font-bold" style={{ color: weekend ? T.textMuted : T.textPrimary }}>{Number(dateValue.slice(-2))}</span>{isToday && <Badge tone="cyan">今日</Badge>}</div>{row ? <div className="mt-2 rounded-lg px-2 py-1.5" style={{ background: T.successSubtle }}><div className="text-[11px] font-bold" style={{ color: T.success }}>登録済み</div><div className="mt-0.5 text-xs" style={{ color: T.textSecondary }}>{row.in || "—"}–{row.out || "—"}</div></div> : missing ? <div className="mt-2 rounded-lg px-2 py-1.5 text-[11px] font-bold" style={{ background: T.warningSubtle, color: T.warning }}>未登録・クリックして登録</div> : <div className="mt-2 text-[11px]" style={{ color: T.textMuted }}>{future ? "予定日" : "休日・登録可能"}</div>}</button>;
+            return <button key={dateValue} type="button" disabled={future || !isTrainingDay || workdaysLoading} onClick={() => openCalendarAttendance(dateValue, row)} className="min-h-24 bg-white p-2 text-left transition enabled:cursor-pointer enabled:hover:brightness-95 disabled:cursor-default" style={isToday ? { boxShadow: `inset 0 0 0 2px ${T.accent}` } : undefined} aria-label={`${dateValue}の勤怠を${row ? "修正" : "登録"}`}><div className="flex items-center justify-between"><span className="text-xs font-bold" style={{ color: isTrainingDay ? T.textPrimary : T.textMuted }}>{Number(dateValue.slice(-2))}</span>{isToday && <Badge tone="cyan">今日</Badge>}</div>{row ? <div className="mt-2 rounded-lg px-2 py-1.5" style={{ background: T.successSubtle }}><div className="text-[11px] font-bold" style={{ color: T.success }}>登録済み{!isTrainingDay ? "（閲覧のみ）" : ""}</div><div className="mt-0.5 text-xs" style={{ color: T.textSecondary }}>{row.in || "—"}–{row.out || "—"}</div></div> : missing ? <div className="mt-2 rounded-lg px-2 py-1.5 text-[11px] font-bold" style={{ background: T.warningSubtle, color: T.warning }}>研修日・クリックして登録</div> : <div className="mt-2 text-[11px]" style={{ color: T.textMuted }}>{future && isTrainingDay ? "研修予定日" : "非研修日"}</div>}</button>;
           })}
         </div>
       </Card>
@@ -2635,7 +2661,7 @@ function TraineeAttendance() {
               <div className="flex items-center gap-4 text-sm" style={{ color: T.textMuted }}>
                 <span>出 {r.in || "—"}</span><span>退 {r.out || "—"}</span>
                 <Badge tone={attendanceStatusTone(r.s, r)}>{attendanceStatusLabel(r.s, r)}</Badge>
-                <button onClick={() => startEdit(r)} className="rounded-lg p-1 hover:bg-gray-50"><Pencil size={14} style={{ color: T.textMuted }} /></button>
+                {attendanceTrainingDateSet.has(r.date) && <button onClick={() => startEdit(r)} className="rounded-lg p-1 hover:bg-gray-50"><Pencil size={14} style={{ color: T.textMuted }} /></button>}
               </div>
             </>
           )}
@@ -3433,6 +3459,8 @@ function Reports({ role }) {
   const [settingsSaving, setSettingsSaving] = useState(false);
   const [commentIntent, setCommentIntent] = useState({});
   const [aiCommentBusy, setAiCommentBusy] = useState(null);
+  const [reportTrainingDates, setReportTrainingDates] = useState([]);
+  const [reportWorkdaysLoading, setReportWorkdaysLoading] = useState(false);
   const reportFormRef = useRef(null);
   const reportFirstInputRef = useRef(null);
   const canWrite = role === "trainee";
@@ -3517,6 +3545,22 @@ function Reports({ role }) {
       .catch(() => { setReportFields(DEFAULT_REPORT_FIELDS); setSettingsFields(DEFAULT_REPORT_FIELDS); });
   }, [settingsCourseId]);
   useEffect(() => {
+    if (!canWrite || !reportCourseId) { setReportTrainingDates([]); setReportWorkdaysLoading(false); return; }
+    let alive = true;
+    const months = [...new Set([month, String(editingReportDate || "").slice(0, 7)].filter(Boolean))];
+    setReportTrainingDates([]);
+    setReportWorkdaysLoading(true);
+    Promise.all(months.map(targetMonth => apiGet(`/courses/${reportCourseId}/workdays?month=${targetMonth}`)))
+      .then(results => {
+        if (!alive) return;
+        setReportTrainingDates(results.flatMap(result => (result?.days || []).filter(day => day.isTrainingDay).map(day => day.date)));
+      })
+      .catch(() => { if (alive) { setReportTrainingDates([]); setSaveErr("研修カレンダーの読み込みに失敗しました。再読み込みをお試しください。"); } })
+      .finally(() => { if (alive) setReportWorkdaysLoading(false); });
+    return () => { alive = false; };
+  }, [canWrite, reportCourseId, month, editingReportDate]);
+  const reportTrainingDateSet = useMemo(() => new Set(reportTrainingDates), [reportTrainingDates]);
+  useEffect(() => {
     if (!canViewReports || periodMode !== "月次") return;
     let alive = true;
     setSaveErr("");
@@ -3534,6 +3578,8 @@ function Reports({ role }) {
   async function submit() {
     const hasAny = draft.morningGoal.trim() || draft.goalItems.some(g => String(g.text || "").trim()) || reportFields.some(field => String(reportFieldValue(draft, field.id)).trim());
     if (!hasAny || saving) return;
+    if (!reportCourseId) { setSaveErr("日報の対象コースを選択してください。"); return; }
+    if (!reportTrainingDateSet.has(editingReportDate)) { setSaveErr("日報は選択中のコースの研修日にのみ登録できます。"); return; }
     const missingRequired = reportFields.find(field => field.required && !String(reportFieldValue(draft, field.id)).trim());
     if (missingRequired) { setSaveErr(`「${missingRequired.label}」を入力してください。`); return; }
     setSaveErr(""); setSaving(true);
@@ -3727,6 +3773,7 @@ function Reports({ role }) {
     return byQuery && bySubmit && byComment;
   }).sort((a, b) => reportSort === "dateAsc" ? a.date.localeCompare(b.date) : b.date.localeCompare(a.date));
   function editReport(row) {
+    if (!reportTrainingDateSet.has(row.date)) { setSaveErr("非研修日の日報は新規作成・編集できません。"); return; }
     const r = row.report;
     setEditingReportDate(row.date);
     setDraft(r ? draftFromReport(r) : blankReportDraft());
@@ -3736,7 +3783,7 @@ function Reports({ role }) {
   }
   return (
     <div>
-      <SectionHead title="日報" desc={canWrite ? "今日の学びを記録し、講師からフィードバックを受け取ります" : canComment ? "コース・企業・日付で日報を確認し、フィードバックします" : "自社受講生の日報を閲覧できます"}
+      <SectionHead title="日報" desc={canWrite ? "研修カレンダーの研修日に学びを記録し、講師からフィードバックを受け取ります" : canComment ? "コース・企業・日付で日報を確認し、フィードバックします" : "自社受講生の日報を閲覧できます"}
         action={canViewReports ? <div className="flex flex-wrap items-center gap-2">
           {(role === "admin" || role === "instructor") && <Btn kind="ghost" size="sm" icon={Pencil} disabled={!settingsCourseId} onClick={() => { setSettingsFields(reportFields); setSettingsOpen(true); }}>日報項目設定</Btn>}
           {canComment && periodMode === "日次" && <Btn size="sm" icon={ChevronRight} onClick={() => {
@@ -3824,7 +3871,8 @@ function Reports({ role }) {
         </Card>
       ) : (<>
       {canWrite && <div ref={reportFormRef} style={{ scrollMarginTop: 72 }}><Card className="mb-4 p-5 transition-shadow" style={reportFormPulse ? { boxShadow: `0 0 0 3px ${T.accent}33, 0 18px 40px rgba(0,0,0,.08)` } : undefined}>
-        <div className="mb-3 flex flex-wrap items-center justify-between gap-3"><div><h3 className="font-bold" style={{ color: T.textPrimary }}>朝: 目標</h3><p className="text-xs" style={{ color: T.textMuted }}>対象日を選んで、朝だけでも途中でも保存できます。</p></div><div className="flex items-center gap-2"><input type="date" value={editingReportDate} onChange={e => editReport({ date: e.target.value, report: reportsByDate[e.target.value] })} className="rounded-xl px-3 py-2 text-sm outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary, background: "#fff" }} /><Btn kind="soft" size="sm" icon={Plus} onClick={addGoalItem}>目標を追加</Btn></div></div>
+        <div className="mb-3 flex flex-wrap items-center justify-between gap-3"><div><h3 className="font-bold" style={{ color: T.textPrimary }}>朝: 目標</h3><p className="text-xs" style={{ color: T.textMuted }}>研修日を選んで、朝だけでも途中でも保存できます。</p></div><div className="flex items-center gap-2"><input type="date" value={editingReportDate} onChange={e => editReport({ date: e.target.value, report: reportsByDate[e.target.value] })} className="rounded-xl px-3 py-2 text-sm outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary, background: "#fff" }} /><Btn kind="soft" size="sm" icon={Plus} disabled={reportWorkdaysLoading || !reportTrainingDateSet.has(editingReportDate)} onClick={addGoalItem}>目標を追加</Btn></div></div>
+        {!reportWorkdaysLoading && !reportTrainingDateSet.has(editingReportDate) && <div className="mb-4 rounded-xl px-3 py-2 text-xs font-semibold" style={{ background: T.bgBase, color: T.textMuted }}>選択日は研修カレンダーの非研修日です。下のカレンダーから研修日を選択してください。</div>}
         <div className="mb-4 rounded-xl px-3 py-2 text-xs font-semibold" style={{ background: reportEditState === "create" ? T.warningSubtle : T.accentSubtle, color: reportEditState === "create" ? T.warning : T.accentHover }}>
           {reportEditState === "create" ? "新しい日報を作成中" : reportEditState === "edit" ? `${editingReportDate.replace(/-/g, "/")}の日報を編集中` : "本日の日報"}
         </div>
@@ -3839,7 +3887,7 @@ function Reports({ role }) {
             </div>
           ))}
         </div>
-        <div className="mt-4 flex justify-end"><Btn icon={Check} onClick={submit}>{saving ? "保存中..." : "目標を保存"}</Btn></div>
+        <div className="mt-4 flex justify-end"><Btn icon={Check} disabled={reportWorkdaysLoading || !reportTrainingDateSet.has(editingReportDate)} onClick={submit}>{saving ? "保存中..." : "目標を保存"}</Btn></div>
       </Card></div>}
       {canWrite && <Card className="mb-6 p-5">
         <div className="mb-4 flex flex-wrap items-center justify-between gap-3"><div><h3 className="font-bold" style={{ color: T.textPrimary }}>{editingReportDate.replace(/-/g, "/")} の日報</h3><span className="text-xs" style={{ color: T.textMuted }}>1項目を横幅いっぱい使って、具体的に記録できます。</span></div>{reportCourses.length > 1 && <select value={reportCourseId} onChange={e => setReportCourseId(e.target.value)} className="rounded-xl px-3 py-2 text-sm outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary, background: "#fff" }}>{reportCourses.map(course => <option key={course.courseId} value={course.courseId}>{course.name}</option>)}</select>}</div>
@@ -3848,20 +3896,19 @@ function Reports({ role }) {
           <div key={field.id}><label className="mb-1.5 block text-sm font-semibold" style={{ color: T.textPrimary }}>{field.label}{field.required && <span className="ml-1 text-xs" style={{ color: T.danger }}>必須</span>}</label>
             <textarea value={reportFieldValue(draft, field.id)} onChange={e => setDraft(current => REPORT_FIXED_KEYS.has(field.id) ? { ...current, [field.id]: e.target.value } : { ...current, customFields: { ...current.customFields, [field.id]: e.target.value } })} placeholder={field.placeholder} rows={4} className="w-full resize-y rounded-xl px-3 py-3 text-sm leading-relaxed outline-none focus:border-cyan-400" style={{ border: `1px solid ${T.border}`, color: T.textPrimary, minHeight: 108 }} /></div>
         ))}</div>
-        <div className="mt-4 flex items-center justify-end gap-3">{saveErr && <span className="text-xs" style={{ color: T.danger }}>{saveErr}</span>}<Btn icon={Send} onClick={submit}>{saving ? "保存中…" : "日報を保存"}</Btn></div></Card>}
+        <div className="mt-4 flex items-center justify-end gap-3">{saveErr && <span className="text-xs" style={{ color: T.danger }}>{saveErr}</span>}<Btn icon={Send} disabled={reportWorkdaysLoading || !reportTrainingDateSet.has(editingReportDate)} onClick={submit}>{saving ? "保存中…" : "日報を保存"}</Btn></div></Card>}
       {canWrite && <Card className="mb-6 overflow-hidden">
-        <div className="flex flex-wrap items-center justify-between gap-3 p-4" style={{ borderBottom: `1px solid ${T.border}` }}><div><h3 className="font-bold" style={{ color: T.textPrimary }}>日報カレンダー</h3><p className="text-xs" style={{ color: T.textMuted }}>提出状況とコメントを月単位で確認し、日付を選んで作成・編集できます。</p></div><div className="flex flex-wrap items-center gap-2"><Badge tone="green">提出済み</Badge><Badge tone="amber">未提出</Badge><Badge tone="cyan">コメントあり</Badge><MonthPicker value={month} onChange={setMonth} /></div></div>
+        <div className="flex flex-wrap items-center justify-between gap-3 p-4" style={{ borderBottom: `1px solid ${T.border}` }}><div><h3 className="font-bold" style={{ color: T.textPrimary }}>日報カレンダー</h3><p className="text-xs" style={{ color: T.textMuted }}>管理者が設定した研修日だけ作成・編集できます。非研修日の既存日報は閲覧のみ残ります。</p></div><div className="flex flex-wrap items-center gap-2"><Badge tone="green">提出済み</Badge><Badge tone="amber">研修日・未提出</Badge><Badge tone="muted">非研修日</Badge><Badge tone="cyan">コメントあり</Badge><MonthPicker value={month} onChange={setMonth} /></div></div>
         <div className="grid grid-cols-7" style={{ background: T.border, gap: 1 }}>
           {WD.map((weekday, index) => <div key={weekday} className="bg-white py-2 text-center text-xs font-bold" style={{ color: index === 0 ? T.danger : index === 6 ? T.accent : T.textMuted }}>{weekday}</div>)}
           {reportCalendarCells.map((dateValue, index) => {
             if (!dateValue) return <div key={`report-blank-${index}`} className="min-h-24 bg-white" />;
             const report = reportsByDate[dateValue];
             const future = dateValue > todayStr();
-            const day = new Date(dateValue + "T00:00:00").getDay();
-            const weekend = day === 0 || day === 6;
+            const isTrainingDay = reportTrainingDateSet.has(dateValue);
             const hasComment = !!report?.comments?.length;
             const isToday = dateValue === todayStr();
-            return <button key={dateValue} type="button" disabled={future} onClick={() => editReport({ date: dateValue, report })} className="min-h-24 bg-white p-2 text-left transition enabled:cursor-pointer enabled:hover:brightness-95 disabled:cursor-default" style={isToday ? { boxShadow: `inset 0 0 0 2px ${T.accent}` } : undefined}><div className="flex items-center justify-between"><span className="text-xs font-bold" style={{ color: weekend ? T.textMuted : T.textPrimary }}>{Number(dateValue.slice(-2))}</span>{isToday && <Badge tone="cyan">今日</Badge>}</div>{report ? <div className="mt-2 rounded-lg px-2 py-1.5" style={{ background: T.successSubtle }}><div className="text-[11px] font-bold" style={{ color: T.success }}>提出済み</div>{hasComment && <div className="mt-1 text-[11px] font-bold" style={{ color: T.accentHover }}>コメントあり</div>}</div> : future ? <div className="mt-2 text-[11px]" style={{ color: T.textMuted }}>予定日</div> : weekend ? <div className="mt-2 text-[11px]" style={{ color: T.textMuted }}>休日・作成可</div> : <div className="mt-2 rounded-lg px-2 py-1.5 text-[11px] font-bold" style={{ background: T.warningSubtle, color: T.warning }}>未提出・クリックして作成</div>}</button>;
+            return <button key={dateValue} type="button" disabled={reportWorkdaysLoading || (!report && (future || !isTrainingDay))} onClick={() => report && !isTrainingDay ? setDetailReport(report) : editReport({ date: dateValue, report })} className="min-h-24 bg-white p-2 text-left transition enabled:cursor-pointer enabled:hover:brightness-95 disabled:cursor-default" style={isToday ? { boxShadow: `inset 0 0 0 2px ${T.accent}` } : undefined}><div className="flex items-center justify-between"><span className="text-xs font-bold" style={{ color: isTrainingDay ? T.textPrimary : T.textMuted }}>{Number(dateValue.slice(-2))}</span>{isToday && <Badge tone="cyan">今日</Badge>}</div>{report ? <div className="mt-2 rounded-lg px-2 py-1.5" style={{ background: T.successSubtle }}><div className="text-[11px] font-bold" style={{ color: T.success }}>提出済み{!isTrainingDay ? "（閲覧のみ）" : ""}</div>{hasComment && <div className="mt-1 text-[11px] font-bold" style={{ color: T.accentHover }}>コメントあり</div>}</div> : future && isTrainingDay ? <div className="mt-2 text-[11px]" style={{ color: T.textMuted }}>研修予定日</div> : !isTrainingDay ? <div className="mt-2 text-[11px]" style={{ color: T.textMuted }}>非研修日</div> : <div className="mt-2 rounded-lg px-2 py-1.5 text-[11px] font-bold" style={{ background: T.warningSubtle, color: T.warning }}>研修日・クリックして作成</div>}</button>;
           })}
         </div>
       </Card>}
