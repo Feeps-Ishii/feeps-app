@@ -2474,6 +2474,9 @@ function TraineeAttendance() {
   const [histSort, setHistSort] = useState("desc");
   const [enrolledCourses, setEnrolledCourses] = useState([]);
   const [standardCourseId, setStandardCourseId] = useState("");
+  const [calendarEditDate, setCalendarEditDate] = useState("");
+  const [calendarDraft, setCalendarDraft] = useState({ in: "", out: "", s: "出勤" });
+  const [calendarSaving, setCalendarSaving] = useState(false);
 
   function load() {
     Promise.all([
@@ -2512,6 +2515,20 @@ function TraineeAttendance() {
     const idx = hist.findIndex(h => h.date === row?.date);
     setEIdx(idx);
     setDraft({ ...row });
+  }
+  function openCalendarAttendance(dateValue, row) {
+    if (dateValue > today) return;
+    setCalendarEditDate(dateValue);
+    setCalendarDraft({ in: row?.in || "", out: row?.out || "", s: row?.s || "出勤" });
+  }
+  async function saveCalendarAttendance() {
+    if (!calendarEditDate || !calendarDraft.in || calendarSaving) { if (!calendarDraft.in) setErr("出勤時刻を入力してください。"); return; }
+    setCalendarSaving(true); setErr("");
+    try {
+      await apiPut("/attendance/me", { date: calendarEditDate, clockIn: calendarDraft.in, clockOut: calendarDraft.out, status: calendarDraft.s || "出勤" });
+      emitNotificationRefresh(); setCalendarEditDate(""); load();
+    } catch (e) { setErr("勤怠の保存に失敗しました：" + (e?.message || e)); }
+    finally { setCalendarSaving(false); }
   }
   const visibleHist = hist
     .filter(r => !histMonth || String(r.date || "").startsWith(histMonth))
@@ -2598,7 +2615,7 @@ function TraineeAttendance() {
             const weekend = day === 0 || day === 6;
             const missing = !row && !future && !weekend;
             const isToday = dateValue === today;
-            return <button key={dateValue} type="button" disabled={!row} onClick={() => row && startEdit(row)} className="min-h-24 bg-white p-2 text-left transition enabled:hover:brightness-95" style={isToday ? { boxShadow: `inset 0 0 0 2px ${T.accent}` } : undefined}><div className="flex items-center justify-between"><span className="text-xs font-bold" style={{ color: weekend ? T.textMuted : T.textPrimary }}>{Number(dateValue.slice(-2))}</span>{isToday && <Badge tone="cyan">今日</Badge>}</div>{row ? <div className="mt-2 rounded-lg px-2 py-1.5" style={{ background: T.successSubtle }}><div className="text-[11px] font-bold" style={{ color: T.success }}>登録済み</div><div className="mt-0.5 text-xs" style={{ color: T.textSecondary }}>{row.in || "—"}–{row.out || "—"}</div></div> : missing ? <div className="mt-2 rounded-lg px-2 py-1.5 text-[11px] font-bold" style={{ background: T.warningSubtle, color: T.warning }}>未登録</div> : <div className="mt-2 text-[11px]" style={{ color: T.textMuted }}>{future ? "予定日" : "休日"}</div>}</button>;
+            return <button key={dateValue} type="button" disabled={future} onClick={() => openCalendarAttendance(dateValue, row)} className="min-h-24 bg-white p-2 text-left transition enabled:cursor-pointer enabled:hover:brightness-95 disabled:cursor-default" style={isToday ? { boxShadow: `inset 0 0 0 2px ${T.accent}` } : undefined} aria-label={`${dateValue}の勤怠を${row ? "修正" : "登録"}`}><div className="flex items-center justify-between"><span className="text-xs font-bold" style={{ color: weekend ? T.textMuted : T.textPrimary }}>{Number(dateValue.slice(-2))}</span>{isToday && <Badge tone="cyan">今日</Badge>}</div>{row ? <div className="mt-2 rounded-lg px-2 py-1.5" style={{ background: T.successSubtle }}><div className="text-[11px] font-bold" style={{ color: T.success }}>登録済み</div><div className="mt-0.5 text-xs" style={{ color: T.textSecondary }}>{row.in || "—"}–{row.out || "—"}</div></div> : missing ? <div className="mt-2 rounded-lg px-2 py-1.5 text-[11px] font-bold" style={{ background: T.warningSubtle, color: T.warning }}>未登録・クリックして登録</div> : <div className="mt-2 text-[11px]" style={{ color: T.textMuted }}>{future ? "予定日" : "休日・登録可能"}</div>}</button>;
           })}
         </div>
       </Card>
@@ -2624,6 +2641,10 @@ function TraineeAttendance() {
           )}
         </div>
       ))}</Card>
+      {calendarEditDate && <Modal title={`${calendarEditDate.replace(/-/g, "/")} の勤怠`} desc={attendanceByDate[calendarEditDate] ? "登録済みの時刻を修正できます。" : "出勤・退勤時刻を入力して登録します。"} onClose={() => setCalendarEditDate("")} footer={<><Btn kind="ghost" onClick={() => setCalendarEditDate("")}>キャンセル</Btn><Btn icon={Check} disabled={calendarSaving || !calendarDraft.in} onClick={saveCalendarAttendance}>{calendarSaving ? "保存中…" : attendanceByDate[calendarEditDate] ? "変更を保存" : "勤怠を登録"}</Btn></>}>
+        <div className="grid gap-4 sm:grid-cols-2"><Field label="出勤時刻"><input type="time" value={calendarDraft.in} onChange={e => setCalendarDraft(current => ({ ...current, in: e.target.value }))} className={fieldCls} style={{ border: `1px solid ${T.border}`, color: T.textPrimary, background: "#fff" }} /></Field><Field label="退勤時刻"><input type="time" value={calendarDraft.out} onChange={e => setCalendarDraft(current => ({ ...current, out: e.target.value }))} className={fieldCls} style={{ border: `1px solid ${T.border}`, color: T.textPrimary, background: "#fff" }} /></Field></div>
+        <Field label="勤怠区分"><select value={calendarDraft.s} onChange={e => setCalendarDraft(current => ({ ...current, s: e.target.value }))} className={fieldCls} style={{ border: `1px solid ${T.border}`, color: T.textPrimary, background: "#fff" }}><option value="出勤">出勤</option><option value="遅刻">遅刻</option><option value="早退">早退</option><option value="欠勤">欠勤</option><option value="休暇">休暇</option></select></Field>
+      </Modal>}
     </div>
   );
 }
@@ -3692,6 +3713,9 @@ function Reports({ role }) {
   });
   const traineeMonthDates = datesInMonth(month);
   const reportsByDate = useMemo(() => Object.fromEntries(reports.map(r => [r.rawDate, r])), [reports]);
+  const [reportCalendarYear, reportCalendarMonth] = String(month || monthStr()).split("-").map(Number);
+  const reportCalendarOffset = new Date(reportCalendarYear, reportCalendarMonth - 1, 1).getDay();
+  const reportCalendarCells = [...Array(reportCalendarOffset).fill(null), ...traineeMonthDates];
   const traineeReportRows = traineeMonthDates.map(d => {
     const r = reportsByDate[d];
     return { date: d, report: r, hasComment: !!(r?.comments?.length || r?.rawData?.comment || r?.comment) };
@@ -3825,7 +3849,23 @@ function Reports({ role }) {
             <textarea value={reportFieldValue(draft, field.id)} onChange={e => setDraft(current => REPORT_FIXED_KEYS.has(field.id) ? { ...current, [field.id]: e.target.value } : { ...current, customFields: { ...current.customFields, [field.id]: e.target.value } })} placeholder={field.placeholder} rows={4} className="w-full resize-y rounded-xl px-3 py-3 text-sm leading-relaxed outline-none focus:border-cyan-400" style={{ border: `1px solid ${T.border}`, color: T.textPrimary, minHeight: 108 }} /></div>
         ))}</div>
         <div className="mt-4 flex items-center justify-end gap-3">{saveErr && <span className="text-xs" style={{ color: T.danger }}>{saveErr}</span>}<Btn icon={Send} onClick={submit}>{saving ? "保存中…" : "日報を保存"}</Btn></div></Card>}
-      {canWrite && <Card className="mb-4 p-4">
+      {canWrite && <Card className="mb-6 overflow-hidden">
+        <div className="flex flex-wrap items-center justify-between gap-3 p-4" style={{ borderBottom: `1px solid ${T.border}` }}><div><h3 className="font-bold" style={{ color: T.textPrimary }}>日報カレンダー</h3><p className="text-xs" style={{ color: T.textMuted }}>提出状況とコメントを月単位で確認し、日付を選んで作成・編集できます。</p></div><div className="flex flex-wrap items-center gap-2"><Badge tone="green">提出済み</Badge><Badge tone="amber">未提出</Badge><Badge tone="cyan">コメントあり</Badge><MonthPicker value={month} onChange={setMonth} /></div></div>
+        <div className="grid grid-cols-7" style={{ background: T.border, gap: 1 }}>
+          {WD.map((weekday, index) => <div key={weekday} className="bg-white py-2 text-center text-xs font-bold" style={{ color: index === 0 ? T.danger : index === 6 ? T.accent : T.textMuted }}>{weekday}</div>)}
+          {reportCalendarCells.map((dateValue, index) => {
+            if (!dateValue) return <div key={`report-blank-${index}`} className="min-h-24 bg-white" />;
+            const report = reportsByDate[dateValue];
+            const future = dateValue > todayStr();
+            const day = new Date(dateValue + "T00:00:00").getDay();
+            const weekend = day === 0 || day === 6;
+            const hasComment = !!report?.comments?.length;
+            const isToday = dateValue === todayStr();
+            return <button key={dateValue} type="button" disabled={future} onClick={() => editReport({ date: dateValue, report })} className="min-h-24 bg-white p-2 text-left transition enabled:cursor-pointer enabled:hover:brightness-95 disabled:cursor-default" style={isToday ? { boxShadow: `inset 0 0 0 2px ${T.accent}` } : undefined}><div className="flex items-center justify-between"><span className="text-xs font-bold" style={{ color: weekend ? T.textMuted : T.textPrimary }}>{Number(dateValue.slice(-2))}</span>{isToday && <Badge tone="cyan">今日</Badge>}</div>{report ? <div className="mt-2 rounded-lg px-2 py-1.5" style={{ background: T.successSubtle }}><div className="text-[11px] font-bold" style={{ color: T.success }}>提出済み</div>{hasComment && <div className="mt-1 text-[11px] font-bold" style={{ color: T.accentHover }}>コメントあり</div>}</div> : future ? <div className="mt-2 text-[11px]" style={{ color: T.textMuted }}>予定日</div> : weekend ? <div className="mt-2 text-[11px]" style={{ color: T.textMuted }}>休日・作成可</div> : <div className="mt-2 rounded-lg px-2 py-1.5 text-[11px] font-bold" style={{ background: T.warningSubtle, color: T.warning }}>未提出・クリックして作成</div>}</button>;
+          })}
+        </div>
+      </Card>}
+      {false && canWrite && <Card className="mb-4 p-4">
         <div className="mb-3">
           <h3 className="text-sm font-bold" style={{ color: T.textPrimary }}>月別の日報を検索</h3>
           <p className="text-xs" style={{ color: T.textMuted }}>下の一覧に表示する日報を絞り込みます。</p>
@@ -3847,7 +3887,7 @@ function Reports({ role }) {
           </select>
         </div>
       </Card>}
-      {canWrite && <Card className="mb-6 overflow-hidden">
+      {false && canWrite && <Card className="mb-6 overflow-hidden">
         <div className="flex flex-wrap items-center justify-between gap-3 p-4" style={{ borderBottom: `1px solid ${T.border}` }}>
           <div><h3 className="font-bold" style={{ color: T.textPrimary }}>月別の日報</h3><p className="text-xs" style={{ color: T.textMuted }}>提出済み・未提出・コメント有無を確認し、対象日を選んで編集できます。</p></div>
           <Badge tone="muted">{month.replace("-", "/")}</Badge>
