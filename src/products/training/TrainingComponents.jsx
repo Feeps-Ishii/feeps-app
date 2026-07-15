@@ -1075,7 +1075,7 @@ function Curriculum({ role, go }) {
                                     ))}</div>}
                                   </div>
                                   {sessMids(lesson).length > 0 && <div className="mt-2 flex flex-wrap gap-1.5">{sessMids(lesson).map(mid => materialsById[mid] && <span key={mid} className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs" style={{ background: T.accentSubtle, color: T.accentHover }}><button onClick={() => openMaterialById(mid)} className="inline-flex items-center gap-1"><FileText size={11} />{materialsById[mid].title}</button><button onClick={() => removeMaterial(si, ci, li, mid)}><X size={11} /></button></span>)}</div>}
-                                  <select value="" onChange={e => { addMaterial(si, ci, li, e.target.value); e.target.value = ""; }} className="mt-2 w-full rounded-lg px-3 py-2 text-xs outline-none" style={{ border: `1px solid ${T.border}`, color: T.textMuted, background: "#fff" }}>
+                                  <select value="" onChange={e => { addMaterial(si, ci, li, e.target.value); e.target.value = ""; }} className="mt-2 w-full rounded-xl px-3 py-2 text-xs outline-none" style={{ border: `1px solid ${T.border}`, color: T.textMuted, background: T.bgSurface }}>
                                     <option value="">＋ 資料を追加（任意・複数可）</option>
                                     {materials.filter(m => !sessMids(lesson).includes(m.materialId)).map(m => <option key={m.materialId} value={m.materialId}>{m.title}</option>)}
                                   </select>
@@ -1343,11 +1343,11 @@ function Materials({ role }) {
       <SectionHead title="研修資料" desc={canEdit ? "研修・Eラーニング・継続支援コース単位の資料を管理します" : "あなたの所属コースの資料"}
         action={canEdit && courseId ? (
           <div className="flex flex-wrap items-center justify-end gap-2">
-            <select value={uploadTarget} onChange={e => setUploadTarget(e.target.value)} title="資料を紐づけるカリキュラム" disabled={curriculumLoading} className="max-w-[260px] rounded-lg px-2 py-2 text-xs outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary, background: T.bgSurface }}>
+            <select value={uploadTarget} onChange={e => setUploadTarget(e.target.value)} title="資料を紐づけるカリキュラム" disabled={curriculumLoading} className="max-w-[260px] rounded-xl px-2 py-2 text-xs outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary, background: T.bgSurface }}>
               <option value="course">紐づけ先 — コース共通</option>
               {materialTargetOptions.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}
             </select>
-            <select value={mode} onChange={e => setMode(e.target.value)} title="アップロード時の公開方法" className="rounded-lg px-2 py-2 text-xs outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary, background: "#fff" }}>
+            <select value={mode} onChange={e => setMode(e.target.value)} title="アップロード時の公開方法" className="rounded-xl px-2 py-2 text-xs outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary, background: T.bgSurface }}>
               <option value="view">閲覧可</option><option value="download">DLのみ</option>
             </select>
             <Btn icon={Upload} onClick={() => fileRef.current?.click()}>{uploading ? "アップロード中…" : "ファイルを追加"}</Btn>
@@ -2228,10 +2228,10 @@ function TestBuilder({ back, focus, student, onSaved, initialTest = null, duplic
       {qs.map((item, i) => (
         <Card key={i} className="mb-3 p-5">
           <div className="mb-2 flex flex-wrap items-center gap-2"><span className="font-bold" style={{ color: T.accent }}>Q{i + 1}</span>
-            <select value={item.type || "choice"} onChange={e => editQuestionField(i, "type", e.target.value)} className="rounded-lg px-2 py-1.5 text-xs outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary }}>
+            <select value={item.type || "choice"} onChange={e => editQuestionField(i, "type", e.target.value)} className="rounded-xl px-2 py-1.5 text-xs outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary }}>
               <option value="choice">選択式</option><option value="descriptive">記述式</option><option value="code">コード記述式</option><option value="trueFalse">○×</option><option value="fillBlank">穴埋め</option>
             </select>
-            {(item.type === "descriptive" || item.type === "code") && <select value={answerModeOf(item)} onChange={e => editQuestionField(i, "answerMode", e.target.value)} className="rounded-lg px-2 py-1.5 text-xs outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary }}><option value="explanation">{"\u6587\u7ae0\u56de\u7b54"}</option><option value="exact">{"\u6c7a\u5b9a\u56de\u7b54"}</option><option value="codeExact">{"\u30b3\u30fc\u30c9\u56de\u7b54"}</option></select>}
+            {(item.type === "descriptive" || item.type === "code") && <select value={answerModeOf(item)} onChange={e => editQuestionField(i, "answerMode", e.target.value)} className="rounded-xl px-2 py-1.5 text-xs outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary }}><option value="explanation">{"\u6587\u7ae0\u56de\u7b54"}</option><option value="exact">{"\u6c7a\u5b9a\u56de\u7b54"}</option><option value="codeExact">{"\u30b3\u30fc\u30c9\u56de\u7b54"}</option></select>}
             <input value={item.q} onChange={e => editQ(i, e.target.value)} aria-label={`設問${i + 1}`} className="ff-input flex-1 rounded-lg px-2 py-1.5 text-sm outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary }} />
             <input type="number" min="1" value={item.points || 10} onChange={e => editQuestionField(i, "points", e.target.value)} className="w-20 rounded-lg px-2 py-1.5 text-xs outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary }} />
             <Badge tone="cyan">{item.topic}</Badge></div>
@@ -2910,7 +2910,7 @@ function AttendanceManage({ role }) {
                   <>
                     <input value={draft.in} onChange={e => setDraft({ ...draft, in: e.target.value })} className="w-16 rounded-lg px-1.5 py-1 text-sm outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary }} />
                     <input value={draft.out} onChange={e => setDraft({ ...draft, out: e.target.value })} className="w-16 rounded-lg px-1.5 py-1 text-sm outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary }} />
-                    <select value={draft.s} onChange={e => setDraft({ ...draft, s: e.target.value })} className="w-20 rounded-lg px-1 py-1 text-sm outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary }}>
+                    <select value={draft.s} onChange={e => setDraft({ ...draft, s: e.target.value })} className="w-20 rounded-xl px-1 py-1 text-sm outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary }}>
                       <option>正常</option><option>遅刻</option><option>早退</option><option>欠席</option><option>修正済み</option><option>未完了</option></select>
                     <input value={draft.note} onChange={e => setDraft({ ...draft, note: e.target.value })} placeholder="備考" className="flex-1 rounded-lg px-2 py-1 text-sm outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary }} />
                     <div className="flex w-12 items-center justify-end gap-1"><button onClick={save} className="rounded-lg p-1" style={{ color: T.success }}><Check size={16} /></button><button onClick={() => setEId(null)} className="rounded-lg p-1" style={{ color: T.textMuted }}><X size={15} /></button></div>
@@ -3464,7 +3464,6 @@ function Reports({ role }) {
   const [draft, setDraft] = useState({ morningGoal: "", goalItems: [], learned: "", question: "", nextday: "", reflection: "", blockers: "", tomorrowGoal: "", customFields: {} });
   const [cText, setCText] = useState({});
   const [commenting, setCommenting] = useState(null);
-  const [open, setOpen] = useState(null);
   const [saveErr, setSaveErr] = useState("");
   const [saving, setSaving] = useState(false);
   const [periodMode, setPeriodMode] = useState("日次");
@@ -3474,8 +3473,6 @@ function Reports({ role }) {
   const [monthlyFilter, setMonthlyFilter] = useState("すべて");
   const [reportQuery, setReportQuery] = useState("");
   const [reportStatus, setReportStatus] = useState("すべて");
-  const [reportSubmitFilter, setReportSubmitFilter] = useState("すべて");
-  const [reportCommentFilter, setReportCommentFilter] = useState("すべて");
   const [reportSort, setReportSort] = useState("dateDesc");
   const [editingReportDate, setEditingReportDate] = useState(todayStr());
   const [reportEditState, setReportEditState] = useState("today");
@@ -3636,7 +3633,6 @@ function Reports({ role }) {
       setDraft(today ? draftFromReport(today) : blankReportDraft());
       setEditingReportDate(date);
       setReportEditState("edit");
-      setOpen(date);
     } catch (e) {
       setSaveErr("保存に失敗しました：" + (e?.message || e));
     } finally {
@@ -3792,23 +3788,12 @@ function Reports({ role }) {
   const [reportCalendarYear, reportCalendarMonth] = String(month || monthStr()).split("-").map(Number);
   const reportCalendarOffset = new Date(reportCalendarYear, reportCalendarMonth - 1, 1).getDay();
   const reportCalendarCells = [...Array(reportCalendarOffset).fill(null), ...traineeMonthDates];
-  const traineeReportRows = traineeMonthDates.map(d => {
-    const r = reportsByDate[d];
-    return { date: d, report: r, hasComment: !!(r?.comments?.length || r?.rawData?.comment || r?.comment) };
-  }).filter(row => {
-    const q = reportQuery.trim().toLowerCase();
-    const byQuery = !q || [row.date, row.report?.learned, row.report?.question, row.report?.blockers].some(v => String(v || "").toLowerCase().includes(q));
-    const bySubmit = reportSubmitFilter === "すべて" ? true : reportSubmitFilter === "提出済み" ? !!row.report : !row.report;
-    const byComment = reportCommentFilter === "すべて" ? true : reportCommentFilter === "コメントあり" ? row.hasComment : !!row.report && !row.hasComment;
-    return byQuery && bySubmit && byComment;
-  }).sort((a, b) => reportSort === "dateAsc" ? a.date.localeCompare(b.date) : b.date.localeCompare(a.date));
   function editReport(row) {
     if (!reportTrainingDateSet.has(row.date)) { setSaveErr("非研修日の日報は新規作成・編集できません。"); return; }
     const r = row.report;
     setEditingReportDate(row.date);
     setDraft(r ? draftFromReport(r) : blankReportDraft());
     setReportEditState(r ? "edit" : "create");
-    setOpen(row.date);
     focusReportForm();
   }
   return (
@@ -3962,50 +3947,6 @@ function Reports({ role }) {
           })}
         </div>
       </Card>}
-      {false && canWrite && <Card className="mb-4 p-4">
-        <div className="mb-3">
-          <h3 className="text-sm font-bold" style={{ color: T.textPrimary }}>月別の日報を検索</h3>
-          <p className="text-xs" style={{ color: T.textMuted }}>下の一覧に表示する日報を絞り込みます。</p>
-        </div>
-        <div className="grid gap-3 md:grid-cols-[140px_1fr_150px_170px_150px]">
-          <MonthPicker value={month} onChange={setMonth} />
-          <div className="relative">
-            <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2" style={{ color: T.textMuted }} />
-            <input value={reportQuery} onChange={e => setReportQuery(e.target.value)} placeholder="日付・本文で検索" className="w-full rounded-xl py-2 pl-9 pr-3 text-sm outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary }} />
-          </div>
-          <select value={reportSubmitFilter} onChange={e => setReportSubmitFilter(e.target.value)} className="rounded-xl px-3 py-2 text-sm outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary, background: "#fff" }}>
-            {["すべて", "提出済み", "未提出"].map(v => <option key={v}>{v}</option>)}
-          </select>
-          <select value={reportCommentFilter} onChange={e => setReportCommentFilter(e.target.value)} className="rounded-xl px-3 py-2 text-sm outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary, background: "#fff" }}>
-            {["すべて", "コメントあり", "コメントなし"].map(v => <option key={v}>{v}</option>)}
-          </select>
-          <select value={reportSort} onChange={e => setReportSort(e.target.value)} className="rounded-xl px-3 py-2 text-sm outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary, background: "#fff" }}>
-            <option value="dateDesc">新しい日付順</option><option value="dateAsc">古い日付順</option>
-          </select>
-        </div>
-      </Card>}
-      {false && canWrite && <Card className="mb-6 overflow-hidden">
-        <div className="flex flex-wrap items-center justify-between gap-3 p-4" style={{ borderBottom: `1px solid ${T.border}` }}>
-          <div><h3 className="font-bold" style={{ color: T.textPrimary }}>月別の日報</h3><p className="text-xs" style={{ color: T.textMuted }}>提出済み・未提出・コメント有無を確認し、対象日を選んで編集できます。</p></div>
-          <Badge tone="muted">{month.replace("-", "/")}</Badge>
-        </div>
-        <div className="divide-y" style={{ borderColor: T.border }}>
-          {traineeReportRows.length === 0 ? <div className="px-4 py-8 text-center text-sm" style={{ color: T.textMuted }}>該当データがありません</div> : traineeReportRows.map(row => (
-            <div key={row.date} className="flex flex-wrap items-center justify-between gap-3 px-4 py-3 text-sm">
-              <div className="min-w-0">
-                <div className="font-semibold" style={{ color: T.textPrimary }}>{row.date.replace(/-/g, "/")}</div>
-                <div className="mt-0.5 text-xs" style={{ color: T.textMuted }}>{row.report ? reportSavedLabel(row.report) : "未提出"}</div>
-              </div>
-              <div className="flex flex-wrap items-center gap-2">
-                <Badge tone={row.report ? "green" : "amber"}>{row.report ? "提出済み" : "未提出"}</Badge>
-                <Badge tone={row.hasComment ? "cyan" : "muted"}>{row.hasComment ? "コメントあり" : "コメントなし"}</Badge>
-                {row.report && <Btn size="sm" kind="ghost" icon={Eye} onClick={() => setDetailReport(row.report)}>詳細</Btn>}
-                <Btn size="sm" kind="ghost" icon={Pencil} onClick={() => editReport(row)}>{row.report ? "編集" : "作成"}</Btn>
-              </div>
-            </div>
-          ))}
-        </div>
-      </Card>}
       {detailReport && (
         <Modal title={canWrite ? `${(detailReport.rawDate || detailReport.date || "").replace(/-/g, "/")} の日報` : `${nameMap[detailReport.traineeId] || detailReport.name}さんの日報`} desc={canWrite ? "閲覧専用です。編集する場合は一覧の編集ボタンから開いてください。" : `${(detailReport.rawDate || detailReport.date || "").replace(/-/g, "/")} ・ ${reviewIndex >= 0 ? `${reviewIndex + 1} / ${reviewReports.length}人` : "日報確認"}`} onClose={() => setDetailReport(null)} footer={canWrite ? <Btn kind="ghost" onClick={() => setDetailReport(null)}>閉じる</Btn> : <div className="flex w-full items-center justify-between gap-3"><Btn kind="ghost" icon={ChevronLeft} disabled={reviewIndex <= 0} onClick={() => setDetailReport(reviewReports[reviewIndex - 1])}>前の受講生</Btn><span className="text-xs font-semibold" style={{ color: T.textMuted }}>{reviewIndex >= 0 ? `${reviewIndex + 1} / ${reviewReports.length}` : ""}</span><Btn kind="ghost" icon={ChevronRight} disabled={reviewIndex < 0 || reviewIndex >= reviewReports.length - 1} onClick={() => setDetailReport(reviewReports[reviewIndex + 1])}>次の受講生</Btn></div>} size="lg">
           {(detailReport.morningGoal || detailReport.goalItems?.length) && (
@@ -4072,45 +4013,6 @@ function Reports({ role }) {
               <div><div className="text-sm font-bold" style={{ color: T.textPrimary }}>{nameMap[r.traineeId] || r.name}<span className="ml-2 text-xs font-normal" style={{ color: T.textMuted }}>{companyNameOfReport(r)}</span></div><div className="text-xs" style={{ color: T.textMuted }}>{r.date} の日報 ・ {reportSavedLabel(r)}</div></div></div>
             <div className="flex items-center gap-3">{r.comments.length ? <Badge tone="cyan"><MessageSquare size={12} />{r.comments.length}</Badge> : <Badge tone="amber">未コメント</Badge>}
               <ChevronRight size={16} style={{ color: T.textMuted }} /></div></button>
-          {false && open === r.id && <div className="px-5 pb-5" style={{ borderTop: `1px solid ${T.border}` }}>
-            {(r.morningGoal || r.goalItems?.length) && <div className="mt-4 rounded-xl p-3.5" style={{ background: T.accentSubtle }}>
-              <div className="mb-2 text-xs font-bold" style={{ color: T.accent }}>朝の目標</div>
-              {r.morningGoal && <div className="mb-2 text-sm font-semibold" style={{ color: T.textPrimary }}>{r.morningGoal}</div>}
-              {r.goalItems?.length > 0 && <div className="space-y-1.5">{r.goalItems.map(item => (
-                <div key={item.id || item.text} className="flex items-center gap-2 text-sm" style={{ color: item.done ? T.textMuted : T.textSecondary }}>
-                  {item.done ? <CheckCircle2 size={15} style={{ color: T.success }} /> : <Circle size={15} style={{ color: T.textMuted }} />}
-                  <span style={{ textDecoration: item.done ? "line-through" : "none" }}>{item.text || "目標未入力"}</span>
-                </div>
-              ))}</div>}
-            </div>}
-            <div className="grid gap-3 pt-4 sm:grid-cols-2 lg:grid-cols-3">{reportDetailItems(r, reportFields).map(item => (
-              <div key={item.key} className="rounded-xl p-3.5" style={{ background: T.bgBase }}>
-                <div className="mb-1 text-xs font-bold" style={{ color: T.accent }}>{item.title}</div>
-                <div className="whitespace-pre-wrap text-sm leading-relaxed" style={{ color: item.value ? T.textSecondary : T.textMuted }}>{item.value || "未入力"}</div>
-              </div>
-            ))}</div>
-            <div className="mt-4"><div className="mb-2 text-xs font-bold" style={{ color: T.textMuted }}>フィードバック</div>
-              <div className="space-y-2">{r.comments.map((c, i) => (
-                <div key={i} className="rounded-xl p-3.5" style={{ background: T.accentSubtle }}><div className="mb-1 flex items-center gap-2"><Avatar name={c.by} size={24} />
-                  <span className="text-sm font-semibold" style={{ color: T.textPrimary }}>{c.by}</span><Badge tone={c.tone || reportCommentTone(c.role)}>{c.roleLabel || reportCommentRoleLabel(c.role)}</Badge><span className="ml-auto text-xs" style={{ color: T.textMuted }}>{c.at}</span></div>
-                  <p className="text-sm leading-relaxed" style={{ color: T.textSecondary }}>{c.text}</p></div>
-              ))}{!r.comments.length && <div className="rounded-xl p-3.5 text-sm" style={{ background: T.bgBase, color: T.textMuted }}>まだコメントはありません</div>}</div>
-              {canCommentReport(r) && <div className="mt-3">
-                <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
-                  <div className="flex flex-wrap gap-1.5">
-                    {COMMENT_TEMPLATES.map(tpl => (
-                      <button key={tpl} type="button" onClick={() => setCText({ ...cText, [r.id]: tpl })} className="rounded-full px-2.5 py-1 text-xs font-medium transition hover:opacity-80" style={{ background: T.bgBase, color: T.textSecondary, border: `1px solid ${T.border}` }}>{tpl}</button>
-                    ))}
-                  </div>
-                  <Btn kind="soft" size="sm" icon={Sparkles} onClick={() => aiComment(r.id)}>{aiC.busy ? "生成中…" : "AIで返信案"}</Btn>
-                </div>
-                <div className="flex gap-2">
-                  <input value={cText[r.id] || ""} onChange={e => setCText({ ...cText, [r.id]: e.target.value })} placeholder="コメントを入力…" onKeyDown={e => e.key === "Enter" && addC(r.id)} className="flex-1 rounded-xl px-3 py-2.5 text-sm outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary }} />
-                  <Btn kind="ghost" icon={Send} disabled={commenting === r.id} onClick={() => addC(r.id)}>送信</Btn>
-                  <Btn icon={ChevronRight} disabled={commenting === r.id} onClick={() => addCAndNext(r.id)}>{commenting === r.id ? "送信中…" : "保存して次へ"}</Btn>
-                </div>
-              </div>}
-            </div></div>}
         </Card>
       ))}</div>}
       </>)}
