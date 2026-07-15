@@ -1,6 +1,6 @@
 import React, { useMemo, useState } from "react";
 import { CheckCircle2, Eye, EyeOff, FileQuestion, Pencil, Plus, Save, Search, Settings, Tag, Trash2, X } from "lucide-react";
-import { Badge, Btn, Card, EmptyState, Field, SectionHead, Stat, fieldStyle, T, PRODUCT_ACCENT } from "../../../components/common";
+import { Badge, Btn, Card, EmptyState, Field, SectionHead, SkeletonRows, Stat, fieldStyle, T, PRODUCT_ACCENT } from "../../../components/common";
 import {
   EMPTY_QUIZ_FORM,
   EMPTY_REVIEW_FORM,
@@ -269,6 +269,7 @@ export default function QuizManager() {
     courses,
     lessonsForCourse,
     quizQuestions,
+    quizQuestionsLoading,
     quizQuestionsError,
     quizStats,
     createQuizQuestion,
@@ -380,8 +381,8 @@ export default function QuizManager() {
       <div className="grid gap-3 md:grid-cols-4">
         <Stat icon={FileQuestion} label="問題数" value={quizStats.total} sub="登録済み" tone="green" />
         <Stat icon={Eye} label="公開中" value={quizStats.published} sub="受講者向け" tone="cyan" />
-        <Stat icon={Tag} label="復習問題" value={quizStats.review} sub="review" tone="amber" />
-        <Stat icon={CheckCircle2} label="総合問題" value={quizStats.final} sub="final / ai_final" tone="muted" />
+        <Stat icon={Tag} label="復習問題" value={quizStats.review} sub="復習用" tone="amber" />
+        <Stat icon={CheckCircle2} label="総合問題" value={quizStats.final} sub="修了判定用" tone="muted" />
       </div>
 
       <div className="grid gap-5">
@@ -427,6 +428,8 @@ export default function QuizManager() {
                 />
               ))}
             </div>
+          ) : quizQuestionsLoading ? (
+            <Card className="p-4"><SkeletonRows rows={4} /></Card>
           ) : (
             <EmptyState title="問題がありません" desc="検索条件を変更するか、新規問題を作成してください。" />
           )}
@@ -436,8 +439,8 @@ export default function QuizManager() {
 
       <AdminModal
         open={formOpen}
-        title={editingQuestion ? "Question edit" : "New question"}
-        desc="Question bank data is saved via the Learning admin API."
+        title={editingQuestion ? "問題編集" : "問題新規作成"}
+        desc="確認問題を問題バンクへ登録し、Learning管理APIへ保存します。"
         onClose={closeForm}
         width={820}
       >
@@ -454,20 +457,20 @@ export default function QuizManager() {
 
       <AdminModal
         open={Boolean(deleteTarget)}
-        title="Delete question"
-        desc="Delete this question from the question bank."
+        title="問題を削除"
+        desc="この問題を問題バンクから削除します。"
         onClose={() => setDeleteTarget(null)}
         danger
         width={520}
       >
         <div className="space-y-4">
-          <div className="flex items-start gap-3 rounded-2xl p-4" style={{ background: "#FEE2E2", color: C.red }}>
+          <div className="flex items-start gap-3 rounded-2xl p-4" style={{ background: T.dangerSubtle, color: C.red }}>
             <Trash2 size={18} />
-            <div className="text-sm font-bold">This question will be removed from the question bank.</div>
+            <div className="text-sm font-bold">削除すると問題バンクから取り除かれ、元に戻せません。</div>
           </div>
           <div className="flex flex-wrap justify-end gap-2">
-            <Btn kind="ghost" onClick={() => setDeleteTarget(null)}>Cancel</Btn>
-            <Btn kind="ghost" icon={Trash2} onClick={confirmDelete}>Delete</Btn>
+            <Btn kind="ghost" onClick={() => setDeleteTarget(null)}>キャンセル</Btn>
+            <Btn kind="ghost" icon={Trash2} onClick={confirmDelete}>削除する</Btn>
           </div>
         </div>
       </AdminModal>

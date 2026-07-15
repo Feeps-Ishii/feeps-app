@@ -17,7 +17,7 @@ import {
   Trash2,
   X,
 } from "lucide-react";
-import { Badge, Btn, Card, EmptyState, Field, SectionHead, Stat, fieldStyle, T, PRODUCT_ACCENT } from "../../../components/common";
+import { Badge, Btn, Card, EmptyState, Field, SectionHead, SkeletonRows, Stat, fieldStyle, T, PRODUCT_ACCENT } from "../../../components/common";
 import { EMPTY_LESSON_FORM, LESSON_TYPE_OPTIONS } from "./LearningAdminCatalog.js";
 import { lessonToForm, useLearningAdmin } from "./useLearningAdmin.js";
 import AdminModal from "./AdminModal.jsx";
@@ -248,7 +248,7 @@ export default function LessonManager({ initialCourseId }) {
       <div className="grid gap-3 md:grid-cols-4">
         <Stat icon={BookOpen} label="レッスン数" value={lessons.length} sub="選択コース" tone="green" />
         <Stat icon={Eye} label="公開中" value={publishedCount} sub="受講者に表示" tone="cyan" />
-        <Stat icon={EyeOff} label="非公開" value={lessons.length - publishedCount} sub="準備中" tone="amber" />
+        <Stat icon={EyeOff} label="非公開" value={lessons.length - publishedCount} sub="公開前" tone="amber" />
         <Stat icon={HelpCircle} label="Quiz" value={quizCount} sub="確認テスト" tone="muted" />
       </div>
 
@@ -287,7 +287,7 @@ export default function LessonManager({ initialCourseId }) {
               ))}
             </div>
           ) : coursesLoading ? (
-            <EmptyState title="読み込み中..." desc="コース一覧を取得しています。" />
+            <Card className="p-4"><SkeletonRows rows={4} /></Card>
           ) : (
             <EmptyState
               title={lessons.length ? "レッスンがありません" : "このコースにはまだレッスンがありません"}

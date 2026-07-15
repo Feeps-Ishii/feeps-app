@@ -18,7 +18,7 @@ export default function ProductNavCard({ product = "training", icon: Icon, title
         {Icon && <Icon size={19} strokeWidth={1.8} />}
       </span>
       <span className="min-w-0">
-        <span className="block break-words text-[15px] font-semibold" style={{ color: T.textPrimary }}>{title}</span>
+        <span className="block break-words text-base font-bold" style={{ color: T.textPrimary }}>{title}</span>
         {desc && <span className="mt-0.5 block break-words text-[12.5px] leading-relaxed" style={{ color: T.textMuted }}>{desc}</span>}
       </span>
     </button>

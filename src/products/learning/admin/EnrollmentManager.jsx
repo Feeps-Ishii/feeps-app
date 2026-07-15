@@ -1,6 +1,6 @@
 import React, { useMemo, useState } from "react";
 import { BookOpen, Building2, CheckCircle2, Clock, Eye, Search, Target, User } from "lucide-react";
-import { Badge, Btn, Card, EmptyState, Modal, SectionHead, Stat, fieldStyle, T, PRODUCT_ACCENT } from "../../../components/common";
+import { Badge, Btn, Card, EmptyState, Modal, SectionHead, SkeletonRows, Stat, fieldStyle, T, PRODUCT_ACCENT } from "../../../components/common";
 import { ENROLLMENT_STATUS_OPTIONS } from "./LearningAdminCatalog.js";
 import { useLearningAdmin } from "./useLearningAdmin.js";
 
@@ -261,7 +261,7 @@ export default function EnrollmentManager() {
             ))}
           </div>
         ) : enrollmentsLoading ? (
-          <EmptyState title="読み込み中..." desc="受講状況を取得しています。" />
+          <Card className="p-4"><SkeletonRows rows={5} /></Card>
         ) : (
           <EmptyState
             title={enrollments.length ? "該当する受講状況がありません" : "受講状況データがありません"}

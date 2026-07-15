@@ -21,7 +21,7 @@ import {
   Upload,
   X,
 } from "lucide-react";
-import { Badge, Btn, Card, EmptyState, Field, SectionHead, Stat, fieldStyle, T, PRODUCT_ACCENT } from "../../../components/common";
+import { Badge, Btn, Card, EmptyState, Field, SectionHead, SkeletonRows, Stat, fieldStyle, T, PRODUCT_ACCENT } from "../../../components/common";
 import { EMPTY_MATERIAL_FORM, MATERIAL_TYPE_OPTIONS } from "./LearningAdminCatalog.js";
 import { materialToForm, requestMaterialUploadUrl, uploadMaterialFile, useLearningAdmin } from "./useLearningAdmin.js";
 import AdminModal from "./AdminModal.jsx";
@@ -354,7 +354,7 @@ export default function MaterialManager() {
       <div className="grid gap-3 md:grid-cols-4">
         <Stat icon={File} label="教材数" value={materialStats.total} sub="管理対象" tone="green" />
         <Stat icon={Eye} label="公開中" value={materialStats.published} sub="受講者に表示" tone="cyan" />
-        <Stat icon={EyeOff} label="非公開" value={materialStats.draft} sub="準備中" tone="amber" />
+        <Stat icon={EyeOff} label="非公開" value={materialStats.draft} sub="公開前" tone="amber" />
         <Stat icon={Tag} label="紐づきLesson" value={materialStats.linkedLessons} sub="利用中" tone="muted" />
       </div>
 
@@ -394,7 +394,7 @@ export default function MaterialManager() {
               ))}
             </div>
           ) : materialsLoading ? (
-            <EmptyState title="読み込み中..." desc="教材一覧を取得しています。" />
+            <Card className="p-4"><SkeletonRows rows={4} /></Card>
           ) : (
             <EmptyState
               title={materials.length ? "教材がありません" : "教材がまだ登録されていません"}

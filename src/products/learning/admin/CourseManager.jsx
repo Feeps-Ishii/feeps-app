@@ -1,6 +1,6 @@
 import React, { useMemo, useState } from "react";
 import { BookOpen, Clock, Eye, EyeOff, ListChecks, Pencil, Plus, Save, Search, Tag, Trash2, X } from "lucide-react";
-import { Badge, Btn, Card, EmptyState, Field, SectionHead, Stat, fieldStyle, T, PRODUCT_ACCENT } from "../../../components/common";
+import { Badge, Btn, Card, EmptyState, Field, SectionHead, SkeletonRows, Stat, fieldStyle, T, PRODUCT_ACCENT } from "../../../components/common";
 import { COURSE_CATEGORY_OPTIONS, COURSE_COLOR_OPTIONS, COURSE_LEVEL_OPTIONS, EMPTY_COURSE_FORM } from "./LearningAdminCatalog.js";
 import { courseToForm, useLearningAdmin } from "./useLearningAdmin.js";
 import AdminModal from "./AdminModal.jsx";
@@ -96,7 +96,7 @@ function CourseRow({ course, onEdit, onOpenLessons, onTogglePublish, onDeleteReq
               <span className="inline-flex items-center gap-1"><Tag size={13} />{course.category}</span>
               <span className="inline-flex items-center gap-1"><Clock size={13} />{course.duration}時間</span>
               <span>{course.level}</span>
-              <span>{course.lessons || 0} Lessons</span>
+              <span>レッスン {course.lessons || 0}件</span>
             </div>
             <div className="mt-2 flex flex-wrap gap-1">
               {(course.skills || []).slice(0, 5).map(skill => <Badge key={skill} tone="cyan">{skill}</Badge>)}
@@ -205,7 +205,7 @@ export default function CourseManager({ onOpenLessons = () => {} }) {
       <div className="grid gap-3 md:grid-cols-4">
         <Stat icon={BookOpen} label="総コース" value={stats.total} sub="管理対象" tone="green" />
         <Stat icon={Eye} label="公開中" value={stats.published} sub="受講者に表示" tone="cyan" />
-        <Stat icon={EyeOff} label="非公開" value={stats.privateCount} sub="準備中" tone="amber" />
+        <Stat icon={EyeOff} label="非公開" value={stats.privateCount} sub="公開前" tone="amber" />
         <Stat icon={Tag} label="取得スキル" value={stats.skillCount} sub="ユニーク数" tone="muted" />
       </div>
 
@@ -238,7 +238,7 @@ export default function CourseManager({ onOpenLessons = () => {} }) {
               ))}
             </div>
           ) : coursesLoading ? (
-            <EmptyState title="読み込み中..." desc="コース一覧を取得しています。" />
+            <Card className="p-4"><SkeletonRows rows={4} /></Card>
           ) : (
             <EmptyState
               title={courses.length ? "該当するコースがありません" : "コースがまだ登録されていません"}
@@ -247,38 +247,12 @@ export default function CourseManager({ onOpenLessons = () => {} }) {
           )}
         </div>
 
-        <div className="hidden">
-          {deleteTarget && (
-            <Card className="p-4" style={{ borderColor: "#FCA5A5" }}>
-              <div className="flex items-start gap-3">
-                <div className="rounded-xl p-2" style={{ background: "#FEE2E2", color: C.red }}><Trash2 size={18} /></div>
-                <div>
-                  <div className="text-sm font-bold" style={{ color: C.ink }}>削除確認</div>
-                  <p className="mt-1 text-xs" style={{ color: C.body }}>
-                    「{deleteTarget.title}」を削除する確認UIです。今回はAPI未接続のため、実削除は行いません。
-                  </p>
-                  <div className="mt-3 flex flex-wrap gap-2">
-                    <Btn kind="ghost" size="sm" onClick={() => setDeleteTarget(null)}>キャンセル</Btn>
-                    <Btn kind="ghost" size="sm" disabled>削除API化時に接続</Btn>
-                  </div>
-                </div>
-              </div>
-            </Card>
-          )}
-          <CourseForm
-            mode={editingCourse ? "edit" : "new"}
-            form={form}
-            onChange={setForm}
-            onSubmit={submit}
-            onCancel={startNew}
-          />
-        </div>
       </div>
 
       <AdminModal
         open={formOpen}
-        title={editingCourse ? "Course edit" : "New course"}
-        desc="Course information is saved via the Learning admin API."
+        title={editingCourse ? "コース編集" : "コース新規作成"}
+        desc="受講者向けのコース情報を登録し、Learning管理APIへ保存します。"
         onClose={closeForm}
       >
         <CourseForm
@@ -292,20 +266,20 @@ export default function CourseManager({ onOpenLessons = () => {} }) {
 
       <AdminModal
         open={Boolean(deleteTarget)}
-        title="Delete course"
-        desc={deleteTarget ? `Delete "${deleteTarget.title}" from learner course lists.` : ""}
+        title="コースを削除"
+        desc={deleteTarget ? `「${deleteTarget.title}」を受講者のコース一覧から削除します。` : ""}
         onClose={() => setDeleteTarget(null)}
         danger
         width={520}
       >
         <div className="space-y-4">
-          <div className="flex items-start gap-3 rounded-2xl p-4" style={{ background: "#FEE2E2", color: C.red }}>
+          <div className="flex items-start gap-3 rounded-2xl p-4" style={{ background: T.dangerSubtle, color: C.red }}>
             <Trash2 size={18} />
-            <div className="text-sm font-bold">This action hides the course from learners.</div>
+            <div className="text-sm font-bold">削除すると受講者のコース一覧に表示されなくなります。</div>
           </div>
           <div className="flex flex-wrap justify-end gap-2">
-            <Btn kind="ghost" onClick={() => setDeleteTarget(null)}>Cancel</Btn>
-            <Btn kind="ghost" icon={Trash2} onClick={confirmDelete}>Delete</Btn>
+            <Btn kind="ghost" onClick={() => setDeleteTarget(null)}>キャンセル</Btn>
+            <Btn kind="ghost" icon={Trash2} onClick={confirmDelete}>削除する</Btn>
           </div>
         </div>
       </AdminModal>

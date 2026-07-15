@@ -39,9 +39,9 @@ export function AnalyticsHome({ goSub, themeColor = T.danger }) {
         description="AWS利用料金・月次レポート・リスク分析を一元管理します。研修の運用状況を数値で把握できます。"
       />
       <div className="grid gap-4 md:grid-cols-3">
-        {ANALYTICS_HOME_CARDS.map(({ key, icon, label, desc, ready }, i) => (
+        {ANALYTICS_HOME_CARDS.map(({ key, icon, label, desc }, i) => (
           <ProductNavCard key={key} product="analytics" icon={icon} title={label}
-            desc={ready ? desc : desc + "（準備中）"}
+            desc={desc}
             onClick={() => goSub(key)} delay={650 + i * 60} />
         ))}
       </div>
