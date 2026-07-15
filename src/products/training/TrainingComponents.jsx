@@ -230,12 +230,6 @@ function TraineeHome({ go, done, toggle, goals }) {
   const thDoneTasks = thTaskCards.filter(t => t.done);
   const thNum = { fontVariantNumeric: "tabular-nums" };
 
-  const traineeTestGroups = groupTestsByCurriculum(tests, t => myCourseNames[t.courseId], testCurricula);
-  const orderedTraineeTests = traineeTestGroups.flatMap(group => group.tests);
-  const completedTestCount = orderedTraineeTests.filter(test => test.status === "graded").length;
-  const testProgress = orderedTraineeTests.length ? Math.round(completedTestCount / orderedTraineeTests.length * 100) : 0;
-  const nextTest = orderedTraineeTests.find(test => test.status !== "graded") || null;
-  const nextTestGroup = nextTest ? traineeTestGroups.find(group => group.tests.some(test => testIdOf(test) === testIdOf(nextTest))) : null;
   return (
     <div className="min-w-0 max-w-full overflow-x-hidden">
       {thErr && <div className="mb-4 rounded-lg px-3 py-2 text-xs" style={adminErrStyle}>{thErr}</div>}
@@ -1533,6 +1527,13 @@ function groupTestsByCurriculum(tests, courseNameOf = () => "", curriculaByCours
     return ac - bc || a.order - b.order || a.section.localeCompare(b.section, "ja") || a.lesson.localeCompare(b.lesson, "ja");
   });
 }
+function testGroupUnitTitle(group) {
+  return group.lesson && group.lesson !== "単元全体" ? group.lesson : group.chapter || group.section || "確認テスト";
+}
+function testGroupParentPath(group) {
+  const unit = testGroupUnitTitle(group);
+  return [group.section, group.chapter].filter(value => value && value !== unit && value !== "コース共通テスト");
+}
 function Tests({ role }) {
   const nameMap = useNameMap();
   const [tests, setTests] = useState([]);
@@ -1570,10 +1571,11 @@ function Tests({ role }) {
   // 受講生カードのコース名表示用（opsFilterはtraineeでは無効のため自分のコースだけ取得）
   const [myCourseNames, setMyCourseNames] = useState({});
   const [myTestCourses, setMyTestCourses] = useState([]);
+  const [selectedTestCourseId, setSelectedTestCourseId] = useState("");
   const [testCurricula, setTestCurricula] = useState({});
   useEffect(() => {
     if (role !== "trainee") return;
-    apiGet("/me/courses").then(list => { const courses = list || []; setMyTestCourses(courses); setMyCourseNames(Object.fromEntries(courses.filter(c => c?.courseId && c?.name).map(c => [c.courseId, c.name]))); }).catch(() => {});
+    apiGet("/me/courses").then(list => { const courses = list || []; setMyTestCourses(courses); setSelectedTestCourseId(current => courses.some(course => course.courseId === current) ? current : (courses[0]?.courseId || "")); setMyCourseNames(Object.fromEntries(courses.filter(c => c?.courseId && c?.name).map(c => [c.courseId, c.name]))); }).catch(() => {});
   }, [role]);
   const testCurriculumCourseIds = useMemo(() => {
     const ids = role === "trainee" ? myTestCourses.map(course => course.courseId) : tests.map(test => test.courseId);
@@ -1824,13 +1826,20 @@ function Tests({ role }) {
       )}
     </div>
   );}
+  const selectedCourseTests = selectedTestCourseId ? tests.filter(test => test.courseId === selectedTestCourseId) : tests;
+  const traineeTestGroups = groupTestsByCurriculum(selectedCourseTests, t => myCourseNames[t.courseId], testCurricula);
+  const orderedTraineeTests = traineeTestGroups.flatMap(group => group.tests);
+  const completedTestCount = orderedTraineeTests.filter(test => test.status === "graded").length;
+  const testProgress = orderedTraineeTests.length ? Math.round(completedTestCount / orderedTraineeTests.length * 100) : 0;
+  const nextTest = orderedTraineeTests.find(test => test.status !== "graded") || null;
+  const nextTestGroup = nextTest ? traineeTestGroups.find(group => group.tests.some(test => testIdOf(test) === testIdOf(nextTest))) : null;
   return (
     <div>
-      <SectionHead title="テスト" desc="受験後すぐに得点が表示されます" />
+      <SectionHead title="テスト" desc="受験後すぐに得点が表示されます" action={myTestCourses.length ? <div className="flex items-center gap-2"><span className="text-xs font-semibold" style={{ color: T.textMuted }}>表示するコース</span><select value={selectedTestCourseId} onChange={e => setSelectedTestCourseId(e.target.value)} className="min-w-52 rounded-xl px-3 py-2 text-sm font-semibold outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary, background: "#fff" }}>{myTestCourses.map(course => <option key={course.courseId} value={course.courseId}>{course.name || course.courseId}</option>)}</select></div> : null} />
       {testErr && <div className="mb-4 rounded-lg px-3 py-2 text-xs" style={{ background: T.warningSubtle, color: T.warning }}>{testErr}</div>}
       {tests.length > 0 && <Card className="mb-5 overflow-hidden"><div className="grid gap-5 p-5 lg:grid-cols-[220px_1fr]"><div><div className="flex items-end gap-2"><span className="text-3xl font-bold" style={{ color: T.textPrimary }}>{completedTestCount}</span><span className="pb-1 text-sm font-semibold" style={{ color: T.textMuted }}>/ {orderedTraineeTests.length}件 受験済み</span></div><div className="mt-3 h-2.5 overflow-hidden rounded-full" style={{ background: T.border }}><div className="h-full rounded-full transition-all" style={{ width: `${testProgress}%`, background: T.success }} /></div><div className="mt-2 text-xs font-bold" style={{ color: testProgress === 100 ? T.success : T.accentHover }}>テスト進捗 {testProgress}%</div></div><div className="rounded-xl p-4" style={{ background: nextTest ? T.accentSubtle : T.successSubtle }}><div className="mb-1 flex items-center gap-2 text-xs font-bold" style={{ color: nextTest ? T.accentHover : T.success }}>{nextTest ? <><PlayCircle size={14} />次に受けるテスト</> : <><CheckCircle2 size={14} />公開中のテストはすべて完了</>}</div>{nextTest ? <><div className="font-bold" style={{ color: T.textPrimary }}>{nextTest.title}</div><div className="mt-1 text-xs" style={{ color: T.textMuted }}>{[nextTestGroup?.course, nextTestGroup?.section, nextTestGroup?.chapter, nextTestGroup?.lesson].filter(Boolean).join(" ＞ ")}</div><div className="mt-3"><Btn size="sm" icon={PlayCircle} disabled={!testQuestionsOf(nextTest).length} onClick={() => testQuestionsOf(nextTest).length && setTaking(nextTest)}>このテストを受ける</Btn></div></> : <div className="font-bold" style={{ color: T.textPrimary }}>おつかれさまでした</div>}</div></div></Card>}
       <div className="mb-3 flex items-center gap-2 text-xs font-semibold" style={{ color: T.textMuted }}><GitBranch size={14} /><span>カリキュラムの順番に沿って、上から進めてください</span></div>
-      <div className="space-y-4">{tests.length === 0 ? <Card><EmptyState title="受験できるテストがありません" desc="公開されたテストがあるとここに表示されます。" /></Card> : traineeTestGroups.map(group => <Card key={group.key} className="overflow-hidden"><div className="flex flex-wrap items-center justify-between gap-2 px-4 py-3.5" style={{ background: T.bgBase, borderBottom: `1px solid ${T.border}` }}><div className="flex min-w-0 items-start gap-3"><div className="rounded-lg p-2" style={{ background: T.accentSubtle }}><BookOpen size={17} style={{ color: T.accent }} /></div><div className="min-w-0"><h3 className="text-sm font-bold" style={{ color: T.textPrimary }}>{group.course}</h3><div className="mt-1 flex flex-wrap items-center gap-1 text-xs" style={{ color: T.textMuted }}><span>{group.section}</span>{group.chapter && <><ChevronRight size={12} /><span>{group.chapter}</span></>}<ChevronRight size={12} /><span>{group.lesson}</span></div></div></div><Badge tone={group.tests.every(test => test.status === "graded") ? "green" : "cyan"}>{group.tests.filter(test => test.status === "graded").length} / {group.tests.length} 完了</Badge></div><div>{group.tests.map(t => {
+      <div className="space-y-4">{tests.length === 0 ? <Card><EmptyState title="受験できるテストがありません" desc="公開されたテストがあるとここに表示されます。" /></Card> : traineeTestGroups.map(group => <Card key={group.key} className="overflow-hidden"><div className="flex flex-wrap items-center justify-between gap-2 px-4 py-4" style={{ background: T.bgBase, borderBottom: `1px solid ${T.border}` }}><div className="flex min-w-0 items-start gap-3"><div className="rounded-lg p-2" style={{ background: T.accentSubtle }}><BookOpen size={18} style={{ color: T.accent }} /></div><div className="min-w-0"><div className="mb-1 flex flex-wrap items-center gap-1 text-xs" style={{ color: T.textMuted }}>{testGroupParentPath(group).map((item, index) => <React.Fragment key={`${item}-${index}`}>{index > 0 && <ChevronRight size={12} />}<span>{item}</span></React.Fragment>)}</div><h3 className="text-lg font-bold leading-snug" style={{ color: T.textPrimary }}>{testGroupUnitTitle(group)}</h3></div></div><Badge tone={group.tests.every(test => test.status === "graded") ? "green" : "cyan"}>{group.tests.filter(test => test.status === "graded").length} / {group.tests.length} 完了</Badge></div><div>{group.tests.map(t => {
         const hasQuestions = testQuestionsOf(t).length > 0;
         const sequence = orderedTraineeTests.findIndex(test => testIdOf(test) === testIdOf(t)) + 1;
         const isNext = nextTest && testIdOf(nextTest) === testIdOf(t);
