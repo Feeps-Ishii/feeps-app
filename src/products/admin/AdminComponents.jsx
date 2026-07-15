@@ -9,7 +9,7 @@ import {
   Building2, BookOpen, GraduationCap, Search,
   AlertCircle, ChevronRight, ChevronLeft, ChevronUp, ChevronDown, Trash2,
   Plus, Calendar,
-  X, Pencil, StickyNote,
+  Pencil, StickyNote,
   Check, Filter, Mail,
   ShieldCheck, FileSpreadsheet,
   Gauge, User
@@ -393,6 +393,11 @@ function AdminCompanies() {
       </div>} />
       {msg && <div className="mb-4 rounded-lg px-3 py-2 text-xs" style={adminMsgStyle}>{msg}</div>}
       {err && !open && <div className="mb-4 rounded-lg px-3 py-2 text-xs" style={adminErrStyle}>{err}</div>}
+      <div className="mb-4 grid gap-3 sm:grid-cols-3">
+        <Stat icon={Building2} label="登録企業" value={`${rows.length}社`} tone="cyan" />
+        <Stat icon={StickyNote} label="メモ登録済み" value={`${rows.filter(r => memoOf(r)).length}社`} tone="green" />
+        <Stat icon={AlertCircle} label="メモ未登録" value={`${rows.filter(r => !memoOf(r)).length}社`} tone={rows.some(r => !memoOf(r)) ? "amber" : "muted"} />
+      </div>
       <div>
         <Card className="overflow-hidden">
           <div className={adminToolbarCls} style={{ borderBottom: `1px solid ${T.border}` }}>
@@ -404,7 +409,7 @@ function AdminCompanies() {
             <Btn kind={sort.key === "memo" ? "soft" : "ghost"} size="sm" icon={StickyNote} onClick={() => changeSort("memo")}>メモ <SortMark k="memo" /></Btn>
           </div>
           <div className={adminHeaderCls} style={{ color: T.textMuted, borderBottom: `1px solid ${T.border}` }}>
-            <div className="col-span-7">企業</div><div className="col-span-4">メモ</div><div className="col-span-1 text-right">詳細</div>
+            <div className="col-span-7">企業</div><div className="col-span-4">メモ</div><div className="col-span-1 text-right">操作</div>
           </div>
           {loading ? <SkeletonRows />
             : rows.length === 0 ? <EmptyState title="企業がありません" desc="「企業を追加」から登録できます" />
@@ -415,7 +420,7 @@ function AdminCompanies() {
                 <button key={r.companyId || i} onClick={() => selectCompany(r)} className={adminRowCls} style={{ borderTop: visiblePage.start + i ? `1px solid ${T.border}` : "none", background: active ? T.accentSubtle : "#fff" }}>
                   <div className="flex h-9 w-9 items-center justify-center rounded-xl" style={{ background: active ? "#fff" : T.accentSubtle }}><Building2 size={15} style={{ color: T.accent }} /></div>
                   <div className="min-w-0 flex-1"><div className="text-sm font-semibold" style={{ color: T.textPrimary }}>{r.name}</div>{memoOf(r) && <div className="truncate text-xs" style={{ color: T.textMuted }}>{memoOf(r)}</div>}</div>
-                  <ChevronRight size={16} style={{ color: T.textMuted }} />
+                  <span className="hidden text-xs font-semibold sm:inline" style={{ color: T.accentHover }}>詳細・編集</span><ChevronRight size={16} style={{ color: T.textMuted }} />
                 </button>
               );
             })}
@@ -446,6 +451,7 @@ function AdminCourses({ go }) {
   const [open, setOpen] = useState(false);
   const [form, setForm] = useState({ name: "", kind: "shinjin", description: "" });
   const [q, setQ] = useState("");
+  const [courseFilter, setCourseFilter] = useState("すべて");
   const [sort, setSort] = useState({ key: "name", dir: "asc" });
   const [page, setPage] = useState(1);
   const [selected, setSelected] = useState(null);
@@ -497,15 +503,21 @@ function AdminCourses({ go }) {
   }, [selected?.courseId, calendarMonth]);
   const visibleRows = useMemo(() => {
     const s = q.trim().toLowerCase();
-    const list = rows.filter(r => !s || `${r.name || ""} ${kindLabel(typeOf(r))} ${memoOf(r)}`.toLowerCase().includes(s));
+    const list = rows.filter(r => {
+      const assignedNames = (Array.isArray(r.instructorIds) ? r.instructorIds : []).map(id => instructors.find(x => x.userId === id)?.name || instructors.find(x => x.userId === id)?.email || id).join(" ");
+      const matchesQuery = !s || `${r.name || ""} ${kindLabel(typeOf(r))} ${memoOf(r)} ${assignedNames}`.toLowerCase().includes(s);
+      const matchesFilter = courseFilter === "すべて"
+        || (courseFilter === "担当講師未設定" ? !(r.instructorIds || []).length : kindLabel(typeOf(r)) === courseFilter);
+      return matchesQuery && matchesFilter;
+    });
     const dir = sort.dir === "asc" ? 1 : -1;
     return [...list].sort((a, b) => {
       const av = sort.key === "type" ? kindLabel(typeOf(a)) : a.name || "";
       const bv = sort.key === "type" ? kindLabel(typeOf(b)) : b.name || "";
       return String(av).localeCompare(String(bv), "ja") * dir;
     });
-  }, [rows, q, sort]);
-  useEffect(() => { setPage(1); }, [q, sort.key, sort.dir, rows.length]);
+  }, [rows, q, courseFilter, sort, instructors]);
+  useEffect(() => { setPage(1); }, [q, courseFilter, sort.key, sort.dir, rows.length]);
   const visiblePage = pageSlice(visibleRows, page);
   function changeSort(key) {
     setSort(s => s.key === key ? { key, dir: s.dir === "asc" ? "desc" : "asc" } : { key, dir: "asc" });
@@ -720,6 +732,12 @@ function AdminCourses({ go }) {
       </div>} />
       {msg && <div className="mb-4 rounded-lg px-3 py-2 text-xs" style={adminMsgStyle}>{msg}</div>}
       {err && !open && <div className="mb-4 rounded-lg px-3 py-2 text-xs" style={adminErrStyle}>{err}</div>}
+      <div className="mb-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+        <Stat icon={BookOpen} label="全コース" value={`${rows.length}件`} tone="cyan" />
+        <Stat icon={GraduationCap} label="新人研修" value={`${rows.filter(r => kindLabel(typeOf(r)) === "新人研修").length}件`} tone="green" />
+        <Stat icon={Calendar} label="定常" value={`${rows.filter(r => kindLabel(typeOf(r)) === "定常").length}件`} tone="muted" />
+        <Stat icon={AlertCircle} label="担当講師未設定" value={`${rows.filter(r => !(r.instructorIds || []).length).length}件`} tone={rows.some(r => !(r.instructorIds || []).length) ? "amber" : "green"} />
+      </div>
       <div>
         <Card className="overflow-hidden">
           <div className={adminToolbarCls} style={{ borderBottom: `1px solid ${T.border}` }}>
@@ -727,11 +745,12 @@ function AdminCourses({ go }) {
               <Search size={15} style={{ color: T.textMuted }} />
               <input value={q} onChange={e => setQ(e.target.value)} placeholder="コース名・種別・メモで検索" className="w-full bg-transparent text-sm outline-none" style={{ color: T.textPrimary }} />
             </div>
+            <select value={courseFilter} onChange={e => setCourseFilter(e.target.value)} className="rounded-xl px-3 py-2 text-sm outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary, background: T.bgSurface }}><option>すべて</option><option>新人研修</option><option>定常</option><option>担当講師未設定</option></select>
             <Btn kind={sort.key === "name" ? "soft" : "ghost"} size="sm" icon={Pencil} onClick={() => changeSort("name")}>コース名 <SortMark k="name" /></Btn>
             <Btn kind={sort.key === "type" ? "soft" : "ghost"} size="sm" icon={Filter} onClick={() => changeSort("type")}>種別 <SortMark k="type" /></Btn>
           </div>
           <div className={adminHeaderCls} style={{ color: T.textMuted, borderBottom: `1px solid ${T.border}` }}>
-            <div className="col-span-6">コース</div><div className="col-span-3">種別</div><div className="col-span-2">メモ</div><div className="col-span-1 text-right">詳細</div>
+            <div className="col-span-6">コース</div><div className="col-span-3">種別</div><div className="col-span-2">担当講師</div><div className="col-span-1 text-right">操作</div>
           </div>
           {loading ? <SkeletonRows />
             : rows.length === 0 ? <EmptyState title="コースがありません" desc="「コースを作成」から登録できます" />
@@ -747,7 +766,7 @@ function AdminCourses({ go }) {
                     {memoOf(c) && <div className="mt-0.5 truncate text-xs" style={{ color: T.textMuted }}>{memoOf(c)}</div>}
                     <div className="mt-0.5 truncate text-xs" style={{ color: T.textMuted }}>担当講師: {instructorNames(c.instructorIds)}</div>
                   </div>
-                  <ChevronRight size={16} style={{ color: T.textMuted }} />
+                  <span className="hidden text-xs font-semibold sm:inline" style={{ color: T.accentHover }}>詳細・編集</span><ChevronRight size={16} style={{ color: T.textMuted }} />
                 </button>
               );
             })}
@@ -778,6 +797,7 @@ function AdminUsers() {
   const [open, setOpen] = useState(false);
   const [form, setForm] = useState({ email: "", name: "", role: "trainee", tempPassword: "Feeps#1234", companyId: "", courseId: "" });
   const [q, setQ] = useState("");
+  const [roleFilter, setRoleFilter] = useState("すべて");
   const [sort, setSort] = useState({ key: "name", dir: "asc" });
   const [page, setPage] = useState(1);
   const [selected, setSelected] = useState(null);
@@ -816,15 +836,20 @@ function AdminUsers() {
   useEffect(() => { load(); }, []);
   const visibleUsers = useMemo(() => {
     const s = q.trim().toLowerCase();
-    const list = users.filter(u => !s || `${u.name || ""} ${u.email || ""} ${roleLabel(u.role)}`.toLowerCase().includes(s));
+    const list = users.filter(u => {
+      const company = companies.find(c => c.companyId === u.company)?.name || "";
+      const matchesQuery = !s || `${u.name || ""} ${u.email || ""} ${roleLabel(u.role)} ${company}`.toLowerCase().includes(s);
+      const matchesRole = roleFilter === "すべて" || roleLabel(u.role) === roleFilter;
+      return matchesQuery && matchesRole;
+    });
     const dir = sort.dir === "asc" ? 1 : -1;
     return [...list].sort((a, b) => {
       const av = sort.key === "role" ? roleLabel(a.role) : a[sort.key] || "";
       const bv = sort.key === "role" ? roleLabel(b.role) : b[sort.key] || "";
       return String(av).localeCompare(String(bv), "ja") * dir;
     });
-  }, [users, q, sort]);
-  useEffect(() => { setPage(1); }, [q, sort.key, sort.dir, users.length]);
+  }, [users, q, roleFilter, sort, companies]);
+  useEffect(() => { setPage(1); }, [q, roleFilter, sort.key, sort.dir, users.length]);
   const visiblePage = pageSlice(visibleUsers, page);
   function changeSort(key) {
     setSort(s => s.key === key ? { key, dir: s.dir === "asc" ? "desc" : "asc" } : { key, dir: "asc" });
@@ -970,6 +995,12 @@ function AdminUsers() {
         </div>} />
       {msg && <div className="mb-4 rounded-lg px-3 py-2 text-xs" style={adminMsgStyle}>{msg}</div>}
       {err && !open && <div className="mb-4 rounded-lg px-3 py-2 text-xs" style={adminErrStyle}>{err}</div>}
+      <div className="mb-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+        <Stat icon={Users} label="全ユーザー" value={`${users.length}名`} tone="cyan" />
+        <Stat icon={GraduationCap} label="受講生" value={`${users.filter(u => u.role === "trainee").length}名`} tone="green" />
+        <Stat icon={ShieldCheck} label="運営ロール" value={`${users.filter(u => u.role !== "trainee").length}名`} tone="muted" sub="講師・企業担当者・管理者" />
+        <Stat icon={AlertCircle} label="所属企業未設定" value={`${users.filter(u => !u.company).length}名`} tone={users.some(u => !u.company) ? "amber" : "green"} />
+      </div>
       <div>
         <Card className="overflow-hidden">
           <div className={adminToolbarCls} style={{ borderBottom: `1px solid ${T.border}` }}>
@@ -977,12 +1008,13 @@ function AdminUsers() {
               <Search size={15} style={{ color: T.textMuted }} />
               <input value={q} onChange={e => setQ(e.target.value)} placeholder="氏名・メール・ロールで検索" className="w-full bg-transparent text-sm outline-none" style={{ color: T.textPrimary }} />
             </div>
+            <select value={roleFilter} onChange={e => setRoleFilter(e.target.value)} className="rounded-xl px-3 py-2 text-sm outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary, background: T.bgSurface }}><option>すべて</option>{ROLE_OPTS.map(([, label]) => <option key={label}>{label}</option>)}</select>
             <Btn kind={sort.key === "name" ? "soft" : "ghost"} size="sm" icon={User} onClick={() => changeSort("name")}>氏名 <SortMark k="name" /></Btn>
             <Btn kind={sort.key === "email" ? "soft" : "ghost"} size="sm" icon={Mail} onClick={() => changeSort("email")}>メール <SortMark k="email" /></Btn>
             <Btn kind={sort.key === "role" ? "soft" : "ghost"} size="sm" icon={ShieldCheck} onClick={() => changeSort("role")}>ロール <SortMark k="role" /></Btn>
           </div>
           <div className={adminHeaderCls} style={{ color: T.textMuted, borderBottom: `1px solid ${T.border}` }}>
-            <div className="col-span-6">ユーザー</div><div className="col-span-4">メール</div><div className="col-span-1">ロール</div><div className="col-span-1 text-right">詳細</div>
+            <div className="col-span-6">ユーザー</div><div className="col-span-4">所属企業</div><div className="col-span-1">ロール</div><div className="col-span-1 text-right">操作</div>
           </div>
           {loading ? <SkeletonRows />
             : users.length === 0 ? <div className="px-4 py-8 text-center text-sm" style={{ color: T.textMuted }}>まだユーザーがいません。「ユーザーを追加」から作成できます。</div>
@@ -992,7 +1024,7 @@ function AdminUsers() {
               return (
                 <button key={u.userId || i} onClick={() => selectUser(u)} className={adminRowCls + " justify-between"} style={{ borderTop: visiblePage.start + i ? `1px solid ${T.border}` : "none", background: active ? T.accentSubtle : "#fff" }}>
                   <div className="flex min-w-0 items-center gap-3"><Avatar name={u.name || u.email} /><div className="min-w-0"><div className="truncate text-sm font-semibold" style={{ color: T.textPrimary }}>{u.name || "（氏名未設定）"}</div><div className="truncate text-xs" style={{ color: T.textMuted }}>{u.email}</div></div></div>
-                  <div className="flex shrink-0 items-center gap-2"><Badge tone={roleTone(u.role)}>{roleLabel(u.role)}</Badge><ChevronRight size={16} style={{ color: T.textMuted }} /></div>
+                  <div className="flex shrink-0 items-center gap-2"><span className="hidden max-w-36 truncate text-xs sm:inline" style={{ color: T.textMuted }}>{companyName(u.company)}</span><Badge tone={roleTone(u.role)}>{roleLabel(u.role)}</Badge><span className="hidden text-xs font-semibold lg:inline" style={{ color: T.accentHover }}>詳細・編集</span><ChevronRight size={16} style={{ color: T.textMuted }} /></div>
                 </button>
               );
             })}
@@ -1001,36 +1033,17 @@ function AdminUsers() {
       </div>
 
       {open && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: "rgba(0,0,0,.4)" }} onClick={() => !busy && setOpen(false)}>
-          <div className="w-full max-w-md rounded-2xl p-5" style={{ background: "#fff", border: `1px solid ${T.border}` }} onClick={e => e.stopPropagation()}>
-            <div className="mb-4 flex items-center justify-between">
-              <h3 className="font-bold" style={{ color: T.textPrimary }}>ユーザーを追加</h3>
-              <button onClick={() => setOpen(false)} aria-label="閉じる"><X size={18} style={{ color: T.textMuted }} /></button>
-            </div>
-            <div className="space-y-3">
-              <label className="block"><span className="mb-1 block text-xs font-semibold" style={{ color: T.textMuted }}>メールアドレス</span>
-                <input value={form.email} onChange={e => setForm({ ...form, email: e.target.value })} type="email" placeholder="user@example.com" className="w-full rounded-xl px-3 py-2 text-sm outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary }} /></label>
-              <label className="block"><span className="mb-1 block text-xs font-semibold" style={{ color: T.textMuted }}>氏名</span>
-                <input value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} placeholder="山田 太郎" className="w-full rounded-xl px-3 py-2 text-sm outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary }} /></label>
-              <label className="block"><span className="mb-1 block text-xs font-semibold" style={{ color: T.textMuted }}>ロール</span>
-                <select value={form.role} onChange={e => setForm({ ...form, role: e.target.value })} className="w-full rounded-xl px-3 py-2 text-sm outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary }}>
-                  {ROLE_OPTS.map(([v, l]) => <option key={v} value={v}>{l}</option>)}</select></label>
-              <label className="block"><span className="mb-1 block text-xs font-semibold" style={{ color: T.textMuted }}>所属企業（任意）</span>
-                <select value={form.companyId} onChange={e => setForm({ ...form, companyId: e.target.value })} className="w-full rounded-xl px-3 py-2 text-sm outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary }}>
-                  <option value="">（未選択）</option>{companies.map(c => <option key={c.companyId} value={c.companyId}>{c.name}</option>)}</select></label>
-              {form.role === "trainee" && <label className="block"><span className="mb-1 block text-xs font-semibold" style={{ color: T.textMuted }}>所属コース（任意）</span>
-                <select value={form.courseId} onChange={e => setForm({ ...form, courseId: e.target.value })} className="w-full rounded-xl px-3 py-2 text-sm outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary }}>
-                  <option value="">（未選択）</option>{courses.map(c => <option key={c.courseId} value={c.courseId}>{c.name}（{kindLabel(c.kind)}）</option>)}</select></label>}
-              <label className="block"><span className="mb-1 block text-xs font-semibold" style={{ color: T.textMuted }}>仮パスワード（初回ログイン時に変更されます）</span>
-                <input value={form.tempPassword} onChange={e => setForm({ ...form, tempPassword: e.target.value })} className="w-full rounded-xl px-3 py-2 text-sm outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary }} /></label>
-              {err && <div className="rounded-lg px-3 py-2 text-xs" style={adminErrStyle}>{err}</div>}
-            </div>
-            <div className="mt-5 flex justify-end gap-2">
-              <Btn kind="ghost" onClick={() => setOpen(false)}>キャンセル</Btn>
-              <Btn icon={Check} onClick={create} disabled={busy}>{busy ? "作成中…" : "作成する"}</Btn>
-            </div>
+        <Modal title="ユーザーを追加" desc="ロールと所属を設定して、初回ログイン用アカウントを作成します。" onClose={busy ? undefined : () => setOpen(false)} footer={<><Btn kind="ghost" onClick={() => setOpen(false)} disabled={busy}>キャンセル</Btn><Btn icon={Check} onClick={create} disabled={busy}>{busy ? "作成中…" : "作成する"}</Btn></>}>
+          <div className="space-y-3">
+            <Field label="メールアドレス"><input value={form.email} onChange={e => setForm({ ...form, email: e.target.value })} type="email" placeholder="user@example.com" className={fieldCls} style={{ border: `1px solid ${T.border}`, color: T.textPrimary }} /></Field>
+            <Field label="氏名"><input value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} placeholder="山田 太郎" className={fieldCls} style={{ border: `1px solid ${T.border}`, color: T.textPrimary }} /></Field>
+            <Field label="ロール"><select value={form.role} onChange={e => setForm({ ...form, role: e.target.value })} className={fieldCls} style={{ border: `1px solid ${T.border}`, color: T.textPrimary }}>{ROLE_OPTS.map(([v, l]) => <option key={v} value={v}>{l}</option>)}</select></Field>
+            <Field label="所属企業（任意）"><select value={form.companyId} onChange={e => setForm({ ...form, companyId: e.target.value })} className={fieldCls} style={{ border: `1px solid ${T.border}`, color: T.textPrimary }}><option value="">（未選択）</option>{companies.map(c => <option key={c.companyId} value={c.companyId}>{c.name}</option>)}</select></Field>
+            {form.role === "trainee" && <Field label="所属コース（任意）"><select value={form.courseId} onChange={e => setForm({ ...form, courseId: e.target.value })} className={fieldCls} style={{ border: `1px solid ${T.border}`, color: T.textPrimary }}><option value="">（未選択）</option>{courses.map(c => <option key={c.courseId} value={c.courseId}>{c.name}（{kindLabel(c.kind)}）</option>)}</select></Field>}
+            <Field label="仮パスワード（初回ログイン時に変更）"><input value={form.tempPassword} onChange={e => setForm({ ...form, tempPassword: e.target.value })} className={fieldCls} style={{ border: `1px solid ${T.border}`, color: T.textPrimary }} /></Field>
+            {err && <div className="rounded-lg px-3 py-2 text-xs" style={adminErrStyle}>{err}</div>}
           </div>
-        </div>
+        </Modal>
       )}
     </div>
   );
