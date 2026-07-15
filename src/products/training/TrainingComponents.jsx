@@ -739,6 +739,9 @@ function Curriculum({ role, go }) {
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState("");
   const [err, setErr] = useState("");
+  const [aiExercisePrompts, setAiExercisePrompts] = useState({});
+  const [aiExerciseBusy, setAiExerciseBusy] = useState({});
+  const [aiExerciseErrors, setAiExerciseErrors] = useState({});
   const materialsById = useMemo(() => Object.fromEntries(materials.map(m => [m.materialId, m])), [materials]);
   const selectedCourse = useMemo(() => courses.find(c => c.courseId === courseId) || null, [courses, courseId]);
   const canEdit = role === "admin" || (role === "instructor" && Array.isArray(selectedCourse?.instructorIds) && selectedCourse.instructorIds.includes(currentUserId));
@@ -775,7 +778,7 @@ function Curriculum({ role, go }) {
   function updateLesson(si, ci, li, key, val) {
     setSections(xs => xs.map((s, i) => i !== si ? s : { ...s, chapters: arr(s.chapters).map((c, j) => j !== ci ? c : { ...c, lessons: arr(c.lessons).map((l, k) => k === li ? { ...l, [key]: val } : l) }) }));
   }
-  function addSection() { setSections(xs => [...xs, { id: makeLocalId("section"), title: "", description: "", chapters: [] }]); }
+  function addSection() { setSections(xs => [...xs, { id: makeLocalId("section"), title: "", description: "", unitMode: "lessons", content: "", learningGoals: [], exercises: [], materialIds: [], startDate: "", endDate: "", durationLabel: "", chapters: [] }]); }
   function removeSection(si) { setSections(xs => xs.filter((_, i) => i !== si)); }
   function addChapter(si) { setSections(xs => xs.map((s, i) => i === si ? { ...s, chapters: [...arr(s.chapters), { id: makeLocalId("chapter"), title: "", description: "", lessons: [] }] } : s)); }
   function removeChapter(si, ci) { setSections(xs => xs.map((s, i) => i === si ? { ...s, chapters: arr(s.chapters).filter((_, j) => j !== ci) } : s)); }
@@ -826,6 +829,41 @@ function Curriculum({ role, go }) {
     const lesson = arr(arr(sections[si]?.chapters)[ci]?.lessons)[li] || {};
     updateLesson(si, ci, li, "exercises", arr(lesson.exercises).filter((_, i) => i !== ei));
   }
+  function addSectionExercise(si) {
+    const section = sections[si] || {};
+    updateSection(si, "exercises", [...arr(section.exercises), { id: makeLocalId("exercise"), title: "", type: "hands_on", instructions: "", completionCriteria: "", estimatedMinutes: "" }]);
+  }
+  function updateSectionExercise(si, ei, key, value) {
+    const section = sections[si] || {};
+    updateSection(si, "exercises", arr(section.exercises).map((exercise, i) => i === ei ? { ...exercise, [key]: value } : exercise));
+  }
+  function removeSectionExercise(si, ei) {
+    updateSection(si, "exercises", arr(sections[si]?.exercises).filter((_, i) => i !== ei));
+  }
+  async function generateAiExercises(key, meta, applyExercises) {
+    const request = String(aiExercisePrompts[key] || "").trim();
+    if (!request || aiExerciseBusy[key]) return;
+    setAiExerciseBusy(state => ({ ...state, [key]: true }));
+    setAiExerciseErrors(state => ({ ...state, [key]: "" }));
+    try {
+      const result = await apiPost("/ai/exercises/generate", {
+        courseId,
+        courseName: selectedCourse?.name || "",
+        exerciseCount: 3,
+        request,
+        ...meta,
+      });
+      const generated = arr(result?.exercises).map((exercise, index) => ({ ...normalizeCurriculumExercise(exercise, index), id: makeLocalId("exercise") }));
+      if (!generated.length) throw new Error("演習案が返されませんでした。");
+      applyExercises(generated);
+      setAiExercisePrompts(state => ({ ...state, [key]: "" }));
+      setMsg("AIの演習案を追加しました。内容を確認し、最後にカリキュラムを保存してください。");
+    } catch (e) {
+      setAiExerciseErrors(state => ({ ...state, [key]: e?.errorMessage || e?.message || "AI演習案の生成に失敗しました。" }));
+    } finally {
+      setAiExerciseBusy(state => ({ ...state, [key]: false }));
+    }
+  }
   const exerciseTypeLabel = type => ({ hands_on: "実技", individual: "個人演習", team: "チーム演習", submission: "提出課題" }[type] || "演習");
   const linkedTests = (section, chapter, lesson) => tests.filter(test => {
     if (test.lessonId) return test.lessonId === lesson.id;
@@ -835,10 +873,11 @@ function Curriculum({ role, go }) {
   });
   const curriculumSummary = useMemo(() => {
     const lessons = sections.flatMap(section => arr(section.chapters).flatMap(chapter => arr(chapter.lessons)));
+    const standalone = sections.filter(section => section.unitMode === "section");
     return {
-      lessons: lessons.length,
-      goals: lessons.reduce((sum, lesson) => sum + arr(lesson.learningGoals).length, 0),
-      exercises: lessons.reduce((sum, lesson) => sum + arr(lesson.exercises).length, 0),
+      lessons: lessons.length + standalone.length,
+      goals: lessons.reduce((sum, lesson) => sum + arr(lesson.learningGoals).length, 0) + standalone.reduce((sum, section) => sum + arr(section.learningGoals).length, 0),
+      exercises: lessons.reduce((sum, lesson) => sum + arr(lesson.exercises).length, 0) + standalone.reduce((sum, section) => sum + arr(section.exercises).length, 0),
       tests: tests.length,
     };
   }, [sections, tests]);
@@ -885,6 +924,20 @@ function Curriculum({ role, go }) {
                           <input value={section.description || ""} onChange={e => updateSection(si, "description", e.target.value)} placeholder="大項目の説明" className="rounded-xl px-3 py-2 text-sm outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary }} />
                           <button onClick={() => removeSection(si)} className="rounded-lg px-3 py-2 text-xs font-semibold" style={{ color: T.danger, border: `1px solid ${T.border}` }}>大項目削除</button>
                         </div>
+                        <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl p-3" style={{ background: T.accentSubtle }}><div><div className="text-sm font-bold" style={{ color: T.textPrimary }}>この大項目の構成</div><p className="text-xs" style={{ color: T.textMuted }}>大項目だけで完結する研修か、中・小項目へ分ける研修かを選べます。</p></div><select value={section.unitMode || "lessons"} onChange={e => updateSection(si, "unitMode", e.target.value)} className="rounded-xl bg-white px-3 py-2 text-sm font-semibold outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary }}><option value="lessons">中・小項目に分ける</option><option value="section">大項目を1つの単元にする</option></select></div>
+                        {section.unitMode === "section" ? (
+                          <div className="rounded-xl p-4" style={{ background: T.bgBase, border: `1px solid ${T.border}` }}>
+                            <div className="grid gap-2 md:grid-cols-[1.3fr_1fr_1fr]"><textarea value={section.content || ""} onChange={e => updateSection(si, "content", e.target.value)} rows={2} placeholder="この大項目で学ぶ内容" className="resize-none rounded-xl bg-white px-3 py-2 text-sm outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary }} /><input type="date" value={section.startDate || ""} onChange={e => updateSection(si, "startDate", e.target.value)} className="rounded-xl bg-white px-3 py-2 text-sm outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary }} /><input type="date" value={section.endDate || ""} onChange={e => updateSection(si, "endDate", e.target.value)} className="rounded-xl bg-white px-3 py-2 text-sm outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary }} /></div>
+                            <div className="mt-2 grid gap-2 md:grid-cols-[1fr_220px]"><textarea value={arr(section.learningGoals).join("\n")} onChange={e => updateSection(si, "learningGoals", e.target.value.split("\n").map(v => v.trim()).filter(Boolean))} rows={2} placeholder={"学習目標（1行に1つ）"} className="resize-none rounded-xl bg-white px-3 py-2 text-sm outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary }} /><input value={section.durationLabel || ""} onChange={e => updateSection(si, "durationLabel", e.target.value)} placeholder="期間表示（例：1〜3日目）" className="rounded-xl bg-white px-3 py-2 text-sm outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary }} /></div>
+                            <div className="mt-3 rounded-xl bg-white p-3" style={{ border: `1px solid ${T.border}` }}><div className="mb-2 flex items-center justify-between gap-2"><div className="flex items-center gap-2 text-sm font-bold" style={{ color: T.textPrimary }}><Briefcase size={15} />大項目の演習</div><Btn size="sm" kind="ghost" icon={Plus} onClick={() => addSectionExercise(si)}>演習を追加</Btn></div>
+                              <div className="mb-3 rounded-xl p-3" style={{ background: T.accentSubtle }}><div className="mb-1 flex items-center gap-1.5 text-xs font-bold" style={{ color: T.accentHover }}><Sparkles size={13} />AIに演習案を依頼</div><div className="flex flex-col gap-2 sm:flex-row"><textarea value={aiExercisePrompts[`section:${section.id}`] || ""} onChange={e => setAiExercisePrompts(state => ({ ...state, [`section:${section.id}`]: e.target.value }))} rows={2} placeholder="例：AWS初心者がチームで構成図を作り、発表する演習を3つ考えて" className="min-w-0 flex-1 resize-none rounded-xl bg-white px-3 py-2 text-sm outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary }} /><Btn icon={Sparkles} disabled={!String(aiExercisePrompts[`section:${section.id}`] || "").trim() || aiExerciseBusy[`section:${section.id}`]} onClick={() => generateAiExercises(`section:${section.id}`, { scopeType: "section", sectionTitle: section.title, learningContext: buildLearningContext({ section, lessons: [], materialsById }) }, generated => updateSection(si, "exercises", [...arr(section.exercises), ...generated]))}>{aiExerciseBusy[`section:${section.id}`] ? "生成中…" : "AIで作る"}</Btn></div>{aiExerciseErrors[`section:${section.id}`] && <p className="mt-2 text-xs" style={{ color: T.danger }}>{aiExerciseErrors[`section:${section.id}`]}</p>}</div>
+                              {arr(section.exercises).length === 0 ? <div className="rounded-lg px-3 py-2 text-xs" style={{ background: T.bgBase, color: T.textMuted }}>演習はまだありません。</div> : <div className="space-y-2">{arr(section.exercises).map((exercise, ei) => <div key={exercise.id || ei} className="rounded-xl p-3" style={{ background: T.bgBase }}><div className="grid gap-2 md:grid-cols-[1fr_140px_110px_auto]"><input value={exercise.title || ""} onChange={e => updateSectionExercise(si, ei, "title", e.target.value)} placeholder="演習名" className="rounded-xl bg-white px-3 py-2 text-sm font-semibold outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary }} /><select value={exercise.type || "hands_on"} onChange={e => updateSectionExercise(si, ei, "type", e.target.value)} className="rounded-xl bg-white px-3 py-2 text-sm outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary }}><option value="hands_on">実技</option><option value="individual">個人演習</option><option value="team">チーム演習</option><option value="submission">提出課題</option></select><input type="number" min="0" value={exercise.estimatedMinutes ?? ""} onChange={e => updateSectionExercise(si, ei, "estimatedMinutes", e.target.value === "" ? "" : Number(e.target.value))} placeholder="目安（分）" className="rounded-xl bg-white px-3 py-2 text-sm outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary }} /><button onClick={() => removeSectionExercise(si, ei)} aria-label="演習を削除" style={{ color: T.danger }}><Trash2 size={16} /></button></div><div className="mt-2 grid gap-2 md:grid-cols-2"><textarea value={exercise.instructions || ""} onChange={e => updateSectionExercise(si, ei, "instructions", e.target.value)} rows={2} placeholder="取り組む内容・手順" className="resize-none rounded-xl bg-white px-3 py-2 text-sm outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary }} /><textarea value={exercise.completionCriteria || ""} onChange={e => updateSectionExercise(si, ei, "completionCriteria", e.target.value)} rows={2} placeholder="完了条件・提出物" className="resize-none rounded-xl bg-white px-3 py-2 text-sm outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary }} /></div></div>)}</div>}
+                            </div>
+                            {arr(section.materialIds).length > 0 && <div className="mt-3 flex flex-wrap gap-1.5">{arr(section.materialIds).map(mid => materialsById[mid] && <span key={mid} className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs" style={{ background: T.accentSubtle, color: T.accentHover }}><button onClick={() => openMaterialById(mid)} className="inline-flex items-center gap-1"><FileText size={11} />{materialsById[mid].title}</button><button onClick={() => updateSection(si, "materialIds", arr(section.materialIds).filter(id => id !== mid))}><X size={11} /></button></span>)}</div>}
+                            <select value="" onChange={e => { const id=e.target.value; if(id && !arr(section.materialIds).includes(id)) updateSection(si, "materialIds", [...arr(section.materialIds), id]); e.target.value=""; }} className="mt-2 w-full rounded-xl bg-white px-3 py-2 text-xs outline-none" style={{ border: `1px solid ${T.border}`, color: T.textMuted }}><option value="">＋ 資料を追加</option>{materials.filter(m => !arr(section.materialIds).includes(m.materialId)).map(m => <option key={m.materialId} value={m.materialId}>{m.title}</option>)}</select>
+                            <div className="mt-3 flex flex-wrap items-center gap-2 rounded-xl bg-white px-3 py-2.5" style={{ border: `1px solid ${T.border}` }}><ClipboardCheck size={14} /><span className="text-xs font-bold">確認テスト</span>{linkedTests(section, {}, {}).length ? linkedTests(section, {}, {}).map(test => <Badge key={test.testId || test.id} tone={test.status === "published" ? "green" : "muted"}>{test.title}</Badge>) : <span className="text-xs" style={{ color: T.textMuted }}>未設定</span>}<button type="button" onClick={() => go?.("tests")} className="ml-auto text-xs font-semibold" style={{ color: T.accentHover }}>テスト管理へ <ChevronRight size={13} className="inline" /></button></div>
+                          </div>
+                        ) : <>
                         {arr(section.chapters).map((chapter, ci) => (
                           <div key={chapter.id || ci} className="rounded-xl p-3" style={{ background: T.bgBase, border: `1px solid ${T.border}` }}>
                             <div className="grid gap-2 md:grid-cols-[1fr_1.5fr_auto]">
@@ -915,6 +968,7 @@ function Curriculum({ role, go }) {
                                   </div>
                                   <div className="mt-3 rounded-xl p-3" style={{ border: `1px solid ${T.border}` }}>
                                     <div className="mb-2 flex items-center justify-between gap-3"><div><div className="flex items-center gap-2 text-sm font-bold" style={{ color: T.textPrimary }}><Briefcase size={15} />演習</div><p className="mt-0.5 text-xs" style={{ color: T.textMuted }}>知識を使う課題と、完了の基準を設定します。</p></div><Btn size="sm" kind="ghost" icon={Plus} onClick={() => addExercise(si, ci, li)}>演習を追加</Btn></div>
+                                    <div className="mb-3 rounded-xl p-3" style={{ background: T.accentSubtle }}><div className="mb-1 flex items-center gap-1.5 text-xs font-bold" style={{ color: T.accentHover }}><Sparkles size={13} />AIに演習案を依頼</div><div className="flex flex-col gap-2 sm:flex-row"><textarea value={aiExercisePrompts[`lesson:${lesson.id}`] || ""} onChange={e => setAiExercisePrompts(state => ({ ...state, [`lesson:${lesson.id}`]: e.target.value }))} rows={2} placeholder="例：この単元の理解を確認できる、初心者向けの実技演習を3つ考えて" className="min-w-0 flex-1 resize-none rounded-xl bg-white px-3 py-2 text-sm outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary }} /><Btn icon={Sparkles} disabled={!String(aiExercisePrompts[`lesson:${lesson.id}`] || "").trim() || aiExerciseBusy[`lesson:${lesson.id}`]} onClick={() => generateAiExercises(`lesson:${lesson.id}`, { scopeType: "lesson", sectionTitle: section.title, chapterTitle: chapter.title, lessonTitle: lesson.title, learningContext: buildLearningContext({ section, chapter, lessons: [lesson], materialsById }) }, generated => updateLesson(si, ci, li, "exercises", [...arr(lesson.exercises), ...generated]))}>{aiExerciseBusy[`lesson:${lesson.id}`] ? "生成中…" : "AIで作る"}</Btn></div>{aiExerciseErrors[`lesson:${lesson.id}`] && <p className="mt-2 text-xs" style={{ color: T.danger }}>{aiExerciseErrors[`lesson:${lesson.id}`]}</p>}</div>
                                     {arr(lesson.exercises).length === 0 ? <div className="rounded-lg px-3 py-2 text-xs" style={{ background: T.bgBase, color: T.textMuted }}>演習はまだありません。</div> : <div className="space-y-2">{arr(lesson.exercises).map((exercise, ei) => (
                                       <div key={exercise.id || ei} className="rounded-xl p-3" style={{ background: T.bgBase }}>
                                         <div className="grid gap-2 md:grid-cols-[1fr_140px_110px_auto]">
@@ -940,12 +994,18 @@ function Curriculum({ role, go }) {
                           </div>
                         ))}
                         <button onClick={() => addChapter(si)} className="flex w-full items-center justify-center gap-2 rounded-xl py-2.5 text-sm font-semibold" style={{ border: `1.5px dashed ${T.border}`, color: T.accent }}><Plus size={15} />中項目を追加</button>
+                        </>}
                       </div>
                     ) : (
                       <div>
                         <h3 className="font-bold" style={{ color: T.textPrimary }}>{section.title || "大項目未設定"}</h3>
                         {section.description && <p className="mt-1 text-sm" style={{ color: T.textSecondary }}>{section.description}</p>}
-                        <div className="mt-3 space-y-3">{arr(section.chapters).map(chapter => (
+                        {section.unitMode === "section" ? <div className="mt-3 rounded-xl p-4" style={{ background: T.bgBase }}>
+                          <div className="flex flex-wrap items-start justify-between gap-2">{section.content && <p className="text-sm" style={{ color: T.textSecondary }}>{section.content}</p>}<div className="flex gap-2">{section.durationLabel && <Badge tone="muted">{section.durationLabel}</Badge>}{section.startDate && <Badge tone="cyan">{section.startDate}{section.endDate && section.endDate !== section.startDate ? `〜${section.endDate}` : ""}</Badge>}</div></div>
+                          {arr(section.learningGoals).length > 0 && <div className="mt-3 rounded-xl p-3" style={{ background: T.accentSubtle }}><div className="mb-1 flex items-center gap-1.5 text-xs font-bold" style={{ color: T.accentHover }}><Target size={13} />学習目標</div><ul className="space-y-1">{arr(section.learningGoals).map((goal, gi) => <li key={gi} className="flex gap-2 text-sm" style={{ color: T.textSecondary }}><CheckCircle2 size={14} className="mt-0.5 shrink-0" style={{ color: T.accent }} />{goal}</li>)}</ul></div>}
+                          {arr(section.exercises).length > 0 && <div className="mt-3"><div className="mb-1.5 flex items-center gap-1.5 text-xs font-bold" style={{ color: T.textSecondary }}><Briefcase size={13} />演習</div><div className="space-y-2">{arr(section.exercises).map((exercise, ei) => <div key={exercise.id || ei} className="rounded-xl bg-white p-3"><div className="flex flex-wrap items-center gap-2"><span className="text-sm font-bold" style={{ color: T.textPrimary }}>{exercise.title || `演習${ei + 1}`}</span><Badge tone="cyan">{exerciseTypeLabel(exercise.type)}</Badge>{exercise.estimatedMinutes !== "" && <Badge tone="muted">目安 {exercise.estimatedMinutes}分</Badge>}</div>{exercise.instructions && <p className="mt-1 text-sm" style={{ color: T.textSecondary }}>{exercise.instructions}</p>}{exercise.completionCriteria && <p className="mt-1 text-xs" style={{ color: T.textMuted }}>完了条件: {exercise.completionCriteria}</p>}</div>)}</div></div>}
+                          <div className="mt-3 flex flex-wrap items-center gap-2 border-t pt-3" style={{ borderColor: T.border }}><FileText size={13} /><span className="text-xs" style={{ color: T.textMuted }}>資料 {arr(section.materialIds).length}件</span><ClipboardCheck size={13} className="ml-2" /><span className="text-xs" style={{ color: T.textMuted }}>確認テスト {linkedTests(section, {}, {}).length}件</span>{linkedTests(section, {}, {}).map(test => <Badge key={test.testId || test.id} tone={test.status === "published" ? "green" : "muted"}>{test.title}</Badge>)}</div>
+                        </div> : <div className="mt-3 space-y-3">{arr(section.chapters).map(chapter => (
                           <div key={chapter.id} className="rounded-xl p-3" style={{ background: T.bgBase }}>
                             <div className="font-semibold" style={{ color: T.textPrimary }}>{chapter.title || "中項目未設定"}</div>
                             {arr(chapter.lessons).map(lesson => (
@@ -959,7 +1019,7 @@ function Curriculum({ role, go }) {
                               </div>
                             ))}
                           </div>
-                        ))}</div>
+                        ))}</div>}
                       </div>
                     )}
                   </Card>
@@ -2682,12 +2742,31 @@ function curriculumDisplayTitle(item) {
 }
 const makeLocalId = (prefix) => `${prefix}_${Date.now().toString(36)}${Math.random().toString(36).slice(2, 7)}`;
 const arr = (v) => Array.isArray(v) ? v : [];
+function normalizeCurriculumExercise(exercise, index = 0) {
+  if (typeof exercise === "string") return { id: makeLocalId("exercise"), title: exercise, type: "hands_on", instructions: "", completionCriteria: "", estimatedMinutes: "" };
+  return {
+    id: exercise?.id || makeLocalId("exercise"),
+    title: exercise?.title || `演習${index + 1}`,
+    type: exercise?.type || "hands_on",
+    instructions: exercise?.instructions || exercise?.description || "",
+    completionCriteria: exercise?.completionCriteria || "",
+    estimatedMinutes: exercise?.estimatedMinutes ?? "",
+  };
+}
 function normalizeCurriculumSections(item) {
   if (Array.isArray(item?.sections)) {
     return item.sections.map((section, si) => ({
       id: section.id || makeLocalId("section"),
       title: section.title || section.categoryTitle || `大項目${si + 1}`,
       description: section.description || "",
+      unitMode: section.unitMode === "section" ? "section" : "lessons",
+      content: section.content || "",
+      learningGoals: arr(section.learningGoals).length ? arr(section.learningGoals) : (section.learningGoal ? [section.learningGoal] : []),
+      exercises: arr(section.exercises).map((exercise, ei) => normalizeCurriculumExercise(exercise, ei)),
+      materialIds: arr(section.materialIds).length ? arr(section.materialIds) : (section.materialId ? [section.materialId] : []),
+      startDate: section.startDate || "",
+      endDate: section.endDate || section.startDate || "",
+      durationLabel: section.durationLabel || "",
       chapters: arr(section.chapters).map((chapter, ci) => ({
         id: chapter.id || makeLocalId("chapter"),
         title: chapter.title || chapter.lessonTitle || chapter.name || `中項目${ci + 1}`,
@@ -2698,12 +2777,7 @@ function normalizeCurriculumSections(item) {
           content: lesson.content || "",
           memo: lesson.memo || lesson.lessonMemo || "",
           learningGoals: arr(lesson.learningGoals).length ? arr(lesson.learningGoals) : (lesson.learningGoal ? [lesson.learningGoal] : []),
-          exercises: arr(lesson.exercises).map((exercise, ei) => typeof exercise === "string" ? {
-            id: makeLocalId("exercise"), title: exercise, type: "hands_on", instructions: "", completionCriteria: "", estimatedMinutes: "",
-          } : {
-            id: exercise.id || makeLocalId("exercise"), title: exercise.title || `演習${ei + 1}`, type: exercise.type || "hands_on",
-            instructions: exercise.instructions || exercise.description || "", completionCriteria: exercise.completionCriteria || "", estimatedMinutes: exercise.estimatedMinutes ?? "",
-          }),
+          exercises: arr(lesson.exercises).map((exercise, ei) => normalizeCurriculumExercise(exercise, ei)),
           skills: arr(lesson.skills),
           materialIds: arr(lesson.materialIds).length ? arr(lesson.materialIds) : (lesson.materialId ? [lesson.materialId] : []),
           startDate: lesson.startDate || lesson.date || "",
@@ -2734,12 +2808,7 @@ function normalizeCurriculumSections(item) {
       content: row.content || "",
       memo: row.memo || row.lessonMemo || "",
       learningGoals: arr(row.learningGoals).length ? arr(row.learningGoals) : (row.learningGoal ? [row.learningGoal] : []),
-      exercises: arr(row.exercises).map((exercise, ei) => typeof exercise === "string" ? {
-        id: makeLocalId("exercise"), title: exercise, type: "hands_on", instructions: "", completionCriteria: "", estimatedMinutes: "",
-      } : {
-        id: exercise.id || makeLocalId("exercise"), title: exercise.title || `演習${ei + 1}`, type: exercise.type || "hands_on",
-        instructions: exercise.instructions || exercise.description || "", completionCriteria: exercise.completionCriteria || "", estimatedMinutes: exercise.estimatedMinutes ?? "",
-      }),
+      exercises: arr(row.exercises).map((exercise, ei) => normalizeCurriculumExercise(exercise, ei)),
       skills: arr(row.skills),
       materialIds: arr(row.materialIds).length ? arr(row.materialIds) : (row.materialId ? [row.materialId] : []),
       startDate: row.startDate || row.date || "",
@@ -2750,7 +2819,23 @@ function normalizeCurriculumSections(item) {
   return sections;
 }
 function sessionsFromSections(sections) {
-  return arr(sections).flatMap(section => arr(section.chapters).flatMap(chapter => arr(chapter.lessons).map(lesson => ({
+  return arr(sections).flatMap(section => section.unitMode === "section" ? [{
+    id: section.id,
+    categoryTitle: section.title || "",
+    sectionId: section.id || "",
+    sectionTitle: section.title || "",
+    lessonId: "",
+    lessonTitle: section.title || "",
+    title: section.title || "",
+    content: section.content || section.description || "",
+    learningGoals: arr(section.learningGoals),
+    exercises: arr(section.exercises),
+    materialIds: arr(section.materialIds),
+    startDate: section.startDate || "",
+    endDate: section.endDate || section.startDate || "",
+    durationLabel: section.durationLabel || "",
+    scopeType: "section",
+  }] : arr(section.chapters).flatMap(chapter => arr(chapter.lessons).map(lesson => ({
     id: lesson.id,
     categoryTitle: section.title || "",
     sectionId: section.id || "",
@@ -2816,6 +2901,9 @@ function buildLearningContext({ section, chapter, lessons, materialsById = {} })
   const lines = [];
   if (section?.title) lines.push(`大項目: ${section.title}`);
   if (section?.description) lines.push(`大項目説明: ${section.description}`);
+  if (section?.content) lines.push(`大項目の学習内容: ${section.content}`);
+  if (arr(section?.learningGoals).length) lines.push(`大項目の学習目標: ${arr(section.learningGoals).join(" / ")}`);
+  arr(section?.exercises).forEach((exercise, i) => lines.push(`大項目の既存演習${i + 1}: ${exercise.title || ""} ${exercise.instructions || ""}`.trim()));
   if (chapter?.title) lines.push(`中項目: ${chapter.title}`);
   if (chapter?.description) lines.push(`中項目説明: ${chapter.description}`);
   arr(lessons).forEach((lesson, i) => {
