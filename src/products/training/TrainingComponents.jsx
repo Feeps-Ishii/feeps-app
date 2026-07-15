@@ -743,6 +743,10 @@ function Curriculum({ role, go }) {
   const [aiExerciseBusy, setAiExerciseBusy] = useState({});
   const [aiExerciseErrors, setAiExerciseErrors] = useState({});
   const [expandedExerciseGroups, setExpandedExerciseGroups] = useState({});
+  const [revealedExerciseAnswers, setRevealedExerciseAnswers] = useState({});
+  const [importPreview, setImportPreview] = useState(null);
+  const [importingCurriculum, setImportingCurriculum] = useState(false);
+  const curriculumImportRef = useRef(null);
   const materialsById = useMemo(() => Object.fromEntries(materials.map(m => [m.materialId, m])), [materials]);
   const selectedCourse = useMemo(() => courses.find(c => c.courseId === courseId) || null, [courses, courseId]);
   const canEdit = role === "admin" || (role === "instructor" && Array.isArray(selectedCourse?.instructorIds) && selectedCourse.instructorIds.includes(currentUserId));
@@ -779,12 +783,12 @@ function Curriculum({ role, go }) {
   function updateLesson(si, ci, li, key, val) {
     setSections(xs => xs.map((s, i) => i !== si ? s : { ...s, chapters: arr(s.chapters).map((c, j) => j !== ci ? c : { ...c, lessons: arr(c.lessons).map((l, k) => k === li ? { ...l, [key]: val } : l) }) }));
   }
-  function addSection() { setSections(xs => [...xs, { id: makeLocalId("section"), title: "", description: "", unitMode: "lessons", content: "", learningGoals: [], exercises: [], materialIds: [], startDate: "", endDate: "", durationLabel: "", chapters: [] }]); }
+  function addSection() { setSections(xs => [...xs, { id: makeLocalId("section"), title: "", description: "", unitMode: "lessons", content: "", learningGoals: [], preparationItems: [], exercises: [], materialIds: [], startDate: "", endDate: "", durationLabel: "", chapters: [] }]); }
   function removeSection(si) { setSections(xs => xs.filter((_, i) => i !== si)); }
   function addChapter(si) { setSections(xs => xs.map((s, i) => i === si ? { ...s, chapters: [...arr(s.chapters), { id: makeLocalId("chapter"), title: "", description: "", lessons: [] }] } : s)); }
   function removeChapter(si, ci) { setSections(xs => xs.map((s, i) => i === si ? { ...s, chapters: arr(s.chapters).filter((_, j) => j !== ci) } : s)); }
   function addLesson(si, ci) {
-    setSections(xs => xs.map((s, i) => i !== si ? s : { ...s, chapters: arr(s.chapters).map((c, j) => j === ci ? { ...c, lessons: [...arr(c.lessons), { id: makeLocalId("lesson"), title: "", content: "", memo: "", learningGoals: [], exercises: [], skills: [], materialIds: [], startDate: "", endDate: "", durationLabel: "" }] } : c) }));
+    setSections(xs => xs.map((s, i) => i !== si ? s : { ...s, chapters: arr(s.chapters).map((c, j) => j === ci ? { ...c, lessons: [...arr(c.lessons), { id: makeLocalId("lesson"), title: "", content: "", memo: "", learningGoals: [], preparationItems: [], exercises: [], skills: [], materialIds: [], startDate: "", endDate: "", durationLabel: "" }] } : c) }));
   }
   function removeLesson(si, ci, li) {
     setSections(xs => xs.map((s, i) => i !== si ? s : { ...s, chapters: arr(s.chapters).map((c, j) => j === ci ? { ...c, lessons: arr(c.lessons).filter((_, k) => k !== li) } : c) }));
@@ -820,7 +824,7 @@ function Curriculum({ role, go }) {
   }
   function addExercise(si, ci, li) {
     const lesson = arr(arr(sections[si]?.chapters)[ci]?.lessons)[li] || {};
-    updateLesson(si, ci, li, "exercises", [...arr(lesson.exercises), { id: makeLocalId("exercise"), title: "", type: "hands_on", instructions: "", completionCriteria: "", estimatedMinutes: "" }]);
+    updateLesson(si, ci, li, "exercises", [...arr(lesson.exercises), { id: makeLocalId("exercise"), title: "", type: "hands_on", instructions: "", completionCriteria: "", answerExample: "", estimatedMinutes: "" }]);
   }
   function updateExercise(si, ci, li, ei, key, value) {
     const lesson = arr(arr(sections[si]?.chapters)[ci]?.lessons)[li] || {};
@@ -832,7 +836,7 @@ function Curriculum({ role, go }) {
   }
   function addSectionExercise(si) {
     const section = sections[si] || {};
-    updateSection(si, "exercises", [...arr(section.exercises), { id: makeLocalId("exercise"), title: "", type: "hands_on", instructions: "", completionCriteria: "", estimatedMinutes: "" }]);
+    updateSection(si, "exercises", [...arr(section.exercises), { id: makeLocalId("exercise"), title: "", type: "hands_on", instructions: "", completionCriteria: "", answerExample: "", estimatedMinutes: "" }]);
   }
   function updateSectionExercise(si, ei, key, value) {
     const section = sections[si] || {};
@@ -865,6 +869,54 @@ function Curriculum({ role, go }) {
       setAiExerciseBusy(state => ({ ...state, [key]: false }));
     }
   }
+  async function exportCurriculumTemplate() {
+    try {
+      const XLSX = await import("xlsx");
+      const workbook = XLSX.utils.book_new();
+      const rows = curriculumExcelTemplateRows();
+      const sheet = XLSX.utils.json_to_sheet(rows, { header: CURRICULUM_EXCEL_HEADERS });
+      sheet["!cols"] = CURRICULUM_EXCEL_HEADERS.map(header => ({ wch: Math.max(14, Math.min(34, header.length * 2 + 8)) }));
+      const guide = XLSX.utils.aoa_to_sheet([
+        ["Feeps One カリキュラム一括登録テンプレート"],
+        ["入力方法", "同じ大項目・中項目・Lessonは同じ名称で複数行入力できます。演習を複数登録するときは行を分けてください。"],
+        ["構成", "中・小項目 / 大項目単元 のどちらかを入力します。"],
+        ["複数項目", "学習目標・事前準備はセル内改行、または | 区切りで入力できます。"],
+        ["テスト", "テスト問題は既存のテスト管理で作成し、大項目またはLessonへ紐づけます。"],
+        ["取込", "読み込み後にプレビューを確認し、カリキュラム画面の保存ボタンを押すまでサーバーには反映されません。"],
+      ]);
+      guide["!cols"] = [{ wch: 16 }, { wch: 92 }];
+      XLSX.utils.book_append_sheet(workbook, sheet, "カリキュラム");
+      XLSX.utils.book_append_sheet(workbook, guide, "入力ガイド");
+      XLSX.writeFile(workbook, `カリキュラム登録テンプレート_${safeExcelFilename(selectedCourse?.name || "コース")}.xlsx`);
+    } catch (e) {
+      setErr("Excelテンプレートを作成できませんでした：" + (e?.message || e));
+    }
+  }
+  async function previewCurriculumImport(file) {
+    if (!file) return;
+    setImportingCurriculum(true); setErr("");
+    try {
+      const XLSX = await import("xlsx");
+      const workbook = XLSX.read(await file.arrayBuffer(), { type: "array" });
+      const sheet = workbook.Sheets["カリキュラム"] || workbook.Sheets[workbook.SheetNames[0]];
+      if (!sheet) throw new Error("カリキュラムシートがありません。");
+      const rows = XLSX.utils.sheet_to_json(sheet, { defval: "" });
+      const importedSections = curriculumSectionsFromExcelRows(rows);
+      if (!importedSections.length) throw new Error("大項目が入力された行がありません。");
+      setImportPreview({ fileName: file.name, sections: importedSections, summary: summarizeCurriculumSections(importedSections) });
+    } catch (e) {
+      setErr("Excelを読み込めませんでした：" + (e?.message || e));
+    } finally {
+      setImportingCurriculum(false);
+      if (curriculumImportRef.current) curriculumImportRef.current.value = "";
+    }
+  }
+  function applyCurriculumImport() {
+    if (!importPreview) return;
+    setSections(importPreview.sections);
+    setImportPreview(null);
+    setMsg("Excelの内容を編集画面へ反映しました。内容を確認して「保存」を押してください。");
+  }
   const exerciseTypeLabel = type => ({ hands_on: "実技", individual: "個人演習", team: "チーム演習", submission: "提出課題" }[type] || "演習");
   function renderReadOnlyExercises(exercises, key, background = T.bgSurface) {
     const rows = arr(exercises);
@@ -874,7 +926,16 @@ function Curriculum({ role, go }) {
       <button type="button" aria-expanded={expanded} onClick={() => setExpandedExerciseGroups(state => ({ ...state, [key]: !state[key] }))} className="flex w-full items-center gap-2 px-3 py-2.5 text-left">
         <Briefcase size={14} style={{ color: T.accent }} /><span className="text-sm font-bold" style={{ color: T.textPrimary }}>演習</span><Badge tone="cyan">{rows.length}件</Badge><span className="ml-auto text-xs font-semibold" style={{ color: T.accentHover }}>{expanded ? "閉じる" : "展開する"}</span>{expanded ? <ChevronUp size={15} style={{ color: T.accent }} /> : <ChevronDown size={15} style={{ color: T.accent }} />}
       </button>
-      {expanded && <div className="space-y-2 border-t p-3" style={{ borderColor: T.border }}>{rows.map((exercise, ei) => <div key={exercise.id || ei} className="rounded-xl bg-white p-3" style={{ border: `1px solid ${T.border}` }}><div className="flex flex-wrap items-center gap-2"><span className="text-sm font-bold" style={{ color: T.textPrimary }}>{exercise.title || `演習${ei + 1}`}</span><Badge tone="cyan">{exerciseTypeLabel(exercise.type)}</Badge>{exercise.estimatedMinutes !== "" && <Badge tone="muted">目安 {exercise.estimatedMinutes}分</Badge>}</div>{exercise.instructions && <p className="mt-2 whitespace-pre-line break-words text-sm leading-6" style={{ color: T.textSecondary }}>{formatExerciseDisplayText(exercise.instructions)}</p>}{exercise.completionCriteria && <p className="mt-2 whitespace-pre-line break-words border-t pt-2 text-xs leading-5" style={{ borderColor: T.border, color: T.textMuted }}><span className="font-semibold">完了条件</span>{"\n"}{formatExerciseDisplayText(exercise.completionCriteria)}</p>}</div>)}</div>}
+      {expanded && <div className="space-y-2 border-t p-3" style={{ borderColor: T.border }}>{rows.map((exercise, ei) => {
+        const answerKey = `${key}:${exercise.id || ei}`;
+        const answerVisible = !!revealedExerciseAnswers[answerKey];
+        return <div key={exercise.id || ei} className="rounded-xl bg-white p-3" style={{ border: `1px solid ${T.border}` }}>
+          <div className="flex flex-wrap items-center gap-2"><span className="text-sm font-bold" style={{ color: T.textPrimary }}>{exercise.title || `演習${ei + 1}`}</span><Badge tone="cyan">{exerciseTypeLabel(exercise.type)}</Badge>{exercise.estimatedMinutes !== "" && <Badge tone="muted">目安 {exercise.estimatedMinutes}分</Badge>}</div>
+          {exercise.instructions && <div className="mt-2"><div className="text-[11px] font-bold" style={{ color: T.textMuted }}>問題・取り組む内容</div><p className="mt-1 whitespace-pre-line break-words text-sm leading-6" style={{ color: T.textSecondary }}>{formatExerciseDisplayText(exercise.instructions)}</p></div>}
+          {exercise.completionCriteria && <p className="mt-2 whitespace-pre-line break-words border-t pt-2 text-xs leading-5" style={{ borderColor: T.border, color: T.textMuted }}><span className="font-semibold">完了条件</span>{"\n"}{formatExerciseDisplayText(exercise.completionCriteria)}</p>}
+          {exercise.answerExample && <div className="mt-3"><button type="button" onClick={() => setRevealedExerciseAnswers(state => ({ ...state, [answerKey]: !state[answerKey] }))} className="inline-flex items-center gap-1.5 text-xs font-bold" style={{ color: T.accentHover }}>{answerVisible ? <Eye size={13} /> : <Lock size={13} />}{answerVisible ? "解答例を閉じる" : "解いた後に解答例を確認"}</button>{answerVisible && <div className="mt-2 rounded-xl p-3" style={{ background: T.successSubtle, color: T.textSecondary }}><div className="mb-1 text-xs font-bold" style={{ color: T.success }}>解答例・確認ポイント</div><p className="whitespace-pre-line break-words text-sm leading-6">{formatExerciseDisplayText(exercise.answerExample)}</p></div>}</div>}
+        </div>;
+      })}</div>}
     </div>;
   }
   const linkedTests = (section, chapter, lesson) => tests.filter(test => {
@@ -883,6 +944,12 @@ function Curriculum({ role, go }) {
     if (test.sectionId) return test.sectionId === section.id;
     return test.scopeType === "course" || (!test.scopeType && !test.lessonId && !test.chapterId && !test.sectionId);
   });
+  const todayKey = localDateKey();
+  const todayUnits = useMemo(() => arr(sections).flatMap(section => section.unitMode === "section"
+    ? [{ section, chapter: {}, lesson: section, title: section.title, scope: "section" }]
+    : arr(section.chapters).flatMap(chapter => arr(chapter.lessons).map(lesson => ({ section, chapter, lesson, title: lesson.title, scope: "lesson" }))))
+    .filter(unit => curriculumItemIncludesDate(unit.lesson, todayKey))
+    .map(unit => ({ ...unit, exercises: arr(unit.lesson.exercises), linkedTests: linkedTests(unit.section, unit.chapter, unit.scope === "section" ? {} : unit.lesson) })), [sections, tests, todayKey]);
   const curriculumSummary = useMemo(() => {
     const lessons = sections.flatMap(section => arr(section.chapters).flatMap(chapter => arr(chapter.lessons)));
     const standalone = sections.filter(section => section.unitMode === "section");
@@ -896,8 +963,9 @@ function Curriculum({ role, go }) {
 
   return (
     <div>
-      <SectionHead title="カリキュラム" desc={canEdit ? "単元ごとに学習目標・演習・資料・確認テストをまとめて設計します" : "学ぶこと・取り組む演習・確認テストを単元ごとに確認できます"}
-        action={canEdit && courseId ? <Btn icon={Check} onClick={save}>{busy ? "保存中…" : "保存"}</Btn> : null} />
+      <SectionHead title="カリキュラム" desc={canEdit ? "単元ごとに学習目標・事前準備・演習・資料・確認テストをまとめて設計します" : "全体像と今日の単元、必要な準備・演習・確認テストを確認できます"}
+        action={canEdit && courseId ? <div className="flex flex-wrap justify-end gap-2"><Btn kind="ghost" icon={Download} onClick={exportCurriculumTemplate}>Excelテンプレート</Btn><Btn kind="ghost" icon={FileSpreadsheet} onClick={() => curriculumImportRef.current?.click()} disabled={importingCurriculum}>{importingCurriculum ? "読込中…" : "Excel読込"}</Btn><Btn icon={Check} onClick={save}>{busy ? "保存中…" : "保存"}</Btn></div> : null} />
+      <input ref={curriculumImportRef} type="file" accept=".xlsx,.xls" className="hidden" onChange={e => previewCurriculumImport(e.target.files?.[0])} />
       {msg && <div className="mb-4 rounded-lg px-3 py-2 text-xs" style={{ background: T.successSubtle, color: T.success }}>{msg}</div>}
       {err && <div className="mb-4 rounded-lg px-3 py-2 text-xs" style={{ background: T.dangerSubtle, color: T.danger }}>{err}</div>}
 
@@ -911,6 +979,11 @@ function Curriculum({ role, go }) {
               {courses.map(c => <option key={c.courseId} value={c.courseId}>{c.name}（{kindLabel(c.kind)}）</option>)}
             </select>
           </div>
+
+          {!loading && !canEdit && todayUnits.length > 0 && <Card className="mb-5 overflow-hidden" style={{ border: `1px solid ${T.accent}` }}>
+            <div className="flex flex-wrap items-center justify-between gap-2 px-4 py-3" style={{ background: T.bgBase }}><div><div className="flex items-center gap-2 text-sm font-bold" style={{ color: T.textPrimary }}><Clock size={16} style={{ color: T.accent }} />今日のカリキュラム</div><p className="mt-0.5 text-xs" style={{ color: T.textMuted }}>{todayKey} に取り組む単元です。</p></div><Badge tone="cyan">{todayUnits.length}単元</Badge></div>
+            <div className="divide-y" style={{ borderColor: T.border }}>{todayUnits.map(unit => <div key={`${unit.scope}:${unit.lesson.id}`} className="flex flex-wrap items-center gap-3 px-4 py-3"><div className="min-w-0 flex-1"><div className="text-xs" style={{ color: T.textMuted }}>{unit.section.title}</div><div className="truncate text-sm font-bold" style={{ color: T.textPrimary }}>{unit.title}</div></div>{arr(unit.lesson.preparationItems).length > 0 && <Badge tone="amber">準備 {arr(unit.lesson.preparationItems).length}件</Badge>}{unit.exercises.length > 0 && <Badge tone="cyan">演習 {unit.exercises.length}件</Badge>}{unit.linkedTests.length > 0 && <button type="button" onClick={() => go?.("tests")}><Badge tone="green">テスト {unit.linkedTests.length}件</Badge></button>}</div>)}</div>
+          </Card>}
 
           {!loading && <Card className="mb-5 p-4">
             <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
@@ -928,7 +1001,7 @@ function Curriculum({ role, go }) {
             : (
               <div className="space-y-4">
                 {sections.map((section, si) => (
-                  <Card key={section.id || si} className="p-4">
+                  <Card key={section.id || si} className="p-4" style={!canEdit && curriculumSectionIncludesDate(section, todayKey) ? { border: `1px solid ${T.accent}`, boxShadow: `0 0 0 2px ${T.accentSubtle}` } : undefined}>
                     {canEdit ? (
                       <div className="space-y-4">
                         <div className="grid gap-2 md:grid-cols-[1fr_1.5fr_auto]">
@@ -941,9 +1014,10 @@ function Curriculum({ role, go }) {
                           <div className="rounded-xl p-4" style={{ background: T.bgBase, border: `1px solid ${T.border}` }}>
                             <div className="grid gap-2 md:grid-cols-[1.3fr_1fr_1fr]"><textarea value={section.content || ""} onChange={e => updateSection(si, "content", e.target.value)} rows={2} placeholder="この大項目で学ぶ内容" className="resize-none rounded-xl bg-white px-3 py-2 text-sm outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary }} /><input type="date" value={section.startDate || ""} onChange={e => updateSection(si, "startDate", e.target.value)} className="rounded-xl bg-white px-3 py-2 text-sm outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary }} /><input type="date" value={section.endDate || ""} onChange={e => updateSection(si, "endDate", e.target.value)} className="rounded-xl bg-white px-3 py-2 text-sm outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary }} /></div>
                             <div className="mt-2 grid gap-2 md:grid-cols-[1fr_220px]"><textarea value={arr(section.learningGoals).join("\n")} onChange={e => updateSection(si, "learningGoals", e.target.value.split("\n").map(v => v.trim()).filter(Boolean))} rows={2} placeholder={"学習目標（1行に1つ）"} className="resize-none rounded-xl bg-white px-3 py-2 text-sm outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary }} /><input value={section.durationLabel || ""} onChange={e => updateSection(si, "durationLabel", e.target.value)} placeholder="期間表示（例：1〜3日目）" className="rounded-xl bg-white px-3 py-2 text-sm outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary }} /></div>
+                            <div className="mt-2 rounded-xl bg-white p-3" style={{ border: `1px solid ${T.border}` }}><label className="mb-1 flex items-center gap-2 text-xs font-bold" style={{ color: T.warning }}><AlertCircle size={14} />事前に用意・実施してほしいこと</label><textarea value={arr(section.preparationItems).join("\n")} onChange={e => updateSection(si, "preparationItems", splitCurriculumList(e.target.value))} rows={2} placeholder={"1行に1つ入力 例:\n研修開始前にAWSアカウントへログインできることを確認する"} className="w-full resize-none rounded-xl px-3 py-2 text-sm outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary }} /></div>
                             <div className="mt-3 rounded-xl bg-white p-3" style={{ border: `1px solid ${T.border}` }}><div className="mb-2 flex items-center justify-between gap-2"><div className="flex items-center gap-2 text-sm font-bold" style={{ color: T.textPrimary }}><Briefcase size={15} />大項目の演習</div><Btn size="sm" kind="ghost" icon={Plus} onClick={() => addSectionExercise(si)}>演習を追加</Btn></div>
                               <div className="mb-3 rounded-xl p-3" style={{ background: T.accentSubtle }}><div className="mb-1 flex items-center gap-1.5 text-xs font-bold" style={{ color: T.accentHover }}><Sparkles size={13} />AIに演習案を依頼</div><div className="flex flex-col gap-2 sm:flex-row"><textarea value={aiExercisePrompts[`section:${section.id}`] || ""} onChange={e => setAiExercisePrompts(state => ({ ...state, [`section:${section.id}`]: e.target.value }))} rows={2} placeholder="例：AWS初心者がチームで構成図を作り、発表する演習を3つ考えて" className="min-w-0 flex-1 resize-none rounded-xl bg-white px-3 py-2 text-sm outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary }} /><Btn icon={Sparkles} disabled={!String(aiExercisePrompts[`section:${section.id}`] || "").trim() || aiExerciseBusy[`section:${section.id}`]} onClick={() => generateAiExercises(`section:${section.id}`, { scopeType: "section", sectionTitle: section.title, learningContext: buildLearningContext({ section, lessons: [], materialsById }) }, generated => updateSection(si, "exercises", [...arr(section.exercises), ...generated]))}>{aiExerciseBusy[`section:${section.id}`] ? "生成中…" : "AIで作る"}</Btn></div>{aiExerciseErrors[`section:${section.id}`] && <p className="mt-2 text-xs" style={{ color: T.danger }}>{aiExerciseErrors[`section:${section.id}`]}</p>}</div>
-                              {arr(section.exercises).length === 0 ? <div className="rounded-lg px-3 py-2 text-xs" style={{ background: T.bgBase, color: T.textMuted }}>演習はまだありません。</div> : <div className="space-y-2">{arr(section.exercises).map((exercise, ei) => <div key={exercise.id || ei} className="rounded-xl p-3" style={{ background: T.bgBase }}><div className="grid gap-2 md:grid-cols-[1fr_140px_110px_auto]"><input value={exercise.title || ""} onChange={e => updateSectionExercise(si, ei, "title", e.target.value)} placeholder="演習名" className="rounded-xl bg-white px-3 py-2 text-sm font-semibold outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary }} /><select value={exercise.type || "hands_on"} onChange={e => updateSectionExercise(si, ei, "type", e.target.value)} className="rounded-xl bg-white px-3 py-2 text-sm outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary }}><option value="hands_on">実技</option><option value="individual">個人演習</option><option value="team">チーム演習</option><option value="submission">提出課題</option></select><input type="number" min="0" value={exercise.estimatedMinutes ?? ""} onChange={e => updateSectionExercise(si, ei, "estimatedMinutes", e.target.value === "" ? "" : Number(e.target.value))} placeholder="目安（分）" className="rounded-xl bg-white px-3 py-2 text-sm outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary }} /><button onClick={() => removeSectionExercise(si, ei)} aria-label="演習を削除" style={{ color: T.danger }}><Trash2 size={16} /></button></div><div className="mt-2 grid gap-2 md:grid-cols-2"><textarea value={exercise.instructions || ""} onChange={e => updateSectionExercise(si, ei, "instructions", e.target.value)} rows={2} placeholder="取り組む内容・手順" className="resize-none rounded-xl bg-white px-3 py-2 text-sm outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary }} /><textarea value={exercise.completionCriteria || ""} onChange={e => updateSectionExercise(si, ei, "completionCriteria", e.target.value)} rows={2} placeholder="完了条件・提出物" className="resize-none rounded-xl bg-white px-3 py-2 text-sm outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary }} /></div></div>)}</div>}
+                              {arr(section.exercises).length === 0 ? <div className="rounded-lg px-3 py-2 text-xs" style={{ background: T.bgBase, color: T.textMuted }}>演習はまだありません。</div> : <div className="space-y-2">{arr(section.exercises).map((exercise, ei) => <div key={exercise.id || ei} className="rounded-xl p-3" style={{ background: T.bgBase }}><div className="grid gap-2 md:grid-cols-[1fr_140px_110px_auto]"><input value={exercise.title || ""} onChange={e => updateSectionExercise(si, ei, "title", e.target.value)} placeholder="演習名" className="rounded-xl bg-white px-3 py-2 text-sm font-semibold outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary }} /><select value={exercise.type || "hands_on"} onChange={e => updateSectionExercise(si, ei, "type", e.target.value)} className="rounded-xl bg-white px-3 py-2 text-sm outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary }}><option value="hands_on">実技</option><option value="individual">個人演習</option><option value="team">チーム演習</option><option value="submission">提出課題</option></select><input type="number" min="0" value={exercise.estimatedMinutes ?? ""} onChange={e => updateSectionExercise(si, ei, "estimatedMinutes", e.target.value === "" ? "" : Number(e.target.value))} placeholder="目安（分）" className="rounded-xl bg-white px-3 py-2 text-sm outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary }} /><button onClick={() => removeSectionExercise(si, ei)} aria-label="演習を削除" style={{ color: T.danger }}><Trash2 size={16} /></button></div><div className="mt-2 grid gap-2 md:grid-cols-2"><textarea value={exercise.instructions || ""} onChange={e => updateSectionExercise(si, ei, "instructions", e.target.value)} rows={2} placeholder="問題・取り組む内容・手順" className="resize-none rounded-xl bg-white px-3 py-2 text-sm outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary }} /><textarea value={exercise.completionCriteria || ""} onChange={e => updateSectionExercise(si, ei, "completionCriteria", e.target.value)} rows={2} placeholder="完了条件・提出物" className="resize-none rounded-xl bg-white px-3 py-2 text-sm outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary }} /></div><textarea value={exercise.answerExample || ""} onChange={e => updateSectionExercise(si, ei, "answerExample", e.target.value)} rows={2} placeholder="解答例・確認ポイント（受講生はボタンを押すまで非表示）" className="mt-2 w-full resize-none rounded-xl bg-white px-3 py-2 text-sm outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary }} /></div>)}</div>}
                             </div>
                             {arr(section.materialIds).length > 0 && <div className="mt-3 flex flex-wrap gap-1.5">{arr(section.materialIds).map(mid => materialsById[mid] && <span key={mid} className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs" style={{ background: T.accentSubtle, color: T.accentHover }}><button onClick={() => openMaterialById(mid)} className="inline-flex items-center gap-1"><FileText size={11} />{materialsById[mid].title}</button><button onClick={() => updateSection(si, "materialIds", arr(section.materialIds).filter(id => id !== mid))}><X size={11} /></button></span>)}</div>}
                             <select value="" onChange={e => { const id=e.target.value; if(id && !arr(section.materialIds).includes(id)) updateSection(si, "materialIds", [...arr(section.materialIds), id]); e.target.value=""; }} className="mt-2 w-full rounded-xl bg-white px-3 py-2 text-xs outline-none" style={{ border: `1px solid ${T.border}`, color: T.textMuted }}><option value="">＋ 資料を追加</option>{materials.filter(m => !arr(section.materialIds).includes(m.materialId)).map(m => <option key={m.materialId} value={m.materialId}>{m.title}</option>)}</select>
@@ -980,6 +1054,7 @@ function Curriculum({ role, go }) {
                                     <label className="mb-1 flex items-center gap-2 text-xs font-bold" style={{ color: T.accentHover }}><Target size={14} />この単元の学習目標</label>
                                     <textarea value={arr(lesson.learningGoals).join("\n")} onChange={e => updateLesson(si, ci, li, "learningGoals", e.target.value.split("\n").map(v => v.trim()).filter(Boolean))} rows={2} placeholder={"1行に1つ入力 例:\n基本構文を使って処理を実装できる"} className="w-full resize-none rounded-xl bg-white px-3 py-2 text-sm outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary }} />
                                   </div>
+                                  <div className="mt-2 rounded-xl p-3" style={{ background: T.warningSubtle, border: `1px solid ${T.border}` }}><label className="mb-1 flex items-center gap-2 text-xs font-bold" style={{ color: T.warning }}><AlertCircle size={14} />このLessonまでに用意・実施してほしいこと</label><textarea value={arr(lesson.preparationItems).join("\n")} onChange={e => updateLesson(si, ci, li, "preparationItems", splitCurriculumList(e.target.value))} rows={2} placeholder={"1行に1つ入力 例:\nVS CodeとJava 21をインストールする"} className="w-full resize-none rounded-xl bg-white px-3 py-2 text-sm outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary }} /></div>
                                   <div className="mt-2 grid gap-2 md:grid-cols-2">
                                     <input value={arr(lesson.skills).join(", ")} onChange={e => updateLesson(si, ci, li, "skills", e.target.value.split(",").map(v => v.trim()).filter(Boolean))} placeholder="身につくスキル（カンマ区切り）" className="rounded-xl px-3 py-2 text-sm outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary }} />
                                     <input value={lesson.durationLabel || ""} onChange={e => updateLesson(si, ci, li, "durationLabel", e.target.value)} placeholder="期間表示（例：3日目）" className="rounded-xl px-3 py-2 text-sm outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary }} />
@@ -995,7 +1070,7 @@ function Curriculum({ role, go }) {
                                           <input type="number" min="0" value={exercise.estimatedMinutes ?? ""} onChange={e => updateExercise(si, ci, li, ei, "estimatedMinutes", e.target.value === "" ? "" : Number(e.target.value))} placeholder="目安（分）" className="rounded-xl bg-white px-3 py-2 text-sm outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary }} />
                                           <button onClick={() => removeExercise(si, ci, li, ei)} className="rounded-lg px-2 py-2" aria-label="演習を削除" style={{ color: T.danger }}><Trash2 size={16} /></button>
                                         </div>
-                                        <div className="mt-2 grid gap-2 md:grid-cols-2"><textarea value={exercise.instructions || ""} onChange={e => updateExercise(si, ci, li, ei, "instructions", e.target.value)} rows={2} placeholder="取り組む内容・手順" className="resize-none rounded-xl bg-white px-3 py-2 text-sm outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary }} /><textarea value={exercise.completionCriteria || ""} onChange={e => updateExercise(si, ci, li, ei, "completionCriteria", e.target.value)} rows={2} placeholder="完了条件・提出物" className="resize-none rounded-xl bg-white px-3 py-2 text-sm outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary }} /></div>
+                                        <div className="mt-2 grid gap-2 md:grid-cols-2"><textarea value={exercise.instructions || ""} onChange={e => updateExercise(si, ci, li, ei, "instructions", e.target.value)} rows={2} placeholder="問題・取り組む内容・手順" className="resize-none rounded-xl bg-white px-3 py-2 text-sm outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary }} /><textarea value={exercise.completionCriteria || ""} onChange={e => updateExercise(si, ci, li, ei, "completionCriteria", e.target.value)} rows={2} placeholder="完了条件・提出物" className="resize-none rounded-xl bg-white px-3 py-2 text-sm outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary }} /></div><textarea value={exercise.answerExample || ""} onChange={e => updateExercise(si, ci, li, ei, "answerExample", e.target.value)} rows={2} placeholder="解答例・確認ポイント（受講生はボタンを押すまで非表示）" className="mt-2 w-full resize-none rounded-xl bg-white px-3 py-2 text-sm outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary }} />
                                       </div>
                                     ))}</div>}
                                   </div>
@@ -1018,26 +1093,28 @@ function Curriculum({ role, go }) {
                       <div>
                         <div className="rounded-xl p-4 shadow-sm" style={{ background: T.bgSurface, border: `1px solid ${T.border}`, borderLeft: `4px solid ${T.accent}` }}>
                           <div className="text-[11px] font-bold tracking-wide" style={{ color: T.accentHover }}>大項目</div>
-                          <h3 className="mt-1 text-lg font-bold" style={{ color: T.textPrimary }}>{section.title || "大項目未設定"}</h3>
+                          <div className="mt-1 flex flex-wrap items-center gap-2"><h3 className="text-lg font-bold" style={{ color: T.textPrimary }}>{section.title || "大項目未設定"}</h3>{curriculumSectionIncludesDate(section, todayKey) && <Badge tone="cyan">今日</Badge>}</div>
                           {section.description && <p className="mt-2 whitespace-pre-line text-sm leading-6" style={{ color: T.textSecondary }}>{section.description}</p>}
                           {arr(section.materialIds).length > 0 && <div className="mt-3"><div className="mb-2 flex items-center gap-1.5 text-xs font-bold" style={{ color: T.accentHover }}><FileText size={13} />この大項目の資料</div><div className="flex flex-wrap gap-2">{arr(section.materialIds).map(mid => materialsById[mid] && <button key={mid} type="button" onClick={() => openMaterialById(mid)} className="inline-flex items-center gap-2 rounded-xl bg-white px-3 py-2 text-sm font-semibold shadow-sm" style={{ color: T.textPrimary, border: `1px solid ${T.border}` }}><FileText size={14} style={{ color: T.accent }} />{materialsById[mid].title}<ChevronRight size={13} style={{ color: T.accent }} /></button>)}</div></div>}
                         </div>
                         {section.unitMode === "section" ? <div className="mt-3 rounded-xl p-4" style={{ background: T.bgBase }}>
                           <div className="flex flex-wrap items-start justify-between gap-2">{section.content && <p className="text-sm" style={{ color: T.textSecondary }}>{section.content}</p>}<div className="flex gap-2">{section.durationLabel && <Badge tone="muted">{section.durationLabel}</Badge>}{section.startDate && <Badge tone="cyan">{section.startDate}{section.endDate && section.endDate !== section.startDate ? `〜${section.endDate}` : ""}</Badge>}</div></div>
                           {arr(section.learningGoals).length > 0 && <div className="mt-3 rounded-xl p-3" style={{ background: T.accentSubtle }}><div className="mb-1 flex items-center gap-1.5 text-xs font-bold" style={{ color: T.accentHover }}><Target size={13} />学習目標</div><ul className="space-y-1">{arr(section.learningGoals).map((goal, gi) => <li key={gi} className="flex gap-2 text-sm" style={{ color: T.textSecondary }}><CheckCircle2 size={14} className="mt-0.5 shrink-0" style={{ color: T.accent }} />{goal}</li>)}</ul></div>}
+                          {arr(section.preparationItems).length > 0 && <div className="mt-3 rounded-xl p-3" style={{ background: T.warningSubtle }}><div className="mb-1.5 flex items-center gap-1.5 text-xs font-bold" style={{ color: T.warning }}><AlertCircle size={13} />事前に用意・実施すること</div><ul className="space-y-1">{arr(section.preparationItems).map((item, pi) => <li key={pi} className="flex gap-2 text-sm" style={{ color: T.textSecondary }}><Circle size={13} className="mt-1 shrink-0" style={{ color: T.warning }} />{item}</li>)}</ul></div>}
                           {renderReadOnlyExercises(section.exercises, `section:${section.id}`, T.bgSurface)}
-                          <div className="mt-3 flex flex-wrap items-center gap-2 border-t pt-3" style={{ borderColor: T.border }}><FileText size={13} /><span className="text-xs" style={{ color: T.textMuted }}>資料 {arr(section.materialIds).length}件</span><ClipboardCheck size={13} className="ml-2" /><span className="text-xs" style={{ color: T.textMuted }}>確認テスト {linkedTests(section, {}, {}).length}件</span>{linkedTests(section, {}, {}).map(test => <Badge key={test.testId || test.id} tone={test.status === "published" ? "green" : "muted"}>{test.title}</Badge>)}</div>
+                          <div className="mt-3 flex flex-wrap items-center gap-2 border-t pt-3" style={{ borderColor: T.border }}><FileText size={13} /><span className="text-xs" style={{ color: T.textMuted }}>資料 {arr(section.materialIds).length}件</span><ClipboardCheck size={13} className="ml-2" /><span className="text-xs" style={{ color: T.textMuted }}>確認テスト {linkedTests(section, {}, {}).length}件</span>{linkedTests(section, {}, {}).map(test => <Badge key={test.testId || test.id} tone={test.status === "published" ? "green" : "muted"}>{test.title}</Badge>)}{linkedTests(section, {}, {}).length > 0 && <button type="button" onClick={() => go?.("tests")} className="ml-auto inline-flex items-center gap-1 text-xs font-bold" style={{ color: T.accentHover }}>テストへ<ChevronRight size={13} /></button>}</div>
                         </div> : <div className="mt-3 space-y-3">{arr(section.chapters).map(chapter => (
                           <div key={chapter.id} className="rounded-xl p-3" style={{ background: T.bgBase }}>
                             <div className="font-semibold" style={{ color: T.textPrimary }}>{chapter.title || "中項目未設定"}</div>
                             {arr(chapter.lessons).map(lesson => (
                               <div key={lesson.id} className="mt-2 rounded-lg bg-white p-3" style={{ border: `1px solid ${T.border}` }}>
-                                <div className="flex flex-wrap items-start justify-between gap-2"><div className="text-sm font-bold" style={{ color: T.textPrimary }}>{lesson.title || "小項目未設定"}</div>{lesson.durationLabel && <Badge tone="muted">{lesson.durationLabel}</Badge>}</div>
+                                <div className="flex flex-wrap items-start justify-between gap-2"><div className="flex flex-wrap items-center gap-2"><div className="text-sm font-bold" style={{ color: T.textPrimary }}>{lesson.title || "小項目未設定"}</div>{curriculumItemIncludesDate(lesson, todayKey) && <Badge tone="cyan">今日</Badge>}</div>{lesson.durationLabel && <Badge tone="muted">{lesson.durationLabel}</Badge>}</div>
                                 {lesson.content && <p className="mt-1 text-sm" style={{ color: T.textSecondary }}>{lesson.content}</p>}
                                 {arr(lesson.learningGoals).length > 0 && <div className="mt-3 rounded-xl p-3" style={{ background: T.accentSubtle }}><div className="mb-1 flex items-center gap-1.5 text-xs font-bold" style={{ color: T.accentHover }}><Target size={13} />学習目標</div><ul className="space-y-1">{arr(lesson.learningGoals).map((goal, gi) => <li key={gi} className="flex gap-2 text-sm" style={{ color: T.textSecondary }}><CheckCircle2 size={14} className="mt-0.5 shrink-0" style={{ color: T.accent }} />{goal}</li>)}</ul></div>}
+                                {arr(lesson.preparationItems).length > 0 && <div className="mt-3 rounded-xl p-3" style={{ background: T.warningSubtle }}><div className="mb-1.5 flex items-center gap-1.5 text-xs font-bold" style={{ color: T.warning }}><AlertCircle size={13} />このLessonまでに用意・実施すること</div><ul className="space-y-1">{arr(lesson.preparationItems).map((item, pi) => <li key={pi} className="flex gap-2 text-sm" style={{ color: T.textSecondary }}><Circle size={13} className="mt-1 shrink-0" style={{ color: T.warning }} />{item}</li>)}</ul></div>}
                                 {renderReadOnlyExercises(lesson.exercises, `lesson:${lesson.id}`, T.bgBase)}
                                 {arr(lesson.skills).length > 0 && <div className="mt-2 flex flex-wrap gap-1.5">{arr(lesson.skills).map(skill => <Badge key={skill} tone="cyan">{skill}</Badge>)}</div>}
-                                <div className="mt-3 flex flex-wrap items-center gap-2 border-t pt-3" style={{ borderColor: T.border }}><FileText size={13} style={{ color: T.textMuted }} /><span className="text-xs" style={{ color: T.textMuted }}>資料 {sessMids(lesson).length}件</span><ClipboardCheck size={13} className="ml-2" style={{ color: T.textMuted }} /><span className="text-xs" style={{ color: T.textMuted }}>確認テスト {linkedTests(section, chapter, lesson).length}件</span>{linkedTests(section, chapter, lesson).map(test => <Badge key={test.testId || test.id} tone={test.status === "published" ? "green" : "muted"}>{test.title}</Badge>)}</div>
+                                <div className="mt-3 flex flex-wrap items-center gap-2 border-t pt-3" style={{ borderColor: T.border }}><FileText size={13} style={{ color: T.textMuted }} /><span className="text-xs" style={{ color: T.textMuted }}>資料 {sessMids(lesson).length}件</span><ClipboardCheck size={13} className="ml-2" style={{ color: T.textMuted }} /><span className="text-xs" style={{ color: T.textMuted }}>確認テスト {linkedTests(section, chapter, lesson).length}件</span>{linkedTests(section, chapter, lesson).map(test => <Badge key={test.testId || test.id} tone={test.status === "published" ? "green" : "muted"}>{test.title}</Badge>)}{linkedTests(section, chapter, lesson).length > 0 && <button type="button" onClick={() => go?.("tests")} className="ml-auto inline-flex items-center gap-1 text-xs font-bold" style={{ color: T.accentHover }}>テストへ<ChevronRight size={13} /></button>}</div>
                               </div>
                             ))}
                           </div>
@@ -1051,6 +1128,9 @@ function Curriculum({ role, go }) {
             )}
         </>
       )}
+      {importPreview && <Modal title="Excel取込内容の確認" onClose={() => setImportPreview(null)} footer={<><Btn kind="ghost" onClick={() => setImportPreview(null)}>キャンセル</Btn><Btn icon={Check} onClick={applyCurriculumImport}>編集画面へ反映</Btn></>}>
+        <div className="space-y-4"><div className="rounded-xl p-3" style={{ background: T.bgBase }}><div className="text-xs" style={{ color: T.textMuted }}>ファイル</div><div className="mt-1 text-sm font-bold" style={{ color: T.textPrimary }}>{importPreview.fileName}</div></div><div className="grid grid-cols-2 gap-2 sm:grid-cols-4">{[["大項目", importPreview.summary.sections], ["Lesson", importPreview.summary.lessons], ["事前準備", importPreview.summary.preparations], ["演習", importPreview.summary.exercises]].map(([label, count]) => <div key={label} className="rounded-xl p-3 text-center" style={{ border: `1px solid ${T.border}` }}><div className="text-xl font-bold" style={{ color: T.textPrimary }}>{count}</div><div className="text-xs" style={{ color: T.textMuted }}>{label}</div></div>)}</div><div className="rounded-xl px-3 py-2 text-xs leading-5" style={{ background: T.warningSubtle, color: T.warning }}>現在の編集内容をExcelの内容に置き換えます。この時点ではサーバーへ保存されません。反映後に内容を確認し、画面上部の「保存」を押してください。</div></div>
+      </Modal>}
     </div>
   );
 }
@@ -2784,6 +2864,100 @@ function curriculumDisplayTitle(item) {
 }
 const makeLocalId = (prefix) => `${prefix}_${Date.now().toString(36)}${Math.random().toString(36).slice(2, 7)}`;
 const arr = (v) => Array.isArray(v) ? v : [];
+const CURRICULUM_EXCEL_HEADERS = ["大項目", "大項目説明", "構成", "中項目", "Lesson", "学習内容", "学習目標", "事前準備", "開始日", "終了日", "期間表示", "身につくスキル", "演習名", "演習種別", "問題・取り組む内容", "完了条件", "解答例・確認ポイント", "目安時間(分)"];
+function splitCurriculumList(value) {
+  return String(value || "").split(/\r?\n|\|/).map(item => item.trim()).filter(Boolean);
+}
+function uniqueCurriculumList(current, additions) {
+  return [...new Set([...arr(current), ...arr(additions)].map(item => String(item).trim()).filter(Boolean))];
+}
+function localDateKey(date = new Date()) {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+function curriculumItemIncludesDate(item, dateKey) {
+  const start = String(item?.startDate || "").slice(0, 10);
+  const end = String(item?.endDate || start).slice(0, 10);
+  return !!start && start <= dateKey && dateKey <= (end || start);
+}
+function curriculumSectionIncludesDate(section, dateKey) {
+  if (section?.unitMode === "section") return curriculumItemIncludesDate(section, dateKey);
+  return arr(section?.chapters).some(chapter => arr(chapter.lessons).some(lesson => curriculumItemIncludesDate(lesson, dateKey)));
+}
+function safeExcelFilename(value) {
+  return String(value || "").replace(/[\\/:*?"<>|]/g, "_").slice(0, 60) || "コース";
+}
+function curriculumExcelTemplateRows() {
+  return [
+    { "大項目": "AWS基礎", "大項目説明": "AWSの基本概念と主要サービスを学ぶ", "構成": "中・小項目", "中項目": "はじめてのAWS", "Lesson": "Lesson1 AWSとは", "学習内容": "クラウドとAWSの基本概念", "学習目標": "クラウドの特徴を説明できる\nAWSの代表的なサービスを挙げられる", "事前準備": "AWSアカウントへログインできることを確認する", "開始日": "2026-07-20", "終了日": "2026-07-20", "期間表示": "1日目", "身につくスキル": "AWS基礎|クラウド基礎", "演習名": "AWSのメリット整理", "演習種別": "個人演習", "問題・取り組む内容": "AWSを利用するメリットを3つ整理してください。", "完了条件": "3つのメリットと具体例が記載されている。", "解答例・確認ポイント": "初期費用、拡張性、グローバル展開などを具体例とともに説明できている。", "目安時間(分)": 25 },
+    { "大項目": "AWS基礎", "大項目説明": "AWSの基本概念と主要サービスを学ぶ", "構成": "中・小項目", "中項目": "はじめてのAWS", "Lesson": "Lesson1 AWSとは", "学習内容": "クラウドとAWSの基本概念", "学習目標": "クラウドの特徴を説明できる", "事前準備": "AWSアカウントへログインできることを確認する", "開始日": "2026-07-20", "終了日": "2026-07-20", "期間表示": "1日目", "身につくスキル": "AWS基礎", "演習名": "従来型との比較", "演習種別": "チーム演習", "問題・取り組む内容": "オンプレミスとAWSの違いを比較してください。", "完了条件": "コスト・運用・拡張性の違いが整理されている。", "解答例・確認ポイント": "初期投資と従量課金、設備管理とマネージドサービスなどの違いを比較できている。", "目安時間(分)": 30 },
+    { "大項目": "研修オリエンテーション", "大項目説明": "研修全体の進め方と開発環境を確認する", "構成": "大項目単元", "中項目": "", "Lesson": "", "学習内容": "研修ルールと質問方法を理解する", "学習目標": "研修の進め方を説明できる", "事前準備": "Slackへログインする\nVS Codeをインストールする", "開始日": "2026-07-19", "終了日": "2026-07-19", "期間表示": "事前準備", "身につくスキル": "", "演習名": "環境確認", "演習種別": "実技", "問題・取り組む内容": "指定されたコマンドを実行し、バージョンを確認してください。", "完了条件": "実行結果を確認できる。", "解答例・確認ポイント": "指定バージョン以上が表示され、エラーがないこと。", "目安時間(分)": 15 },
+  ];
+}
+function excelDateToIso(value) {
+  if (typeof value === "number" && Number.isFinite(value)) {
+    const date = new Date(Date.UTC(1899, 11, 30) + Math.round(value) * 86400000);
+    return date.toISOString().slice(0, 10);
+  }
+  return String(value || "").trim().replace(/\//g, "-").slice(0, 10);
+}
+function curriculumExerciseFromExcelRow(row) {
+  const title = String(row["演習名"] || "").trim();
+  if (!title) return null;
+  const typeText = String(row["演習種別"] || "").trim();
+  const type = ({ "実技": "hands_on", "個人演習": "individual", "チーム演習": "team", "提出課題": "submission", hands_on: "hands_on", individual: "individual", team: "team", submission: "submission" })[typeText] || "hands_on";
+  const minutes = Number(row["目安時間(分)"] || 0);
+  return { id: makeLocalId("exercise"), title, type, instructions: String(row["問題・取り組む内容"] || "").trim(), completionCriteria: String(row["完了条件"] || "").trim(), answerExample: String(row["解答例・確認ポイント"] || "").trim(), estimatedMinutes: Number.isFinite(minutes) && minutes > 0 ? minutes : "" };
+}
+function curriculumSectionsFromExcelRows(rows) {
+  const sections = [];
+  arr(rows).forEach(row => {
+    const sectionTitle = String(row["大項目"] || "").trim();
+    if (!sectionTitle) return;
+    let section = sections.find(item => item.title === sectionTitle);
+    if (!section) {
+      section = { id: makeLocalId("section"), title: sectionTitle, description: String(row["大項目説明"] || "").trim(), unitMode: String(row["構成"] || "").includes("大項目") ? "section" : "lessons", content: "", learningGoals: [], preparationItems: [], exercises: [], materialIds: [], startDate: "", endDate: "", durationLabel: "", chapters: [] };
+      sections.push(section);
+    }
+    if (!section.description && row["大項目説明"]) section.description = String(row["大項目説明"]).trim();
+    const goals = splitCurriculumList(row["学習目標"]);
+    const preparations = splitCurriculumList(row["事前準備"]);
+    const exercise = curriculumExerciseFromExcelRow(row);
+    if (section.unitMode === "section") {
+      section.content ||= String(row["学習内容"] || "").trim();
+      section.learningGoals = uniqueCurriculumList(section.learningGoals, goals);
+      section.preparationItems = uniqueCurriculumList(section.preparationItems, preparations);
+      section.startDate ||= excelDateToIso(row["開始日"]);
+      section.endDate ||= excelDateToIso(row["終了日"] || row["開始日"]);
+      section.durationLabel ||= String(row["期間表示"] || "").trim();
+      if (exercise && !section.exercises.some(item => item.title === exercise.title)) section.exercises.push(exercise);
+      return;
+    }
+    const lessonTitle = String(row["Lesson"] || "").trim();
+    if (!lessonTitle) return;
+    const chapterTitle = String(row["中項目"] || "基本").trim() || "基本";
+    let chapter = section.chapters.find(item => item.title === chapterTitle);
+    if (!chapter) { chapter = { id: makeLocalId("chapter"), title: chapterTitle, description: "", lessons: [] }; section.chapters.push(chapter); }
+    let lesson = chapter.lessons.find(item => item.title === lessonTitle);
+    if (!lesson) {
+      lesson = { id: makeLocalId("lesson"), title: lessonTitle, content: String(row["学習内容"] || "").trim(), memo: "", learningGoals: [], preparationItems: [], exercises: [], skills: [], materialIds: [], startDate: excelDateToIso(row["開始日"]), endDate: excelDateToIso(row["終了日"] || row["開始日"]), durationLabel: String(row["期間表示"] || "").trim() };
+      chapter.lessons.push(lesson);
+    }
+    lesson.content ||= String(row["学習内容"] || "").trim();
+    lesson.learningGoals = uniqueCurriculumList(lesson.learningGoals, goals);
+    lesson.preparationItems = uniqueCurriculumList(lesson.preparationItems, preparations);
+    lesson.skills = uniqueCurriculumList(lesson.skills, splitCurriculumList(row["身につくスキル"]));
+    if (exercise && !lesson.exercises.some(item => item.title === exercise.title)) lesson.exercises.push(exercise);
+  });
+  return sections;
+}
+function summarizeCurriculumSections(sections) {
+  const standalone = arr(sections).filter(section => section.unitMode === "section");
+  const lessons = arr(sections).flatMap(section => arr(section.chapters).flatMap(chapter => arr(chapter.lessons)));
+  return { sections: arr(sections).length, lessons: lessons.length + standalone.length, preparations: [...standalone, ...lessons].reduce((sum, item) => sum + arr(item.preparationItems).length, 0), exercises: [...standalone, ...lessons].reduce((sum, item) => sum + arr(item.exercises).length, 0) };
+}
 function formatExerciseDisplayText(value) {
   return String(value || "")
     .replace(/\r\n?/g, "\n")
@@ -2791,13 +2965,14 @@ function formatExerciseDisplayText(value) {
     .trim();
 }
 function normalizeCurriculumExercise(exercise, index = 0) {
-  if (typeof exercise === "string") return { id: makeLocalId("exercise"), title: exercise, type: "hands_on", instructions: "", completionCriteria: "", estimatedMinutes: "" };
+  if (typeof exercise === "string") return { id: makeLocalId("exercise"), title: exercise, type: "hands_on", instructions: "", completionCriteria: "", answerExample: "", estimatedMinutes: "" };
   return {
     id: exercise?.id || makeLocalId("exercise"),
     title: exercise?.title || `演習${index + 1}`,
     type: exercise?.type || "hands_on",
     instructions: exercise?.instructions || exercise?.description || "",
     completionCriteria: exercise?.completionCriteria || "",
+    answerExample: exercise?.answerExample || exercise?.modelAnswer || "",
     estimatedMinutes: exercise?.estimatedMinutes ?? "",
   };
 }
@@ -2810,6 +2985,7 @@ function normalizeCurriculumSections(item) {
       unitMode: section.unitMode === "section" ? "section" : "lessons",
       content: section.content || "",
       learningGoals: arr(section.learningGoals).length ? arr(section.learningGoals) : (section.learningGoal ? [section.learningGoal] : []),
+      preparationItems: arr(section.preparationItems).length ? arr(section.preparationItems) : arr(section.prerequisites),
       exercises: arr(section.exercises).map((exercise, ei) => normalizeCurriculumExercise(exercise, ei)),
       materialIds: arr(section.materialIds).length ? arr(section.materialIds) : (section.materialId ? [section.materialId] : []),
       startDate: section.startDate || "",
@@ -2825,6 +3001,7 @@ function normalizeCurriculumSections(item) {
           content: lesson.content || "",
           memo: lesson.memo || lesson.lessonMemo || "",
           learningGoals: arr(lesson.learningGoals).length ? arr(lesson.learningGoals) : (lesson.learningGoal ? [lesson.learningGoal] : []),
+          preparationItems: arr(lesson.preparationItems).length ? arr(lesson.preparationItems) : arr(lesson.prerequisites),
           exercises: arr(lesson.exercises).map((exercise, ei) => normalizeCurriculumExercise(exercise, ei)),
           skills: arr(lesson.skills),
           materialIds: arr(lesson.materialIds).length ? arr(lesson.materialIds) : (lesson.materialId ? [lesson.materialId] : []),
@@ -2842,7 +3019,7 @@ function normalizeCurriculumSections(item) {
     const chapterTitle = row.lessonTitle || row.title || row.chapterTitle || `中項目${i + 1}`;
     let section = sections.find(s => s.title === sectionTitle);
     if (!section) {
-      section = { id: makeLocalId("section"), title: sectionTitle, description: "", chapters: [] };
+      section = { id: makeLocalId("section"), title: sectionTitle, description: "", unitMode: "lessons", content: "", learningGoals: [], preparationItems: [], exercises: [], materialIds: [], startDate: "", endDate: "", durationLabel: "", chapters: [] };
       sections.push(section);
     }
     let chapter = section.chapters.find(c => c.title === chapterTitle);
@@ -2856,6 +3033,7 @@ function normalizeCurriculumSections(item) {
       content: row.content || "",
       memo: row.memo || row.lessonMemo || "",
       learningGoals: arr(row.learningGoals).length ? arr(row.learningGoals) : (row.learningGoal ? [row.learningGoal] : []),
+      preparationItems: arr(row.preparationItems).length ? arr(row.preparationItems) : arr(row.prerequisites),
       exercises: arr(row.exercises).map((exercise, ei) => normalizeCurriculumExercise(exercise, ei)),
       skills: arr(row.skills),
       materialIds: arr(row.materialIds).length ? arr(row.materialIds) : (row.materialId ? [row.materialId] : []),
@@ -2877,6 +3055,7 @@ function sessionsFromSections(sections) {
     title: section.title || "",
     content: section.content || section.description || "",
     learningGoals: arr(section.learningGoals),
+    preparationItems: arr(section.preparationItems),
     exercises: arr(section.exercises),
     materialIds: arr(section.materialIds),
     startDate: section.startDate || "",
@@ -2896,6 +3075,7 @@ function sessionsFromSections(sections) {
     content: lesson.content || "",
     lessonMemo: lesson.memo || lesson.lessonMemo || "",
     learningGoals: arr(lesson.learningGoals),
+    preparationItems: arr(lesson.preparationItems),
     exercises: arr(lesson.exercises),
     skills: arr(lesson.skills),
     materialIds: arr(lesson.materialIds),
@@ -2963,6 +3143,7 @@ function buildLearningContext({ section, chapter, lessons, materialsById = {} })
   if (section?.description) lines.push(`大項目説明: ${section.description}`);
   if (section?.content) lines.push(`大項目の学習内容: ${section.content}`);
   if (arr(section?.learningGoals).length) lines.push(`大項目の学習目標: ${arr(section.learningGoals).join(" / ")}`);
+  if (arr(section?.preparationItems).length) lines.push(`大項目の事前準備: ${arr(section.preparationItems).join(" / ")}`);
   arr(section?.exercises).forEach((exercise, i) => lines.push(`大項目の既存演習${i + 1}: ${exercise.title || ""} ${exercise.instructions || ""}`.trim()));
   if (chapter?.title) lines.push(`中項目: ${chapter.title}`);
   if (chapter?.description) lines.push(`中項目説明: ${chapter.description}`);
@@ -2970,10 +3151,12 @@ function buildLearningContext({ section, chapter, lessons, materialsById = {} })
     lines.push(`小項目${i + 1}: ${lesson.title || ""}`);
     if (lesson.content) lines.push(`学習内容: ${lesson.content}`);
     if (arr(lesson.learningGoals).length) lines.push(`学習目標: ${arr(lesson.learningGoals).join(" / ")}`);
+    if (arr(lesson.preparationItems).length) lines.push(`事前準備: ${arr(lesson.preparationItems).join(" / ")}`);
     arr(lesson.exercises).forEach((exercise, ei) => {
       lines.push(`演習${ei + 1}: ${exercise.title || ""}`);
       if (exercise.instructions) lines.push(`演習内容: ${exercise.instructions}`);
       if (exercise.completionCriteria) lines.push(`完了条件: ${exercise.completionCriteria}`);
+      if (exercise.answerExample) lines.push(`解答例: ${exercise.answerExample}`);
     });
     if (lesson.memo || lesson.lessonMemo) lines.push(`講義メモ: ${lesson.memo || lesson.lessonMemo}`);
     if (arr(lesson.skills).length) lines.push(`身につくスキル: ${arr(lesson.skills).join(" / ")}`);
