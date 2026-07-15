@@ -24,7 +24,7 @@ export default function TrainingProduct({
     if (role === "client") return <ClientHome openKarte={setKarte} go={go} />;
     return null;
   }
-  if (view === "curriculum") return <Curriculum role={role} />;
+  if (view === "curriculum") return <Curriculum role={role} go={go} />;
   if (view === "companies") return <ReadOnlyCompanies role={role} />;
   if (view === "courses") return <ReadOnlyCourses role={role} />;
   if (view === "users") return <ReadOnlyInstructors />;
