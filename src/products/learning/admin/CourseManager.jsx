@@ -278,7 +278,7 @@ export default function CourseManager({ onOpenLessons = () => {} }) {
       <AdminModal
         open={formOpen}
         title={editingCourse ? "Course edit" : "New course"}
-        desc="Course information is saved to localStorage for this frontend phase."
+        desc="Course information is saved via the Learning admin API."
         onClose={closeForm}
       >
         <CourseForm

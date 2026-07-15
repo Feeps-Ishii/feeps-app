@@ -432,33 +432,12 @@ export default function QuizManager() {
           )}
         </div>
 
-        <div className="hidden">
-          {deleteTarget && (
-            <Card className="p-4" style={{ borderColor: "#FCA5A5" }}>
-              <div className="text-sm font-bold" style={{ color: C.ink }}>削除確認</div>
-              <p className="mt-1 text-xs" style={{ color: C.body }}>この問題を削除します。localStorage上の管理データから削除されます。</p>
-              <div className="mt-3 flex gap-2">
-                <Btn kind="ghost" size="sm" onClick={() => setDeleteTarget(null)}>キャンセル</Btn>
-                <Btn kind="ghost" size="sm" icon={Trash2} onClick={confirmDelete}>削除する</Btn>
-              </div>
-            </Card>
-          )}
-          <QuizForm
-            mode={editingQuestion ? "edit" : "new"}
-            form={form}
-            courses={courses}
-            lessons={lessonsForForm}
-            onChange={setForm}
-            onSubmit={submit}
-            onCancel={startNew}
-          />
-        </div>
       </div>
 
       <AdminModal
         open={formOpen}
         title={editingQuestion ? "Question edit" : "New question"}
-        desc="Question bank data is saved to localStorage for this frontend phase."
+        desc="Question bank data is saved via the Learning admin API."
         onClose={closeForm}
         width={820}
       >
@@ -476,7 +455,7 @@ export default function QuizManager() {
       <AdminModal
         open={Boolean(deleteTarget)}
         title="Delete question"
-        desc="Delete this question from localStorage admin data."
+        desc="Delete this question from the question bank."
         onClose={() => setDeleteTarget(null)}
         danger
         width={520}
