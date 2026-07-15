@@ -1527,6 +1527,22 @@ function groupTestsByCurriculum(tests, courseNameOf = () => "", curriculaByCours
     return ac - bc || a.order - b.order || a.section.localeCompare(b.section, "ja") || a.lesson.localeCompare(b.lesson, "ja");
   });
 }
+function groupTestScopesBySection(scopeGroups) {
+  const sections = new Map();
+  (scopeGroups || []).forEach(group => {
+    const key = `${group.courseId || group.course}::${group.section}`;
+    if (!sections.has(key)) sections.set(key, { ...group, key, chapter: "", lesson: "単元全体", tests: [] });
+    sections.get(key).tests.push(...group.tests.map(test => {
+      const unitTitle = test.lessonTitle || test.chapterTitle || (test.sectionTitle ? "大項目全体" : "コース共通");
+      return {
+        ...test,
+        roadmapUnitTitle: unitTitle,
+        title: unitTitle && !String(test.title || "").includes(unitTitle) ? `${unitTitle}｜${test.title}` : test.title,
+      };
+    }));
+  });
+  return [...sections.values()];
+}
 function testGroupUnitTitle(group) {
   return group.lesson && group.lesson !== "単元全体" ? group.lesson : group.chapter || group.section || "確認テスト";
 }
@@ -1827,7 +1843,7 @@ function Tests({ role }) {
     </div>
   );}
   const selectedCourseTests = selectedTestCourseId ? tests.filter(test => test.courseId === selectedTestCourseId) : tests;
-  const traineeTestGroups = groupTestsByCurriculum(selectedCourseTests, t => myCourseNames[t.courseId], testCurricula);
+  const traineeTestGroups = groupTestScopesBySection(groupTestsByCurriculum(selectedCourseTests, t => myCourseNames[t.courseId], testCurricula));
   const orderedTraineeTests = traineeTestGroups.flatMap(group => group.tests);
   const completedTestCount = orderedTraineeTests.filter(test => test.status === "graded").length;
   const testProgress = orderedTraineeTests.length ? Math.round(completedTestCount / orderedTraineeTests.length * 100) : 0;
