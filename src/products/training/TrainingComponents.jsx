@@ -1507,6 +1507,18 @@ const normalizeTest = (t) => {
     limitMinutes,
   };
 };
+function groupTestsByCurriculum(tests, courseNameOf = () => "") {
+  const groups = new Map();
+  (tests || []).forEach(test => {
+    const course = test.curriculumTitle || test.curriculumName || test.courseName || courseNameOf(test) || "コース未設定";
+    const section = test.sectionTitle || test.chapterTitle || "コース共通テスト";
+    const lesson = test.lessonTitle || test.lessonName || "単元全体";
+    const key = [test.courseId || course, section, lesson].join("::");
+    if (!groups.has(key)) groups.set(key, { key, course, section, lesson, tests: [] });
+    groups.get(key).tests.push(test);
+  });
+  return [...groups.values()];
+}
 function Tests({ role }) {
   const nameMap = useNameMap();
   const [tests, setTests] = useState([]);
@@ -1735,7 +1747,7 @@ function Tests({ role }) {
           </select>
         </div>
       </Card>
-      <Card>{visibleTests.length === 0 ? <div className="px-4 py-8 text-center text-sm" style={{ color: T.textMuted }}>該当するテストがありません。</div> : visibleTests.map((t, i) => (
+      <div className="space-y-4">{visibleTests.length === 0 ? <Card><div className="px-4 py-8 text-center text-sm" style={{ color: T.textMuted }}>該当するテストがありません。</div></Card> : groupTestsByCurriculum(visibleTests, t => opsFilter.courses.find(c => c.courseId === t.courseId)?.name).map(group => <Card key={group.key} className="overflow-hidden"><div className="px-4 py-3" style={{ background: T.accentSubtle, borderBottom: `1px solid ${T.border}` }}><div className="flex flex-wrap items-center gap-2"><BookOpen size={16} style={{ color: T.accent }} /><span className="text-sm font-bold" style={{ color: T.textPrimary }}>{group.course}</span><Badge tone="cyan">{group.tests.length}件</Badge></div><div className="mt-1 flex flex-wrap items-center gap-1 text-xs" style={{ color: T.textMuted }}><span>{group.section}</span><ChevronRight size={12} /><span>{group.lesson}</span></div></div>{group.tests.map((t, i) => (
         <div key={testIdOf(t) || i} className="flex flex-col gap-3 px-4 py-3.5 lg:flex-row lg:items-center lg:justify-between" style={{ borderBottom: i < visibleTests.length - 1 ? `1px solid ${T.border}` : "none" }}>
           <div><div className="flex flex-wrap items-center gap-2"><div className="text-sm font-semibold" style={{ color: T.textPrimary }}>{t.title}</div><Badge tone={t.status === "draft" ? "amber" : t.status === "published" ? "green" : "muted"}>{t.status === "draft" ? "下書き" : t.status === "published" ? "公開" : t.status}</Badge>{t.courseId && <Badge tone="cyan">{opsFilter.courses.find(c => c.courseId === t.courseId)?.name || t.courseId}</Badge>}</div><div className="text-xs" style={{ color: T.textMuted }}>{t.q}問 ・ 制限 {t.limit} ・ 自動採点</div></div>
           <div className="flex items-center gap-4">
@@ -1749,7 +1761,7 @@ function Tests({ role }) {
               <Btn kind="soft" size="sm" icon={Eye} onClick={() => showResults(t)}>結果</Btn>
               {canEditTest(t) && <Btn kind="ghost" size="sm" icon={Trash2} onClick={() => deleteTest(t)}>削除</Btn>}
             </div></div></div>
-      ))}</Card>
+      ))}</Card>)}</div>
       {results && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: "rgba(0,0,0,.4)" }} onClick={() => setResults(null)}>
           <div className="w-full max-w-md rounded-2xl p-5" style={{ background: "#fff", border: `1px solid ${T.border}` }} onClick={e => e.stopPropagation()}>
@@ -1787,7 +1799,7 @@ function Tests({ role }) {
     <div>
       <SectionHead title="テスト" desc="受験後すぐに得点が表示されます" />
       {testErr && <div className="mb-4 rounded-lg px-3 py-2 text-xs" style={{ background: T.warningSubtle, color: T.warning }}>{testErr}</div>}
-      <div className="grid min-w-0 gap-4 md:grid-cols-2 xl:grid-cols-3">{tests.length === 0 ? <Card><EmptyState title="受験できるテストがありません" desc="公開されたテストがあるとここに表示されます。" /></Card> : tests.map(t => {
+      <div className="space-y-5">{tests.length === 0 ? <Card><EmptyState title="受験できるテストがありません" desc="公開されたテストがあるとここに表示されます。" /></Card> : groupTestsByCurriculum(tests, t => myCourseNames[t.courseId]).map(group => <section key={group.key}><div className="mb-2 flex flex-wrap items-center gap-2"><div className="rounded-lg p-2" style={{ background: T.accentSubtle }}><BookOpen size={17} style={{ color: T.accent }} /></div><div><h3 className="text-sm font-bold" style={{ color: T.textPrimary }}>{group.course}</h3><p className="text-xs" style={{ color: T.textMuted }}>{group.section} ／ {group.lesson}</p></div><Badge tone="cyan">{group.tests.length}件</Badge></div><div className="grid min-w-0 gap-4 md:grid-cols-2 xl:grid-cols-3">{group.tests.map(t => {
         const hasQuestions = testQuestionsOf(t).length > 0;
         return (
         <Card key={testIdOf(t)} className="flex flex-col p-5">
@@ -1806,7 +1818,7 @@ function Tests({ role }) {
               <span className="text-3xl font-bold leading-none" style={{ color: t.score >= 70 ? T.success : T.warning }}>{t.score}<span className="text-sm">点</span></span></div>
             <button disabled={!hasQuestions} onClick={() => hasQuestions && setTaking(t)} className="mt-2 w-full text-center text-xs font-semibold disabled:opacity-50" style={{ color: T.accentHover }}>{hasQuestions ? "もう一度受ける" : "設問がありません"}</button></div>
           : hasQuestions ? <Btn icon={PlayCircle} full onClick={() => setTaking(t)}>受験を開始</Btn> : <Btn icon={AlertCircle} kind="ghost" full disabled>設問がありません</Btn>}</Card>
-      );})}</div>
+      );})}</div></section>)}</div>
     </div>
   );
 }
@@ -2465,6 +2477,11 @@ function TraineeAttendance() {
       return !q || [r.date, r.d, r.in, r.out, r.s, attendanceStatusLabel(r.s, r)].some(v => String(v || "").toLowerCase().includes(q));
     })
     .sort((a, b) => histSort === "desc" ? String(b.date).localeCompare(String(a.date)) : String(a.date).localeCompare(String(b.date)));
+  const attendanceByDate = Object.fromEntries(hist.map(row => [row.date, row]));
+  const [calendarYear, calendarMonth] = String(histMonth || monthStr()).split("-").map(Number);
+  const calendarCount = new Date(calendarYear, calendarMonth, 0).getDate();
+  const calendarOffset = new Date(calendarYear, calendarMonth - 1, 1).getDay();
+  const calendarCells = [...Array(calendarOffset).fill(null), ...Array.from({ length: calendarCount }, (_, index) => `${calendarYear}-${String(calendarMonth).padStart(2, "0")}-${String(index + 1).padStart(2, "0")}`)];
   async function saveEdit() {
     const row = hist[eIdx]; setErr("");
     try {
@@ -2526,6 +2543,22 @@ function TraineeAttendance() {
           <Btn kind="ghost" size="sm" icon={histSort === "desc" ? ChevronDown : ChevronUp} onClick={() => setHistSort(v => v === "desc" ? "asc" : "desc")}>{histSort === "desc" ? "新しい順" : "古い順"}</Btn>
         </div>
       </div>
+      <Card className="mb-5 overflow-hidden">
+        <div className="flex flex-wrap items-center justify-between gap-2 px-4 py-3" style={{ borderBottom: `1px solid ${T.border}` }}><div><h3 className="text-sm font-bold" style={{ color: T.textPrimary }}>{histMonth.replace("-", "年")}月の勤怠カレンダー</h3><p className="text-xs" style={{ color: T.textMuted }}>平日の「未登録」をひと目で確認できます。登録済みの日はクリックして修正できます。</p></div><div className="flex gap-2"><Badge tone="green">登録済み</Badge><Badge tone="amber">未登録</Badge></div></div>
+        <div className="grid grid-cols-7" style={{ background: T.border, gap: 1 }}>
+          {WD.map((weekday, index) => <div key={weekday} className="bg-white py-2 text-center text-xs font-bold" style={{ color: index === 0 ? T.danger : index === 6 ? T.accent : T.textMuted }}>{weekday}</div>)}
+          {calendarCells.map((dateValue, index) => {
+            if (!dateValue) return <div key={`blank-${index}`} className="min-h-24 bg-white" />;
+            const row = attendanceByDate[dateValue];
+            const day = new Date(dateValue + "T00:00:00").getDay();
+            const future = dateValue > today;
+            const weekend = day === 0 || day === 6;
+            const missing = !row && !future && !weekend;
+            const isToday = dateValue === today;
+            return <button key={dateValue} type="button" disabled={!row} onClick={() => row && startEdit(row)} className="min-h-24 bg-white p-2 text-left transition enabled:hover:brightness-95" style={isToday ? { boxShadow: `inset 0 0 0 2px ${T.accent}` } : undefined}><div className="flex items-center justify-between"><span className="text-xs font-bold" style={{ color: weekend ? T.textMuted : T.textPrimary }}>{Number(dateValue.slice(-2))}</span>{isToday && <Badge tone="cyan">今日</Badge>}</div>{row ? <div className="mt-2 rounded-lg px-2 py-1.5" style={{ background: T.successSubtle }}><div className="text-[11px] font-bold" style={{ color: T.success }}>登録済み</div><div className="mt-0.5 text-xs" style={{ color: T.textSecondary }}>{row.in || "—"}–{row.out || "—"}</div></div> : missing ? <div className="mt-2 rounded-lg px-2 py-1.5 text-[11px] font-bold" style={{ background: T.warningSubtle, color: T.warning }}>未登録</div> : <div className="mt-2 text-[11px]" style={{ color: T.textMuted }}>{future ? "予定日" : "休日"}</div>}</button>;
+          })}
+        </div>
+      </Card>
       <Card>{visibleHist.length === 0 ? <EmptyState title="該当する勤怠履歴がありません" desc="月や検索条件を変更してください。" /> : visibleHist.map((r, i) => (
         <div key={r.date || i} className="flex items-center justify-between px-4 py-3" style={{ borderBottom: i < visibleHist.length - 1 ? `1px solid ${T.border}` : "none" }}>
           {eIdx === hist.findIndex(h => h.date === r.date) ? (
@@ -2824,6 +2857,17 @@ function normalizeReportComments(r) {
   });
   return comments;
 }
+const DEFAULT_REPORT_FIELDS = [
+  { id: "learned", label: "今日学んだこと", placeholder: "理解できたこと・気づき", required: false },
+  { id: "reflection", label: "振り返り", placeholder: "目標に対してできたこと・気づき", required: false },
+  { id: "blockers", label: "困ったこと", placeholder: "つまずきや相談したいこと", required: false },
+  { id: "tomorrowGoal", label: "明日の目標", placeholder: "明日取り組みたいこと", required: false },
+  { id: "nextday", label: "明日に向けて", placeholder: "次に取り組みたいこと", required: false },
+  { id: "question", label: "講師への質問", placeholder: "確認したいこと", required: false },
+];
+const REPORT_FIXED_KEYS = new Set(DEFAULT_REPORT_FIELDS.map(field => field.id));
+function reportFieldValue(report, id) { return REPORT_FIXED_KEYS.has(id) ? (report?.[id] || "") : (report?.customFields?.[id] || ""); }
+function normalizeReportFields(fields) { return Array.isArray(fields) && fields.length ? fields : DEFAULT_REPORT_FIELDS; }
 function mapReport(r) {
   return {
     id: r.date,
@@ -2839,6 +2883,8 @@ function mapReport(r) {
     learned: r.learned || "",
     question: r.question || "",
     nextday: r.nextday || "",
+    customFields: r.customFields && typeof r.customFields === "object" ? r.customFields : {},
+    courseId: r.courseId || "",
     comments: normalizeReportComments(r),
     updatedAt: r.updatedAt || "",
     createdAt: r.createdAt || "",
@@ -3281,6 +3327,8 @@ function mapReportInstructor(r) {
     learned: r.learned || "",
     question: r.question || "",
     nextday: r.nextday || "",
+    customFields: r.customFields && typeof r.customFields === "object" ? r.customFields : {},
+    courseId: r.courseId || "",
     comments: normalizeReportComments(r),
     updatedAt: r.updatedAt || "",
     createdAt: r.createdAt || "",
@@ -3293,7 +3341,7 @@ function Reports({ role }) {
   const nameMap = useNameMap();
   const [reports, setReports] = useState([]);
   const [date, setDate] = useState(todayStr());
-  const [draft, setDraft] = useState({ morningGoal: "", goalItems: [], learned: "", question: "", nextday: "", reflection: "", blockers: "", tomorrowGoal: "" });
+  const [draft, setDraft] = useState({ morningGoal: "", goalItems: [], learned: "", question: "", nextday: "", reflection: "", blockers: "", tomorrowGoal: "", customFields: {} });
   const [cText, setCText] = useState({});
   const [commenting, setCommenting] = useState(null);
   const [open, setOpen] = useState(null);
@@ -3313,9 +3361,16 @@ function Reports({ role }) {
   const [reportEditState, setReportEditState] = useState("today");
   const [reportFormPulse, setReportFormPulse] = useState(false);
   const [detailReport, setDetailReport] = useState(null);
+  const [reportCourses, setReportCourses] = useState([]);
+  const [reportCourseId, setReportCourseId] = useState("");
+  const [reportFields, setReportFields] = useState(DEFAULT_REPORT_FIELDS);
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const [settingsFields, setSettingsFields] = useState(DEFAULT_REPORT_FIELDS);
+  const [settingsSaving, setSettingsSaving] = useState(false);
+  const [commentIntent, setCommentIntent] = useState({});
+  const [aiCommentBusy, setAiCommentBusy] = useState(null);
   const reportFormRef = useRef(null);
   const reportFirstInputRef = useRef(null);
-  const aiC = useAIDraft();
   const canWrite = role === "trainee";
   const canViewReports = role === "admin" || role === "instructor" || role === "client";
   const opsFilter = useOpsFilter(canViewReports);
@@ -3338,7 +3393,7 @@ function Reports({ role }) {
   };
   const canComment = role === "admin" || role === "client" || hasInstructorAssignments;
   function blankReportDraft() {
-    return { morningGoal: "", goalItems: [], learned: "", question: "", nextday: "", reflection: "", blockers: "", tomorrowGoal: "" };
+    return { morningGoal: "", goalItems: [], learned: "", question: "", nextday: "", reflection: "", blockers: "", tomorrowGoal: "", customFields: {} };
   }
   function draftFromReport(r) {
     return {
@@ -3350,6 +3405,7 @@ function Reports({ role }) {
       reflection: r?.reflection || "",
       blockers: r?.blockers || "",
       tomorrowGoal: r?.tomorrowGoal || "",
+      customFields: r?.customFields || {},
     };
   }
   function focusReportForm() {
@@ -3367,8 +3423,11 @@ function Reports({ role }) {
 
   useEffect(() => {
     if (role === "trainee") {
-      apiGet("/reports/me")
-        .then(items => {
+      Promise.all([apiGet("/reports/me"), apiGet("/me/courses").catch(() => [])])
+        .then(([items, courses]) => {
+          setReportCourses(courses || []);
+          const initialCourseId = (courses || [])[0]?.courseId || "";
+          setReportCourseId(prev => prev || initialCourseId);
           const mapped = (items || []).map(mapReport);
           setReports(mapped);
           const today = mapped.find(r => r.rawDate === todayStr());
@@ -3386,6 +3445,13 @@ function Reports({ role }) {
       setReports([]);
     }
   }, [role, date, canViewReports]);
+  const settingsCourseId = canWrite ? reportCourseId : (opsFilter.courseId || (role === "admin" ? opsFilter.courses[0]?.courseId : opsFilter.courses.find(c => instructorAssignedCourseIds.has(c.courseId))?.courseId) || "");
+  useEffect(() => {
+    if (!settingsCourseId) { setReportFields(DEFAULT_REPORT_FIELDS); return; }
+    apiGet(`/courses/${settingsCourseId}/report-settings`)
+      .then(result => { const fields = normalizeReportFields(result?.fields); setReportFields(fields); setSettingsFields(fields); })
+      .catch(() => { setReportFields(DEFAULT_REPORT_FIELDS); setSettingsFields(DEFAULT_REPORT_FIELDS); });
+  }, [settingsCourseId]);
   useEffect(() => {
     if (!canViewReports || periodMode !== "月次") return;
     let alive = true;
@@ -3402,8 +3468,10 @@ function Reports({ role }) {
   }, [canViewReports, periodMode, month]);
 
   async function submit() {
-    const hasAny = draft.morningGoal.trim() || draft.goalItems.some(g => String(g.text || "").trim()) || draft.learned.trim() || draft.question.trim() || draft.nextday.trim() || draft.reflection.trim() || draft.blockers.trim() || draft.tomorrowGoal.trim();
+    const hasAny = draft.morningGoal.trim() || draft.goalItems.some(g => String(g.text || "").trim()) || reportFields.some(field => String(reportFieldValue(draft, field.id)).trim());
     if (!hasAny || saving) return;
+    const missingRequired = reportFields.find(field => field.required && !String(reportFieldValue(draft, field.id)).trim());
+    if (missingRequired) { setSaveErr(`「${missingRequired.label}」を入力してください。`); return; }
     setSaveErr(""); setSaving(true);
     try {
       const date = editingReportDate || todayStr();
@@ -3417,6 +3485,8 @@ function Reports({ role }) {
         reflection: draft.reflection,
         blockers: draft.blockers,
         tomorrowGoal: draft.tomorrowGoal,
+        customFields: draft.customFields,
+        courseId: reportCourseId,
       });
       emitNotificationRefresh();
       const items = await apiGet("/reports/me");
@@ -3444,6 +3514,7 @@ function Reports({ role }) {
       emitNotificationRefresh();
       const savedComment = normalizeReportComments({ comments: [res?.comment || { text: t, authorRole: role, createdAt: new Date().toISOString() }] })[0];
       setReports(reports.map(r => r.id === id ? { ...r, comments: [...(r.comments || []), savedComment] } : r));
+      setDetailReport(current => current?.id === id ? { ...current, comments: [...(current.comments || []), savedComment] } : current);
       setCText({ ...cText, [id]: "" });
       return true;
     } catch (e) {
@@ -3466,13 +3537,33 @@ function Reports({ role }) {
     const ok = await addC(id);
     if (!ok) return;
     if (nextId && nextId !== id) {
-      setOpen(nextId);
-      window.setTimeout(() => document.getElementById(`report-detail-${nextId}`)?.parentElement?.scrollIntoView({ behavior: "smooth", block: "start" }), 80);
+      setDetailReport(reports.find(r => r.id === nextId) || null);
     } else {
-      setOpen(null);
+      setDetailReport(null);
     }
   }
-  function aiComment(id) { aiC.draft(() => setCText({ ...cText, [id]: "良い気づきです。止め時の目安は「打ち手が具体的に見えたら」。なぜを重ねても抽象的なままなら、一段戻して論点を分け直すと整理しやすいですよ。" }), id); }
+  async function aiComment(id) {
+    const rep = reports.find(r => r.id === id);
+    const intent = String(commentIntent[id] || "").trim();
+    if (!rep || !intent || aiCommentBusy) return;
+    setSaveErr(""); setAiCommentBusy(id);
+    try {
+      const result = await apiPost("/ai/reports/comment-draft", { traineeId: rep.traineeId, date: rep.rawDate, intent });
+      setCText(state => ({ ...state, [id]: result?.comment || "" }));
+    } catch (e) { setSaveErr("AIコメント案の生成に失敗しました: " + (e?.errorMessage || e?.message || e)); }
+    finally { setAiCommentBusy(null); }
+  }
+  async function saveReportSettings() {
+    if (!settingsCourseId || settingsSaving) return;
+    const fields = settingsFields.map((field, index) => ({ ...field, id: field.id || `custom_${Date.now()}_${index}` })).filter(field => String(field.label || "").trim());
+    if (!fields.length) { setSaveErr("日報項目を1つ以上設定してください。"); return; }
+    setSettingsSaving(true); setSaveErr("");
+    try {
+      const result = await apiPut(`/courses/${settingsCourseId}/report-settings`, { fields });
+      const saved = normalizeReportFields(result?.fields); setReportFields(saved); setSettingsFields(saved); setSettingsOpen(false);
+    } catch (e) { setSaveErr("日報項目の保存に失敗しました: " + (e?.errorMessage || e?.message || e)); }
+    finally { setSettingsSaving(false); }
+  }
   const COMMENT_TEMPLATES = ["よく理解できています。この調子で進めましょう。", "具体的に書けていて良い記録です。", "つまずいた点は次回の授業で一緒に確認しましょう。", "毎日の積み重ねが力になっています。"];
   function addGoalItem() {
     setDraft(d => ({ ...d, goalItems: [...d.goalItems, { id: "goal_" + Date.now(), text: "", done: false }] }));
@@ -3527,6 +3618,8 @@ function Reports({ role }) {
     return String(reportUpdatedAt(b.report || {})).localeCompare(String(reportUpdatedAt(a.report || {})));
   });
   const displayDailyReportRows = sortReportRows(dailyReportRows.filter(reportRowMatchesQuery).filter(reportRowMatchesStatus));
+  const reviewReports = displayDailyReportRows.map(row => row.report).filter(Boolean);
+  const reviewIndex = detailReport && !canWrite ? reviewReports.findIndex(report => report.id === detailReport.id) : -1;
   const dailySubmitted = dailyReportRows.filter(r => r.report).length;
   const dailyMissing = dailyReportRows.filter(r => !r.report).length;
   const dailyUncommented = dailyReportRows.filter(r => r.report && !r.hasComment).length;
@@ -3578,10 +3671,11 @@ function Reports({ role }) {
     <div>
       <SectionHead title="日報" desc={canWrite ? "今日の学びを記録し、講師からフィードバックを受け取ります" : canComment ? "コース・企業・日付で日報を確認し、フィードバックします" : "自社受講生の日報を閲覧できます"}
         action={canViewReports ? <div className="flex flex-wrap items-center gap-2">
+          {(role === "admin" || role === "instructor") && <Btn kind="ghost" size="sm" icon={Pencil} disabled={!settingsCourseId} onClick={() => { setSettingsFields(reportFields); setSettingsOpen(true); }}>日報項目設定</Btn>}
           {canComment && periodMode === "日次" && <Btn size="sm" icon={ChevronRight} onClick={() => {
             setReportStatus("未コメント");
             const firstId = nextUncommentedId(null);
-            if (firstId) { setOpen(firstId); window.setTimeout(() => document.getElementById(`report-detail-${firstId}`)?.parentElement?.scrollIntoView({ behavior: "smooth", block: "start" }), 80); }
+            if (firstId) setDetailReport(reports.find(report => report.id === firstId) || null);
           }}>未コメントから処理する</Btn>}
           <Seg value={periodMode} onChange={setPeriodMode} options={["日次", "月次"]} /><span className="text-xs font-semibold" style={{ color: T.textMuted }}>{periodMode === "月次" ? "対象月" : "日報確認日"}</span>{periodMode === "月次" ? <MonthPicker value={month} onChange={setMonth} /> : <input type="date" value={date} onChange={e => setDate(e.target.value)} className="rounded-xl px-3 py-2 text-sm outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary, background: "#fff" }} />}</div> : null} />
       {saveErr && !canWrite && <div className="mb-4 rounded-lg px-3 py-2 text-xs" style={{ background: T.dangerSubtle, color: T.danger }}>{saveErr}</div>}
@@ -3681,22 +3775,12 @@ function Reports({ role }) {
         <div className="mt-4 flex justify-end"><Btn icon={Check} onClick={submit}>{saving ? "保存中..." : "目標を保存"}</Btn></div>
       </Card></div>}
       {canWrite && <Card className="mb-6 p-5">
-        <div className="mb-4 flex items-center justify-between"><h3 className="font-bold" style={{ color: T.textPrimary }}>{editingReportDate.replace(/-/g, "/")} の日報</h3><span className="text-xs" style={{ color: T.textMuted }}>自分の言葉で記入しましょう</span></div>
+        <div className="mb-4 flex flex-wrap items-center justify-between gap-3"><div><h3 className="font-bold" style={{ color: T.textPrimary }}>{editingReportDate.replace(/-/g, "/")} の日報</h3><span className="text-xs" style={{ color: T.textMuted }}>1項目を横幅いっぱい使って、具体的に記録できます。</span></div>{reportCourses.length > 1 && <select value={reportCourseId} onChange={e => setReportCourseId(e.target.value)} className="rounded-xl px-3 py-2 text-sm outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary, background: "#fff" }}>{reportCourses.map(course => <option key={course.courseId} value={course.courseId}>{course.name}</option>)}</select>}</div>
         <div className="mb-4 rounded-xl px-3 py-2 text-xs" style={adminPanelStyle}>保存後も同じ日の日報を再編集できます。朝の目標だけ、夕方の振り返りだけでも保存できます。</div>
-        <div className="space-y-4">{[["learned", "今日学んだこと", "理解できたこと・気づき"], ["question", "疑問・つまずき", "うまく掴めなかった点"], ["nextday", "明日に向けて", "次に取り組みたいこと"]].map(([k, lab, ph]) => (
-          <div key={k}><label className="mb-1 block text-sm font-semibold" style={{ color: T.textPrimary }}>{lab}</label>
-            <textarea value={draft[k]} onChange={e => setDraft({ ...draft, [k]: e.target.value })} placeholder={ph} rows={2} className="w-full resize-none rounded-xl px-3 py-2.5 text-sm outline-none focus:border-cyan-400" style={{ border: `1px solid ${T.border}`, color: T.textPrimary }} /></div>
+        <div className="space-y-5">{reportFields.map(field => (
+          <div key={field.id}><label className="mb-1.5 block text-sm font-semibold" style={{ color: T.textPrimary }}>{field.label}{field.required && <span className="ml-1 text-xs" style={{ color: T.danger }}>必須</span>}</label>
+            <textarea value={reportFieldValue(draft, field.id)} onChange={e => setDraft(current => REPORT_FIXED_KEYS.has(field.id) ? { ...current, [field.id]: e.target.value } : { ...current, customFields: { ...current.customFields, [field.id]: e.target.value } })} placeholder={field.placeholder} rows={4} className="w-full resize-y rounded-xl px-3 py-3 text-sm leading-relaxed outline-none focus:border-cyan-400" style={{ border: `1px solid ${T.border}`, color: T.textPrimary, minHeight: 108 }} /></div>
         ))}</div>
-        <div className="mt-5 grid gap-4 md:grid-cols-3">
-          {[
-            ["reflection", "振り返り", "目標に対してできたこと・気づき"],
-            ["blockers", "困ったこと", "つまずきや相談したいこと"],
-            ["tomorrowGoal", "明日の目標", "明日取り組みたいこと"],
-          ].map(([k, lab, ph]) => (
-            <div key={k}><label className="mb-1 block text-sm font-semibold" style={{ color: T.textPrimary }}>{lab}</label>
-              <textarea value={draft[k]} onChange={e => setDraft({ ...draft, [k]: e.target.value })} placeholder={ph} rows={2} className="w-full resize-none rounded-xl px-3 py-2.5 text-sm outline-none focus:border-cyan-400" style={{ border: `1px solid ${T.border}`, color: T.textPrimary }} /></div>
-          ))}
-        </div>
         <div className="mt-4 flex items-center justify-end gap-3">{saveErr && <span className="text-xs" style={{ color: T.danger }}>{saveErr}</span>}<Btn icon={Send} onClick={submit}>{saving ? "保存中…" : "日報を保存"}</Btn></div></Card>}
       {canWrite && <Card className="mb-4 p-4">
         <div className="mb-3">
@@ -3743,7 +3827,7 @@ function Reports({ role }) {
         </div>
       </Card>}
       {detailReport && (
-        <Modal title={`${(detailReport.rawDate || detailReport.date || "").replace(/-/g, "/")} の日報`} desc="閲覧専用です。編集する場合は一覧の編集ボタンから開いてください。" onClose={() => setDetailReport(null)} footer={<Btn kind="ghost" onClick={() => setDetailReport(null)}>閉じる</Btn>} size="lg">
+        <Modal title={canWrite ? `${(detailReport.rawDate || detailReport.date || "").replace(/-/g, "/")} の日報` : `${nameMap[detailReport.traineeId] || detailReport.name}さんの日報`} desc={canWrite ? "閲覧専用です。編集する場合は一覧の編集ボタンから開いてください。" : `${(detailReport.rawDate || detailReport.date || "").replace(/-/g, "/")} ・ ${reviewIndex >= 0 ? `${reviewIndex + 1} / ${reviewReports.length}人` : "日報確認"}`} onClose={() => setDetailReport(null)} footer={canWrite ? <Btn kind="ghost" onClick={() => setDetailReport(null)}>閉じる</Btn> : <div className="flex w-full items-center justify-between gap-3"><Btn kind="ghost" icon={ChevronLeft} disabled={reviewIndex <= 0} onClick={() => setDetailReport(reviewReports[reviewIndex - 1])}>前の受講生</Btn><span className="text-xs font-semibold" style={{ color: T.textMuted }}>{reviewIndex >= 0 ? `${reviewIndex + 1} / ${reviewReports.length}` : ""}</span><Btn kind="ghost" icon={ChevronRight} disabled={reviewIndex < 0 || reviewIndex >= reviewReports.length - 1} onClick={() => setDetailReport(reviewReports[reviewIndex + 1])}>次の受講生</Btn></div>} size="lg">
           {(detailReport.morningGoal || detailReport.goalItems?.length) && (
             <div className="mb-4 rounded-xl p-3.5" style={{ background: T.accentSubtle }}>
               <div className="mb-2 text-xs font-bold" style={{ color: T.accent }}>朝の目標</div>
@@ -3757,7 +3841,7 @@ function Reports({ role }) {
             </div>
           )}
           <div className="grid gap-3 sm:grid-cols-2">
-            {reportDetailItems(detailReport).map(item => (
+            {reportDetailItems(detailReport, reportFields).map(item => (
               <div key={item.key} className="rounded-xl p-3.5" style={{ background: T.bgBase }}>
                 <div className="mb-1 text-xs font-bold" style={{ color: T.accent }}>{item.title}</div>
                 <div className="whitespace-pre-wrap text-sm leading-relaxed" style={{ color: item.value ? T.textSecondary : T.textMuted }}>{item.value || "未入力"}</div>
@@ -3775,21 +3859,40 @@ function Reports({ role }) {
               ))}</div>
             ) : <div className="text-sm" style={{ color: T.textMuted }}>コメントはまだありません。</div>}
           </div>
+          {!canWrite && canCommentReport(detailReport) && <div className="mt-4 rounded-xl p-4" style={{ border: `1px solid ${T.border}` }}>
+            {(role === "admin" || role === "instructor") && <div className="mb-4 rounded-xl p-3" style={{ background: T.accentSubtle }}><div className="mb-1.5 flex items-center gap-2 text-xs font-bold" style={{ color: T.accentHover }}><Sparkles size={14} />AIに伝えたいこと</div><textarea value={commentIntent[detailReport.id] || ""} onChange={e => setCommentIntent(state => ({ ...state, [detailReport.id]: e.target.value }))} rows={3} placeholder={'例：\n・Javaの変数を定着させる復習方法\n・今日できた点も褒めたい'} className="w-full resize-y rounded-xl bg-white px-3 py-2.5 text-sm outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary }} /><div className="mt-2 flex justify-end"><Btn kind="ai" size="sm" icon={Sparkles} disabled={!String(commentIntent[detailReport.id] || "").trim() || aiCommentBusy === detailReport.id} onClick={() => aiComment(detailReport.id)}>{aiCommentBusy === detailReport.id ? "生成中…" : "日報を読んで文章化"}</Btn></div></div>}
+            <label className="mb-1.5 block text-xs font-bold" style={{ color: T.textMuted }}>投稿するコメント（編集できます）</label><textarea value={cText[detailReport.id] || ""} onChange={e => setCText(state => ({ ...state, [detailReport.id]: e.target.value }))} rows={4} placeholder="コメントを入力" className="w-full resize-y rounded-xl px-3 py-2.5 text-sm outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary }} /><div className="mt-3 flex flex-wrap justify-end gap-2"><Btn kind="ghost" icon={Send} disabled={commenting === detailReport.id || !String(cText[detailReport.id] || "").trim()} onClick={() => addC(detailReport.id)}>コメントを投稿</Btn><Btn icon={ChevronRight} disabled={commenting === detailReport.id || !String(cText[detailReport.id] || "").trim()} onClick={() => addCAndNext(detailReport.id)}>投稿して次へ</Btn></div>
+          </div>}
           <div className="mt-4 grid gap-3 text-xs sm:grid-cols-2" style={{ color: T.textMuted }}>
             <div>提出日時: {detailReport.submittedAt || detailReport.createdAt || detailReport.rawData?.submittedAt || detailReport.rawData?.createdAt ? fmtTs(detailReport.submittedAt || detailReport.createdAt || detailReport.rawData?.submittedAt || detailReport.rawData?.createdAt) : "記録なし"}</div>
             <div>更新日時: {reportUpdatedAt(detailReport) ? fmtTs(reportUpdatedAt(detailReport)) : "記録なし"}</div>
           </div>
         </Modal>
       )}
-      {!canWrite && <div className="space-y-4">{visibleReports.length === 0 ? <Card><div className="px-4 py-8 text-center text-sm" style={{ color: T.textMuted }}>該当データがありません</div></Card> : visibleReports.map(r => (
+      {settingsOpen && (
+        <Modal title="日報項目設定" desc={`${opsFilter.courses.find(course => course.courseId === settingsCourseId)?.name || reportCourses.find(course => course.courseId === settingsCourseId)?.name || "選択コース"}の日報テンプレート`} onClose={() => setSettingsOpen(false)} size="lg" footer={<><Btn kind="ghost" onClick={() => setSettingsOpen(false)}>キャンセル</Btn><Btn icon={Check} disabled={settingsSaving} onClick={saveReportSettings}>{settingsSaving ? "保存中…" : "設定を保存"}</Btn></>}>
+          <div className="mb-3 rounded-xl px-3 py-2 text-xs" style={adminPanelStyle}>項目名・入力例・必須設定・表示順をコースごとに変更できます。過去の日報データは削除されません。</div>
+          <div className="space-y-3">{settingsFields.map((field, index) => (
+            <div key={field.id || index} className="rounded-xl p-3" style={{ border: `1px solid ${T.border}` }}>
+              <div className="grid gap-2 sm:grid-cols-[1fr_1.4fr_auto]">
+                <input value={field.label} onChange={e => setSettingsFields(items => items.map((item, i) => i === index ? { ...item, label: e.target.value } : item))} placeholder="項目名" className="rounded-lg px-3 py-2 text-sm outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary }} />
+                <input value={field.placeholder || ""} onChange={e => setSettingsFields(items => items.map((item, i) => i === index ? { ...item, placeholder: e.target.value } : item))} placeholder="受講生に見せる入力例" className="rounded-lg px-3 py-2 text-sm outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary }} />
+                <div className="flex items-center justify-end gap-1"><label className="mr-2 flex items-center gap-1 text-xs" style={{ color: T.textSecondary }}><input type="checkbox" checked={!!field.required} onChange={e => setSettingsFields(items => items.map((item, i) => i === index ? { ...item, required: e.target.checked } : item))} />必須</label><button disabled={index === 0} onClick={() => setSettingsFields(items => { const next = [...items]; [next[index - 1], next[index]] = [next[index], next[index - 1]]; return next; })} className="rounded-lg p-1.5 disabled:opacity-30"><ChevronUp size={16} /></button><button disabled={index === settingsFields.length - 1} onClick={() => setSettingsFields(items => { const next = [...items]; [next[index + 1], next[index]] = [next[index], next[index + 1]]; return next; })} className="rounded-lg p-1.5 disabled:opacity-30"><ChevronDown size={16} /></button><button onClick={() => setSettingsFields(items => items.filter((_, i) => i !== index))} className="rounded-lg p-1.5"><Trash2 size={16} style={{ color: T.danger }} /></button></div>
+              </div>
+            </div>
+          ))}</div>
+          {settingsFields.length < 8 && <div className="mt-3"><Btn kind="ghost" size="sm" icon={Plus} onClick={() => setSettingsFields(items => [...items, { id: `custom_${Date.now()}`, label: "新しい項目", placeholder: "", required: false }])}>項目を追加</Btn></div>}
+        </Modal>
+      )}
+      {!canWrite && periodMode === "日次" && <div className="space-y-3">{reviewReports.length === 0 ? <Card><div className="px-4 py-8 text-center text-sm" style={{ color: T.textMuted }}>該当する提出済み日報がありません</div></Card> : reviewReports.map(r => (
         <Card key={r.id} className="overflow-hidden" style={{ scrollMarginTop: 72 }}>
           <div id={`report-detail-${r.id}`} />
-          <button onClick={() => setOpen(open === r.id ? null : r.id)} className="flex w-full items-center justify-between px-5 py-4 text-left">
+          <button onClick={() => setDetailReport(r)} className="flex w-full items-center justify-between px-5 py-4 text-left">
             <div className="flex items-center gap-3"><Avatar name={nameMap[r.traineeId] || r.name} />
               <div><div className="text-sm font-bold" style={{ color: T.textPrimary }}>{nameMap[r.traineeId] || r.name}<span className="ml-2 text-xs font-normal" style={{ color: T.textMuted }}>{companyNameOfReport(r)}</span></div><div className="text-xs" style={{ color: T.textMuted }}>{r.date} の日報 ・ {reportSavedLabel(r)}</div></div></div>
             <div className="flex items-center gap-3">{r.comments.length ? <Badge tone="cyan"><MessageSquare size={12} />{r.comments.length}</Badge> : <Badge tone="amber">未コメント</Badge>}
-              <ChevronRight size={16} style={{ color: T.textMuted, transform: open === r.id ? "rotate(90deg)" : "none", transition: "transform .2s" }} /></div></button>
-          {open === r.id && <div className="px-5 pb-5" style={{ borderTop: `1px solid ${T.border}` }}>
+              <ChevronRight size={16} style={{ color: T.textMuted }} /></div></button>
+          {false && open === r.id && <div className="px-5 pb-5" style={{ borderTop: `1px solid ${T.border}` }}>
             {(r.morningGoal || r.goalItems?.length) && <div className="mt-4 rounded-xl p-3.5" style={{ background: T.accentSubtle }}>
               <div className="mb-2 text-xs font-bold" style={{ color: T.accent }}>朝の目標</div>
               {r.morningGoal && <div className="mb-2 text-sm font-semibold" style={{ color: T.textPrimary }}>{r.morningGoal}</div>}
@@ -3800,7 +3903,7 @@ function Reports({ role }) {
                 </div>
               ))}</div>}
             </div>}
-            <div className="grid gap-3 pt-4 sm:grid-cols-2 lg:grid-cols-3">{reportDetailItems(r).map(item => (
+            <div className="grid gap-3 pt-4 sm:grid-cols-2 lg:grid-cols-3">{reportDetailItems(r, reportFields).map(item => (
               <div key={item.key} className="rounded-xl p-3.5" style={{ background: T.bgBase }}>
                 <div className="mb-1 text-xs font-bold" style={{ color: T.accent }}>{item.title}</div>
                 <div className="whitespace-pre-wrap text-sm leading-relaxed" style={{ color: item.value ? T.textSecondary : T.textMuted }}>{item.value || "未入力"}</div>
@@ -4564,16 +4667,8 @@ function reportSavedLabel(r) {
 }
 
 
-function reportDetailItems(r) {
-  // Future: replace this fixed list with fields from GET /report-template for the selected course.
-  return [
-    { key: "learned", title: "今日学んだこと", value: r.learned },
-    { key: "reflection", title: "振り返り", value: r.reflection },
-    { key: "blockers", title: "困ったこと", value: r.blockers },
-    { key: "tomorrowGoal", title: "明日の目標", value: r.tomorrowGoal },
-    { key: "nextday", title: "明日に向けて", value: r.nextday },
-    { key: "question", title: "講師への質問", value: r.question },
-  ];
+function reportDetailItems(r, fields = DEFAULT_REPORT_FIELDS) {
+  return normalizeReportFields(fields).map(field => ({ key: field.id, title: field.label, value: reportFieldValue(r, field.id) }));
 }
 
 
