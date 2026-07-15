@@ -2635,13 +2635,13 @@ function TraineeAttendance() {
         <div className="grid grid-cols-7" style={{ background: T.border, gap: 1 }}>
           {WD.map((weekday, index) => <div key={weekday} className="bg-white py-2 text-center text-xs font-bold" style={{ color: index === 0 ? T.danger : index === 6 ? T.accent : T.textMuted }}>{weekday}</div>)}
           {calendarCells.map((dateValue, index) => {
-            if (!dateValue) return <div key={`blank-${index}`} className="min-h-24 bg-white" />;
+            if (!dateValue) return <div key={`blank-${index}`} className="min-h-20 bg-white sm:min-h-24" />;
             const row = attendanceByDate[dateValue];
             const future = dateValue > today;
             const isTrainingDay = attendanceTrainingDateSet.has(dateValue);
             const missing = !row && !future && isTrainingDay;
             const isToday = dateValue === today;
-            return <button key={dateValue} type="button" disabled={future || !isTrainingDay || workdaysLoading} onClick={() => openCalendarAttendance(dateValue, row)} className="min-h-24 bg-white p-2 text-left transition enabled:cursor-pointer enabled:hover:brightness-95 disabled:cursor-default" style={isToday ? { boxShadow: `inset 0 0 0 2px ${T.accent}` } : undefined} aria-label={`${dateValue}の勤怠を${row ? "修正" : "登録"}`}><div className="flex items-center justify-between"><span className="text-xs font-bold" style={{ color: isTrainingDay ? T.textPrimary : T.textMuted }}>{Number(dateValue.slice(-2))}</span>{isToday && <Badge tone="cyan">今日</Badge>}</div>{row ? <div className="mt-2 rounded-lg px-2 py-1.5" style={{ background: T.successSubtle }}><div className="text-[11px] font-bold" style={{ color: T.success }}>登録済み{!isTrainingDay ? "（閲覧のみ）" : ""}</div><div className="mt-0.5 text-xs" style={{ color: T.textSecondary }}>{row.in || "—"}–{row.out || "—"}</div></div> : missing ? <div className="mt-2 rounded-lg px-2 py-1.5 text-[11px] font-bold" style={{ background: T.warningSubtle, color: T.warning }}>研修日・クリックして登録</div> : <div className="mt-2 text-[11px]" style={{ color: T.textMuted }}>{future && isTrainingDay ? "研修予定日" : "非研修日"}</div>}</button>;
+            return <button key={dateValue} type="button" disabled={future || !isTrainingDay || workdaysLoading} onClick={() => openCalendarAttendance(dateValue, row)} className="min-h-20 bg-white p-1 text-left transition enabled:cursor-pointer enabled:hover:brightness-95 disabled:cursor-default sm:min-h-24 sm:p-2" style={isToday ? { boxShadow: `inset 0 0 0 2px ${T.accent}` } : undefined} aria-label={`${dateValue}の勤怠を${row ? "修正" : "登録"}`}><div className="flex items-center justify-between"><span className="text-xs font-bold" style={{ color: isTrainingDay ? T.textPrimary : T.textMuted }}>{Number(dateValue.slice(-2))}</span>{isToday && <span className="hidden sm:inline"><Badge tone="cyan">今日</Badge></span>}</div>{row ? <div className="mt-1 rounded-lg px-1 py-1 sm:mt-2 sm:px-2 sm:py-1.5" style={{ background: T.successSubtle }}><div className="text-[10px] font-bold sm:text-[11px]" style={{ color: T.success }}>登録済み<span className="hidden sm:inline">{!isTrainingDay ? "（閲覧のみ）" : ""}</span></div><div className="mt-0.5 hidden text-xs sm:block" style={{ color: T.textSecondary }}>{row.in || "—"}–{row.out || "—"}</div></div> : missing ? <div className="mt-1 rounded-lg px-1 py-1 text-[10px] font-bold sm:mt-2 sm:px-2 sm:py-1.5 sm:text-[11px]" style={{ background: T.warningSubtle, color: T.warning }}>研修日<span className="hidden sm:inline">・クリックして登録</span></div> : <div className="mt-1 text-[10px] sm:mt-2 sm:text-[11px]" style={{ color: T.textMuted }}>{future && isTrainingDay ? "研修予定" : "非研修"}<span className="hidden sm:inline">日</span></div>}</button>;
           })}
         </div>
       </Card>
@@ -2868,7 +2868,37 @@ function AttendanceManage({ role }) {
       ) : (<>
       <div className="mb-5 grid gap-4 sm:grid-cols-2 lg:grid-cols-4"><Stat icon={CheckCircle2} label="出勤" value={`${present}名`} tone="green" /><Stat icon={AlertCircle} label="遅刻" value={`${late}名`} tone="amber" /><Stat icon={X} label="欠席" value={`${absent}名`} tone="muted" /><Stat icon={Clock} label="出勤未打刻" value={`${unregistered}名`} tone={unregistered ? "amber" : "muted"} /></div>
       <Card>
-        <div className="overflow-x-auto">
+        <div className="divide-y md:hidden" style={{ borderColor: T.border }}>
+          {filteredRows.length === 0 ? <div className="px-4 py-8 text-center text-sm" style={{ color: T.textMuted }}>該当データがありません</div> : filteredRows.map(a => (
+            <div key={`mobile-${a.traineeId}`} className="p-4">
+              <div className="mb-3 flex items-center justify-between gap-3">
+                <div className="flex min-w-0 items-center gap-2"><Avatar name={nameMap[a.traineeId] || a.name} size={32} /><span className="truncate text-sm font-semibold" style={{ color: T.textPrimary }}>{nameMap[a.traineeId] || a.name}</span></div>
+                {!(canEdit && eId === a.traineeId) && <Badge tone={attendanceStatusTone(a.s, a)}>{attendanceStatusLabel(a.s, a)}</Badge>}
+              </div>
+              {canEdit && eId === a.traineeId ? (
+                <div className="space-y-3">
+                  <div className="grid grid-cols-2 gap-2">
+                    <label className="text-xs font-semibold" style={{ color: T.textMuted }}>出勤<input value={draft.in} onChange={e => setDraft({ ...draft, in: e.target.value })} className="mt-1 w-full rounded-xl px-3 py-2 text-sm outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary }} /></label>
+                    <label className="text-xs font-semibold" style={{ color: T.textMuted }}>退勤<input value={draft.out} onChange={e => setDraft({ ...draft, out: e.target.value })} className="mt-1 w-full rounded-xl px-3 py-2 text-sm outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary }} /></label>
+                  </div>
+                  <select value={draft.s} onChange={e => setDraft({ ...draft, s: e.target.value })} className="w-full rounded-xl px-3 py-2 text-sm outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary, background: T.bgSurface }}><option>正常</option><option>遅刻</option><option>早退</option><option>欠席</option><option>修正済み</option><option>未完了</option></select>
+                  <input value={draft.note} onChange={e => setDraft({ ...draft, note: e.target.value })} placeholder="備考" className="w-full rounded-xl px-3 py-2 text-sm outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary }} />
+                  <div className="flex justify-end gap-2"><Btn kind="ghost" size="sm" onClick={() => setEId(null)}>キャンセル</Btn><Btn size="sm" icon={Check} onClick={save}>保存</Btn></div>
+                </div>
+              ) : (
+                <div>
+                  <div className="grid grid-cols-2 gap-2 text-sm">
+                    <div className="rounded-xl p-3" style={{ background: T.bgBase }}><div className="text-xs" style={{ color: T.textMuted }}>出勤</div><div className="mt-1 font-semibold" style={{ color: T.textPrimary }}>{a.in || "—"}</div></div>
+                    <div className="rounded-xl p-3" style={{ background: T.bgBase }}><div className="text-xs" style={{ color: T.textMuted }}>退勤</div><div className="mt-1 font-semibold" style={{ color: T.textPrimary }}>{a.out || "—"}</div></div>
+                  </div>
+                  {a.note && <div className="mt-3 text-xs" style={{ color: T.textMuted }}>備考: {a.note}</div>}
+                  {canEdit && <div className="mt-3 flex justify-end"><Btn kind="ghost" size="sm" icon={Pencil} onClick={() => startEdit(a)}>修正</Btn></div>}
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+        <div className="hidden overflow-x-auto md:block">
           <div className="feeps-zebra" style={{ minWidth: 600 }}>
             <div className="flex items-center gap-3 px-4 py-2.5 text-xs font-semibold" style={{ background: T.bgBase, color: T.textMuted }}>
               <div className="w-40">受講生</div><div className="w-16">出勤</div><div className="w-16">退勤</div><div className="w-20">状態</div><div className="flex-1">備考</div>{canEdit && <div className="w-12" />}</div>
@@ -3822,7 +3852,27 @@ function Reports({ role }) {
             <div className="rounded-xl p-3" style={{ background: T.accentSubtle }}><div className="text-xs font-bold" style={{ color: T.accentHover }}>未コメント</div><div className="mt-1 text-2xl font-bold" style={{ color: T.textPrimary }}>{dailyUncommented}</div></div>
             <div className="rounded-xl p-3" style={{ background: T.dangerSubtle }}><div className="text-xs font-bold" style={{ color: T.danger }}>要確認</div><div className="mt-1 text-2xl font-bold" style={{ color: T.textPrimary }}>{dailyNeedsCheck}</div></div>
           </div>
-          <div className="overflow-x-auto">
+          <div className="divide-y md:hidden" style={{ borderColor: T.border }}>
+            {displayDailyReportRows.length === 0 ? <div className="px-4 py-8 text-center text-sm" style={{ color: T.textMuted }}>表示対象の受講生がいません。</div> : displayDailyReportRows.map(row => {
+              const t = row.trainee;
+              const r = row.report;
+              const rowId = t.userId || r?.traineeId;
+              return (
+                <div key={`mobile-${rowId}`} className="p-4">
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="flex min-w-0 items-center gap-2"><Avatar name={t.name || nameMap[rowId] || fallbackName(rowId)} size={32} /><div className="min-w-0"><div className="truncate text-sm font-semibold" style={{ color: T.textPrimary }}>{t.name || nameMap[rowId] || fallbackName(rowId)}</div><div className="truncate text-xs" style={{ color: T.textMuted }}>{companyNameById(t.company || r?.org || "") || "企業未設定"}</div></div></div>
+                    <Badge tone={r ? "green" : "amber"}>{r ? "提出済み" : "未提出"}</Badge>
+                  </div>
+                  <div className="mt-3 grid grid-cols-2 gap-2 text-xs">
+                    <div className="rounded-xl p-3" style={{ background: T.bgBase }}><div style={{ color: T.textMuted }}>コース</div><div className="mt-1 truncate font-semibold" style={{ color: T.textPrimary }}>{courseNameOfTrainee(t)}</div></div>
+                    <div className="rounded-xl p-3" style={{ background: T.bgBase }}><div style={{ color: T.textMuted }}>コメント</div><div className="mt-1"><Badge tone={row.hasComment ? "cyan" : r ? "amber" : "muted"}>{row.hasComment ? "あり" : r ? "未コメント" : "—"}</Badge></div></div>
+                  </div>
+                  {r && <div className="mt-3 flex items-center justify-between gap-3"><span className="text-xs" style={{ color: T.textMuted }}>{reportUpdatedAt(r) ? fmtTs(reportUpdatedAt(r)) : "提出済み"}</span><Btn kind="ghost" size="sm" onClick={() => setDetailReport(r)}>詳細を確認</Btn></div>}
+                </div>
+              );
+            })}
+          </div>
+          <div className="hidden overflow-x-auto md:block">
             <div className="feeps-zebra" style={{ minWidth: 760 }}>
               <div className="grid grid-cols-12 gap-3 px-4 py-2.5 text-xs font-semibold" style={{ background: T.bgBase, color: T.textMuted }}>
                 <div className="col-span-3">受講生</div><div className="col-span-2">企業</div><div className="col-span-2">コース</div><div>提出</div><div>コメント</div><div className="col-span-2">提出日時</div><div>操作</div>
@@ -3839,7 +3889,7 @@ function Reports({ role }) {
                     <div><Badge tone={r ? "green" : "amber"}>{r ? "保存済み" : "未提出"}</Badge></div>
                     <div><Badge tone={row.hasComment ? "cyan" : r ? "amber" : "muted"}>{row.hasComment ? "あり" : r ? "未コメント" : "-"}</Badge></div>
                     <div className="col-span-2 text-xs" style={{ color: T.textMuted }}>{r ? (reportUpdatedAt(r) ? fmtTs(reportUpdatedAt(r)) : "保存済み") : "-"}</div>
-                    <div>{r ? <button onClick={() => { setOpen(r.id); window.setTimeout(() => document.getElementById(`report-detail-${r.id}`)?.parentElement?.scrollIntoView?.({ behavior: "smooth", block: "start" }), 60); }} className="text-xs font-semibold" style={{ color: T.accentHover }}>詳細</button> : <span className="text-xs" style={{ color: T.textMuted }}>-</span>}</div>
+                    <div>{r ? <button onClick={() => setDetailReport(r)} className="text-xs font-semibold" style={{ color: T.accentHover }}>詳細</button> : <span className="text-xs" style={{ color: T.textMuted }}>-</span>}</div>
                   </div>
                 );
               })}
@@ -3902,13 +3952,13 @@ function Reports({ role }) {
         <div className="grid grid-cols-7" style={{ background: T.border, gap: 1 }}>
           {WD.map((weekday, index) => <div key={weekday} className="bg-white py-2 text-center text-xs font-bold" style={{ color: index === 0 ? T.danger : index === 6 ? T.accent : T.textMuted }}>{weekday}</div>)}
           {reportCalendarCells.map((dateValue, index) => {
-            if (!dateValue) return <div key={`report-blank-${index}`} className="min-h-24 bg-white" />;
+            if (!dateValue) return <div key={`report-blank-${index}`} className="min-h-20 bg-white sm:min-h-24" />;
             const report = reportsByDate[dateValue];
             const future = dateValue > todayStr();
             const isTrainingDay = reportTrainingDateSet.has(dateValue);
             const hasComment = !!report?.comments?.length;
             const isToday = dateValue === todayStr();
-            return <button key={dateValue} type="button" disabled={reportWorkdaysLoading || (!report && (future || !isTrainingDay))} onClick={() => report && !isTrainingDay ? setDetailReport(report) : editReport({ date: dateValue, report })} className="min-h-24 bg-white p-2 text-left transition enabled:cursor-pointer enabled:hover:brightness-95 disabled:cursor-default" style={isToday ? { boxShadow: `inset 0 0 0 2px ${T.accent}` } : undefined}><div className="flex items-center justify-between"><span className="text-xs font-bold" style={{ color: isTrainingDay ? T.textPrimary : T.textMuted }}>{Number(dateValue.slice(-2))}</span>{isToday && <Badge tone="cyan">今日</Badge>}</div>{report ? <div className="mt-2 rounded-lg px-2 py-1.5" style={{ background: T.successSubtle }}><div className="text-[11px] font-bold" style={{ color: T.success }}>提出済み{!isTrainingDay ? "（閲覧のみ）" : ""}</div>{hasComment && <div className="mt-1 text-[11px] font-bold" style={{ color: T.accentHover }}>コメントあり</div>}</div> : future && isTrainingDay ? <div className="mt-2 text-[11px]" style={{ color: T.textMuted }}>研修予定日</div> : !isTrainingDay ? <div className="mt-2 text-[11px]" style={{ color: T.textMuted }}>非研修日</div> : <div className="mt-2 rounded-lg px-2 py-1.5 text-[11px] font-bold" style={{ background: T.warningSubtle, color: T.warning }}>研修日・クリックして作成</div>}</button>;
+            return <button key={dateValue} type="button" disabled={reportWorkdaysLoading || (!report && (future || !isTrainingDay))} onClick={() => report && !isTrainingDay ? setDetailReport(report) : editReport({ date: dateValue, report })} className="min-h-20 bg-white p-1 text-left transition enabled:cursor-pointer enabled:hover:brightness-95 disabled:cursor-default sm:min-h-24 sm:p-2" style={isToday ? { boxShadow: `inset 0 0 0 2px ${T.accent}` } : undefined}><div className="flex items-center justify-between"><span className="text-xs font-bold" style={{ color: isTrainingDay ? T.textPrimary : T.textMuted }}>{Number(dateValue.slice(-2))}</span>{isToday && <span className="hidden sm:inline"><Badge tone="cyan">今日</Badge></span>}</div>{report ? <div className="mt-1 rounded-lg px-1 py-1 sm:mt-2 sm:px-2 sm:py-1.5" style={{ background: T.successSubtle }}><div className="text-[10px] font-bold sm:text-[11px]" style={{ color: T.success }}>提出済み<span className="hidden sm:inline">{!isTrainingDay ? "（閲覧のみ）" : ""}</span></div>{hasComment && <div className="mt-0.5 text-[10px] font-bold sm:mt-1 sm:text-[11px]" style={{ color: T.accentHover }}>コメント<span className="hidden sm:inline">あり</span></div>}</div> : future && isTrainingDay ? <div className="mt-1 text-[10px] sm:mt-2 sm:text-[11px]" style={{ color: T.textMuted }}>研修予定<span className="hidden sm:inline">日</span></div> : !isTrainingDay ? <div className="mt-1 text-[10px] sm:mt-2 sm:text-[11px]" style={{ color: T.textMuted }}>非研修<span className="hidden sm:inline">日</span></div> : <div className="mt-1 rounded-lg px-1 py-1 text-[10px] font-bold sm:mt-2 sm:px-2 sm:py-1.5 sm:text-[11px]" style={{ background: T.warningSubtle, color: T.warning }}>研修日<span className="hidden sm:inline">・クリックして作成</span></div>}</button>;
           })}
         </div>
       </Card>}
