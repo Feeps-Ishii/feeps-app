@@ -4,6 +4,7 @@ import { apiGet, apiPut, apiPost } from "../../api.js";
 import { Card, Badge, Btn, Avatar, Stat, SectionHead, Field, Modal, T, PageHeader, ProductNavCard, SkeletonRows, SkeletonCards } from "../../components/common";
 import { EmptyState } from "../training/TrainingComponents.jsx";
 import { statusKind, todayStr } from "../training/useTraining.js";
+import { getActiveCourseId, setActiveCourseId } from "../../utils/common/courseContext.js";
 import {
   ClipboardCheck, Clock, NotebookPen, Users,
   Building2, BookOpen, GraduationCap, Search,
@@ -12,7 +13,7 @@ import {
   Pencil, StickyNote,
   Check, Filter, Mail,
   ShieldCheck, FileSpreadsheet,
-  Gauge, User
+  User
 } from "lucide-react";
 
 async function exportAdminListExcel(rows, columns, sheetName, fileLabel) {
@@ -42,7 +43,6 @@ function AdminHome({ go, openRisk }) {
   const [users, setUsers] = useState([]);
   const [reports, setReports] = useState([]);
   const [attendance, setAttendance] = useState([]);
-  const [tests, setTests] = useState([]);
   const [courseMap, setCourseMap] = useState({});
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState("");
@@ -50,8 +50,8 @@ function AdminHome({ go, openRisk }) {
   useEffect(() => {
     let alive = true;
     setLoading(true); setErr("");
-    Promise.all([apiGet("/companies"), apiGet("/courses"), apiGet("/admin/users"), apiGet("/tests").catch(e => { console.warn("admin tests failed", e); return []; })])
-      .then(async ([cs, crs, us, testList]) => {
+    Promise.all([apiGet("/companies"), apiGet("/courses"), apiGet("/admin/users")])
+      .then(async ([cs, crs, us]) => {
         if (!alive) return;
         const courseList = crs || [];
         const pairs = await Promise.all(courseList.map(c => apiGet(`/courses/${c.courseId}/trainees`).then(t => [c.courseId, t || []]).catch(() => [c.courseId, []])));
@@ -59,7 +59,6 @@ function AdminHome({ go, openRisk }) {
         setCompanies(cs || []);
         setCourses(courseList);
         setUsers(us || []);
-        setTests(Array.isArray(testList) ? testList : []);
         setCourseMap(Object.fromEntries(pairs));
       })
       .catch(e => alive && setErr("運用データの取得に失敗しました：" + (e?.message || e)))
@@ -71,7 +70,6 @@ function AdminHome({ go, openRisk }) {
     apiGet("/attendance?date=" + date).then(r => setAttendance(r || [])).catch(e => { console.warn("admin attendance failed", e); setAttendance([]); });
   }, [date]);
   const trainees = users.filter(u => u.role === "trainee");
-  const instructors = users.filter(u => u.role === "instructor");
   const reportIds = new Set(reports.map(r => r.traineeId));
   const attendanceIds = new Set(attendance.map(r => r.traineeId));
   const traineeIds = new Set(trainees.map(t => t.userId));
@@ -82,7 +80,6 @@ function AdminHome({ go, openRisk }) {
   const attendanceMissingCount = Math.max(trainees.length - attendanceRegistered, 0);
   const reportRate = trainees.length ? Math.round((reportSubmitted / trainees.length) * 100) : 0;
   const attendanceRate = trainees.length ? Math.round((attendanceRegistered / trainees.length) * 100) : 0;
-  const publishedTests = tests.filter(t => (t.status || "published") === "published");
   const companyName = (id) => companies.find(c => c.companyId === id)?.name || id || "未設定";
   const courseSummaries = courses.map(c => {
     const members = courseMap[c.courseId] || [];
@@ -99,6 +96,10 @@ function AdminHome({ go, openRisk }) {
     const joined = courseSummaries.filter(c => c.members.some(t => memberIds.has(t.userId)));
     return { ...co, members, courses: joined };
   });
+  function openCourse(courseId) {
+    setActiveCourseId(courseId);
+    go?.("courses");
+  }
   return (
     <div>
       <PageHeader
@@ -112,11 +113,11 @@ function AdminHome({ go, openRisk }) {
           { label: "全受講生", value: trainees.length, unit: "名" },
           { label: "本日のアラート", value: alertCount, unit: "件" },
         ]}
-        cta={{ label: "ユーザー管理を開く", icon: Users, onClick: () => go && go("users") }}
+        cta={{ label: "コース管理センター", icon: BookOpen, onClick: () => go && go("courses") }}
       />
       <div className="mb-6 grid gap-4 md:grid-cols-3">
+        <ProductNavCard product="admin" icon={BookOpen} title="コース管理センター" desc="コースを選び、設定と研修運用をまとめて管理" onClick={() => go && go("courses")} highlight badge="管理の起点" delay={650} />
         <ProductNavCard product="admin" icon={Building2} title="企業管理" desc="契約企業の登録・管理" onClick={() => go && go("companies")} delay={650} />
-        <ProductNavCard product="admin" icon={BookOpen} title="コース管理" desc="研修・Eラーニングコースの管理" onClick={() => go && go("courses")} highlight badge="よく使う" delay={710} />
         <ProductNavCard product="admin" icon={Users} title="ユーザー管理" desc="受講生・講師・企業担当者の管理" onClick={() => go && go("users")} delay={770} />
       </div>
       <div className="flex flex-wrap items-center justify-end gap-2"><span className="text-xs font-semibold" style={{ color: T.textMuted }}>日報確認日</span><input type="date" value={date} onChange={e => setDate(e.target.value)} className="rounded-xl px-3 py-2 text-sm outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary, background: "#fff" }} /></div>
@@ -127,13 +128,6 @@ function AdminHome({ go, openRisk }) {
         <Stat icon={NotebookPen} label="日報提出率" value={`${reportRate}%`} tone={reportMissingCount ? "amber" : "green"} sub={`${reportSubmitted}/${trainees.length} 保存`} />
         <Stat icon={AlertCircle} label="本日のアラート" value={`${alertCount}件`} tone={alertCount ? "red" : "green"} sub="未提出・未登録・欠席・要確認研修" />
       </div>
-      <div className="mt-4 grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
-        <Stat icon={NotebookPen} label="未提出件数" value={`${reportMissingCount}件`} tone={reportMissingCount ? "amber" : "green"} />
-        <Stat icon={Building2} label="企業" value={`${companies.length}社`} />
-        <Stat icon={GraduationCap} label="講師" value={`${instructors.length}名`} tone="muted" />
-        <Stat icon={BookOpen} label="コース" value={`${courses.length}件`} tone="cyan" sub="研修・Eラーニング・継続支援" />
-        <Stat icon={ClipboardCheck} label="公開中テスト" value={`${publishedTests.length}件`} tone="cyan" />
-      </div>
       <Card className="mt-6 p-5">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div><h3 className="font-bold" style={{ color: T.textPrimary }}>要確認研修</h3><p className="text-xs" style={{ color: T.textMuted }}>日報保存または勤怠登録が不足しているコースを優先確認します。</p></div>
@@ -141,9 +135,10 @@ function AdminHome({ go, openRisk }) {
         </div>
         <div className="mt-3 grid gap-2 md:grid-cols-2">
           {attentionCourses.length ? attentionCourses.slice(0, 6).map(c => (
-            <div key={c.courseId} className="rounded-xl p-3" style={{ background: T.bgBase }}>
-              <div className="font-semibold" style={{ color: T.textPrimary }}>{c.name}</div>
-              <div className="mt-1 text-xs" style={{ color: T.textMuted }}>日報 {c.reportCount}/{c.members.length} ・ 勤怠 {c.attendanceCount}/{c.members.length}</div>
+            <div key={c.courseId} className="flex items-center gap-3 rounded-xl p-3" style={{ background: T.bgBase }}>
+              <div className="min-w-0 flex-1"><div className="truncate font-semibold" style={{ color: T.textPrimary }}>{c.name}</div>
+                <div className="mt-1 text-xs" style={{ color: T.textMuted }}>日報 {c.reportCount}/{c.members.length} ・ 勤怠 {c.attendanceCount}/{c.members.length}</div></div>
+              <Btn size="sm" kind="ghost" icon={ChevronRight} onClick={() => openCourse(c.courseId)}>開く</Btn>
             </div>
           )) : <div className="rounded-xl p-3 text-sm" style={adminPanelStyle}>今日の要確認研修はありません。</div>}
         </div>
@@ -161,7 +156,7 @@ function AdminHome({ go, openRisk }) {
                 <div className="flex flex-wrap items-start justify-between gap-2">
                   <div className="min-w-0"><div className="flex flex-wrap items-center gap-2"><h4 className="font-bold" style={{ color: T.textPrimary }}>{c.name}</h4><Badge tone={kindTone(c.type || c.kind)}>{labelKind(c.type || c.kind)}</Badge></div>
                     <p className="mt-1 text-xs" style={{ color: T.textMuted }}>{c.companyCount}社参加 / {c.members.length}名所属</p></div>
-                  <div className="flex flex-wrap gap-1.5"><Badge tone={c.reportCount ? "green" : "muted"}>日報 {c.reportCount}件</Badge><Badge tone={c.attendanceCount ? "cyan" : "muted"}>勤怠 {c.attendanceCount}件</Badge></div>
+                  <div className="flex flex-wrap gap-1.5"><Badge tone={c.reportCount ? "green" : "muted"}>日報 {c.reportCount}件</Badge><Badge tone={c.attendanceCount ? "cyan" : "muted"}>勤怠 {c.attendanceCount}件</Badge><Btn size="sm" kind="ghost" icon={ChevronRight} onClick={() => openCourse(c.courseId)}>管理</Btn></div>
                 </div>
                 <div className="mt-3 flex flex-wrap gap-1.5">{[...new Set(c.members.map(t => t.company).filter(Boolean))].slice(0, 4).map(id => <span key={id} className="rounded-full px-2 py-1 text-xs" style={{ background: T.bgBase, color: T.textSecondary }}>{companyName(id)}</span>)}{c.companyCount > 4 && <span className="text-xs" style={{ color: T.textMuted }}>ほか{c.companyCount - 4}社</span>}</div>
               </div>
@@ -185,13 +180,7 @@ function AdminHome({ go, openRisk }) {
             ))}</div>}
         </Card>
       </div>
-      <Card className="mt-6 p-5">
-        <div className="flex flex-wrap items-center justify-between gap-2">
-          <div className="flex items-center gap-2"><div className="flex h-9 w-9 items-center justify-center rounded-xl" style={{ background: T.accentSubtle, color: T.accent }}><Gauge size={18} /></div>
-            <div><h3 className="font-bold" style={{ color: T.textPrimary }}>運用メモ</h3><p className="text-xs" style={{ color: T.textMuted }}>大量データや横断分析は、将来的に集計API化する前提の小規模運用ビューです。</p></div></div>
-          {openRisk && <Btn kind="soft" size="sm" onClick={openRisk}>リスク分析を見る</Btn>}
-        </div>
-      </Card>
+      {openRisk && <div className="mt-5 flex justify-end"><Btn kind="soft" size="sm" onClick={openRisk}>リスク分析を見る</Btn></div>}
     </div>
   );
 }
@@ -486,6 +475,9 @@ function AdminCourses({ go }) {
             setSelected(fresh);
             setEdit({ name: fresh.name || "", type: typeOf(fresh), memo: memoOf(fresh), instructorIds: Array.isArray(fresh.instructorIds) ? fresh.instructorIds : [] });
           }
+        } else {
+          const active = list.find(x => x.courseId === getActiveCourseId());
+          if (active) selectCourse(active);
         }
       })
       .catch(() => setErr("コース一覧の取得に失敗しました。"))
@@ -523,6 +515,7 @@ function AdminCourses({ go }) {
     setSort(s => s.key === key ? { key, dir: s.dir === "asc" ? "desc" : "asc" } : { key, dir: "asc" });
   }
   async function selectCourse(c) {
+    setActiveCourseId(c.courseId);
     setSelected(c);
     setEdit({ name: c.name || "", type: typeOf(c), memo: memoOf(c), instructorIds: Array.isArray(c.instructorIds) ? c.instructorIds : [] });
     setErr("");
@@ -669,9 +662,13 @@ function AdminCourses({ go }) {
   if (selected) return (
     <div>
       <SectionHead title={selected.name || "コース詳細"} desc="基本情報・担当講師・所属受講生・研修カレンダーを管理します"
-        action={<Btn kind="ghost" size="sm" icon={ChevronLeft} onClick={() => { setSelected(null); setErr(""); setMsg(""); }}>コース一覧に戻る</Btn>} />
+        action={<div className="flex flex-wrap items-center justify-end gap-2"><select value={selected.courseId} onChange={e => { const next = rows.find(row => row.courseId === e.target.value); if (next) selectCourse(next); }} className="min-w-52 rounded-xl px-3 py-2 text-sm font-semibold outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary, background: T.bgSurface }}>{rows.map(row => <option key={row.courseId} value={row.courseId}>{row.name || row.courseId}</option>)}</select><Btn kind="ghost" size="sm" icon={ChevronLeft} onClick={() => { setSelected(null); setErr(""); setMsg(""); }}>コース一覧</Btn></div>} />
       {msg && <div className="mb-4 rounded-lg px-3 py-2 text-xs" style={adminMsgStyle}>{msg}</div>}
       {err && <div className="mb-4 rounded-lg px-3 py-2 text-xs" style={adminErrStyle}>{err}</div>}
+      <Card className="mb-5 p-4">
+        <div className="mb-3"><h3 className="font-bold" style={{ color: T.textPrimary }}>このコースの運用メニュー</h3><p className="text-xs" style={{ color: T.textMuted }}>選択中のコースを引き継いで、各管理画面を開きます。</p></div>
+        <div className="flex flex-wrap gap-2"><Btn kind="soft" size="sm" icon={Calendar} onClick={() => go?.("curriculum")}>カリキュラム</Btn><Btn kind="ghost" size="sm" icon={NotebookPen} onClick={() => go?.("reports")}>日報</Btn><Btn kind="ghost" size="sm" icon={Clock} onClick={() => go?.("attendance")}>勤怠</Btn><Btn kind="ghost" size="sm" icon={ClipboardCheck} onClick={() => go?.("tests")}>テスト</Btn><Btn kind="ghost" size="sm" icon={FileSpreadsheet} onClick={() => go?.("materials")}>研修資料</Btn><Btn kind="ghost" size="sm" icon={Users} onClick={() => go?.("trainees")}>受講生</Btn></div>
+      </Card>
       <div className="space-y-5">
         <Card className="p-5">
           <div className="mb-4 flex items-center justify-between gap-3">

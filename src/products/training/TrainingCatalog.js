@@ -68,17 +68,18 @@ const NAV = {
   ],
   instructor: [
     { sec: null, items: [["home", "ホーム", LayoutDashboard]] },
-    { sec: "管理", items: [["companies", "企業", Building2], ["courses", "コース", BookOpen], ["users", "ユーザー・講師", Users]] },
-    { sec: "研修中", items: [["curriculum", "カリキュラム", Calendar], ["reports", "日報確認", NotebookPen], ["attendance", "勤怠確認", Clock], ["tests", "テスト", ClipboardCheck], ["materials", "研修資料", FileText], ["goals", "目標ダッシュボード", Target], ["trainees", "受講生カルテ・要確認者", Users]] },
+    { sec: "コース運用", items: [["courses", "担当コース管理", BookOpen], ["trainees", "受講生", Users]] },
+    { sec: "参照", items: [["companies", "企業", Building2], ["users", "ユーザー・講師", Users]] },
+    { sec: "研修中", items: [["curriculum", "カリキュラム", Calendar], ["reports", "日報確認", NotebookPen], ["attendance", "勤怠確認", Clock], ["tests", "テスト", ClipboardCheck], ["materials", "研修資料", FileText], ["goals", "目標ダッシュボード", Target]] },
   ],
   client: [
     { sec: null, items: [["home", "ホーム", LayoutDashboard]] },
-    { sec: "自社", items: [["companies", "企業", Building2], ["courses", "関連コース", BookOpen], ["trainees", "自社受講生", Users]] },
+    { sec: "自社", items: [["courses", "参加コース", BookOpen], ["trainees", "自社受講生", Users], ["companies", "企業情報", Building2]] },
     { sec: "研修中", items: [["curriculum", "カリキュラム", Calendar], ["attendance", "出席・勤怠状況", Clock], ["reports", "日報確認・コメント", NotebookPen], ["tests", "テスト結果", ClipboardCheck], ["materials", "研修資料", FileText]] },
   ],
   admin: [
     { sec: null, items: [["home", "ホーム", LayoutDashboard]] },
-    { sec: "全体管理", items: [["companies", "企業", Building2], ["courses", "コース", BookOpen], ["users", "ユーザー・講師", Users], ["trainees", "受講生", GraduationCap]] },
+    { sec: "全体管理", items: [["courses", "コース管理センター", BookOpen], ["trainees", "受講生", GraduationCap], ["companies", "企業", Building2], ["users", "ユーザー・講師", Users]] },
     { sec: "研修中", items: [["curriculum", "カリキュラム", Calendar], ["reports", "日報・月次集計", NotebookPen], ["attendance", "勤怠・月次集計", Clock], ["tests", "テスト", ClipboardCheck], ["materials", "研修資料", FileText]] },
   ],
 };

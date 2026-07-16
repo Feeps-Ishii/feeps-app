@@ -26,7 +26,7 @@ export default function TrainingProduct({
   }
   if (view === "curriculum") return <Curriculum role={role} go={go} />;
   if (view === "companies") return <ReadOnlyCompanies role={role} />;
-  if (view === "courses") return <ReadOnlyCourses role={role} />;
+  if (view === "courses") return <ReadOnlyCourses role={role} go={go} />;
   if (view === "users") return <ReadOnlyInstructors />;
   if (view === "goals") return <GoalsView role={role} done={taskDone} toggle={toggle} goals={goals} setGoals={setGoals} go={go} openKarte={setKarte} />;
   if (view === "elearning") return <ElearningView go={go} />;

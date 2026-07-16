@@ -5,6 +5,7 @@ import {
 } from "lucide-react";
 import { apiGet, apiPut } from "../../api.js";
 import { Badge, Btn, Card, SkeletonCards, SkeletonRows, T, PRODUCT_ACCENT } from "../../components/common";
+import { setActiveCourseId } from "../../utils/common/courseContext.js";
 
 function textOf(value, fallback = "") {
   if (value == null || value === "") return fallback;
@@ -112,9 +113,7 @@ function ActionCard({ icon: Icon, title, value, desc, buttonLabel, onClick, tone
 }
 
 function CourseOpenButton({ course, go }) {
-  const links = asObject(course.links);
-  const target = links.curriculum || links.materials || links.reports || links.attendance || links.tests;
-  return <Btn size="sm" kind="ghost" icon={ArrowUpRight} onClick={() => target ? goFromUrl(target, go) : go("curriculum")}>開く</Btn>;
+  return <Btn size="sm" kind="ghost" icon={ArrowUpRight} onClick={() => { setActiveCourseId(course.courseId); go("courses"); }}>コースを開く</Btn>;
 }
 
 function LinkButton({ label, targetUrl, go }) {
@@ -284,7 +283,10 @@ export default function InstructorWorkspace({ go, displayName = "講師" }) {
             <h2 className="mt-1.5 text-[30px] font-medium leading-snug text-white" style={{ letterSpacing: "-0.02em" }}>今日の授業を始める</h2>
             <p className="mt-1 text-sm" style={{ color: "rgba(255,255,255,.72)" }}>{formatDate(date)} ・ {displayName} ・ 最終更新 {lastUpdated ? formatDateTime(lastUpdated) : "未取得"}</p>
           </div>
-          <Btn kind="white" icon={RefreshCw} onClick={() => load({ silent: true })}>{refreshing ? "更新中" : "更新"}</Btn>
+          <div className="flex flex-wrap gap-2">
+            <Btn kind="white" icon={BookOpen} onClick={() => go("courses")}>担当コース管理</Btn>
+            <Btn kind="white" icon={RefreshCw} onClick={() => load({ silent: true })}>{refreshing ? "更新中" : "更新"}</Btn>
+          </div>
         </div>
         <div className="mt-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
           <Metric label="担当コース" value={assignedCourseCount} unit="件" />
