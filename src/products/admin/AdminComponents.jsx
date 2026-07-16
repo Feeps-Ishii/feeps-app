@@ -8,7 +8,7 @@ import { getActiveCourseId, setActiveCourseId } from "../../utils/common/courseC
 import {
   ClipboardCheck, Clock, NotebookPen, Users,
   Building2, BookOpen, GraduationCap, Search,
-  AlertCircle, ChevronRight, ChevronLeft, ChevronUp, ChevronDown, Trash2,
+  AlertCircle, ChevronRight, ChevronLeft, ChevronUp, ChevronDown, Trash2, X,
   Plus, Calendar,
   Pencil, StickyNote,
   Check, Filter, Mail,
