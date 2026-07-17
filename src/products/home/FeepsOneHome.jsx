@@ -1,36 +1,15 @@
 import React, { useEffect, useMemo, useState } from "react";
 import {
-  ArrowRight, BarChart3, BookOpen, Briefcase, CalendarDays,
-  CheckCircle2, FileText, Megaphone, RefreshCw, School, Sparkles, TrendingUp, Users
+  ArrowRight, BookOpen, Briefcase, BarChart3, School, TrendingUp,
+  CheckCircle2, Circle, Clock, ClipboardCheck, MessageSquare, ListChecks,
+  FileText, Megaphone, RefreshCw, ChevronRight, Users,
 } from "lucide-react";
 import { apiGet } from "../../api.js";
-import { Badge, Btn, Card, T, PRODUCT_ACCENT, ROLE_ACCENT } from "../../components/common";
-
-const ROLE_LABEL = {
-  instructor: "講師",
-  trainee: "受講生",
-  client: "企業担当者",
-  admin: "管理者",
-};
-
-// バナーの特徴バッジ。ロール共通・プロダクト全体の強みを短く伝える（マーケティング用途、機能一覧ではない）。
-const HERO_FEATURE_BADGES = ["AI搭載", "オールインワン管理", "リアルタイム集計"];
-
-// Heroバナー背景の装飾アイコン（Phase7-5: 写真を使わない軽量なイラスト風装飾）。
-// 各製品を象徴するアイコンを低opacityで散らし配置する。テキストより背面に置くため
-// z-indexはHero側で明示的に管理する（position:absolute要素はDOM順に関わらず
-// 静的コンテンツより手前に来るため、本文側にも relative z-[1] を付けて明示的に上へ出す）。
-const HERO_DECORATIONS = [
-  { icon: School, size: 132, style: { top: "-18px", right: "8%" }, rotate: -12, opacity: 0.1, float: true },
-  { icon: BookOpen, size: 84, style: { top: "46%", right: "26%" }, rotate: 14, opacity: 0.09, float: false },
-  { icon: Users, size: 66, style: { top: "6%", right: "38%" }, rotate: 8, opacity: 0.12, float: true },
-  { icon: Sparkles, size: 56, style: { bottom: "4%", right: "4%" }, rotate: -14, opacity: 0.15, float: false },
-  { icon: BarChart3, size: 74, style: { bottom: "10%", right: "44%" }, rotate: 16, opacity: 0.08, float: true },
-];
+import { Badge, Btn, Card, T, PRISM, PRISM_PRODUCT_GRAD } from "../../components/common";
 
 // プロダクトのkey/label/icon(ロール共通、テキストのみロール別)。Product色・アイコンは
-// PRODUCT_ACCENT/このmapに揃え、ロールごとに差し替えない（PC上部タブ・サイドバー・
-// Bottom Navigationと同じ見た目にするため）。
+// PRISM_PRODUCT_GRAD/このmapに揃え、ロールごとに差し替えない（PC上部タブ・サイドバー・
+// Bottom Navigation・下部Dockと同じ見た目にするため）。
 const PRODUCT_META = {
   training: { label: "研修管理", icon: School },
   learning: { label: "Eラーニング", icon: BookOpen },
@@ -42,7 +21,6 @@ const PRODUCT_META = {
 // ロール別のキャッチコピー・特徴・CTA文言。本人が実際にできることだけを書き、他ロールの
 // 内部管理機能・AI生成の裏側・閲覧監視機能は見せない（唯一の例外: 講師・管理者向け
 // Eラーニングカードでは「AI教材作成」を主機能として表示してよい）。
-// 2026-07-14 Home緊急修正: 旧PRODUCT_INTRO(ロール共通1本)を廃止しロール別へ分離。
 const PRODUCT_INTRO_BY_ROLE = {
   admin: {
     training: {
@@ -144,17 +122,20 @@ const PRODUCT_LAYOUT_BY_ROLE = {
   admin: { primary: [["training", "large"], ["learning", "large"]], secondary: ["talent", "matching", "analytics"], recommended: ["training", "learning"] },
   instructor: { primary: [["training", "large"], ["learning", "medium"]], secondary: ["talent"], recommended: [] },
   client: { primary: [["training", "large"]], secondary: ["learning", "talent", "matching"], recommended: [] },
-  // 受講生は日常利用頻度の高い研修管理(日報・勤怠)を先に表示する。サイズはlearning=large/training=mediumを維持。
   trainee: { primary: [["training", "medium"], ["learning", "large"]], secondary: ["talent", "matching"], recommended: [] },
+};
+
+// 勤怠・日報ステータスの短い日本語ラベル（Dashboard APIの生ステータス値をそのまま出さない）
+const ATT_LABEL = { completed: "退勤済み", working: "出勤中", not_clocked_in: "未打刻", absent: "欠席", late: "遅刻", early_leave: "早退", unknown: "確認中" };
+const REPORT_LABEL = { commented: "コメントあり", submitted: "提出済み", not_submitted: "未提出" };
+const TODO_ICON = {
+  report_unchecked: FileText, report_uncommented: MessageSquare, attendance_alert: Clock,
+  test_pending_review: ClipboardCheck, test_unsubmitted: ClipboardCheck, test_low_score: ClipboardCheck,
+  follow_up_students: Users, lesson_prep: BookOpen,
 };
 
 function asArray(value) {
   return Array.isArray(value) ? value : [];
-}
-
-function num(value) {
-  const n = Number(value);
-  return Number.isFinite(n) ? n : 0;
 }
 
 function textOf(value, fallback = "") {
@@ -209,111 +190,119 @@ function openTargetUrl(targetUrl, { goProduct, goTraining, goSub }) {
   goProduct("training");
 }
 
+/* ===== 共通の見た目パーツ（Prism Bright／UIリデザインR3） ===== */
 function SectionTitle({ title, desc, action }) {
   return (
     <div className="mb-3 flex flex-wrap items-end justify-between gap-3">
       <div>
-        <h2 className="text-lg font-bold" style={{ color: T.textPrimary }}>{title}</h2>
-        {desc && <p className="mt-1 text-sm" style={{ color: T.textMuted }}>{desc}</p>}
+        <h2 className="text-lg font-bold" style={{ color: PRISM.ink }}>{title}</h2>
+        {desc && <p className="mt-1 text-sm" style={{ color: PRISM.mut }}>{desc}</p>}
       </div>
       {action}
     </div>
   );
 }
 
-function Hero({ role, displayName }) {
-  const roleAccent = ROLE_ACCENT[role] || ROLE_ACCENT.default;
-  // 正式版デザイン方針（再調整、Phase7-4）: 黒基調は企業向けSaaSとして重く見えるため、
-  // 白〜淡いブルー〜ブランドブルーの明るいグラデーションへ変更。文字は濃色（T.textPrimary/T.textSecondary）
-  // で統一する（Microsoft 365 / Azure Portal / Notion / Linear系の明るく洗練された企業向けSaaSトーン）。
-  // PRODUCT_ACCENT.training/adminの濃いブランドブルーとは別に、Home自体は白地を主役にした固有のグラデーションを
-  // 直接組み立てる（既存トークンT.bgSurface/accentSubtle/accentのみ使用）。
-  const heroBg = `linear-gradient(120deg, ${T.bgSurface} 0%, ${T.accentSubtle} 48%, ${T.accent} 100%)`;
+function PBCard({ children, className = "", style = {}, hover }) {
   return (
-    <section className="relative overflow-hidden rounded-[24px] p-5 sm:p-10" style={{ background: heroBg, border: `1px solid ${T.border}`, boxShadow: "0 14px 36px rgba(61,107,255,.12)" }}>
-      {/* イラスト風背景装飾（Phase7-5）: 写真は使わず、製品を象徴するアイコンを低opacityで散らして
-          奥行きを出す。pointer-events-noneでクリックを妨げず、本文側のrelative z-[1]より背面に置く。 */}
-      <div className="pointer-events-none absolute inset-0 overflow-hidden" aria-hidden="true">
-        {HERO_DECORATIONS.map(({ icon: Icon, size, style, rotate, opacity, float }, i) => (
-          <Icon
-            key={i}
-            size={size}
-            strokeWidth={1.4}
-            className={`absolute ${float ? "feeps-float" : ""}`}
-            style={{ ...style, color: T.textPrimary, opacity, transform: `rotate(${rotate}deg)`, animationDuration: `${7 + i}s` }}
-          />
-        ))}
-      </div>
-
-      <div className="relative z-[1] flex flex-wrap items-center justify-between gap-3 border-b pb-4" style={{ borderColor: "rgba(26,28,32,0.08)" }}>
-        <div className="flex min-w-0 flex-wrap items-center gap-3">
-          <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl" style={{ background: T.accent, color: "#fff" }}>
-            <TrendingUp size={20} />
-          </span>
-          <div className="min-w-0">
-            <div className="text-lg font-extrabold leading-none" style={{ color: T.textPrimary }}>Feeps One</div>
-            <div className="mt-1 text-xs font-semibold" style={{ color: T.textMuted }}>Integrated Training & Growth Platform</div>
-          </div>
-          <span className="ml-1 rounded-full px-3 py-1 text-xs font-bold" style={{ background: roleAccent.subtle, color: roleAccent.accent }}>
-            {ROLE_LABEL[role] || role}
-          </span>
-          {/* ログイン中であることが分かる程度の小さな個人名表示（Phase7-5: バナーの主役はプロダクト紹介） */}
-          <span className="text-xs font-semibold" style={{ color: T.textMuted }}>{displayName}さん</span>
-        </div>
-        <div className="flex items-center gap-2 rounded-full px-3 py-1.5 text-xs font-semibold" style={{ background: "rgba(255,255,255,0.75)", color: T.textSecondary, border: `1px solid ${T.border}` }}>
-          <CalendarDays size={14} />
-          {dateLabel()}
-        </div>
-      </div>
-
-      {/* プロダクト紹介型バナー（Phase7-5）: 個人向け挨拶ではなく製品全体の価値訴求を主役にする。
-          全ロール共通のマーケティング文言＋特徴バッジのみで構成し、ロール別の個別文言は持たない。 */}
-      <div className="relative z-[1] pt-6 sm:pt-8">
-        <h1 className="text-3xl font-bold leading-tight sm:text-5xl" style={{ color: T.textPrimary, letterSpacing: "-0.02em" }}>
-          研修・学習・成長を、ひとつに。
-        </h1>
-        <p className="mt-4 max-w-2xl text-base leading-relaxed sm:text-lg" style={{ color: T.textSecondary }}>
-          研修管理からEラーニング、スキル可視化、案件連携まで。人材育成の全工程をワンプラットフォームで。
-        </p>
-        <div className="mt-5 flex flex-wrap gap-2">
-          {HERO_FEATURE_BADGES.map(badge => (
-            <span key={badge} className="rounded-full px-3 py-1 text-xs font-bold" style={{ background: "rgba(255,255,255,0.75)", color: T.accentHover, border: `1px solid ${T.border}` }}>
-              {badge}
-            </span>
-          ))}
-        </div>
-      </div>
-    </section>
+    <Card hover={hover} className={className} style={{ border: `1px solid ${PRISM.line}`, borderRadius: 20, boxShadow: "0 1px 2px rgba(32,34,46,.04), 0 10px 30px rgba(60,80,180,.07)", ...style }}>
+      {children}
+    </Card>
   );
 }
 
+function CapLabel({ children }) {
+  return <p className="mb-2.5 text-[11px] font-bold uppercase" style={{ color: PRISM.mut, letterSpacing: "0.06em" }}>{children}</p>;
+}
+
+function HomeHeading({ eyebrow, title }) {
+  return (
+    <div>
+      {eyebrow && <p className="text-[13px] font-semibold" style={{ color: PRISM.sub }}>{eyebrow}</p>}
+      <h1 className="mt-1 text-[26px] font-extrabold sm:text-[30px]" style={{ color: PRISM.ink, letterSpacing: "-0.025em" }}>{title}</h1>
+    </div>
+  );
+}
+
+function ErrorRetryCard({ message, onRetry }) {
+  return (
+    <PBCard className="p-4" style={{ background: PRISM.badSubtle, borderColor: "rgba(226,92,80,.3)" }}>
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <div className="text-sm font-bold" style={{ color: PRISM.bad }}>データを取得できませんでした</div>
+          <div className="mt-1 text-xs" style={{ color: PRISM.sub }}>{message}</div>
+        </div>
+        <Btn size="sm" kind="ghost" icon={RefreshCw} onClick={onRetry}>再取得</Btn>
+      </div>
+    </PBCard>
+  );
+}
+
+function SeverityChip({ severity, children }) {
+  const map = {
+    critical: { bg: PRISM.badSubtle, fg: PRISM.bad },
+    warning: { bg: PRISM.warnSubtle, fg: PRISM.warn },
+    info: { bg: "#EFF0F4", fg: PRISM.sub },
+  };
+  const c = map[severity] || map.info;
+  return <span className="shrink-0 rounded-full px-2.5 py-0.5 text-[11px] font-bold" style={{ background: c.bg, color: c.fg }}>{children}</span>;
+}
+
+function StatusDot({ status }) {
+  if (status === "done") return <CheckCircle2 size={19} className="shrink-0" style={{ color: PRISM.ok }} />;
+  if (status === "needs_action") return <Circle size={19} className="shrink-0" style={{ color: PRISM.warn }} />;
+  if (status === "unavailable") return <Circle size={19} className="shrink-0" style={{ color: PRISM.mut }} />;
+  return <Circle size={19} className="shrink-0" style={{ color: PRISM.accent }} />;
+}
+
+function ProgressRing({ percent, size = 112, stroke = 11, from, to, gradId, sub }) {
+  const has = percent != null && Number.isFinite(percent);
+  const clamped = has ? Math.max(0, Math.min(100, percent)) : 0;
+  const r = (size - stroke) / 2, c = 2 * Math.PI * r, off = c * (1 - clamped / 100);
+  return (
+    <div className="relative shrink-0" style={{ width: size, height: size }}>
+      <svg width={size} height={size} className="-rotate-90">
+        <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke="#ECEEF6" strokeWidth={stroke} />
+        {has && (
+          <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke={`url(#${gradId})`} strokeWidth={stroke}
+            strokeLinecap="round" strokeDasharray={c} strokeDashoffset={off} style={{ transition: "stroke-dashoffset 1s ease" }} />
+        )}
+        <defs><linearGradient id={gradId} x1="0" y1="0" x2="1" y2="1"><stop offset="0" stopColor={from} /><stop offset="1" stopColor={to} /></linearGradient></defs>
+      </svg>
+      <div className="absolute inset-0 flex flex-col items-center justify-center px-2 text-center">
+        <span className="text-2xl font-extrabold" style={{ color: T.textPrimary, letterSpacing: "-0.03em", fontVariantNumeric: "tabular-nums" }}>{has ? `${Math.round(clamped)}%` : "—"}</span>
+        {sub && <span className="mt-0.5 truncate text-[10.5px] font-semibold leading-tight" style={{ color: PRISM.mut, maxWidth: size - 20 }}>{sub}</span>}
+      </div>
+    </div>
+  );
+}
+
+/* ===== Product紹介カード（admin/client向けHomeの主要導線。実データではなく機能紹介なので
+   実際にできることのみを記載する。カード自体の彩色はPRISM_PRODUCT_GRADに統一） ===== */
 function ProductHeroCard({ product, size, iconSide, recommended, onClick }) {
-  const pa = PRODUCT_ACCENT[product.key] || PRODUCT_ACCENT.training;
+  const grad = PRISM_PRODUCT_GRAD[product.key] || PRISM.gradHome;
   const Icon = product.icon;
   const isLarge = size === "large";
-  // large/mediumの大小差はアイコンブロックの高さ・アイコンサイズ・文字サイズの3軸で明確に付ける。
-  // アイコンブロックはproduct固有のgradFrom/gradTo（PageHeader.jsx等で既に使われているブランド色）を
-  // フルブリードの背景として使い、白アイコンでコントラストを強める（既存トークンのみ使用、新規色なし）。
   const iconBlockSizeClass = isLarge ? "h-44 sm:h-auto sm:w-1/3 sm:min-h-[260px]" : "h-24 sm:h-auto sm:w-[28%] sm:min-h-[140px]";
   const iconSize = isLarge ? 72 : 36;
   const contentPadClass = isLarge ? "p-6 sm:p-9" : "p-5 sm:p-6";
   return (
-    <Card className="overflow-hidden p-0">
+    <PBCard className="overflow-hidden p-0">
       <div className={`flex flex-col ${iconSide === "right" ? "sm:flex-row-reverse" : "sm:flex-row"}`}>
-        <div className={`flex shrink-0 items-center justify-center ${iconBlockSizeClass}`} style={{ background: `linear-gradient(135deg, ${pa.gradFrom} 0%, ${pa.gradTo} 100%)` }}>
+        <div className={`flex shrink-0 items-center justify-center ${iconBlockSizeClass}`} style={{ background: grad }}>
           <Icon size={iconSize} color="#fff" strokeWidth={1.6} />
         </div>
         <div className={`min-w-0 flex-1 ${contentPadClass}`}>
           <div className="flex flex-wrap items-center gap-2">
-            <h3 className={isLarge ? "text-2xl font-bold sm:text-[28px]" : "text-lg font-bold"} style={{ color: T.textPrimary, letterSpacing: "-0.02em" }}>{product.label}</h3>
+            <h3 className={isLarge ? "text-2xl font-bold sm:text-[28px]" : "text-lg font-bold"} style={{ color: PRISM.ink, letterSpacing: "-0.02em" }}>{product.label}</h3>
             {recommended && <Badge>おすすめ</Badge>}
           </div>
-          <p className={isLarge ? "mt-3 text-base font-semibold leading-relaxed sm:text-lg" : "mt-2 text-sm leading-relaxed"} style={{ color: T.textSecondary }}>{product.tagline}</p>
+          <p className={isLarge ? "mt-3 text-base font-semibold leading-relaxed sm:text-lg" : "mt-2 text-sm leading-relaxed"} style={{ color: PRISM.sub }}>{product.tagline}</p>
           {product.features.length > 0 && (
             <ul className={isLarge ? "mt-4 space-y-2.5" : "mt-3 space-y-1.5"}>
               {product.features.map(feature => (
-                <li key={feature} className={isLarge ? "flex items-start gap-2 text-sm font-medium sm:text-base" : "flex items-start gap-2 text-xs"} style={{ color: T.textSecondary }}>
-                  <CheckCircle2 size={isLarge ? 18 : 14} className="mt-0.5 shrink-0" style={{ color: pa.deep }} />
+                <li key={feature} className={isLarge ? "flex items-start gap-2 text-sm font-medium sm:text-base" : "flex items-start gap-2 text-xs"} style={{ color: PRISM.sub }}>
+                  <CheckCircle2 size={isLarge ? 18 : 14} className="mt-0.5 shrink-0" style={{ color: PRISM.accentDeep }} />
                   <span>{feature}</span>
                 </li>
               ))}
@@ -324,34 +313,32 @@ function ProductHeroCard({ product, size, iconSide, recommended, onClick }) {
           </div>
         </div>
       </div>
-    </Card>
+    </PBCard>
   );
 }
 
 function ProductSmallCard({ product, onClick }) {
-  const pa = PRODUCT_ACCENT[product.key] || PRODUCT_ACCENT.training;
+  const grad = PRISM_PRODUCT_GRAD[product.key] || PRISM.gradHome;
   const Icon = product.icon;
   return (
-    <Card className="flex flex-col gap-3 p-5">
-      <span className="flex h-11 w-11 items-center justify-center rounded-xl" style={{ background: pa.subtle, color: pa.deep }}>
+    <PBCard className="flex flex-col gap-3 p-5">
+      <span className="flex h-11 w-11 items-center justify-center rounded-xl text-white" style={{ background: grad }}>
         <Icon size={20} />
       </span>
       <div className="min-w-0 flex-1">
-        <h3 className="text-base font-bold" style={{ color: T.textPrimary, letterSpacing: "-0.02em" }}>{product.label}</h3>
-        <p className="mt-1.5 text-xs leading-relaxed" style={{ color: T.textSecondary }}>{product.tagline}</p>
+        <h3 className="text-base font-bold" style={{ color: PRISM.ink, letterSpacing: "-0.02em" }}>{product.label}</h3>
+        <p className="mt-1.5 text-xs leading-relaxed" style={{ color: PRISM.sub }}>{product.tagline}</p>
       </div>
       <div className="mt-auto pt-1">
         <Btn size="sm" kind="ghost" icon={ArrowRight} full onClick={onClick}>{product.cta}</Btn>
       </div>
-    </Card>
+    </PBCard>
   );
 }
 
 function ProductShowcase({ role, goProduct }) {
   const layout = PRODUCT_LAYOUT_BY_ROLE[role] || PRODUCT_LAYOUT_BY_ROLE.trainee;
   const introByKey = PRODUCT_INTRO_BY_ROLE[role] || PRODUCT_INTRO_BY_ROLE.trainee;
-  // ロール別コピーが未定義のkeyはHome非表示が前提（PRODUCT_LAYOUT_BY_ROLEにも含めない想定）。
-  // 万一layoutとの不整合があっても壊れないよう、intro未定義ならnullを返しカード自体を出さない。
   const byKey = key => {
     const meta = PRODUCT_META[key];
     const intro = introByKey[key];
@@ -390,6 +377,273 @@ function ProductShowcase({ role, goProduct }) {
   );
 }
 
+/* ===== 受講生Home（/dashboard/trainee の実データのみで構成。ダミーの連続日数やAI機能は
+   バックエンドに対応するデータ/機能がまだ無いため表示しない） ===== */
+function TraineeHome({ dashboard, displayName, goProduct, goTraining, goSub, loading, error, onRetry }) {
+  const open = url => openTargetUrl(url, { goProduct, goTraining, goSub });
+  const course = asArray(dashboard?.activeCourses)[0] || null;
+  const todayCur = course?.todayCurriculum || null;
+  const tasks = asArray(dashboard?.todayTasks);
+  const tests = asArray(dashboard?.tests);
+  const nextTest = tests[0] || null;
+  const learning = dashboard?.learning || null;
+  const attendance = dashboard?.attendance || null;
+  const dailyReport = dashboard?.dailyReport || null;
+  const announcements = asArray(dashboard?.dailyAnnouncements);
+  const comments = asArray(dashboard?.comments);
+  const testsDone = tests.filter(t => t.status !== "unsubmitted").length;
+
+  return (
+    <div className="flex flex-col gap-5">
+      <HomeHeading eyebrow={course ? `${dateLabel()} · ${course.courseName}` : dateLabel()} title={`おはようございます、${displayName}さん`} />
+
+      {error && <ErrorRetryCard message={error} onRetry={onRetry} />}
+
+      {loading && !dashboard ? (
+        <PBCard className="p-2"><div className="grid gap-3 p-2 sm:grid-cols-2 lg:grid-cols-3">{Array.from({ length: 3 }).map((_, i) => (
+          <div key={i} className="rounded-xl p-4" style={{ background: PRISM.base }}>
+            <span className="feeps-shimmer mb-2 block h-2.5 rounded" style={{ width: "40%" }} />
+            <span className="feeps-shimmer block h-3.5 rounded" style={{ width: "65%" }} />
+          </div>
+        ))}</div></PBCard>
+      ) : (
+        <div className="grid grid-cols-12 gap-4">
+          <div className="col-span-12 lg:col-span-8">
+            <PBCard className="p-6 sm:p-7" style={{ background: PRISM.gradHero, border: "none", color: "#fff", position: "relative", overflow: "hidden" }}>
+              <span className="pointer-events-none absolute -right-14 -top-14 h-44 w-44 rounded-full" style={{ background: "rgba(255,255,255,.12)" }} />
+              <div className="relative flex flex-wrap items-start justify-between gap-5">
+                <div className="min-w-0">
+                  <p className="text-[11px] font-extrabold uppercase tracking-wider opacity-85">TODAY · 今日の単元</p>
+                  {todayCur?.title ? (
+                    <>
+                      <h2 className="mt-2 text-xl font-extrabold sm:text-2xl" style={{ letterSpacing: "-0.02em" }}>{todayCur.title}</h2>
+                      {todayCur.summary && <p className="mt-1.5 max-w-xl text-sm opacity-90">{todayCur.summary}</p>}
+                    </>
+                  ) : (
+                    <p className="mt-2 max-w-md text-sm opacity-90">{course ? "本日の単元はまだ登録されていません。" : "所属コースが登録されていません。管理者にご確認ください。"}</p>
+                  )}
+                  <div className="mt-5">
+                    <Btn kind="white" icon={ArrowRight} onClick={() => open(course ? `/training/curriculum?courseId=${encodeURIComponent(course.courseId)}` : "/training")}>
+                      {course ? "今日の教材を開く" : "研修管理を開く"}
+                    </Btn>
+                  </div>
+                </div>
+                <div className="flex shrink-0 flex-col gap-2.5 rounded-2xl p-4 text-xs font-semibold" style={{ background: "rgba(255,255,255,.14)", minWidth: 170 }}>
+                  <button type="button" onClick={() => open("/training/attendance")} className="flex items-center justify-between gap-4 text-left">
+                    <span className="opacity-80">勤怠</span><span>{ATT_LABEL[attendance?.status] || "未確認"}</span>
+                  </button>
+                  <button type="button" onClick={() => open("/training/reports")} className="flex items-center justify-between gap-4 text-left">
+                    <span className="opacity-80">日報</span><span>{REPORT_LABEL[dailyReport?.status] || "未確認"}</span>
+                  </button>
+                </div>
+              </div>
+            </PBCard>
+          </div>
+
+          <div className="col-span-12 sm:col-span-6 lg:col-span-4">
+            <PBCard className="flex h-full flex-col p-5">
+              <CapLabel>学習進捗</CapLabel>
+              <div className="flex flex-1 items-center gap-5">
+                <ProgressRing percent={learning?.progressPercent ?? null} from={PRISM.accent} to={PRISM.teal} gradId="ring-learning" sub={learning?.currentLessonTitle} />
+                <div className="min-w-0 text-xs font-semibold leading-loose" style={{ color: PRISM.sub }}>
+                  <div>テスト <b className="tabular-nums" style={{ color: PRISM.ink }}>{testsDone}/{tests.length}</b></div>
+                  <div>未受験 <b className="tabular-nums" style={{ color: PRISM.ink }}>{dashboard?.summary?.unsubmittedTests ?? 0}</b></div>
+                </div>
+              </div>
+              {!learning && <p className="mt-2 text-[11px]" style={{ color: PRISM.mut }}>Eラーニングの学習履歴はまだありません。</p>}
+            </PBCard>
+          </div>
+
+          <div className="col-span-12 lg:col-span-4">
+            <PBCard className="p-5">
+              <CapLabel>今日やること</CapLabel>
+              {tasks.length === 0 ? (
+                <p className="text-xs" style={{ color: PRISM.mut }}>やることはありません。</p>
+              ) : (
+                <ul className="flex flex-col">
+                  {tasks.map(t => (
+                    <li key={t.type} className="flex items-center gap-2.5 border-b py-2.5 text-sm last:border-b-0" style={{ borderColor: PRISM.line }}>
+                      <StatusDot status={t.status} />
+                      <span className="min-w-0 flex-1 truncate" style={{ color: t.status === "done" ? PRISM.mut : PRISM.ink, textDecoration: t.status === "done" ? "line-through" : "none" }}>{t.label}</span>
+                      {t.actionLabel && t.status !== "done" && (
+                        <button type="button" onClick={() => open(t.targetUrl)} className="shrink-0 text-xs font-bold" style={{ color: PRISM.accent }}>{t.actionLabel}</button>
+                      )}
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </PBCard>
+          </div>
+
+          <div className="col-span-12 sm:col-span-6 lg:col-span-4">
+            <PBCard className="flex h-full flex-col p-5">
+              <CapLabel>次のテスト</CapLabel>
+              {nextTest ? (
+                <>
+                  <h3 className="text-[15px] font-bold" style={{ color: PRISM.ink }}>{nextTest.title}</h3>
+                  <p className="mt-1 text-xs" style={{ color: PRISM.mut }}>
+                    {nextTest.courseName}{nextTest.status === "completed" && nextTest.score != null ? ` · ${nextTest.score}/${nextTest.total}点` : ""}
+                  </p>
+                  <div className="mt-auto pt-3">
+                    <Btn size="sm" kind="soft" icon={ArrowRight} onClick={() => open(nextTest.targetUrl)}>
+                      {nextTest.status === "unsubmitted" ? "受験する" : "結果を見る"}
+                    </Btn>
+                  </div>
+                </>
+              ) : <p className="text-xs" style={{ color: PRISM.mut }}>現在対象のテストはありません。</p>}
+            </PBCard>
+          </div>
+
+          <div className="col-span-12 sm:col-span-6 lg:col-span-4">
+            <PBCard className="flex h-full flex-col p-5" style={{ background: `linear-gradient(140deg, ${PRISM.aiSubtle}, #fff)`, borderColor: "rgba(139,124,246,.28)" }}>
+              <p className="mb-2.5 text-[11px] font-bold uppercase" style={{ color: PRISM.aiDeep, letterSpacing: "0.06em" }}>講師コメント</p>
+              {comments[0] ? (
+                <>
+                  <p className="line-clamp-3 text-sm leading-relaxed" style={{ color: PRISM.ink }}>{textOf(comments[0].body)}</p>
+                  <p className="mt-2 text-[11px] font-semibold" style={{ color: PRISM.mut }}>{comments[0].authorName || "講師"}</p>
+                  <div className="mt-auto pt-3"><Btn size="sm" kind="ghost" icon={ArrowRight} onClick={() => open(comments[0].targetUrl || "/training/reports")}>日報で見る</Btn></div>
+                </>
+              ) : <p className="text-xs" style={{ color: PRISM.mut }}>まだコメントはありません。</p>}
+            </PBCard>
+          </div>
+        </div>
+      )}
+
+      {announcements.length > 0 && (
+        <section>
+          <SectionTitle title="本日のお知らせ" desc="担当講師から受講生向けに共有された連絡です。" />
+          <div className="grid gap-4 sm:grid-cols-2">
+            {announcements.map(item => (
+              <PBCard key={`${item.courseId}-${item.date}`} className="p-5">
+                <div className="flex items-start gap-3">
+                  <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl text-white" style={{ background: PRISM_PRODUCT_GRAD.training }}><Megaphone size={18} /></span>
+                  <div className="min-w-0">
+                    <div className="text-sm font-bold" style={{ color: PRISM.ink }}>{textOf(item.courseName, "コース")}</div>
+                    <p className="mt-2 text-sm leading-relaxed" style={{ color: PRISM.sub }}>{textOf(item.announcement)}</p>
+                  </div>
+                </div>
+              </PBCard>
+            ))}
+          </div>
+        </section>
+      )}
+    </div>
+  );
+}
+
+/* ===== 講師Home（/dashboard/instructor の実データのみで構成） ===== */
+function InstructorHome({ dashboard, displayName, goProduct, goTraining, goSub, loading, error, onRetry }) {
+  const open = url => openTargetUrl(url, { goProduct, goTraining, goSub });
+  const todos = asArray(dashboard?.todos);
+  const followUps = asArray(dashboard?.followUps);
+  const todayCourses = asArray(dashboard?.todayCourses);
+  const scope = dashboard?.scope;
+  const summary = dashboard?.summary || {};
+
+  return (
+    <div className="flex flex-col gap-5">
+      <HomeHeading eyebrow={`${dateLabel()} · 担当 ${summary.assignedCourses ?? 0}コース`} title={`こんにちは、${displayName}さん`} />
+
+      {error && <ErrorRetryCard message={error} onRetry={onRetry} />}
+
+      {scope?.unassigned && (
+        <PBCard className="p-5" style={{ background: PRISM.warnSubtle, borderColor: "rgba(221,148,38,.3)" }}>
+          <p className="text-sm font-bold" style={{ color: PRISM.warn }}>担当コースが未設定です</p>
+          <p className="mt-1 text-xs" style={{ color: PRISM.sub }}>管理者にコースの担当講師設定を依頼してください。</p>
+        </PBCard>
+      )}
+
+      {loading && !dashboard ? (
+        <PBCard className="p-2"><div className="grid gap-3 p-2 sm:grid-cols-2 lg:grid-cols-4">{Array.from({ length: 4 }).map((_, i) => (
+          <div key={i} className="rounded-xl p-4" style={{ background: PRISM.base }}>
+            <span className="feeps-shimmer mb-2 block h-2.5 rounded" style={{ width: "50%" }} />
+            <span className="feeps-shimmer block h-5 rounded" style={{ width: "30%" }} />
+          </div>
+        ))}</div></PBCard>
+      ) : (
+        <>
+          {todos.length > 0 && (
+            <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
+              {todos.slice(0, 4).map(t => {
+                const Icon = TODO_ICON[t.type] || ListChecks;
+                const tone = t.severity === "critical" ? PRISM.bad : t.severity === "warning" ? PRISM.warn : PRISM.ink;
+                return (
+                  <button key={t.type} type="button" onClick={() => open(t.targetUrl)} className="text-left">
+                    <PBCard className="p-4" hover>
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="truncate text-[11px] font-bold" style={{ color: PRISM.sub }}>{t.label}</span>
+                        <Icon size={14} className="shrink-0" style={{ color: tone }} />
+                      </div>
+                      <div className="mt-1.5 text-2xl font-extrabold tabular-nums" style={{ color: tone }}>{t.count}</div>
+                    </PBCard>
+                  </button>
+                );
+              })}
+            </div>
+          )}
+
+          <div className="grid grid-cols-12 gap-4">
+            <div className="col-span-12 lg:col-span-7">
+              <PBCard className="p-5">
+                <CapLabel>要フォロー</CapLabel>
+                {followUps.length === 0 ? (
+                  <p className="text-xs" style={{ color: PRISM.mut }}>現在フォローが必要な受講生はいません。</p>
+                ) : (
+                  <ul className="flex flex-col">
+                    {followUps.slice(0, 5).map(f => (
+                      <li key={f.traineeId} className="flex items-center gap-3 border-b py-2.5 last:border-b-0" style={{ borderColor: PRISM.line }}>
+                        <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-xs font-bold text-white" style={{ background: PRISM.accent }}>{String(f.traineeName || "?").slice(0, 1)}</span>
+                        <div className="min-w-0 flex-1">
+                          <div className="truncate text-sm font-bold" style={{ color: PRISM.ink }}>{f.traineeName}</div>
+                          <div className="truncate text-xs" style={{ color: PRISM.mut }}>{f.courseName}</div>
+                        </div>
+                        <SeverityChip severity={f.severity}>{f.reasons?.[0]?.label || "要確認"}</SeverityChip>
+                        <button type="button" onClick={() => open(f.targetUrl)} aria-label="詳細を見る"><ChevronRight size={16} style={{ color: PRISM.mut }} /></button>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </PBCard>
+            </div>
+            <div className="col-span-12 lg:col-span-5">
+              <PBCard className="p-5">
+                <CapLabel>担当コース</CapLabel>
+                {todayCourses.length === 0 ? (
+                  <p className="text-xs" style={{ color: PRISM.mut }}>担当コースがありません。</p>
+                ) : (
+                  <ul className="flex flex-col">
+                    {todayCourses.slice(0, 4).map(c => (
+                      <li key={c.courseId} className="border-b py-2.5 last:border-b-0" style={{ borderColor: PRISM.line }}>
+                        <div className="flex items-center justify-between gap-2">
+                          <span className="truncate text-sm font-bold" style={{ color: PRISM.ink }}>{c.courseName}</span>
+                          <span className="shrink-0 text-xs tabular-nums" style={{ color: PRISM.mut }}>{c.studentCount}名</span>
+                        </div>
+                        <p className="mt-1 truncate text-xs" style={{ color: PRISM.sub }}>{c.todayCurriculum?.title || "今日のカリキュラム未設定"}</p>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+                <div className="mt-3"><Btn size="sm" kind="ghost" icon={ArrowRight} full onClick={() => open("/training/curriculum")}>研修管理を開く</Btn></div>
+              </PBCard>
+            </div>
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
+/* ===== 管理者/企業担当者Home。横断ダッシュボードAPIが未実装のため、実際に使える機能への
+   導線（ProductShowcase）で構成する（存在しない集計数値を演出で埋めない） ===== */
+function ShowcaseHome({ role, displayName, goProduct }) {
+  return (
+    <div className="flex flex-col gap-6">
+      <HomeHeading eyebrow={dateLabel()} title={`こんにちは、${displayName}さん`} />
+      <ProductShowcase role={role} goProduct={goProduct} />
+    </div>
+  );
+}
+
 export default function FeepsOneHome({ role, displayName, goProduct, goTraining, goSub }) {
   const [dashboard, setDashboard] = useState(null);
   const [loadingDashboard, setLoadingDashboard] = useState(false);
@@ -397,7 +651,7 @@ export default function FeepsOneHome({ role, displayName, goProduct, goTraining,
 
   const loadDashboard = useMemo(() => async () => {
     const path = role === "instructor" ? "/dashboard/instructor" : role === "trainee" ? "/dashboard/trainee" : "";
-    if (!path) return;
+    if (!path) { setDashboard(null); return; }
     setLoadingDashboard(true);
     setDashboardError("");
     try {
@@ -414,101 +668,11 @@ export default function FeepsOneHome({ role, displayName, goProduct, goTraining,
     loadDashboard();
   }, [loadDashboard]);
 
-  const todayCourses = asArray(dashboard?.todayCourses);
-  const traineeAnnouncements = asArray(dashboard?.dailyAnnouncements);
-  const traineeComments = asArray(dashboard?.comments);
-
-  const openDashboardTarget = (targetUrl) => openTargetUrl(targetUrl, { goProduct, goTraining, goSub });
-
-  return (
-    <div className="flex flex-col gap-6 sm:gap-7">
-      <Hero role={role} displayName={displayName} />
-
-      {(role === "instructor" || role === "trainee") && dashboardError && (
-        <Card className="p-4">
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <div>
-              <div className="text-sm font-bold" style={{ color: T.danger }}>Dashboard APIを取得できませんでした</div>
-              <div className="mt-1 text-xs" style={{ color: T.textMuted }}>{dashboardError}</div>
-            </div>
-            <Btn size="sm" kind="ghost" icon={RefreshCw} onClick={loadDashboard}>再取得</Btn>
-          </div>
-        </Card>
-      )}
-
-      <ProductShowcase role={role} goProduct={goProduct} />
-
-      {role === "instructor" && todayCourses.length > 0 && (
-        <section className="order-5">
-          <SectionTitle title="今日の担当コース" desc="詳細な編集や確認は研修管理Productで行います。" />
-          <div className="grid gap-4 md:grid-cols-2">
-            {todayCourses.slice(0, 2).map(course => (
-              <Card key={textOf(course.courseId || course.courseName, "course")} className="p-5">
-                <div className="flex flex-wrap items-start justify-between gap-3">
-                  <div className="min-w-0">
-                    <h3 className="font-bold" style={{ color: T.textPrimary }}>{textOf(course.courseName, "コース名未設定")}</h3>
-                    <p className="mt-1 text-xs" style={{ color: T.textMuted }}>{textOf(course.companyName, "企業名未取得")} / {num(course.studentCount)}名</p>
-                    <p className="mt-3 text-sm" style={{ color: T.textSecondary }}>{textOf(course.todayCurriculum, "今日の授業は未設定です。")}</p>
-                  </div>
-                  <Btn size="sm" kind="soft" icon={ArrowRight} onClick={() => {
-                    goProduct("training");
-                    goTraining(toTrainingView(course.links?.curriculum || course.links?.reports || "curriculum"));
-                  }}>開く</Btn>
-                </div>
-              </Card>
-            ))}
-          </div>
-        </section>
-      )}
-
-      {role === "trainee" && traineeAnnouncements.length > 0 && (
-        <section className="order-5">
-          <SectionTitle title="本日のお知らせ" desc="担当講師から受講生向けに共有された連絡です。" />
-          <div className="grid gap-4 md:grid-cols-2">
-            {traineeAnnouncements.map(item => (
-              <Card key={`${item.courseId}-${item.date}`} className="p-5">
-                <div className="flex items-start gap-3">
-                  <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl" style={{ background: PRODUCT_ACCENT.training.subtle, color: PRODUCT_ACCENT.training.deep }}>
-                    <Megaphone size={18} />
-                  </span>
-                  <div className="min-w-0">
-                    <div className="text-sm font-bold" style={{ color: T.textPrimary }}>{textOf(item.courseName, "コース")}</div>
-                    <p className="mt-2 text-sm leading-relaxed" style={{ color: T.textSecondary }}>{textOf(item.announcement)}</p>
-                  </div>
-                </div>
-              </Card>
-            ))}
-          </div>
-        </section>
-      )}
-
-      {role === "trainee" && traineeComments.length > 0 && (
-        <section className="order-6">
-          <SectionTitle title="講師コメント" desc="日報に届いた最新のフィードバックです。" />
-          <div className="grid gap-4 md:grid-cols-2">
-            {traineeComments.slice(0, 2).map((item, index) => (
-              <Card key={`${textOf(item.createdAt, index)}-${index}`} className="p-5">
-                <div className="flex items-start gap-3">
-                  <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl" style={{ background: PRODUCT_ACCENT.training.subtle, color: PRODUCT_ACCENT.training.deep }}>
-                    <FileText size={18} />
-                  </span>
-                  <div className="min-w-0 flex-1">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <div className="text-sm font-bold" style={{ color: T.textPrimary }}>{textOf(item.authorName, "講師")}</div>
-                      <Badge>日報コメント</Badge>
-                    </div>
-                    <p className="mt-2 line-clamp-3 text-sm leading-relaxed" style={{ color: T.textSecondary }}>{textOf(item.body, textOf(item.text))}</p>
-                    <div className="mt-3 flex justify-end">
-                      <Btn size="sm" kind="ghost" icon={ArrowRight} onClick={() => openDashboardTarget(item.targetUrl || "/training/reports")}>日報で見る</Btn>
-                    </div>
-                  </div>
-                </div>
-              </Card>
-            ))}
-          </div>
-        </section>
-      )}
-
-    </div>
-  );
+  if (role === "trainee") {
+    return <TraineeHome dashboard={dashboard} displayName={displayName} goProduct={goProduct} goTraining={goTraining} goSub={goSub} loading={loadingDashboard} error={dashboardError} onRetry={loadDashboard} />;
+  }
+  if (role === "instructor") {
+    return <InstructorHome dashboard={dashboard} displayName={displayName} goProduct={goProduct} goTraining={goTraining} goSub={goSub} loading={loadingDashboard} error={dashboardError} onRetry={loadDashboard} />;
+  }
+  return <ShowcaseHome role={role} displayName={displayName} goProduct={goProduct} />;
 }

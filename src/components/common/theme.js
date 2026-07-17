@@ -145,3 +145,15 @@ export const PRISM = {
     "radial-gradient(640px 440px at 106% 106%, rgba(139,124,246,.10), transparent 66%)",
   ].join(",") + ", #F7F8FD",
 };
+
+// Product key -> Prism Brightグラデーション早見表。Dock/コマンドパレット/Home等、
+// Prism Bright移行済みのProduct色表示はPRODUCT_ACCENT(旧トークン、他の未移行画面向け)ではなく
+// こちらを参照して統一する（R2でDockに導入、R3でHomeにも適用）。
+export const PRISM_PRODUCT_GRAD = {
+  home: PRISM.gradHome,
+  training: PRISM.gradTraining,
+  learning: PRISM.gradLearning,
+  talent: PRISM.gradTalent,
+  matching: PRISM.gradMatching,
+  analytics: PRISM.gradAnalytics,
+};

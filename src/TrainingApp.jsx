@@ -8,7 +8,7 @@ import FeepsOneHome from "./products/home/FeepsOneHome.jsx";
 import TrainingProduct from "./products/training/TrainingProduct.jsx";
 import Login from "./products/auth/Login.jsx";
 import { LegalPageView } from "./components/common/LegalPages.jsx";
-import { Card, Badge, Btn, Avatar, Stat, SectionHead, T, PRISM, BrandMark, PRODUCT_ACCENT, ROLE_ACCENT, Z, PageLoading, EmptyState as CommonEmptyState, SkeletonRows } from "./components/common";
+import { Card, Badge, Btn, Avatar, Stat, SectionHead, T, PRISM, PRISM_PRODUCT_GRAD, BrandMark, PRODUCT_ACCENT, ROLE_ACCENT, Z, PageLoading, EmptyState as CommonEmptyState, SkeletonRows } from "./components/common";
 import { GOALS, GOAL_ICON_MAP, NAV, ROLES } from "./products/training/TrainingCatalog.js";
 import { navViewSet, statusKind, testIdOf, todayStr } from "./products/training/useTraining.js";
 import useCountUp from "./hooks/common/useCountUp.js";
@@ -352,11 +352,10 @@ function Dock({ products, active, onSelect, onOpenPalette }) {
     <nav aria-label="Product ナビゲーション" className="feeps-glass-panel fixed bottom-[22px] left-1/2 hidden -translate-x-1/2 items-center gap-[5px] rounded-[24px] p-[10px] lg:flex" style={{ zIndex: Z.dropdown }}>
       {products.map(p => {
         const isActive = active === p.key;
-        const pa = PRODUCT_ACCENT[p.key] || PRODUCT_ACCENT.training;
         return (
           <button key={p.key} type="button" onClick={() => onSelect(p.key)} title={p.label} aria-current={isActive ? "page" : undefined}
             className={"flex items-center gap-2 rounded-2xl text-sm font-bold transition-all " + (isActive ? "px-4 py-2.5 text-white" : "p-2.5")}
-            style={isActive ? { background: `linear-gradient(135deg, ${pa.gradFrom}, ${pa.gradTo})`, boxShadow: `0 6px 18px ${pa.gradFrom}45` } : { color: T.textSecondary }}>
+            style={isActive ? { background: PRISM_PRODUCT_GRAD[p.key] || PRISM.gradHome, boxShadow: "0 6px 18px rgba(32,34,46,.22)" } : { color: T.textSecondary }}>
             <p.icon size={20} />
             {isActive && <span className="whitespace-nowrap">{p.label}</span>}
           </button>
@@ -780,16 +779,13 @@ export default function App() {
   function goSub(v) { setSubView(v); setDrawerOpen(false); }
   // コマンドパレットの項目（実際にナビゲーションが働くものだけ。ダミー項目は置かない）
   const paletteItems = useMemo(() => {
-    const productItems = PRODUCTS.filter(p => p.roles.includes(role)).map(p => {
-      const pa = PRODUCT_ACCENT[p.key] || PRODUCT_ACCENT.training;
-      return {
-        key: "product:" + p.key,
-        label: p.key === "home" ? "Home" : p.label + "を開く",
-        icon: p.icon,
-        grad: `linear-gradient(135deg, ${pa.gradFrom}, ${pa.gradTo})`,
-        action: () => goProduct(p.key),
-      };
-    });
+    const productItems = PRODUCTS.filter(p => p.roles.includes(role)).map(p => ({
+      key: "product:" + p.key,
+      label: p.key === "home" ? "Home" : p.label + "を開く",
+      icon: p.icon,
+      grad: PRISM_PRODUCT_GRAD[p.key] || PRISM.gradHome,
+      action: () => goProduct(p.key),
+    }));
     return [
       ...productItems,
       { key: "notif", label: "通知を開く", icon: Bell, grad: T.accent, action: () => { goProduct("training"); go("notifications"); } },

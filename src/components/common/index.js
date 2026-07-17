@@ -15,4 +15,4 @@ export { SkeletonRows, SkeletonCards } from "./Skeleton.jsx";
 export { default as SuccessCheck } from "./SuccessCheck.jsx";
 export { default as MonthPicker } from "./MonthPicker.jsx";
 export { default as BrandMark } from "./BrandMark.jsx";
-export { T, GRAD, PRISM, PRODUCT_ACCENT, ROLE_ACCENT, Z } from "./theme.js";
+export { T, GRAD, PRISM, PRISM_PRODUCT_GRAD, PRODUCT_ACCENT, ROLE_ACCENT, Z } from "./theme.js";
