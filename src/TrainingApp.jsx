@@ -8,7 +8,7 @@ import FeepsOneHome from "./products/home/FeepsOneHome.jsx";
 import TrainingProduct from "./products/training/TrainingProduct.jsx";
 import Login from "./products/auth/Login.jsx";
 import { LegalPageView } from "./components/common/LegalPages.jsx";
-import { Card, Badge, Btn, Avatar, Stat, SectionHead, T, PRODUCT_ACCENT, ROLE_ACCENT, Z, PageLoading, EmptyState as CommonEmptyState, SkeletonRows } from "./components/common";
+import { Card, Badge, Btn, Avatar, Stat, SectionHead, T, PRISM, BrandMark, PRODUCT_ACCENT, ROLE_ACCENT, Z, PageLoading, EmptyState as CommonEmptyState, SkeletonRows } from "./components/common";
 import { GOALS, GOAL_ICON_MAP, NAV, ROLES } from "./products/training/TrainingCatalog.js";
 import { navViewSet, statusKind, testIdOf, todayStr } from "./products/training/useTraining.js";
 import useCountUp from "./hooks/common/useCountUp.js";
@@ -344,42 +344,75 @@ function NotificationCenter({ notifications, loading, error, role, go, goProduct
   );
 }
 
-/* ===== Product切替セグメントピル（デスクトップのみ） ===== */
-function ProductSegmentSwitcher({ products, active, onSelect }) {
-  const containerRef = useRef(null);
-  const [pill, setPill] = useState(null);
-
-  useLayoutEffect(() => {
-    const container = containerRef.current;
-    if (!container) return;
-    const activeEl = container.querySelector(`[data-product="${active}"]`);
-    if (!activeEl) { setPill(prev => (prev === null ? prev : null)); return; }
-    const next = { left: activeEl.offsetLeft, width: activeEl.offsetWidth };
-    // Guard: `products` is passed as a fresh array on every parent render, so this
-    // effect can re-fire without the measured position actually changing. Only
-    // update state (a new object) when the measured value truly differs, or this
-    // becomes an infinite render loop (React error #185).
-    setPill(prev => (prev && prev.left === next.left && prev.width === next.width) ? prev : next);
-  }, [active, products]);
-
+/* ===== フローティングDock（デスクトップ・UIリデザインR2 / Prism Bright） =====
+   旧ProductSegmentSwitcher（上部タブ）を置き換える。方針: docs/design/ui-redesign-prism-bright.md
+   モバイルは既存Bottom Navigationを維持（「上部タブ列」は元々デスクトップのみの課題のため対象外）。 */
+function Dock({ products, active, onSelect, onOpenPalette }) {
   return (
-    <div ref={containerRef} className="relative inline-flex min-w-0 items-center gap-0.5 overflow-x-auto rounded-[11px] p-[3px]" style={{ background: "rgba(255,255,255,.55)", border: "1px solid rgba(255,255,255,.8)" }}>
-      {pill && (
-        <span className="feeps-segment-pill absolute bottom-[3px] top-[3px] rounded-lg bg-white" style={{ left: pill.left, width: pill.width, boxShadow: "0 2px 8px rgba(21,23,28,.10)" }} />
-      )}
+    <nav aria-label="Product ナビゲーション" className="feeps-glass-panel fixed bottom-[22px] left-1/2 hidden -translate-x-1/2 items-center gap-[5px] rounded-[24px] p-[10px] lg:flex" style={{ zIndex: Z.dropdown }}>
       {products.map(p => {
         const isActive = active === p.key;
         const pa = PRODUCT_ACCENT[p.key] || PRODUCT_ACCENT.training;
         return (
-          <button key={p.key} data-product={p.key} onClick={() => onSelect(p.key)}
-            className="relative z-[1] flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-lg px-3 py-1.5 text-sm transition-colors"
-            style={{ color: isActive ? T.textPrimary : T.textSecondary, fontWeight: isActive ? 600 : 500 }}>
-            {/* Home画面のプロダクトカード(ProductHeroCard)と同じgradFromを参照し、色トークンの参照元を統一する（Phase7-5） */}
-            <span className="h-[6px] w-[6px] shrink-0 rounded-full" style={{ background: pa.gradFrom, opacity: isActive ? 1 : .5 }} />
-            <p.icon size={13} />{p.label}
+          <button key={p.key} type="button" onClick={() => onSelect(p.key)} title={p.label} aria-current={isActive ? "page" : undefined}
+            className={"flex items-center gap-2 rounded-2xl text-sm font-bold transition-all " + (isActive ? "px-4 py-2.5 text-white" : "p-2.5")}
+            style={isActive ? { background: `linear-gradient(135deg, ${pa.gradFrom}, ${pa.gradTo})`, boxShadow: `0 6px 18px ${pa.gradFrom}45` } : { color: T.textSecondary }}>
+            <p.icon size={20} />
+            {isActive && <span className="whitespace-nowrap">{p.label}</span>}
           </button>
         );
       })}
+      <span className="mx-1 h-[26px] w-px" style={{ background: T.border }} />
+      <button type="button" onClick={onOpenPalette} aria-label="コマンドパレットを開く（⌘K）" title="コマンドパレット（⌘K）"
+        className="flex items-center justify-center rounded-2xl p-2.5 transition hover:bg-black/5" style={{ color: T.textSecondary }}>
+        <Search size={19} />
+      </button>
+    </nav>
+  );
+}
+
+/* ===== コマンドパレット（⌘K／UIリデザインR2） =====
+   実際にナビゲーションが働く項目のみを列挙する（ダミー項目は置かない）。 */
+function CommandPalette({ open, onClose, items }) {
+  const [q, setQ] = useState("");
+  const inputRef = useRef(null);
+  useEffect(() => {
+    if (!open) return;
+    setQ("");
+    const id = requestAnimationFrame(() => inputRef.current?.focus());
+    return () => cancelAnimationFrame(id);
+  }, [open]);
+  useEffect(() => {
+    if (!open) return;
+    function onKey(e) { if (e.key === "Escape") onClose(); }
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [open, onClose]);
+  if (!open) return null;
+  const query = q.trim();
+  const filtered = query ? items.filter(it => it.label.includes(query)) : items;
+  function activate(it) { onClose(); it.action(); }
+  return (
+    <div className="fixed inset-0 flex items-start justify-center px-5 pt-[12vh]" style={{ zIndex: Z.modal, background: "rgba(20,22,29,.4)", backdropFilter: "blur(6px)", WebkitBackdropFilter: "blur(6px)" }} onClick={onClose}>
+      <div className="feeps-glass-panel w-full max-w-[600px] overflow-hidden rounded-[20px]" style={{ background: "#fff" }} onClick={e => e.stopPropagation()}>
+        <div className="flex items-center gap-3 px-5 py-4" style={{ borderBottom: `1px solid ${T.border}` }}>
+          <Search size={17} style={{ color: T.textMuted }} />
+          <input ref={inputRef} value={q} onChange={e => setQ(e.target.value)}
+            onKeyDown={e => { if (e.key === "Enter" && filtered[0]) activate(filtered[0]); }}
+            placeholder="画面名・アクションを入力…" className="flex-1 bg-transparent text-[15px] outline-none" style={{ color: T.textPrimary }} />
+          <kbd className="rounded px-1.5 py-0.5 text-[11px]" style={{ background: T.bgBase, border: `1px solid ${T.border}`, color: T.textMuted }}>esc</kbd>
+        </div>
+        <div className="max-h-[360px] overflow-y-auto p-2.5">
+          {filtered.length === 0 && <div className="px-3 py-6 text-center text-xs" style={{ color: T.textMuted }}>一致する項目がありません</div>}
+          {filtered.map(it => (
+            <button key={it.key} type="button" onClick={() => activate(it)}
+              className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-sm transition hover:bg-black/[.04]" style={{ color: T.textPrimary }}>
+              <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-white" style={{ background: it.grad }}><it.icon size={15} /></span>
+              {it.label}
+            </button>
+          ))}
+        </div>
+      </div>
     </div>
   );
 }
@@ -548,6 +581,15 @@ export default function App() {
   const [notifOpen, setNotifOpen] = useState(false);
   // モバイルBottom Navigationのメニューシート開閉
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  // コマンドパレット（⌘K／UIリデザインR2）。デスクトップ・モバイル双方から開閉できる。
+  const [paletteOpen, setPaletteOpen] = useState(false);
+  useEffect(() => {
+    function onKey(e) {
+      if ((e.metaKey || e.ctrlKey) && (e.key === "k" || e.key === "K")) { e.preventDefault(); setPaletteOpen(v => !v); }
+    }
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, []);
   // iOS Safariの100vh差分/オーバースクロールで下端が白く切れないよう、body背景をシェル末尾色に合わせる
   useEffect(() => {
     document.body.style.background = T.shellTail;
@@ -736,6 +778,25 @@ export default function App() {
     else setSubView("home");
   }
   function goSub(v) { setSubView(v); setDrawerOpen(false); }
+  // コマンドパレットの項目（実際にナビゲーションが働くものだけ。ダミー項目は置かない）
+  const paletteItems = useMemo(() => {
+    const productItems = PRODUCTS.filter(p => p.roles.includes(role)).map(p => {
+      const pa = PRODUCT_ACCENT[p.key] || PRODUCT_ACCENT.training;
+      return {
+        key: "product:" + p.key,
+        label: p.key === "home" ? "Home" : p.label + "を開く",
+        icon: p.icon,
+        grad: `linear-gradient(135deg, ${pa.gradFrom}, ${pa.gradTo})`,
+        action: () => goProduct(p.key),
+      };
+    });
+    return [
+      ...productItems,
+      { key: "notif", label: "通知を開く", icon: Bell, grad: T.accent, action: () => { goProduct("training"); go("notifications"); } },
+      { key: "profile", label: "プロフィールを開く", icon: User, grad: T.accent, action: () => { goProduct("training"); go("profile"); } },
+      { key: "logout", label: "ログアウト", icon: LogOut, grad: T.danger, action: logout },
+    ];
+  }, [role]);
   function _serializeGoals(gs) { return gs.map(({ icon, ...rest }) => rest); }
   async function toggle(id) {
     const next = { ...taskDone, [id]: !taskDone[id] };
@@ -784,8 +845,7 @@ export default function App() {
   // from pre-Floating-Canvas layout) and the desktop single 60px bar (hidden lg:flex).
   const brandLogo = (
     <button type="button" onClick={() => goProduct("home")} aria-label="Feeps One Homeへ戻る" className="flex min-w-0 shrink-0 items-center gap-2 rounded-xl px-1 py-1 transition hover:bg-black/5">
-      <span className="flex h-7 w-7 items-center justify-center rounded-lg" style={{ background: T.accent }}><TrendingUp size={15} color="#fff" /></span>
-      <span className="hidden text-sm font-extrabold sm:inline" style={{ color: T.textPrimary }}>{BRAND.name}</span>
+      <BrandMark size={30} withWordmark wordmarkSize={15} />
     </button>
   );
   const demoMenu = (
@@ -894,16 +954,23 @@ export default function App() {
           <div className="flex w-full max-w-full items-center gap-2 px-3 py-2 sm:px-4" style={{ background: T.bgSurface, borderBottom: `1px solid ${T.border}` }}>
             {brandLogo}
             {demoMenu}
-            <div className="ml-auto flex items-center gap-1.5">{notifBellMobile}{userActionsTail}</div>
+            <div className="ml-auto flex items-center gap-1.5">
+              <button type="button" onClick={() => setPaletteOpen(true)} aria-label="検索・移動・アクション（コマンドパレット）" className="rounded-lg p-1.5 transition hover:bg-black/5">
+                <Search size={17} style={{ color: T.textSecondary }} />
+              </button>
+              {notifBellMobile}{userActionsTail}
+            </div>
           </div>
         </div>
 
-        {/* デスクトップ（lg+）: 単一60pxヘッダー。土台の上に完全透過で乗る。 */}
+        {/* デスクトップ（lg+）: 単一60pxヘッダー。土台の上に完全透過で乗る。
+            Product切替は下部フローティングDockへ移行済み（UIリデザインR2、docs/design/ui-redesign-prism-bright.md）。 */}
         <div className="hidden w-full max-w-full items-center gap-2 px-4 lg:flex" style={{ height: T.headerHeight, background: "transparent" }}>
           {brandLogo}
-          <div className="ml-2 min-w-0">
-            <ProductSegmentSwitcher products={PRODUCTS.filter(p => p.roles.includes(role))} active={product} onSelect={goProduct} />
-          </div>
+          <button type="button" onClick={() => setPaletteOpen(true)} className="feeps-glass-panel ml-3 flex items-center gap-2 rounded-full px-4 py-2 text-sm transition hover:shadow-md" style={{ color: T.textMuted }}>
+            <Search size={14} />検索・移動・アクション
+            <kbd className="ml-1 rounded px-1.5 py-0.5 text-[11px]" style={{ background: T.bgBase, border: `1px solid ${T.border}`, color: T.textMuted }}>⌘K</kbd>
+          </button>
           {demoMenu}
           <div className="ml-auto flex shrink-0 items-center gap-1.5">{notifBellDesktop}{userActionsTail}</div>
         </div>
@@ -1097,6 +1164,10 @@ export default function App() {
           </div>
         </div>
       )}
+
+      {/* フローティングDock（デスクトップのみ）＋ コマンドパレット（UIリデザインR2） */}
+      <Dock products={PRODUCTS.filter(p => p.roles.includes(role))} active={product} onSelect={goProduct} onOpenPalette={() => setPaletteOpen(true)} />
+      <CommandPalette open={paletteOpen} onClose={() => setPaletteOpen(false)} items={paletteItems} />
     </div>
   );
 }
