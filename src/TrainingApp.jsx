@@ -964,8 +964,9 @@ export default function App() {
         </div>
 
         {/* デスクトップ（lg+）: 単一60pxヘッダー。土台の上に完全透過で乗る。
-            Product切替は下部フローティングDockへ移行済み（UIリデザインR2、docs/design/ui-redesign-prism-bright.md）。 */}
-        <div className="hidden w-full max-w-full items-center gap-2 px-4 lg:flex" style={{ height: T.headerHeight, background: "transparent" }}>
+            Product切替は下部フローティングDockへ移行済み（UIリデザインR2、docs/design/ui-redesign-prism-bright.md）。
+            main（下記）と同じmaxWidth+mx-autoで揃え、ワイド画面で左右端に張り付かないようにする。 */}
+        <div className="mx-auto hidden w-full max-w-full items-center gap-2 px-4 lg:flex" style={{ height: T.headerHeight, background: "transparent", maxWidth: isHomeProduct ? 1320 : 1120 }}>
           {brandLogo}
           <button type="button" onClick={() => setPaletteOpen(true)} className="feeps-glass-panel ml-3 flex items-center gap-2 rounded-full px-4 py-2 text-sm transition hover:shadow-md" style={{ color: T.textMuted }}>
             <Search size={14} />検索・移動・アクション
