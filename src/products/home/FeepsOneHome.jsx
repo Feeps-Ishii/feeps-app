@@ -1,11 +1,17 @@
 import React, { useEffect, useMemo, useState } from "react";
 import {
   ArrowRight, BookOpen, Building2, AlertCircle,
-  CheckCircle2, Circle, Clock, ClipboardCheck, MessageSquare, ListChecks,
-  FileText, Megaphone, RefreshCw, ChevronRight, Users,
+  Clock, ClipboardCheck, MessageSquare, ListChecks,
+  FileText, Megaphone, ChevronRight, Users,
 } from "lucide-react";
 import { apiGet } from "../../api.js";
-import { Btn, Card, T, PRISM, PRISM_PRODUCT_GRAD } from "../../components/common";
+import {
+  Btn, PRISM, PRISM_PRODUCT_GRAD,
+  PrismSectionTitle as SectionTitle, PrismCard as PBCard,
+  PrismCapLabel as CapLabel, PrismHomeHeading as HomeHeading,
+  PrismErrorRetryCard as ErrorRetryCard, PrismSeverityChip as SeverityChip,
+  PrismStatusDot as StatusDot, PrismProgressRing as ProgressRing,
+} from "../../components/common";
 
 // 勤怠・日報ステータスの短い日本語ラベル（Dashboard APIの生ステータス値をそのまま出さない）
 const ATT_LABEL = { completed: "退勤済み", working: "出勤中", not_clocked_in: "未打刻", absent: "欠席", late: "遅刻", early_leave: "早退", unknown: "確認中" };
@@ -70,93 +76,6 @@ function openTargetUrl(targetUrl, { goProduct, goTraining, goSub }) {
     return;
   }
   goProduct("training");
-}
-
-/* ===== 共通の見た目パーツ（Prism Bright／UIリデザインR3） ===== */
-function SectionTitle({ title, desc, action }) {
-  return (
-    <div className="mb-3 flex flex-wrap items-end justify-between gap-3">
-      <div>
-        <h2 className="text-lg font-bold" style={{ color: PRISM.ink }}>{title}</h2>
-        {desc && <p className="mt-1 text-sm" style={{ color: PRISM.mut }}>{desc}</p>}
-      </div>
-      {action}
-    </div>
-  );
-}
-
-function PBCard({ children, className = "", style = {}, hover }) {
-  return (
-    <Card hover={hover} className={className} style={{ border: `1px solid ${PRISM.line}`, borderRadius: 20, boxShadow: "0 1px 2px rgba(32,34,46,.04), 0 10px 30px rgba(60,80,180,.07)", ...style }}>
-      {children}
-    </Card>
-  );
-}
-
-function CapLabel({ children }) {
-  return <p className="mb-2.5 text-[11px] font-bold uppercase" style={{ color: PRISM.mut, letterSpacing: "0.06em" }}>{children}</p>;
-}
-
-function HomeHeading({ eyebrow, title }) {
-  return (
-    <div>
-      {eyebrow && <p className="text-[13px] font-semibold" style={{ color: PRISM.sub }}>{eyebrow}</p>}
-      <h1 className="mt-1 text-[26px] font-extrabold sm:text-[30px]" style={{ color: PRISM.ink, letterSpacing: "-0.025em" }}>{title}</h1>
-    </div>
-  );
-}
-
-function ErrorRetryCard({ message, onRetry }) {
-  return (
-    <PBCard className="p-4" style={{ background: PRISM.badSubtle, borderColor: "rgba(226,92,80,.3)" }}>
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <div className="text-sm font-bold" style={{ color: PRISM.bad }}>データを取得できませんでした</div>
-          <div className="mt-1 text-xs" style={{ color: PRISM.sub }}>{message}</div>
-        </div>
-        <Btn size="sm" kind="ghost" icon={RefreshCw} onClick={onRetry}>再取得</Btn>
-      </div>
-    </PBCard>
-  );
-}
-
-function SeverityChip({ severity, children }) {
-  const map = {
-    critical: { bg: PRISM.badSubtle, fg: PRISM.bad },
-    warning: { bg: PRISM.warnSubtle, fg: PRISM.warn },
-    info: { bg: "#EFF0F4", fg: PRISM.sub },
-  };
-  const c = map[severity] || map.info;
-  return <span className="shrink-0 rounded-full px-2.5 py-0.5 text-[11px] font-bold" style={{ background: c.bg, color: c.fg }}>{children}</span>;
-}
-
-function StatusDot({ status }) {
-  if (status === "done") return <CheckCircle2 size={19} className="shrink-0" style={{ color: PRISM.ok }} />;
-  if (status === "needs_action") return <Circle size={19} className="shrink-0" style={{ color: PRISM.warn }} />;
-  if (status === "unavailable") return <Circle size={19} className="shrink-0" style={{ color: PRISM.mut }} />;
-  return <Circle size={19} className="shrink-0" style={{ color: PRISM.accent }} />;
-}
-
-function ProgressRing({ percent, size = 112, stroke = 11, from, to, gradId, sub }) {
-  const has = percent != null && Number.isFinite(percent);
-  const clamped = has ? Math.max(0, Math.min(100, percent)) : 0;
-  const r = (size - stroke) / 2, c = 2 * Math.PI * r, off = c * (1 - clamped / 100);
-  return (
-    <div className="relative shrink-0" style={{ width: size, height: size }}>
-      <svg width={size} height={size} className="-rotate-90">
-        <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke="#ECEEF6" strokeWidth={stroke} />
-        {has && (
-          <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke={`url(#${gradId})`} strokeWidth={stroke}
-            strokeLinecap="round" strokeDasharray={c} strokeDashoffset={off} style={{ transition: "stroke-dashoffset 1s ease" }} />
-        )}
-        <defs><linearGradient id={gradId} x1="0" y1="0" x2="1" y2="1"><stop offset="0" stopColor={from} /><stop offset="1" stopColor={to} /></linearGradient></defs>
-      </svg>
-      <div className="absolute inset-0 flex flex-col items-center justify-center px-2 text-center">
-        <span className="text-2xl font-extrabold" style={{ color: T.textPrimary, letterSpacing: "-0.03em", fontVariantNumeric: "tabular-nums" }}>{has ? `${Math.round(clamped)}%` : "—"}</span>
-        {sub && <span className="mt-0.5 truncate text-[10.5px] font-semibold leading-tight" style={{ color: PRISM.mut, maxWidth: size - 20 }}>{sub}</span>}
-      </div>
-    </div>
-  );
 }
 
 /* ===== 受講生Home（/dashboard/trainee の実データのみで構成。ダミーの連続日数やAI機能は

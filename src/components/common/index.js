@@ -15,4 +15,9 @@ export { SkeletonRows, SkeletonCards } from "./Skeleton.jsx";
 export { default as SuccessCheck } from "./SuccessCheck.jsx";
 export { default as MonthPicker } from "./MonthPicker.jsx";
 export { default as BrandMark } from "./BrandMark.jsx";
+export {
+  PrismPage, PrismCard, PrismSectionTitle, PrismCapLabel, PrismHomeHeading,
+  PrismHero, PrismKpiCard, PrismErrorRetryCard, PrismSeverityChip,
+  PrismStatusDot, PrismProgressRing, PrismEmptyBlock,
+} from "./PrismHome.jsx";
 export { T, GRAD, PRISM, PRISM_PRODUCT_GRAD, PRODUCT_ACCENT, ROLE_ACCENT, Z } from "./theme.js";

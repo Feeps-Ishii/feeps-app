@@ -1,7 +1,10 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { fetchAuthSession } from "aws-amplify/auth";
 import { apiGet, apiPut, apiPost } from "../../api.js";
-import { Card, Badge, Btn, Avatar, Stat, SectionHead, Field, Modal, T, PageHeader, ProductNavCard, SkeletonRows, SkeletonCards } from "../../components/common";
+import {
+  Card, Badge, Btn, Avatar, Stat, SectionHead, Field, Modal, T, PageHeader, ProductNavCard, SkeletonRows, SkeletonCards,
+  PRISM, PrismPage, PrismCard, PrismHero, PrismKpiCard, PrismSectionTitle, PrismErrorRetryCard,
+} from "../../components/common";
 import { EmptyState } from "../training/TrainingComponents.jsx";
 import { statusKind, todayStr } from "../training/useTraining.js";
 import { getActiveCourseId, setActiveCourseId } from "../../utils/common/courseContext.js";
@@ -101,87 +104,89 @@ function AdminHome({ go, openRisk }) {
     go?.("courses");
   }
   return (
-    <div>
-      <PageHeader
-        product="admin"
-        label="管理者"
-        title="Feeps One全体を、ここから管理。"
-        description="コース単位・企業単位で、今日の研修運用状況を確認します。"
-        chips={[
-          { label: "契約企業", value: companies.length, unit: "社" },
-          { label: "コース", value: courses.length, unit: "件" },
-          { label: "全受講生", value: trainees.length, unit: "名" },
-          { label: "本日のアラート", value: alertCount, unit: "件" },
-        ]}
-        cta={{ label: "コース管理センター", icon: BookOpen, onClick: () => go && go("courses") }}
-      />
-      <div className="mb-6 grid gap-4 md:grid-cols-3">
-        <ProductNavCard product="admin" icon={BookOpen} title="コース管理センター" desc="コースを選び、設定と研修運用をまとめて管理" onClick={() => go && go("courses")} highlight badge="管理の起点" delay={650} />
-        <ProductNavCard product="admin" icon={Building2} title="企業管理" desc="契約企業の登録・管理" onClick={() => go && go("companies")} delay={650} />
-        <ProductNavCard product="admin" icon={Users} title="ユーザー管理" desc="受講生・講師・企業担当者の管理" onClick={() => go && go("users")} delay={770} />
-      </div>
-      <div className="flex flex-wrap items-center justify-end gap-2"><span className="text-xs font-semibold" style={{ color: T.textMuted }}>日報確認日</span><input type="date" value={date} onChange={e => setDate(e.target.value)} className="rounded-xl px-3 py-2 text-sm outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary, background: "#fff" }} /></div>
-      {err && <div className="mb-4 rounded-lg px-3 py-2 text-xs" style={{ background: T.dangerSubtle, color: T.danger }}>{err}</div>}
-      <div className="mt-4 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        <Stat icon={Users} label="全受講生" value={`${trainees.length}名`} tone="green" />
-        <Stat icon={Clock} label="本日の出席率" value={`${attendanceRate}%`} tone={attendanceMissingCount || absentCount ? "amber" : "green"} sub={`${attendanceRegistered}/${trainees.length} 登録`} />
-        <Stat icon={NotebookPen} label="日報提出率" value={`${reportRate}%`} tone={reportMissingCount ? "amber" : "green"} sub={`${reportSubmitted}/${trainees.length} 保存`} />
-        <Stat icon={AlertCircle} label="本日のアラート" value={`${alertCount}件`} tone={alertCount ? "red" : "green"} sub="未提出・未登録・欠席・要確認研修" />
-      </div>
-      <Card className="mt-6 p-5">
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <div><h3 className="font-bold" style={{ color: T.textPrimary }}>要確認研修</h3><p className="text-xs" style={{ color: T.textMuted }}>日報保存または勤怠登録が不足しているコースを優先確認します。</p></div>
-          <div className="flex flex-wrap gap-2"><Badge tone={attentionCourses.length ? "amber" : "green"}>{attentionCourses.length}件</Badge><Btn size="sm" kind="ghost" icon={NotebookPen} onClick={() => go && go("reports")}>日報確認</Btn><Btn size="sm" kind="soft" icon={Clock} onClick={() => go && go("attendance")}>勤怠確認</Btn></div>
+    <PrismPage>
+      <PrismHero
+        eyebrow="ADMIN OPERATIONS"
+        title="今日の研修運用を、ひと目で整える"
+        description="全コースの提出・勤怠状況から、対応が必要な箇所を優先して表示します。"
+        icon={ShieldCheck}
+        actions={<Btn kind="white" icon={BookOpen} onClick={() => go && go("courses")}>コース管理センター</Btn>}
+      >
+        <div className="flex flex-wrap items-center gap-2 text-xs font-semibold">
+          <span className="rounded-full px-3 py-1.5" style={{ background: PRISM.heroGlassStrong, border: `1px solid ${PRISM.heroLine}` }}>契約企業 {companies.length}社</span>
+          <span className="rounded-full px-3 py-1.5" style={{ background: PRISM.heroGlassStrong, border: `1px solid ${PRISM.heroLine}` }}>運用コース {courses.length}件</span>
+          <span className="rounded-full px-3 py-1.5" style={{ background: PRISM.heroGlassStrong, border: `1px solid ${PRISM.heroLine}` }}>受講生 {trainees.length}名</span>
         </div>
-        <div className="mt-3 grid gap-2 md:grid-cols-2">
+      </PrismHero>
+
+      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+        <PrismKpiCard icon={Users} label="全受講生" value={trainees.length} unit="名" detail="登録済み受講生" tone="teal" onClick={() => go && go("users")} />
+        <PrismKpiCard icon={Clock} label="出席登録率" value={`${attendanceRate}%`} detail={`${attendanceRegistered}/${trainees.length}名 登録`} tone={attendanceMissingCount || absentCount ? "warn" : "ok"} onClick={() => go && go("attendance")} />
+        <PrismKpiCard icon={NotebookPen} label="日報提出率" value={`${reportRate}%`} detail={`${reportSubmitted}/${trainees.length}名 提出`} tone={reportMissingCount ? "warn" : "ok"} onClick={() => go && go("reports")} />
+        <PrismKpiCard icon={AlertCircle} label="本日のアラート" value={alertCount} unit="件" detail="未提出・未登録・欠席・要確認" tone={alertCount ? "bad" : "ok"} />
+      </div>
+
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="grid flex-1 gap-3 sm:grid-cols-3">
+          <PrismKpiCard icon={BookOpen} label="コース管理" value={courses.length} unit="件" detail="設定と研修運用" onClick={() => go && go("courses")} />
+          <PrismKpiCard icon={Building2} label="企業管理" value={companies.length} unit="社" detail="契約企業の登録・管理" tone="ai" onClick={() => go && go("companies")} />
+          <PrismKpiCard icon={Users} label="ユーザー管理" value={users.length} unit="名" detail="全ロールのアカウント" tone="teal" onClick={() => go && go("users")} />
+        </div>
+        <label className="flex shrink-0 items-center gap-2 text-xs font-semibold" style={{ color: PRISM.mut }}>
+          確認日
+          <input type="date" value={date} onChange={e => setDate(e.target.value)} className="rounded-xl px-3 py-2 text-sm outline-none" style={{ border: `1px solid ${PRISM.line2}`, color: PRISM.ink, background: PRISM.surface }} />
+        </label>
+      </div>
+
+      {err && <PrismErrorRetryCard message={err} />}
+
+      <PrismCard className="p-4 sm:p-5">
+        <PrismSectionTitle
+          title="優先して確認する研修"
+          desc="日報または勤怠の登録が不足しているコースです。"
+          action={<div className="flex flex-wrap gap-2"><Badge tone={attentionCourses.length ? "amber" : "green"}>{attentionCourses.length}件</Badge><Btn size="sm" kind="ghost" icon={NotebookPen} onClick={() => go && go("reports")}>日報</Btn><Btn size="sm" kind="soft" icon={Clock} onClick={() => go && go("attendance")}>勤怠</Btn></div>}
+        />
+        <div className="grid gap-2 md:grid-cols-2">
           {attentionCourses.length ? attentionCourses.slice(0, 6).map(c => (
-            <div key={c.courseId} className="flex items-center gap-3 rounded-xl p-3" style={{ background: T.bgBase }}>
-              <div className="min-w-0 flex-1"><div className="truncate font-semibold" style={{ color: T.textPrimary }}>{c.name}</div>
-                <div className="mt-1 text-xs" style={{ color: T.textMuted }}>日報 {c.reportCount}/{c.members.length} ・ 勤怠 {c.attendanceCount}/{c.members.length}</div></div>
+            <div key={c.courseId} className="flex items-center gap-3 rounded-2xl p-3" style={{ background: PRISM.warnSubtle, border: `1px solid ${PRISM.warnLine}` }}>
+              <span className="grid h-9 w-9 shrink-0 place-items-center rounded-xl" style={{ background: PRISM.surface, color: PRISM.warn }}><AlertCircle size={17} /></span>
+              <div className="min-w-0 flex-1"><div className="truncate font-semibold" style={{ color: PRISM.ink }}>{c.name}</div><div className="mt-1 text-xs" style={{ color: PRISM.sub }}>日報 {c.reportCount}/{c.members.length} ・ 勤怠 {c.attendanceCount}/{c.members.length}</div></div>
               <Btn size="sm" kind="ghost" icon={ChevronRight} onClick={() => openCourse(c.courseId)}>開く</Btn>
             </div>
-          )) : <div className="rounded-xl p-3 text-sm" style={adminPanelStyle}>今日の要確認研修はありません。</div>}
+          )) : <div className="rounded-2xl p-4 text-sm md:col-span-2" style={{ background: PRISM.okSubtle, color: PRISM.ok }}>今日の要確認研修はありません。</div>}
         </div>
-      </Card>
-      <div className="mt-6 grid gap-6 xl:grid-cols-2">
-        <Card className="overflow-hidden">
-          <div className="flex items-center justify-between gap-2 p-4" style={{ borderBottom: `1px solid ${T.border}` }}>
-            <div><h3 className="font-bold" style={{ color: T.textPrimary }}>コース別</h3><p className="text-xs" style={{ color: T.textMuted }}>所属受講生・参加企業・日報保存を確認</p></div>
-            <Btn kind="soft" size="sm" icon={BookOpen} onClick={() => go && go("courses")}>コース管理</Btn>
-          </div>
-          {loading ? <SkeletonRows />
-            : courseSummaries.length === 0 ? <EmptyState title="コースがありません" desc="管理からコースを作成できます" />
-            : <div className="divide-y" style={{ borderColor: T.border }}>{courseSummaries.map(c => (
+      </PrismCard>
+
+      <div className="grid gap-5 xl:grid-cols-2">
+        <PrismCard className="overflow-hidden">
+          <div className="p-4" style={{ borderBottom: `1px solid ${PRISM.line}` }}><PrismSectionTitle title="コース別" desc="参加企業・受講生・今日の登録状況" action={<Btn kind="soft" size="sm" icon={BookOpen} onClick={() => go && go("courses")}>管理</Btn>} /></div>
+          {loading ? <SkeletonRows /> : courseSummaries.length === 0 ? <EmptyState title="コースがありません" desc="管理からコースを作成できます" /> : (
+            <div className="divide-y" style={{ borderColor: PRISM.line }}>{courseSummaries.map(c => (
               <div key={c.courseId} className="p-4">
                 <div className="flex flex-wrap items-start justify-between gap-2">
-                  <div className="min-w-0"><div className="flex flex-wrap items-center gap-2"><h4 className="font-bold" style={{ color: T.textPrimary }}>{c.name}</h4><Badge tone={kindTone(c.type || c.kind)}>{labelKind(c.type || c.kind)}</Badge></div>
-                    <p className="mt-1 text-xs" style={{ color: T.textMuted }}>{c.companyCount}社参加 / {c.members.length}名所属</p></div>
-                  <div className="flex flex-wrap gap-1.5"><Badge tone={c.reportCount ? "green" : "muted"}>日報 {c.reportCount}件</Badge><Badge tone={c.attendanceCount ? "cyan" : "muted"}>勤怠 {c.attendanceCount}件</Badge><Btn size="sm" kind="ghost" icon={ChevronRight} onClick={() => openCourse(c.courseId)}>管理</Btn></div>
+                  <div className="min-w-0"><div className="flex flex-wrap items-center gap-2"><h4 className="font-bold" style={{ color: PRISM.ink }}>{c.name}</h4><Badge tone={kindTone(c.type || c.kind)}>{labelKind(c.type || c.kind)}</Badge></div><p className="mt-1 text-xs" style={{ color: PRISM.mut }}>{c.companyCount}社参加 / {c.members.length}名所属</p></div>
+                  <div className="flex flex-wrap gap-1.5"><Badge tone={c.reportCount ? "green" : "muted"}>日報 {c.reportCount}</Badge><Badge tone={c.attendanceCount ? "cyan" : "muted"}>勤怠 {c.attendanceCount}</Badge><Btn size="sm" kind="ghost" icon={ChevronRight} onClick={() => openCourse(c.courseId)}>管理</Btn></div>
                 </div>
-                <div className="mt-3 flex flex-wrap gap-1.5">{[...new Set(c.members.map(t => t.company).filter(Boolean))].slice(0, 4).map(id => <span key={id} className="rounded-full px-2 py-1 text-xs" style={{ background: T.bgBase, color: T.textSecondary }}>{companyName(id)}</span>)}{c.companyCount > 4 && <span className="text-xs" style={{ color: T.textMuted }}>ほか{c.companyCount - 4}社</span>}</div>
+                <div className="mt-3 flex flex-wrap gap-1.5">{[...new Set(c.members.map(t => t.company).filter(Boolean))].slice(0, 4).map(id => <span key={id} className="rounded-full px-2 py-1 text-xs" style={{ background: PRISM.base, color: PRISM.sub }}>{companyName(id)}</span>)}{c.companyCount > 4 && <span className="text-xs" style={{ color: PRISM.mut }}>ほか{c.companyCount - 4}社</span>}</div>
               </div>
-            ))}</div>}
-        </Card>
-        <Card className="overflow-hidden">
-          <div className="flex items-center justify-between gap-2 p-4" style={{ borderBottom: `1px solid ${T.border}` }}>
-            <div><h3 className="font-bold" style={{ color: T.textPrimary }}>企業別</h3><p className="text-xs" style={{ color: T.textMuted }}>各社の受講生がどのコースにいるかを確認</p></div>
-            <Btn kind="soft" size="sm" icon={Building2} onClick={() => go && go("companies")}>企業管理</Btn>
-          </div>
-          {loading ? <SkeletonRows />
-            : companySummaries.length === 0 ? <EmptyState title="企業がありません" desc="管理から企業を追加できます" />
-            : <div className="divide-y" style={{ borderColor: T.border }}>{companySummaries.map(co => (
+            ))}</div>
+          )}
+        </PrismCard>
+
+        <PrismCard className="overflow-hidden">
+          <div className="p-4" style={{ borderBottom: `1px solid ${PRISM.line}` }}><PrismSectionTitle title="企業別" desc="各社の受講生と所属コース" action={<Btn kind="soft" size="sm" icon={Building2} onClick={() => go && go("companies")}>管理</Btn>} /></div>
+          {loading ? <SkeletonRows /> : companySummaries.length === 0 ? <EmptyState title="企業がありません" desc="管理から企業を追加できます" /> : (
+            <div className="divide-y" style={{ borderColor: PRISM.line }}>{companySummaries.map(co => (
               <div key={co.companyId} className="p-4">
-                <div className="flex flex-wrap items-start justify-between gap-2">
-                  <div className="min-w-0"><h4 className="font-bold" style={{ color: T.textPrimary }}>{co.name}</h4><p className="mt-1 text-xs" style={{ color: T.textMuted }}>{co.members.length}名 / {co.courses.length}コース所属</p></div>
-                  <Badge tone={co.members.length ? "cyan" : "muted"}>{co.members.length}名</Badge>
-                </div>
-                <div className="mt-3 flex flex-wrap gap-1.5">{co.courses.slice(0, 4).map(c => <span key={c.courseId} className="rounded-full px-2 py-1 text-xs" style={{ background: T.accentSubtle, color: T.accentHover }}>{c.name}</span>)}{co.courses.length > 4 && <span className="text-xs" style={{ color: T.textMuted }}>ほか{co.courses.length - 4}件</span>}{co.courses.length === 0 && <span className="text-xs" style={{ color: T.textMuted }}>所属コースなし</span>}</div>
+                <div className="flex flex-wrap items-start justify-between gap-2"><div className="min-w-0"><h4 className="font-bold" style={{ color: PRISM.ink }}>{co.name}</h4><p className="mt-1 text-xs" style={{ color: PRISM.mut }}>{co.members.length}名 / {co.courses.length}コース所属</p></div><Badge tone={co.members.length ? "cyan" : "muted"}>{co.members.length}名</Badge></div>
+                <div className="mt-3 flex flex-wrap gap-1.5">{co.courses.slice(0, 4).map(c => <span key={c.courseId} className="rounded-full px-2 py-1 text-xs" style={{ background: PRISM.accentSubtle, color: PRISM.accentDeep }}>{c.name}</span>)}{co.courses.length > 4 && <span className="text-xs" style={{ color: PRISM.mut }}>ほか{co.courses.length - 4}件</span>}{co.courses.length === 0 && <span className="text-xs" style={{ color: PRISM.mut }}>所属コースなし</span>}</div>
               </div>
-            ))}</div>}
-        </Card>
+            ))}</div>
+          )}
+        </PrismCard>
       </div>
-      {openRisk && <div className="mt-5 flex justify-end"><Btn kind="soft" size="sm" onClick={openRisk}>リスク分析を見る</Btn></div>}
-    </div>
+      {openRisk && <div className="flex justify-end"><Btn kind="soft" size="sm" onClick={openRisk}>リスク分析を見る</Btn></div>}
+    </PrismPage>
   );
 }
 const fieldCls = "w-full rounded-xl px-3 py-2 text-sm outline-none";
