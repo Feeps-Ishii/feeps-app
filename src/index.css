@@ -109,14 +109,33 @@ body,
   animation: feepsDraw 0.8s ease-out both;
 }
 
+/* Prism Bright (C3) ブランドマーク: ブロブ形が14秒周期でゆっくり呼吸する。
+   feepsFloat / feepsShimmer と並ぶ数少ない常時ループ（ロゴ専用）。 */
+@keyframes feepsBlob {
+  0%   { border-radius: 46% 54% 52% 48% / 50% 46% 54% 50%; }
+  100% { border-radius: 52% 48% 46% 54% / 46% 52% 48% 54%; }
+}
+.feeps-blob {
+  border-radius: 46% 54% 52% 48% / 50% 46% 54% 50%;
+  animation: feepsBlob 14s ease-in-out infinite alternate;
+}
+
+/* Prism Bright CTA: グラデーション背景を維持したまま浮き＋わずかな増光のみ。
+   （feeps-login-cta はhoverで単色#2F56D9へ上書きするためグラデCTAには使わない） */
+.feeps-prism-cta { transition: transform 0.15s ease, box-shadow 0.2s ease, filter 0.15s ease; }
+.feeps-prism-cta:hover:not(:disabled) { transform: translateY(-1px); filter: brightness(1.05); }
+
 @media (prefers-reduced-motion: reduce) {
   .feeps-fade-in,
   .feeps-float,
   .feeps-shimmer,
+  .feeps-blob,
   .feeps-draw { animation: none; }
   .feeps-draw { stroke-dashoffset: 0; }
   .feeps-login-cta,
   .feeps-login-cta:hover:not(:disabled) { transition: none; transform: none; }
+  .feeps-prism-cta,
+  .feeps-prism-cta:hover:not(:disabled) { transition: none; transform: none; filter: none; }
 }
 
 /* Sidebar inner scroll: thin scrollbar. */

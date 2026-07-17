@@ -1,11 +1,8 @@
 import React, { useState, useRef } from "react";
 import { signIn, signOut, confirmSignIn, resetPassword, confirmResetPassword } from "aws-amplify/auth";
-import { TrendingUp, Mail, Lock, Sparkles, Eye, EyeOff, ArrowLeft, CheckCircle2 } from "lucide-react";
-import { T } from "../../components/common";
+import { Mail, Lock, Eye, EyeOff, ArrowLeft, CheckCircle2 } from "lucide-react";
+import { PRISM, BrandMark } from "../../components/common";
 import { StandaloneLegalPage } from "../../components/common/LegalPages.jsx";
-import useCountUp from "../../hooks/common/useCountUp.js";
-
-const BRAND = { name: "Feeps One", tagline: "研修管理クラウド" };
 
 // Cognito User Pool (ap-northeast-1_QG4KZb06z) の実設定を確認のうえ表示（Phase7-4b）。
 // ハードコードではなく、実際のPasswordPolicy（MinimumLength:8, RequireUppercase/Lowercase/Numbers/Symbols:true）と一致させている。
@@ -30,13 +27,24 @@ function friendlyAuthError(e) {
   }
 }
 
+const loginFieldVars = {
+  "--field-bg": "#FBFCFE",
+  "--field-border": "#E5E8F5",
+  "--field-text": PRISM.ink,
+  "--field-focus": PRISM.accent,
+  "--field-focus-ring": PRISM.accentSubtle,
+};
+
+const ctaStyle = { background: PRISM.gradCta, boxShadow: "0 8px 20px rgba(79,107,240,.32)" };
+const ctaClass = "feeps-prism-cta w-full rounded-xl px-4 py-3 text-sm font-bold text-white disabled:opacity-60";
+
 function PasswordField({ label, value, onChange, onEnter, placeholder, autoComplete }) {
   const [show, setShow] = useState(false);
   return (
     <label className="block">
-      <div className="mb-1.5 text-xs font-semibold" style={{ color: T.textSecondary }}>{label}</div>
-      <div className="feeps-login-field flex items-center gap-2 rounded-xl px-3" style={{ "--field-bg": T.bgSurface, "--field-border": T.border, "--field-text": T.textPrimary, "--field-focus": T.accent, "--field-focus-ring": T.accentSubtle }}>
-        <Lock size={16} style={{ color: T.textMuted }} />
+      <div className="mb-1.5 text-xs font-semibold" style={{ color: PRISM.sub }}>{label}</div>
+      <div className="feeps-login-field flex items-center gap-2 rounded-xl px-3" style={loginFieldVars}>
+        <Lock size={16} style={{ color: PRISM.mut }} />
         <input
           type={show ? "text" : "password"}
           value={value}
@@ -45,23 +53,15 @@ function PasswordField({ label, value, onChange, onEnter, placeholder, autoCompl
           placeholder={placeholder}
           autoComplete={autoComplete}
           className="w-full bg-transparent py-3 text-sm outline-none"
-          style={{ color: T.textPrimary }}
+          style={{ color: PRISM.ink }}
         />
-        <button type="button" onClick={() => setShow(v => !v)} aria-label={show ? "パスワードを隠す" : "パスワードを表示"} className="flex h-11 w-11 shrink-0 -mr-2 items-center justify-center rounded" style={{ color: T.textMuted }}>
+        <button type="button" onClick={() => setShow(v => !v)} aria-label={show ? "パスワードを隠す" : "パスワードを表示"} className="flex h-11 w-11 shrink-0 -mr-2 items-center justify-center rounded" style={{ color: PRISM.mut }}>
           {show ? <EyeOff size={16} /> : <Eye size={16} />}
         </button>
       </div>
     </label>
   );
 }
-
-const loginFieldVars = {
-  "--field-bg": T.bgSurface,
-  "--field-border": T.border,
-  "--field-text": T.textPrimary,
-  "--field-focus": T.accent,
-  "--field-focus-ring": T.accentSubtle,
-};
 
 /* ===== パスワード再設定フロー（Step1: メール入力→Step2: コード+新パスワード→Step3: 完了） ===== */
 function ForgotPasswordFlow({ onBack }) {
@@ -148,13 +148,13 @@ function ForgotPasswordFlow({ onBack }) {
 
   if (step === "done") {
     return (
-      <div className="w-full max-w-sm">
-        <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-2xl" style={{ background: T.successSubtle, color: T.success }}>
+      <div className="w-full">
+        <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-2xl" style={{ background: PRISM.okSubtle, color: PRISM.ok }}>
           <CheckCircle2 size={24} />
         </div>
-        <h2 className="text-2xl font-bold" style={{ color: T.textPrimary, letterSpacing: "-0.02em" }}>パスワードを変更しました</h2>
-        <p className="mt-1 text-sm" style={{ color: T.textMuted }}>新しいパスワードでログインしてください。</p>
-        <button type="button" onClick={onBack} className="feeps-login-cta mt-6 w-full rounded-xl px-4 py-3 text-sm font-bold text-white" style={{ background: T.accent }}>
+        <h2 className="text-2xl font-bold" style={{ color: PRISM.ink, letterSpacing: "-0.02em" }}>パスワードを変更しました</h2>
+        <p className="mt-1 text-sm" style={{ color: PRISM.mut }}>新しいパスワードでログインしてください。</p>
+        <button type="button" onClick={onBack} className={`${ctaClass} mt-6`} style={ctaStyle}>
           ログイン画面へ戻る
         </button>
       </div>
@@ -163,30 +163,30 @@ function ForgotPasswordFlow({ onBack }) {
 
   if (step === "code") {
     return (
-      <div className="w-full max-w-sm">
-        <button type="button" onClick={() => { setErr(""); setNotice(""); setStep("email"); }} className="mb-4 inline-flex items-center gap-1.5 text-xs font-semibold" style={{ color: T.textMuted }}>
+      <div className="w-full">
+        <button type="button" onClick={() => { setErr(""); setNotice(""); setStep("email"); }} className="mb-4 inline-flex items-center gap-1.5 text-xs font-semibold" style={{ color: PRISM.mut }}>
           <ArrowLeft size={14} />メールアドレスを変更
         </button>
-        <h2 className="text-2xl font-bold" style={{ color: T.textPrimary, letterSpacing: "-0.02em" }}>確認コードを入力</h2>
-        <p className="mt-1 text-sm" style={{ color: T.textMuted }}>送信先: {email}</p>
+        <h2 className="text-2xl font-bold" style={{ color: PRISM.ink, letterSpacing: "-0.02em" }}>確認コードを入力</h2>
+        <p className="mt-1 text-sm" style={{ color: PRISM.mut }}>送信先: {email}</p>
         <div className="mt-6 space-y-4">
-          {notice && <div className="rounded-lg px-3 py-2 text-xs font-semibold" style={{ background: T.successSubtle, color: T.success }}>{notice}</div>}
-          {err && <div className="rounded-lg px-3 py-2 text-xs" style={{ background: T.dangerSubtle, color: T.danger }}>{err}</div>}
+          {notice && <div className="rounded-lg px-3 py-2 text-xs font-semibold" style={{ background: PRISM.okSubtle, color: PRISM.ok }}>{notice}</div>}
+          {err && <div className="rounded-lg px-3 py-2 text-xs" style={{ background: PRISM.badSubtle, color: PRISM.bad }}>{err}</div>}
           <label className="block">
-            <div className="mb-1.5 text-xs font-semibold" style={{ color: T.textSecondary }}>確認コード</div>
+            <div className="mb-1.5 text-xs font-semibold" style={{ color: PRISM.sub }}>確認コード</div>
             <div className="feeps-login-field flex items-center gap-2 rounded-xl px-3" style={loginFieldVars}>
-              <input value={code} onChange={e => setCode(e.target.value)} inputMode="numeric" autoComplete="one-time-code" placeholder="123456" className="w-full bg-transparent py-3 text-sm outline-none" style={{ color: T.textPrimary }} />
+              <input value={code} onChange={e => setCode(e.target.value)} inputMode="numeric" autoComplete="one-time-code" placeholder="123456" className="w-full bg-transparent py-3 text-sm outline-none" style={{ color: PRISM.ink }} />
             </div>
           </label>
           <PasswordField label="新しいパスワード" value={newPw} onChange={setNewPw} placeholder="新しいパスワード" autoComplete="new-password" />
           <PasswordField label="新しいパスワード（確認）" value={newPw2} onChange={setNewPw2} onEnter={submitNewPassword} placeholder="新しいパスワード（確認）" autoComplete="new-password" />
-          <ul className="rounded-lg px-3 py-2 text-[11px] leading-relaxed" style={{ background: T.bgBase, color: T.textMuted }}>
+          <ul className="rounded-lg px-3 py-2 text-[11px] leading-relaxed" style={{ background: PRISM.base, color: PRISM.mut }}>
             <li>パスワード条件: {PASSWORD_REQUIREMENTS.join("・")}</li>
           </ul>
-          <button type="button" onClick={submitNewPassword} disabled={busy} className="feeps-login-cta w-full rounded-xl px-4 py-3 text-sm font-bold text-white disabled:opacity-60" style={{ background: T.accent }}>
+          <button type="button" onClick={submitNewPassword} disabled={busy} className={ctaClass} style={ctaStyle}>
             {busy ? "変更中…" : "パスワードを変更"}
           </button>
-          <button type="button" onClick={resendCode} disabled={busy || cooldown > 0} className="w-full text-center text-xs font-semibold disabled:opacity-50" style={{ color: T.accent }}>
+          <button type="button" onClick={resendCode} disabled={busy || cooldown > 0} className="w-full text-center text-xs font-semibold disabled:opacity-50" style={{ color: PRISM.accent }}>
             {cooldown > 0 ? `確認コードを再送（${cooldown}秒後に再送可能）` : "確認コードを再送"}
           </button>
         </div>
@@ -195,28 +195,37 @@ function ForgotPasswordFlow({ onBack }) {
   }
 
   return (
-    <div className="w-full max-w-sm">
-      <button type="button" onClick={onBack} className="mb-4 inline-flex items-center gap-1.5 text-xs font-semibold" style={{ color: T.textMuted }}>
+    <div className="w-full">
+      <button type="button" onClick={onBack} className="mb-4 inline-flex items-center gap-1.5 text-xs font-semibold" style={{ color: PRISM.mut }}>
         <ArrowLeft size={14} />ログインへ戻る
       </button>
-      <h2 className="text-2xl font-bold" style={{ color: T.textPrimary, letterSpacing: "-0.02em" }}>パスワードを再設定</h2>
-      <p className="mt-1 text-sm" style={{ color: T.textMuted }}>登録済みのメールアドレスへ確認コードを送信します。</p>
+      <h2 className="text-2xl font-bold" style={{ color: PRISM.ink, letterSpacing: "-0.02em" }}>パスワードを再設定</h2>
+      <p className="mt-1 text-sm" style={{ color: PRISM.mut }}>登録済みのメールアドレスへ確認コードを送信します。</p>
       <div className="mt-6 space-y-4">
-        {err && <div className="rounded-lg px-3 py-2 text-xs" style={{ background: T.dangerSubtle, color: T.danger }}>{err}</div>}
+        {err && <div className="rounded-lg px-3 py-2 text-xs" style={{ background: PRISM.badSubtle, color: PRISM.bad }}>{err}</div>}
         <label className="block">
-          <div className="mb-1.5 text-xs font-semibold" style={{ color: T.textSecondary }}>メールアドレス</div>
+          <div className="mb-1.5 text-xs font-semibold" style={{ color: PRISM.sub }}>メールアドレス</div>
           <div className="feeps-login-field flex items-center gap-2 rounded-xl px-3" style={loginFieldVars}>
-            <Mail size={16} style={{ color: T.textMuted }} />
-            <input value={email} onChange={e => setEmail(e.target.value)} onKeyDown={e => { if (e.key === "Enter") sendCode(); }} type="email" autoComplete="username" autoFocus placeholder="name@example.com" className="w-full bg-transparent py-3 text-sm outline-none" style={{ color: T.textPrimary }} />
+            <Mail size={16} style={{ color: PRISM.mut }} />
+            <input value={email} onChange={e => setEmail(e.target.value)} onKeyDown={e => { if (e.key === "Enter") sendCode(); }} type="email" autoComplete="username" autoFocus placeholder="name@example.com" className="w-full bg-transparent py-3 text-sm outline-none" style={{ color: PRISM.ink }} />
           </div>
         </label>
-        <button type="button" onClick={sendCode} disabled={busy} className="feeps-login-cta w-full rounded-xl px-4 py-3 text-sm font-bold text-white disabled:opacity-60" style={{ background: T.accent }}>
+        <button type="button" onClick={sendCode} disabled={busy} className={ctaClass} style={ctaStyle}>
           {busy ? "送信中…" : "確認コードを送信"}
         </button>
       </div>
     </div>
   );
 }
+
+// ログイン画面（Prism Bright / 2026-07-17確定のC3案）。
+// 左＝ブランドコピー＋浮遊するProductピル、右＝白カードのフォーム。認証ロジックは従来と同一。
+const PRODUCT_PILLS = [
+  { label: "研修管理", grad: PRISM.gradTraining, delay: "0s" },
+  { label: "Eラーニング", grad: PRISM.gradLearning, delay: "-2s" },
+  { label: "スキル・成長", grad: PRISM.gradTalent, delay: "-4s" },
+  { label: "案件マッチング", grad: PRISM.gradMatching, delay: "-6s" },
+];
 
 export default function Login({ onLogin }) {
   const [screen, setScreen] = useState("login"); // "login" | "forgot" | "legal:terms" | "legal:privacy"
@@ -277,145 +286,97 @@ export default function Login({ onLogin }) {
     }
   }
 
-  const loginRate = useCountUp(86.2, { decimals: 1 });
-
   if (screen === "legal:terms" || screen === "legal:privacy") {
     return <StandaloneLegalPage doc={screen === "legal:privacy" ? "privacy" : "terms"} onBack={() => setScreen("login")} />;
   }
 
   return (
-    <div className="grid min-h-screen lg:grid-cols-[1.15fr_1fr]" style={{ background: T.bgBase, minHeight: "100dvh", fontFamily: "'Inter','Noto Sans JP',sans-serif" }}>
-      {/* ===== 左: 製品ショーケース ===== */}
-      <div className="relative hidden flex-col justify-between overflow-hidden p-12 lg:flex" style={{ borderRight: `1px solid ${T.border}` }}>
-        <svg className="pointer-events-none absolute -right-24 -top-24" width="520" height="520" viewBox="0 0 520 520" fill="none" aria-hidden="true">
-          <circle cx="260" cy="260" r="160" stroke="rgba(124,92,224,0.10)" strokeWidth="1.5" />
-          <circle cx="260" cy="260" r="230" stroke="rgba(61,107,255,0.08)" strokeWidth="1.5" />
-        </svg>
-        <div className="feeps-stagger-in relative flex items-center gap-2.5" style={{ animationDelay: "0ms" }}>
-          <span className="flex h-10 w-10 items-center justify-center rounded-xl" style={{ background: T.accent }}><TrendingUp size={20} color="#fff" /></span>
-          <span className="text-lg font-bold" style={{ color: T.textPrimary, letterSpacing: "-0.02em" }}>{BRAND.name}</span>
-        </div>
-
-        <div className="relative">
-          <h1 className="feeps-stagger-in text-4xl font-bold leading-snug" style={{ color: T.textPrimary, letterSpacing: "-0.02em", animationDelay: "80ms" }}>企業研修を「学ぶ」で<br />終わらせない。</h1>
-          <p className="feeps-stagger-in mt-4 max-w-md text-sm leading-relaxed" style={{ color: T.textSecondary, animationDelay: "160ms" }}>
-            研修管理、Eラーニング、AI問題作成、スキル可視化まで。ひとつにつながる人材育成プラットフォーム。
-          </p>
-
-          <div className="relative mt-10 h-[330px] max-w-lg">
-            <div className="feeps-stagger-in absolute left-0 top-0 w-[62%]" style={{ animationDelay: "300ms" }}>
-              <div className="feeps-float rounded-xl p-5" style={{ background: "#fff", border: `1px solid ${T.border}`, boxShadow: "0 12px 32px rgba(26,28,32,.07)", animationDuration: "7s" }}>
-                <div className="flex items-center justify-between">
-                  <span className="text-xs font-semibold" style={{ color: T.textMuted, letterSpacing: "0.06em" }}>スキル達成率</span>
-                  <span className="rounded-full px-2 py-0.5 text-[10px] font-bold" style={{ background: T.successSubtle, color: T.success }}>+12% 前月比</span>
-                </div>
-                <div className="mt-2 text-4xl font-bold" style={{ color: T.textPrimary, fontVariantNumeric: "tabular-nums", letterSpacing: "-0.02em" }}>
-                  {loginRate.toFixed(1)}<span className="text-base font-semibold" style={{ color: T.textMuted }}>%</span>
-                </div>
-                <svg className="mt-3 w-full" viewBox="0 0 240 60" fill="none" aria-hidden="true">
-                  <path className="feeps-draw" style={{ animationDelay: "700ms" }} pathLength="1" d="M4 50 L36 44 L68 46 L100 36 L132 40 L164 28 L196 30 L236 14" stroke={T.accent} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
-                </svg>
-              </div>
-            </div>
-            <div className="feeps-stagger-in absolute right-0 top-[108px] w-[56%]" style={{ animationDelay: "400ms" }}>
-              <div className="feeps-float rounded-xl p-4" style={{ background: "#fff", border: `1px solid ${T.border}`, boxShadow: "0 12px 32px rgba(26,28,32,.08)", animationDuration: "6s", animationDelay: "-2s" }}>
-                <div className="flex items-center justify-between gap-2">
-                  <div className="flex items-center gap-2">
-                    <span className="flex h-7 w-7 items-center justify-center rounded-lg" style={{ background: T.aiAccentDeep }}><Sparkles size={13} color="#fff" /></span>
-                    <span className="text-sm font-bold" style={{ color: T.textPrimary }}>AI問題生成</span>
-                  </div>
-                  <span className="text-[11px] font-semibold" style={{ color: T.aiAccent }}>生成中…</span>
-                </div>
-                <div className="feeps-shimmer mt-3 h-1.5 w-full rounded-full" />
-                <div className="mt-3 space-y-2">
-                  <div className="h-2 w-[85%] rounded-full" style={{ background: T.border }} />
-                  <div className="h-2 w-[70%] rounded-full" style={{ background: T.border }} />
-                  <div className="h-2 w-[78%] rounded-full" style={{ background: T.border }} />
-                </div>
-              </div>
-            </div>
-            <div className="feeps-stagger-in absolute bottom-0 left-[8%] w-[52%]" style={{ animationDelay: "500ms" }}>
-              <div className="feeps-float rounded-xl p-4" style={{ background: "#fff", border: `1px solid ${T.border}`, boxShadow: "0 12px 32px rgba(26,28,32,.07)", animationDuration: "8s", animationDelay: "-4s" }}>
-                <div className="text-xs font-semibold" style={{ color: T.textMuted, letterSpacing: "0.06em" }}>研修進捗</div>
-                <div className="mt-3 space-y-3">
-                  {[["Java基礎", 78], ["AWS入門", 45]].map(([name, pct]) => (
-                    <div key={name} className="flex items-center gap-2.5">
-                      <span className="w-16 shrink-0 text-xs font-semibold" style={{ color: T.textPrimary }}>{name}</span>
-                      <div className="h-1.5 flex-1 overflow-hidden rounded-full" style={{ background: T.border }}>
-                        <div className="h-full rounded-full" style={{ width: `${pct}%`, background: T.accent }} />
-                      </div>
-                      <span className="shrink-0 text-xs" style={{ color: T.textMuted, fontVariantNumeric: "tabular-nums" }}>{pct}%</span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            </div>
+    <div style={{ background: PRISM.auroraBg, minHeight: "100dvh", fontFamily: "'Inter','Noto Sans JP',sans-serif", color: PRISM.ink }}>
+      <div className="mx-auto grid min-h-screen max-w-6xl items-center gap-10 px-6 py-10 lg:grid-cols-[1.05fr_0.95fr] lg:px-12" style={{ minHeight: "100dvh" }}>
+        {/* ===== 左: ブランドコピー ===== */}
+        <div className="relative hidden h-full flex-col justify-center lg:flex">
+          <div className="feeps-stagger-in" style={{ animationDelay: "0ms" }}>
+            <BrandMark size={44} withWordmark wordmarkSize={20} />
           </div>
-        </div>
-
-        <div className="feeps-stagger-in relative flex items-center justify-between text-xs" style={{ color: T.textMuted, animationDelay: "600ms" }}>
-          <div className="flex items-center gap-3">
-            {["研修管理", "AI活用", "スキル可視化"].map((f, i) => (
-              <React.Fragment key={f}>
-                {i > 0 && <span style={{ color: T.border }}>・</span>}
-                <span className="font-semibold">{f}</span>
-              </React.Fragment>
+          <h1 className="feeps-stagger-in mt-7 text-4xl font-bold" style={{ letterSpacing: "-0.035em", lineHeight: 1.4, animationDelay: "80ms", textWrap: "balance" }}>
+            今日の学びが、<br />
+            <span style={{ background: PRISM.gradText, WebkitBackgroundClip: "text", backgroundClip: "text", color: "transparent" }}>明日の仕事</span>になる。
+          </h1>
+          <p className="feeps-stagger-in mt-4 max-w-md text-sm leading-relaxed" style={{ color: PRISM.sub, animationDelay: "160ms" }}>
+            研修・教材・スキル・案件。<br />
+            成長のすべてが、<span style={{ whiteSpace: "nowrap" }}>ひとつのホームからはじまります。</span>
+          </p>
+          <div className="feeps-stagger-in mt-8 flex flex-wrap gap-2.5" style={{ animationDelay: "240ms" }}>
+            {PRODUCT_PILLS.map(p => (
+              <span key={p.label} className="feeps-float rounded-full px-4 py-1.5 text-xs font-bold text-white"
+                style={{ background: p.grad, boxShadow: "0 5px 14px rgba(32,34,46,.14)", animationDuration: "8s", animationDelay: p.delay }}>
+                {p.label}
+              </span>
             ))}
           </div>
-          <span>© 2026 Feeps Inc.</span>
-        </div>
-      </div>
-
-      {/* ===== 右: ログインフォーム / パスワード再設定フロー ===== */}
-      <div className="feeps-fade-in flex flex-col items-center justify-center p-6 sm:p-12" style={{ background: T.bgSurface }}>
-        <div className="mb-4 lg:hidden">
-          <div className="flex items-center gap-2.5">
-            <span className="flex h-9 w-9 items-center justify-center rounded-xl" style={{ background: T.accent }}><TrendingUp size={18} color="#fff" /></span>
-            <span className="text-lg font-bold" style={{ color: T.textPrimary, letterSpacing: "-0.02em" }}>{BRAND.name}</span>
+          <div className="feeps-stagger-in absolute bottom-0 left-0 right-0 flex items-center justify-between text-xs" style={{ color: PRISM.mut, animationDelay: "320ms" }}>
+            <div className="flex items-center gap-3">
+              {["研修管理", "AI活用", "スキル可視化"].map((f, i) => (
+                <React.Fragment key={f}>
+                  {i > 0 && <span style={{ color: PRISM.line2 }}>・</span>}
+                  <span className="font-semibold">{f}</span>
+                </React.Fragment>
+              ))}
+            </div>
+            <span>© 2026 Feeps Inc.</span>
           </div>
         </div>
 
-        {screen === "forgot" ? (
-          <ForgotPasswordFlow onBack={() => setScreen("login")} />
-        ) : (
-          <div className="w-full max-w-sm">
-            <h2 className="text-2xl font-bold" style={{ color: T.textPrimary, letterSpacing: "-0.02em" }}>ログイン</h2>
-            <p className="mt-1 text-sm" style={{ color: T.textMuted }}>アカウント情報を入力してください</p>
+        {/* ===== 右: ログインフォーム / パスワード再設定フロー（白カード） ===== */}
+        <div className="feeps-fade-in flex justify-center">
+          <div className="w-full max-w-md rounded-3xl p-8 sm:p-10" style={{ background: "#fff", border: `1px solid ${PRISM.line}`, boxShadow: "0 24px 56px rgba(79,107,240,.16)" }}>
+            <BrandMark size={38} withWordmark wordmarkSize={18} />
 
-            <div className="mt-6 space-y-4">
-              <label className="block">
-                <div className="mb-1.5 text-xs font-semibold" style={{ color: T.textSecondary }}>メールアドレス</div>
-                <div className="feeps-login-field flex items-center gap-2 rounded-xl px-3" style={loginFieldVars}>
-                  <Mail size={16} style={{ color: T.textMuted }} />
-                  <input value={email} onChange={e => setEmail(e.target.value)} placeholder="name@example.com" type="email" autoComplete="username" className="w-full bg-transparent py-3 text-sm outline-none" style={{ color: T.textPrimary }} />
+            {screen === "forgot" ? (
+              <div className="mt-6">
+                <ForgotPasswordFlow onBack={() => setScreen("login")} />
+              </div>
+            ) : (
+              <div className="w-full">
+                <h2 className="mt-6 text-2xl font-bold" style={{ color: PRISM.ink, letterSpacing: "-0.02em" }}>おかえりなさい</h2>
+                <p className="mt-1 text-sm" style={{ color: PRISM.mut }}>アカウントは研修運営から発行されます</p>
+
+                <div className="mt-6 space-y-4">
+                  <label className="block">
+                    <div className="mb-1.5 text-xs font-semibold" style={{ color: PRISM.sub }}>メールアドレス</div>
+                    <div className="feeps-login-field flex items-center gap-2 rounded-xl px-3" style={loginFieldVars}>
+                      <Mail size={16} style={{ color: PRISM.mut }} />
+                      <input value={email} onChange={e => setEmail(e.target.value)} placeholder="name@example.com" type="email" autoComplete="username" className="w-full bg-transparent py-3 text-sm outline-none" style={{ color: PRISM.ink }} />
+                    </div>
+                  </label>
+                  <label className="block">
+                    <div className="mb-1.5 text-xs font-semibold" style={{ color: PRISM.sub }}>パスワード</div>
+                    <div className="feeps-login-field flex items-center gap-2 rounded-xl px-3" style={loginFieldVars}>
+                      <Lock size={16} style={{ color: PRISM.mut }} />
+                      <input type={showPassword ? "text" : "password"} value={password} onChange={e => setPassword(e.target.value)} onKeyDown={e => { if (e.key === "Enter") handleLogin(); }} placeholder="パスワード" autoComplete="current-password" className="w-full bg-transparent py-3 text-sm outline-none" style={{ color: PRISM.ink }} />
+                      <button type="button" onClick={() => setShowPassword(v => !v)} aria-label={showPassword ? "パスワードを隠す" : "パスワードを表示"} className="flex h-11 w-11 shrink-0 -mr-2 items-center justify-center rounded" style={{ color: PRISM.mut }}>
+                        {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                      </button>
+                    </div>
+                  </label>
+                  {err && <div className="rounded-lg px-3 py-2 text-xs" style={{ background: needNewPw ? PRISM.warnSubtle : PRISM.badSubtle, color: needNewPw ? PRISM.warn : PRISM.bad }}>{err}</div>}
+                  {needNewPw && (
+                    <PasswordField label="新しいパスワード" value={newPw} onChange={setNewPw} onEnter={handleNewPassword} placeholder="新しいパスワード" autoComplete="new-password" />
+                  )}
+                  {needNewPw
+                    ? <button type="button" onClick={handleNewPassword} disabled={busy} className={ctaClass} style={ctaStyle}>{busy ? "設定中…" : "パスワードを設定して続行"}</button>
+                    : <button type="button" onClick={handleLogin} disabled={busy} className={ctaClass} style={ctaStyle}>{busy ? "ログイン中…" : "Feeps One にログイン"}</button>}
+                  <button type="button" onClick={() => { setErr(""); setScreen("forgot"); }} className="w-full text-center text-xs font-semibold" style={{ color: PRISM.accent }}>パスワードをお忘れですか？</button>
                 </div>
-              </label>
-              <label className="block">
-                <div className="mb-1.5 text-xs font-semibold" style={{ color: T.textSecondary }}>パスワード</div>
-                <div className="feeps-login-field flex items-center gap-2 rounded-xl px-3" style={loginFieldVars}>
-                  <Lock size={16} style={{ color: T.textMuted }} />
-                  <input type={showPassword ? "text" : "password"} value={password} onChange={e => setPassword(e.target.value)} onKeyDown={e => { if (e.key === "Enter") handleLogin(); }} placeholder="パスワード" autoComplete="current-password" className="w-full bg-transparent py-3 text-sm outline-none" style={{ color: T.textPrimary }} />
-                  <button type="button" onClick={() => setShowPassword(v => !v)} aria-label={showPassword ? "パスワードを隠す" : "パスワードを表示"} className="flex h-11 w-11 shrink-0 -mr-2 items-center justify-center rounded" style={{ color: T.textMuted }}>
-                    {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
-                  </button>
-                </div>
-              </label>
-              {err && <div className="rounded-lg px-3 py-2 text-xs" style={{ background: needNewPw ? T.warningSubtle : T.dangerSubtle, color: needNewPw ? T.warning : T.danger }}>{err}</div>}
-              {needNewPw && (
-                <PasswordField label="新しいパスワード" value={newPw} onChange={setNewPw} onEnter={handleNewPassword} placeholder="新しいパスワード" autoComplete="new-password" />
-              )}
-              {needNewPw
-                ? <button type="button" onClick={handleNewPassword} disabled={busy} className="feeps-login-cta w-full rounded-xl px-4 py-3 text-sm font-bold text-white disabled:opacity-60" style={{ background: T.accent }}>{busy ? "設定中…" : "パスワードを設定して続行"}</button>
-                : <button type="button" onClick={handleLogin} disabled={busy} className="feeps-login-cta w-full rounded-xl px-4 py-3 text-sm font-bold text-white disabled:opacity-60" style={{ background: T.accent }}>{busy ? "ログイン中…" : "ログイン"}</button>}
-              <button type="button" onClick={() => { setErr(""); setScreen("forgot"); }} className="w-full text-center text-xs font-semibold" style={{ color: T.accent }}>パスワードをお忘れですか？</button>
+              </div>
+            )}
+
+            <div className="mt-8 flex items-center justify-center gap-3 text-[11px]" style={{ color: PRISM.mut }}>
+              <button type="button" onClick={() => setScreen("legal:terms")} className="hover:underline">利用規約</button>
+              <span style={{ color: PRISM.line2 }}>・</span>
+              <button type="button" onClick={() => setScreen("legal:privacy")} className="hover:underline">プライバシーポリシー</button>
             </div>
           </div>
-        )}
-
-        <div className="mt-10 flex items-center gap-3 text-[11px]" style={{ color: T.textMuted }}>
-          <button type="button" onClick={() => setScreen("legal:terms")} className="hover:underline">利用規約</button>
-          <span style={{ color: T.border }}>・</span>
-          <button type="button" onClick={() => setScreen("legal:privacy")} className="hover:underline">プライバシーポリシー</button>
         </div>
       </div>
     </div>
