@@ -1,129 +1,11 @@
 import React, { useEffect, useMemo, useState } from "react";
 import {
-  ArrowRight, BookOpen, Briefcase, BarChart3, School, TrendingUp,
+  ArrowRight, BookOpen, Building2, AlertCircle,
   CheckCircle2, Circle, Clock, ClipboardCheck, MessageSquare, ListChecks,
   FileText, Megaphone, RefreshCw, ChevronRight, Users,
 } from "lucide-react";
 import { apiGet } from "../../api.js";
-import { Badge, Btn, Card, T, PRISM, PRISM_PRODUCT_GRAD } from "../../components/common";
-
-// プロダクトのkey/label/icon(ロール共通、テキストのみロール別)。Product色・アイコンは
-// PRISM_PRODUCT_GRAD/このmapに揃え、ロールごとに差し替えない（PC上部タブ・サイドバー・
-// Bottom Navigation・下部Dockと同じ見た目にするため）。
-const PRODUCT_META = {
-  training: { label: "研修管理", icon: School },
-  learning: { label: "Eラーニング", icon: BookOpen },
-  talent: { label: "スキル・成長", icon: TrendingUp },
-  matching: { label: "案件管理", icon: Briefcase },
-  analytics: { label: "分析・レポート", icon: BarChart3 },
-};
-
-// ロール別のキャッチコピー・特徴・CTA文言。本人が実際にできることだけを書き、他ロールの
-// 内部管理機能・AI生成の裏側・閲覧監視機能は見せない（唯一の例外: 講師・管理者向け
-// Eラーニングカードでは「AI教材作成」を主機能として表示してよい）。
-const PRODUCT_INTRO_BY_ROLE = {
-  admin: {
-    training: {
-      tagline: "企業・コース・受講生・講師をまとめて管理。研修全体の運営状況を確認できます。",
-      features: ["企業・コース・ユーザーを一元管理", "日報・勤怠・テストを横断して確認", "コースごとの運営状況やアラートを把握"],
-      cta: "研修管理を開く",
-    },
-    learning: {
-      tagline: "オンライン教材と受講状況を一元管理。コース作成から公開まで行えます。",
-      features: ["コース・Lesson・教材を管理", "AI Lesson Designer / AI Lesson Studioを利用", "受講状況・修了状況を確認"],
-      cta: "Eラーニング管理を開く",
-    },
-    talent: {
-      tagline: "研修と学習の成果を、スキルとして可視化。人材の成長状況を横断して確認できます。",
-      features: ["受講生のスキル・資格・制作実績を確認", "成長履歴や自己PRを把握", "人材活用や案件連携へつなげる"],
-      cta: "スキル・成長を開く",
-    },
-    matching: {
-      tagline: "案件と人材をつなぎ、参画状況まで一元管理。スキルをもとに候補者を確認できます。",
-      features: ["案件の登録・編集・公開", "候補者のマッチング結果を確認", "参画状況・履歴を管理"],
-      cta: "案件管理を開く",
-    },
-    analytics: {
-      tagline: "研修運営・AI利用・AWSコストをまとめて分析。全体の状況をデータで把握できます。",
-      features: ["月次レポートとリスク分析", "AI利用回数・推定コスト", "AWS利用料金と運用状況"],
-      cta: "分析・レポートを開く",
-    },
-  },
-  instructor: {
-    training: {
-      tagline: "担当コースの授業運営を、ひとつの画面で。毎日の確認と受講生フォローを効率化します。",
-      features: ["担当受講生の勤怠と日報を確認", "コメント・お知らせ・テスト結果を管理", "カリキュラム・教材・授業準備を整理"],
-      cta: "担当研修を開く",
-    },
-    learning: {
-      tagline: "担当コースの教材づくりと学習支援を効率化。Lessonやスライドを作成・改善できます。",
-      features: ["担当コースのLesson・教材を編集", "AIでスライドを作成・レビュー", "受講状況や理解度を確認"],
-      cta: "教材・学習状況を開く",
-    },
-    talent: {
-      tagline: "担当受講生の成長を、授業やフォローに活用。スキル・目標・実績を確認できます。",
-      features: ["担当受講生のスキルシートを確認", "目標・成長履歴・制作実績を把握", "学習成果を今後の指導へ活用"],
-      cta: "受講生の成長を見る",
-    },
-  },
-  client: {
-    training: {
-      tagline: "自社の受講生の研修状況を、いつでも確認。出席・日報・テスト結果をまとめて把握できます。",
-      features: ["自社受講生の勤怠・出席状況を確認", "日報や講師コメントを閲覧", "テスト結果や研修の進み具合を把握"],
-      cta: "自社の研修状況を見る",
-    },
-    learning: {
-      tagline: "自社受講生のオンライン学習状況を確認。どの学習を進め、どこまで修了したか把握できます。",
-      features: ["自社受講生の受講状況を確認", "学習中・修了済みコースを把握", "獲得スキルや修了実績を確認"],
-      cta: "学習状況を見る",
-    },
-    talent: {
-      tagline: "自社受講生の成長とスキルを見える化。研修後の人材活用にもつなげられます。",
-      features: ["自社受講生のスキルシートを確認", "資格・制作実績・自己PRを把握", "研修成果をExcelで確認・共有"],
-      cta: "自社受講生のスキルを見る",
-    },
-    matching: {
-      tagline: "自社の案件と候補者を確認。人材のスキルと案件要件を照らし合わせられます。",
-      features: ["自社案件を確認", "候補者のスキルマッチングを確認", "自社受講生の参画状況を把握"],
-      cta: "案件・候補者を見る",
-    },
-  },
-  trainee: {
-    training: {
-      tagline: "毎日の研修に必要なことを、ここから。勤怠・日報・テスト・教材へすぐ進めます。",
-      features: ["出退勤を登録", "日報の作成・編集", "テスト・カリキュラム・研修資料を確認"],
-      cta: "研修を開く",
-    },
-    learning: {
-      tagline: "自分のペースで学び、知識とスキルを身につける。続きからすぐに学習できます。",
-      features: ["受講中のコースを続きから学習", "クイズや総合テストで理解度を確認", "修了証・獲得スキルを確認"],
-      cta: "学習を始める",
-    },
-    talent: {
-      tagline: "学んだことを、これからのキャリアへ。自分のスキルや実績を育てられます。",
-      features: ["スキル・資格・バッジを確認", "制作実績や自己PRを登録", "目標と成長履歴を振り返る"],
-      cta: "自分の成長を見る",
-    },
-    matching: {
-      tagline: "身につけたスキルを、次の仕事へ。自分に合う案件や参画状況を確認できます。",
-      features: ["おすすめ案件を確認", "マッチング理由や不足スキルを把握", "自分の参画状況・履歴を確認"],
-      cta: "おすすめ案件を見る",
-    },
-  },
-};
-
-// ロール別のカード構成: primaryは[key, size]の並び順どおりに縦積みする大型/中型カード、
-// secondaryは3列グリッドの小型カード。recommendedは「おすすめ」バッジを付けるkey一覧。
-// 表示Productは既存の上部タブ/サイドバー/Bottom Navigation(TrainingApp.jsxのPRODUCTS.roles)と
-// 一致させる: admin=5(training/learning/talent/matching/analytics)、
-// instructor=3(training/learning/talent、matchingとanalyticsは非表示)、
-// client=4(training/learning/talent/matching)、trainee=4(同左)。
-const PRODUCT_LAYOUT_BY_ROLE = {
-  admin: { primary: [["training", "large"], ["learning", "large"]], secondary: ["talent", "matching", "analytics"], recommended: ["training", "learning"] },
-  instructor: { primary: [["training", "large"], ["learning", "medium"]], secondary: ["talent"], recommended: [] },
-  client: { primary: [["training", "large"]], secondary: ["learning", "talent", "matching"], recommended: [] },
-  trainee: { primary: [["training", "medium"], ["learning", "large"]], secondary: ["talent", "matching"], recommended: [] },
-};
+import { Btn, Card, T, PRISM, PRISM_PRODUCT_GRAD } from "../../components/common";
 
 // 勤怠・日報ステータスの短い日本語ラベル（Dashboard APIの生ステータス値をそのまま出さない）
 const ATT_LABEL = { completed: "退勤済み", working: "出勤中", not_clocked_in: "未打刻", absent: "欠席", late: "遅刻", early_leave: "早退", unknown: "確認中" };
@@ -274,106 +156,6 @@ function ProgressRing({ percent, size = 112, stroke = 11, from, to, gradId, sub 
         {sub && <span className="mt-0.5 truncate text-[10.5px] font-semibold leading-tight" style={{ color: PRISM.mut, maxWidth: size - 20 }}>{sub}</span>}
       </div>
     </div>
-  );
-}
-
-/* ===== Product紹介カード（admin/client向けHomeの主要導線。実データではなく機能紹介なので
-   実際にできることのみを記載する。カード自体の彩色はPRISM_PRODUCT_GRADに統一） ===== */
-function ProductHeroCard({ product, size, iconSide, recommended, onClick }) {
-  const grad = PRISM_PRODUCT_GRAD[product.key] || PRISM.gradHome;
-  const Icon = product.icon;
-  const isLarge = size === "large";
-  const iconBlockSizeClass = isLarge ? "h-44 sm:h-auto sm:w-1/3 sm:min-h-[260px]" : "h-24 sm:h-auto sm:w-[28%] sm:min-h-[140px]";
-  const iconSize = isLarge ? 72 : 36;
-  const contentPadClass = isLarge ? "p-6 sm:p-9" : "p-5 sm:p-6";
-  return (
-    <PBCard className="overflow-hidden p-0">
-      <div className={`flex flex-col ${iconSide === "right" ? "sm:flex-row-reverse" : "sm:flex-row"}`}>
-        <div className={`flex shrink-0 items-center justify-center ${iconBlockSizeClass}`} style={{ background: grad }}>
-          <Icon size={iconSize} color="#fff" strokeWidth={1.6} />
-        </div>
-        <div className={`min-w-0 flex-1 ${contentPadClass}`}>
-          <div className="flex flex-wrap items-center gap-2">
-            <h3 className={isLarge ? "text-2xl font-bold sm:text-[28px]" : "text-lg font-bold"} style={{ color: PRISM.ink, letterSpacing: "-0.02em" }}>{product.label}</h3>
-            {recommended && <Badge>おすすめ</Badge>}
-          </div>
-          <p className={isLarge ? "mt-3 text-base font-semibold leading-relaxed sm:text-lg" : "mt-2 text-sm leading-relaxed"} style={{ color: PRISM.sub }}>{product.tagline}</p>
-          {product.features.length > 0 && (
-            <ul className={isLarge ? "mt-4 space-y-2.5" : "mt-3 space-y-1.5"}>
-              {product.features.map(feature => (
-                <li key={feature} className={isLarge ? "flex items-start gap-2 text-sm font-medium sm:text-base" : "flex items-start gap-2 text-xs"} style={{ color: PRISM.sub }}>
-                  <CheckCircle2 size={isLarge ? 18 : 14} className="mt-0.5 shrink-0" style={{ color: PRISM.accentDeep }} />
-                  <span>{feature}</span>
-                </li>
-              ))}
-            </ul>
-          )}
-          <div className={isLarge ? "mt-6" : "mt-4"}>
-            <Btn size={isLarge ? "md" : "sm"} kind="soft" icon={ArrowRight} onClick={onClick}>{product.cta}</Btn>
-          </div>
-        </div>
-      </div>
-    </PBCard>
-  );
-}
-
-function ProductSmallCard({ product, onClick }) {
-  const grad = PRISM_PRODUCT_GRAD[product.key] || PRISM.gradHome;
-  const Icon = product.icon;
-  return (
-    <PBCard className="flex flex-col gap-3 p-5">
-      <span className="flex h-11 w-11 items-center justify-center rounded-xl text-white" style={{ background: grad }}>
-        <Icon size={20} />
-      </span>
-      <div className="min-w-0 flex-1">
-        <h3 className="text-base font-bold" style={{ color: PRISM.ink, letterSpacing: "-0.02em" }}>{product.label}</h3>
-        <p className="mt-1.5 text-xs leading-relaxed" style={{ color: PRISM.sub }}>{product.tagline}</p>
-      </div>
-      <div className="mt-auto pt-1">
-        <Btn size="sm" kind="ghost" icon={ArrowRight} full onClick={onClick}>{product.cta}</Btn>
-      </div>
-    </PBCard>
-  );
-}
-
-function ProductShowcase({ role, goProduct }) {
-  const layout = PRODUCT_LAYOUT_BY_ROLE[role] || PRODUCT_LAYOUT_BY_ROLE.trainee;
-  const introByKey = PRODUCT_INTRO_BY_ROLE[role] || PRODUCT_INTRO_BY_ROLE.trainee;
-  const byKey = key => {
-    const meta = PRODUCT_META[key];
-    const intro = introByKey[key];
-    if (!meta || !intro) return null;
-    return { key, ...meta, ...intro };
-  };
-  return (
-    <section>
-      <SectionTitle title="Feeps Oneでできること" desc="ロールに合わせて利用できる機能をご紹介します。" />
-      <div className="flex flex-col gap-5">
-        {layout.primary.map(([key, size], index) => {
-          const product = byKey(key);
-          if (!product) return null;
-          return (
-            <ProductHeroCard
-              key={key}
-              product={product}
-              size={size}
-              iconSide={index % 2 === 0 ? "left" : "right"}
-              recommended={layout.recommended.includes(key)}
-              onClick={() => goProduct(key)}
-            />
-          );
-        })}
-      </div>
-      {layout.secondary.length > 0 && (
-        <div className="mt-5 grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
-          {layout.secondary.map(key => {
-            const product = byKey(key);
-            if (!product) return null;
-            return <ProductSmallCard key={key} product={product} onClick={() => goProduct(key)} />;
-          })}
-        </div>
-      )}
-    </section>
   );
 }
 
@@ -633,13 +415,120 @@ function InstructorHome({ dashboard, displayName, goProduct, goTraining, goSub, 
   );
 }
 
-/* ===== 管理者/企業担当者Home。横断ダッシュボードAPIが未実装のため、実際に使える機能への
-   導線（ProductShowcase）で構成する（存在しない集計数値を演出で埋めない） ===== */
-function ShowcaseHome({ role, displayName, goProduct }) {
+/* ===== 管理者Home（/dashboard/admin の実データのみで構成。コースごとの出席率・日報提出率・
+   要注意フラグを表示する。既存テーブルの読み取り集計のみで、新規テーブル/GSIは使用しない） ===== */
+function AdminBoardHome({ dashboard, goProduct, goTraining, goSub, loading, error, onRetry }) {
+  const open = url => openTargetUrl(url, { goProduct, goTraining, goSub });
+  const courses = asArray(dashboard?.courses);
+  const summary = dashboard?.summary || {};
+
   return (
-    <div className="flex flex-col gap-6">
-      <HomeHeading eyebrow={dateLabel()} title={`こんにちは、${displayName}さん`} />
-      <ProductShowcase role={role} goProduct={goProduct} />
+    <div className="flex flex-col gap-5">
+      <HomeHeading eyebrow={`${dateLabel()} · 稼働中 ${summary.totalCourses ?? 0}コース · 受講生 ${summary.totalStudents ?? 0}名`} title="コース俯瞰ボード" />
+
+      {error && <ErrorRetryCard message={error} onRetry={onRetry} />}
+
+      {loading && !dashboard ? (
+        <PBCard className="p-2"><div className="grid gap-3 p-2 sm:grid-cols-2 lg:grid-cols-4">{Array.from({ length: 4 }).map((_, i) => (
+          <div key={i} className="rounded-xl p-4" style={{ background: PRISM.base }}>
+            <span className="feeps-shimmer mb-2 block h-2.5 rounded" style={{ width: "50%" }} />
+            <span className="feeps-shimmer block h-5 rounded" style={{ width: "30%" }} />
+          </div>
+        ))}</div></PBCard>
+      ) : (
+        <>
+          <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
+            <PBCard className="p-4"><CapLabel><Building2 size={12} className="mr-1 inline" />契約企業</CapLabel><div className="text-2xl font-extrabold tabular-nums" style={{ color: PRISM.ink }}>{summary.totalCompanies ?? 0}<span className="ml-1 text-sm font-semibold" style={{ color: PRISM.mut }}>社</span></div></PBCard>
+            <PBCard className="p-4"><CapLabel><BookOpen size={12} className="mr-1 inline" />コース</CapLabel><div className="text-2xl font-extrabold tabular-nums" style={{ color: PRISM.ink }}>{summary.totalCourses ?? 0}<span className="ml-1 text-sm font-semibold" style={{ color: PRISM.mut }}>件</span></div></PBCard>
+            <PBCard className="p-4"><CapLabel><Users size={12} className="mr-1 inline" />全受講生</CapLabel><div className="text-2xl font-extrabold tabular-nums" style={{ color: PRISM.ink }}>{summary.totalStudents ?? 0}<span className="ml-1 text-sm font-semibold" style={{ color: PRISM.mut }}>名</span></div></PBCard>
+            <PBCard className="p-4"><CapLabel><AlertCircle size={12} className="mr-1 inline" />要確認コース</CapLabel><div className="text-2xl font-extrabold tabular-nums" style={{ color: summary.coursesNeedingAttention ? PRISM.warn : PRISM.ink }}>{summary.coursesNeedingAttention ?? 0}<span className="ml-1 text-sm font-semibold" style={{ color: PRISM.mut }}>件</span></div></PBCard>
+          </div>
+
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            {courses.length === 0 ? (
+              <PBCard className="p-5 sm:col-span-2"><p className="text-xs" style={{ color: PRISM.mut }}>稼働中のコースはありません。</p></PBCard>
+            ) : courses.map(c => (
+              <PBCard key={c.courseId} className="p-5" hover>
+                <div className="flex items-center justify-between gap-2">
+                  <b className="truncate text-[15px] font-bold" style={{ color: PRISM.ink }}>{c.courseName}</b>
+                  {c.status === "unassigned" ? <SeverityChip severity="critical">講師未設定</SeverityChip>
+                    : c.status === "needs_attention" ? <SeverityChip severity="warning">要確認</SeverityChip>
+                    : <SeverityChip severity="info">順調</SeverityChip>}
+                </div>
+                <p className="mt-1 truncate text-xs" style={{ color: PRISM.mut }}>
+                  {c.companyName || "企業未設定"} · 受講生{c.studentCount}名{c.instructorNames.length > 0 ? ` · ${c.instructorNames.join("、")}` : ""}
+                </p>
+                <div className="mt-3 flex gap-5 text-xs" style={{ color: PRISM.sub }}>
+                  <span>日報 <b className="tabular-nums" style={{ color: PRISM.ink }}>{c.reportRate != null ? `${c.reportRate}%` : "—"}</b></span>
+                  <span>出席 <b className="tabular-nums" style={{ color: PRISM.ink }}>{c.attendanceRate != null ? `${c.attendanceRate}%` : "—"}</b></span>
+                </div>
+                <div className="mt-3"><Btn size="sm" kind="ghost" icon={ArrowRight} onClick={() => open(c.targetUrl)}>コースを開く</Btn></div>
+              </PBCard>
+            ))}
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
+/* ===== 企業担当者Home（/dashboard/client の実データのみで構成。自社受講生の出席・日報・
+   学習進捗を表示する） ===== */
+function ClientSummaryHome({ dashboard, goProduct, goTraining, goSub, loading, error, onRetry }) {
+  const open = url => openTargetUrl(url, { goProduct, goTraining, goSub });
+  const trainees = asArray(dashboard?.trainees);
+  const summary = dashboard?.summary || {};
+  const company = dashboard?.company || {};
+
+  return (
+    <div className="flex flex-col gap-5">
+      <HomeHeading eyebrow={company.companyName || dateLabel()} title="自社の研修サマリー" />
+
+      {error && <ErrorRetryCard message={error} onRetry={onRetry} />}
+
+      {loading && !dashboard ? (
+        <PBCard className="p-2"><div className="grid gap-3 p-2 sm:grid-cols-2 lg:grid-cols-4">{Array.from({ length: 4 }).map((_, i) => (
+          <div key={i} className="rounded-xl p-4" style={{ background: PRISM.base }}>
+            <span className="feeps-shimmer mb-2 block h-2.5 rounded" style={{ width: "50%" }} />
+            <span className="feeps-shimmer block h-5 rounded" style={{ width: "30%" }} />
+          </div>
+        ))}</div></PBCard>
+      ) : (
+        <>
+          <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
+            <PBCard className="p-4"><CapLabel>自社受講生</CapLabel><div className="text-2xl font-extrabold tabular-nums" style={{ color: PRISM.ink }}>{summary.traineeCount ?? 0}<span className="ml-1 text-sm font-semibold" style={{ color: PRISM.mut }}>名</span></div></PBCard>
+            <PBCard className="p-4"><CapLabel>本日出席</CapLabel><div className="text-2xl font-extrabold tabular-nums" style={{ color: PRISM.ink }}>{summary.attendanceOkToday ?? 0}<span className="ml-1 text-sm font-semibold" style={{ color: PRISM.mut }}>名</span></div></PBCard>
+            <PBCard className="p-4"><CapLabel>日報提出</CapLabel><div className="text-2xl font-extrabold tabular-nums" style={{ color: PRISM.ink }}>{summary.reportSubmittedToday ?? 0}<span className="ml-1 text-sm font-semibold" style={{ color: PRISM.mut }}>名</span></div></PBCard>
+            <PBCard className="p-4"><CapLabel>日報未提出</CapLabel><div className="text-2xl font-extrabold tabular-nums" style={{ color: summary.unsubmittedReports ? PRISM.warn : PRISM.ink }}>{summary.unsubmittedReports ?? 0}<span className="ml-1 text-sm font-semibold" style={{ color: PRISM.mut }}>名</span></div></PBCard>
+          </div>
+
+          <PBCard className="p-5">
+            <CapLabel>自社受講生</CapLabel>
+            {trainees.length === 0 ? (
+              <p className="text-xs" style={{ color: PRISM.mut }}>自社受講生はまだ登録されていません。</p>
+            ) : (
+              <ul className="flex flex-col">
+                {trainees.slice(0, 10).map(t => (
+                  <li key={t.traineeId} className="flex items-center gap-3 border-b py-2.5 last:border-b-0" style={{ borderColor: PRISM.line }}>
+                    <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-xs font-bold text-white" style={{ background: PRISM.accent }}>{String(t.name || "?").slice(0, 1)}</span>
+                    <div className="min-w-0 flex-1">
+                      <div className="truncate text-sm font-bold" style={{ color: PRISM.ink }}>{t.name}</div>
+                      <div className="truncate text-xs" style={{ color: PRISM.mut }}>{t.courseName || "コース未設定"}</div>
+                    </div>
+                    {t.learningProgress != null && (
+                      <div className="hidden w-24 shrink-0 sm:block">
+                        <div className="h-1.5 overflow-hidden rounded-full" style={{ background: "#ECEEF6" }}><div className="h-full rounded-full" style={{ width: `${t.learningProgress}%`, background: PRISM.gradCta }} /></div>
+                      </div>
+                    )}
+                    <span className="shrink-0 text-xs font-semibold" style={{ color: t.attendanceStatus === "not_clocked_in" ? PRISM.warn : PRISM.sub }}>{ATT_LABEL[t.attendanceStatus] || "確認中"}</span>
+                    <button type="button" onClick={() => open(t.targetUrl)} aria-label="詳細を見る"><ChevronRight size={16} style={{ color: PRISM.mut }} /></button>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </PBCard>
+        </>
+      )}
     </div>
   );
 }
@@ -650,7 +539,11 @@ export default function FeepsOneHome({ role, displayName, goProduct, goTraining,
   const [dashboardError, setDashboardError] = useState("");
 
   const loadDashboard = useMemo(() => async () => {
-    const path = role === "instructor" ? "/dashboard/instructor" : role === "trainee" ? "/dashboard/trainee" : "";
+    const path = role === "instructor" ? "/dashboard/instructor"
+      : role === "trainee" ? "/dashboard/trainee"
+      : role === "admin" ? "/dashboard/admin"
+      : role === "client" ? "/dashboard/client"
+      : "";
     if (!path) { setDashboard(null); return; }
     setLoadingDashboard(true);
     setDashboardError("");
@@ -674,5 +567,8 @@ export default function FeepsOneHome({ role, displayName, goProduct, goTraining,
   if (role === "instructor") {
     return <InstructorHome dashboard={dashboard} displayName={displayName} goProduct={goProduct} goTraining={goTraining} goSub={goSub} loading={loadingDashboard} error={dashboardError} onRetry={loadDashboard} />;
   }
-  return <ShowcaseHome role={role} displayName={displayName} goProduct={goProduct} />;
+  if (role === "admin") {
+    return <AdminBoardHome dashboard={dashboard} goProduct={goProduct} goTraining={goTraining} goSub={goSub} loading={loadingDashboard} error={dashboardError} onRetry={loadDashboard} />;
+  }
+  return <ClientSummaryHome dashboard={dashboard} goProduct={goProduct} goTraining={goTraining} goSub={goSub} loading={loadingDashboard} error={dashboardError} onRetry={loadDashboard} />;
 }
