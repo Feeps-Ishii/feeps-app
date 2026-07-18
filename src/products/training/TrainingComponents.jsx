@@ -11,7 +11,7 @@ import {
 // カルテの「参画状況」セクション専用。Matching Productの案件CRUD/候補者マッチングは一切importしない
 // （読み取り専用の参画結果フックのみ再利用。GET /matching/trainees/{traineeId}はinstructor/adminのみ許可）。
 import { useTraineeMatching } from "../matching/useMatching.js";
-import { getActiveCourseId, setActiveCourseId } from "../../utils/common/courseContext.js";
+import { clearTraineeTestDraft, clearTrainingTargetContext, getActiveCourseId, getTraineeTestDraft, getTrainingTargetContext, setActiveCourseId, setTraineeTestDraft, setTrainingTargetContext } from "../../utils/common/courseContext.js";
 import {
   FileText, ClipboardCheck, Clock, NotebookPen, Users,
   Building2, BookOpen, Search, Upload, Download,
@@ -71,55 +71,76 @@ function overallProgress(goals, done) {
 /* ===== ログイン画面 ===== */
 function emitNotificationRefresh() { try { window.dispatchEvent(new Event("feeps:notifications-refresh")); } catch (e) {} }
 
-function TraineeHome({ go, done, toggle, goals }) {
+function TraineeHome({ go, goProduct, goSub, done, taskDataState, onTaskRetry, taskSaveState, toggle, goals }) {
   const [thHome, setThHome] = useState({
+    dashboard: null,
     courses: [],
     reports: [],
     attendance: [],
     tests: [],
     skills: null,
-    tasks: null,
   });
   const [thDailyNote, setThDailyNote] = useState(null);
   const [thDailyNoteCourse, setThDailyNoteCourse] = useState(null);
   const [thTodayCurriculum, setThTodayCurriculum] = useState(null);
+  const [thDailyLessonState, setThDailyLessonState] = useState("loading");
   const [thLoading, setThLoading] = useState(true);
   const [thErr, setThErr] = useState("");
   const [thGoalSave, setThGoalSave] = useState("");
+  const [thReloadKey, setThReloadKey] = useState(0);
+  const [thAvailability, setThAvailability] = useState({ dashboard: false, courses: false, reports: false, attendance: false, tests: false, skills: false });
   const thToday = todayStr();
+  const taskDataReady = taskDataState === "ready";
 
   useEffect(() => {
     let alive = true;
     setThLoading(true);
     setThErr("");
-    Promise.all([
-      apiGet("/me/courses").catch(() => []),
-      apiGet("/reports/me").catch(() => []),
-      apiGet("/attendance/me").catch(() => []),
-      apiGet("/tests/me").catch(() => []),
-      apiGet("/skills/me").catch(() => null),
-      apiGet("/tasks/me").catch(() => null),
-    ]).then(([courses, reports, attendance, tests, skills, tasks]) => {
+    Promise.allSettled([
+      apiGet(`/dashboard/trainee?date=${thToday}`),
+      apiGet("/me/courses"),
+      apiGet("/reports/me"),
+      apiGet("/attendance/me"),
+      apiGet("/tests/me"),
+      apiGet("/skills/me"),
+    ]).then(results => {
       if (!alive) return;
-      setThHome({
-        courses: Array.isArray(courses) ? courses : [],
-        reports: Array.isArray(reports) ? reports : [],
-        attendance: Array.isArray(attendance) ? attendance : [],
-        tests: Array.isArray(tests) ? tests : [],
-        skills,
-        tasks,
+      const valueAt = (index, fallback) => results[index]?.status === "fulfilled" ? results[index].value : fallback;
+      const failed = results.reduce((count, result) => count + (result.status === "rejected" ? 1 : 0), 0);
+      const dashboardWarnings = Array.isArray(valueAt(0, null)?.warnings)
+        ? valueAt(0, null).warnings.filter(warning => warning?.severity === "warning")
+        : [];
+      setThAvailability({
+        dashboard: results[0]?.status === "fulfilled",
+        courses: results[1]?.status === "fulfilled",
+        reports: results[2]?.status === "fulfilled",
+        attendance: results[3]?.status === "fulfilled",
+        tests: results[4]?.status === "fulfilled",
+        skills: results[5]?.status === "fulfilled",
       });
-    }).catch(e => {
-      if (alive) setThErr("受講生ホームのデータ取得に失敗しました: " + (e?.message || e));
+      setThHome({
+        dashboard: valueAt(0, null),
+        courses: Array.isArray(valueAt(1, [])) ? valueAt(1, []) : [],
+        reports: Array.isArray(valueAt(2, [])) ? valueAt(2, []) : [],
+        attendance: Array.isArray(valueAt(3, [])) ? valueAt(3, []) : [],
+        tests: Array.isArray(valueAt(4, [])) ? valueAt(4, []) : [],
+        skills: valueAt(5, null),
+      });
+      if (failed > 0 || dashboardWarnings.length > 0) {
+        const count = failed + dashboardWarnings.length;
+        setThErr(`一部の最新状態を確認できませんでした（${count}件）。未提出・完了とは判定せず、再読み込みで確認できます。`);
+      }
+    }).catch(() => {
+      if (alive) setThErr("受講生ホームのデータ取得に失敗しました。再読み込みしてください。");
     }).finally(() => alive && setThLoading(false));
     return () => { alive = false; };
-  }, []);
+  }, [thToday, thReloadKey]);
 
-  const thDoneMap = thHome.tasks?.done || done || {};
-  const thGoalProgress = goalProgress(goals, thDoneMap);
-  const thGoalTasks = flatTasks(goals);
+  const thDoneMap = taskDataReady ? (done || {}) : {};
+  const thGoalProgress = taskDataReady ? goalProgress(goals, thDoneMap) : [];
+  const thGoalTasks = taskDataReady ? flatTasks(goals) : [];
   const thRemaining = thGoalTasks.filter(t => !thDoneMap[t.id]);
-  const thOverall = overallProgress(goals, thDoneMap);
+  const thOverall = taskDataReady ? overallProgress(goals, thDoneMap) : null;
   const thReportToday = thHome.reports.find(r => r.date === thToday);
   const thHasReportComment = !!thReportToday?.comment || (Array.isArray(thReportToday?.comments) && thReportToday.comments.length > 0);
   const thGoalItems = Array.isArray(thReportToday?.goalItems) ? thReportToday.goalItems : [];
@@ -146,8 +167,13 @@ function TraineeHome({ go, done, toggle, goals }) {
   };
   const thActiveCourses = thHome.courses.filter(c => !thIsElearning(c));
   const thElearningCourses = thHome.courses.filter(thIsElearning);
-  const thPrimaryCourse = thActiveCourses[0] || thHome.courses[0];
+  const thDashboardCourses = Array.isArray(thHome.dashboard?.activeCourses) ? thHome.dashboard.activeCourses : [];
+  const thPreferredCourseId = getActiveCourseId() || thDashboardCourses.find(course => course.todayCurriculum)?.courseId || "";
+  const thPrimaryCourse = thActiveCourses.find(course => course.courseId === thPreferredCourseId) || thActiveCourses[0] || thHome.courses[0];
   const thCoursePeriod = thPrimaryCourse?.period || thPrimaryCourse?.date || ([thPrimaryCourse?.startDate, thPrimaryCourse?.endDate].filter(Boolean).join(" - "));
+  useEffect(() => {
+    if (!getActiveCourseId() && thPrimaryCourse?.courseId) setActiveCourseId(thPrimaryCourse.courseId);
+  }, [thPrimaryCourse?.courseId]);
   useEffect(() => {
     let alive = true;
     const courseId = thPrimaryCourse?.courseId;
@@ -155,26 +181,37 @@ function TraineeHome({ go, done, toggle, goals }) {
       setThDailyNote(null);
       setThDailyNoteCourse(null);
       setThTodayCurriculum(null);
+      setThDailyLessonState(thAvailability.courses ? "ready" : "error");
       return () => { alive = false; };
     }
-    Promise.all([
-      apiGet(`/courses/${courseId}/daily-note?date=${thToday}`).catch(() => null),
+    setThDailyLessonState("loading");
+    Promise.allSettled([
+      apiGet(`/courses/${courseId}/daily-note?date=${thToday}`),
       getTodayCurriculum(courseId, thToday).then(item => ({ item })),
     ])
-      .then(([note, today]) => {
+      .then(([noteResult, todayResult]) => {
         if (!alive) return;
-        setThDailyNote(note || null);
-        setThTodayCurriculum(today?.item || null);
+        if (noteResult.status === "rejected" || todayResult.status === "rejected") {
+          setThDailyNote(null);
+          setThTodayCurriculum(null);
+          setThDailyNoteCourse(thPrimaryCourse);
+          setThDailyLessonState("error");
+          return;
+        }
+        setThDailyNote(noteResult.value || null);
+        setThTodayCurriculum(todayResult.value?.item || null);
         setThDailyNoteCourse(thPrimaryCourse);
+        setThDailyLessonState("ready");
       })
       .catch(() => {
         if (!alive) return;
         setThDailyNote(null);
         setThTodayCurriculum(null);
         setThDailyNoteCourse(thPrimaryCourse);
+        setThDailyLessonState("error");
       });
     return () => { alive = false; };
-  }, [thPrimaryCourse?.courseId, thToday]);
+  }, [thPrimaryCourse?.courseId, thToday, thAvailability.courses, thReloadKey]);
   const thHasDailyAnnouncement = !!String(thDailyNote?.announcement || "").trim();
   const thLessonTitle = curriculumDisplayTitle(thTodayCurriculum) || thDailyNote?.lessonTitle || "";
   const thLessonContent = thTodayCurriculum?.content || "";
@@ -183,14 +220,21 @@ function TraineeHome({ go, done, toggle, goals }) {
   const thHasDailyLesson = !!String(thLessonTitle || thLessonContent || thLessonMemo || "").trim();
   const thSmallGoals = thRemaining.slice(0, 5);
   const thLatestReport = [...thHome.reports].sort((a, b) => String(b.date || "").localeCompare(String(a.date || "")))[0];
+  const thDashboardTasks = Array.isArray(thHome.dashboard?.todayTasks) ? thHome.dashboard.todayTasks : [];
+  const thAttendanceTask = thDashboardTasks.find(task => String(task.type || "").startsWith("attendance_"));
+  const thReportTask = thDashboardTasks.find(task => String(task.type || "").startsWith("daily_report_"));
+  const thTestTask = thDashboardTasks.find(task => task.type === "take_test");
+  const thAttendanceDone = thAttendanceTask ? thAttendanceTask.status === "done" : !!(thAttendanceToday?.clockIn && thAttendanceToday?.clockOut);
+  const thReportDone = thReportTask ? thReportTask.status === "done" : !!thReportToday;
+  const thTestsDone = thTestTask ? thTestTask.status === "done" : false;
   const thTaskCards = [
-    { key: "attendance", label: "勤怠入力", desc: thAttendanceToday?.clockIn ? `出勤 ${thAttendanceToday.clockIn}` : "本日の勤怠を登録", done: !!thAttendanceToday, icon: Clock, to: "attendance" },
-    { key: "today-goal", label: "今日の目標設定", desc: thHasTodayGoal ? "設定済み" : "日報で今日の目標を設定", done: thHasTodayGoal, icon: Target, to: "reports" },
-    { key: "curriculum", label: "カリキュラム確認", desc: "今日の学習内容を確認", done: !!thPrimaryCourse, icon: BookOpen, to: "curriculum" },
-    { key: "tests", label: "テスト受験", desc: thTestScores.length ? `${thTestScores.length}件受験済み` : "公開テストを確認", done: thTestScores.length > 0, icon: ClipboardCheck, to: "tests" },
-    { key: "report", label: "日報保存", desc: reportSavedLabel(thReportToday), done: !!thReportToday, icon: NotebookPen, to: "reports" },
+    { key: "attendance", label: thAttendanceTask?.label || "勤怠入力", desc: thAttendanceTask?.description || (thAttendanceToday?.clockIn ? `出勤 ${thAttendanceToday.clockIn}` : "本日の勤怠を登録"), done: thAttendanceDone, unavailable: thAttendanceTask?.status === "unavailable" || (!thAttendanceTask && !thAvailability.attendance), icon: Clock, to: "attendance" },
+    { key: "today-goal", label: "今日の目標設定", desc: thHasTodayGoal ? "設定済み" : "日報で今日の目標を設定", done: thHasTodayGoal, unavailable: !thAvailability.reports, icon: Target, to: "reports" },
+    { key: "tests", label: thTestTask?.label || "テスト受験", desc: thTestTask?.description || "公開テストを確認", done: thTestsDone, unavailable: thTestTask?.status === "unavailable" || !thAvailability.dashboard, icon: ClipboardCheck, to: "tests" },
+    { key: "report", label: thReportTask?.label || "日報保存", desc: thReportTask?.description || reportSavedLabel(thReportToday), done: thReportDone, unavailable: thReportTask?.status === "unavailable" || (!thReportTask && !thAvailability.reports), icon: NotebookPen, to: "reports" },
   ];
-  const thPendingTasks = thTaskCards.filter(t => !t.done);
+  const thPendingTasks = thLoading ? [] : thTaskCards.filter(t => !t.done && !t.unavailable);
+  const thUnavailableTasks = thLoading ? [] : thTaskCards.filter(t => t.unavailable);
 
   async function toggleHomeGoalItem(id, doneValue) {
     if (!thReportToday) return;
@@ -199,6 +243,7 @@ function TraineeHome({ go, done, toggle, goals }) {
     try {
       const payload = {
         date: thToday,
+        courseId: thReportToday.courseId || thPrimaryCourse?.courseId || "",
         morningGoal: thReportToday.morningGoal || "",
         goalItems: nextGoalItems,
         learned: thReportToday.learned || "",
@@ -207,6 +252,7 @@ function TraineeHome({ go, done, toggle, goals }) {
         reflection: thReportToday.reflection || "",
         blockers: thReportToday.blockers || "",
         tomorrowGoal: thReportToday.tomorrowGoal || "",
+        customFields: thReportToday.customFields && typeof thReportToday.customFields === "object" ? thReportToday.customFields : {},
       };
       await apiPut("/reports/me", payload);
       emitNotificationRefresh();
@@ -225,34 +271,33 @@ function TraineeHome({ go, done, toggle, goals }) {
 
   // ---- 表示用: タスク行の「状態+アクション」文言（業務時系列順は thTaskCards の並びを踏襲） ----
   const thTaskCopy = {
-    attendance: { undoneTitle: "出勤がまだ記録されていません", cta: "記録する", doneTitle: thAttendanceToday?.clockIn ? `出勤 ${thAttendanceToday.clockIn} 記録済み` : "勤怠 記録済み" },
+    attendance: { undoneTitle: thAttendanceToday?.clockIn && !thAttendanceToday?.clockOut ? "退勤がまだ記録されていません" : "出勤がまだ記録されていません", cta: thAttendanceToday?.clockIn ? "退勤する" : "記録する", doneTitle: thAttendanceToday?.clockOut ? `退勤 ${thAttendanceToday.clockOut} 記録済み` : "勤怠 記録済み" },
     "today-goal": { undoneTitle: "今日の目標がまだ設定されていません", cta: "設定する", doneTitle: "今日の目標 設定済み" },
-    curriculum: { undoneTitle: "今日の学習内容を確認しましょう", cta: "確認する", doneTitle: "カリキュラム 確認できます" },
-    tests: { undoneTitle: "公開中のテストを確認しましょう", cta: "確認する", doneTitle: `テスト ${thTestScores.length}件受験済み` },
+    tests: { undoneTitle: "未受験のテストがあります", cta: "受験する", doneTitle: "未受験テストはありません" },
     report: { undoneTitle: "今日の日報がまだです", cta: "書く", doneTitle: "日報 保存済み" },
   };
-  const thDoneTasks = thTaskCards.filter(t => t.done);
+  const thDoneTasks = thTaskCards.filter(t => t.done && !t.unavailable);
   const thNum = { fontVariantNumeric: "tabular-nums" };
 
   return (
     <PrismPage className="max-w-full overflow-x-hidden">
       <PrismHero
         eyebrow={`${thPrimaryCourse?.name || "FEEPS ONE"} ・ ${thToday}`}
-        title={!thAttendanceToday ? "今日も、ここからはじめよう" : thPendingTasks.length > 0 ? `今日のタスクは、あと${thPendingTasks.length}件` : "今日のタスクは、すべて完了"}
-        description={thPendingTasks.length > 0 ? `${thPendingTasks.map(t => t.label).join("・")}が残っています。上から順に進めましょう。` : "おつかれさまです。次の学習内容も確認できます。"}
+        title={thLoading ? "今日の状況を確認しています" : !thAttendanceToday && thUnavailableTasks.length === 0 ? "今日も、ここからはじめよう" : thPendingTasks.length > 0 ? `今日のタスクは、あと${thPendingTasks.length}件` : thUnavailableTasks.length > 0 ? "一部の状態を確認できません" : "今日のタスクは、すべて完了"}
+        description={thLoading ? "勤怠・日報・テストの最新状態を読み込んでいます。" : thPendingTasks.length > 0 ? `${thPendingTasks.map(t => t.label).join("・")}が残っています。上から順に進めましょう。` : thUnavailableTasks.length > 0 ? "未提出や完了とは決めずに表示しています。再読み込みして最新状態を確認してください。" : "おつかれさまです。次の学習内容も確認できます。"}
         icon={GraduationCap}
-        actions={<Btn kind="white" icon={thPendingTasks.length ? ChevronRight : BookOpen} onClick={() => thPendingTasks.length ? go(thPendingTasks[0].to) : go("curriculum")}>{thPendingTasks.length ? (thTaskCopy[thPendingTasks[0].key]?.cta || "開く") : "カリキュラム"}</Btn>}
+        actions={thLoading ? null : <Btn kind="white" icon={thPendingTasks.length ? ChevronRight : thUnavailableTasks.length ? RefreshCw : BookOpen} onClick={() => thPendingTasks.length ? go(thPendingTasks[0].to) : thUnavailableTasks.length ? setThReloadKey(value => value + 1) : go("curriculum")}>{thPendingTasks.length ? (thTaskCopy[thPendingTasks[0].key]?.cta || "開く") : thUnavailableTasks.length ? "再読み込み" : "カリキュラム"}</Btn>}
       >
-        <div className="flex flex-wrap gap-2 text-xs font-semibold"><span className="rounded-full px-3 py-1.5" style={{ background: PRISM.heroGlassStrong, border: `1px solid ${PRISM.heroLine}` }}>未対応 {thPendingTasks.length}件</span><span className="rounded-full px-3 py-1.5" style={{ background: PRISM.heroGlassStrong, border: `1px solid ${PRISM.heroLine}` }}>目標進捗 {thOverall}%</span><span className="rounded-full px-3 py-1.5" style={{ background: PRISM.heroGlassStrong, border: `1px solid ${PRISM.heroLine}` }}>出勤 {thAttendanceToday?.clockIn || "未登録"}</span></div>
+        <div className="flex flex-wrap gap-2 text-xs font-semibold"><span className="rounded-full px-3 py-1.5" style={{ background: PRISM.heroGlassStrong, border: `1px solid ${PRISM.heroLine}` }}>未対応 {thPendingTasks.length}件</span><span className="rounded-full px-3 py-1.5" style={{ background: PRISM.heroGlassStrong, border: `1px solid ${PRISM.heroLine}` }}>目標進捗 {taskDataReady ? `${thOverall}%` : "—"}</span><span className="rounded-full px-3 py-1.5" style={{ background: PRISM.heroGlassStrong, border: `1px solid ${PRISM.heroLine}` }}>出勤 {thAvailability.attendance ? (thAttendanceToday?.clockIn || "未登録") : "確認できません"}</span></div>
       </PrismHero>
 
-      {thErr && <PrismErrorRetryCard message={thErr} />}
+      {thErr && <PrismErrorRetryCard message={thErr} onRetry={() => setThReloadKey(value => value + 1)} />}
 
       <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-        <PrismKpiCard icon={ClipboardCheck} label="未対応タスク" value={thPendingTasks.length} unit="件" detail={thPendingTasks[0]?.label || "すべて完了"} tone={thPendingTasks.length ? "warn" : "ok"} />
-        <PrismKpiCard icon={Target} label="目標進捗" value={`${thOverall}%`} detail="目標と小タスクの達成率" tone="accent" onClick={() => go("goals")} />
-        <PrismKpiCard icon={NotebookPen} label="日報連続提出" value={thReportStreak} unit="日" detail="直近の継続記録" tone="teal" onClick={() => go("reports")} />
-        <PrismKpiCard icon={ClipboardCheck} label="テスト平均" value={thAvgScore == null ? "—" : thAvgScore} unit={thAvgScore == null ? "" : "点"} detail={`${thTestScores.length}件 受験済み`} tone="ai" onClick={() => go("tests")} />
+        <PrismKpiCard icon={ClipboardCheck} label="未対応タスク" value={thLoading ? "—" : thPendingTasks.length} unit={thLoading ? "" : "件"} detail={thLoading ? "最新状態を確認中" : thUnavailableTasks.length ? `${thUnavailableTasks.length}件は状態未確認` : thPendingTasks[0]?.label || "すべて完了"} tone={thPendingTasks.length ? "warn" : "ok"} />
+        <PrismKpiCard icon={Target} label="目標進捗" value={taskDataReady ? `${thOverall}%` : "—"} detail={taskDataState === "error" ? "状態を取得できません" : taskDataReady ? "目標と小タスクの達成率" : "読み込み中"} tone="accent" onClick={() => go("goals")} />
+        <PrismKpiCard icon={NotebookPen} label="日報連続提出" value={thAvailability.reports ? thReportStreak : "—"} unit={thAvailability.reports ? "日" : ""} detail={thAvailability.reports ? "直近の継続記録" : "状態を確認できません"} tone="teal" onClick={() => go("reports")} />
+        <PrismKpiCard icon={ClipboardCheck} label="テスト平均" value={thAvailability.tests && thAvgScore != null ? thAvgScore : "—"} unit={thAvailability.tests && thAvgScore != null ? "点" : ""} detail={thAvailability.tests ? `${thTestScores.length}件 受験済み` : "状態を確認できません"} tone="ai" onClick={() => go("tests")} />
       </div>
 
       <PrismCard className="p-4 sm:p-5">
@@ -263,7 +308,7 @@ function TraineeHome({ go, done, toggle, goals }) {
             const Icon = t.icon;
             return <div key={t.key} className="feeps-stagger-in flex min-w-0 items-center gap-3 rounded-2xl px-3 py-3 sm:px-4" style={{ background: i === 0 ? PRISM.accentSubtle : PRISM.base, border: `1px solid ${i === 0 ? PRISM.line2 : PRISM.line}`, animationDelay: `${120 + i * 70}ms` }}><span className="grid h-9 w-9 shrink-0 place-items-center rounded-xl" style={{ background: PRISM.surface, color: i === 0 ? PRISM.accent : PRISM.mut }}><Icon size={17} /></span><div className="min-w-0 flex-1"><div className="break-words text-sm font-semibold" style={{ color: PRISM.ink }}>{copy.undoneTitle || t.label}</div><div className="break-words text-xs" style={{ color: PRISM.mut }}>{t.desc}</div></div><Btn size="sm" kind={i === 0 ? "primary" : "ghost"} onClick={() => go(t.to)}>{copy.cta || "開く"}</Btn></div>;
           })}</div>
-        ) : <div className="flex flex-wrap items-center gap-3 rounded-2xl px-4 py-4" style={{ background: PRISM.okSubtle }}><CheckCircle2 size={20} className="shrink-0" style={{ color: PRISM.ok }} /><div className="min-w-0 flex-1"><div className="text-sm font-semibold" style={{ color: PRISM.ink }}>今日のタスクはすべて完了です。</div><div className="text-xs" style={{ color: PRISM.mut }}>次のカリキュラムを予習できます。</div></div><Btn size="sm" kind="ghost" onClick={() => go("curriculum")}>確認する</Btn></div>}
+        ) : thUnavailableTasks.length > 0 ? <div className="flex flex-wrap items-center gap-3 rounded-2xl px-4 py-4" style={{ background: PRISM.warnSubtle, border: `1px solid ${PRISM.warnLine}` }}><AlertCircle size={20} className="shrink-0" style={{ color: PRISM.warn }} /><div className="min-w-0 flex-1"><div className="text-sm font-semibold" style={{ color: PRISM.ink }}>{thUnavailableTasks.map(task => task.label).join("・")}の状態を確認できません。</div><div className="text-xs" style={{ color: PRISM.mut }}>完了・未完了のどちらにも数えていません。</div></div><Btn size="sm" kind="ghost" icon={RefreshCw} onClick={() => setThReloadKey(value => value + 1)}>再読み込み</Btn></div> : <div className="flex flex-wrap items-center gap-3 rounded-2xl px-4 py-4" style={{ background: PRISM.okSubtle }}><CheckCircle2 size={20} className="shrink-0" style={{ color: PRISM.ok }} /><div className="min-w-0 flex-1"><div className="text-sm font-semibold" style={{ color: PRISM.ink }}>今日のタスクはすべて完了です。</div><div className="text-xs" style={{ color: PRISM.mut }}>次のカリキュラムを予習できます。</div></div><Btn size="sm" kind="ghost" onClick={() => go("curriculum")}>確認する</Btn></div>}
         {!thLoading && thPendingTasks.length > 0 && thDoneTasks.length > 0 && <div className="mt-4 flex flex-wrap items-center gap-x-4 gap-y-2">{thDoneTasks.map(t => { const copy = thTaskCopy[t.key] || {}; return <button key={t.key} onClick={() => go(t.to)} className="inline-flex items-center gap-1.5 text-xs transition hover:opacity-70" style={{ color: PRISM.mut }}><CheckCircle2 size={13} style={{ color: PRISM.ok }} />{copy.doneTitle || t.label}{t.key === "report" && thHasReportComment && <span className="rounded-full px-2 py-0.5 text-[10px] font-bold" style={{ background: PRISM.accentSubtle, color: PRISM.accentDeep }}>新着コメント</span>}</button>; })}</div>}
       </PrismCard>
 
@@ -272,29 +317,28 @@ function TraineeHome({ go, done, toggle, goals }) {
       <div className="grid gap-5 xl:grid-cols-[1.2fr_.8fr]">
         <PrismCard className="p-4 sm:p-5">
           <PrismSectionTitle title="今日の学習" desc="講師が設定した本日の単元と学習内容です。" action={<div className="flex gap-2"><Btn size="sm" kind="ghost" onClick={() => go("materials")}>研修資料</Btn><Btn size="sm" kind="soft" icon={BookOpen} onClick={() => go("curriculum")}>カリキュラム</Btn></div>} />
-          {thHasDailyLesson ? <div className="min-w-0 rounded-2xl p-4" style={{ background: PRISM.base, border: `1px solid ${PRISM.line}` }}>{thLessonTitle && <div><div className="text-xs font-semibold" style={{ color: PRISM.mut }}>今日の単元</div><div className="mt-1 break-words text-lg font-bold" style={{ color: PRISM.ink }}>{thLessonTitle}</div></div>}{thLessonContent && <div className="mt-4"><div className="text-xs font-semibold" style={{ color: PRISM.mut }}>学習内容</div><div className="mt-1 whitespace-pre-wrap text-sm leading-relaxed" style={{ color: PRISM.sub }}>{thLessonContent}</div></div>}{thLessonMemo && <div className="mt-4"><div className="text-xs font-semibold" style={{ color: PRISM.mut }}>講義メモ</div><div className="mt-1 whitespace-pre-wrap text-sm leading-relaxed" style={{ color: PRISM.sub }}>{thLessonMemo}</div></div>}{thLessonSkills.length > 0 && <div className="mt-4 flex flex-wrap gap-1.5">{thLessonSkills.map(skill => <span key={skill} className="rounded-full px-2.5 py-1 text-xs font-semibold" style={{ background: PRISM.tealSubtle, color: PRISM.tealDeep }}>{skill}</span>)}</div>}{thHome.courses.length > 1 && <div className="mt-3 text-xs" style={{ color: PRISM.mut }}>{thDailyNoteCourse?.name || "メインコース"} の講義内容です。</div>}</div> : <PrismEmptyBlock>{thPrimaryCourse ? <><div className="font-semibold" style={{ color: PRISM.sub }}>今日の単元情報はまだ登録されていません。</div><div className="mt-1 text-xs">カリキュラムから学習内容を確認できます。</div></> : <><div className="font-semibold" style={{ color: PRISM.sub }}>所属コースが未設定です。</div><div className="mt-1 text-xs">コース所属が設定されると今日の学習内容が表示されます。</div></>}</PrismEmptyBlock>}
+          {thDailyLessonState === "loading" ? <SkeletonRows rows={3} /> : thDailyLessonState === "error" ? <PrismEmptyBlock><div className="font-semibold" style={{ color: PRISM.sub }}>本日の単元情報を確認できません。</div><Btn className="mt-3" size="sm" kind="ghost" icon={RefreshCw} onClick={() => setThReloadKey(value => value + 1)}>再読み込み</Btn></PrismEmptyBlock> : thHasDailyLesson ? <div className="min-w-0 rounded-2xl p-4" style={{ background: PRISM.base, border: `1px solid ${PRISM.line}` }}>{thLessonTitle && <div><div className="text-xs font-semibold" style={{ color: PRISM.mut }}>今日の単元</div><div className="mt-1 break-words text-lg font-bold" style={{ color: PRISM.ink }}>{thLessonTitle}</div></div>}{thLessonContent && <div className="mt-4"><div className="text-xs font-semibold" style={{ color: PRISM.mut }}>学習内容</div><div className="mt-1 whitespace-pre-wrap text-sm leading-relaxed" style={{ color: PRISM.sub }}>{thLessonContent}</div></div>}{thLessonMemo && <div className="mt-4"><div className="text-xs font-semibold" style={{ color: PRISM.mut }}>講義メモ</div><div className="mt-1 whitespace-pre-wrap text-sm leading-relaxed" style={{ color: PRISM.sub }}>{thLessonMemo}</div></div>}{thLessonSkills.length > 0 && <div className="mt-4 flex flex-wrap gap-1.5">{thLessonSkills.map(skill => <span key={skill} className="rounded-full px-2.5 py-1 text-xs font-semibold" style={{ background: PRISM.tealSubtle, color: PRISM.tealDeep }}>{skill}</span>)}</div>}{thHome.courses.length > 1 && <div className="mt-3 text-xs" style={{ color: PRISM.mut }}>{thDailyNoteCourse?.name || "メインコース"} の講義内容です。</div>}</div> : <PrismEmptyBlock>{thPrimaryCourse ? <><div className="font-semibold" style={{ color: PRISM.sub }}>今日の単元情報はまだ登録されていません。</div><div className="mt-1 text-xs">カリキュラムから学習内容を確認できます。</div></> : <><div className="font-semibold" style={{ color: PRISM.sub }}>所属コースが未設定です。</div><div className="mt-1 text-xs">コース所属が設定されると今日の学習内容が表示されます。</div></>}</PrismEmptyBlock>}
         </PrismCard>
 
         <PrismCard className="p-4 sm:p-5">
           <PrismSectionTitle title="今日の目標" desc="チェックすると日報へ保存されます。" action={thGoalSave && <span className="text-xs font-semibold" style={{ color: thGoalSave === "error" ? PRISM.bad : thGoalSave === "saved" ? PRISM.ok : PRISM.mut }}>{thGoalSave === "saving" ? "保存中..." : thGoalSave === "saved" ? "保存しました" : "保存に失敗しました"}</span>} />
-          {thHasTodayGoal ? <div>{thTodayGoal && <div className="text-sm font-semibold" style={{ color: PRISM.ink }}>{thTodayGoal}</div>}{thGoalItems.length > 0 && <div className="mt-3 space-y-2">{thGoalItems.map(item => { const itemKey = item.id || item.text; return <label key={itemKey} className="flex min-w-0 items-start gap-2 rounded-xl px-3 py-2.5" style={{ border: `1px solid ${PRISM.line}` }}><input className="mt-0.5 shrink-0" type="checkbox" checked={!!item.done} disabled={thGoalSave === "saving"} onChange={e => toggleHomeGoalItem(itemKey, e.target.checked)} /><span className="min-w-0 flex-1 break-words text-sm" style={{ color: item.done ? PRISM.mut : PRISM.ink, textDecoration: item.done ? "line-through" : "none" }}>{item.text || "目標未入力"}</span></label>; })}</div>}<button onClick={() => go("reports")} className="mt-3 inline-flex items-center gap-1 text-sm font-semibold" style={{ color: PRISM.accent }}>日報で確認する<ChevronRight size={14} /></button></div> : <PrismEmptyBlock><div className="font-semibold" style={{ color: PRISM.sub }}>今日の目標はまだ設定されていません。</div><button onClick={() => go("reports")} className="mt-2 inline-flex items-center gap-1 text-sm font-semibold" style={{ color: PRISM.accent }}>日報で設定する<ChevronRight size={14} /></button></PrismEmptyBlock>}
+          {thLoading ? <SkeletonRows rows={3} /> : !thAvailability.reports ? <PrismEmptyBlock><div className="font-semibold" style={{ color: PRISM.sub }}>今日の目標を確認できません。</div><Btn className="mt-3" size="sm" kind="ghost" icon={RefreshCw} onClick={() => setThReloadKey(value => value + 1)}>再読み込み</Btn></PrismEmptyBlock> : thHasTodayGoal ? <div>{thTodayGoal && <div className="text-sm font-semibold" style={{ color: PRISM.ink }}>{thTodayGoal}</div>}{thGoalItems.length > 0 && <div className="mt-3 space-y-2">{thGoalItems.map(item => { const itemKey = item.id || item.text; return <label key={itemKey} className="flex min-w-0 items-start gap-2 rounded-xl px-3 py-2.5" style={{ border: `1px solid ${PRISM.line}` }}><input className="mt-0.5 shrink-0" type="checkbox" checked={!!item.done} disabled={thGoalSave === "saving"} onChange={e => toggleHomeGoalItem(itemKey, e.target.checked)} /><span className="min-w-0 flex-1 break-words text-sm" style={{ color: item.done ? PRISM.mut : PRISM.ink, textDecoration: item.done ? "line-through" : "none" }}>{item.text || "目標未入力"}</span></label>; })}</div>}<button onClick={() => go("reports")} className="mt-3 inline-flex items-center gap-1 text-sm font-semibold" style={{ color: PRISM.accent }}>日報で確認する<ChevronRight size={14} /></button></div> : <PrismEmptyBlock><div className="font-semibold" style={{ color: PRISM.sub }}>今日の目標はまだ設定されていません。</div><button onClick={() => go("reports")} className="mt-2 inline-flex items-center gap-1 text-sm font-semibold" style={{ color: PRISM.accent }}>日報で設定する<ChevronRight size={14} /></button></PrismEmptyBlock>}
         </PrismCard>
       </div>
 
       <div className="grid gap-5 lg:grid-cols-[.7fr_1.3fr]">
-        <PrismCard className="flex flex-col items-center justify-center p-5 text-center"><PrismProgressRing percent={thOverall} gradId="trainee-goal-progress" sub="目標進捗" /><Btn className="mt-4" size="sm" kind="soft" icon={Target} onClick={() => go("goals")}>目標とタスク</Btn></PrismCard>
+        <PrismCard className="flex flex-col items-center justify-center p-5 text-center">{taskDataReady ? <><PrismProgressRing percent={thOverall} gradId="trainee-goal-progress" sub="目標進捗" /><Btn className="mt-4" size="sm" kind="soft" icon={Target} onClick={() => go("goals")}>目標とタスク</Btn></> : <><AlertCircle size={22} style={{ color: taskDataState === "error" ? PRISM.warn : PRISM.mut }} /><div className="mt-2 text-sm font-semibold" style={{ color: PRISM.sub }}>{taskDataState === "error" ? "目標・タスクを確認できません" : "目標・タスクを読み込んでいます"}</div>{taskDataState === "error" && <Btn className="mt-3" size="sm" kind="ghost" icon={RefreshCw} onClick={onTaskRetry}>再読み込み</Btn>}</>}</PrismCard>
         <PrismCard className="p-4 sm:p-5">
-          <PrismSectionTitle title="進捗の内訳" desc="目標ごとの達成状況と次の小目標です。" />
-          {thGoalProgress.length > 0 && <div className="space-y-3">{thGoalProgress.map(g => <div key={g.id}><div className="mb-1 flex items-baseline justify-between gap-2 text-xs"><span className="min-w-0 flex-1 font-medium" style={{ color: PRISM.sub }}>{g.title}</span><span className="shrink-0" style={{ color: PRISM.mut, ...thNum }}>{g.n}/{g.total}</span></div><div className="h-1.5 overflow-hidden rounded-full" style={{ background: PRISM.ringTrack }}><div className="h-full rounded-full" style={{ width: `${g.pct}%`, background: g.pct >= 100 ? PRISM.ok : PRISM.gradCta, transition: "width .8s ease" }} /></div></div>)}</div>}
-          {thSmallGoals.length > 0 && <div className="mt-5"><div className="mb-2 text-xs font-semibold" style={{ color: PRISM.mut }}>次の小目標</div><div className="grid gap-2 sm:grid-cols-2">{thSmallGoals.slice(0, 4).map(t => <button key={t.id} onClick={() => toggle(t.id)} className="flex min-w-0 items-start gap-2 rounded-xl px-3 py-2 text-left" style={{ border: `1px solid ${PRISM.line}` }}><Circle className="mt-0.5 shrink-0" size={14} style={{ color: PRISM.mut }} /><span className="min-w-0 flex-1 text-sm" style={{ color: PRISM.ink }}>{t.t}</span></button>)}</div></div>}
+          <PrismSectionTitle title="進捗の内訳" desc="目標ごとの達成状況と次の小目標です。" action={taskSaveState && <span className="text-xs font-semibold" aria-live="polite" style={{ color: taskSaveState === "error" ? PRISM.bad : taskSaveState === "saved" ? PRISM.ok : PRISM.mut }}>{taskSaveState === "saving" ? "保存中…" : taskSaveState === "saved" ? "保存しました" : "保存に失敗したため元に戻しました"}</span>} />
+          {!taskDataReady ? <div className="rounded-2xl px-4 py-5 text-sm" style={{ background: PRISM.base, color: PRISM.mut }}>{taskDataState === "error" ? "取得に失敗したため、進捗を0%とは表示していません。" : "最新の進捗を確認しています。"}</div> : <>{thGoalProgress.length > 0 && <div className="space-y-3">{thGoalProgress.map(g => <div key={g.id}><div className="mb-1 flex items-baseline justify-between gap-2 text-xs"><span className="min-w-0 flex-1 font-medium" style={{ color: PRISM.sub }}>{g.title}</span><span className="shrink-0" style={{ color: PRISM.mut, ...thNum }}>{g.n}/{g.total}</span></div><div className="h-1.5 overflow-hidden rounded-full" style={{ background: PRISM.ringTrack }}><div className="h-full rounded-full" style={{ width: `${g.pct}%`, background: g.pct >= 100 ? PRISM.ok : PRISM.gradCta, transition: "width .8s ease" }} /></div></div>)}</div>}{thSmallGoals.length > 0 && <div className="mt-5"><div className="mb-2 text-xs font-semibold" style={{ color: PRISM.mut }}>次の小目標</div><div className="grid gap-2 sm:grid-cols-2">{thSmallGoals.slice(0, 4).map(t => <button key={t.id} onClick={() => toggle(t.id)} disabled={taskSaveState === "saving"} className="flex min-w-0 items-start gap-2 rounded-xl px-3 py-2 text-left disabled:opacity-60" style={{ border: `1px solid ${PRISM.line}` }}><Circle className="mt-0.5 shrink-0" size={14} style={{ color: PRISM.mut }} /><span className="min-w-0 flex-1 text-sm" style={{ color: PRISM.ink }}>{t.t}</span></button>)}</div></div>}</>}
         </PrismCard>
       </div>
 
       <PrismCard className="p-4 sm:p-5">
         <PrismSectionTitle title="成長サマリー" desc="日々の取り組みを実データで振り返ります。" />
-        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">{[["日報連続提出", `${thReportStreak}`, "日"], ["出席記録", `${thPresentDays}`, "日"], ["テスト平均", thAvgScore == null ? "—" : `${thAvgScore}`, thAvgScore == null ? "" : "点"], ["スキル数", `${thSkillCount}`, "件"]].map(([label, value, unit]) => <div key={label} className="rounded-2xl px-4 py-3" style={{ background: PRISM.base, border: `1px solid ${PRISM.line}` }}><div className="text-xs font-semibold" style={{ color: PRISM.mut }}>{label}</div><div className="mt-1 text-xl font-bold" style={{ color: PRISM.ink, ...thNum }}>{value}<span className="ml-0.5 text-xs" style={{ color: PRISM.mut }}>{unit}</span></div></div>)}</div>
-        {thLatestReport && <div className="mt-4 rounded-2xl px-4 py-3" style={{ background: PRISM.accentSubtle }}><div className="text-xs font-semibold" style={{ color: PRISM.mut }}>直近の日報</div><div className="mt-1 line-clamp-2 text-sm" style={{ color: PRISM.sub }}>{thLatestReport.learned || thLatestReport.question || thLatestReport.nextday || "記録あり"}</div></div>}
-        <div className="mt-4 flex flex-wrap gap-2"><Btn size="sm" kind="ghost" icon={BookOpen} onClick={() => go("elearning")}>Eラーニング{thElearningCourses.length > 0 ? ` ${thElearningCourses.length}コース` : ""}</Btn><Btn size="sm" kind="ghost" icon={FileText} onClick={() => go("materials")}>研修資料</Btn></div>
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">{[["日報連続提出", thAvailability.reports ? `${thReportStreak}` : "—", thAvailability.reports ? "日" : ""], ["出席記録", thAvailability.attendance ? `${thPresentDays}` : "—", thAvailability.attendance ? "日" : ""], ["テスト平均", thAvailability.tests && thAvgScore != null ? `${thAvgScore}` : "—", thAvailability.tests && thAvgScore != null ? "点" : ""], ["スキル数", thAvailability.skills ? `${thSkillCount}` : "—", thAvailability.skills ? "件" : ""]].map(([label, value, unit]) => <div key={label} className="rounded-2xl px-4 py-3" style={{ background: PRISM.base, border: `1px solid ${PRISM.line}` }}><div className="text-xs font-semibold" style={{ color: PRISM.mut }}>{label}</div><div className="mt-1 text-xl font-bold" style={{ color: PRISM.ink, ...thNum }}>{value}<span className="ml-0.5 text-xs" style={{ color: PRISM.mut }}>{unit}</span></div></div>)}</div>
+        {thAvailability.reports && thLatestReport && <div className="mt-4 rounded-2xl px-4 py-3" style={{ background: PRISM.accentSubtle }}><div className="text-xs font-semibold" style={{ color: PRISM.mut }}>直近の日報</div><div className="mt-1 line-clamp-2 text-sm" style={{ color: PRISM.sub }}>{thLatestReport.learned || thLatestReport.question || thLatestReport.nextday || "記録あり"}</div></div>}
+        <div className="mt-4 flex flex-wrap gap-2"><Btn size="sm" kind="ghost" icon={BookOpen} onClick={() => { goProduct?.("learning"); goSub?.("el_inprogress"); }}>Eラーニング{thElearningCourses.length > 0 ? ` ${thElearningCourses.length}コース` : ""}</Btn><Btn size="sm" kind="ghost" icon={FileText} onClick={() => go("materials")}>研修資料</Btn></div>
       </PrismCard>
     </PrismPage>
   );
@@ -417,7 +461,7 @@ function InstructorGoalsDashboard({ go, openKarte }) {
   );
 }
 
-function GoalsView({ role, done, toggle, goals, setGoals, go, openKarte }) {
+function GoalsView({ role, done, taskSaveState, toggle, goals, setGoals, go, goProduct, goSub, openKarte }) {
   if (role === "instructor") return <InstructorGoalsDashboard go={go} openKarte={openKarte} />;
   const gp = goalProgress(goals, done);
   const overall = overallProgress(goals, done);
@@ -478,7 +522,7 @@ function GoalsView({ role, done, toggle, goals, setGoals, go, openKarte }) {
 
   return (
     <div>
-      <SectionHead title="目標とタスク" desc="長期目標、小目標、今日やることを分けて確認します。Eラーニングとは別に、成長履歴とスキルシートへつなげます。" />
+      <SectionHead title="目標とタスク" desc="長期目標、小目標、今日やることを分けて確認します。Eラーニングとは別に、成長履歴とスキルシートへつなげます。" action={taskSaveState && <span className="text-xs font-semibold" aria-live="polite" style={{ color: taskSaveState === "error" ? T.danger : taskSaveState === "saved" ? T.success : T.textMuted }}>{taskSaveState === "saving" ? "保存中…" : taskSaveState === "saved" ? "保存しました" : "保存に失敗したため元に戻しました"}</span>} />
 
       <div className="mb-6 grid gap-4 lg:grid-cols-3">
         <Card className="p-5 lg:col-span-2">
@@ -535,8 +579,8 @@ function GoalsView({ role, done, toggle, goals, setGoals, go, openKarte }) {
             <div className="flex justify-between rounded-xl px-3 py-2" style={{ background: T.bgBase }}><span style={{ color: T.textMuted }}>長期目標</span><b style={{ color: T.textPrimary }}>{gp.length}件</b></div>
           </div>
           <div className="mt-4 grid gap-2">
-            <Btn kind="soft" icon={GitBranch} onClick={() => go && go("skillmap")}>成長履歴へ</Btn>
-            <Btn kind="ghost" icon={BookOpen} onClick={() => go && go("elearning")}>Eラーニングへ</Btn>
+            <Btn kind="soft" icon={GitBranch} onClick={() => { goProduct?.("talent"); goSub?.("tl_growth"); }}>成長履歴へ</Btn>
+            <Btn kind="ghost" icon={BookOpen} onClick={() => { goProduct?.("learning"); goSub?.("el_inprogress"); }}>Eラーニングへ</Btn>
           </div>
         </Card>
       </div>
@@ -591,7 +635,7 @@ function GoalsView({ role, done, toggle, goals, setGoals, go, openKarte }) {
         ))}</div> : <div className="rounded-xl p-4 text-sm" style={adminPanelStyle}>今日のタスクは未設定です。日報で今日の目標を追加するとここに表示されます。</div>}
         <div className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-xl p-3" style={{ background: T.accentSubtle }}>
           <p className="text-xs leading-relaxed" style={{ color: T.textMuted }}>今後、達成した小目標や今日のタスクは成長履歴に反映し、スキルシートで説明できる材料として整理していきます。</p>
-          <div className="flex gap-2"><Btn size="sm" kind="ghost" icon={NotebookPen} onClick={() => go && go("reports")}>日報へ</Btn><Btn size="sm" icon={GitBranch} onClick={() => go && go("skillmap")}>成長履歴へ</Btn></div>
+          <div className="flex gap-2"><Btn size="sm" kind="ghost" icon={NotebookPen} onClick={() => go && go("reports")}>日報へ</Btn><Btn size="sm" icon={GitBranch} onClick={() => { goProduct?.("talent"); goSub?.("tl_growth"); }}>成長履歴へ</Btn></div>
         </div>
       </Card>
     </div>
@@ -1428,9 +1472,17 @@ function testGroupParentPath(group) {
 }
 function Tests({ role }) {
   const nameMap = useNameMap();
+  const [initialTrainingTarget] = useState(() => role === "trainee" ? getTrainingTargetContext("tests", { consume: false }) : null);
+  const testTargetHandledRef = useRef(false);
+  const testDraftResumeHandledRef = useRef(false);
   const [tests, setTests] = useState([]);
   const [testSource, setTestSource] = useState("empty");
   const [testErr, setTestErr] = useState("");
+  const [testLoadState, setTestLoadState] = useState("loading");
+  const [testDefinitionsAvailable, setTestDefinitionsAvailable] = useState(true);
+  const [testResultsAvailable, setTestResultsAvailable] = useState(true);
+  const [testCoursesAvailable, setTestCoursesAvailable] = useState(true);
+  const testLoadVersionRef = useRef(0);
   const [taking, setTaking] = useState(null);
   const [takingPreview, setTakingPreview] = useState(false);
   const [building, setBuilding] = useState(false);
@@ -1463,12 +1515,8 @@ function Tests({ role }) {
   // 受講生カードのコース名表示用（opsFilterはtraineeでは無効のため自分のコースだけ取得）
   const [myCourseNames, setMyCourseNames] = useState({});
   const [myTestCourses, setMyTestCourses] = useState([]);
-  const [selectedTestCourseId, setSelectedTestCourseId] = useState("");
+  const [selectedTestCourseId, setSelectedTestCourseId] = useState(() => initialTrainingTarget?.courseId || getActiveCourseId());
   const [testCurricula, setTestCurricula] = useState({});
-  useEffect(() => {
-    if (role !== "trainee") return;
-    apiGet("/me/courses").then(list => { const courses = list || []; setMyTestCourses(courses); setSelectedTestCourseId(current => courses.some(course => course.courseId === current) ? current : (courses[0]?.courseId || "")); setMyCourseNames(Object.fromEntries(courses.filter(c => c?.courseId && c?.name).map(c => [c.courseId, c.name]))); }).catch(() => {});
-  }, [role]);
   const testCurriculumCourseIds = useMemo(() => {
     const ids = role === "trainee" ? myTestCourses.map(course => course.courseId) : tests.map(test => test.courseId);
     return [...new Set(ids.filter(Boolean))];
@@ -1483,39 +1531,92 @@ function Tests({ role }) {
   }, [testCurriculumCourseKey]);
 
   async function loadTests() {
+    const loadVersion = ++testLoadVersionRef.current;
+    setTestLoadState("loading");
     setTestErr("");
     let base;
     let source = "db";
+    let definitionsAvailable = true;
+    let traineeResultsAvailable = true;
+    let traineeCoursesAvailable = true;
+    let loadError = "";
+    let resultMap = {};
+    let traineeCourses = [];
     try {
       const list = await apiGet("/tests");
       base = Array.isArray(list) ? list.map(normalizeTest) : [];
     } catch (e) {
+      definitionsAvailable = false;
       source = "empty";
       base = [];
-      setTestErr("テスト定義APIの読み込みに失敗しました。");
+      loadError = "公開テストを取得できませんでした。対象なしとは判定していません。";
     }
+    if (loadVersion !== testLoadVersionRef.current) return;
     if (role === "trainee") {
       try {
         const items = await apiGet("/tests/me");
         const byId = {};
         (items || []).forEach(r => { byId[String(r.testId)] = r; });
         base = base.map(t => byId[testIdOf(t)] ? { ...t, status: "graded", score: byId[testIdOf(t)].score } : t);
-      } catch (e) {}
+      } catch (e) {
+        traineeResultsAvailable = false;
+        loadError = "受験結果を確認できないため、受験済み・未受験の判定を停止しています。";
+      }
+      if (loadVersion !== testLoadVersionRef.current) return;
+      try {
+        const courses = await apiGet("/me/courses");
+        traineeCourses = Array.isArray(courses) ? courses : [];
+      } catch (e) {
+        traineeCoursesAvailable = false;
+        loadError = "所属コースを確認できないため、テスト一覧の表示を停止しています。";
+      }
     }
-    setTestSource(source);
+    if (loadVersion !== testLoadVersionRef.current) return;
     if (canViewResults) {
       const pairs = await Promise.all(base.map(t => {
         const id = testIdOf(t);
-        return apiGet(`/tests/${id}/results`).then(rows => [id, Array.isArray(rows) ? rows : []]).catch(e => {
-          setTestErr("テスト結果の読み込みに失敗しました: " + (e?.errorMessage || e?.message || e));
-          return [id, []];
-        });
+        return apiGet(`/tests/${id}/results`)
+          .then(rows => ({ id, rows: Array.isArray(rows) ? rows : [], error: "" }))
+          .catch(e => ({ id, rows: [], error: e?.errorMessage || e?.message || String(e) }));
       }));
-      setTestResultsMap(Object.fromEntries(pairs));
-    } else {
-      setTestResultsMap({});
+      if (loadVersion !== testLoadVersionRef.current) return;
+      const failedResult = pairs.find(pair => pair.error);
+      if (failedResult) loadError = "テスト結果の一部を取得できないため、集計表示を停止しています。";
+      resultMap = Object.fromEntries(pairs.map(pair => [pair.id, pair.rows]));
     }
+    if (loadVersion !== testLoadVersionRef.current) return;
+    setTestDefinitionsAvailable(definitionsAvailable);
+    setTestResultsAvailable(traineeResultsAvailable);
+    setTestCoursesAvailable(traineeCoursesAvailable);
+    setTestSource(source);
+    setTestResultsMap(resultMap);
     setTests(base);
+    if (role === "trainee") {
+      setMyTestCourses(traineeCourses);
+      setSelectedTestCourseId(current => {
+        const preferred = initialTrainingTarget?.courseId || current;
+        const next = traineeCourses.some(course => course.courseId === preferred) ? preferred : (traineeCourses[0]?.courseId || "");
+        if (next) setActiveCourseId(next);
+        return next;
+      });
+      setMyCourseNames(Object.fromEntries(traineeCourses.filter(course => course?.courseId && course?.name).map(course => [course.courseId, course.name])));
+    }
+    const loadSucceeded = definitionsAvailable && traineeResultsAvailable && traineeCoursesAvailable && !loadError;
+    setTestErr(loadError);
+    setTestLoadState(loadSucceeded ? "ready" : "error");
+    if (!loadSucceeded) return;
+    if (role === "trainee" && definitionsAvailable && traineeResultsAvailable && initialTrainingTarget?.testId && !testTargetHandledRef.current) {
+      testTargetHandledRef.current = true;
+      const targetTest = base.find(test => testIdOf(test) === String(initialTrainingTarget.testId));
+      if (targetTest && targetTest.status !== "graded" && testQuestionsOf(targetTest).length > 0) setTaking(targetTest);
+      else if (!targetTest) setTestErr("指定されたテストが見つかりませんでした。対象コースの一覧を表示しています。");
+    } else if (role === "trainee" && definitionsAvailable && traineeResultsAvailable && !initialTrainingTarget?.testId && !testDraftResumeHandledRef.current) {
+      testDraftResumeHandledRef.current = true;
+      const savedDraft = getTraineeTestDraft();
+      const draftTest = savedDraft ? base.find(test => testIdOf(test) === String(savedDraft.testId)) : null;
+      if (draftTest && draftTest.status !== "graded" && testQuestionsOf(draftTest).length > 0) setTaking(draftTest);
+      else if (savedDraft) clearTraineeTestDraft(savedDraft.testId);
+    }
   }
 
   useEffect(() => {
@@ -1529,16 +1630,19 @@ function Tests({ role }) {
     const needsReview = typeof result === "number" ? 0 : result?.needsReview || 0;
     const weakAreas = typeof result === "number" ? [] : result?.weakAreas || [];
     const id = testIdOf(taking);
-    const prevStatus = taking?.status;
-    const prevScore = taking?.score;
-    setTests(ts => ts.map(t => testIdOf(t) === id ? { ...t, status: "graded", score } : t));
     try {
       await apiPut(`/tests/${id}/results/me`, { score, total, answers, needsReview, weakAreas });
+      setTests(ts => ts.map(t => testIdOf(t) === id ? { ...t, status: "graded", score } : t));
       emitNotificationRefresh();
+      return true;
     } catch (e) {
-      setTests(ts => ts.map(t => testIdOf(t) === id ? { ...t, status: prevStatus, score: prevScore } : t));
       setTestErr("テスト結果の送信に失敗しました。もう一度お試しください。");
+      throw e;
     }
+  }
+  function startTraineeTest(test) {
+    setTrainingTargetContext({ view: "tests", courseId: test?.courseId || selectedTestCourseId, testId: testIdOf(test) });
+    setTaking(test);
   }
   async function updateTestStatus(t, status) {
     try {
@@ -1585,6 +1689,17 @@ function Tests({ role }) {
 
   if (taking) return <TestTaking test={taking} preview={takingPreview} back={() => { setTaking(null); setTakingPreview(false); }} onDone={handleDone} />;
   if (building) return <TestBuilder back={() => { setBuilding(false); setEditingTest(null); setDuplicateTest(false); }} focus={buildFocus} student={buildStudent} onSaved={loadTests} initialTest={editingTest} duplicate={duplicateTest} />;
+  if (testLoadState === "loading") {
+    return <div><SectionHead title="テスト" desc={role === "trainee" ? "受験結果と公開テストを確認しています" : "公開テストと受験結果を確認しています"} /><Card className="p-5"><SkeletonRows rows={5} /></Card></div>;
+  }
+  if (testLoadState === "error" || !testDefinitionsAvailable || (role === "trainee" && (!testResultsAvailable || !testCoursesAvailable))) {
+    return (
+      <div>
+        <SectionHead title="テスト" desc={role === "trainee" ? "受験結果の確認後に、未受験のテストをご案内します" : "公開テストと受験結果を管理します"} />
+        <PrismErrorRetryCard message={testErr || (!testDefinitionsAvailable ? "公開テストを取得できませんでした。対象なしとは判定せず、現在は一覧を停止しています。" : !testCoursesAvailable ? "所属コースを取得できませんでした。誤った対象判定を避けるため、現在は一覧を停止しています。" : "受験結果を取得できませんでした。誤って未受験と表示しないため、現在は一覧の判定を停止しています。")} onRetry={loadTests} />
+      </div>
+    );
+  }
   if (canViewResults) {
     const testStats = Object.fromEntries(tests.map(t => {
       const id = testIdOf(t);
@@ -1718,7 +1833,7 @@ function Tests({ role }) {
       )}
     </div>
   );}
-  const selectedCourseTests = selectedTestCourseId ? tests.filter(test => test.courseId === selectedTestCourseId) : tests;
+  const selectedCourseTests = selectedTestCourseId ? tests.filter(test => !test.courseId || test.courseId === selectedTestCourseId) : tests;
   const traineeTestGroups = groupTestScopesBySection(groupTestsByCurriculum(selectedCourseTests, t => myCourseNames[t.courseId], testCurricula));
   const orderedTraineeTests = traineeTestGroups.flatMap(group => group.tests);
   const completedTestCount = orderedTraineeTests.filter(test => test.status === "graded").length;
@@ -1727,16 +1842,16 @@ function Tests({ role }) {
   const nextTestGroup = nextTest ? traineeTestGroups.find(group => group.tests.some(test => testIdOf(test) === testIdOf(nextTest))) : null;
   return (
     <div>
-      <SectionHead title="テスト" desc="受験後すぐに得点が表示されます" action={myTestCourses.length ? <div className="flex items-center gap-2"><span className="text-xs font-semibold" style={{ color: T.textMuted }}>表示するコース</span><select value={selectedTestCourseId} onChange={e => setSelectedTestCourseId(e.target.value)} className="min-w-52 rounded-xl px-3 py-2 text-sm font-semibold outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary, background: "#fff" }}>{myTestCourses.map(course => <option key={course.courseId} value={course.courseId}>{course.name || course.courseId}</option>)}</select></div> : null} />
+      <SectionHead title="テスト" desc="受験後すぐに得点が表示されます" action={myTestCourses.length ? <div className="flex items-center gap-2"><span className="text-xs font-semibold" style={{ color: T.textMuted }}>表示するコース</span><select value={selectedTestCourseId} onChange={e => { setSelectedTestCourseId(e.target.value); setActiveCourseId(e.target.value); setTrainingTargetContext({ view: "tests", courseId: e.target.value }); }} className="min-w-0 max-w-full rounded-xl px-3 py-2 text-sm font-semibold outline-none sm:min-w-52" style={{ border: `1px solid ${T.border}`, color: T.textPrimary, background: "#fff" }}>{myTestCourses.map(course => <option key={course.courseId} value={course.courseId}>{course.name || course.courseId}</option>)}</select></div> : null} />
       {testErr && <div className="mb-4 rounded-lg px-3 py-2 text-xs" style={{ background: T.warningSubtle, color: T.warning }}>{testErr}</div>}
-      {tests.length > 0 && <Card className="mb-5 overflow-hidden"><div className="grid gap-5 p-5 lg:grid-cols-[220px_1fr]"><div><div className="flex items-end gap-2"><span className="text-3xl font-bold" style={{ color: T.textPrimary }}>{completedTestCount}</span><span className="pb-1 text-sm font-semibold" style={{ color: T.textMuted }}>/ {orderedTraineeTests.length}件 受験済み</span></div><div className="mt-3 h-2.5 overflow-hidden rounded-full" style={{ background: T.border }}><div className="h-full rounded-full transition-all" style={{ width: `${testProgress}%`, background: T.success }} /></div><div className="mt-2 text-xs font-bold" style={{ color: testProgress === 100 ? T.success : T.accentHover }}>テスト進捗 {testProgress}%</div></div><div className="rounded-xl p-4" style={{ background: nextTest ? T.accentSubtle : T.successSubtle }}><div className="mb-1 flex items-center gap-2 text-xs font-bold" style={{ color: nextTest ? T.accentHover : T.success }}>{nextTest ? <><PlayCircle size={14} />次に受けるテスト</> : <><CheckCircle2 size={14} />公開中のテストはすべて完了</>}</div>{nextTest ? <><div className="font-bold" style={{ color: T.textPrimary }}>{nextTest.title}</div><div className="mt-1 text-xs" style={{ color: T.textMuted }}>{[nextTestGroup?.course, nextTestGroup?.section, nextTestGroup?.chapter, nextTestGroup?.lesson].filter(Boolean).join(" ＞ ")}</div><div className="mt-3"><Btn size="sm" icon={PlayCircle} disabled={!testQuestionsOf(nextTest).length} onClick={() => testQuestionsOf(nextTest).length && setTaking(nextTest)}>このテストを受ける</Btn></div></> : <div className="font-bold" style={{ color: T.textPrimary }}>おつかれさまでした</div>}</div></div></Card>}
+      {tests.length > 0 && <Card className="mb-5 overflow-hidden"><div className="grid gap-5 p-5 lg:grid-cols-[220px_1fr]"><div><div className="flex items-end gap-2"><span className="text-3xl font-bold" style={{ color: T.textPrimary }}>{completedTestCount}</span><span className="pb-1 text-sm font-semibold" style={{ color: T.textMuted }}>/ {orderedTraineeTests.length}件 受験済み</span></div><div className="mt-3 h-2.5 overflow-hidden rounded-full" style={{ background: T.border }}><div className="h-full rounded-full transition-all" style={{ width: `${testProgress}%`, background: T.success }} /></div><div className="mt-2 text-xs font-bold" style={{ color: testProgress === 100 ? T.success : T.accentHover }}>テスト進捗 {testProgress}%</div></div><div className="rounded-xl p-4" style={{ background: nextTest ? T.accentSubtle : T.successSubtle }}><div className="mb-1 flex items-center gap-2 text-xs font-bold" style={{ color: nextTest ? T.accentHover : T.success }}>{nextTest ? <><PlayCircle size={14} />次に受けるテスト</> : <><CheckCircle2 size={14} />公開中のテストはすべて完了</>}</div>{nextTest ? <><div className="font-bold" style={{ color: T.textPrimary }}>{nextTest.title}</div><div className="mt-1 text-xs" style={{ color: T.textMuted }}>{[nextTestGroup?.course, nextTestGroup?.section, nextTestGroup?.chapter, nextTestGroup?.lesson].filter(Boolean).join(" ＞ ")}</div><div className="mt-3"><Btn size="sm" icon={PlayCircle} disabled={!testQuestionsOf(nextTest).length} onClick={() => testQuestionsOf(nextTest).length && startTraineeTest(nextTest)}>このテストを受ける</Btn></div></> : <div className="font-bold" style={{ color: T.textPrimary }}>おつかれさまでした</div>}</div></div></Card>}
       <div className="mb-3 flex items-center gap-2 text-xs font-semibold" style={{ color: T.textMuted }}><GitBranch size={14} /><span>カリキュラムの順番に沿って、上から進めてください</span></div>
-      <div className="space-y-4">{tests.length === 0 ? <Card><EmptyState title="受験できるテストがありません" desc="公開されたテストがあるとここに表示されます。" /></Card> : traineeTestGroups.map(group => <Card key={group.key} className="overflow-hidden"><div className="flex flex-wrap items-center justify-between gap-2 px-4 py-4" style={{ background: T.bgBase, borderBottom: `1px solid ${T.border}` }}><div className="flex min-w-0 items-start gap-3"><div className="rounded-lg p-2" style={{ background: T.accentSubtle }}><BookOpen size={18} style={{ color: T.accent }} /></div><div className="min-w-0"><div className="mb-1 flex flex-wrap items-center gap-1 text-xs" style={{ color: T.textMuted }}>{testGroupParentPath(group).map((item, index) => <React.Fragment key={`${item}-${index}`}>{index > 0 && <ChevronRight size={12} />}<span>{item}</span></React.Fragment>)}</div><h3 className="text-lg font-bold leading-snug" style={{ color: T.textPrimary }}>{testGroupUnitTitle(group)}</h3></div></div><Badge tone={group.tests.every(test => test.status === "graded") ? "green" : "cyan"}>{group.tests.filter(test => test.status === "graded").length} / {group.tests.length} 完了</Badge></div><div>{group.tests.map(t => {
+      <div className="space-y-4">{selectedCourseTests.length === 0 ? <Card><EmptyState title="このコースで受験できるテストがありません" desc="公開されたテストがあるとここに表示されます。" /></Card> : traineeTestGroups.map(group => <Card key={group.key} className="overflow-hidden"><div className="flex flex-wrap items-center justify-between gap-2 px-4 py-4" style={{ background: T.bgBase, borderBottom: `1px solid ${T.border}` }}><div className="flex min-w-0 items-start gap-3"><div className="rounded-lg p-2" style={{ background: T.accentSubtle }}><BookOpen size={18} style={{ color: T.accent }} /></div><div className="min-w-0"><div className="mb-1 flex flex-wrap items-center gap-1 text-xs" style={{ color: T.textMuted }}>{testGroupParentPath(group).map((item, index) => <React.Fragment key={`${item}-${index}`}>{index > 0 && <ChevronRight size={12} />}<span>{item}</span></React.Fragment>)}</div><h3 className="text-lg font-bold leading-snug" style={{ color: T.textPrimary }}>{testGroupUnitTitle(group)}</h3></div></div><Badge tone={group.tests.every(test => test.status === "graded") ? "green" : "cyan"}>{group.tests.filter(test => test.status === "graded").length} / {group.tests.length} 完了</Badge></div><div>{group.tests.map(t => {
         const hasQuestions = testQuestionsOf(t).length > 0;
         const sequence = orderedTraineeTests.findIndex(test => testIdOf(test) === testIdOf(t)) + 1;
         const isNext = nextTest && testIdOf(nextTest) === testIdOf(t);
         return (
-        <div key={testIdOf(t)} className="flex flex-col gap-3 px-4 py-4 sm:flex-row sm:items-center" style={{ background: isNext ? T.accentSubtle : "#fff", borderBottom: `1px solid ${T.border}` }}><div className="flex min-w-0 flex-1 items-start gap-3"><div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-xs font-bold" style={{ background: t.status === "graded" ? T.success : isNext ? T.accent : T.border, color: t.status === "graded" || isNext ? "#fff" : T.textMuted }}>{t.status === "graded" ? <Check size={16} /> : sequence}</div><div className="min-w-0"><div className="flex flex-wrap items-center gap-2"><h4 className="font-bold" style={{ color: T.textPrimary }}>{t.title}</h4>{isNext && <Badge tone="cyan">次に受験</Badge>}{t.status === "graded" ? <Badge tone="green">受験済み</Badge> : <Badge tone="muted">未受験</Badge>}</div><div className="mt-1 text-xs" style={{ color: T.textMuted }}>{t.q}問 ・ 制限 {t.limit} ・ 自動採点</div></div></div><div className="flex shrink-0 items-center justify-end gap-3">{t.status === "graded" && <div className="text-right"><div className="text-lg font-bold" style={{ color: t.score >= 70 ? T.success : T.warning }}>{t.score}点</div><button disabled={!hasQuestions} onClick={() => hasQuestions && setTaking(t)} className="text-xs font-semibold disabled:opacity-50" style={{ color: T.accentHover }}>もう一度受ける</button></div>}{t.status !== "graded" && (hasQuestions ? <Btn size="sm" icon={PlayCircle} onClick={() => setTaking(t)}>受験する</Btn> : <Btn size="sm" icon={AlertCircle} kind="ghost" disabled>設問なし</Btn>)}</div></div>
+        <div key={testIdOf(t)} className="flex flex-col gap-3 px-4 py-4 sm:flex-row sm:items-center" style={{ background: isNext ? T.accentSubtle : "#fff", borderBottom: `1px solid ${T.border}` }}><div className="flex min-w-0 flex-1 items-start gap-3"><div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-xs font-bold" style={{ background: t.status === "graded" ? T.success : isNext ? T.accent : T.border, color: t.status === "graded" || isNext ? "#fff" : T.textMuted }}>{t.status === "graded" ? <Check size={16} /> : sequence}</div><div className="min-w-0"><div className="flex flex-wrap items-center gap-2"><h4 className="font-bold" style={{ color: T.textPrimary }}>{t.title}</h4>{isNext && <Badge tone="cyan">次に受験</Badge>}{t.status === "graded" ? <Badge tone="green">受験済み</Badge> : <Badge tone="muted">未受験</Badge>}</div><div className="mt-1 text-xs" style={{ color: T.textMuted }}>{t.q}問 ・ 制限 {t.limit} ・ 自動採点</div></div></div><div className="flex shrink-0 items-center justify-end gap-3">{t.status === "graded" && <div className="text-right"><div className="text-lg font-bold" style={{ color: t.score >= 70 ? T.success : T.warning }}>{t.score}点</div><button disabled={!hasQuestions} onClick={() => hasQuestions && startTraineeTest(t)} className="text-xs font-semibold disabled:opacity-50" style={{ color: T.accentHover }}>もう一度受ける</button></div>}{t.status !== "graded" && (hasQuestions ? <Btn size="sm" icon={PlayCircle} onClick={() => startTraineeTest(t)}>受験する</Btn> : <Btn size="sm" icon={AlertCircle} kind="ghost" disabled>設問なし</Btn>)}</div></div>
       );})}</div></Card>)}</div>
     </div>
   );
@@ -2131,17 +2246,67 @@ function TestBuilder({ back, focus, student, onSaved, initialTest = null, duplic
     </div>
   );
 }
+function testAnswerProvided(question, value) {
+  const isChoice = question?.type === "choice" || question?.type === "trueFalse" || !question?.type;
+  return isChoice ? Number.isInteger(value) : String(value ?? "").trim().length > 0;
+}
 function TestTaking({ test, back, onDone, preview = false }) {
-  const [ans, setAns] = useState({});
+  const questions = testQuestionsOf(test);
+  const total = questions.length;
+  const [restoredDraft] = useState(() => preview ? null : getTraineeTestDraft(testIdOf(test)));
+  const [ans, setAns] = useState(() => Object.fromEntries(Object.entries(restoredDraft?.answers || {}).filter(([key, value]) => {
+    const index = Number(key);
+    return Number.isInteger(index) && index >= 0 && index < questions.length && testAnswerProvided(questions[index], value);
+  })));
   const [result, setResult] = useState(null);
   const [evaluating, setEvaluating] = useState(false);
+  const [submitErr, setSubmitErr] = useState("");
+  const [pendingSubmission, setPendingSubmission] = useState(() => restoredDraft?.pendingSubmission || null);
   const [retryAns, setRetryAns] = useState({});
   const [retryResults, setRetryResults] = useState({});
   const [retrying, setRetrying] = useState({});
-  const questions = testQuestionsOf(test);
-  const total = questions.length;
+  const answeredCount = questions.reduce((count, question, index) => count + (testAnswerProvided(question, ans[index]) ? 1 : 0), 0);
+  const hasUnsavedAnswers = !preview && !result && (answeredCount > 0 || !!pendingSubmission);
+  useEffect(() => {
+    if (preview || result) return undefined;
+    setTraineeTestDraft({ testId: testIdOf(test), answers: ans, pendingSubmission });
+    return undefined;
+  }, [ans, pendingSubmission, preview, result, test]);
+  function updateAnswer(index, value) {
+    if (evaluating) return;
+    setAns(current => ({ ...current, [index]: value }));
+    setPendingSubmission(null);
+    setSubmitErr("");
+  }
+  function leaveTest() {
+    if (evaluating) return;
+    if (!hasUnsavedAnswers || window.confirm("入力中の回答を破棄して、テストを中断しますか？")) {
+      clearTraineeTestDraft(testIdOf(test));
+      clearTrainingTargetContext();
+      back();
+    }
+  }
   async function submit() {
     if (evaluating) return;
+    if (pendingSubmission) {
+      setSubmitErr("");
+      setEvaluating(true);
+      try {
+        if (onDone && !preview) await onDone(pendingSubmission.payload);
+        clearTraineeTestDraft(testIdOf(test));
+        if (!preview) clearTrainingTargetContext();
+        setResult(pendingSubmission.result);
+        setPendingSubmission(null);
+      } catch (e) {
+        setSubmitErr("採点結果を保存できませんでした。採点結果と回答はこの画面に残っています。通信状況を確認して、もう一度保存してください。");
+      } finally {
+        setEvaluating(false);
+      }
+      return;
+    }
+    const unanswered = total - answeredCount;
+    if (unanswered > 0 && !window.confirm(`未回答が${unanswered}問あります。このまま採点しますか？`)) return;
+    setSubmitErr("");
     setEvaluating(true);
     let correct = 0, needsReview = 0;
     const details = {};
@@ -2190,9 +2355,19 @@ function TestTaking({ test, back, onDone, preview = false }) {
       details[i] = { answer: val, correct: ok, needsReview: !!aiEvaluation?.status, type: q.type, answerMode: answerModeOf(q), aiEvaluation, score: qScore, points, earned: Math.round(((Number(qScore) || 0) / 100 * points) * 10) / 10 };
     }
     const score = possiblePoints ? Math.round((earnedPoints / possiblePoints) * 100) : 0;
-    setResult({ score, correct, needsReview, details, weakAreas });
-    if (onDone && !preview) onDone({ score, total: 100, answers: details, correctCount: correct, totalQuestions: total, needsReview, weakAreas: [...new Set(weakAreas)] });
-    setEvaluating(false);
+    const nextResult = { score, correct, needsReview, details, weakAreas };
+    const persistencePayload = { score, total: 100, answers: details, correctCount: correct, totalQuestions: total, needsReview, weakAreas: [...new Set(weakAreas)] };
+    try {
+      if (onDone && !preview) await onDone(persistencePayload);
+      clearTraineeTestDraft(testIdOf(test));
+      if (!preview) clearTrainingTargetContext();
+      setResult(nextResult);
+    } catch (e) {
+      setPendingSubmission({ result: nextResult, payload: persistencePayload });
+      setSubmitErr("採点結果を保存できませんでした。採点結果と回答はこの画面に残っています。通信状況を確認して、もう一度保存してください。");
+    } finally {
+      setEvaluating(false);
+    }
   }
   async function retryQuestion(i) {
     if (retrying[i]) return;
@@ -2246,7 +2421,7 @@ function TestTaking({ test, back, onDone, preview = false }) {
     const pass = result.score >= 70;
     return (
       <div>
-        <Btn kind="ghost" size="sm" icon={ChevronLeft} onClick={back}>テスト一覧へ</Btn>
+        <div className="flex flex-wrap items-center justify-between gap-2"><Btn kind="ghost" size="sm" icon={ChevronLeft} onClick={back}>テスト一覧へ</Btn>{!preview && <Badge tone="green">結果を保存しました</Badge>}</div>
         <Card className="mx-auto mt-6 max-w-lg overflow-hidden">
           <div className="p-8 text-center text-white" style={{ background: pass ? "linear-gradient(135deg,#1FA463,#3FCB86)" : "linear-gradient(135deg,#DF9520,#F0B860)" }}>
             <div className="text-sm opacity-90">{test.title}</div>
@@ -2280,7 +2455,7 @@ function TestTaking({ test, back, onDone, preview = false }) {
                           {q.reviewPoint && <div>復習ポイント：{q.reviewPoint}</div>}
                           <div className="mt-3 rounded-lg bg-white p-3" style={{ border: `1px solid ${T.border}` }}>
                             <div className="mb-2 flex flex-wrap items-center justify-between gap-2"><b>{"\u3082\u3046\u4e00\u5ea6\u6311\u6226"}</b><span className="text-[11px]" style={{ color: T.textMuted }}>{"\u5fa9\u7fd2\u5c02\u7528\u3067\u6b63\u5f0f\u7d50\u679c\u306b\u306f\u53cd\u6620\u3057\u307e\u305b\u3093"}</span></div>
-                            {isChoice ? <div className="space-y-1.5">{q.a.map((opt, oi) => <label key={oi} onClick={() => setRetryAns(s => ({ ...s, [i]: oi }))} className="flex cursor-pointer items-center gap-2 rounded-lg px-2 py-1.5" style={{ background: retryAns[i] === oi ? T.accentSubtle : T.bgBase }}><Circle size={13} style={{ color: retryAns[i] === oi ? T.accent : T.textMuted }} />{opt}</label>)}</div> : <textarea value={retryAns[i] || ""} onChange={e => setRetryAns(s => ({ ...s, [i]: e.target.value }))} rows={q.type === "code" ? 5 : 3} className="w-full resize-y rounded-lg px-3 py-2 font-mono text-sm outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary }} />}
+                            {isChoice ? <fieldset className="space-y-1.5"><legend className="sr-only">{`設問${i + 1}の再回答`}</legend>{q.a.map((opt, oi) => <label key={oi} className="flex cursor-pointer items-center gap-2 rounded-lg px-2 py-1.5" style={{ background: retryAns[i] === oi ? T.accentSubtle : T.bgBase }}><input type="radio" name={`retry-${testIdOf(test)}-${i}`} value={oi} checked={retryAns[i] === oi} onChange={() => setRetryAns(s => ({ ...s, [i]: oi }))} className="sr-only" />{retryAns[i] === oi ? <CheckCircle2 size={13} style={{ color: T.accent }} /> : <Circle size={13} style={{ color: T.textMuted }} />}{opt}</label>)}</fieldset> : <textarea value={retryAns[i] || ""} onChange={e => setRetryAns(s => ({ ...s, [i]: e.target.value }))} rows={q.type === "code" ? 5 : 3} className="w-full resize-y rounded-lg px-3 py-2 font-mono text-sm outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary }} />}
                             <div className="mt-2 flex flex-wrap items-center gap-2"><Btn size="sm" kind="ghost" icon={RefreshCw} onClick={() => retryQuestion(i)} disabled={retrying[i]}>{retrying[i] ? "\u63a1\u70b9\u4e2d..." : "\u3082\u3046\u4e00\u5ea6\u6311\u6226"}</Btn>{retry && <span className="rounded-full px-2 py-1 text-xs font-bold" style={{ background: retryTone.bg, color: retryTone.color }}>{"\u524d\u56de"} {retry.previousScore}{"\u70b9"} {"\u2192"} {"\u4eca\u56de"} {retry.score == null ? "\u63a1\u70b9\u5f85\u3061" : `${retry.score}\u70b9`} {retry.diff == null ? "" : retry.diff > 0 ? `+${retry.diff}\u70b9` : `${retry.diff}\u70b9`}</span>}</div>
                             {retry?.aiEvaluation?.comment && <div className="mt-2 text-xs" style={{ color: T.textSecondary }}>{retry.aiEvaluation.comment}</div>}
                           </div>
@@ -2294,10 +2469,10 @@ function TestTaking({ test, back, onDone, preview = false }) {
       </div>
     );
   }
-  const answered = Object.keys(ans).length;
+  const answered = answeredCount;
   return (
     <div>
-      <div className="mb-1 flex items-center justify-between"><Btn kind="ghost" size="sm" icon={ChevronLeft} onClick={back}>中断</Btn><Badge tone="amber"><Clock size={12} />{test.limit}</Badge></div>
+      <div className="mb-1 flex items-center justify-between"><Btn kind="ghost" size="sm" icon={ChevronLeft} disabled={evaluating} onClick={leaveTest}>中断</Btn><Badge tone="amber"><Clock size={12} />{test.limit}</Badge></div>
       <h2 className="mb-1 mt-3 text-lg font-bold" style={{ color: T.textPrimary }}>{test.title}</h2>
       <div className="mb-4 flex items-center gap-3"><div className="flex-1"><Bar value={(answered / total) * 100} /></div><span className="text-xs font-semibold" style={{ color: T.textMuted }}>{answered}/{total}</span></div>
       <div className="space-y-4">{questions.map((item, qi) => {
@@ -2305,15 +2480,15 @@ function TestTaking({ test, back, onDone, preview = false }) {
         return (
         <Card key={qi} className="p-5">
           <div className="mb-3 flex gap-2"><span className="font-bold" style={{ color: T.accent }}>Q{qi + 1}.</span><span className="text-sm font-semibold" style={{ color: T.textPrimary }}>{item.q}</span></div>
-          {isChoice ? <div className="space-y-2">{item.a.map((opt, oi) => {
+          {isChoice ? <fieldset disabled={evaluating} className="space-y-2 disabled:opacity-70"><legend className="sr-only">{`設問${qi + 1}の選択肢`}</legend>{item.a.map((opt, oi) => {
             const sel = ans[qi] === oi;
-            return <label key={oi} onClick={() => setAns({ ...ans, [qi]: oi })} className="flex cursor-pointer items-center gap-2.5 rounded-xl px-3 py-2.5 text-sm transition" style={{ background: sel ? T.accentSubtle : T.bgBase, border: `1.5px solid ${sel ? T.accent : "transparent"}`, color: T.textPrimary }}>
+            return <label key={oi} className="flex cursor-pointer items-center gap-2.5 rounded-xl px-3 py-2.5 text-sm transition" style={{ background: sel ? T.accentSubtle : T.bgBase, border: `1.5px solid ${sel ? T.accent : "transparent"}`, color: T.textPrimary }}><input type="radio" name={`answer-${testIdOf(test)}-${qi}`} value={oi} checked={sel} onChange={() => updateAnswer(qi, oi)} className="sr-only" />
               {sel ? <CheckCircle2 size={16} style={{ color: T.accent }} /> : <Circle size={16} style={{ color: T.textMuted }} />}{opt}
             </label>;
-          })}</div> : <textarea value={ans[qi] || ""} onChange={e => setAns({ ...ans, [qi]: e.target.value })} rows={item.type === "code" ? 8 : 4} placeholder={item.type === "code" ? "ここにコードを入力" : "ここに回答を入力"} className="w-full resize-y rounded-xl px-3 py-2 font-mono text-sm outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary }} />}
+          })}</fieldset> : <textarea value={ans[qi] || ""} disabled={evaluating} onChange={e => updateAnswer(qi, e.target.value)} rows={item.type === "code" ? 8 : 4} placeholder={item.type === "code" ? "ここにコードを入力" : "ここに回答を入力"} className="w-full resize-y rounded-xl px-3 py-2 font-mono text-sm outline-none disabled:opacity-70" style={{ border: `1px solid ${T.border}`, color: T.textPrimary }} />}
         </Card>
       );})}</div>
-      <div className="mt-5 flex justify-end"><Btn icon={Send} onClick={submit} disabled={evaluating}>{evaluating ? "AI採点中…" : "採点する"}</Btn></div>
+      <div className="mt-5 flex flex-wrap items-center justify-end gap-3" aria-live="polite">{submitErr && <span className="mr-auto max-w-xl text-sm font-semibold" style={{ color: T.danger }}>{submitErr}</span>}<Btn icon={Send} onClick={submit} disabled={evaluating}>{evaluating ? (pendingSubmission ? "保存中…" : preview ? "AI採点中…" : "採点・保存中…") : pendingSubmission ? "採点結果をもう一度保存" : "採点する"}</Btn></div>
     </div>
   );
 }
@@ -2339,7 +2514,8 @@ function Attendance({ role }) {
 }
 function TraineeAttendance() {
   const today = todayStr();
-  const [att, setAtt] = useState({ in: "", out: "" });
+  const [att, setAtt] = useState({ in: "", out: "", s: "出勤" });
+  const [todayDraft, setTodayDraft] = useState({ in: "", out: "", s: "出勤" });
   const [editToday, setEditToday] = useState(false);
   const [hist, setHist] = useState([]);
   const [eIdx, setEIdx] = useState(-1);
@@ -2353,62 +2529,112 @@ function TraineeAttendance() {
   const [calendarEditDate, setCalendarEditDate] = useState("");
   const [calendarDraft, setCalendarDraft] = useState({ in: "", out: "", s: "出勤" });
   const [calendarSaving, setCalendarSaving] = useState(false);
+  const [historySaving, setHistorySaving] = useState(false);
   const [attendanceTrainingDates, setAttendanceTrainingDates] = useState([]);
   const [workdaysLoading, setWorkdaysLoading] = useState(true);
+  const [workdaysState, setWorkdaysState] = useState("loading");
+  const [workdaysReloadKey, setWorkdaysReloadKey] = useState(0);
+  const [attendanceSaving, setAttendanceSaving] = useState(false);
+  const [attendanceSaveState, setAttendanceSaveState] = useState("");
+  const [attendanceDataState, setAttendanceDataState] = useState("loading");
 
   function load() {
-    Promise.all([
+    setAttendanceDataState("loading");
+    setErr("");
+    return Promise.all([
       apiGet("/attendance/me"),
-      apiGet("/me/courses").catch(() => []),
+      apiGet("/me/courses"),
     ])
       .then(([items, courseItems]) => {
         const rows = (items || []).slice().sort((a, b) => (a.date < b.date ? 1 : -1));
         const t = rows.find(r => r.date === today);
-        setAtt({ in: t?.clockIn || "", out: t?.clockOut || "" });
+        const todayValue = { in: t?.clockIn || "", out: t?.clockOut || "", s: t?.status || "出勤" };
+        setAtt(todayValue);
+        setTodayDraft(todayValue);
         setHist(rows.map(r => ({ date: r.date, d: fmtAttDate(r.date), in: r.clockIn || "", out: r.clockOut || "", s: r.status || "出勤" })));
         const courses = Array.isArray(courseItems) ? courseItems : [];
         setEnrolledCourses(courses);
         const withStandard = courses.filter(c => courseStandardIn(c) || courseStandardOut(c));
         setStandardCourseId(prev => withStandard.some(c => c.courseId === prev) ? prev : (withStandard.length === 1 ? withStandard[0].courseId : ""));
+        setAttendanceDataState("ready");
       })
-      .catch(() => setErr("勤怠の読み込みに失敗しました。再ログインをお試しください。"));
+      .catch(() => {
+        setAttendanceDataState("error");
+        setErr("勤怠または所属コースを確認できませんでした。誤った研修日判定を避けるため、入力を停止しています。");
+      });
   }
   useEffect(() => { load(); }, []);
   useEffect(() => {
     let alive = true;
     const courseIds = enrolledCourses.map(course => course.courseId).filter(Boolean);
     const months = [...new Set([histMonth, today.slice(0, 7)].filter(Boolean))];
-    if (!courseIds.length) { setAttendanceTrainingDates([]); setWorkdaysLoading(false); return () => { alive = false; }; }
+    if (!courseIds.length) { setAttendanceTrainingDates([]); setWorkdaysState("ready"); setWorkdaysLoading(false); return () => { alive = false; }; }
     setAttendanceTrainingDates([]);
+    setWorkdaysState("loading");
     setWorkdaysLoading(true);
     Promise.all(courseIds.flatMap(courseId => months.map(targetMonth => apiGet(`/courses/${courseId}/workdays?month=${targetMonth}`))))
       .then(results => {
         if (!alive) return;
         const dates = new Set(results.flatMap(result => (result?.days || []).filter(day => day.isTrainingDay).map(day => day.date)));
         setAttendanceTrainingDates([...dates]);
+        setWorkdaysState("ready");
       })
-      .catch(() => { if (alive) { setAttendanceTrainingDates([]); setErr("研修カレンダーの読み込みに失敗しました。再読み込みをお試しください。"); } })
+      .catch(() => { if (alive) { setAttendanceTrainingDates([]); setWorkdaysState("error"); setErr("研修カレンダーを確認できませんでした。非研修日とは判定せず、入力を停止しています。"); } })
       .finally(() => { if (alive) setWorkdaysLoading(false); });
     return () => { alive = false; };
-  }, [enrolledCourses, histMonth, today]);
+  }, [enrolledCourses, histMonth, today, workdaysReloadKey]);
 
   const attendanceTrainingDateSet = useMemo(() => new Set(attendanceTrainingDates), [attendanceTrainingDates]);
   const todayIsTrainingDay = attendanceTrainingDateSet.has(today);
+  function upsertAttendanceRow(dateValue, value, status = "出勤") {
+    setHist(rows => {
+      const previous = rows.find(row => row.date === dateValue);
+      const savedRow = { date: dateValue, d: fmtAttDate(dateValue), in: value.in || "", out: value.out || "", s: status || previous?.s || "出勤" };
+      return [savedRow, ...rows.filter(row => row.date !== dateValue)].sort((a, b) => String(b.date).localeCompare(String(a.date)));
+    });
+  }
 
   async function saveToday(next) {
-    if (!todayIsTrainingDay) { setErr("本日は所属コースの研修日ではないため、勤怠を登録できません。"); return; }
-    setErr("");
+    if (workdaysState !== "ready") { setErr("研修日を確認できていないため、勤怠を保存できません。再読み込みしてください。"); return false; }
+    if (!todayIsTrainingDay) { setErr("本日は所属コースの研修日ではないため、勤怠を登録できません。"); return false; }
+    if (!String(next?.in || "").trim()) { setErr("出勤時刻を入力してください。"); return false; }
+    if (attendanceSaving) return false;
+    setErr(""); setAttendanceSaveState("saving"); setAttendanceSaving(true);
     try {
-      await apiPut("/attendance/me", { date: today, clockIn: next.in, clockOut: next.out, status: "出勤" });
+      const saved = { in: next.in || "", out: next.out || "", s: next.s || att.s || "出勤" };
+      await apiPut("/attendance/me", { date: today, clockIn: saved.in, clockOut: saved.out, status: saved.s });
+      setAtt(saved);
+      setTodayDraft(saved);
+      upsertAttendanceRow(today, saved, saved.s);
       emitNotificationRefresh();
-      load();
-    } catch (e) { setErr("保存に失敗しました：" + (e?.message || e)); }
+      setAttendanceSaveState("saved");
+      window.setTimeout(() => setAttendanceSaveState(current => current === "saved" ? "" : current), 2200);
+      return true;
+    } catch (e) {
+      setAttendanceSaveState("error");
+      setErr("保存に失敗しました。時刻は確定していません。もう一度お試しください：" + (e?.message || e));
+      return false;
+    } finally {
+      setAttendanceSaving(false);
+    }
   }
   const standardCourses = enrolledCourses.filter(c => courseStandardIn(c) || courseStandardOut(c));
   const selectedStandardCourse = standardCourses.find(c => c.courseId === standardCourseId) || null;
-  function doClockIn(time = nowHM()) { const n = { in: att.in || time, out: att.out }; setAtt(n); saveToday(n); }
-  function doClockOut(time = nowHM()) { const n = { in: att.in, out: time }; setAtt(n); saveToday(n); }
-  function saveTodayEdit() { setEditToday(false); saveToday(att); }
+  async function doClockIn(time = nowHM()) { if (editToday || att.in || attendanceSaving) return; await saveToday({ in: time, out: att.out, s: att.s }); }
+  async function doClockOut(time = nowHM()) { if (editToday || !att.in || att.out || attendanceSaving) return; await saveToday({ in: att.in, out: time, s: att.s }); }
+  async function saveTodayEdit() {
+    if (!String(todayDraft.in || "").trim()) { setErr("出勤時刻を入力してください。"); return; }
+    if (await saveToday(todayDraft)) setEditToday(false);
+  }
+  function beginTodayEdit() {
+    setTodayDraft({ ...att });
+    setEditToday(true);
+    setErr("");
+  }
+  function cancelTodayEdit() {
+    setTodayDraft({ ...att });
+    setEditToday(false);
+  }
   function startEdit(rowOrIndex) {
     const row = typeof rowOrIndex === "number" ? hist[rowOrIndex] : rowOrIndex;
     if (!attendanceTrainingDateSet.has(row?.date)) { setErr("非研修日の勤怠は閲覧のみ可能です。"); return; }
@@ -2422,12 +2648,17 @@ function TraineeAttendance() {
     setCalendarDraft({ in: row?.in || "", out: row?.out || "", s: row?.s || "出勤" });
   }
   async function saveCalendarAttendance() {
+    if (workdaysState !== "ready") { setErr("研修日を確認できていないため、勤怠を保存できません。再読み込みしてください。"); return; }
     if (!calendarEditDate || !calendarDraft.in || calendarSaving) { if (!calendarDraft.in) setErr("出勤時刻を入力してください。"); return; }
     if (!attendanceTrainingDateSet.has(calendarEditDate)) { setErr("非研修日の勤怠は登録できません。"); setCalendarEditDate(""); return; }
     setCalendarSaving(true); setErr("");
     try {
       await apiPut("/attendance/me", { date: calendarEditDate, clockIn: calendarDraft.in, clockOut: calendarDraft.out, status: calendarDraft.s || "出勤" });
-      emitNotificationRefresh(); setCalendarEditDate(""); load();
+      const savedDate = calendarEditDate;
+      const saved = { in: calendarDraft.in, out: calendarDraft.out, s: calendarDraft.s || "出勤" };
+      upsertAttendanceRow(savedDate, saved, saved.s);
+      if (savedDate === today) { setAtt(saved); setTodayDraft(saved); }
+      emitNotificationRefresh(); setCalendarEditDate("");
     } catch (e) { setErr("勤怠の保存に失敗しました：" + (e?.message || e)); }
     finally { setCalendarSaving(false); }
   }
@@ -2444,35 +2675,56 @@ function TraineeAttendance() {
   const calendarOffset = new Date(calendarYear, calendarMonth - 1, 1).getDay();
   const calendarCells = [...Array(calendarOffset).fill(null), ...Array.from({ length: calendarCount }, (_, index) => `${calendarYear}-${String(calendarMonth).padStart(2, "0")}-${String(index + 1).padStart(2, "0")}`)];
   async function saveEdit() {
+    if (workdaysState !== "ready") { setErr("研修日を確認できていないため、勤怠を保存できません。再読み込みしてください。"); return; }
+    if (historySaving) return;
     const row = hist[eIdx]; setErr("");
     if (!attendanceTrainingDateSet.has(row?.date)) { setErr("非研修日の勤怠は修正できません。"); setEIdx(-1); return; }
+    if (!draft.in) { setErr("出勤時刻を入力してください。"); return; }
+    setHistorySaving(true);
     try {
       await apiPut("/attendance/me", { date: row.date, clockIn: draft.in, clockOut: draft.out, status: row.s });
+      const saved = { in: draft.in, out: draft.out, s: row.s || "出勤" };
+      upsertAttendanceRow(row.date, saved, saved.s);
+      if (row.date === today) { setAtt(saved); setTodayDraft(saved); }
       emitNotificationRefresh();
-      setEIdx(-1); load();
+      setEIdx(-1);
     } catch (e) { setErr("保存に失敗しました：" + (e?.message || e)); }
+    finally { setHistorySaving(false); }
+  }
+  if (attendanceDataState !== "ready" || workdaysState === "error") {
+    return (
+      <div>
+        <SectionHead title="勤怠" desc="出退勤の打刻・修正と履歴" />
+        {attendanceDataState === "error" || workdaysState === "error"
+          ? <PrismErrorRetryCard message={err || "勤怠の読み込みに失敗しました。"} onRetry={() => attendanceDataState === "error" ? load() : setWorkdaysReloadKey(value => value + 1)} />
+          : <Card className="p-5"><SkeletonRows rows={5} /></Card>}
+      </div>
+    );
   }
   return (
     <div>
       <SectionHead title="勤怠" desc="出退勤の打刻・修正と履歴" />
       {err && <div className="mb-4 rounded-lg px-3 py-2 text-xs" style={{ background: T.dangerSubtle, color: T.danger }}>{err}</div>}
+      {attendanceSaveState && attendanceSaveState !== "error" && <div className="mb-4 rounded-lg px-3 py-2 text-xs font-semibold" aria-live="polite" style={{ background: attendanceSaveState === "saved" ? T.successSubtle : T.accentSubtle, color: attendanceSaveState === "saved" ? T.success : T.accentHover }}>{attendanceSaveState === "saving" ? "勤怠を保存しています…" : "勤怠を保存しました"}</div>}
       <Card className="mb-6 p-6">
         <div className="flex flex-col items-center gap-5 sm:flex-row sm:justify-between">
           <div>
             <div className="text-sm" style={{ color: T.textMuted }}>{fmtLongDate(today)}</div>
             <div className="text-2xl font-bold" style={{ color: T.textPrimary }}>{enrolledCourses.map(c => c.name).filter(Boolean).join(" ／ ") || "本日の勤怠"}</div>
             {editToday ? (
-              <div className="mt-3 flex items-center gap-2">
-                <input value={att.in} onChange={e => setAtt({ ...att, in: e.target.value })} className="w-20 rounded-lg px-2 py-1.5 text-sm outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary }} />
+              <div className="mt-3 flex flex-wrap items-center gap-2">
+                <input type="time" value={todayDraft.in} disabled={attendanceSaving} onChange={e => setTodayDraft(current => ({ ...current, in: e.target.value }))} aria-label="本日の出勤時刻" className="w-24 rounded-lg px-2 py-1.5 text-sm outline-none disabled:opacity-60" style={{ border: `1px solid ${T.border}`, color: T.textPrimary }} />
                 <span style={{ color: T.textMuted }}>–</span>
-                <input value={att.out} onChange={e => setAtt({ ...att, out: e.target.value })} placeholder="退勤" className="w-20 rounded-lg px-2 py-1.5 text-sm outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary }} />
-                <Btn size="sm" icon={Check} onClick={saveTodayEdit}>保存</Btn>
+                <input type="time" value={todayDraft.out} disabled={attendanceSaving} onChange={e => setTodayDraft(current => ({ ...current, out: e.target.value }))} aria-label="本日の退勤時刻" className="w-24 rounded-lg px-2 py-1.5 text-sm outline-none disabled:opacity-60" style={{ border: `1px solid ${T.border}`, color: T.textPrimary }} />
+                <Btn size="sm" icon={Check} disabled={attendanceSaving} onClick={saveTodayEdit}>{attendanceSaving ? "保存中…" : "保存"}</Btn>
+                <Btn size="sm" kind="ghost" disabled={attendanceSaving} onClick={cancelTodayEdit}>キャンセル</Btn>
               </div>
             ) : (
               <div className="mt-2 flex flex-wrap items-center gap-4 text-sm" style={{ color: T.textSecondary }}>
                 <span>出勤 <b style={{ color: T.textPrimary }}>{att.in || "—"}</b></span>
                 <span>退勤 <b style={{ color: T.textPrimary }}>{att.out || "—"}</b></span>
-                {todayIsTrainingDay && <button onClick={() => setEditToday(true)} className="inline-flex items-center gap-1 text-xs font-semibold" style={{ color: T.accentHover }}><Pencil size={12} />時刻を修正</button>}
+                {att.in && <span>状態 <b style={{ color: T.textPrimary }}>{attendanceStatusLabel(att.s, { clockIn: att.in, clockOut: att.out })}</b></span>}
+                {todayIsTrainingDay && att.in && <button onClick={beginTodayEdit} className="inline-flex items-center gap-1 text-xs font-semibold" style={{ color: T.accentHover }}><Pencil size={12} />時刻を修正</button>}
               </div>
             )}
           </div>
@@ -2484,21 +2736,20 @@ function TraineeAttendance() {
               </select>
             )}
             <div className="flex flex-wrap justify-center gap-3 sm:justify-end">
-              <button onClick={() => doClockIn()} disabled={workdaysLoading || !todayIsTrainingDay} className="flex h-24 w-24 flex-col items-center justify-center rounded-2xl font-bold disabled:opacity-50" style={{ background: att.in ? T.border : GRAD, color: att.in ? T.textMuted : "#fff" }}><Clock size={22} /><span className="mt-1 text-sm">現在時刻で出勤</span></button>
-              {selectedStandardCourse && courseStandardIn(selectedStandardCourse) && <button onClick={() => doClockIn(courseStandardIn(selectedStandardCourse))} disabled={workdaysLoading || !todayIsTrainingDay || !!att.in} className="flex h-24 w-28 flex-col items-center justify-center rounded-2xl font-bold disabled:opacity-50" style={{ background: T.accentSubtle, color: T.accentHover }}><Clock size={22} /><span className="mt-1 text-xs">定時{courseStandardIn(selectedStandardCourse)}で出勤</span></button>}
-              <button onClick={() => doClockOut()} disabled={workdaysLoading || !todayIsTrainingDay || !att.in || !!att.out} className="flex h-24 w-24 flex-col items-center justify-center rounded-2xl font-bold disabled:opacity-50" style={{ background: att.out ? T.border : T.textPrimary, color: att.out ? T.textMuted : "#fff" }}><LogOut size={22} /><span className="mt-1 text-sm">現在時刻で退勤</span></button>
-              {selectedStandardCourse && courseStandardOut(selectedStandardCourse) && <button onClick={() => doClockOut(courseStandardOut(selectedStandardCourse))} disabled={workdaysLoading || !todayIsTrainingDay || !att.in || !!att.out} className="flex h-24 w-28 flex-col items-center justify-center rounded-2xl font-bold disabled:opacity-50" style={{ background: T.warningSubtle, color: T.warning }}><LogOut size={22} /><span className="mt-1 text-xs">定時{courseStandardOut(selectedStandardCourse)}で退勤</span></button>}
+              <button onClick={() => doClockIn()} disabled={editToday || workdaysLoading || attendanceSaving || !todayIsTrainingDay || !!att.in} className="flex h-24 w-24 flex-col items-center justify-center rounded-2xl font-bold disabled:opacity-50" style={{ background: att.in ? T.border : GRAD, color: att.in ? T.textMuted : "#fff" }}><Clock size={22} /><span className="mt-1 text-sm">現在時刻で出勤</span></button>
+              {selectedStandardCourse && courseStandardIn(selectedStandardCourse) && <button onClick={() => doClockIn(courseStandardIn(selectedStandardCourse))} disabled={editToday || workdaysLoading || attendanceSaving || !todayIsTrainingDay || !!att.in} className="flex h-24 w-28 flex-col items-center justify-center rounded-2xl font-bold disabled:opacity-50" style={{ background: T.accentSubtle, color: T.accentHover }}><Clock size={22} /><span className="mt-1 text-xs">定時{courseStandardIn(selectedStandardCourse)}で出勤</span></button>}
+              <button onClick={() => doClockOut()} disabled={editToday || workdaysLoading || attendanceSaving || !todayIsTrainingDay || !att.in || !!att.out} className="flex h-24 w-24 flex-col items-center justify-center rounded-2xl font-bold disabled:opacity-50" style={{ background: att.out ? T.border : T.textPrimary, color: att.out ? T.textMuted : "#fff" }}><LogOut size={22} /><span className="mt-1 text-sm">現在時刻で退勤</span></button>
+              {selectedStandardCourse && courseStandardOut(selectedStandardCourse) && <button onClick={() => doClockOut(courseStandardOut(selectedStandardCourse))} disabled={editToday || workdaysLoading || attendanceSaving || !todayIsTrainingDay || !att.in || !!att.out} className="flex h-24 w-28 flex-col items-center justify-center rounded-2xl font-bold disabled:opacity-50" style={{ background: T.warningSubtle, color: T.warning }}><LogOut size={22} /><span className="mt-1 text-xs">定時{courseStandardOut(selectedStandardCourse)}で退勤</span></button>}
             </div>
-            {!workdaysLoading && !todayIsTrainingDay && <div className="rounded-lg px-3 py-2 text-xs font-semibold" style={{ background: T.bgBase, color: T.textMuted }}>本日は研修カレンダーの非研修日です。勤怠登録はできません。</div>}
+            {!workdaysLoading && workdaysState === "ready" && !todayIsTrainingDay && <div className="rounded-lg px-3 py-2 text-xs font-semibold" style={{ background: T.bgBase, color: T.textMuted }}>本日は研修カレンダーの非研修日です。勤怠登録はできません。</div>}
             {standardCourses.length > 1 && !selectedStandardCourse && <div className="text-xs" style={{ color: T.textMuted }}>複数コースに所属しているため、定時打刻を使うコースを選んでください。</div>}
           </div>
         </div>
       </Card>
-      <h3 className="mb-2 text-sm font-bold" style={{ color: T.textPrimary }}>履歴（タップで修正）</h3>
       <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
-        <h3 className="text-sm font-bold" style={{ color: T.textPrimary }}>月別勤怠一覧</h3>
+        <div><h3 className="text-sm font-bold" style={{ color: T.textPrimary }}>月別勤怠一覧</h3><p className="text-xs" style={{ color: T.textMuted }}>登録済みの研修日は編集できます。</p></div>
         <div className="flex flex-wrap items-center gap-2">
-          <MonthPicker value={histMonth} onChange={setHistMonth} />
+          <MonthPicker value={histMonth} onChange={value => { if (value !== histMonth) setWorkdaysState("loading"); setHistMonth(value); }} />
           <div className="relative">
             <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2" style={{ color: T.textMuted }} />
             <input value={histQuery} onChange={e => setHistQuery(e.target.value)} placeholder="検索" className="w-40 rounded-lg py-2 pl-8 pr-3 text-sm outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary, background: "#fff" }} />
@@ -2517,24 +2768,24 @@ function TraineeAttendance() {
             const isTrainingDay = attendanceTrainingDateSet.has(dateValue);
             const missing = !row && !future && isTrainingDay;
             const isToday = dateValue === today;
-            return <button key={dateValue} type="button" disabled={future || !isTrainingDay || workdaysLoading} onClick={() => openCalendarAttendance(dateValue, row)} className="min-h-20 bg-white p-1 text-left transition enabled:cursor-pointer enabled:hover:brightness-95 disabled:cursor-default sm:min-h-24 sm:p-2" style={isToday ? { boxShadow: `inset 0 0 0 2px ${T.accent}` } : undefined} aria-label={`${dateValue}の勤怠を${row ? "修正" : "登録"}`}><div className="flex items-center justify-between"><span className="text-xs font-bold" style={{ color: isTrainingDay ? T.textPrimary : T.textMuted }}>{Number(dateValue.slice(-2))}</span>{isToday && <span className="hidden sm:inline"><Badge tone="cyan">今日</Badge></span>}</div>{row ? <div className="mt-1 rounded-lg px-1 py-1 sm:mt-2 sm:px-2 sm:py-1.5" style={{ background: T.successSubtle }}><div className="text-[10px] font-bold sm:text-[11px]" style={{ color: T.success }}>登録済み<span className="hidden sm:inline">{!isTrainingDay ? "（閲覧のみ）" : ""}</span></div><div className="mt-0.5 hidden text-xs sm:block" style={{ color: T.textSecondary }}>{row.in || "—"}–{row.out || "—"}</div></div> : missing ? <div className="mt-1 rounded-lg px-1 py-1 text-[10px] font-bold sm:mt-2 sm:px-2 sm:py-1.5 sm:text-[11px]" style={{ background: T.warningSubtle, color: T.warning }}>研修日<span className="hidden sm:inline">・クリックして登録</span></div> : <div className="mt-1 text-[10px] sm:mt-2 sm:text-[11px]" style={{ color: T.textMuted }}>{future && isTrainingDay ? "研修予定" : "非研修"}<span className="hidden sm:inline">日</span></div>}</button>;
+            return <button key={dateValue} type="button" disabled={future || !isTrainingDay || workdaysLoading} onClick={() => openCalendarAttendance(dateValue, row)} className="min-h-20 bg-white p-1 text-left transition enabled:cursor-pointer enabled:hover:brightness-95 disabled:cursor-default sm:min-h-24 sm:p-2" style={isToday ? { boxShadow: `inset 0 0 0 2px ${T.accent}` } : undefined} aria-label={`${dateValue}の勤怠を${row ? "修正" : "登録"}`}><div className="flex items-center justify-between"><span className="text-xs font-bold" style={{ color: isTrainingDay ? T.textPrimary : T.textMuted }}>{Number(dateValue.slice(-2))}</span>{isToday && <span className="hidden sm:inline"><Badge tone="cyan">今日</Badge></span>}</div>{row ? <div className="mt-1 rounded-lg px-1 py-1 sm:mt-2 sm:px-2 sm:py-1.5" style={{ background: T.successSubtle }}><div className="text-[10px] font-bold sm:text-[11px]" style={{ color: T.success }}>登録済み<span className="hidden sm:inline">{!isTrainingDay && !workdaysLoading ? "（閲覧のみ）" : ""}</span></div><div className="mt-0.5 hidden text-xs sm:block" style={{ color: T.textSecondary }}>{row.in || "—"}–{row.out || "—"}</div></div> : workdaysLoading ? <div className="mt-1 text-[10px] sm:mt-2 sm:text-[11px]" style={{ color: T.textMuted }}>確認中</div> : missing ? <div className="mt-1 rounded-lg px-1 py-1 text-[10px] font-bold sm:mt-2 sm:px-2 sm:py-1.5 sm:text-[11px]" style={{ background: T.warningSubtle, color: T.warning }}>研修日<span className="hidden sm:inline">・クリックして登録</span></div> : <div className="mt-1 text-[10px] sm:mt-2 sm:text-[11px]" style={{ color: T.textMuted }}>{future && isTrainingDay ? "研修予定" : "非研修"}<span className="hidden sm:inline">日</span></div>}</button>;
           })}
         </div>
       </Card>
       <Card>{visibleHist.length === 0 ? <EmptyState title="該当する勤怠履歴がありません" desc="月や検索条件を変更してください。" /> : visibleHist.map((r, i) => (
-        <div key={r.date || i} className="flex items-center justify-between px-4 py-3" style={{ borderBottom: i < visibleHist.length - 1 ? `1px solid ${T.border}` : "none" }}>
+        <div key={r.date || i} className="flex flex-wrap items-center justify-between gap-3 px-4 py-3" style={{ borderBottom: i < visibleHist.length - 1 ? `1px solid ${T.border}` : "none" }}>
           {eIdx === hist.findIndex(h => h.date === r.date) ? (
-            <div className="flex flex-1 items-center gap-2">
+            <div className="flex min-w-0 flex-1 flex-wrap items-center gap-2">
               <span className="w-20 text-sm font-medium" style={{ color: T.textPrimary }}>{r.d}</span>
-              <input value={draft.in} onChange={e => setDraft({ ...draft, in: e.target.value })} className="w-16 rounded-lg px-2 py-1 text-sm outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary }} />
-              <input value={draft.out} onChange={e => setDraft({ ...draft, out: e.target.value })} className="w-16 rounded-lg px-2 py-1 text-sm outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary }} />
-              <Btn size="sm" icon={Check} onClick={saveEdit}>保存</Btn>
-              <button onClick={() => setEIdx(-1)} className="text-xs" style={{ color: T.textMuted }}>取消</button>
+              <input type="time" value={draft.in} disabled={historySaving} onChange={e => setDraft({ ...draft, in: e.target.value })} aria-label="出勤時刻" className="w-24 rounded-lg px-2 py-1 text-sm outline-none disabled:opacity-60" style={{ border: `1px solid ${T.border}`, color: T.textPrimary }} />
+              <input type="time" value={draft.out} disabled={historySaving} onChange={e => setDraft({ ...draft, out: e.target.value })} aria-label="退勤時刻" className="w-24 rounded-lg px-2 py-1 text-sm outline-none disabled:opacity-60" style={{ border: `1px solid ${T.border}`, color: T.textPrimary }} />
+              <Btn size="sm" icon={Check} disabled={historySaving} onClick={saveEdit}>{historySaving ? "保存中…" : "保存"}</Btn>
+              <button disabled={historySaving} onClick={() => setEIdx(-1)} className="text-xs disabled:opacity-60" style={{ color: T.textMuted }}>取消</button>
             </div>
           ) : (
             <>
               <span className="text-sm font-medium" style={{ color: T.textPrimary }}>{r.d}</span>
-              <div className="flex items-center gap-4 text-sm" style={{ color: T.textMuted }}>
+              <div className="flex flex-wrap items-center justify-end gap-3 text-sm" style={{ color: T.textMuted }}>
                 <span>出 {r.in || "—"}</span><span>退 {r.out || "—"}</span>
                 <Badge tone={attendanceStatusTone(r.s, r)}>{attendanceStatusLabel(r.s, r)}</Badge>
                 {attendanceTrainingDateSet.has(r.date) && <button onClick={() => startEdit(r)} className="rounded-lg p-1 hover:bg-gray-50"><Pencil size={14} style={{ color: T.textMuted }} /></button>}
@@ -2543,9 +2794,9 @@ function TraineeAttendance() {
           )}
         </div>
       ))}</Card>
-      {calendarEditDate && <Modal title={`${calendarEditDate.replace(/-/g, "/")} の勤怠`} desc={attendanceByDate[calendarEditDate] ? "登録済みの時刻を修正できます。" : "出勤・退勤時刻を入力して登録します。"} onClose={() => setCalendarEditDate("")} footer={<><Btn kind="ghost" onClick={() => setCalendarEditDate("")}>キャンセル</Btn><Btn icon={Check} disabled={calendarSaving || !calendarDraft.in} onClick={saveCalendarAttendance}>{calendarSaving ? "保存中…" : attendanceByDate[calendarEditDate] ? "変更を保存" : "勤怠を登録"}</Btn></>}>
-        <div className="grid gap-4 sm:grid-cols-2"><Field label="出勤時刻"><input type="time" value={calendarDraft.in} onChange={e => setCalendarDraft(current => ({ ...current, in: e.target.value }))} className={fieldCls} style={{ border: `1px solid ${T.border}`, color: T.textPrimary, background: "#fff" }} /></Field><Field label="退勤時刻"><input type="time" value={calendarDraft.out} onChange={e => setCalendarDraft(current => ({ ...current, out: e.target.value }))} className={fieldCls} style={{ border: `1px solid ${T.border}`, color: T.textPrimary, background: "#fff" }} /></Field></div>
-        <Field label="勤怠区分"><select value={calendarDraft.s} onChange={e => setCalendarDraft(current => ({ ...current, s: e.target.value }))} className={fieldCls} style={{ border: `1px solid ${T.border}`, color: T.textPrimary, background: "#fff" }}><option value="出勤">出勤</option><option value="遅刻">遅刻</option><option value="早退">早退</option><option value="欠勤">欠勤</option><option value="休暇">休暇</option></select></Field>
+      {calendarEditDate && <Modal title={`${calendarEditDate.replace(/-/g, "/")} の勤怠`} desc={attendanceByDate[calendarEditDate] ? "登録済みの時刻を修正できます。" : "出勤・退勤時刻を入力して登録します。"} onClose={() => { if (!calendarSaving) setCalendarEditDate(""); }} footer={<><Btn kind="ghost" disabled={calendarSaving} onClick={() => setCalendarEditDate("")}>キャンセル</Btn><Btn icon={Check} disabled={calendarSaving || !calendarDraft.in} onClick={saveCalendarAttendance}>{calendarSaving ? "保存中…" : attendanceByDate[calendarEditDate] ? "変更を保存" : "勤怠を登録"}</Btn></>}>
+        <div className="grid gap-4 sm:grid-cols-2"><Field label="出勤時刻"><input type="time" value={calendarDraft.in} disabled={calendarSaving} onChange={e => setCalendarDraft(current => ({ ...current, in: e.target.value }))} className={fieldCls} style={{ border: `1px solid ${T.border}`, color: T.textPrimary, background: "#fff" }} /></Field><Field label="退勤時刻"><input type="time" value={calendarDraft.out} disabled={calendarSaving} onChange={e => setCalendarDraft(current => ({ ...current, out: e.target.value }))} className={fieldCls} style={{ border: `1px solid ${T.border}`, color: T.textPrimary, background: "#fff" }} /></Field></div>
+        <Field label="勤怠区分"><select value={calendarDraft.s} disabled={calendarSaving} onChange={e => setCalendarDraft(current => ({ ...current, s: e.target.value }))} className={fieldCls} style={{ border: `1px solid ${T.border}`, color: T.textPrimary, background: "#fff" }}><option value="出勤">出勤</option><option value="遅刻">遅刻</option><option value="早退">早退</option><option value="欠勤">欠勤</option><option value="休暇">休暇</option></select></Field>
       </Modal>}
     </div>
   );
@@ -3335,13 +3586,18 @@ function mapReportInstructor(r) {
 
 function Reports({ role }) {
   const nameMap = useNameMap();
+  const [initialReportTarget] = useState(() => role === "trainee" ? getTrainingTargetContext("reports", { consume: false }) : null);
   const [reports, setReports] = useState([]);
-  const [date, setDate] = useState(todayStr());
+  const [date, setDate] = useState(() => initialReportTarget?.date || todayStr());
   const [draft, setDraft] = useState({ morningGoal: "", goalItems: [], learned: "", question: "", nextday: "", reflection: "", blockers: "", tomorrowGoal: "", customFields: {} });
   const [cText, setCText] = useState({});
   const [commenting, setCommenting] = useState(null);
   const [saveErr, setSaveErr] = useState("");
   const [saving, setSaving] = useState(false);
+  const [reportSaveState, setReportSaveState] = useState("");
+  const [reportDataState, setReportDataState] = useState(() => role === "trainee" ? "loading" : "ready");
+  const [reportReloadKey, setReportReloadKey] = useState(0);
+  const [reportSupportReloadKey, setReportSupportReloadKey] = useState(0);
   const [periodMode, setPeriodMode] = useState("日次");
   const [month, setMonth] = useState(monthStr());
   const [monthlyReports, setMonthlyReports] = useState([]);
@@ -3350,13 +3606,15 @@ function Reports({ role }) {
   const [reportQuery, setReportQuery] = useState("");
   const [reportStatus, setReportStatus] = useState("すべて");
   const [reportSort, setReportSort] = useState("dateDesc");
-  const [editingReportDate, setEditingReportDate] = useState(todayStr());
+  const [editingReportDate, setEditingReportDate] = useState(() => initialReportTarget?.date || todayStr());
   const [reportEditState, setReportEditState] = useState("today");
   const [reportFormPulse, setReportFormPulse] = useState(false);
   const [detailReport, setDetailReport] = useState(null);
   const [reportCourses, setReportCourses] = useState([]);
-  const [reportCourseId, setReportCourseId] = useState("");
+  const [reportCourseId, setReportCourseId] = useState(() => initialReportTarget?.courseId || getActiveCourseId());
   const [reportFields, setReportFields] = useState(DEFAULT_REPORT_FIELDS);
+  const [reportFieldsState, setReportFieldsState] = useState(() => role === "trainee" ? "loading" : "ready");
+  const reportFieldsLoadVersionRef = useRef(0);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [settingsFields, setSettingsFields] = useState(DEFAULT_REPORT_FIELDS);
   const [settingsSaving, setSettingsSaving] = useState(false);
@@ -3364,6 +3622,7 @@ function Reports({ role }) {
   const [aiCommentBusy, setAiCommentBusy] = useState(null);
   const [reportTrainingDates, setReportTrainingDates] = useState([]);
   const [reportWorkdaysLoading, setReportWorkdaysLoading] = useState(false);
+  const [reportWorkdaysState, setReportWorkdaysState] = useState(() => role === "trainee" ? "loading" : "ready");
   const reportFormRef = useRef(null);
   const reportFirstInputRef = useRef(null);
   const canWrite = role === "trainee";
@@ -3418,50 +3677,77 @@ function Reports({ role }) {
 
   useEffect(() => {
     if (role === "trainee") {
-      Promise.all([apiGet("/reports/me"), apiGet("/me/courses").catch(() => [])])
+      setReportDataState("loading");
+      setSaveErr("");
+      Promise.all([apiGet("/reports/me"), apiGet("/me/courses")])
         .then(([items, courses]) => {
           setReportCourses(courses || []);
-          const initialCourseId = (courses || [])[0]?.courseId || "";
-          setReportCourseId(prev => prev || initialCourseId);
+          const preferredCourseId = initialReportTarget?.courseId || getActiveCourseId();
+          const initialCourseId = (courses || []).some(course => course.courseId === preferredCourseId) ? preferredCourseId : ((courses || [])[0]?.courseId || "");
+          setReportCourseId(initialCourseId);
+          if (initialCourseId) setActiveCourseId(initialCourseId);
           const mapped = (items || []).map(mapReport);
           setReports(mapped);
-          const today = mapped.find(r => r.rawDate === todayStr());
-          if (today) setDraft(draftFromReport(today));
-          setEditingReportDate(todayStr());
-          setReportEditState(today ? "edit" : "today");
+          const targetDate = initialReportTarget?.date || todayStr();
+          const targetReport = mapped.find(r => r.rawDate === targetDate);
+          setDraft(targetReport ? draftFromReport(targetReport) : blankReportDraft());
+          setEditingReportDate(targetDate);
+          setReportEditState(targetReport ? "edit" : targetDate === todayStr() ? "today" : "create");
+          setReportWorkdaysState(initialCourseId ? "loading" : "ready");
+          setReportFieldsState(initialCourseId ? "loading" : "ready");
+          setReportDataState("ready");
         })
-        .catch(() => setSaveErr("日報の読み込みに失敗しました。再ログインをお試しください。"));
+        .catch(() => {
+          setReportDataState("error");
+          setSaveErr("既存の日報または所属コースを確認できませんでした。内容を上書きしないため、入力を停止しています。");
+        });
     } else if (canViewReports) {
+      setReportDataState("ready");
       setSaveErr("");
       apiGet("/reports?date=" + date)
         .then(items => setReports((items || []).map(mapReportInstructor)))
         .catch(e => setSaveErr("日報の読み込みに失敗しました: " + (e?.errorMessage || e?.message || e)));
     } else {
+      setReportDataState("ready");
       setReports([]);
     }
-  }, [role, date, canViewReports]);
+  }, [role, date, canViewReports, reportReloadKey]);
   const settingsCourseId = canWrite ? reportCourseId : (opsFilter.courseId || (role === "admin" ? opsFilter.courses[0]?.courseId : opsFilter.courses.find(c => instructorAssignedCourseIds.has(c.courseId))?.courseId) || "");
   useEffect(() => {
-    if (!settingsCourseId) { setReportFields(DEFAULT_REPORT_FIELDS); return; }
+    const loadVersion = ++reportFieldsLoadVersionRef.current;
+    if (!settingsCourseId) { setReportFields(DEFAULT_REPORT_FIELDS); setReportFieldsState("ready"); return; }
+    setReportFieldsState("loading");
     apiGet(`/courses/${settingsCourseId}/report-settings`)
-      .then(result => { const fields = normalizeReportFields(result?.fields); setReportFields(fields); setSettingsFields(fields); })
-      .catch(() => { setReportFields(DEFAULT_REPORT_FIELDS); setSettingsFields(DEFAULT_REPORT_FIELDS); });
-  }, [settingsCourseId]);
+      .then(result => {
+        if (loadVersion !== reportFieldsLoadVersionRef.current) return;
+        const fields = normalizeReportFields(result?.fields);
+        setReportFields(fields);
+        setSettingsFields(fields);
+        setReportFieldsState("ready");
+      })
+      .catch(() => {
+        if (loadVersion !== reportFieldsLoadVersionRef.current) return;
+        setReportFieldsState("error");
+        setSaveErr("日報項目を確認できませんでした。誤った必須判定を避けるため、入力を停止しています。");
+      });
+  }, [settingsCourseId, reportReloadKey, reportSupportReloadKey]);
   useEffect(() => {
-    if (!canWrite || !reportCourseId) { setReportTrainingDates([]); setReportWorkdaysLoading(false); return; }
+    if (!canWrite || !reportCourseId) { setReportTrainingDates([]); setReportWorkdaysState("ready"); setReportWorkdaysLoading(false); return; }
     let alive = true;
     const months = [...new Set([month, String(editingReportDate || "").slice(0, 7)].filter(Boolean))];
     setReportTrainingDates([]);
+    setReportWorkdaysState("loading");
     setReportWorkdaysLoading(true);
     Promise.all(months.map(targetMonth => apiGet(`/courses/${reportCourseId}/workdays?month=${targetMonth}`)))
       .then(results => {
         if (!alive) return;
         setReportTrainingDates(results.flatMap(result => (result?.days || []).filter(day => day.isTrainingDay).map(day => day.date)));
+        setReportWorkdaysState("ready");
       })
-      .catch(() => { if (alive) { setReportTrainingDates([]); setSaveErr("研修カレンダーの読み込みに失敗しました。再読み込みをお試しください。"); } })
+      .catch(() => { if (alive) { setReportTrainingDates([]); setReportWorkdaysState("error"); setSaveErr("研修カレンダーを確認できませんでした。非研修日とは判定せず、入力を停止しています。"); } })
       .finally(() => { if (alive) setReportWorkdaysLoading(false); });
     return () => { alive = false; };
-  }, [canWrite, reportCourseId, month, editingReportDate]);
+  }, [canWrite, reportCourseId, month, editingReportDate, reportReloadKey, reportSupportReloadKey]);
   const reportTrainingDateSet = useMemo(() => new Set(reportTrainingDates), [reportTrainingDates]);
   useEffect(() => {
     if (!canViewReports || periodMode !== "月次") return;
@@ -3479,37 +3765,46 @@ function Reports({ role }) {
   }, [canViewReports, periodMode, month]);
 
   async function submit() {
+    if (reportDataState !== "ready") { setSaveErr("既存の日報を確認できていないため保存できません。再読み込みしてください。"); return; }
+    if (reportWorkdaysState !== "ready") { setSaveErr("研修日を確認できていないため保存できません。再読み込みしてください。"); return; }
+    if (reportFieldsState !== "ready") { setSaveErr("日報項目を確認できていないため保存できません。再読み込みしてください。"); return; }
     const hasAny = draft.morningGoal.trim() || draft.goalItems.some(g => String(g.text || "").trim()) || reportFields.some(field => String(reportFieldValue(draft, field.id)).trim());
-    if (!hasAny || saving) return;
+    if (saving) return;
+    if (!hasAny) { setReportSaveState("error"); setSaveErr("保存する内容を入力してください。"); return; }
     if (!reportCourseId) { setSaveErr("日報の対象コースを選択してください。"); return; }
     if (!reportTrainingDateSet.has(editingReportDate)) { setSaveErr("日報は選択中のコースの研修日にのみ登録できます。"); return; }
     const missingRequired = reportFields.find(field => field.required && !String(reportFieldValue(draft, field.id)).trim());
     if (missingRequired) { setSaveErr(`「${missingRequired.label}」を入力してください。`); return; }
-    setSaveErr(""); setSaving(true);
+    const saveDate = editingReportDate || todayStr();
+    const payload = {
+      date: saveDate,
+      morningGoal: draft.morningGoal,
+      goalItems: draft.goalItems.filter(g => String(g.text || "").trim()).map(g => ({ id: g.id, text: g.text, done: !!g.done })),
+      learned: draft.learned,
+      question: draft.question,
+      nextday: draft.nextday,
+      reflection: draft.reflection,
+      blockers: draft.blockers,
+      tomorrowGoal: draft.tomorrowGoal,
+      customFields: { ...(draft.customFields || {}) },
+      courseId: reportCourseId,
+    };
+    setSaveErr(""); setReportSaveState("saving"); setSaving(true);
     try {
-      const date = editingReportDate || todayStr();
-      await apiPut("/reports/me", {
-        date,
-        morningGoal: draft.morningGoal,
-        goalItems: draft.goalItems.filter(g => String(g.text || "").trim()).map(g => ({ id: g.id, text: g.text, done: !!g.done })),
-        learned: draft.learned,
-        question: draft.question,
-        nextday: draft.nextday,
-        reflection: draft.reflection,
-        blockers: draft.blockers,
-        tomorrowGoal: draft.tomorrowGoal,
-        customFields: draft.customFields,
-        courseId: reportCourseId,
-      });
+      await apiPut("/reports/me", payload);
       emitNotificationRefresh();
-      const items = await apiGet("/reports/me");
-      const mapped = (items || []).map(mapReport);
-      setReports(mapped);
-      const today = mapped.find(r => r.rawDate === date);
-      setDraft(today ? draftFromReport(today) : blankReportDraft());
-      setEditingReportDate(date);
+      const previous = reports.find(report => report.rawDate === saveDate);
+      const saved = mapReport({ ...(previous?.rawData || {}), ...payload, updatedAt: new Date().toISOString() });
+      setReports(current => current.some(report => report.rawDate === saveDate)
+        ? current.map(report => report.rawDate === saveDate ? saved : report)
+        : [saved, ...current]);
+      setDraft(draftFromReport(saved));
+      setEditingReportDate(saveDate);
       setReportEditState("edit");
+      setReportSaveState("saved");
+      window.setTimeout(() => setReportSaveState(current => current === "saved" ? "" : current), 2400);
     } catch (e) {
+      setReportSaveState("error");
       setSaveErr("保存に失敗しました：" + (e?.message || e));
     } finally {
       setSaving(false);
@@ -3667,16 +3962,28 @@ function Reports({ role }) {
   function editReport(row) {
     if (!reportTrainingDateSet.has(row.date)) { setSaveErr("非研修日の日報は新規作成・編集できません。"); return; }
     const r = row.report;
+    if (row.date !== editingReportDate) setReportWorkdaysState("loading");
     setEditingReportDate(row.date);
     setDraft(r ? draftFromReport(r) : blankReportDraft());
     setReportEditState(r ? "edit" : "create");
+    setTrainingTargetContext({ view: "reports", courseId: reportCourseId, date: row.date });
     focusReportForm();
+  }
+  if (canWrite && (reportDataState !== "ready" || reportWorkdaysState !== "ready" || reportFieldsState !== "ready")) {
+    return (
+      <div>
+        <SectionHead title="日報" desc="研修カレンダーの研修日に学びを記録し、講師からフィードバックを受け取ります" />
+        {reportDataState === "error" || reportWorkdaysState === "error" || reportFieldsState === "error"
+          ? <PrismErrorRetryCard message={saveErr || "日報の読み込みに失敗しました。"} onRetry={() => reportDataState === "error" ? setReportReloadKey(value => value + 1) : setReportSupportReloadKey(value => value + 1)} />
+          : <Card className="p-5"><SkeletonRows rows={5} /></Card>}
+      </div>
+    );
   }
   return (
     <div>
       <SectionHead title="日報" desc={canWrite ? "研修カレンダーの研修日に学びを記録し、講師からフィードバックを受け取ります" : canComment ? "コース・企業・日付で日報を確認し、フィードバックします" : "自社受講生の日報を閲覧できます"}
         action={canViewReports ? <div className="flex flex-wrap items-center gap-2">
-          {(role === "admin" || role === "instructor") && <Btn kind="ghost" size="sm" icon={Pencil} disabled={!settingsCourseId} onClick={() => { setSettingsFields(reportFields); setSettingsOpen(true); }}>日報項目設定</Btn>}
+          {(role === "admin" || role === "instructor") && <Btn kind="ghost" size="sm" icon={Pencil} disabled={!settingsCourseId || reportFieldsState !== "ready"} onClick={() => { setSettingsFields(reportFields); setSettingsOpen(true); }}>日報項目設定</Btn>}
           {canComment && periodMode === "日次" && <Btn size="sm" icon={ChevronRight} onClick={() => {
             setReportStatus("未コメント");
             const firstId = nextUncommentedId(null);
@@ -3782,32 +4089,32 @@ function Reports({ role }) {
         </Card>
       ) : (<>
       {canWrite && <div ref={reportFormRef} style={{ scrollMarginTop: 72 }}><Card className="mb-4 p-5 transition-shadow" style={reportFormPulse ? { boxShadow: `0 0 0 3px ${T.accent}33, 0 18px 40px rgba(0,0,0,.08)` } : undefined}>
-        <div className="mb-3 flex flex-wrap items-center justify-between gap-3"><div><h3 className="font-bold" style={{ color: T.textPrimary }}>朝: 目標</h3><p className="text-xs" style={{ color: T.textMuted }}>研修日を選んで、朝だけでも途中でも保存できます。</p></div><div className="flex items-center gap-2"><input type="date" value={editingReportDate} onChange={e => editReport({ date: e.target.value, report: reportsByDate[e.target.value] })} className="rounded-xl px-3 py-2 text-sm outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary, background: "#fff" }} /><Btn kind="soft" size="sm" icon={Plus} disabled={reportWorkdaysLoading || !reportTrainingDateSet.has(editingReportDate)} onClick={addGoalItem}>目標を追加</Btn></div></div>
+        <div className="mb-3 flex flex-wrap items-center justify-between gap-3"><div><h3 className="font-bold" style={{ color: T.textPrimary }}>朝: 目標</h3><p className="text-xs" style={{ color: T.textMuted }}>研修日を選んで、朝だけでも途中でも保存できます。</p></div><div className="flex items-center gap-2"><input type="date" value={editingReportDate} disabled={saving} onChange={e => editReport({ date: e.target.value, report: reportsByDate[e.target.value] })} className="rounded-xl px-3 py-2 text-sm outline-none disabled:opacity-60" style={{ border: `1px solid ${T.border}`, color: T.textPrimary, background: "#fff" }} /><Btn kind="soft" size="sm" icon={Plus} disabled={saving || reportWorkdaysLoading || !reportTrainingDateSet.has(editingReportDate)} onClick={addGoalItem}>目標を追加</Btn></div></div>
         {!reportWorkdaysLoading && !reportTrainingDateSet.has(editingReportDate) && <div className="mb-4 rounded-xl px-3 py-2 text-xs font-semibold" style={{ background: T.bgBase, color: T.textMuted }}>選択日は研修カレンダーの非研修日です。下のカレンダーから研修日を選択してください。</div>}
         <div className="mb-4 rounded-xl px-3 py-2 text-xs font-semibold" style={{ background: reportEditState === "create" ? T.warningSubtle : T.accentSubtle, color: reportEditState === "create" ? T.warning : T.accentHover }}>
           {reportEditState === "create" ? "新しい日報を作成中" : reportEditState === "edit" ? `${editingReportDate.replace(/-/g, "/")}の日報を編集中` : "本日の日報"}
         </div>
-        <Field label="今日の大きな目標"><input ref={reportFirstInputRef} value={draft.morningGoal} onChange={e => setDraft({ ...draft, morningGoal: e.target.value })} placeholder="例）配列とループを使った処理を自力で書けるようにする" className={fieldCls} style={{ border: `1px solid ${T.border}`, color: T.textPrimary, background: "#fff" }} /></Field>
+        <Field label="今日の大きな目標"><input ref={reportFirstInputRef} value={draft.morningGoal} disabled={saving} onChange={e => setDraft({ ...draft, morningGoal: e.target.value })} placeholder="例）配列とループを使った処理を自力で書けるようにする" className={fieldCls} style={{ border: `1px solid ${T.border}`, color: T.textPrimary, background: "#fff" }} /></Field>
         <div className="mt-3 space-y-2">
           {draft.goalItems.length === 0 && <div className="rounded-lg px-3 py-2 text-sm" style={adminPanelStyle}>目標リストはまだありません。</div>}
           {draft.goalItems.map(item => (
             <div key={item.id} className="flex items-center gap-2 rounded-lg p-2" style={{ background: T.bgBase }}>
-              <input type="checkbox" checked={!!item.done} onChange={e => updateGoalItem(item.id, { done: e.target.checked })} />
-              <input value={item.text} onChange={e => updateGoalItem(item.id, { text: e.target.value })} placeholder="小目標を入力" className="min-w-0 flex-1 rounded-lg px-2 py-1.5 text-sm outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary }} />
-              <button onClick={() => removeGoalItem(item.id)} aria-label="目標を削除" className="rounded-lg p-1.5 transition hover:bg-slate-100"><X size={15} style={{ color: T.textMuted }} /></button>
+              <input type="checkbox" checked={!!item.done} disabled={saving} onChange={e => updateGoalItem(item.id, { done: e.target.checked })} />
+              <input value={item.text} disabled={saving} onChange={e => updateGoalItem(item.id, { text: e.target.value })} placeholder="小目標を入力" className="min-w-0 flex-1 rounded-lg px-2 py-1.5 text-sm outline-none disabled:opacity-60" style={{ border: `1px solid ${T.border}`, color: T.textPrimary }} />
+              <button disabled={saving} onClick={() => removeGoalItem(item.id)} aria-label="目標を削除" className="rounded-lg p-1.5 transition hover:bg-slate-100 disabled:opacity-60"><X size={15} style={{ color: T.textMuted }} /></button>
             </div>
           ))}
         </div>
-        <div className="mt-4 flex justify-end"><Btn icon={Check} disabled={reportWorkdaysLoading || !reportTrainingDateSet.has(editingReportDate)} onClick={submit}>{saving ? "保存中..." : "目標を保存"}</Btn></div>
+        <div className="mt-4 flex flex-wrap items-center justify-end gap-3" aria-live="polite">{saveErr && <span className="mr-auto text-xs font-semibold" style={{ color: T.danger }}>{saveErr}</span>}{reportSaveState === "saved" && <span className="mr-auto text-xs font-semibold" style={{ color: T.success }}>保存しました</span>}<Btn icon={Check} disabled={saving || reportWorkdaysLoading || !reportTrainingDateSet.has(editingReportDate)} onClick={submit}>{saving ? "保存中..." : "目標を保存"}</Btn></div>
       </Card></div>}
       {canWrite && <Card className="mb-6 p-5">
-        <div className="mb-4 flex flex-wrap items-center justify-between gap-3"><div><h3 className="font-bold" style={{ color: T.textPrimary }}>{editingReportDate.replace(/-/g, "/")} の日報</h3><span className="text-xs" style={{ color: T.textMuted }}>1項目を横幅いっぱい使って、具体的に記録できます。</span></div>{reportCourses.length > 1 && <select value={reportCourseId} onChange={e => setReportCourseId(e.target.value)} className="rounded-xl px-3 py-2 text-sm outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary, background: "#fff" }}>{reportCourses.map(course => <option key={course.courseId} value={course.courseId}>{course.name}</option>)}</select>}</div>
+        <div className="mb-4 flex flex-wrap items-center justify-between gap-3"><div><h3 className="font-bold" style={{ color: T.textPrimary }}>{editingReportDate.replace(/-/g, "/")} の日報</h3><span className="text-xs" style={{ color: T.textMuted }}>1項目を横幅いっぱい使って、具体的に記録できます。</span></div>{reportCourses.length > 1 && <select value={reportCourseId} disabled={saving} onChange={e => { setReportWorkdaysState("loading"); setReportFieldsState("loading"); setReportCourseId(e.target.value); setActiveCourseId(e.target.value); setTrainingTargetContext({ view: "reports", courseId: e.target.value, date: editingReportDate }); }} className="min-w-0 max-w-full rounded-xl px-3 py-2 text-sm outline-none disabled:opacity-60" style={{ border: `1px solid ${T.border}`, color: T.textPrimary, background: "#fff" }}>{reportCourses.map(course => <option key={course.courseId} value={course.courseId}>{course.name}</option>)}</select>}</div>
         <div className="mb-4 rounded-xl px-3 py-2 text-xs" style={adminPanelStyle}>保存後も同じ日の日報を再編集できます。朝の目標だけ、夕方の振り返りだけでも保存できます。</div>
         <div className="space-y-5">{reportFields.map(field => (
           <div key={field.id}><label className="mb-1.5 block text-sm font-semibold" style={{ color: T.textPrimary }}>{field.label}{field.required && <span className="ml-1 text-xs" style={{ color: T.danger }}>必須</span>}</label>
-            <textarea value={reportFieldValue(draft, field.id)} onChange={e => setDraft(current => REPORT_FIXED_KEYS.has(field.id) ? { ...current, [field.id]: e.target.value } : { ...current, customFields: { ...current.customFields, [field.id]: e.target.value } })} placeholder={field.placeholder} rows={4} className="w-full resize-y rounded-xl px-3 py-3 text-sm leading-relaxed outline-none focus:border-cyan-400" style={{ border: `1px solid ${T.border}`, color: T.textPrimary, minHeight: 108 }} /></div>
+            <textarea value={reportFieldValue(draft, field.id)} disabled={saving} onChange={e => setDraft(current => REPORT_FIXED_KEYS.has(field.id) ? { ...current, [field.id]: e.target.value } : { ...current, customFields: { ...current.customFields, [field.id]: e.target.value } })} placeholder={field.placeholder} rows={4} className="w-full resize-y rounded-xl px-3 py-3 text-sm leading-relaxed outline-none focus:border-cyan-400 disabled:opacity-60" style={{ border: `1px solid ${T.border}`, color: T.textPrimary, minHeight: 108 }} /></div>
         ))}</div>
-        <div className="mt-4 flex items-center justify-end gap-3">{saveErr && <span className="text-xs" style={{ color: T.danger }}>{saveErr}</span>}<Btn icon={Send} disabled={reportWorkdaysLoading || !reportTrainingDateSet.has(editingReportDate)} onClick={submit}>{saving ? "保存中…" : "日報を保存"}</Btn></div></Card>}
+        <div className="mt-4 flex flex-wrap items-center justify-end gap-3" aria-live="polite">{saveErr && <span className="mr-auto text-xs font-semibold" style={{ color: T.danger }}>{saveErr}</span>}{reportSaveState === "saved" && <span className="mr-auto text-xs font-semibold" style={{ color: T.success }}>日報を保存しました</span>}<Btn icon={Send} disabled={saving || reportWorkdaysLoading || !reportTrainingDateSet.has(editingReportDate)} onClick={submit}>{saving ? "保存中…" : "日報を保存"}</Btn></div></Card>}
       {canWrite && <Card className="mb-6 overflow-hidden">
         <div className="flex flex-wrap items-center justify-between gap-3 p-4" style={{ borderBottom: `1px solid ${T.border}` }}><div><h3 className="font-bold" style={{ color: T.textPrimary }}>日報カレンダー</h3><p className="text-xs" style={{ color: T.textMuted }}>管理者が設定した研修日だけ作成・編集できます。非研修日の既存日報は閲覧のみ残ります。</p></div><div className="flex flex-wrap items-center gap-2"><Badge tone="green">提出済み</Badge><Badge tone="amber">研修日・未提出</Badge><Badge tone="muted">非研修日</Badge><Badge tone="cyan">コメントあり</Badge><MonthPicker value={month} onChange={setMonth} /></div></div>
         <div className="grid grid-cols-7" style={{ background: T.border, gap: 1 }}>
@@ -3819,7 +4126,7 @@ function Reports({ role }) {
             const isTrainingDay = reportTrainingDateSet.has(dateValue);
             const hasComment = !!report?.comments?.length;
             const isToday = dateValue === todayStr();
-            return <button key={dateValue} type="button" disabled={reportWorkdaysLoading || (!report && (future || !isTrainingDay))} onClick={() => report && !isTrainingDay ? setDetailReport(report) : editReport({ date: dateValue, report })} className="min-h-20 bg-white p-1 text-left transition enabled:cursor-pointer enabled:hover:brightness-95 disabled:cursor-default sm:min-h-24 sm:p-2" style={isToday ? { boxShadow: `inset 0 0 0 2px ${T.accent}` } : undefined}><div className="flex items-center justify-between"><span className="text-xs font-bold" style={{ color: isTrainingDay ? T.textPrimary : T.textMuted }}>{Number(dateValue.slice(-2))}</span>{isToday && <span className="hidden sm:inline"><Badge tone="cyan">今日</Badge></span>}</div>{report ? <div className="mt-1 rounded-lg px-1 py-1 sm:mt-2 sm:px-2 sm:py-1.5" style={{ background: T.successSubtle }}><div className="text-[10px] font-bold sm:text-[11px]" style={{ color: T.success }}>提出済み<span className="hidden sm:inline">{!isTrainingDay ? "（閲覧のみ）" : ""}</span></div>{hasComment && <div className="mt-0.5 text-[10px] font-bold sm:mt-1 sm:text-[11px]" style={{ color: T.accentHover }}>コメント<span className="hidden sm:inline">あり</span></div>}</div> : future && isTrainingDay ? <div className="mt-1 text-[10px] sm:mt-2 sm:text-[11px]" style={{ color: T.textMuted }}>研修予定<span className="hidden sm:inline">日</span></div> : !isTrainingDay ? <div className="mt-1 text-[10px] sm:mt-2 sm:text-[11px]" style={{ color: T.textMuted }}>非研修<span className="hidden sm:inline">日</span></div> : <div className="mt-1 rounded-lg px-1 py-1 text-[10px] font-bold sm:mt-2 sm:px-2 sm:py-1.5 sm:text-[11px]" style={{ background: T.warningSubtle, color: T.warning }}>研修日<span className="hidden sm:inline">・クリックして作成</span></div>}</button>;
+            return <button key={dateValue} type="button" disabled={saving || reportWorkdaysLoading || (!report && (future || !isTrainingDay))} onClick={() => report && !isTrainingDay ? setDetailReport(report) : editReport({ date: dateValue, report })} className="min-h-20 bg-white p-1 text-left transition enabled:cursor-pointer enabled:hover:brightness-95 disabled:cursor-default sm:min-h-24 sm:p-2" style={isToday ? { boxShadow: `inset 0 0 0 2px ${T.accent}` } : undefined}><div className="flex items-center justify-between"><span className="text-xs font-bold" style={{ color: isTrainingDay ? T.textPrimary : T.textMuted }}>{Number(dateValue.slice(-2))}</span>{isToday && <span className="hidden sm:inline"><Badge tone="cyan">今日</Badge></span>}</div>{report ? <div className="mt-1 rounded-lg px-1 py-1 sm:mt-2 sm:px-2 sm:py-1.5" style={{ background: T.successSubtle }}><div className="text-[10px] font-bold sm:text-[11px]" style={{ color: T.success }}>提出済み<span className="hidden sm:inline">{!isTrainingDay ? "（閲覧のみ）" : ""}</span></div>{hasComment && <div className="mt-0.5 text-[10px] font-bold sm:mt-1 sm:text-[11px]" style={{ color: T.accentHover }}>コメント<span className="hidden sm:inline">あり</span></div>}</div> : future && isTrainingDay ? <div className="mt-1 text-[10px] sm:mt-2 sm:text-[11px]" style={{ color: T.textMuted }}>研修予定<span className="hidden sm:inline">日</span></div> : !isTrainingDay ? <div className="mt-1 text-[10px] sm:mt-2 sm:text-[11px]" style={{ color: T.textMuted }}>非研修<span className="hidden sm:inline">日</span></div> : <div className="mt-1 rounded-lg px-1 py-1 text-[10px] font-bold sm:mt-2 sm:px-2 sm:py-1.5 sm:text-[11px]" style={{ background: T.warningSubtle, color: T.warning }}>研修日<span className="hidden sm:inline">・クリックして作成</span></div>}</button>;
           })}
         </div>
       </Card>}

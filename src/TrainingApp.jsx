@@ -11,6 +11,7 @@ import { LegalPageView } from "./components/common/LegalPages.jsx";
 import { Card, Badge, Btn, Avatar, Stat, SectionHead, T, NOVA, PRISM, PRISM_PRODUCT_GRAD, BrandMark, PRODUCT_ACCENT, ROLE_ACCENT, Z, PageLoading, EmptyState as CommonEmptyState, SkeletonRows } from "./components/common";
 import { GOALS, GOAL_ICON_MAP, NAV, ROLES } from "./products/training/TrainingCatalog.js";
 import { navViewSet, statusKind, testIdOf, todayStr } from "./products/training/useTraining.js";
+import { clearTraineeTestDraft, clearTrainingTargetContext, setActiveCourseId, setTrainingTargetContext } from "./utils/common/courseContext.js";
 import useCountUp from "./hooks/common/useCountUp.js";
 import {
   LayoutDashboard, FileText, ClipboardCheck, Clock, NotebookPen, Users,
@@ -108,6 +109,13 @@ function storageGet(key, fallback) {
 function storageSet(key, value) {
   try { window.localStorage.setItem(key, value); } catch {}
 }
+function roleFromIdTokenPayload(payload = {}) {
+  const claimedRole = String(payload?.["custom:role"] || payload?.role || "").toLowerCase();
+  if (ROLES[claimedRole]) return claimedRole;
+  const rawGroups = payload?.["cognito:groups"] ?? payload?.groups ?? [];
+  const groups = (Array.isArray(rawGroups) ? rawGroups.join(",") : String(rawGroups)).toLowerCase();
+  return groups.includes("admin") ? "admin" : groups.includes("instructor") ? "instructor" : groups.includes("client") ? "client" : "trainee";
+}
 
 /* ===== 受講生：ホーム ===== */
 const PRODUCTS = [
@@ -122,6 +130,15 @@ const PRODUCTS = [
   { key: "matching",  label: "案件管理",       icon: Briefcase,     color: PRODUCT_ACCENT.matching.accent, roles: ["trainee","client","admin"] },
   { key: "analytics", label: "分析・レポート", icon: Activity,      color: PRODUCT_ACCENT.analytics.accent, roles: ["admin"] },
 ];
+
+const PRODUCT_DEFAULT_SUBVIEW = {
+  home: "home",
+  training: "home",
+  learning: "el_home",
+  talent: "tl_home",
+  matching: "mt_home",
+  analytics: "an_home",
+};
 
 const EL_NAV = {
   trainee: [
@@ -163,19 +180,29 @@ function targetTrainingView(targetUrl) {
 }
 function openNotificationTarget(n, { go, goProduct, goSub }) {
   const targetUrl = String(n?.targetUrl || "");
-  if (targetUrl.includes("/learning")) {
+  let parsed = null;
+  try { parsed = new URL(targetUrl, "https://feeps.local"); } catch (e) { /* 通常のto遷移へフォールバック */ }
+  const path = parsed?.pathname || targetUrl;
+  if (path.includes("/learning")) {
     goProduct("learning");
-    if (goSub) goSub(targetUrl.includes("courses") ? "el_courses" : targetUrl.includes("tests") ? "el_recommend" : "el_inprogress");
+    if (goSub) goSub(path.includes("courses") ? "el_courses" : path.includes("tests") ? "el_recommend" : "el_inprogress");
     return;
   }
-  if (targetUrl.includes("/talent")) {
+  if (path.includes("/talent")) {
     goProduct("talent");
-    if (goSub) goSub(targetUrl.includes("skills") ? "tl_skills" : "tl_growth");
+    if (goSub) goSub(path.includes("skills") ? "tl_skills" : "tl_growth");
     return;
   }
-  if (targetUrl.includes("/training")) {
-    goProduct("training");
-    go(targetTrainingView(targetUrl));
+  if (path.includes("/training")) {
+    const trainingView = targetTrainingView(path);
+    setTrainingTargetContext({
+      view: trainingView,
+      courseId: parsed?.searchParams.get("courseId") || "",
+      testId: parsed?.searchParams.get("testId") || "",
+      date: parsed?.searchParams.get("date") || "",
+    });
+    goProduct("training", { preserveTarget: true });
+    go(trainingView, { forceRemount: true });
     return;
   }
   if (n?.to && typeof n.to === "object") {
@@ -212,7 +239,13 @@ async function loadRoleNotifications(role) {
     const takenIds = new Set((Array.isArray(myTests) ? myTests : []).filter(t => t.status === "graded" || t.score != null).map(t => testIdOf(t)));
     const openTests = (Array.isArray(publishedTests) ? publishedTests : []).filter(t => (t.status || "published") === "published");
     const notTaken = openTests.filter(t => !takenIds.has(testIdOf(t)));
-    if (notTaken.length) add(result, { id: notifId(role, "tests", notTaken.length), severity: "medium", category: "テスト", title: `未受験テストが${notTaken.length}件あります`, desc: notTaken.slice(0, 2).map(t => t.title || t.name || testIdOf(t)).join("、"), to: "tests", targetUrl: `/training/tests?testId=${encodeURIComponent(testIdOf(notTaken[0]))}` });
+    if (notTaken.length) {
+      const firstTest = notTaken[0];
+      const params = new URLSearchParams();
+      if (firstTest?.courseId) params.set("courseId", firstTest.courseId);
+      params.set("testId", testIdOf(firstTest));
+      add(result, { id: notifId(role, "tests", notTaken.length), severity: "medium", category: "テスト", title: `未受験テストが${notTaken.length}件あります`, desc: notTaken.slice(0, 2).map(t => t.title || t.name || testIdOf(t)).join("、"), to: "tests", targetUrl: `/training/tests?${params.toString()}` });
+    }
     const firstCourse = (Array.isArray(courses) ? courses : [])[0];
     if (firstCourse?.courseId) {
       const note = await apiGet(`/courses/${firstCourse.courseId}/daily-note?date=${date}`).catch(e => { console.warn("notifications trainee daily-note failed", e); return null; });
@@ -486,20 +519,25 @@ function UserProfileView({ me, displayName, userProfile, onSaved }) {
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState("");
   const nameInputRef = useRef(null);
+  const saveRequestVersionRef = useRef(0);
   useEffect(() => { setName(userProfile?.name || ""); }, [userProfile]);
+  useEffect(() => () => { saveRequestVersionRef.current += 1; }, []);
   async function save() {
     if (saving) return;
     if (!name.trim()) { setMessage("氏名を入力してください。"); return; }
+    const requestVersion = ++saveRequestVersionRef.current;
     setSaving(true); setMessage("");
     try {
       await apiPut("/profile/me", { name: name.trim(), company: userProfile?.company ?? "", course: userProfile?.course ?? "" });
       const fresh = await apiGet("/profile/me");
+      if (requestVersion !== saveRequestVersionRef.current) return;
       onSaved?.(fresh);
       setMessage("保存しました");
     } catch (e) {
+      if (requestVersion !== saveRequestVersionRef.current) return;
       setMessage("保存に失敗しました: " + (e?.errorMessage || e?.message || e));
     } finally {
-      setSaving(false);
+      if (requestVersion === saveRequestVersionRef.current) setSaving(false);
     }
   }
   return (
@@ -550,13 +588,23 @@ function UserProfileView({ me, displayName, userProfile, onSaved }) {
 }
 export default function App() {
   const [loggedIn, setLoggedIn] = useState(false);
-  const [role, setRole] = useState(() => storageGet("feeps.role", "trainee"));
+  const [role, setRole] = useState(() => {
+    const storedRole = storageGet("feeps.role", "trainee");
+    return ROLES[storedRole] ? storedRole : "trainee";
+  });
   const [view, setView] = useState(() => storageGet("feeps.view", "home"));
   const [product, setProduct] = useState(() => storageGet("feeps.product", "home"));
-  const [subView, setSubView] = useState("home");
+  const [subView, setSubView] = useState(() => storageGet("feeps.subView", "home"));
   const [karte, setKarte] = useState(null);
+  const [trainingNavigationVersion, setTrainingNavigationVersion] = useState(0);
   const [taskDone, setTaskDone] = useState({});
   const [goals, setGoals] = useState(GOALS);
+  const [taskSaveState, setTaskSaveState] = useState("");
+  const [taskDataState, setTaskDataState] = useState("idle");
+  const [taskReloadKey, setTaskReloadKey] = useState(0);
+  const taskSaveVersionRef = useRef(0);
+  const taskSaveQueueRef = useRef(Promise.resolve());
+  const confirmedTaskStateRef = useRef({ done: {}, goals: GOALS });
   const [drawerOpen, setDrawerOpen] = useState(false);
   const drawerTriggerRef = useRef(null);
   const drawerRef = useRef(null);
@@ -621,15 +669,19 @@ export default function App() {
     document.body.style.background = T.shellTail;
     return () => { document.body.style.background = ""; };
   }, []);
-  const [authChecked, setAuthChecked] = useState(true);
+  const [authChecked, setAuthChecked] = useState(false);
+  const [authBootstrapError, setAuthBootstrapError] = useState("");
+  const [authRetryKey, setAuthRetryKey] = useState(0);
+  const verifiedRoleRef = useRef(null);
   const [notifications, setNotifications] = useState([]);
+  const notificationRequestVersionRef = useRef(0);
   // Per-menu badges derived from already-fetched notifications (no new API).
   // "N件" in a notification title contributes N; otherwise each notification counts 1.
   const navBadges = useMemo(() => {
     const m = {};
     notifications.forEach(n => {
       if (!n.to || n.to === "home") return;
-      const match = String(n.title || "").match(/(d+)件/);
+      const match = String(n.title || "").match(/(\d+)件/);
       m[n.to] = (m[n.to] || 0) + (match ? Number(match[1]) : 1);
     });
     return m;
@@ -653,85 +705,113 @@ export default function App() {
   }
   useEffect(() => {
     let active = true;
-    const authFallback = setTimeout(() => {
-      if (active) setAuthChecked(true);
-    }, 3000);
+    setAuthChecked(false);
+    setAuthBootstrapError("");
     getCurrentUser()
-      .then(() => {
-        if (active) {
+      .then(async currentUser => {
+        const session = await fetchAuthSession();
+        if (!active) return;
+        const verifiedRole = roleFromIdTokenPayload(session.tokens?.idToken?.payload || {});
+        const subject = currentUser?.userId || currentUser?.username || "";
+        const previousSubject = storageGet("feeps.authUserId", "");
+        const accountChanged = !!previousSubject && !!subject && previousSubject !== subject;
+        if (accountChanged || verifiedRole !== role) {
+          clearTrainingTargetContext();
+          clearTraineeTestDraft();
+          setActiveCourseId("");
           setProduct("home");
           setSubView("home");
           setView("home");
-          setLoggedIn(true);
+          setKarte(null);
         }
+        if (subject) storageSet("feeps.authUserId", subject);
+        verifiedRoleRef.current = verifiedRole;
+        setRole(verifiedRole);
+        setLoggedIn(true);
       })
-      .catch(() => {})
+      .catch(error => {
+        if (!active) return;
+        const unauthenticated = ["UserUnAuthenticatedException", "NotAuthorizedException"].includes(error?.name)
+          || /not authenticated|no current user|user needs to be authenticated/i.test(String(error?.message || ""));
+        if (unauthenticated) verifiedRoleRef.current = null;
+        setLoggedIn(false);
+        if (!unauthenticated) setAuthBootstrapError("ログイン状態を確認できませんでした。通信状況を確認して再試行してください。");
+      })
       .finally(() => {
-        clearTimeout(authFallback);
         if (active) setAuthChecked(true);
       });
     return () => {
       active = false;
-      clearTimeout(authFallback);
     };
-  }, []);
+  }, [authRetryKey]);
   useEffect(() => { storageSet("feeps.role", role); }, [role]);
   useEffect(() => { storageSet("feeps.view", view); }, [view]);
   useEffect(() => { storageSet("feeps.product", product); }, [product]);
+  useEffect(() => { storageSet("feeps.subView", subView); }, [subView]);
   useEffect(() => {
     const p = PRODUCTS.find(px => px.key === product);
-    if (p && !p.roles.includes(role)) { setProduct("home"); setSubView("home"); }
-  }, [role]); // eslint-disable-line react-hooks/exhaustive-deps
+    if (!p || !p.roles.includes(role)) {
+      setProduct("home");
+      setView("home");
+      setSubView("home");
+      setKarte(null);
+    }
+  }, [product, role]);
   useEffect(() => {
     if (!loggedIn) return;
+    const loadVersion = taskSaveVersionRef.current;
+    setTaskDataState("loading");
+    setTaskSaveState("");
     apiGet("/tasks/me").then(item => {
-      if (!item) return;
-      if (item.done) setTaskDone(item.done);
-      if (Array.isArray(item.goals) && item.goals.length > 0) {
+      if (loadVersion !== taskSaveVersionRef.current) return;
+      const loadedDone = item?.done || {};
+      const loadedGoals = Array.isArray(item?.goals) && item.goals.length > 0
         // seed等で直接投入されたgoal/taskはidを持たないことがあり、key未指定警告とtoggle不整合の原因になるため補完する
-        setGoals(item.goals.map((g, i) => ({
+        ? item.goals.map((g, i) => ({
           ...g,
           id: g.id || `g_${i}`,
           tasks: Array.isArray(g.tasks) ? g.tasks.map((t, j) => ({ ...t, id: t.id || `g_${i}_t_${j}` })) : [],
           icon: GOAL_ICON_MAP[g.id] ?? Star,
-        })));
-      }
-    }).catch(() => {});
-  }, [loggedIn]);
+        }))
+        : GOALS;
+      setTaskDone(loadedDone);
+      setGoals(loadedGoals);
+      confirmedTaskStateRef.current = { done: loadedDone, goals: loadedGoals };
+      setTaskDataState("ready");
+    }).catch(() => {
+      if (loadVersion === taskSaveVersionRef.current) setTaskDataState("error");
+    });
+  }, [loggedIn, taskReloadKey]);
   useEffect(() => {
     if (!loggedIn) return;
+    let active = true;
     setProfileChecked(false);
     apiGet("/profile/me")
       .then(p => {
-        setUserProfile(p || null);
-        if (p?.role && ROLES[p.role] && p.role !== role) {
-          setRole(p.role);
-          setProduct("home");
-          setView("home");
-          setKarte(null);
-        }
+        if (!active) return;
+        const verifiedRole = verifiedRoleRef.current || role;
+        setUserProfile(p ? { ...p, role: verifiedRole } : null);
       })
       .catch(() => {
-        setUserProfile(null);
-        setRole("trainee");
-        setProduct("home");
-        setView("home");
-        setKarte(null);
+        if (active) setUserProfile(null);
       })
-      .finally(() => setProfileChecked(true));
+      .finally(() => { if (active) setProfileChecked(true); });
+    return () => { active = false; };
   }, [loggedIn]);
   const refreshNotifications = useCallback(() => {
     if (!loggedIn) return Promise.resolve();
+    const requestVersion = ++notificationRequestVersionRef.current;
     setNotifLoading(true);
     setNotifErr("");
     return loadRoleNotifications(role)
-      .then(items => setNotifications(items))
+      .then(items => { if (requestVersion === notificationRequestVersionRef.current) setNotifications(items); })
       .catch(e => {
+        if (requestVersion !== notificationRequestVersionRef.current) return;
         console.warn("notifications load failed", e);
         setNotifications([]);
         setNotifErr("通知候補の取得に失敗しました: " + (e?.message || e));
       })
-      .finally(() => setNotifLoading(false));
+      .finally(() => { if (requestVersion === notificationRequestVersionRef.current) setNotifLoading(false); });
   }, [loggedIn, role]);
   useEffect(() => { refreshNotifications(); }, [refreshNotifications]);
   useEffect(() => {
@@ -747,15 +827,16 @@ export default function App() {
   }, [view, loggedIn, refreshNotifications]);
   const me = ROLES[role];
   const roleAccent = ROLE_ACCENT[role] || ROLE_ACCENT.default;
-  const nav = product === "home" ? [{ sec: null, items: [["home", "Home", Compass]] }]
-    : product === "training" ? NAV[role]
+  const nav = useMemo(() => product === "home" ? [{ sec: null, items: [["home", "Home", Compass]] }]
+    : product === "training" ? (NAV[role] || NAV.trainee)
     : product === "learning" ? (EL_NAV[role] || EL_NAV.trainee)
     : product === "talent" ? (TALENT_NAV[role] || TALENT_NAV.admin)
     : product === "matching" ? (MATCHING_NAV[role] || MATCHING_NAV.trainee)
     : product === "analytics" ? ANALYTICS_NAV
-    : NAV[role];
+    : (NAV[role] || NAV.trainee), [product, role]);
   const activeView = product === "training" ? view : subView;
   const allowedViews = useMemo(() => navViewSet(role), [role]);
+  const allowedSubViews = useMemo(() => new Set(nav.flatMap(group => group.items.map(([key]) => key))), [nav]);
   const notif = notifications.length;
   const currentProduct = PRODUCTS.find(p => p.key === product) ?? PRODUCTS[0];
   const themeColor = currentProduct.color;
@@ -776,32 +857,90 @@ export default function App() {
     }
   }, [allowedViews, view]);
 
-  function login(r) { setRole(r); setLoggedIn(true); setProduct("home"); setView("home"); setSubView("home"); setKarte(null); }
-  async function logout() { try { await signOut(); } catch (e) {} setLoggedIn(false); setUserProfile(null); setProfileChecked(false); }
+  useEffect(() => {
+    if (product !== "training" && !allowedSubViews.has(subView)) {
+      setSubView(PRODUCT_DEFAULT_SUBVIEW[product] || "home");
+      setKarte(null);
+      setDrawerOpen(false);
+    }
+  }, [allowedSubViews, product, subView]);
+
+  function resetTaskData() {
+    taskSaveVersionRef.current += 1;
+    taskSaveQueueRef.current = Promise.resolve();
+    confirmedTaskStateRef.current = { done: {}, goals: GOALS };
+    setTaskDone({});
+    setGoals(GOALS);
+    setTaskSaveState("");
+    setTaskDataState("idle");
+  }
+  function login() {
+    clearTrainingTargetContext();
+    clearTraineeTestDraft();
+    setActiveCourseId("");
+    resetTaskData();
+    notificationRequestVersionRef.current += 1;
+    verifiedRoleRef.current = null;
+    setUserProfile(null);
+    setProfileChecked(false);
+    setNotifications([]);
+    setNotificationsReadAt(null);
+    setNotifErr("");
+    setNotifLoading(false);
+    setLoggedIn(false);
+    setAuthChecked(false);
+    setProduct("home");
+    setView("home");
+    setSubView("home");
+    setKarte(null);
+    setAuthRetryKey(value => value + 1);
+  }
+  async function logout() {
+    try { await signOut(); } catch (e) {}
+    clearTrainingTargetContext();
+    clearTraineeTestDraft();
+    setActiveCourseId("");
+    storageSet("feeps.authUserId", "");
+    resetTaskData();
+    notificationRequestVersionRef.current += 1;
+    verifiedRoleRef.current = null;
+    setLoggedIn(false);
+    setUserProfile(null);
+    setProfileChecked(false);
+    setNotifications([]);
+    setNotificationsReadAt(null);
+    setNotifErr("");
+    setNotifLoading(false);
+    setProduct("home");
+    setView("home");
+    setSubView("home");
+    setKarte(null);
+  }
   function switchRole(r) {
-    const fixedRole = userProfile?.role && ROLES[userProfile.role] ? userProfile.role : r;
+    const fixedRole = verifiedRoleRef.current || (userProfile?.role && ROLES[userProfile.role] ? userProfile.role : r);
+    clearTrainingTargetContext();
+    clearTraineeTestDraft();
     setRole(fixedRole);
     setProduct("home");
     setView("home");
     setSubView("home");
     setKarte(null);
   }
-  function go(v) {
+  function go(v, options = {}) {
+    const nextView = allowedViews.has(v) ? v : "home";
+    if (nextView !== view && !options.preserveTarget && !options.forceRemount) clearTrainingTargetContext();
     setKarte(null);
-    setView(allowedViews.has(v) ? v : "home");
+    setView(nextView);
+    if (options.forceRemount) setTrainingNavigationVersion(version => version + 1);
     setDrawerOpen(false);
   }
-  function goProduct(p) {
+  function goProduct(p, options = {}) {
+    if (!options.preserveTarget) clearTrainingTargetContext();
     setProduct(p);
     setKarte(null);
     setDrawerOpen(false);
-    if (p === "home")           { setView("home"); setSubView("home"); }
-    else if (p === "training")  { setView("home"); setSubView("home"); }
-    else if (p === "learning")  setSubView("el_home");
-    else if (p === "talent")    setSubView("tl_home");
-    else if (p === "matching")  setSubView("mt_home");
-    else if (p === "analytics") setSubView("an_home");
-    else setSubView("home");
+    if (p === "home" || p === "training") setView("home");
+    setSubView(PRODUCT_DEFAULT_SUBVIEW[p] || "home");
   }
   function goSub(v) { setSubView(v); setDrawerOpen(false); }
   // コマンドパレットの項目（実際にナビゲーションが働くものだけ。ダミー項目は置かない）
@@ -821,18 +960,57 @@ export default function App() {
     ];
   }, [role]);
   function _serializeGoals(gs) { return gs.map(({ icon, ...rest }) => rest); }
+  function restoreConfirmedTasks() {
+    setTaskDone(confirmedTaskStateRef.current.done);
+    setGoals(confirmedTaskStateRef.current.goals);
+  }
   async function toggle(id) {
+    if (taskDataState !== "ready") return;
+    const operation = ++taskSaveVersionRef.current;
     const next = { ...taskDone, [id]: !taskDone[id] };
     setTaskDone(next);
-    try { await apiPut("/tasks/me", { done: next, goals: _serializeGoals(goals) }); } catch (e) {}
+    setTaskSaveState("saving");
+    try {
+      const request = taskSaveQueueRef.current.catch(() => {}).then(() => apiPut("/tasks/me", { done: next, goals: _serializeGoals(goals) }));
+      taskSaveQueueRef.current = request;
+      await request;
+      confirmedTaskStateRef.current = { done: next, goals };
+      if (operation === taskSaveVersionRef.current) {
+        setTaskSaveState("saved");
+        window.setTimeout(() => setTaskSaveState(current => current === "saved" ? "" : current), 2000);
+      }
+    } catch (e) {
+      if (operation === taskSaveVersionRef.current) {
+        restoreConfirmedTasks();
+        setTaskSaveState("error");
+      }
+    }
   }
   async function handleSetGoals(newGoals) {
+    if (taskDataState !== "ready") return;
+    const operation = ++taskSaveVersionRef.current;
     setGoals(newGoals);
-    try { await apiPut("/tasks/me", { done: taskDone, goals: _serializeGoals(newGoals) }); } catch (e) {}
+    setTaskSaveState("saving");
+    try {
+      const request = taskSaveQueueRef.current.catch(() => {}).then(() => apiPut("/tasks/me", { done: taskDone, goals: _serializeGoals(newGoals) }));
+      taskSaveQueueRef.current = request;
+      await request;
+      confirmedTaskStateRef.current = { done: taskDone, goals: newGoals };
+      if (operation === taskSaveVersionRef.current) {
+        setTaskSaveState("saved");
+        window.setTimeout(() => setTaskSaveState(current => current === "saved" ? "" : current), 2000);
+      }
+    } catch (e) {
+      if (operation === taskSaveVersionRef.current) {
+        restoreConfirmedTasks();
+        setTaskSaveState("error");
+      }
+    }
   }
 
-  if (!authChecked) return null;
-  if (!loggedIn) return <Login onLogin={() => login("trainee")} />;
+  if (!authChecked) return <PageLoading label="ログイン状態を確認しています…" />;
+  if (authBootstrapError) return <div className="grid min-h-screen place-items-center p-5" style={{ background: T.bgBase }}><Card className="w-full max-w-md p-6 text-center"><AlertCircle size={28} className="mx-auto" style={{ color: T.warning }} /><h1 className="mt-3 text-lg font-bold" style={{ color: T.textPrimary }}>ログイン状態を確認できません</h1><p className="mt-2 text-sm" style={{ color: T.textMuted }}>{authBootstrapError}</p><Btn className="mt-5" icon={RefreshCw} onClick={() => setAuthRetryKey(value => value + 1)}>再試行</Btn></Card></div>;
+  if (!loggedIn) return <Login onLogin={login} />;
   if (!profileChecked) return null;
 
   const screen = (() => {
@@ -851,12 +1029,18 @@ export default function App() {
     if (view === "privacy") return <LegalPageView doc="privacy" />;
     if (product === "training" && role === "admin" && ["home", "companies", "courses", "users"].includes(view)) return <AdminProduct view={view} go={go} goProduct={goProduct} goSub={goSub} />;
     return <TrainingProduct
+      key={`training-${trainingNavigationVersion}`}
       view={view}
       role={role}
       karte={karte}
       setKarte={setKarte}
       go={go}
+      goProduct={goProduct}
+      goSub={goSub}
       taskDone={taskDone}
+      taskDataState={taskDataState}
+      onTaskRetry={() => setTaskReloadKey(value => value + 1)}
+      taskSaveState={taskSaveState}
       toggle={toggle}
       goals={goals}
       setGoals={handleSetGoals}
