@@ -3900,24 +3900,53 @@ function Reports({ role }) {
 function TraineeList({ role, openKarte }) {
   const [data, setData] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [loadedCourseFilter, setLoadedCourseFilter] = useState(null);
   const [selected, setSelected] = useState(null);
   const [q, setQ] = useState("");
   const [courseFilter, setCourseFilter] = useState(() => getActiveCourseId());
   const [page, setPage] = useState(1);
   const [date, setDate] = useState(todayStr());
   const [courses, setCourses] = useState([]);
+  const [courseOptionsStatus, setCourseOptionsStatus] = useState("loading");
   const [companies, setCompanies] = useState([]);
   const [detail, setDetail] = useState({ reports: [], attendance: [], tests: [], testError: "", tasks: null, memos: [], userCourses: [] });
   const [detailLoading, setDetailLoading] = useState(false);
   const [listErr, setListErr] = useState("");
   useEffect(() => {
-    apiGet("/trainees")
-      .then(list => setData((list || []).map(p => ({ ...p, id: p.userId, name: p.name || "（氏名未設定）", email: p.email || "" }))))
-      .catch(e => { setData([]); setListErr("受講生一覧の読み込みに失敗しました: " + (e?.errorMessage || e?.message || e)); })
-      .finally(() => setLoading(false));
-    apiGet("/courses").then(l => setCourses(l || [])).catch(() => setCourses([]));
+    apiGet("/courses")
+      .then(l => { setCourses(l || []); setCourseOptionsStatus("ready"); })
+      .catch(() => { setCourses([]); setCourseOptionsStatus("error"); });
     apiGet("/companies").then(l => setCompanies(l || [])).catch(() => setCompanies([]));
   }, []);
+  useEffect(() => {
+    if (courseOptionsStatus !== "ready" || !courseFilter || courses.some(course => course.courseId === courseFilter)) return;
+    setCourseFilter("");
+    setActiveCourseId("");
+  }, [courses, courseOptionsStatus, courseFilter]);
+  const courseRequestReady = !courseFilter || courseOptionsStatus !== "loading";
+  const courseFilterValid = courseOptionsStatus !== "ready" || !courseFilter || courses.some(course => course.courseId === courseFilter);
+  useEffect(() => {
+    if (!courseRequestReady || !courseFilterValid) return;
+    let active = true;
+    setLoading(true);
+    setListErr("");
+    const path = courseFilter ? `/courses/${encodeURIComponent(courseFilter)}/trainees` : "/trainees";
+    apiGet(path)
+      .then(list => {
+        if (active) setData((list || []).map(p => ({ ...p, id: p.userId || p.id, name: p.name || "（氏名未設定）", email: p.email || "", courseId: courseFilter || p.courseId || "" })));
+      })
+      .catch(e => {
+        if (!active) return;
+        setData([]);
+        setListErr("受講生一覧の読み込みに失敗しました: " + (e?.errorMessage || e?.message || e));
+      })
+      .finally(() => {
+        if (!active) return;
+        setLoadedCourseFilter(courseFilter);
+        setLoading(false);
+      });
+    return () => { active = false; };
+  }, [courseFilter, courseRequestReady, courseFilterValid]);
   useEffect(() => {
     if (!selected) return;
     const userId = selected.id || selected.userId;
@@ -3957,7 +3986,8 @@ function TraineeList({ role, openKarte }) {
   }, [selected, date, role, courses]);
   const courseName = (id) => courses.find(c => c.courseId === id)?.name || id || "未登録";
   const companyName = (id) => companies.find(c => c.companyId === id)?.name || id || "未登録";
-  const selectedCourses = detail.userCourses.length ? detail.userCourses : (selected?.course ? [{ courseId: selected.course, name: courseName(selected.course) }] : []);
+  const selectedCourseIds = [...traineeCourseIds(selected || {})];
+  const selectedCourses = detail.userCourses.length ? detail.userCourses : selectedCourseIds.map(id => courses.find(c => c.courseId === id) || { courseId: id, name: courseName(id) });
   const taskDone = detail.tasks?.done ? Object.values(detail.tasks.done).filter(Boolean).length : 0;
   const taskTotal = detail.tasks?.done ? Object.keys(detail.tasks.done).length : 0;
   const avgScore = detail.tests.length ? Math.round(detail.tests.reduce((s, r) => s + Number(r.score || 0), 0) / detail.tests.length) : null;
@@ -3965,13 +3995,11 @@ function TraineeList({ role, openKarte }) {
   const canDeep = role === "admin" || role === "instructor" || role === "client";
   const visibleData = useMemo(() => {
     const s = q.trim().toLowerCase();
-    return data.filter(t => {
-      if (courseFilter && !traineeCourseIds(t).has(courseFilter)) return false;
-      return !s || `${t.name || ""} ${t.email || ""} ${t.company || ""} ${companyName(t.company)}`.toLowerCase().includes(s);
-    });
-  }, [data, q, companies, courseFilter]);
+    return data.filter(t => !s || `${t.name || ""} ${t.email || ""} ${t.company || ""} ${companyName(t.company)}`.toLowerCase().includes(s));
+  }, [data, q, companies]);
   useEffect(() => { setPage(1); }, [q, courseFilter, data.length]);
   const visiblePage = pageSlice(visibleData, page);
+  const listLoading = loading || loadedCourseFilter !== courseFilter;
   if (selected) return (
     <div>
       <SectionHead title={selected.name || selected.email || "受講生詳細"} desc="基本情報、所属コース、日報・勤怠・テスト・タスク・カルテ概要を確認します"
@@ -4010,20 +4038,19 @@ function TraineeList({ role, openKarte }) {
     <div>
       <SectionHead title="受講生" desc={role === "client" ? "自社受講生の状況確認" : "受講生ごとの研修・日報・勤怠・テスト・カルテ概要"} />
       {listErr && <div className="mb-4 rounded-lg px-3 py-2 text-xs" style={{ background: T.dangerSubtle, color: T.danger }}>{listErr}</div>}
-      {loading ? <Card><SkeletonRows /></Card>
-        : data.length === 0 ? <Card><EmptyState title="受講生がいません" desc="管理者のユーザー管理から受講生ロールで追加できます。" /></Card>
-        : <div>
+      {courseOptionsStatus === "error" && <div className="mb-4 rounded-lg px-3 py-2 text-xs" style={{ background: T.warningSubtle, color: T.warning }}>コース選択肢の読み込みに失敗しました。ページを再読み込みしてください。</div>}
+      {listLoading ? <Card><SkeletonRows /></Card> : <div>
           <Card className="overflow-hidden">
             <div className={adminToolbarCls} style={{ borderBottom: `1px solid ${T.border}` }}>
               <div className={adminSearchCls} style={{ border: `1px solid ${T.border}` }}>
                 <Search size={15} style={{ color: T.textMuted }} />
                 <input value={q} onChange={e => setQ(e.target.value)} placeholder="受講生名・メール・企業で検索" className="w-full bg-transparent text-sm outline-none" style={{ color: T.textPrimary }} />
               </div>
-              <select value={courseFilter} onChange={e => { setCourseFilter(e.target.value); setActiveCourseId(e.target.value); }} className="rounded-xl px-3 py-2 text-sm outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary, background: T.bgSurface }}><option value="">全コース</option>{courses.map(course => <option key={course.courseId} value={course.courseId}>{course.name || course.courseId}</option>)}</select>
+              <select value={courseFilter} onChange={e => { setCourseFilter(e.target.value); setActiveCourseId(e.target.value); }} className="rounded-xl px-3 py-2 text-sm outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary, background: T.bgSurface }}><option value="">全コース</option>{courseOptionsStatus === "error" && courseFilter && <option value={courseFilter}>保存済みの選択コース</option>}{courses.map(course => <option key={course.courseId} value={course.courseId}>{course.name || course.courseId}</option>)}</select>
             </div>
             <div className="px-4 py-3 text-xs font-bold" style={{ color: T.textMuted, borderBottom: `1px solid ${T.border}` }}>受講生一覧</div>
             <div className="divide-y" style={{ borderColor: T.border }}>
-              {visibleData.length === 0 ? <div className="px-4 py-8 text-center text-sm" style={{ color: T.textMuted }}>該当する受講生がいません。</div> : visiblePage.items.map(t => {
+              {listErr ? <div className="px-4 py-8 text-center text-sm" style={{ color: T.textMuted }}>受講生一覧を読み込めませんでした。コースを選び直すか、ページを再読み込みしてください。</div> : visibleData.length === 0 ? <div className="px-4 py-8 text-center text-sm" style={{ color: T.textMuted }}>{courseFilter ? "このコースに所属する受講生はいません。" : data.length === 0 ? "受講生がいません。" : "検索条件に一致する受講生がいません。"}</div> : visiblePage.items.map(t => {
                 const active = selected?.id === t.id;
                 return (
                   <button key={t.id} onClick={() => role === "instructor" ? openKarte({ ...t, id: t.userId || t.id, companyName: companyName(t.company) }) : setSelected(t)} className="flex w-full items-center gap-3 px-4 py-3 text-left transition hover:bg-gray-50" style={{ background: active ? T.accentSubtle : "#fff" }}>
@@ -4189,7 +4216,9 @@ function Karte({ trainee, back, role }) {
       const resolvedCompanyId = found?.company || found?.companyId || trainee?.company || trainee?.companyId || trainee?.org || "";
       const courseIds = [
         found?.course,
+        found?.courseId,
         trainee?.course,
+        trainee?.courseId,
         ...(Array.isArray(found?.courseIds) ? found.courseIds : []),
         ...(Array.isArray(trainee?.courseIds) ? trainee.courseIds : []),
         ...(Array.isArray(found?.courses) ? found.courses.map(c => c.courseId || c.id || c) : []),
