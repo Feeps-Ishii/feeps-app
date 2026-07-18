@@ -1,17 +1,35 @@
 import React from "react";
-import { T, GRAD, AI_GRAD } from "./theme.js";
+import { T, NOVA, AI_GRAD } from "./theme.js";
 
 // type defaults to "button" so Btn inside a <form> never submits accidentally;
 // pass type="submit" explicitly where submission is intended.
-export default function Btn({ children, kind = "primary", icon: Icon, onClick, size = "md", full, type = "button", disabled, className = "", title, "aria-label": ariaLabel }) {
-  const s = { primary: { background: T.accent, color: "#fff" }, grad: { background: GRAD, color: "#fff" },
-    ghost: { background: T.bgSurface, color: T.textPrimary, border: `1px solid ${T.border}` }, soft: { background: T.accentSubtle, color: T.accentHover },
-    dark: { background: T.darkBgElevated, color: T.darkTextPrimary, border: `1px solid ${T.darkBorder}` }, white: { background: "#fff", color: T.accentHover },
-    danger: { background: T.danger, color: "#fff" },
-    // "ai" is the product-wide identity for AI-powered actions.
-    ai: { background: AI_GRAD, color: "#fff", boxShadow: "0 2px 8px rgba(109,90,224,.35)" } };
+export default function Btn({ children, kind = "primary", icon: Icon, onClick, size = "md", full, type = "button", disabled, className = "", style = {}, title, "aria-label": ariaLabel, ...rest }) {
+  const variants = {
+    primary: { background: NOVA.gradAccent, color: NOVA.onDark, boxShadow: NOVA.shadowAccent },
+    grad: { background: NOVA.gradAccentTeal, color: NOVA.onDark, boxShadow: NOVA.shadowAccent },
+    ghost: { background: NOVA.card, color: NOVA.ink, border: `1px solid ${NOVA.line}`, boxShadow: NOVA.shadowSm },
+    soft: { background: NOVA.accentSoft, color: NOVA.accentDeep, border: `1px solid ${NOVA.accentSoft}` },
+    dark: { background: NOVA.railElevated, color: NOVA.onDark, border: `1px solid ${T.darkBorder}` },
+    white: { background: NOVA.card, color: NOVA.accentDeep, border: `1px solid ${NOVA.line}`, boxShadow: NOVA.shadowSm },
+    danger: { background: T.danger, color: NOVA.onDark },
+    // "ai" remains the product-wide identity for AI-powered actions.
+    ai: { background: AI_GRAD, color: NOVA.onDark, boxShadow: NOVA.shadowMd },
+  };
   const pad = size === "sm" ? "px-3 py-1.5 text-xs" : size === "lg" ? "px-5 py-3 text-sm" : "px-4 py-2 text-sm";
-  return <button type={type} onClick={onClick} disabled={disabled} title={title} aria-label={ariaLabel}
-    className={"inline-flex items-center justify-center gap-1.5 rounded-xl font-semibold transition hover:opacity-90 active:scale-[.98] disabled:cursor-not-allowed disabled:opacity-50 " + pad + (full ? " w-full" : "") + (className ? " " + className : "")}
-    style={{ border: "none", ...s[kind] }}>{Icon && <Icon size={size === "sm" ? 14 : 16} />}{children}</button>;
+  const variant = variants[kind] || variants.primary;
+  return (
+    <button
+      {...rest}
+      type={type}
+      onClick={onClick}
+      disabled={disabled}
+      title={title}
+      aria-label={ariaLabel}
+      className={`inline-flex min-h-10 items-center justify-center gap-1.5 rounded-[14px] font-semibold transition-[transform,filter,box-shadow] duration-200 hover:-translate-y-0.5 hover:brightness-[1.03] active:translate-y-0 active:scale-[.98] disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:translate-y-0 ${pad}${full ? " w-full" : ""}${className ? ` ${className}` : ""}`}
+      style={{ border: "none", ...variant, ...style }}
+    >
+      {Icon && <Icon size={size === "sm" ? 14 : size === "lg" ? 17 : 16} aria-hidden="true" />}
+      {children}
+    </button>
+  );
 }

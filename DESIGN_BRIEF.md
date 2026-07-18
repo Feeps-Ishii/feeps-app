@@ -8,19 +8,17 @@ HANDOFF.md の「★デザイン規約」はこのファイルを参照する形
 
 ## 1. デザインコンセプト
 
-- **顔（Login/Header/Sidebar/AIカード）はダーク、業務画面（Main）はライト** の二面構成。
-- lg以上（デスクトップ）は **Floating Canvas**: 淡いグラデーションのシェルの上に、
-  Header/Sidebarを透過させ、Mainだけを角丸+影付きの白いシートとして浮かせる。
-- lg未満（モバイル）はFloating Canvasを適用しない。ドロワー+通常スクロールの
-  従来構成のまま、情報量とタップ領域を優先する。この方針は意図的な判断であり、
-  「モバイルにもFloating Canvasを」は誤り。
-- **モバイルナビゲーション（Phase5-4改定）**: モバイルは1行ヘッダー（ロゴ/通知/ユーザー）+
-  **Bottom Navigation**（`Home+ロール先頭3Product+メニュー`の5枠、各56px以上、
-  `padding-bottom: env(safe-area-inset-bottom)`）。Product切替タブの2行目は廃止済み。
-  メニュー枠は全Product+通知/プロフィール/ログアウトのボトムシートを開く。
-- **ビューポート**: `viewport-fit=cover`前提。`.app-root`は`100dvh`優先（100vhフォールバック）、
-  `body`背景は`T.shellTail`でiOS Safariの白帯を防ぐ。モバイルの`.feeps-main-scroll`は
-  Bottom Nav分の`padding-bottom: calc(64px + env(safe-area-inset-bottom))`を持つ。
+- **Nova Command（2026-07-18採用）**: 濃紺のブランド面と、白く明るい業務面を組み合わせる。
+  色はグラデーションで面を埋めず、Product識別・主要CTA・総合HomeのHeroへ重点的に使う。
+- **デスクトップ**: 左端72pxの固定Global RailでProductを切り替える。Product内ではその右に
+  224px（折りたたみ時72px）の固定Context Railを置き、画面メニューを内部スクロールさせる。
+  総合HomeだけはContext Railを表示せず、Productへの入口として広い表示領域を使う。
+- **モバイル**: 下部タブは使わない。上部のメニューボタンから、利用可能Productと現在Product内の
+  画面を1つのドロワーで切り替える。視点移動と表示領域の圧迫を抑え、44px以上のタップ領域を守る。
+- **可読性優先**: 本文は`NOVA.ink`、補助文も`NOVA.muted`以上のコントラストを基本とする。
+  ガラス表現はナビゲーションや小さな補助面に限定し、業務カードは不透明な白面を維持する。
+- **ビューポート**: `viewport-fit=cover`・`100dvh`を優先し、`body`背景は`T.shellTail`へ合わせる。
+  モバイルの`.feeps-main-scroll`はsafe-area分だけ余白を持つ。
 
 ---
 
@@ -36,10 +34,12 @@ JSXやCSSに生の色コード・z-index数値を直接書かない。必ず以�
 - 低彩度セマンティクス: `success` `successSubtle` `warning` `warningSubtle` `danger` `dangerSubtle`
 - `*Subtle` 系は **バッジ/ステータスチップ/フォーカスリング限定**。カード背景など大面積には使わない。
 
-### 2.2 Floating Canvas（Phase 4）
-- `shellBase`: アプリ土台の背景グラデーション
-- `canvasBg` / `canvasBorder` / `canvasShadow` / `canvasRadius`(18) / `canvasMargin`: Main を囲む白いシートの見た目
-- `sidebarWidth`(216) / `sidebarWidthCollapsed`(64) / `headerHeight`(60, **PC文脈の値**。モバイルの2行ヘッダーには適用しない)
+### 2.2 Nova Command（`NOVA`）
+- 基本面: `rail` / `paper` / `card` / `glass`。Global Railのみ濃紺、Context Railと業務面は明るい白系。
+- 文字・境界: `ink` / `muted` / `quiet` / `line` / `soft` / `onDark` / `onDarkMuted`。
+- 影: `shadowSm` / `shadowMd` / `shadowAccent`。カードは`shadowSm`、浮遊面だけ`shadowMd`以上を使う。
+- グラデーション: `gradBrand` / `gradAccent` / `gradPortal` / `gradAuth`。Hero・CTA・ブランド面へ限定する。
+- レイアウト寸法は`T.sidebarWidth`(224) / `T.sidebarWidthCollapsed`(72) / `T.headerHeight`(72)。Global Railは72px固定。
 
 ### 2.3 Product accent（`PRODUCT_ACCENT`）
 `training` `learning` `talent` `matching` `analytics` `admin` の6色。各 `{ accent, deep, subtle, gradFrom, gradTo }`。
@@ -51,13 +51,8 @@ JSXやCSSに生の色コード・z-index数値を直接書かない。必ず以�
 ヘッダー/サイドバー/Product Homeのヒーローなど**大きな面**の配色はこのProduct基準を維持し、
 ロールごとに切り替えることはしない（下記 §2.4 のロールバッジのみが例外）。
 
-2026-07-03 時点の色（BtoB SaaSとして派手すぎない、Product同士で被らない6色に整理済み）:
-- `training`（研修管理）: 黒・ダークグレー系 `#3A404C` — **`admin` と同一の値**。研修管理は全ロール共通のヒーローがこの色になる。AdminProduct配下の管理者専用画面は個別に`product="admin"`を指定しているため、値としては同じだが独立したキーとして維持している。
-- `learning`（Eラーニング）: ティール系 `#14A3B8`
-- `talent`（スキル・成長）: パープル系 `#7C5CE0`
-- `matching`（案件管理）: オレンジ系 `#E07B39`
-- `analytics`（分析・レポート）: ローズ／ワイン系 `#B23A55` — 以前はシアン系で`learning`と色が被っていたため変更。`T.danger`（`#C4554D`、テラコッタ寄りの赤）とも色相をずらしてあり、エラー表示と混同しない。
-- `admin`（管理者専用画面）: 黒・ダークグレー系 `#3A404C`
+2026-07-18時点の系統: `home`/`training`=ブルー、`learning`=ティール、`talent`=バイオレット、
+`matching`=オレンジ、`analytics`=ローズ、`admin`=インディゴ。値は`theme.js`を唯一の正とし、文書へ複製しない。
 
 ### 2.4 Role accent（`ROLE_ACCENT`）— ヘッダーのロールバッジ専用
 `trainee` `instructor` `client` `admin` の4色 + 未知role用の `default`。各 `{ accent, subtle }`。
@@ -71,13 +66,14 @@ JSXやCSSに生の色コード・z-index数値を直接書かない。必ず以�
 - `admin`（管理者）: ニュートラルグレー系 `#5C6067`
 - `default`（未知role）: ニュートラルグレー系 `#5C6067`（`admin`と同値だが独立管理）
 
-### 2.4 レイヤー（`Z`）
+### 2.5 レイヤー（`Z`）
 `header`(20) `dropdown`(30) `overlay`(100) `modal`(110) `toast`(120)。z-indexを直接数値で書かない。
 
-### 2.5 形状
-`RADIUS.md`(12) / `RADIUS.sm`(8)。見出しは `font-weight >= 600` + `letter-spacing: -0.02em`。数値は `font-variant-numeric: tabular-nums`（`useCountUp` と併用）。
+### 2.6 形状
+業務コントロールは`RADIUS.md`(12) / `RADIUS.sm`(8)。Novaのカードは14〜22px、Heroは最大30pxまでを許可する。
+見出しは `font-weight >= 600` + `letter-spacing: -0.02em`。数値は `font-variant-numeric: tabular-nums`（`useCountUp` と併用）。
 
-### 2.6 タイポグラフィスケール（Phase5-2で全Product統一。新画面は必ずこの段階に合わせる）
+### 2.7 タイポグラフィスケール（全Product共通）
 
 | 用途 | サイズ/ウェイト | 実装 |
 |---|---|---|
@@ -91,32 +87,29 @@ JSXやCSSに生の色コード・z-index数値を直接書かない。必ず以�
 
 `font-extrabold`(800)が許されるのはブランドロゴタイプ「Feeps One」のみ。
 
-### 2.7 フォームコントロール統一（Phase5-2）
+### 2.8 フォームコントロール統一
 - 入力欄・select・検索・日付/月選択はすべて **`rounded-xl`（12px = RADIUS.md）**。`rounded-lg`(8px)の入力欄は廃止済み（`fieldStyle`のborderRadius 12が正）。
 - パディングは `px-3 py-2 text-sm` を基準にする。
 - ローディングはテキストのみの「〜中...」を使わず、`SkeletonRows`/`SkeletonCards`（§4準拠）。
 
 ---
 
-## 3. Floating Canvas 構造（lg+）
+## 3. Nova Command 構造
 
 ```
-.app-root (min-height:100vh / lg: h-screen固定, background: T.shellBase)
-├─ Header (transparent, height: T.headerHeight=60px, 1行統合: ロゴ+Product切替ピル+DEMO+通知+ユーザー)
-├─ Sidebar (transparent, 幅 sidebarWidth/sidebarWidthCollapsed, 内部スクロールはSidebar自身)
-└─ .feeps-canvas (Mainのラッパー。lg+のみ canvasBg/canvasBorder/canvasShadow/canvasRadius/canvasMarginを適用)
-    └─ .feeps-main-scroll (アプリ内で唯一スクロールするコンテナ。overflow-y-auto)
-        ├─ .feeps-pagehead (sticky top-0。スクロール前は`.is-flush`で透明、スクロールすると通常のPageHeadスタイルに昇格)
-        └─ <main>
+.app-root.feeps-nova-shell (100dvh)
+├─ .feeps-global-rail (PC固定72px。権限内Productだけ表示)
+├─ .feeps-context-rail (PC固定224px/72px。総合Homeでは非表示)
+├─ .feeps-topbar (PC。本文の開始位置と連動)
+├─ .feeps-mobile-topbar + .feeps-mobile-drawer (モバイルのみ)
+└─ .feeps-shell-body
+    └─ .feeps-main-scroll (PCの主スクロール領域)
+        └─ <main> (総合Home max 1360px / その他 max 1280px)
 ```
 
-- lg+の背景/枠線/影の出し分けは、**JSトークンをCSSカスタムプロパティとしてinline style経由で渡し**、
-  `index.css` 側は `@media (min-width:1024px)` で「いつ適用するか」だけを決める
-  （`--canvas-bg` `--canvas-border` `--canvas-shadow` `--canvas-radius` `--canvas-margin`、
-  `--ph-bg` `--ph-border` `--ph-shadow` パターン）。inline styleは常にCSSファイルの規則より強いため、
-  デスクトップ限定の上書きをCSSにベタ書きすると効かない・効きすぎるの両方の事故になる。この橋渡し以外の
-  目的でraw hexをCSSに書かない。
-- モバイル（lg未満）はこの構造を適用しない。Header/Sidebar/Mainは従来どおり不透明・通常スクロール。
+- JSXは`NOVA`/`PRODUCT_ACCENT`をCSSカスタムプロパティへ渡し、`index.css`は構造・状態・レスポンシブだけを担当する。
+- Global Rail・Context Rail・Topbar・本文のoffsetは必ず同じ計算を使う。Context Railの折りたたみ時も本文とTopbarを同時に追従させる。
+- ロールによるProduct表示可否とProduct内メニューは既存`PRODUCTS.roles`/NAV定義を正とし、デザイン側で権限を増やさない。
 
 ---
 
@@ -128,7 +121,7 @@ JSXやCSSに生の色コード・z-index数値を直接書かない。必ず以�
 - **画面の頭**: Product Homeは `PageHeader`（動的タイトル/チップ/CTA構成。装飾SVGの追加は禁止）。
   サブ画面は `SectionHead`（iconはそのProductのlucideアイコンをmonotoneで使用。ドットでの色分けはしない）。
 - **フォーム**: `Field` + `fieldStyle`。
-- **Login画面の入力欄**: `Field`/`fieldStyle`とは別のLogin専用実装（`TrainingApp.jsx`の`Login()`）。
+- **Login画面の入力欄**: `Field`/`fieldStyle`とは別のLogin専用実装（`products/auth/Login.jsx`）。
   入力欄のラッパーに`.feeps-login-field`クラス＋CSS変数（`--field-bg` `--field-border` `--field-text`
   `--field-focus` `--field-focus-ring`、値は`T.bgSurface` `T.border` `T.textPrimary` `T.accent`
   `T.accentSubtle`）を渡す。`:focus-within`でのborder/ring、および`input:-webkit-autofill`の
@@ -151,10 +144,10 @@ JSXやCSSに生の色コード・z-index数値を直接書かない。必ず以�
 
 ## 5. アニメーション原則
 
-- 入場アニメーションはマウント時1回のみ。`feeps-hero-in` / `feeps-stagger-in`（delayはinlineで個別指定）。
+- 入場アニメーションはマウント時1回のみ。`view-anim` / `feeps-hero-in` / `feeps-stagger-in`（delayはinlineで個別指定）。
 - 数値カウントアップは `useCountUp`。
-- **無限ループとして許可されているのは `feeps-float` と `feeps-shimmer`（AI生成中の正典表現）のみ**。新しい無限ループ演出を増やさない。
-- スライド系UI（Product切替ピル・Sidebar activeピル）は、対象DOMの `offsetLeft/offsetWidth`（横）または
+- **無限ループとして許可されているのは `feeps-float`、ブランドマークの呼吸、`feeps-shimmer`（生成中の正典表現）のみ**。新しい無限ループ演出を増やさない。
+- スライド系UI（Sidebar activeピル等）は、対象DOMの `offsetLeft/offsetWidth`（横）または
   `offsetTop/offsetHeight`（縦）を `useLayoutEffect` で計測し、絶対配置した同要素をCSS `transition`
   （`cubic-bezier(.3,.9,.4,1)` 基調）で追従させる。ピル自体はz-indexで本体の下に置く。
   **必須ガード**: この種の「計測してsetStateする」`useLayoutEffect`/`useEffect`は、依存配列を
@@ -168,11 +161,8 @@ JSXやCSSに生の色コード・z-index数値を直接書かない。必ず以�
   **React error #185（Maximum update depth exceeded）で本番が白画面になる**（2026-07-03に実際に発生
   し修正済み。詳細はCHANGELOG.mdの`Task-Urgent-Fix-ReactError185`を参照）。
 - 成功チェックマークは `stroke-dashoffset` によるドローイン、約400ms。
-- **`prefers-reduced-motion: reduce` で全アニメーションを無効化する。**
-  `.app-root` 直下の包括ルール（`.view-anim{animation:none}` / `.app-root *{transition:none!important}`）が
-  ピルのスライドを含め既に全体を止めているため、個別コンポーネント側で追加対応は不要。
-  ただし新しいCSSアニメーション/transitionを足すときは、この包括ルールの対象（`.app-root`内）に
-  入っていることを必ず確認する。
+- **`prefers-reduced-motion: reduce` で装飾アニメーションを無効化する。** 新しいCSS animation/transitionを足すときは、
+  `index.css`の同media queryへ停止規則も追加する。操作結果やフォーカスなど意味を伝える状態変化は即時表示へ切り替える。
 
 ---
 
@@ -185,7 +175,8 @@ JSXやCSSに生の色コード・z-index数値を直接書かない。必ず以�
 - 「準備中」ラベルでの機能隠蔽（未実装のUIはラベルではなく要素ごと出し分ける）。
 - 無許可の無限ループアニメーション追加（`feeps-float`/`feeps-shimmer` 以外）。
 - `prefers-reduced-motion` を無視したアニメーション追加。
-- モバイル（lg未満）へのFloating Canvas適用。モバイルのProduct切替はBottom Navigationが正（ヘッダーへのタブ行復活は不可）。
+- 下部Dock／Bottom Navigation／上部Productタブを再導入すること。モバイルのProduct切替は統合ドロワーを正とする。
+- 総合HomeへContext Railを表示すること（総合HomeはProductへの入口、各Product Homeは業務状況の把握という役割を分ける）。
 - デザイン作業のついでにAPI・認証・ルーティング・業務ロジックを変更すること（別タスクとして扱う）。
 
 ---
@@ -206,4 +197,5 @@ JSXやCSSに生の色コード・z-index数値を直接書かない。必ず以�
 6. **データに存在しない情報を演出で埋めさせない。** 例: 通知に相対時刻フィールドが無いのに
    「3分前」のような表示を作らせると嘘の情報になる。無い場合は正直な表示（例:「本日」）にするか、
    別タスクとしてデータモデル拡張を依頼する。
-7. **deployは明示的に指示しない限り実行させない。** `npm run build` の成功確認までが標準の完了条件。
+7. **Build成功後はルート`AGENTS.md` / `AI_RULES.md`の4点セットに従う。** commit前deployは禁止し、
+   CHANGELOG・HANDOFF・START_HERE更新と本番確認までを一連の完了条件とする。

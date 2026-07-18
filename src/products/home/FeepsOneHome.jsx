@@ -3,12 +3,13 @@ import {
   ArrowRight, BookOpen, Building2, AlertCircle,
   Clock, ClipboardCheck, MessageSquare, ListChecks,
   FileText, Megaphone, ChevronRight, Users,
+  Sparkles, ArrowUpRight,
 } from "lucide-react";
 import { apiGet } from "../../api.js";
 import {
-  Btn, PRISM, PRISM_PRODUCT_GRAD,
+  Btn, NOVA, PRISM, PRISM_PRODUCT_GRAD, PRODUCT_ACCENT,
   PrismSectionTitle as SectionTitle, PrismCard as PBCard,
-  PrismCapLabel as CapLabel, PrismHomeHeading as HomeHeading,
+  PrismCapLabel as CapLabel,
   PrismErrorRetryCard as ErrorRetryCard, PrismSeverityChip as SeverityChip,
   PrismStatusDot as StatusDot, PrismProgressRing as ProgressRing,
 } from "../../components/common";
@@ -78,6 +79,235 @@ function openTargetUrl(targetUrl, { goProduct, goTraining, goSub }) {
   goProduct("training");
 }
 
+const PRODUCT_COPY = {
+  training: "カリキュラム・日報・勤怠を、ひとつの流れで管理します。",
+  learning: "コース学習を進め、理解度と修了状況を確認します。",
+  talent: "研修で得たスキルと成長の記録を可視化します。",
+  matching: "身につけた力を、次の案件とキャリアにつなげます。",
+  analytics: "研修成果・リスク・利用状況を横断して分析します。",
+};
+
+const ROLE_PORTAL_COPY = {
+  trainee: {
+    eyebrow: "YOUR LEARNING PORTAL",
+    title: "今日の学びを、次の成長へ。",
+    description: "研修を進め、記録し、身についた力を確認する。今日必要な場所へ、ここからすぐに移動できます。",
+  },
+  instructor: {
+    eyebrow: "INSTRUCTOR PORTAL",
+    title: "授業と受講生の今を、ひとつに。",
+    description: "授業準備、日報、勤怠、受講生フォローをつなぎ、今日の研修運営を迷わず進められます。",
+  },
+  client: {
+    eyebrow: "COMPANY LEARNING PORTAL",
+    title: "研修の先にある成長まで、見渡せる。",
+    description: "自社受講生の研修状況からスキル・案件活用まで、必要な情報へすばやくアクセスできます。",
+  },
+  admin: {
+    eyebrow: "ADMIN COMMAND PORTAL",
+    title: "Feeps One全体を、ここから動かす。",
+    description: "研修運営、学習、スキル、案件、分析。すべての機能と今日の状況を、ひとつの入口に集約しました。",
+  },
+};
+
+function metricValue(value, unit, loading) {
+  if (loading && value == null) return "—";
+  return `${value ?? 0}${unit}`;
+}
+
+function portalMetrics(role, dashboard, loading) {
+  if (!dashboard) {
+    const labels = {
+      trainee: ["参加コース", "今日の未完了", "未受験テスト"],
+      instructor: ["担当コース", "未確認日報", "勤怠アラート"],
+      admin: ["稼働コース", "全受講生", "要確認"],
+      client: ["自社受講生", "本日出席", "日報未提出"],
+    }[role] || ["利用状況", "今日の対応", "要確認"];
+    return labels.map(label => ({ label, value: "—" }));
+  }
+  if (role === "trainee") {
+    const tasks = asArray(dashboard?.todayTasks);
+    const pending = tasks.filter(task => task.status !== "done").length;
+    return [
+      { label: "参加コース", value: metricValue(asArray(dashboard?.activeCourses).length, "件", loading) },
+      { label: "今日の未完了", value: metricValue(pending, "件", loading) },
+      { label: "未受験テスト", value: metricValue(dashboard?.summary?.unsubmittedTests, "件", loading) },
+    ];
+  }
+  if (role === "instructor") {
+    const summary = dashboard?.summary || {};
+    const reportCount = Number(summary.pendingReports || 0) + Number(summary.uncommentedReports || 0);
+    return [
+      { label: "担当コース", value: metricValue(summary.assignedCourses, "件", loading) },
+      { label: "未確認日報", value: metricValue(reportCount, "件", loading) },
+      { label: "勤怠アラート", value: metricValue(summary.attendanceAlerts, "件", loading) },
+    ];
+  }
+  if (role === "admin") {
+    const summary = dashboard?.summary || {};
+    return [
+      { label: "稼働コース", value: metricValue(summary.totalCourses, "件", loading) },
+      { label: "全受講生", value: metricValue(summary.totalStudents, "名", loading) },
+      { label: "要確認", value: metricValue(summary.coursesNeedingAttention, "件", loading) },
+    ];
+  }
+  const summary = dashboard?.summary || {};
+  return [
+    { label: "自社受講生", value: metricValue(summary.traineeCount, "名", loading) },
+    { label: "本日出席", value: metricValue(summary.attendanceOkToday, "名", loading) },
+    { label: "日報未提出", value: metricValue(summary.unsubmittedReports, "名", loading) },
+  ];
+}
+
+function nextPortalAction(role, dashboard) {
+  if (!dashboard) {
+    return role === "trainee"
+      ? { label: "研修管理を開く", description: "今日の研修と提出状況を確認", targetUrl: "/training" }
+      : role === "instructor"
+        ? { label: "研修運営を開く", description: "担当コースと授業準備を確認", targetUrl: "/training" }
+        : role === "client"
+          ? { label: "自社の研修を開く", description: "受講生と研修状況を確認", targetUrl: "/training" }
+          : { label: "研修管理を開く", description: "コースと運営状況を確認", targetUrl: "/training" };
+  }
+  if (role === "trainee") {
+    const nextTask = asArray(dashboard?.todayTasks).find(task => task.status !== "done" && task.targetUrl);
+    if (nextTask) return { label: nextTask.actionLabel || nextTask.label || "次のタスクを開く", description: nextTask.label || "今日の未完了タスク", targetUrl: nextTask.targetUrl };
+    const course = asArray(dashboard?.activeCourses)[0];
+    return course
+      ? { label: "今日の研修を開く", description: course.courseName || "所属コース", targetUrl: "/training/curriculum" }
+      : { label: "学習コースを見る", description: "公開中のコースを確認", targetUrl: "/learning/courses" };
+  }
+  if (role === "instructor") {
+    const todo = asArray(dashboard?.todos).find(item => Number(item.count || 0) > 0 && item.targetUrl);
+    return todo
+      ? { label: todo.label || "確認事項を開く", description: `${todo.count}件の対応があります`, targetUrl: todo.targetUrl }
+      : { label: "今日の授業準備を開く", description: "カリキュラム・教材・テストを確認", targetUrl: "/training/curriculum" };
+  }
+  if (role === "admin") {
+    const attention = Number(dashboard?.summary?.coursesNeedingAttention || 0);
+    return attention > 0
+      ? { label: "要確認コースを見る", description: `${attention}件の研修を確認`, targetUrl: "/training/courses" }
+      : { label: "研修管理を開く", description: "コースと運営状況を確認", targetUrl: "/training" };
+  }
+  const unsubmitted = Number(dashboard?.summary?.unsubmittedReports || 0);
+  return unsubmitted > 0
+    ? { label: "未提出の日報を確認", description: `${unsubmitted}名の状況を確認`, targetUrl: "/training/reports" }
+    : { label: "自社受講生を見る", description: "研修と成長の状況を確認", targetUrl: "/training/trainees" };
+}
+
+function PortalProductCard({ product, index, onOpen }) {
+  const Icon = product.icon || Sparkles;
+  const accent = PRODUCT_ACCENT[product.key] || PRODUCT_ACCENT.home;
+  const gradient = PRISM_PRODUCT_GRAD[product.key] || NOVA.gradAccent;
+  return (
+    <button
+      type="button"
+      onClick={onOpen}
+      className="feeps-stagger-in group flex min-w-0 flex-col rounded-[22px] p-4 text-left transition hover:-translate-y-1"
+      style={{
+        background: NOVA.card,
+        border: `1px solid ${NOVA.line}`,
+        boxShadow: NOVA.shadowSm,
+        animationDelay: `${160 + index * 60}ms`,
+      }}
+      aria-label={`${product.label}を開く`}
+    >
+      <span className="flex w-full items-start justify-between gap-3">
+        <span className="grid h-11 w-11 shrink-0 place-items-center rounded-2xl" style={{ background: accent.subtle, color: accent.deep }}>
+          <Icon size={20} strokeWidth={1.9} />
+        </span>
+        <span className="grid h-8 w-8 shrink-0 place-items-center rounded-full transition group-hover:translate-x-0.5" style={{ background: NOVA.soft, color: NOVA.muted }}>
+          <ArrowUpRight size={15} />
+        </span>
+      </span>
+      <span className="mt-5 block text-base font-bold" style={{ color: NOVA.ink }}>{product.label}</span>
+      <span className="mt-1 block min-h-10 text-xs leading-5" style={{ color: NOVA.muted }}>{PRODUCT_COPY[product.key] || "機能を開いて、今日の業務を進めます。"}</span>
+      <span className="mt-4 h-1 w-12 rounded-full transition-all group-hover:w-20" style={{ background: gradient }} />
+    </button>
+  );
+}
+
+function ProductPortal({ role, displayName, products, dashboard, loading, goProduct, goTraining, goSub }) {
+  const copy = ROLE_PORTAL_COPY[role] || ROLE_PORTAL_COPY.trainee;
+  const availableProducts = asArray(products).filter(product => product?.key && product.key !== "home");
+  const metrics = portalMetrics(role, dashboard, loading);
+  const nextAction = nextPortalAction(role, dashboard);
+  const orbitProducts = availableProducts.slice(0, 5);
+  const openNext = () => openTargetUrl(nextAction.targetUrl, { goProduct, goTraining, goSub });
+
+  return (
+    <section className="flex flex-col gap-4">
+      <div className="feeps-hero-in relative overflow-hidden rounded-[30px] p-6 sm:p-8 lg:p-10" style={{ background: NOVA.gradPortal, boxShadow: NOVA.shadowAccent, color: NOVA.onDark }}>
+        <span className="pointer-events-none absolute -left-16 -top-20 h-56 w-56 rounded-full" style={{ border: `1px solid ${PRISM.heroLine}` }} />
+        <span className="pointer-events-none absolute -left-5 -top-10 h-36 w-36 rounded-full" style={{ border: `1px solid ${PRISM.heroLine}` }} />
+        <div className="relative grid items-center gap-8 lg:grid-cols-[minmax(0,1.15fr)_minmax(300px,.85fr)]">
+          <div className="min-w-0">
+            <div className="flex items-center gap-2 text-xs font-bold tracking-[0.12em]" style={{ color: NOVA.onDarkMuted }}>
+              <Sparkles size={15} />{copy.eyebrow}
+            </div>
+            <p className="mt-4 text-sm font-semibold" style={{ color: NOVA.onDarkMuted }}>こんにちは、{displayName}さん</p>
+            <h1 className="mt-1 max-w-2xl text-[30px] font-bold leading-tight sm:text-[38px]" style={{ letterSpacing: "-0.035em" }}>{copy.title}</h1>
+            <p className="mt-4 max-w-2xl text-sm leading-7" style={{ color: NOVA.onDarkMuted }}>{copy.description}</p>
+
+            <div className="mt-7 flex flex-col gap-3 sm:flex-row sm:items-stretch">
+              <button type="button" onClick={openNext} className="feeps-prism-cta flex min-w-0 items-center gap-3 rounded-2xl px-4 py-3 text-left" style={{ background: NOVA.railGlass, color: NOVA.ink, boxShadow: NOVA.shadowMd }}>
+                <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl" style={{ background: NOVA.accentSoft, color: NOVA.accentDeep }}><ArrowRight size={18} /></span>
+                <span className="min-w-0 flex-1">
+                  <span className="block text-[11px] font-bold tracking-[0.08em]" style={{ color: NOVA.quiet }}>NEXT ACTION</span>
+                  <span className="block truncate text-sm font-bold">{nextAction.label}</span>
+                  <span className="block truncate text-xs" style={{ color: NOVA.muted }}>{nextAction.description}</span>
+                </span>
+              </button>
+              <div className="grid flex-1 grid-cols-3 gap-2">
+                {metrics.map(metric => (
+                  <div key={metric.label} className="rounded-2xl px-3 py-3" style={{ background: PRISM.heroGlassStrong, border: `1px solid ${PRISM.heroLine}` }}>
+                    <div className="truncate text-[10px] font-semibold" style={{ color: NOVA.onDarkMuted }}>{metric.label}</div>
+                    <div className="mt-1 truncate text-lg font-bold tabular-nums">{metric.value}</div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          <div className="relative mx-auto hidden h-[290px] w-[290px] lg:block" aria-hidden="true">
+            <span className="absolute inset-4 rounded-full" style={{ border: `1px solid ${PRISM.heroLine}` }} />
+            <span className="absolute inset-[54px] rounded-full" style={{ border: `1px solid ${PRISM.heroLine}` }} />
+            <span className="feeps-float absolute inset-[95px] grid place-items-center rounded-[30px]" style={{ background: NOVA.railGlass, boxShadow: NOVA.shadowMd, animationDuration: "8s" }}>
+              <Sparkles size={34} style={{ color: NOVA.violet }} />
+            </span>
+            {orbitProducts.map((product, index) => {
+              const Icon = product.icon || Sparkles;
+              const positions = ["left-0 top-[104px]", "right-1 top-6", "bottom-1 right-8", "bottom-4 left-8", "left-[112px] top-0"];
+              return (
+                <span key={product.key} className={`feeps-float absolute grid h-14 w-14 place-items-center rounded-2xl ${positions[index]}`} style={{ background: NOVA.railGlass, color: (PRODUCT_ACCENT[product.key] || PRODUCT_ACCENT.home).deep, boxShadow: NOVA.shadowMd, animationDuration: "9s", animationDelay: `${index * -1.3}s` }}>
+                  <Icon size={23} />
+                </span>
+              );
+            })}
+          </div>
+        </div>
+      </div>
+
+      {availableProducts.length > 0 && (
+        <div>
+          <div className="mb-3 flex flex-wrap items-end justify-between gap-3 px-1">
+            <div>
+              <p className="text-[11px] font-bold tracking-[0.1em]" style={{ color: NOVA.accentDeep }}>FEEPS ONE PRODUCTS</p>
+              <h2 className="mt-1 text-xl font-bold" style={{ color: NOVA.ink, letterSpacing: "-0.025em" }}>できることから、機能を選ぶ</h2>
+              <p className="mt-1 text-sm" style={{ color: NOVA.muted }}>現在の権限で利用できる機能だけを表示しています。</p>
+            </div>
+          </div>
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
+            {availableProducts.map((product, index) => (
+              <PortalProductCard key={product.key} product={product} index={index} onOpen={() => goProduct(product.key)} />
+            ))}
+          </div>
+        </div>
+      )}
+    </section>
+  );
+}
+
 /* ===== 受講生Home（/dashboard/trainee の実データのみで構成。ダミーの連続日数やAI機能は
    バックエンドに対応するデータ/機能がまだ無いため表示しない） ===== */
 function TraineeHome({ dashboard, displayName, goProduct, goTraining, goSub, loading, error, onRetry }) {
@@ -96,7 +326,7 @@ function TraineeHome({ dashboard, displayName, goProduct, goTraining, goSub, loa
 
   return (
     <div className="flex flex-col gap-5">
-      <HomeHeading eyebrow={course ? `${dateLabel()} · ${course.courseName}` : dateLabel()} title={`おはようございます、${displayName}さん`} />
+      <SectionTitle title="今日の学習状況" desc={course ? `${dateLabel()} · ${course.courseName}` : dateLabel()} />
 
       {error && <ErrorRetryCard message={error} onRetry={onRetry} />}
 
@@ -110,8 +340,8 @@ function TraineeHome({ dashboard, displayName, goProduct, goTraining, goSub, loa
       ) : (
         <div className="grid grid-cols-12 gap-4">
           <div className="col-span-12 lg:col-span-8">
-            <PBCard className="p-6 sm:p-7" style={{ background: PRISM.gradHero, border: "none", color: "#fff", position: "relative", overflow: "hidden" }}>
-              <span className="pointer-events-none absolute -right-14 -top-14 h-44 w-44 rounded-full" style={{ background: "rgba(255,255,255,.12)" }} />
+            <PBCard className="p-6 sm:p-7" style={{ background: PRISM.gradHero, border: "none", color: NOVA.onDark, position: "relative", overflow: "hidden" }}>
+              <span className="pointer-events-none absolute -right-14 -top-14 h-44 w-44 rounded-full" style={{ background: PRISM.heroGlass }} />
               <div className="relative flex flex-wrap items-start justify-between gap-5">
                 <div className="min-w-0">
                   <p className="text-[11px] font-extrabold uppercase tracking-wider opacity-85">TODAY · 今日の単元</p>
@@ -129,7 +359,7 @@ function TraineeHome({ dashboard, displayName, goProduct, goTraining, goSub, loa
                     </Btn>
                   </div>
                 </div>
-                <div className="flex shrink-0 flex-col gap-2.5 rounded-2xl p-4 text-xs font-semibold" style={{ background: "rgba(255,255,255,.14)", minWidth: 170 }}>
+                <div className="flex shrink-0 flex-col gap-2.5 rounded-2xl p-4 text-xs font-semibold" style={{ background: PRISM.heroGlass, minWidth: 170 }}>
                   <button type="button" onClick={() => open("/training/attendance")} className="flex items-center justify-between gap-4 text-left">
                     <span className="opacity-80">勤怠</span><span>{ATT_LABEL[attendance?.status] || "未確認"}</span>
                   </button>
@@ -196,7 +426,7 @@ function TraineeHome({ dashboard, displayName, goProduct, goTraining, goSub, loa
           </div>
 
           <div className="col-span-12 sm:col-span-6 lg:col-span-4">
-            <PBCard className="flex h-full flex-col p-5" style={{ background: `linear-gradient(140deg, ${PRISM.aiSubtle}, #fff)`, borderColor: "rgba(139,124,246,.28)" }}>
+            <PBCard className="flex h-full flex-col p-5" style={{ background: `linear-gradient(140deg, ${PRISM.aiSubtle}, ${NOVA.card})`, borderColor: PRISM.ai }}>
               <p className="mb-2.5 text-[11px] font-bold uppercase" style={{ color: PRISM.aiDeep, letterSpacing: "0.06em" }}>講師コメント</p>
               {comments[0] ? (
                 <>
@@ -243,12 +473,12 @@ function InstructorHome({ dashboard, displayName, goProduct, goTraining, goSub, 
 
   return (
     <div className="flex flex-col gap-5">
-      <HomeHeading eyebrow={`${dateLabel()} · 担当 ${summary.assignedCourses ?? 0}コース`} title={`こんにちは、${displayName}さん`} />
+      <SectionTitle title="今日の研修運営" desc={`${dateLabel()} · 担当 ${summary.assignedCourses ?? 0}コース`} />
 
       {error && <ErrorRetryCard message={error} onRetry={onRetry} />}
 
       {scope?.unassigned && (
-        <PBCard className="p-5" style={{ background: PRISM.warnSubtle, borderColor: "rgba(221,148,38,.3)" }}>
+        <PBCard className="p-5" style={{ background: PRISM.warnSubtle, borderColor: PRISM.warn }}>
           <p className="text-sm font-bold" style={{ color: PRISM.warn }}>担当コースが未設定です</p>
           <p className="mt-1 text-xs" style={{ color: PRISM.sub }}>管理者にコースの担当講師設定を依頼してください。</p>
         </PBCard>
@@ -343,7 +573,7 @@ function AdminBoardHome({ dashboard, goProduct, goTraining, goSub, loading, erro
 
   return (
     <div className="flex flex-col gap-5">
-      <HomeHeading eyebrow={`${dateLabel()} · 稼働中 ${summary.totalCourses ?? 0}コース · 受講生 ${summary.totalStudents ?? 0}名`} title="コース俯瞰ボード" />
+      <SectionTitle title="研修運営の状況" desc={`${dateLabel()} · 稼働中 ${summary.totalCourses ?? 0}コース · 受講生 ${summary.totalStudents ?? 0}名`} />
 
       {error && <ErrorRetryCard message={error} onRetry={onRetry} />}
 
@@ -401,7 +631,7 @@ function ClientSummaryHome({ dashboard, goProduct, goTraining, goSub, loading, e
 
   return (
     <div className="flex flex-col gap-5">
-      <HomeHeading eyebrow={company.companyName || dateLabel()} title="自社の研修サマリー" />
+      <SectionTitle title="自社の研修状況" desc={company.companyName || dateLabel()} />
 
       {error && <ErrorRetryCard message={error} onRetry={onRetry} />}
 
@@ -436,7 +666,7 @@ function ClientSummaryHome({ dashboard, goProduct, goTraining, goSub, loading, e
                     </div>
                     {t.learningProgress != null && (
                       <div className="hidden w-24 shrink-0 sm:block">
-                        <div className="h-1.5 overflow-hidden rounded-full" style={{ background: "#ECEEF6" }}><div className="h-full rounded-full" style={{ width: `${t.learningProgress}%`, background: PRISM.gradCta }} /></div>
+                        <div className="h-1.5 overflow-hidden rounded-full" style={{ background: PRISM.ringTrack }}><div className="h-full rounded-full" style={{ width: `${t.learningProgress}%`, background: PRISM.gradCta }} /></div>
                       </div>
                     )}
                     <span className="shrink-0 text-xs font-semibold" style={{ color: t.attendanceStatus === "not_clocked_in" ? PRISM.warn : PRISM.sub }}>{ATT_LABEL[t.attendanceStatus] || "確認中"}</span>
@@ -452,7 +682,7 @@ function ClientSummaryHome({ dashboard, goProduct, goTraining, goSub, loading, e
   );
 }
 
-export default function FeepsOneHome({ role, displayName, goProduct, goTraining, goSub }) {
+export default function FeepsOneHome({ role, displayName, goProduct, goTraining, goSub, products = [] }) {
   const [dashboard, setDashboard] = useState(null);
   const [loadingDashboard, setLoadingDashboard] = useState(false);
   const [dashboardError, setDashboardError] = useState("");
@@ -480,14 +710,27 @@ export default function FeepsOneHome({ role, displayName, goProduct, goTraining,
     loadDashboard();
   }, [loadDashboard]);
 
-  if (role === "trainee") {
-    return <TraineeHome dashboard={dashboard} displayName={displayName} goProduct={goProduct} goTraining={goTraining} goSub={goSub} loading={loadingDashboard} error={dashboardError} onRetry={loadDashboard} />;
-  }
-  if (role === "instructor") {
-    return <InstructorHome dashboard={dashboard} displayName={displayName} goProduct={goProduct} goTraining={goTraining} goSub={goSub} loading={loadingDashboard} error={dashboardError} onRetry={loadDashboard} />;
-  }
-  if (role === "admin") {
-    return <AdminBoardHome dashboard={dashboard} goProduct={goProduct} goTraining={goTraining} goSub={goSub} loading={loadingDashboard} error={dashboardError} onRetry={loadDashboard} />;
-  }
-  return <ClientSummaryHome dashboard={dashboard} goProduct={goProduct} goTraining={goTraining} goSub={goSub} loading={loadingDashboard} error={dashboardError} onRetry={loadDashboard} />;
+  const roleDashboard = role === "trainee"
+    ? <TraineeHome dashboard={dashboard} displayName={displayName} goProduct={goProduct} goTraining={goTraining} goSub={goSub} loading={loadingDashboard} error={dashboardError} onRetry={loadDashboard} />
+    : role === "instructor"
+      ? <InstructorHome dashboard={dashboard} displayName={displayName} goProduct={goProduct} goTraining={goTraining} goSub={goSub} loading={loadingDashboard} error={dashboardError} onRetry={loadDashboard} />
+      : role === "admin"
+        ? <AdminBoardHome dashboard={dashboard} goProduct={goProduct} goTraining={goTraining} goSub={goSub} loading={loadingDashboard} error={dashboardError} onRetry={loadDashboard} />
+        : <ClientSummaryHome dashboard={dashboard} goProduct={goProduct} goTraining={goTraining} goSub={goSub} loading={loadingDashboard} error={dashboardError} onRetry={loadDashboard} />;
+
+  return (
+    <div className="flex flex-col gap-8">
+      <ProductPortal
+        role={role}
+        displayName={displayName}
+        products={products}
+        dashboard={dashboard}
+        loading={loadingDashboard}
+        goProduct={goProduct}
+        goTraining={goTraining}
+        goSub={goSub}
+      />
+      {roleDashboard}
+    </div>
+  );
 }
