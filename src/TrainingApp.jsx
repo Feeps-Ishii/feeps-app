@@ -1007,7 +1007,7 @@ export default function App() {
           <button type="button" onClick={() => setPaletteOpen(true)} className="feeps-command-button min-w-0 max-w-[500px] flex-1" aria-label="検索・移動・アクションを開く">
             <Search size={16} /><span>検索・移動・アクション</span><kbd>⌘K</kbd>
           </button>
-          <div className="flex min-w-0 shrink-0 items-center justify-end gap-1.5">{role === "instructor" && !isHomeProduct && <QuickAdd onPick={go} />}{demoMenu}{notifBellDesktop}{userActionsTail}</div>
+          <div className="ml-auto flex min-w-0 shrink-0 items-center justify-end gap-1.5">{role === "instructor" && !isHomeProduct && <QuickAdd onPick={go} />}{demoMenu}{notifBellDesktop}{userActionsTail}</div>
         </div>
       </div>
 
