@@ -69,7 +69,6 @@ const NAV = {
   instructor: [
     { sec: null, items: [["home", "ホーム", LayoutDashboard]] },
     { sec: "コース運用", items: [["courses", "担当コース管理", BookOpen], ["trainees", "受講生", Users]] },
-    { sec: "参照", items: [["companies", "企業", Building2], ["users", "ユーザー・講師", Users]] },
     { sec: "研修中", items: [["curriculum", "カリキュラム", Calendar], ["reports", "日報確認", NotebookPen], ["attendance", "勤怠確認", Clock], ["tests", "テスト", ClipboardCheck], ["materials", "研修資料", FileText], ["goals", "目標ダッシュボード", Target]] },
   ],
   client: [
