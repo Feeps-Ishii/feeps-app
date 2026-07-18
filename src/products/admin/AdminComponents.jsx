@@ -3,7 +3,7 @@ import { fetchAuthSession } from "aws-amplify/auth";
 import { apiGet, apiPut, apiPost } from "../../api.js";
 import {
   Card, Badge, Btn, Avatar, Stat, SectionHead, Field, Modal, T, PageHeader, ProductNavCard, SkeletonRows, SkeletonCards,
-  PRISM, PrismPage, PrismCard, PrismHero, PrismKpiCard, PrismSectionTitle, PrismErrorRetryCard,
+  PRISM, PrismPage, PrismCard, PrismHomeHeading, PrismKpiCard, PrismSectionTitle, PrismErrorRetryCard,
 } from "../../components/common";
 import { EmptyState } from "../training/TrainingComponents.jsx";
 import { statusKind, todayStr } from "../training/useTraining.js";
@@ -105,19 +105,12 @@ function AdminHome({ go, openRisk }) {
   }
   return (
     <PrismPage>
-      <PrismHero
-        eyebrow="ADMIN OPERATIONS"
-        title="今日の研修運用を、ひと目で整える"
-        description="全コースの提出・勤怠状況から、対応が必要な箇所を優先して表示します。"
-        icon={ShieldCheck}
-        actions={<Btn kind="white" icon={BookOpen} onClick={() => go && go("courses")}>コース管理センター</Btn>}
-      >
-        <div className="flex flex-wrap items-center gap-2 text-xs font-semibold">
-          <span className="rounded-full px-3 py-1.5" style={{ background: PRISM.heroGlassStrong, border: `1px solid ${PRISM.heroLine}` }}>契約企業 {companies.length}社</span>
-          <span className="rounded-full px-3 py-1.5" style={{ background: PRISM.heroGlassStrong, border: `1px solid ${PRISM.heroLine}` }}>運用コース {courses.length}件</span>
-          <span className="rounded-full px-3 py-1.5" style={{ background: PRISM.heroGlassStrong, border: `1px solid ${PRISM.heroLine}` }}>受講生 {trainees.length}名</span>
-        </div>
-      </PrismHero>
+      <PrismHomeHeading
+        eyebrow={`研修管理 · ${date.replace(/-/g, "/")}`}
+        title="Feeps One全体を、ここから管理。"
+        description="コース単位・企業単位で、今日の研修運用状況を確認します。"
+        action={<Btn kind="soft" icon={BookOpen} onClick={() => go && go("courses")}>コース管理センター</Btn>}
+      />
 
       <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
         <PrismKpiCard icon={Users} label="全受講生" value={trainees.length} unit="名" detail="登録済み受講生" tone="teal" onClick={() => go && go("users")} />

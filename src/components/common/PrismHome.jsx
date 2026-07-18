@@ -58,8 +58,7 @@ export function PrismHomeHeading({ eyebrow, title, description, action }) {
 export function PrismHero({ eyebrow, title, description, icon: Icon, actions, children, className = "" }) {
   return (
     <section className={`feeps-hero-in relative overflow-hidden rounded-[24px] p-5 text-white sm:p-7 ${className}`} style={{ background: PRISM.gradTraining, boxShadow: PRISM.heroShadow }}>
-      <div className="pointer-events-none absolute -right-12 -top-16 h-52 w-52 rounded-full" style={{ background: PRISM.heroGlass }} />
-      <div className="pointer-events-none absolute -bottom-24 right-1/4 h-48 w-48 rounded-full" style={{ background: PRISM.heroGlass }} />
+      <div className="pointer-events-none absolute -right-14 -top-14 h-44 w-44 rounded-full" style={{ background: PRISM.heroGlass }} />
       <div className="relative z-[1] flex flex-wrap items-start justify-between gap-5">
         <div className="max-w-2xl min-w-0">
           <div className="flex items-center gap-2">

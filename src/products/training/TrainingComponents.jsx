@@ -3,7 +3,7 @@ import { getCurrentUser, fetchAuthSession } from "aws-amplify/auth";
 import { apiGet, apiPut, apiPost, apiDelete as apiDeleteBase } from "../../api.js";
 import {
   Card, Badge, Btn, Avatar, Stat, SectionHead, Field, Seg, T, PageHeader, EmptyState as CommonEmptyState, SkeletonRows, SkeletonCards, Modal, MonthPicker,
-  PRISM, PrismPage, PrismCard, PrismHero, PrismKpiCard, PrismSectionTitle, PrismErrorRetryCard, PrismProgressRing, PrismEmptyBlock,
+  PRISM, PrismPage, PrismCard, PrismHero, PrismHomeHeading, PrismKpiCard, PrismSectionTitle, PrismErrorRetryCard, PrismProgressRing, PrismEmptyBlock,
 } from "../../components/common";
 import {
   QBANK
@@ -4362,15 +4362,12 @@ function ClientHome({ openKarte, go }) {
   const clientName = t => t.name || t.email || t.userId || "受講生";
   return (
     <PrismPage>
-      <PrismHero
-        eyebrow={`CLIENT TRAINING ・ ${clientDate.replace(/-/g, "/")}`}
-        title="自社の研修状況を、ひと目で把握"
-        description="今日の出欠・日報・テスト状況から、フォローが必要な受講生をすぐ確認できます。"
-        icon={Building2}
-        actions={<><Btn kind="white" icon={BookOpen} onClick={() => go("courses")}>参加コース</Btn><Btn kind="white" icon={FileSpreadsheet} onClick={() => exportAttendanceExcel(clientAttendanceForToday.map(a => { const t = clientTrainees.find(x => (x.userId || x.id) === (a.traineeId || a.userId)); return { date: a.date, name: clientName(t || {}), org: clientCompanyName || t?.company || "", in: a.clockIn || "", out: a.clockOut || "", s: a.status || "", note: a.note || "" }; }), clientDate)}>勤怠出力</Btn></>}
-      >
-        <div className="flex flex-wrap gap-2 text-xs font-semibold"><span className="rounded-full px-3 py-1.5" style={{ background: PRISM.heroGlassStrong, border: `1px solid ${PRISM.heroLine}` }}>自社受講生 {clientTrainees.length}名</span><span className="rounded-full px-3 py-1.5" style={{ background: PRISM.heroGlassStrong, border: `1px solid ${PRISM.heroLine}` }}>本日出席 {clientPresent.length}名</span><span className="rounded-full px-3 py-1.5" style={{ background: PRISM.heroGlassStrong, border: `1px solid ${PRISM.heroLine}` }}>要フォロー {clientFollowRows.length}件</span></div>
-      </PrismHero>
+      <PrismHomeHeading
+        eyebrow={`研修管理 ・ ${clientCompanyName || "自社"} ・ ${clientDate.replace(/-/g, "/")}`}
+        title="自社の研修状況を、ひと目で。"
+        description="自社受講生の今日の状況と研修後活用を確認します。"
+        action={<div className="flex flex-wrap gap-2"><Btn kind="ghost" icon={BookOpen} onClick={() => go("courses")}>参加コース</Btn><Btn kind="soft" icon={FileSpreadsheet} onClick={() => exportAttendanceExcel(clientAttendanceForToday.map(a => { const t = clientTrainees.find(x => (x.userId || x.id) === (a.traineeId || a.userId)); return { date: a.date, name: clientName(t || {}), org: clientCompanyName || t?.company || "", in: a.clockIn || "", out: a.clockOut || "", s: a.status || "", note: a.note || "" }; }), clientDate)}>勤怠をExcel出力</Btn></div>}
+      />
 
       {clientErr && <PrismErrorRetryCard message={clientErr} />}
 
