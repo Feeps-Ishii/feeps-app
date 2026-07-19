@@ -109,20 +109,25 @@ export function useLearning(role = "trainee") {
   const [lessonReviews, setLessonReviews] = useState(_loadReviews);
   const [finalTestPlans, setFinalTestPlans] = useState(_loadFinalPlans);
   const [finalTestResults, setFinalTestResults] = useState(_loadFinalResults);
+  const [finalTestResultsState, setFinalTestResultsState] = useState("loading");
   const [apiCourses, setApiCourses] = useState(null);
   const [apiLessonsByCourse, setApiLessonsByCourse] = useState({});
+  const [courseCatalogState, setCourseCatalogState] = useState("loading");
+  const [lessonCatalogStates, setLessonCatalogStates] = useState({});
   const [apiMaterialsByCourse, setApiMaterialsByCourse] = useState({});
   const lastProgressPushRef = useRef({});
   useEffect(() => {
     let alive = true;
     apiGet("/learning/final-tests/results")
       .then(items => {
-        if (!alive || !Array.isArray(items)) return;
+        if (!alive) return;
+        if (!Array.isArray(items)) { setFinalTestResultsState("error"); return; }
         const normalized = items.map(item => ({ ...item, id: item.id || item.resultId }));
         setFinalTestResults(normalized);
         localStorage.setItem(FINAL_RESULTS_KEY, JSON.stringify(normalized));
+        setFinalTestResultsState("ready");
       })
-      .catch(() => {});
+      .catch(() => { if (alive) setFinalTestResultsState("error"); });
     return () => { alive = false; };
   }, []);
   // サーバーに保存された受講進捗を取得し、あるコースぶんだけローカル値を上書きする
@@ -185,21 +190,30 @@ export function useLearning(role = "trainee") {
     let alive = true;
     apiGet("/learning/courses")
       .then(items => {
-        if (!alive || !Array.isArray(items) || items.length === 0) return;
-        setApiCourses(items);
+        if (!alive) return;
+        if (Array.isArray(items) && items.length > 0) setApiCourses(items);
+        setCourseCatalogState(Array.isArray(items) ? "ready" : "error");
       })
-      .catch(() => {});
+      .catch(() => { if (alive) setCourseCatalogState("error"); });
     return () => { alive = false; };
   }, []);
   useEffect(() => {
     let alive = true;
-    getLearnerCatalog().forEach(course => {
+    const learnerCatalog = getLearnerCatalog();
+    if (learnerCatalog.length) {
+      setLessonCatalogStates(prev => ({
+        ...prev,
+        ...Object.fromEntries(learnerCatalog.map(course => [course.id, "loading"])),
+      }));
+    }
+    learnerCatalog.forEach(course => {
       apiGet(`/learning/courses/${encodeURIComponent(course.id)}/lessons`)
         .then(items => {
-          if (!alive || !Array.isArray(items) || items.length === 0) return;
-          setApiLessonsByCourse(prev => ({ ...prev, [course.id]: items }));
+          if (!alive) return;
+          if (Array.isArray(items) && items.length > 0) setApiLessonsByCourse(prev => ({ ...prev, [course.id]: items }));
+          setLessonCatalogStates(prev => ({ ...prev, [course.id]: Array.isArray(items) ? "ready" : "error" }));
         })
-        .catch(() => {});
+        .catch(() => { if (alive) setLessonCatalogStates(prev => ({ ...prev, [course.id]: "error" })); });
     });
     return () => { alive = false; };
   }, [apiCourses]);
@@ -740,6 +754,7 @@ export function useLearning(role = "trainee") {
     gradeFinalTest,
     getFinalTestResults,
     getLatestFinalTestResult,
+    finalTestResultsState,
     getOfficialFinalTestResult,
     hasPassedFinalTest,
     getCourseProgress,
@@ -747,6 +762,8 @@ export function useLearning(role = "trainee") {
     saveFinalTestResult,
     lessonsForCourse,
     courseById,
+    courseCatalogState,
+    lessonCatalogState: courseId => lessonCatalogStates[courseId] || "loading",
     getAchievements,
     getEarnedSkills,
     completed,
@@ -755,4 +772,3 @@ export function useLearning(role = "trainee") {
     catalog,
   };
 }
-

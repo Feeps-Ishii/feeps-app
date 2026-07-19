@@ -655,6 +655,7 @@ function Curriculum({ role, go }) {
   const [aiExercisePrompts, setAiExercisePrompts] = useState({});
   const [aiExerciseBusy, setAiExerciseBusy] = useState({});
   const [aiExerciseErrors, setAiExerciseErrors] = useState({});
+  const [expandedCurriculumSections, setExpandedCurriculumSections] = useState({});
   const [expandedExerciseGroups, setExpandedExerciseGroups] = useState({});
   const [revealedExerciseAnswers, setRevealedExerciseAnswers] = useState({});
   const [importPreview, setImportPreview] = useState(null);
@@ -681,6 +682,7 @@ function Curriculum({ role, go }) {
 
   useEffect(() => {
     if (!courseId) return;
+    setExpandedCurriculumSections({});
     setLoading(true); setMsg(""); setErr("");
     apiGet(`/courses/${courseId}/curriculum`)
       .then(item => setSections(normalizeCurriculumSections(item)))
@@ -858,6 +860,26 @@ function Curriculum({ role, go }) {
     if (test.sectionId) return test.sectionId === section.id;
     return test.scopeType === "course" || (!test.scopeType && !test.lessonId && !test.chapterId && !test.sectionId);
   });
+  const curriculumSectionKey = (section, index) => String(section.id || `section-${index}`);
+  function curriculumSectionOverview(section) {
+    const chapters = arr(section.chapters);
+    const lessons = chapters.flatMap(chapter => arr(chapter.lessons));
+    const chapterIds = new Set(chapters.map(chapter => chapter.id).filter(Boolean));
+    const lessonIds = new Set(lessons.map(lesson => lesson.id).filter(Boolean));
+    const materialIds = new Set([...arr(section.materialIds), ...lessons.flatMap(lesson => sessMids(lesson))]);
+    const testCount = tests.filter(test => {
+      if (test.lessonId) return lessonIds.has(test.lessonId);
+      if (test.chapterId) return chapterIds.has(test.chapterId);
+      if (test.sectionId) return test.sectionId === section.id;
+      return test.scopeType === "course" || (!test.scopeType && !test.lessonId && !test.chapterId && !test.sectionId);
+    }).length;
+    return {
+      units: section.unitMode === "section" ? 1 : lessons.length,
+      materials: materialIds.size,
+      exercises: arr(section.exercises).length + lessons.reduce((sum, lesson) => sum + arr(lesson.exercises).length, 0),
+      tests: testCount,
+    };
+  }
   const todayKey = localDateKey();
   const todayUnits = useMemo(() => arr(sections).flatMap(section => section.unitMode === "section"
     ? [{ section, chapter: {}, lesson: section, title: section.title, scope: "section" }]
@@ -914,8 +936,18 @@ function Curriculum({ role, go }) {
             : sections.length === 0 && !canEdit ? <Card><EmptyState title="まだ登録がありません" desc="講師がカリキュラムを準備中です" /></Card>
             : (
               <div className="space-y-4">
+                {!canEdit && <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl px-1">
+                  <div>
+                    <div className="text-sm font-bold" style={{ color: T.textPrimary }}>大項目から全体を確認</div>
+                    <p className="mt-0.5 text-xs" style={{ color: T.textMuted }}>必要な大項目だけ開くと、学習の流れを見失わずに確認できます。</p>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <button type="button" onClick={() => setExpandedCurriculumSections(Object.fromEntries(sections.map((section, index) => [curriculumSectionKey(section, index), true])))} className="rounded-lg px-3 py-2 text-xs font-bold" style={{ color: T.accentHover, background: T.accentSubtle }}>すべて展開</button>
+                    <button type="button" onClick={() => setExpandedCurriculumSections({})} className="rounded-lg px-3 py-2 text-xs font-bold" style={{ color: T.textSecondary, border: `1px solid ${T.border}`, background: T.bgSurface }}>すべて閉じる</button>
+                  </div>
+                </div>}
                 {sections.map((section, si) => (
-                  <Card key={section.id || si} className="p-4" style={!canEdit && curriculumSectionIncludesDate(section, todayKey) ? { border: `1px solid ${T.accent}`, boxShadow: `0 0 0 2px ${T.accentSubtle}` } : undefined}>
+                  <Card key={section.id || si} className={canEdit ? "p-4" : "overflow-hidden p-0"} style={!canEdit ? { border: `1px solid ${curriculumSectionIncludesDate(section, todayKey) ? T.accent : T.border}`, borderLeft: `4px solid ${T.accent}`, boxShadow: curriculumSectionIncludesDate(section, todayKey) ? `0 0 0 2px ${T.accentSubtle}` : undefined } : undefined}>
                     {canEdit ? (
                       <div className="space-y-4">
                         <div className="grid gap-2 md:grid-cols-[1fr_1.5fr_auto]">
@@ -1005,12 +1037,28 @@ function Curriculum({ role, go }) {
                       </div>
                     ) : (
                       <div>
-                        <div className="rounded-xl p-4 shadow-sm" style={{ background: T.bgSurface, border: `1px solid ${T.border}`, borderLeft: `4px solid ${T.accent}` }}>
-                          <div className="text-[11px] font-bold tracking-wide" style={{ color: T.accentHover }}>大項目</div>
-                          <div className="mt-1 flex flex-wrap items-center gap-2"><h3 className="text-lg font-bold" style={{ color: T.textPrimary }}>{section.title || "大項目未設定"}</h3>{curriculumSectionIncludesDate(section, todayKey) && <Badge tone="cyan">今日</Badge>}</div>
-                          {section.description && <p className="mt-2 whitespace-pre-line text-sm leading-6" style={{ color: T.textSecondary }}>{section.description}</p>}
-                          {arr(section.materialIds).length > 0 && <div className="mt-3"><div className="mb-2 flex items-center gap-1.5 text-xs font-bold" style={{ color: T.accentHover }}><FileText size={13} />この大項目の資料</div><div className="flex flex-wrap gap-2">{arr(section.materialIds).map(mid => materialsById[mid] && <button key={mid} type="button" onClick={() => openMaterialById(mid)} className="inline-flex items-center gap-2 rounded-xl bg-white px-3 py-2 text-sm font-semibold shadow-sm" style={{ color: T.textPrimary, border: `1px solid ${T.border}` }}><FileText size={14} style={{ color: T.accent }} />{materialsById[mid].title}<ChevronRight size={13} style={{ color: T.accent }} /></button>)}</div></div>}
-                        </div>
+                        <button type="button" aria-expanded={!!expandedCurriculumSections[curriculumSectionKey(section, si)]} onClick={() => { const key = curriculumSectionKey(section, si); setExpandedCurriculumSections(state => ({ ...state, [key]: !state[key] })); }} className="flex w-full items-start gap-3 px-4 py-4 text-left sm:px-5">
+                          <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl text-sm font-bold" style={{ color: T.accentHover, background: T.accentSubtle }}>{String(si + 1).padStart(2, "0")}</span>
+                          <span className="min-w-0 flex-1">
+                            <span className="flex flex-wrap items-center gap-2">
+                              <span className="text-[11px] font-bold tracking-wide" style={{ color: T.accentHover }}>大項目 {si + 1}</span>
+                              {curriculumSectionIncludesDate(section, todayKey) && <Badge tone="cyan">今日</Badge>}
+                            </span>
+                            <span className="mt-1 block text-base font-bold sm:text-lg" style={{ color: T.textPrimary }}>{section.title || "大項目未設定"}</span>
+                            <span className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-xs font-semibold" style={{ color: T.textMuted }}>
+                              <span><BookOpen size={13} className="mr-1 inline" />単元 {curriculumSectionOverview(section).units}件</span>
+                              <span><FileText size={13} className="mr-1 inline" />資料 {curriculumSectionOverview(section).materials}件</span>
+                              <span><Briefcase size={13} className="mr-1 inline" />演習 {curriculumSectionOverview(section).exercises}件</span>
+                              <span><ClipboardCheck size={13} className="mr-1 inline" />テスト {curriculumSectionOverview(section).tests}件</span>
+                            </span>
+                          </span>
+                          <span className="mt-1 inline-flex shrink-0 items-center gap-1 text-xs font-bold" style={{ color: T.accentHover }}>{expandedCurriculumSections[curriculumSectionKey(section, si)] ? "閉じる" : "開く"}{expandedCurriculumSections[curriculumSectionKey(section, si)] ? <ChevronUp size={17} /> : <ChevronDown size={17} />}</span>
+                        </button>
+                        {!!expandedCurriculumSections[curriculumSectionKey(section, si)] && <div className="border-t p-4 sm:p-5" style={{ borderColor: T.border, background: T.bgSurface }}>
+                          {(section.description || arr(section.materialIds).length > 0) && <div className="rounded-xl p-4" style={{ background: T.bgBase, border: `1px solid ${T.border}` }}>
+                            {section.description && <p className="whitespace-pre-line text-sm leading-6" style={{ color: T.textSecondary }}>{section.description}</p>}
+                            {arr(section.materialIds).length > 0 && <div className={section.description ? "mt-3" : ""}><div className="mb-2 flex items-center gap-1.5 text-xs font-bold" style={{ color: T.accentHover }}><FileText size={13} />この大項目の資料</div><div className="flex flex-wrap gap-2">{arr(section.materialIds).map(mid => materialsById[mid] && <button key={mid} type="button" onClick={() => openMaterialById(mid)} className="inline-flex items-center gap-2 rounded-xl bg-white px-3 py-2 text-sm font-semibold shadow-sm" style={{ color: T.textPrimary, border: `1px solid ${T.border}` }}><FileText size={14} style={{ color: T.accent }} />{materialsById[mid].title}<ChevronRight size={13} style={{ color: T.accent }} /></button>)}</div></div>}
+                          </div>}
                         {section.unitMode === "section" ? <div className="mt-3 rounded-xl p-4" style={{ background: T.bgBase }}>
                           <div className="flex flex-wrap items-start justify-between gap-2">{section.content && <p className="text-sm" style={{ color: T.textSecondary }}>{section.content}</p>}<div className="flex gap-2">{section.durationLabel && <Badge tone="muted">{section.durationLabel}</Badge>}{section.startDate && <Badge tone="cyan">{section.startDate}{section.endDate && section.endDate !== section.startDate ? `〜${section.endDate}` : ""}</Badge>}</div></div>
                           {arr(section.learningGoals).length > 0 && <div className="mt-3 rounded-xl p-3" style={{ background: T.accentSubtle }}><div className="mb-1 flex items-center gap-1.5 text-xs font-bold" style={{ color: T.accentHover }}><Target size={13} />学習目標</div><ul className="space-y-1">{arr(section.learningGoals).map((goal, gi) => <li key={gi} className="flex gap-2 text-sm" style={{ color: T.textSecondary }}><CheckCircle2 size={14} className="mt-0.5 shrink-0" style={{ color: T.accent }} />{goal}</li>)}</ul></div>}
@@ -1033,6 +1081,7 @@ function Curriculum({ role, go }) {
                             ))}
                           </div>
                         ))}</div>}
+                        </div>}
                       </div>
                     )}
                   </Card>
@@ -1474,7 +1523,6 @@ function Tests({ role }) {
   const nameMap = useNameMap();
   const [initialTrainingTarget] = useState(() => role === "trainee" ? getTrainingTargetContext("tests", { consume: false }) : null);
   const testTargetHandledRef = useRef(false);
-  const testDraftResumeHandledRef = useRef(false);
   const [tests, setTests] = useState([]);
   const [testSource, setTestSource] = useState("empty");
   const [testErr, setTestErr] = useState("");
@@ -1485,6 +1533,7 @@ function Tests({ role }) {
   const testLoadVersionRef = useRef(0);
   const [taking, setTaking] = useState(null);
   const [takingPreview, setTakingPreview] = useState(false);
+  const takingUsesBrowserHistoryRef = useRef(false);
   const [building, setBuilding] = useState(false);
   const [editingTest, setEditingTest] = useState(null);
   const [duplicateTest, setDuplicateTest] = useState(false);
@@ -1608,14 +1657,17 @@ function Tests({ role }) {
     if (role === "trainee" && definitionsAvailable && traineeResultsAvailable && initialTrainingTarget?.testId && !testTargetHandledRef.current) {
       testTargetHandledRef.current = true;
       const targetTest = base.find(test => testIdOf(test) === String(initialTrainingTarget.testId));
-      if (targetTest && targetTest.status !== "graded" && testQuestionsOf(targetTest).length > 0) setTaking(targetTest);
-      else if (!targetTest) setTestErr("指定されたテストが見つかりませんでした。対象コースの一覧を表示しています。");
-    } else if (role === "trainee" && definitionsAvailable && traineeResultsAvailable && !initialTrainingTarget?.testId && !testDraftResumeHandledRef.current) {
-      testDraftResumeHandledRef.current = true;
-      const savedDraft = getTraineeTestDraft();
-      const draftTest = savedDraft ? base.find(test => testIdOf(test) === String(savedDraft.testId)) : null;
-      if (draftTest && draftTest.status !== "graded" && testQuestionsOf(draftTest).length > 0) setTaking(draftTest);
-      else if (savedDraft) clearTraineeTestDraft(savedDraft.testId);
+      const targetDraft = targetTest ? getTraineeTestDraft(testIdOf(targetTest)) : null;
+      const canRestoreResult = initialTrainingTarget.mode === "result" && !!targetDraft?.result;
+      const canRestoreRetake = initialTrainingTarget.mode === "taking" && !!targetDraft;
+      if (targetTest && (targetTest.status !== "graded" || canRestoreResult || canRestoreRetake) && testQuestionsOf(targetTest).length > 0) {
+        takingUsesBrowserHistoryRef.current = true;
+        setTaking(targetTest);
+      }
+      else {
+        setTrainingTargetContext({ view: "tests", courseId: initialTrainingTarget.courseId || selectedTestCourseId });
+        setTestErr(targetTest ? "保存済みの結果を復元できなかったため、テスト一覧を表示しています。" : "指定されたテストが見つかりませんでした。対象コースの一覧を表示しています。");
+      }
     }
   }
 
@@ -1641,8 +1693,20 @@ function Tests({ role }) {
     }
   }
   function startTraineeTest(test) {
-    setTrainingTargetContext({ view: "tests", courseId: test?.courseId || selectedTestCourseId, testId: testIdOf(test) });
+    takingUsesBrowserHistoryRef.current = true;
+    setTrainingTargetContext(
+      { view: "tests", courseId: test?.courseId || selectedTestCourseId, testId: testIdOf(test) },
+      { historyAction: "push" }
+    );
     setTaking(test);
+  }
+  function closeTaking() {
+    const useBrowserHistory = role === "trainee" && takingUsesBrowserHistoryRef.current;
+    takingUsesBrowserHistoryRef.current = false;
+    setTaking(null);
+    setTakingPreview(false);
+    if (useBrowserHistory) window.history.back();
+    else if (role === "trainee") clearTrainingTargetContext();
   }
   async function updateTestStatus(t, status) {
     try {
@@ -1687,7 +1751,7 @@ function Tests({ role }) {
     } catch (e) { setTestErr("講師評価の保存に失敗しました。"); }
   }
 
-  if (taking) return <TestTaking test={taking} preview={takingPreview} back={() => { setTaking(null); setTakingPreview(false); }} onDone={handleDone} />;
+  if (taking) return <TestTaking test={taking} preview={takingPreview} back={closeTaking} onDone={handleDone} />;
   if (building) return <TestBuilder back={() => { setBuilding(false); setEditingTest(null); setDuplicateTest(false); }} focus={buildFocus} student={buildStudent} onSaved={loadTests} initialTest={editingTest} duplicate={duplicateTest} />;
   if (testLoadState === "loading") {
     return <div><SectionHead title="テスト" desc={role === "trainee" ? "受験結果と公開テストを確認しています" : "公開テストと受験結果を確認しています"} /><Card className="p-5"><SkeletonRows rows={5} /></Card></div>;
@@ -2258,7 +2322,7 @@ function TestTaking({ test, back, onDone, preview = false }) {
     const index = Number(key);
     return Number.isInteger(index) && index >= 0 && index < questions.length && testAnswerProvided(questions[index], value);
   })));
-  const [result, setResult] = useState(null);
+  const [result, setResult] = useState(() => restoredDraft?.result || null);
   const [evaluating, setEvaluating] = useState(false);
   const [submitErr, setSubmitErr] = useState("");
   const [pendingSubmission, setPendingSubmission] = useState(() => restoredDraft?.pendingSubmission || null);
@@ -2282,7 +2346,6 @@ function TestTaking({ test, back, onDone, preview = false }) {
     if (evaluating) return;
     if (!hasUnsavedAnswers || window.confirm("入力中の回答を破棄して、テストを中断しますか？")) {
       clearTraineeTestDraft(testIdOf(test));
-      clearTrainingTargetContext();
       back();
     }
   }
@@ -2293,8 +2356,10 @@ function TestTaking({ test, back, onDone, preview = false }) {
       setEvaluating(true);
       try {
         if (onDone && !preview) await onDone(pendingSubmission.payload);
-        clearTraineeTestDraft(testIdOf(test));
-        if (!preview) clearTrainingTargetContext();
+        if (!preview) {
+          setTraineeTestDraft({ testId: testIdOf(test), answers: ans, result: pendingSubmission.result });
+          setTrainingTargetContext({ view: "tests", courseId: test.courseId, testId: testIdOf(test), mode: "result" });
+        }
         setResult(pendingSubmission.result);
         setPendingSubmission(null);
       } catch (e) {
@@ -2359,8 +2424,10 @@ function TestTaking({ test, back, onDone, preview = false }) {
     const persistencePayload = { score, total: 100, answers: details, correctCount: correct, totalQuestions: total, needsReview, weakAreas: [...new Set(weakAreas)] };
     try {
       if (onDone && !preview) await onDone(persistencePayload);
-      clearTraineeTestDraft(testIdOf(test));
-      if (!preview) clearTrainingTargetContext();
+      if (!preview) {
+        setTraineeTestDraft({ testId: testIdOf(test), answers: ans, result: nextResult });
+        setTrainingTargetContext({ view: "tests", courseId: test.courseId, testId: testIdOf(test), mode: "result" });
+      }
       setResult(nextResult);
     } catch (e) {
       setPendingSubmission({ result: nextResult, payload: persistencePayload });
@@ -2463,7 +2530,7 @@ function TestTaking({ test, back, onDone, preview = false }) {
                 );
               })}
             </div>
-            <div className="mt-5 flex justify-center gap-2"><Btn kind="ghost" onClick={() => { setAns({}); setResult(null); }}>もう一度</Btn><Btn onClick={back}>テスト一覧へ</Btn></div>
+            <div className="mt-5 flex justify-center gap-2"><Btn kind="ghost" onClick={() => { clearTraineeTestDraft(testIdOf(test)); if (!preview) setTrainingTargetContext({ view: "tests", courseId: test.courseId, testId: testIdOf(test), mode: "taking" }); setAns({}); setResult(null); }}>もう一度</Btn><Btn onClick={back}>テスト一覧へ</Btn></div>
           </div>
         </Card>
       </div>
@@ -3966,7 +4033,10 @@ function Reports({ role }) {
     setEditingReportDate(row.date);
     setDraft(r ? draftFromReport(r) : blankReportDraft());
     setReportEditState(r ? "edit" : "create");
-    setTrainingTargetContext({ view: "reports", courseId: reportCourseId, date: row.date });
+    setTrainingTargetContext(
+      { view: "reports", courseId: reportCourseId, date: row.date },
+      { historyAction: "push" }
+    );
     focusReportForm();
   }
   if (canWrite && (reportDataState !== "ready" || reportWorkdaysState !== "ready" || reportFieldsState !== "ready")) {
@@ -4574,8 +4644,8 @@ function Karte({ trainee, back, role }) {
         <div className="relative overflow-hidden p-6" style={{ background: GRAD }}>
           <div className="absolute inset-0" style={{ backgroundImage: DOTS }} />
           <div className="relative flex items-center gap-4 text-white">
-            <div className="flex h-16 w-16 items-center justify-center rounded-full bg-white/20 text-2xl font-bold">{(trainee.name || "?").slice(0, 1)}</div>
-            <div><div className="text-xl font-bold">{trainee.name}</div><div className="text-sm opacity-90">{trainee.email}</div><div className="text-sm opacity-90">所属企業: {karteCompanyName}</div></div>
+            <div className="flex h-16 w-16 items-center justify-center rounded-full bg-white/20 text-2xl font-bold">{(karteDisplayTrainee.name || "?").slice(0, 1)}</div>
+            <div><div className="text-xl font-bold">{karteDisplayTrainee.name || "受講生情報を取得中"}</div><div className="text-sm opacity-90">{karteDisplayTrainee.email || "メール確認中"}</div><div className="text-sm opacity-90">所属企業: {karteCompanyName}</div></div>
           </div>
         </div>
       </Card>
@@ -4586,8 +4656,8 @@ function Karte({ trainee, back, role }) {
             <input type="date" value={date} onChange={e => setDate(e.target.value)} className="rounded-xl px-3 py-2 text-sm outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary }} />
           </div>
           <div className="grid gap-3 sm:grid-cols-2">
-            <div className="rounded-xl p-3" style={{ background: T.bgBase }}><div className="text-xs font-bold" style={{ color: T.textMuted }}>氏名</div><div className="mt-1 text-sm font-semibold" style={{ color: T.textPrimary }}>{trainee.name || profile?.name || "未登録"}</div></div>
-            <div className="rounded-xl p-3" style={{ background: T.bgBase }}><div className="text-xs font-bold" style={{ color: T.textMuted }}>メール</div><div className="mt-1 text-sm font-semibold" style={{ color: T.textPrimary }}>{trainee.email || profile?.email || "未登録"}</div></div>
+            <div className="rounded-xl p-3" style={{ background: T.bgBase }}><div className="text-xs font-bold" style={{ color: T.textMuted }}>氏名</div><div className="mt-1 text-sm font-semibold" style={{ color: T.textPrimary }}>{karteDisplayTrainee.name || "未登録"}</div></div>
+            <div className="rounded-xl p-3" style={{ background: T.bgBase }}><div className="text-xs font-bold" style={{ color: T.textMuted }}>メール</div><div className="mt-1 text-sm font-semibold" style={{ color: T.textPrimary }}>{karteDisplayTrainee.email || "未登録"}</div></div>
             <div className="rounded-xl p-3" style={{ background: T.bgBase }}><div className="text-xs font-bold" style={{ color: T.textMuted }}>所属企業</div><div className="mt-1 text-sm font-semibold" style={{ color: T.textPrimary }}>{karteCompanyName}</div></div>
             <div className="rounded-xl p-3" style={{ background: T.bgBase }}><div className="text-xs font-bold" style={{ color: T.textMuted }}>所属コース</div><div className="mt-1 flex flex-wrap gap-1.5">{karteCourses.length ? karteCourses.map(c => <Badge key={c.courseId || c.id || c.name} tone="cyan">{c.name || c.courseId || c.id}</Badge>) : <span className="text-sm" style={{ color: T.textMuted }}>未登録</span>}</div></div>
           </div>

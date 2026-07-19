@@ -6,7 +6,7 @@ import {
   Sparkles, ArrowUpRight, RefreshCw,
 } from "lucide-react";
 import { apiGet } from "../../api.js";
-import { getActiveCourseId, setTrainingTargetContext } from "../../utils/common/courseContext.js";
+import { getActiveCourseId } from "../../utils/common/courseContext.js";
 import {
   Btn, NOVA, PRISM, PRISM_PRODUCT_GRAD, PRODUCT_ACCENT,
   PrismSectionTitle as SectionTitle, PrismCard as PBCard,
@@ -83,9 +83,8 @@ function openTargetUrl(targetUrl, { goProduct, goTraining, goSub }) {
     const courseId = parsed?.searchParams.get("courseId") || "";
     const testId = parsed?.searchParams.get("testId") || "";
     const date = parsed?.searchParams.get("date") || "";
-    setTrainingTargetContext({ view, courseId, testId, date });
     goProduct("training", { preserveTarget: true });
-    goTraining(view, { forceRemount: true });
+    goTraining(view, { forceRemount: true, trainingTarget: { view, courseId, testId, date } });
     return;
   }
   goProduct("training");

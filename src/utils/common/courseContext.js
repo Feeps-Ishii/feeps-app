@@ -1,6 +1,7 @@
 const ACTIVE_COURSE_KEY = "feeps.activeCourseId";
 const TRAINING_TARGET_KEY = "feeps.trainingTarget";
 const TRAINEE_TEST_DRAFT_KEY = "feeps.traineeTestDraft";
+export const TRAINING_TARGET_CHANGE_EVENT = "feeps:training-target-change";
 const TRAINEE_TEST_DRAFT_TTL_MS = 4 * 60 * 60 * 1000;
 const TRAINING_TARGET_VIEWS = new Set(["home", "courses", "curriculum", "reports", "attendance", "tests", "materials", "trainees"]);
 
@@ -19,6 +20,11 @@ function safeTargetDate(value) {
   return date.getUTCFullYear() === year && date.getUTCMonth() === month - 1 && date.getUTCDate() === day ? text : "";
 }
 
+function emitTrainingTargetChange(target, historyAction = "replace") {
+  try { window.dispatchEvent(new CustomEvent(TRAINING_TARGET_CHANGE_EVENT, { detail: { target, historyAction } })); }
+  catch { /* CustomEvent非対応環境では履歴同期を省略 */ }
+}
+
 export function getActiveCourseId() {
   try { return window.localStorage.getItem(ACTIVE_COURSE_KEY) || ""; }
   catch { return ""; }
@@ -32,7 +38,10 @@ export function setActiveCourseId(courseId) {
 }
 
 export function clearTrainingTargetContext() {
-  try { window.sessionStorage.removeItem(TRAINING_TARGET_KEY); }
+  try {
+    window.sessionStorage.removeItem(TRAINING_TARGET_KEY);
+    emitTrainingTargetChange(null);
+  }
   catch { /* sessionStorageが利用できない環境では何もしない */ }
 }
 
@@ -46,7 +55,7 @@ export function clearTraineeTestDraft(testId = "") {
   } catch { /* sessionStorageが利用できない環境では何もしない */ }
 }
 
-export function setTraineeTestDraft({ testId, answers, pendingSubmission } = {}) {
+export function setTraineeTestDraft({ testId, answers, pendingSubmission, result } = {}) {
   const safeTestId = safeTargetValue(testId);
   if (!safeTestId) { clearTraineeTestDraft(); return; }
   try {
@@ -54,6 +63,7 @@ export function setTraineeTestDraft({ testId, answers, pendingSubmission } = {})
       testId: safeTestId,
       answers: answers && typeof answers === "object" ? answers : {},
       pendingSubmission: pendingSubmission && typeof pendingSubmission === "object" ? pendingSubmission : null,
+      result: result && typeof result === "object" ? result : null,
       authUserId: window.localStorage.getItem("feeps.authUserId") || "",
       createdAt: Date.now(),
     }));
@@ -76,6 +86,7 @@ export function getTraineeTestDraft(testId = "") {
       testId: stored.testId,
       answers: stored.answers && typeof stored.answers === "object" ? stored.answers : {},
       pendingSubmission: stored.pendingSubmission && typeof stored.pendingSubmission === "object" ? stored.pendingSubmission : null,
+      result: stored.result && typeof stored.result === "object" ? stored.result : null,
     };
   } catch {
     clearTraineeTestDraft();
@@ -84,12 +95,13 @@ export function getTraineeTestDraft(testId = "") {
 }
 
 // Homeなど別画面から研修画面へ移る際の対象と、更新後に復元する選択内容をタブ単位で保持する。
-export function setTrainingTargetContext({ view, courseId, testId, date } = {}) {
+export function setTrainingTargetContext({ view, courseId, testId, date, mode } = {}, { historyAction = "replace" } = {}) {
   const target = {
     view: TRAINING_TARGET_VIEWS.has(view) ? view : "home",
     courseId: safeTargetValue(courseId),
     testId: safeTargetValue(testId),
     date: safeTargetDate(date),
+    mode: ["taking", "result"].includes(mode) ? mode : "",
     authUserId: (() => {
       try { return window.localStorage.getItem("feeps.authUserId") || ""; }
       catch { return ""; }
@@ -98,8 +110,13 @@ export function setTrainingTargetContext({ view, courseId, testId, date } = {}) 
   };
   if (target.courseId) setActiveCourseId(target.courseId);
   try {
-    if (!target.courseId && !target.testId && !target.date) window.sessionStorage.removeItem(TRAINING_TARGET_KEY);
-    else window.sessionStorage.setItem(TRAINING_TARGET_KEY, JSON.stringify(target));
+    if (!target.courseId && !target.testId && !target.date) {
+      window.sessionStorage.removeItem(TRAINING_TARGET_KEY);
+      emitTrainingTargetChange(null, historyAction);
+    } else {
+      window.sessionStorage.setItem(TRAINING_TARGET_KEY, JSON.stringify(target));
+      emitTrainingTargetChange(target, historyAction);
+    }
   }
   catch { /* sessionStorageが利用できない環境では通常の画面遷移だけ継続 */ }
 }
@@ -114,6 +131,7 @@ export function getTrainingTargetContext(view, { consume = true } = {}) {
       courseId: safeTargetValue(stored?.courseId),
       testId: safeTargetValue(stored?.testId),
       date: safeTargetDate(stored?.date),
+      mode: ["taking", "result"].includes(stored?.mode) ? stored.mode : "",
       authUserId: safeTargetValue(stored?.authUserId),
       createdAt: Number(stored?.createdAt),
     };

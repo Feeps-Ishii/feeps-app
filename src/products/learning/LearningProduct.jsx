@@ -15,25 +15,73 @@ import {
   ElLessonView,
 } from "./LearningComponents.jsx";
 import LearningAdminProduct from "./admin/LearningAdminProduct.jsx";
-export default function LearningProduct({ subView, goSub, goProduct, role, themeColor }) {
+import { setProductDetailHistory } from "../../utils/common/navigationHistory.js";
+
+export default function LearningProduct({ subView, goSub, goProduct, role, themeColor, navigationTarget }) {
   const lrn = useLearning(role);
   const [completionCourse, setCompletionCourse] = useState(null);
   const [activeCourse, setActiveCourse] = useState(null);
   const [activeLesson, setActiveLesson] = useState(null);
   const [activeFinalTestMode, setActiveFinalTestMode] = useState(null);
   useEffect(() => { setActiveCourse(null); setActiveLesson(null); setActiveFinalTestMode(null); }, [subView]);
+  const historyCourse = navigationTarget?.kind === "learning" ? lrn.courseById(navigationTarget.courseId) : null;
+  const historyLesson = historyCourse && navigationTarget?.lessonId
+    ? lrn.lessonsForCourse(historyCourse.id).find(lesson => lesson.id === navigationTarget.lessonId) || null
+    : null;
+  const historyLessonState = historyCourse ? lrn.lessonCatalogState(historyCourse.id) : "loading";
+  const historyFinalResult = historyCourse ? lrn.getLatestFinalTestResult(historyCourse.id) : null;
+  useEffect(() => {
+    if (!navigationTarget || navigationTarget.kind !== "learning") return;
+    if (!historyCourse) {
+      if (lrn.courseCatalogState !== "ready") return;
+      setProductDetailHistory(null, { historyAction: "replace" });
+      setActiveCourse(null); setActiveLesson(null); setActiveFinalTestMode(null);
+      return;
+    }
+    if (navigationTarget.lessonId && !historyLesson) {
+      if (historyLessonState !== "ready") return;
+      setProductDetailHistory({ kind: "learning", courseId: historyCourse.id }, { historyAction: "replace" });
+      setActiveCourse(historyCourse); setActiveLesson(null); setActiveFinalTestMode(null);
+      return;
+    }
+    if (navigationTarget.mode && historyLessonState !== "ready") return;
+    if (navigationTarget.mode === "result" && !historyFinalResult) {
+      if (lrn.finalTestResultsState !== "ready") return;
+      setProductDetailHistory({ kind: "learning", courseId: historyCourse.id }, { historyAction: "replace" });
+      setActiveCourse(historyCourse); setActiveLesson(null); setActiveFinalTestMode(null);
+      return;
+    }
+    setActiveCourse(historyCourse);
+    setActiveLesson(historyLesson);
+    setActiveFinalTestMode(historyLesson ? null : navigationTarget.mode || null);
+  }, [navigationTarget?.kind, navigationTarget?.courseId, navigationTarget?.lessonId, navigationTarget?.mode, historyCourse?.id, historyLesson?.id, historyLessonState, historyFinalResult?.id, lrn.courseCatalogState, lrn.finalTestResultsState]);
   function handleStart(courseId) { lrn.startCourse(courseId); }
   function handleComplete(course) { handleOpenDetail(course); }
-  function handleOpenDetail(course) { setActiveCourse(course); setActiveLesson(null); setActiveFinalTestMode(null); }
+  function handleOpenDetail(course) {
+    setProductDetailHistory({ kind: "learning", courseId: course.id });
+    setActiveCourse(course); setActiveLesson(null); setActiveFinalTestMode(null);
+  }
   function handleOpenLesson(lesson) {
     if (activeCourse && lesson?.id) lrn.touchLesson(activeCourse.id, lesson.id);
+    if (activeCourse && lesson?.id) setProductDetailHistory({ kind: "learning", courseId: activeCourse.id, lessonId: lesson.id });
     setActiveLesson(lesson);
     setActiveFinalTestMode(null);
   }
-  function handleBackToDetail() { setActiveLesson(null); setActiveFinalTestMode(null); }
-  function handleBackToList() { setActiveCourse(null); setActiveLesson(null); setActiveFinalTestMode(null); }
-  function handleStartFinalTest() { setActiveLesson(null); setActiveFinalTestMode("test"); }
-  function handleShowFinalResult() { setActiveLesson(null); setActiveFinalTestMode("result"); }
+  function handleBackToDetail() { window.history.back(); }
+  function handleBackToList() { window.history.back(); }
+  function handleStartFinalTest() {
+    if (activeCourse) setProductDetailHistory({ kind: "learning", courseId: activeCourse.id, mode: "test" });
+    setActiveLesson(null); setActiveFinalTestMode("test");
+  }
+  function handleShowFinalResult() {
+    if (activeCourse) setProductDetailHistory({ kind: "learning", courseId: activeCourse.id, mode: "result" });
+    setActiveLesson(null); setActiveFinalTestMode("result");
+  }
+  function handleFinalTestModeChange(mode) {
+    if (!activeCourse || !["test", "result"].includes(mode)) return;
+    setProductDetailHistory({ kind: "learning", courseId: activeCourse.id, mode }, { historyAction: "replace" });
+    setActiveFinalTestMode(mode);
+  }
   function handleLessonComplete(courseId, lessonId) {
     lrn.completeLesson(courseId, lessonId);
   }
@@ -41,6 +89,33 @@ export default function LearningProduct({ subView, goSub, goProduct, role, theme
     <ElCompletionModal course={completionCourse} onClose={() => setCompletionCourse(null)}
       onGoTalent={() => { setCompletionCourse(null); goProduct && goProduct("talent"); }} />
   );
+  if (navigationTarget?.kind === "learning" && !historyCourse && lrn.courseCatalogState === "loading") {
+    return <LearningPlaceholder title="コースを読み込んでいます" desc="前回開いていたコースを確認しています。" />;
+  }
+  if (navigationTarget?.kind === "learning" && !historyCourse && lrn.courseCatalogState === "error") {
+    return <LearningPlaceholder title="コースを確認できません" desc="通信状況を確認して、ブラウザを更新してください。現在地は保持されています。" />;
+  }
+  if (navigationTarget?.lessonId && historyCourse && !historyLesson && historyLessonState === "loading") {
+    return <LearningPlaceholder title="レッスンを読み込んでいます" desc="前回開いていたレッスンを確認しています。" />;
+  }
+  if (navigationTarget?.lessonId && historyCourse && !historyLesson && historyLessonState === "error") {
+    return <LearningPlaceholder title="レッスンを確認できません" desc="通信状況を確認して、ブラウザを更新してください。現在地は保持されています。" />;
+  }
+  if (navigationTarget?.mode && historyCourse && historyLessonState === "loading") {
+    return <LearningPlaceholder title="総合テストを読み込んでいます" desc="問題と復習情報を確認しています。" />;
+  }
+  if (navigationTarget?.mode && historyCourse && historyLessonState === "error") {
+    return <LearningPlaceholder title="総合テストを確認できません" desc="通信状況を確認して、ブラウザを更新してください。現在地は保持されています。" />;
+  }
+  if (navigationTarget?.mode === "result" && historyCourse && !historyFinalResult && lrn.finalTestResultsState === "loading") {
+    return <LearningPlaceholder title="テスト結果を読み込んでいます" desc="前回の採点結果を確認しています。" />;
+  }
+  if (navigationTarget?.mode === "result" && historyCourse && !historyFinalResult && lrn.finalTestResultsState === "error") {
+    return <LearningPlaceholder title="テスト結果を確認できません" desc="通信状況を確認して、ブラウザを更新してください。現在地は保持されています。" />;
+  }
+  if (navigationTarget?.mode === "result" && historyCourse && !historyFinalResult) {
+    return <LearningPlaceholder title="保存済みのテスト結果がありません" desc="コース詳細へ戻ります。" />;
+  }
   if (activeCourse && activeLesson) {
     return (
       <>
@@ -57,6 +132,7 @@ export default function LearningProduct({ subView, goSub, goProduct, role, theme
         <ElFinalTestView course={activeCourse} lrn={lrn}
           lessons={lrn.lessonsForCourse(activeCourse.id)}
           initialMode={activeFinalTestMode}
+          onModeChange={handleFinalTestModeChange}
           onBack={handleBackToDetail}
           onOpenLesson={handleOpenLesson} />
         {modal}

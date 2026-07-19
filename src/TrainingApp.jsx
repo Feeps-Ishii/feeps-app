@@ -11,7 +11,12 @@ import { LegalPageView } from "./components/common/LegalPages.jsx";
 import { Card, Badge, Btn, Avatar, Stat, SectionHead, T, NOVA, PRISM, PRISM_PRODUCT_GRAD, BrandMark, PRODUCT_ACCENT, ROLE_ACCENT, Z, PageLoading, EmptyState as CommonEmptyState, SkeletonRows } from "./components/common";
 import { GOALS, GOAL_ICON_MAP, NAV, ROLES } from "./products/training/TrainingCatalog.js";
 import { navViewSet, statusKind, testIdOf, todayStr } from "./products/training/useTraining.js";
-import { clearTraineeTestDraft, clearTrainingTargetContext, setActiveCourseId, setTrainingTargetContext } from "./utils/common/courseContext.js";
+import {
+  clearTraineeTestDraft,
+  clearTrainingTargetContext,
+  setActiveCourseId,
+} from "./utils/common/courseContext.js";
+import useAppNavigationHistory from "./hooks/common/useAppNavigationHistory.js";
 import useCountUp from "./hooks/common/useCountUp.js";
 import {
   LayoutDashboard, FileText, ClipboardCheck, Clock, NotebookPen, Users,
@@ -161,6 +166,68 @@ const EL_NAV = {
   ],
 };
 
+function productNavigation(product, role) {
+  if (product === "home") return [{ sec: null, items: [["home", "Home", Compass]] }];
+  if (product === "training") return NAV[role] || NAV.trainee;
+  if (product === "learning") return EL_NAV[role] || EL_NAV.trainee;
+  if (product === "talent") return TALENT_NAV[role] || TALENT_NAV.admin;
+  if (product === "matching") return MATCHING_NAV[role] || MATCHING_NAV.trainee;
+  if (product === "analytics") return ANALYTICS_NAV;
+  return NAV[role] || NAV.trainee;
+}
+
+function safeHistoryText(value, maxLength = 256) {
+  const text = String(value ?? "").trim();
+  if (!text || text.length > maxLength || /[\u0000-\u001f\u007f]/.test(text)) return "";
+  return text;
+}
+
+function safeHistoryDate(value) {
+  const text = String(value || "");
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(text);
+  if (!match) return "";
+  const [, year, month, day] = match.map(Number);
+  const date = new Date(Date.UTC(year, month - 1, day));
+  return date.getUTCFullYear() === year && date.getUTCMonth() === month - 1 && date.getUTCDate() === day ? text : "";
+}
+
+function normalizeAppRoute(candidate = {}, role = "trainee") {
+  const requestedProduct = safeHistoryText(candidate.product, 32);
+  const product = PRODUCTS.some(item => item.key === requestedProduct && item.roles.includes(role)) ? requestedProduct : "home";
+  const allowedTrainingViews = navViewSet(role);
+  const requestedView = safeHistoryText(candidate.view, 64);
+  const view = product === "training" && allowedTrainingViews.has(requestedView) ? requestedView : "home";
+  const nav = productNavigation(product, role);
+  const allowedSubViews = new Set(nav.flatMap(group => group.items.map(([key]) => key)));
+  const requestedSubView = safeHistoryText(candidate.subView, 64);
+  const subView = product !== "home" && product !== "training" && allowedSubViews.has(requestedSubView)
+    ? requestedSubView
+    : PRODUCT_DEFAULT_SUBVIEW[product] || "home";
+  const karteId = product === "training" ? safeHistoryText(candidate.karteId) : "";
+  const rawTarget = candidate.trainingTarget && typeof candidate.trainingTarget === "object" ? candidate.trainingTarget : null;
+  const targetView = safeHistoryText(rawTarget?.view, 64);
+  const trainingTarget = product === "training" && targetView === view
+    ? {
+      view,
+      courseId: safeHistoryText(rawTarget?.courseId),
+      testId: safeHistoryText(rawTarget?.testId),
+      date: safeHistoryDate(rawTarget?.date),
+      mode: ["taking", "result"].includes(rawTarget?.mode) ? rawTarget.mode : "",
+    }
+    : null;
+  const hasTrainingTarget = trainingTarget && (trainingTarget.courseId || trainingTarget.testId || trainingTarget.date);
+  const rawProductDetail = candidate.productDetail && typeof candidate.productDetail === "object" ? candidate.productDetail : null;
+  const learningMode = ["test", "result"].includes(rawProductDetail?.mode) ? rawProductDetail.mode : "";
+  const productDetail = product === "learning" && rawProductDetail?.kind === "learning" && safeHistoryText(rawProductDetail.courseId)
+    ? {
+      kind: "learning",
+      courseId: safeHistoryText(rawProductDetail.courseId),
+      lessonId: safeHistoryText(rawProductDetail.lessonId),
+      mode: learningMode,
+    }
+    : null;
+  return { product, view, subView, karteId, trainingTarget: hasTrainingTarget ? trainingTarget : null, productDetail };
+}
 
 const notificationTone = (severity) => severity === "high" ? "red" : severity === "medium" ? "amber" : "cyan";
 const notificationLabel = (severity) => severity === "high" ? "重要" : severity === "medium" ? "要対応" : "情報";
@@ -195,14 +262,16 @@ function openNotificationTarget(n, { go, goProduct, goSub }) {
   }
   if (path.includes("/training")) {
     const trainingView = targetTrainingView(path);
-    setTrainingTargetContext({
-      view: trainingView,
-      courseId: parsed?.searchParams.get("courseId") || "",
-      testId: parsed?.searchParams.get("testId") || "",
-      date: parsed?.searchParams.get("date") || "",
-    });
     goProduct("training", { preserveTarget: true });
-    go(trainingView, { forceRemount: true });
+    go(trainingView, {
+      forceRemount: true,
+      trainingTarget: {
+        view: trainingView,
+        courseId: parsed?.searchParams.get("courseId") || "",
+        testId: parsed?.searchParams.get("testId") || "",
+        date: parsed?.searchParams.get("date") || "",
+      },
+    });
     return;
   }
   if (n?.to && typeof n.to === "object") {
@@ -615,19 +684,7 @@ export default function App() {
   }
   // Header elevation when the main content is scrolled.
   const [scrolled, setScrolled] = useState(false);
-  useEffect(() => {
-    const onScroll = () => setScrolled(window.scrollY > 0);
-    onScroll();
-    window.addEventListener("scroll", onScroll, { passive: true });
-    return () => window.removeEventListener("scroll", onScroll);
-  }, []);
-  // App frame: Main is the only scroll container on lg+; reset scroll on navigation.
   const mainScrollRef = useRef(null);
-  useEffect(() => {
-    mainScrollRef.current?.scrollTo({ top: 0 });
-    window.scrollTo(0, 0);
-    setScrolled(false);
-  }, [product, view, subView, karte]);
   const [demoOpen, setDemoOpen] = useState(false);
   const [sidebarUserOpen, setSidebarUserOpen] = useState(false);
   const [notifOpen, setNotifOpen] = useState(false);
@@ -690,6 +747,37 @@ export default function App() {
   const [notifErr, setNotifErr] = useState("");
   const [userProfile, setUserProfile] = useState(null);
   const [profileChecked, setProfileChecked] = useState(false);
+  const {
+    clearProductDetail,
+    navigateKarte,
+    productDetail,
+    replaceCurrentEntry: replaceCurrentNavigationEntry,
+    resetSession: resetNavigationHistorySession,
+    scheduleScrollSave: scheduleNavigationScrollSave,
+    setTrainingTarget: setNavigationTrainingTarget,
+  } = useAppNavigationHistory({
+    loggedIn,
+    profileChecked,
+    role,
+    product,
+    view,
+    subView,
+    karte,
+    navigationVersion: trainingNavigationVersion,
+    setNavigationVersion: setTrainingNavigationVersion,
+    mainScrollRef,
+    setScrolled,
+    setProduct,
+    setView,
+    setSubView,
+    setKarte,
+    setDrawerOpen,
+    setPaletteOpen,
+    setNotifOpen,
+    setSidebarUserOpen,
+    setDemoOpen,
+    normalizeRoute: normalizeAppRoute,
+  });
   // 通知既読はAPI(PUT /notifications/read-state)経由でPROFILESへ永続化する。通知自体は
   // 都度合成され安定IDを持たないため、「この日の通知はこの時刻以降に既読にした」という
   // 日付単位の基準時刻(notificationsReadAt)で判定する。別ブラウザ・別端末でも同じ既読状態になる。
@@ -716,6 +804,7 @@ export default function App() {
         const previousSubject = storageGet("feeps.authUserId", "");
         const accountChanged = !!previousSubject && !!subject && previousSubject !== subject;
         if (accountChanged || verifiedRole !== role) {
+          resetNavigationHistorySession();
           clearTrainingTargetContext();
           clearTraineeTestDraft();
           setActiveCourseId("");
@@ -733,7 +822,10 @@ export default function App() {
         if (!active) return;
         const unauthenticated = ["UserUnAuthenticatedException", "NotAuthorizedException"].includes(error?.name)
           || /not authenticated|no current user|user needs to be authenticated/i.test(String(error?.message || ""));
-        if (unauthenticated) verifiedRoleRef.current = null;
+        if (unauthenticated) {
+          resetNavigationHistorySession();
+          verifiedRoleRef.current = null;
+        }
         setLoggedIn(false);
         if (!unauthenticated) setAuthBootstrapError("ログイン状態を確認できませんでした。通信状況を確認して再試行してください。");
       })
@@ -757,6 +849,7 @@ export default function App() {
       setKarte(null);
     }
   }, [product, role]);
+
   useEffect(() => {
     if (!loggedIn) return;
     const loadVersion = taskSaveVersionRef.current;
@@ -827,13 +920,7 @@ export default function App() {
   }, [view, loggedIn, refreshNotifications]);
   const me = ROLES[role];
   const roleAccent = ROLE_ACCENT[role] || ROLE_ACCENT.default;
-  const nav = useMemo(() => product === "home" ? [{ sec: null, items: [["home", "Home", Compass]] }]
-    : product === "training" ? (NAV[role] || NAV.trainee)
-    : product === "learning" ? (EL_NAV[role] || EL_NAV.trainee)
-    : product === "talent" ? (TALENT_NAV[role] || TALENT_NAV.admin)
-    : product === "matching" ? (MATCHING_NAV[role] || MATCHING_NAV.trainee)
-    : product === "analytics" ? ANALYTICS_NAV
-    : (NAV[role] || NAV.trainee), [product, role]);
+  const nav = useMemo(() => productNavigation(product, role), [product, role]);
   const activeView = product === "training" ? view : subView;
   const allowedViews = useMemo(() => navViewSet(role), [role]);
   const allowedSubViews = useMemo(() => new Set(nav.flatMap(group => group.items.map(([key]) => key))), [nav]);
@@ -875,6 +962,7 @@ export default function App() {
     setTaskDataState("idle");
   }
   function login() {
+    resetNavigationHistorySession();
     clearTrainingTargetContext();
     clearTraineeTestDraft();
     setActiveCourseId("");
@@ -897,6 +985,7 @@ export default function App() {
   }
   async function logout() {
     try { await signOut(); } catch (e) {}
+    resetNavigationHistorySession();
     clearTrainingTargetContext();
     clearTraineeTestDraft();
     setActiveCourseId("");
@@ -918,6 +1007,7 @@ export default function App() {
   }
   function switchRole(r) {
     const fixedRole = verifiedRoleRef.current || (userProfile?.role && ROLES[userProfile.role] ? userProfile.role : r);
+    if (fixedRole !== role) resetNavigationHistorySession();
     clearTrainingTargetContext();
     clearTraineeTestDraft();
     setRole(fixedRole);
@@ -928,21 +1018,33 @@ export default function App() {
   }
   function go(v, options = {}) {
     const nextView = allowedViews.has(v) ? v : "home";
-    if (nextView !== view && !options.preserveTarget && !options.forceRemount) clearTrainingTargetContext();
+    replaceCurrentNavigationEntry();
+    if (options.trainingTarget) setNavigationTrainingTarget(options.trainingTarget);
+    else if (nextView !== view && !options.preserveTarget && !options.forceRemount) setNavigationTrainingTarget(null);
     setKarte(null);
     setView(nextView);
     if (options.forceRemount) setTrainingNavigationVersion(version => version + 1);
     setDrawerOpen(false);
   }
   function goProduct(p, options = {}) {
-    if (!options.preserveTarget) clearTrainingTargetContext();
-    setProduct(p);
+    const nextProduct = PRODUCTS.some(item => item.key === p && item.roles.includes(role)) ? p : "home";
+    replaceCurrentNavigationEntry();
+    if (!options.preserveTarget) setNavigationTrainingTarget(null);
+    clearProductDetail();
+    setProduct(nextProduct);
     setKarte(null);
     setDrawerOpen(false);
-    if (p === "home" || p === "training") setView("home");
-    setSubView(PRODUCT_DEFAULT_SUBVIEW[p] || "home");
+    setView("home");
+    setSubView(PRODUCT_DEFAULT_SUBVIEW[nextProduct] || "home");
+    setTrainingNavigationVersion(version => version + 1);
   }
-  function goSub(v) { setSubView(v); setDrawerOpen(false); }
+  function goSub(v) {
+    replaceCurrentNavigationEntry();
+    clearProductDetail();
+    setSubView(v);
+    setTrainingNavigationVersion(version => version + 1);
+    setDrawerOpen(false);
+  }
   // コマンドパレットの項目（実際にナビゲーションが働くものだけ。ダミー項目は置かない）
   const paletteItems = useMemo(() => {
     const productItems = PRODUCTS.filter(p => p.roles.includes(role)).map(p => ({
@@ -1015,7 +1117,7 @@ export default function App() {
 
   const screen = (() => {
     if (product === "home") return <FeepsOneHome role={role} displayName={displayName} products={PRODUCTS.filter(p => p.roles.includes(role))} goProduct={goProduct} goTraining={go} goSub={goSub} />;
-    if (product === "learning") return <LearningProduct subView={subView} goSub={goSub} goProduct={goProduct} role={role} themeColor={themeColor} />;
+    if (product === "learning") return <LearningProduct key={`learning-${trainingNavigationVersion}`} subView={subView} goSub={goSub} goProduct={goProduct} role={role} themeColor={themeColor} navigationTarget={productDetail} />;
     if (product === "talent") return <TalentProduct subView={subView} goSub={goSub} goProduct={goProduct} role={role} themeColor={themeColor} done={taskDone} goals={goals} />;
     if (product === "matching") return <MatchingProduct subView={subView} goSub={goSub} role={role} themeColor={themeColor} />;
     if (product === "analytics") return <AnalyticsProduct subView={subView} goSub={goSub} themeColor={themeColor} />;
@@ -1033,7 +1135,7 @@ export default function App() {
       view={view}
       role={role}
       karte={karte}
-      setKarte={setKarte}
+      setKarte={navigateKarte}
       go={go}
       goProduct={goProduct}
       goSub={goSub}
@@ -1302,7 +1404,7 @@ export default function App() {
             "--canvas-shadow": T.canvasShadow, "--canvas-radius": `${T.canvasRadius}px`,
             "--canvas-margin": T.canvasMargin,
           }}>
-          <div ref={mainScrollRef} onScroll={e => setScrolled(e.currentTarget.scrollTop > 0)} className="feeps-main-scroll flex-1 lg:min-h-0 lg:overflow-y-auto" style={{ borderRadius: "inherit" }}>
+          <div ref={mainScrollRef} onScroll={e => { setScrolled(e.currentTarget.scrollTop > 0); scheduleNavigationScrollSave(); }} className="feeps-main-scroll flex-1 lg:min-h-0 lg:overflow-y-auto" style={{ borderRadius: "inherit" }}>
           <main className="mx-auto w-full max-w-full p-4 sm:p-6 lg:p-8 xl:p-10" style={{ maxWidth: isHomeProduct ? 1360 : 1280 }}>
             <div key={role + product + activeView + (karte ? karte.id : "")} className="view-anim min-w-0 max-w-full">
               <ScreenErrorBoundary><Suspense fallback={<PageLoading />}>{screen}</Suspense></ScreenErrorBoundary>

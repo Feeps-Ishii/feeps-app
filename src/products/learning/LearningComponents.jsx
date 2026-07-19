@@ -1376,23 +1376,31 @@ function ElQuizLesson({ lesson, completed, onComplete, onNext, onPrev, hasNext }
   );
 }
 
-function ElFinalTestView({ course, lrn, lessons, onBack, onOpenLesson, initialMode = "test" }) {
+function ElFinalTestView({ course, lrn, lessons, onBack, onOpenLesson, onModeChange, initialMode = "test" }) {
   const latestResult = lrn.getLatestFinalTestResult(course.id);
   const [questions, setQuestions] = useState(() => lrn.buildFinalTestQuestions(course.id));
   const [answers, setAnswers] = useState({});
   const [index, setIndex] = useState(0);
   const [result, setResult] = useState(initialMode === "result" ? latestResult : null);
+  useEffect(() => {
+    if (initialMode === "result" && latestResult) setResult(latestResult);
+  }, [initialMode, latestResult?.id]);
   const plan = lrn.getFinalTestPlan(course.id) || lrn.buildFinalTestPlan(course.id);
   const current = questions[index];
   const answeredCount = Object.keys(answers).length;
   const allAnswered = questions.length > 0 && answeredCount >= questions.length;
   function selectAnswer(questionId, value) { setAnswers({ ...answers, [questionId]: value }); }
-  function submit() { if (!allAnswered) return; setResult(lrn.gradeFinalTest(course.id, questions, answers)); }
+  function submit() {
+    if (!allAnswered) return;
+    setResult(lrn.gradeFinalTest(course.id, questions, answers));
+    onModeChange?.("result");
+  }
   function retake() {
     setQuestions(lrn.buildFinalTestQuestions(course.id));
     setAnswers({});
     setIndex(0);
     setResult(null);
+    onModeChange?.("test");
   }
   function reviewLesson(lessonId) {
     const lesson = lessons.find(ls => ls.id === lessonId);
