@@ -30,21 +30,27 @@ function parseListText(text) {
   return String(text || "").split(",").map(s => s.trim()).filter(Boolean);
 }
 
-// ---- Projects（admin: 全操作 / client: 閲覧のみ、権限はBackendが強制） ----
-export function useMatchingProjects() {
+// ---- Projects（client: 自社CRUD / admin: 監査閲覧、権限はBackendが強制） ----
+export function useMatchingProjects(enabled = true, scopeKey = "") {
   const [projects, setProjects] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [actionError, setActionError] = useState("");
 
   const load = useCallback(() => {
+    if (!enabled) {
+      setProjects([]);
+      setLoading(false);
+      setError("");
+      return Promise.resolve();
+    }
     setLoading(true);
     setError("");
     return apiGet("/projects")
       .then(res => setProjects(Array.isArray(res?.items) ? res.items : []))
       .catch(e => setError(apiErrorMessage(e, "案件一覧の取得に失敗しました。")))
       .finally(() => setLoading(false));
-  }, []);
+  }, [enabled, scopeKey]);
 
   useEffect(() => { load(); }, [load]);
 
@@ -135,13 +141,13 @@ export function projectToForm(project) {
 }
 
 // ---- Candidates（案件ごとの候補者マッチング。案件選択時にオンデマンド取得） ----
-export function useProjectCandidates(projectId) {
+export function useProjectCandidates(projectId, enabled = true) {
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
   useEffect(() => {
-    if (!projectId) { setItems([]); setError(""); return; }
+    if (!enabled || !projectId) { setItems([]); setLoading(false); setError(""); return; }
     let alive = true;
     setLoading(true);
     setError("");
@@ -150,13 +156,13 @@ export function useProjectCandidates(projectId) {
       .catch(e => { if (alive) setError(apiErrorMessage(e, "候補者一覧の取得に失敗しました。")); })
       .finally(() => { if (alive) setLoading(false); });
     return () => { alive = false; };
-  }, [projectId]);
+  }, [enabled, projectId]);
 
   return { items, loading, error };
 }
 
-// ---- Placements（admin: 全操作 / client・instructor・trainee: 閲覧のみ、権限・スコープはBackendが強制） ----
-export function useMatchingPlacements(params = {}) {
+// ---- Placements（client: 自社CRUD / admin: 監査read / trainee: 本人read） ----
+export function useMatchingPlacements(params = {}, enabled = true, scopeKey = "") {
   const query = new URLSearchParams();
   if (params.projectId) query.set("projectId", params.projectId);
   if (params.traineeId) query.set("traineeId", params.traineeId);
@@ -171,13 +177,19 @@ export function useMatchingPlacements(params = {}) {
   const [actionError, setActionError] = useState("");
 
   const load = useCallback(() => {
+    if (!enabled) {
+      setItems([]);
+      setLoading(false);
+      setError("");
+      return Promise.resolve();
+    }
     setLoading(true);
     setError("");
     return apiGet(path)
       .then(res => setItems(Array.isArray(res?.items) ? res.items : []))
       .catch(e => setError(apiErrorMessage(e, "参画状況の取得に失敗しました。")))
       .finally(() => setLoading(false));
-  }, [path]);
+  }, [enabled, path, scopeKey]);
 
   useEffect(() => { load(); }, [load]);
 
@@ -235,31 +247,43 @@ export function placementFormToPayload(form) {
 }
 
 // ---- trainee本人向け: おすすめ案件 + 自分の参画状況/履歴 ----
-export function useMatchingMe() {
+export function useMatchingMe(enabled = true, scopeKey = "") {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
   const load = useCallback(() => {
+    if (!enabled) {
+      setData(null);
+      setLoading(false);
+      setError("");
+      return Promise.resolve();
+    }
     setLoading(true);
     setError("");
     return apiGet("/matching/me")
       .then(res => setData(res))
-      .catch(e => setError(apiErrorMessage(e, "おすすめ案件の取得に失敗しました。")))
+      .catch(e => setError(apiErrorMessage(e, "あなた向け案件の取得に失敗しました。")))
       .finally(() => setLoading(false));
-  }, []);
+  }, [enabled, scopeKey]);
 
   useEffect(() => { load(); }, [load]);
 
   return { data, loading, error, reload: load };
 }
 
-// ---- instructor向け: 担当受講生一覧（既存 /trainees を流用、Backend側で担当スコープ済み） ----
-export function useInstructorTrainees() {
+// ---- client向け: 自社受講生一覧（既存 /trainees を流用、Backend側で自社scope済み） ----
+export function useManagedTrainees(enabled = true, scopeKey = "") {
   const [trainees, setTrainees] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   useEffect(() => {
+    if (!enabled) {
+      setTrainees([]);
+      setLoading(false);
+      setError("");
+      return undefined;
+    }
     let alive = true;
     setLoading(true);
     apiGet("/trainees")
@@ -267,40 +291,26 @@ export function useInstructorTrainees() {
       .catch(e => { if (alive) setError(apiErrorMessage(e, "受講生一覧の取得に失敗しました。")); })
       .finally(() => { if (alive) setLoading(false); });
     return () => { alive = false; };
-  }, []);
+  }, [enabled, scopeKey]);
   return { trainees, loading, error };
 }
 
-// ---- instructor/admin向け: 指定受講生の参画結果（単価は常にBackend側で非表示） ----
-export function useTraineeMatching(traineeId) {
-  const [items, setItems] = useState([]);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState("");
-  useEffect(() => {
-    if (!traineeId) { setItems([]); setError(""); return; }
-    let alive = true;
-    setLoading(true);
-    setError("");
-    apiGet(`/matching/trainees/${encodeURIComponent(traineeId)}`)
-      .then(res => { if (alive) setItems(Array.isArray(res?.items) ? res.items : []); })
-      .catch(e => { if (alive) setError(apiErrorMessage(e, "参画状況の取得に失敗しました。")); })
-      .finally(() => { if (alive) setLoading(false); });
-    return () => { alive = false; };
-  }, [traineeId]);
-  return { items, loading, error };
-}
-
 // ---- 企業一覧（案件フォームの会社選択用、既存 /companies を流用） ----
-export function useCompanies() {
+export function useCompanies(enabled = true, scopeKey = "") {
   const [companies, setCompanies] = useState([]);
   const [error, setError] = useState("");
   useEffect(() => {
+    if (!enabled) {
+      setCompanies([]);
+      setError("");
+      return undefined;
+    }
     let alive = true;
     apiGet("/companies")
       .then(list => { if (alive) setCompanies(Array.isArray(list) ? list : []); })
       .catch(e => { if (alive) setError(apiErrorMessage(e, "企業一覧の取得に失敗しました。")); });
     return () => { alive = false; };
-  }, []);
+  }, [enabled, scopeKey]);
   return { companies, error };
 }
 

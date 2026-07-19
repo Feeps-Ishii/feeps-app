@@ -166,7 +166,8 @@ function TraineeHome({ go, goProduct, goSub, done, taskDataState, onTaskRetry, t
   const thActiveCourses = thHome.courses.filter(c => !thIsElearning(c));
   const thElearningCourses = thHome.courses.filter(thIsElearning);
   const thDashboardCourses = Array.isArray(thHome.dashboard?.activeCourses) ? thHome.dashboard.activeCourses : [];
-  const thPreferredCourseId = getActiveCourseId() || thDashboardCourses.find(course => course.todayCurriculum)?.courseId || "";
+  const thSchedule = thHome.dashboard?.todayCompletion?.schedule || null;
+  const thPreferredCourseId = thSchedule?.courseId || getActiveCourseId() || thDashboardCourses.find(course => course.todayCurriculum)?.courseId || "";
   const thPrimaryCourse = thActiveCourses.find(course => course.courseId === thPreferredCourseId) || thActiveCourses[0] || thHome.courses[0];
   const thCoursePeriod = thPrimaryCourse?.period || thPrimaryCourse?.date || ([thPrimaryCourse?.startDate, thPrimaryCourse?.endDate].filter(Boolean).join(" - "));
   useEffect(() => {
@@ -213,7 +214,7 @@ function TraineeHome({ go, goProduct, goSub, done, taskDataState, onTaskRetry, t
   const thHasDailyAnnouncement = !!String(thDailyNote?.announcement || "").trim();
   const thLessonTitle = curriculumDisplayTitle(thTodayCurriculum) || thDailyNote?.lessonTitle || "";
   const thLessonContent = thTodayCurriculum?.content || "";
-  const thLessonMemo = thTodayCurriculum?.lessonMemo || thDailyNote?.lessonMemo || "";
+  const thLessonMemo = "";
   const thLessonSkills = Array.isArray(thTodayCurriculum?.skills) ? thTodayCurriculum.skills : [];
   const thHasDailyLesson = !!String(thLessonTitle || thLessonContent || thLessonMemo || "").trim();
   const thSmallGoals = thRemaining.slice(0, 5);
@@ -253,6 +254,9 @@ function TraineeHome({ go, goProduct, goSub, done, taskDataState, onTaskRetry, t
           : `${thTrainingTests.unsubmitted}件 未受験`;
   const thTodayCompletion = thHome.dashboard?.todayCompletion || null;
   const thTodayApplicability = thTodayCompletion?.applicability || "unknown";
+  const thScheduleStatus = thTodayCompletion?.scheduleStatus || "unknown";
+  const thScheduleNeedsSetup = thScheduleStatus === "setup_required";
+  const thScheduleConflict = thScheduleStatus === "conflict";
   const thNoTrainingToday = thTodayApplicability === "not_training_day" || thTodayApplicability === "no_course";
   const thTodayProgressAvailable = thTodayCompletion?.status === "completed" || thTodayCompletion?.status === "incomplete";
   const thTodayCompletedCount = thTodayProgressAvailable ? Number(thTodayCompletion.completedCount || 0) : null;
@@ -314,6 +318,10 @@ function TraineeHome({ go, goProduct, goSub, done, taskDataState, onTaskRetry, t
   const thTodayValue = thLoading ? "—" : thNoTrainingToday ? "研修なし" : thTodayProgressAvailable ? `${thTodayCompletedCount}/${thTodayRequiredCount}` : "—";
   const thHeroTitle = thLoading
     ? "今日の状況を確認しています"
+    : thScheduleNeedsSetup
+      ? "研修日程の設定を確認してください"
+      : thScheduleConflict
+        ? "本日の所属コースが重複しています"
     : thNoTrainingToday
       ? "今日は研修日ではありません"
       : thPendingTasks.length > 0
@@ -323,6 +331,10 @@ function TraineeHome({ go, goProduct, goSub, done, taskDataState, onTaskRetry, t
           : "今日の必須項目は、すべて完了";
   const thHeroDescription = thLoading
     ? "研修日・勤怠・日報の最新状態を読み込んでいます。"
+    : thScheduleNeedsSetup
+      ? "日程が未設定のため、未提出や欠席には数えていません。運営担当者へご確認ください。"
+      : thScheduleConflict
+        ? "同じ日に複数の研修が設定されています。誤ったコースへ登録しないよう、運営担当者へご確認ください。"
     : thNoTrainingToday
       ? "勤怠と日報の入力は不要です。Eラーニングや復習を進められます。"
       : thPendingTasks.length > 0
@@ -344,6 +356,8 @@ function TraineeHome({ go, goProduct, goSub, done, taskDataState, onTaskRetry, t
       </PrismHero>
 
       {thErr && <PrismErrorRetryCard message={thErr} onRetry={() => setThReloadKey(value => value + 1)} />}
+
+      {!thLoading && thSchedule?.isTrainingDay && <PrismCard className="flex flex-wrap items-center gap-3 p-4"><span className="grid h-10 w-10 place-items-center rounded-xl" style={{ background: PRISM.accentSubtle, color: PRISM.accent }}><Calendar size={18} /></span><div className="min-w-0 flex-1"><div className="text-xs font-semibold" style={{ color: PRISM.mut }}>本日の研修予定</div><div className="mt-0.5 break-words text-sm font-bold" style={{ color: PRISM.ink }}>{thPrimaryCourse?.name || thSchedule.courseId}{(thSchedule.startTime || thSchedule.endTime) ? `・${thSchedule.startTime || "—"}〜${thSchedule.endTime || "—"}` : ""}</div><div className="mt-0.5 text-xs" style={{ color: PRISM.mut }}>{[thSchedule.mode === "online" ? "オンライン" : thSchedule.mode === "onsite" ? "対面" : thSchedule.mode === "hybrid" ? "ハイブリッド" : "形式未設定", thSchedule.venueName || thSchedule.venueAddress].filter(Boolean).join("・")}</div></div>{thSchedule.onlineUrl && <a href={thSchedule.onlineUrl} target="_blank" rel="noreferrer" className="rounded-xl px-3 py-2 text-xs font-bold" style={{ background: PRISM.accentSubtle, color: PRISM.accentDeep }}>受講URLを開く</a>}</PrismCard>}
 
       <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
         <PrismKpiCard icon={ClipboardCheck} label="今日の研修" value={thTodayValue} detail={thLoading ? "最新状態を確認中" : thNoTrainingToday ? "勤怠・日報の入力は不要" : thUnavailableTasks.length ? "研修日または登録状態を確認できません" : thPendingTasks[0]?.label || "勤怠・日報は完了"} tone={thPendingTasks.length ? "warn" : thNoTrainingToday ? "neutral" : "ok"} />
@@ -2633,8 +2647,8 @@ function Attendance({ role }) {
 }
 function TraineeAttendance() {
   const today = todayStr();
-  const [att, setAtt] = useState({ in: "", out: "", s: "出勤" });
-  const [todayDraft, setTodayDraft] = useState({ in: "", out: "", s: "出勤" });
+  const [att, setAtt] = useState({ in: "", out: "", s: "出勤", reason: "", courseId: "" });
+  const [todayDraft, setTodayDraft] = useState({ in: "", out: "", s: "出勤", reason: "", courseId: "" });
   const [editToday, setEditToday] = useState(false);
   const [hist, setHist] = useState([]);
   const [eIdx, setEIdx] = useState(-1);
@@ -2646,10 +2660,11 @@ function TraineeAttendance() {
   const [enrolledCourses, setEnrolledCourses] = useState([]);
   const [standardCourseId, setStandardCourseId] = useState("");
   const [calendarEditDate, setCalendarEditDate] = useState("");
-  const [calendarDraft, setCalendarDraft] = useState({ in: "", out: "", s: "出勤" });
+  const [calendarDraft, setCalendarDraft] = useState({ in: "", out: "", s: "出勤", reason: "", courseId: "" });
   const [calendarSaving, setCalendarSaving] = useState(false);
   const [historySaving, setHistorySaving] = useState(false);
   const [attendanceTrainingDates, setAttendanceTrainingDates] = useState([]);
+  const [attendanceDayContexts, setAttendanceDayContexts] = useState({});
   const [workdaysLoading, setWorkdaysLoading] = useState(true);
   const [workdaysState, setWorkdaysState] = useState("loading");
   const [workdaysReloadKey, setWorkdaysReloadKey] = useState(0);
@@ -2667,10 +2682,10 @@ function TraineeAttendance() {
       .then(([items, courseItems]) => {
         const rows = (items || []).slice().sort((a, b) => (a.date < b.date ? 1 : -1));
         const t = rows.find(r => r.date === today);
-        const todayValue = { in: t?.clockIn || "", out: t?.clockOut || "", s: t?.status || "出勤" };
+        const todayValue = { in: t?.clockIn || "", out: t?.clockOut || "", s: t?.status || "出勤", reason: t?.reason || t?.note || "", courseId: t?.courseId || "" };
         setAtt(todayValue);
         setTodayDraft(todayValue);
-        setHist(rows.map(r => ({ date: r.date, d: fmtAttDate(r.date), in: r.clockIn || "", out: r.clockOut || "", s: r.status || "出勤" })));
+        setHist(rows.map(r => ({ date: r.date, d: fmtAttDate(r.date), in: r.clockIn || "", out: r.clockOut || "", s: r.status || "出勤", reason: r.reason || r.note || "", courseId: r.courseId || "" })));
         const courses = Array.isArray(courseItems) ? courseItems : [];
         setEnrolledCourses(courses);
         const withStandard = courses.filter(c => courseStandardIn(c) || courseStandardOut(c));
@@ -2687,16 +2702,23 @@ function TraineeAttendance() {
     let alive = true;
     const courseIds = enrolledCourses.map(course => course.courseId).filter(Boolean);
     const months = [...new Set([histMonth, today.slice(0, 7)].filter(Boolean))];
-    if (!courseIds.length) { setAttendanceTrainingDates([]); setWorkdaysState("ready"); setWorkdaysLoading(false); return () => { alive = false; }; }
+    if (!courseIds.length) { setAttendanceTrainingDates([]); setAttendanceDayContexts({}); setWorkdaysState("ready"); setWorkdaysLoading(false); return () => { alive = false; }; }
     setAttendanceTrainingDates([]);
+    setAttendanceDayContexts({});
     setWorkdaysState("loading");
     setWorkdaysLoading(true);
-    Promise.all(courseIds.flatMap(courseId => months.map(targetMonth => apiGet(`/courses/${courseId}/workdays?month=${targetMonth}`))))
+    Promise.all(courseIds.flatMap(courseId => months.map(targetMonth => apiGet(`/courses/${courseId}/workdays?month=${targetMonth}`).then(result => ({ courseId, targetMonth, result })))))
       .then(results => {
         if (!alive) return;
-        const dates = new Set(results.flatMap(result => (result?.days || []).filter(day => day.isTrainingDay).map(day => day.date)));
+        const setupRequired = results.some(({ result }) => result?.status === "setup_required");
+        const byDate = {};
+        results.forEach(({ courseId, result }) => (result?.days || []).filter(day => day.status === "ready" && day.isTrainingDay === true).forEach(day => {
+          byDate[day.date] = [...(byDate[day.date] || []), { ...day, courseId }];
+        }));
+        const dates = new Set(Object.keys(byDate));
         setAttendanceTrainingDates([...dates]);
-        setWorkdaysState("ready");
+        setAttendanceDayContexts(byDate);
+        setWorkdaysState(setupRequired ? "setup_required" : "ready");
       })
       .catch(() => { if (alive) { setAttendanceTrainingDates([]); setWorkdaysState("error"); setErr("研修カレンダーを確認できませんでした。非研修日とは判定せず、入力を停止しています。"); } })
       .finally(() => { if (alive) setWorkdaysLoading(false); });
@@ -2704,11 +2726,16 @@ function TraineeAttendance() {
   }, [enrolledCourses, histMonth, today, workdaysReloadKey]);
 
   const attendanceTrainingDateSet = useMemo(() => new Set(attendanceTrainingDates), [attendanceTrainingDates]);
+  const contextsForDate = (dateValue) => attendanceDayContexts[dateValue] || [];
+  const courseForDate = (dateValue) => contextsForDate(dateValue).length === 1 ? contextsForDate(dateValue)[0]?.courseId || "" : "";
+  const dateHasConflict = (dateValue) => contextsForDate(dateValue).length > 1;
   const todayIsTrainingDay = attendanceTrainingDateSet.has(today);
+  const todayCourse = enrolledCourses.find(course => course.courseId === courseForDate(today));
+  const attendanceNeedsReason = (status) => ["遅刻", "早退", "欠席", "欠勤", "中抜け"].some(value => String(status || "").includes(value));
   function upsertAttendanceRow(dateValue, value, status = "出勤") {
     setHist(rows => {
       const previous = rows.find(row => row.date === dateValue);
-      const savedRow = { date: dateValue, d: fmtAttDate(dateValue), in: value.in || "", out: value.out || "", s: status || previous?.s || "出勤" };
+      const savedRow = { date: dateValue, d: fmtAttDate(dateValue), in: value.in || "", out: value.out || "", s: status || previous?.s || "出勤", reason: value.reason || "", courseId: value.courseId || previous?.courseId || courseForDate(dateValue) };
       return [savedRow, ...rows.filter(row => row.date !== dateValue)].sort((a, b) => String(b.date).localeCompare(String(a.date)));
     });
   }
@@ -2716,12 +2743,14 @@ function TraineeAttendance() {
   async function saveToday(next) {
     if (workdaysState !== "ready") { setErr("研修日を確認できていないため、勤怠を保存できません。再読み込みしてください。"); return false; }
     if (!todayIsTrainingDay) { setErr("本日は所属コースの研修日ではないため、勤怠を登録できません。"); return false; }
+    if (dateHasConflict(today)) { setErr("本日は複数の研修が重複しています。運営担当者が日程を修正するまで勤怠を保存できません。"); return false; }
     if (!String(next?.in || "").trim()) { setErr("出勤時刻を入力してください。"); return false; }
+    if (["遅刻", "早退", "欠席", "欠勤", "中抜け"].some(value => String(next?.s || "").includes(value)) && !String(next?.reason || "").trim()) { setErr("遅刻・早退・欠勤・中抜けの理由を入力してください。"); return false; }
     if (attendanceSaving) return false;
     setErr(""); setAttendanceSaveState("saving"); setAttendanceSaving(true);
     try {
-      const saved = { in: next.in || "", out: next.out || "", s: next.s || att.s || "出勤" };
-      await apiPut("/attendance/me", { date: today, clockIn: saved.in, clockOut: saved.out, status: saved.s });
+      const saved = { in: next.in || "", out: next.out || "", s: next.s || att.s || "出勤", reason: next.reason || "", courseId: courseForDate(today) };
+      await apiPut("/attendance/me", { date: today, courseId: saved.courseId, clockIn: saved.in, clockOut: saved.out, status: saved.s, reason: saved.reason });
       setAtt(saved);
       setTodayDraft(saved);
       upsertAttendanceRow(today, saved, saved.s);
@@ -2738,7 +2767,7 @@ function TraineeAttendance() {
     }
   }
   const standardCourses = enrolledCourses.filter(c => courseStandardIn(c) || courseStandardOut(c));
-  const selectedStandardCourse = standardCourses.find(c => c.courseId === standardCourseId) || null;
+  const selectedStandardCourse = standardCourses.find(c => c.courseId === courseForDate(today)) || standardCourses.find(c => c.courseId === standardCourseId) || null;
   async function doClockIn(time = nowHM()) { if (editToday || att.in || attendanceSaving) return; await saveToday({ in: time, out: att.out, s: att.s }); }
   async function doClockOut(time = nowHM()) { if (editToday || !att.in || att.out || attendanceSaving) return; await saveToday({ in: att.in, out: time, s: att.s }); }
   async function saveTodayEdit() {
@@ -2763,18 +2792,21 @@ function TraineeAttendance() {
   }
   function openCalendarAttendance(dateValue, row) {
     if (dateValue > today || !attendanceTrainingDateSet.has(dateValue)) return;
+    if (dateHasConflict(dateValue)) { setErr("この日は複数の研修が重複しています。運営担当者が日程を修正するまで登録できません。"); return; }
     setCalendarEditDate(dateValue);
-    setCalendarDraft({ in: row?.in || "", out: row?.out || "", s: row?.s || "出勤" });
+    setCalendarDraft({ in: row?.in || "", out: row?.out || "", s: row?.s || "出勤", reason: row?.reason || "", courseId: row?.courseId || courseForDate(dateValue) });
   }
   async function saveCalendarAttendance() {
     if (workdaysState !== "ready") { setErr("研修日を確認できていないため、勤怠を保存できません。再読み込みしてください。"); return; }
     if (!calendarEditDate || !calendarDraft.in || calendarSaving) { if (!calendarDraft.in) setErr("出勤時刻を入力してください。"); return; }
     if (!attendanceTrainingDateSet.has(calendarEditDate)) { setErr("非研修日の勤怠は登録できません。"); setCalendarEditDate(""); return; }
+    if (dateHasConflict(calendarEditDate)) { setErr("この日は複数の研修が重複しています。日程の修正後に登録してください。"); return; }
+    if (["遅刻", "早退", "欠席", "欠勤", "中抜け"].some(value => String(calendarDraft.s || "").includes(value)) && !String(calendarDraft.reason || "").trim()) { setErr("遅刻・早退・欠勤・中抜けの理由を入力してください。"); return; }
     setCalendarSaving(true); setErr("");
     try {
-      await apiPut("/attendance/me", { date: calendarEditDate, clockIn: calendarDraft.in, clockOut: calendarDraft.out, status: calendarDraft.s || "出勤" });
+      await apiPut("/attendance/me", { date: calendarEditDate, courseId: courseForDate(calendarEditDate), clockIn: calendarDraft.in, clockOut: calendarDraft.out, status: calendarDraft.s || "出勤", reason: calendarDraft.reason || "" });
       const savedDate = calendarEditDate;
-      const saved = { in: calendarDraft.in, out: calendarDraft.out, s: calendarDraft.s || "出勤" };
+      const saved = { in: calendarDraft.in, out: calendarDraft.out, s: calendarDraft.s || "出勤", reason: calendarDraft.reason || "", courseId: courseForDate(calendarEditDate) };
       upsertAttendanceRow(savedDate, saved, saved.s);
       if (savedDate === today) { setAtt(saved); setTodayDraft(saved); }
       emitNotificationRefresh(); setCalendarEditDate("");
@@ -2798,11 +2830,13 @@ function TraineeAttendance() {
     if (historySaving) return;
     const row = hist[eIdx]; setErr("");
     if (!attendanceTrainingDateSet.has(row?.date)) { setErr("非研修日の勤怠は修正できません。"); setEIdx(-1); return; }
+    if (dateHasConflict(row?.date)) { setErr("この日は複数の研修が重複しています。日程の修正後に保存してください。"); return; }
     if (!draft.in) { setErr("出勤時刻を入力してください。"); return; }
+    if (["遅刻", "早退", "欠席", "欠勤", "中抜け"].some(value => String(draft.s || "").includes(value)) && !String(draft.reason || "").trim()) { setErr("遅刻・早退・欠勤・中抜けの理由を入力してください。"); return; }
     setHistorySaving(true);
     try {
-      await apiPut("/attendance/me", { date: row.date, clockIn: draft.in, clockOut: draft.out, status: row.s });
-      const saved = { in: draft.in, out: draft.out, s: row.s || "出勤" };
+      await apiPut("/attendance/me", { date: row.date, courseId: courseForDate(row.date), clockIn: draft.in, clockOut: draft.out, status: draft.s || row.s, reason: draft.reason || "" });
+      const saved = { in: draft.in, out: draft.out, s: draft.s || row.s || "出勤", reason: draft.reason || "", courseId: courseForDate(row.date) };
       upsertAttendanceRow(row.date, saved, saved.s);
       if (row.date === today) { setAtt(saved); setTodayDraft(saved); }
       emitNotificationRefresh();
@@ -2829,12 +2863,14 @@ function TraineeAttendance() {
         <div className="flex flex-col items-center gap-5 sm:flex-row sm:justify-between">
           <div>
             <div className="text-sm" style={{ color: T.textMuted }}>{fmtLongDate(today)}</div>
-            <div className="text-2xl font-bold" style={{ color: T.textPrimary }}>{enrolledCourses.map(c => c.name).filter(Boolean).join(" ／ ") || "本日の勤怠"}</div>
+            <div className="text-2xl font-bold" style={{ color: T.textPrimary }}>{todayCourse?.name || (dateHasConflict(today) ? "複数コースの日程重複" : "本日の勤怠")}</div>
             {editToday ? (
               <div className="mt-3 flex flex-wrap items-center gap-2">
                 <input type="time" value={todayDraft.in} disabled={attendanceSaving} onChange={e => setTodayDraft(current => ({ ...current, in: e.target.value }))} aria-label="本日の出勤時刻" className="w-24 rounded-lg px-2 py-1.5 text-sm outline-none disabled:opacity-60" style={{ border: `1px solid ${T.border}`, color: T.textPrimary }} />
                 <span style={{ color: T.textMuted }}>–</span>
                 <input type="time" value={todayDraft.out} disabled={attendanceSaving} onChange={e => setTodayDraft(current => ({ ...current, out: e.target.value }))} aria-label="本日の退勤時刻" className="w-24 rounded-lg px-2 py-1.5 text-sm outline-none disabled:opacity-60" style={{ border: `1px solid ${T.border}`, color: T.textPrimary }} />
+                <select value={todayDraft.s} disabled={attendanceSaving} onChange={e => setTodayDraft(current => ({ ...current, s: e.target.value, reason: e.target.value === "出勤" ? "" : current.reason }))} aria-label="本日の勤怠区分" className="rounded-lg px-2 py-1.5 text-sm outline-none disabled:opacity-60" style={{ border: `1px solid ${T.border}`, color: T.textPrimary }}><option value="出勤">出勤</option><option value="遅刻">遅刻</option><option value="早退">早退</option><option value="欠勤">欠勤</option><option value="中抜け">中抜け</option><option value="休暇">休暇</option></select>
+                {attendanceNeedsReason(todayDraft.s) && <input value={todayDraft.reason} disabled={attendanceSaving} onChange={e => setTodayDraft(current => ({ ...current, reason: e.target.value }))} placeholder="理由（必須）" className="min-w-48 flex-1 rounded-lg px-2 py-1.5 text-sm outline-none disabled:opacity-60" style={{ border: `1px solid ${T.border}`, color: T.textPrimary }} />}
                 <Btn size="sm" icon={Check} disabled={attendanceSaving} onClick={saveTodayEdit}>{attendanceSaving ? "保存中…" : "保存"}</Btn>
                 <Btn size="sm" kind="ghost" disabled={attendanceSaving} onClick={cancelTodayEdit}>キャンセル</Btn>
               </div>
@@ -2860,7 +2896,9 @@ function TraineeAttendance() {
               <button onClick={() => doClockOut()} disabled={editToday || workdaysLoading || attendanceSaving || !todayIsTrainingDay || !att.in || !!att.out} className="flex h-24 w-24 flex-col items-center justify-center rounded-2xl font-bold disabled:opacity-50" style={{ background: att.out ? T.border : T.textPrimary, color: att.out ? T.textMuted : "#fff" }}><LogOut size={22} /><span className="mt-1 text-sm">現在時刻で退勤</span></button>
               {selectedStandardCourse && courseStandardOut(selectedStandardCourse) && <button onClick={() => doClockOut(courseStandardOut(selectedStandardCourse))} disabled={editToday || workdaysLoading || attendanceSaving || !todayIsTrainingDay || !att.in || !!att.out} className="flex h-24 w-28 flex-col items-center justify-center rounded-2xl font-bold disabled:opacity-50" style={{ background: T.warningSubtle, color: T.warning }}><LogOut size={22} /><span className="mt-1 text-xs">定時{courseStandardOut(selectedStandardCourse)}で退勤</span></button>}
             </div>
-            {!workdaysLoading && workdaysState === "ready" && !todayIsTrainingDay && <div className="rounded-lg px-3 py-2 text-xs font-semibold" style={{ background: T.bgBase, color: T.textMuted }}>本日は研修カレンダーの非研修日です。勤怠登録はできません。</div>}
+            {!workdaysLoading && workdaysState === "setup_required" && <div className="rounded-lg px-3 py-2 text-xs font-semibold" style={{ background: T.warningSubtle, color: T.warning }}>所属コースの日程が未設定です。欠席とは判定せず、勤怠入力を停止しています。</div>}
+            {!workdaysLoading && workdaysState === "ready" && dateHasConflict(today) && <div className="rounded-lg px-3 py-2 text-xs font-semibold" style={{ background: T.warningSubtle, color: T.warning }}>本日に複数の研修が重複しています。運営担当者へご確認ください。</div>}
+            {!workdaysLoading && workdaysState === "ready" && !todayIsTrainingDay && !dateHasConflict(today) && <div className="rounded-lg px-3 py-2 text-xs font-semibold" style={{ background: T.bgBase, color: T.textMuted }}>本日は研修カレンダーの非研修日です。勤怠登録はできません。</div>}
             {standardCourses.length > 1 && !selectedStandardCourse && <div className="text-xs" style={{ color: T.textMuted }}>複数コースに所属しているため、定時打刻を使うコースを選んでください。</div>}
           </div>
         </div>
@@ -2877,7 +2915,7 @@ function TraineeAttendance() {
         </div>
       </div>
       <Card className="mb-5 overflow-hidden">
-        <div className="flex flex-wrap items-center justify-between gap-2 px-4 py-3" style={{ borderBottom: `1px solid ${T.border}` }}><div><h3 className="text-sm font-bold" style={{ color: T.textPrimary }}>{histMonth.replace("-", "年")}月の勤怠カレンダー</h3><p className="text-xs" style={{ color: T.textMuted }}>管理者が設定した研修日だけ登録できます。非研修日の既存データは閲覧のみ可能です。</p></div><div className="flex gap-2"><Badge tone="green">登録済み</Badge><Badge tone="amber">研修日・未登録</Badge><Badge tone="muted">非研修日</Badge></div></div>
+        <div className="flex flex-wrap items-center justify-between gap-2 px-4 py-3" style={{ borderBottom: `1px solid ${T.border}` }}><div><h3 className="text-sm font-bold" style={{ color: T.textPrimary }}>{histMonth.replace("-", "年")}月の勤怠カレンダー</h3><p className="text-xs" style={{ color: workdaysState === "setup_required" ? T.warning : T.textMuted }}>{workdaysState === "setup_required" ? "日程未設定のため、未登録・非研修日のどちらにも判定していません。" : "管理者が設定した研修日だけ登録できます。非研修日の既存データは閲覧のみ可能です。"}</p></div><div className="flex gap-2"><Badge tone="green">登録済み</Badge><Badge tone="amber">研修日・未登録</Badge><Badge tone="muted">非研修日</Badge></div></div>
         <div className="grid grid-cols-7" style={{ background: T.border, gap: 1 }}>
           {WD.map((weekday, index) => <div key={weekday} className="bg-white py-2 text-center text-xs font-bold" style={{ color: index === 0 ? T.danger : index === 6 ? T.accent : T.textMuted }}>{weekday}</div>)}
           {calendarCells.map((dateValue, index) => {
@@ -2885,9 +2923,10 @@ function TraineeAttendance() {
             const row = attendanceByDate[dateValue];
             const future = dateValue > today;
             const isTrainingDay = attendanceTrainingDateSet.has(dateValue);
+            const conflict = dateHasConflict(dateValue);
             const missing = !row && !future && isTrainingDay;
             const isToday = dateValue === today;
-            return <button key={dateValue} type="button" disabled={future || !isTrainingDay || workdaysLoading} onClick={() => openCalendarAttendance(dateValue, row)} className="min-h-20 bg-white p-1 text-left transition enabled:cursor-pointer enabled:hover:brightness-95 disabled:cursor-default sm:min-h-24 sm:p-2" style={isToday ? { boxShadow: `inset 0 0 0 2px ${T.accent}` } : undefined} aria-label={`${dateValue}の勤怠を${row ? "修正" : "登録"}`}><div className="flex items-center justify-between"><span className="text-xs font-bold" style={{ color: isTrainingDay ? T.textPrimary : T.textMuted }}>{Number(dateValue.slice(-2))}</span>{isToday && <span className="hidden sm:inline"><Badge tone="cyan">今日</Badge></span>}</div>{row ? <div className="mt-1 rounded-lg px-1 py-1 sm:mt-2 sm:px-2 sm:py-1.5" style={{ background: T.successSubtle }}><div className="text-[10px] font-bold sm:text-[11px]" style={{ color: T.success }}>登録済み<span className="hidden sm:inline">{!isTrainingDay && !workdaysLoading ? "（閲覧のみ）" : ""}</span></div><div className="mt-0.5 hidden text-xs sm:block" style={{ color: T.textSecondary }}>{row.in || "—"}–{row.out || "—"}</div></div> : workdaysLoading ? <div className="mt-1 text-[10px] sm:mt-2 sm:text-[11px]" style={{ color: T.textMuted }}>確認中</div> : missing ? <div className="mt-1 rounded-lg px-1 py-1 text-[10px] font-bold sm:mt-2 sm:px-2 sm:py-1.5 sm:text-[11px]" style={{ background: T.warningSubtle, color: T.warning }}>研修日<span className="hidden sm:inline">・クリックして登録</span></div> : <div className="mt-1 text-[10px] sm:mt-2 sm:text-[11px]" style={{ color: T.textMuted }}>{future && isTrainingDay ? "研修予定" : "非研修"}<span className="hidden sm:inline">日</span></div>}</button>;
+            return <button key={dateValue} type="button" disabled={future || !isTrainingDay || workdaysLoading || workdaysState !== "ready" || conflict} onClick={() => openCalendarAttendance(dateValue, row)} className="min-h-20 bg-white p-1 text-left transition enabled:cursor-pointer enabled:hover:brightness-95 disabled:cursor-default sm:min-h-24 sm:p-2" style={isToday ? { boxShadow: `inset 0 0 0 2px ${T.accent}` } : undefined} aria-label={`${dateValue}の勤怠を${row ? "修正" : "登録"}`}><div className="flex items-center justify-between"><span className="text-xs font-bold" style={{ color: isTrainingDay ? T.textPrimary : T.textMuted }}>{Number(dateValue.slice(-2))}</span>{isToday && <span className="hidden sm:inline"><Badge tone="cyan">今日</Badge></span>}</div>{row ? <div className="mt-1 rounded-lg px-1 py-1 sm:mt-2 sm:px-2 sm:py-1.5" style={{ background: T.successSubtle }}><div className="text-[10px] font-bold sm:text-[11px]" style={{ color: T.success }}>登録済み<span className="hidden sm:inline">{!isTrainingDay && !workdaysLoading ? "（閲覧のみ）" : ""}</span></div><div className="mt-0.5 hidden text-xs sm:block" style={{ color: T.textSecondary }}>{row.in || "—"}–{row.out || "—"}</div></div> : workdaysLoading ? <div className="mt-1 text-[10px] sm:mt-2 sm:text-[11px]" style={{ color: T.textMuted }}>確認中</div> : conflict ? <div className="mt-1 rounded-lg px-1 py-1 text-[10px] font-bold sm:mt-2 sm:px-2 sm:py-1.5 sm:text-[11px]" style={{ background: T.dangerSubtle, color: T.danger }}>日程重複</div> : workdaysState === "setup_required" ? <div className="mt-1 text-[10px] sm:mt-2 sm:text-[11px]" style={{ color: T.warning }}>日程未設定</div> : missing ? <div className="mt-1 rounded-lg px-1 py-1 text-[10px] font-bold sm:mt-2 sm:px-2 sm:py-1.5 sm:text-[11px]" style={{ background: T.warningSubtle, color: T.warning }}>研修日<span className="hidden sm:inline">・クリックして登録</span></div> : <div className="mt-1 text-[10px] sm:mt-2 sm:text-[11px]" style={{ color: T.textMuted }}>{future && isTrainingDay ? "研修予定" : "非研修"}<span className="hidden sm:inline">日</span></div>}</button>;
           })}
         </div>
       </Card>
@@ -2898,6 +2937,8 @@ function TraineeAttendance() {
               <span className="w-20 text-sm font-medium" style={{ color: T.textPrimary }}>{r.d}</span>
               <input type="time" value={draft.in} disabled={historySaving} onChange={e => setDraft({ ...draft, in: e.target.value })} aria-label="出勤時刻" className="w-24 rounded-lg px-2 py-1 text-sm outline-none disabled:opacity-60" style={{ border: `1px solid ${T.border}`, color: T.textPrimary }} />
               <input type="time" value={draft.out} disabled={historySaving} onChange={e => setDraft({ ...draft, out: e.target.value })} aria-label="退勤時刻" className="w-24 rounded-lg px-2 py-1 text-sm outline-none disabled:opacity-60" style={{ border: `1px solid ${T.border}`, color: T.textPrimary }} />
+              <select value={draft.s || "出勤"} disabled={historySaving} onChange={e => setDraft({ ...draft, s: e.target.value, reason: e.target.value === "出勤" ? "" : draft.reason })} aria-label="勤怠区分" className="rounded-lg px-2 py-1 text-sm outline-none disabled:opacity-60" style={{ border: `1px solid ${T.border}`, color: T.textPrimary }}><option value="出勤">出勤</option><option value="遅刻">遅刻</option><option value="早退">早退</option><option value="欠勤">欠勤</option><option value="中抜け">中抜け</option><option value="休暇">休暇</option></select>
+              {attendanceNeedsReason(draft.s) && <input value={draft.reason || ""} disabled={historySaving} onChange={e => setDraft({ ...draft, reason: e.target.value })} placeholder="理由（必須）" className="min-w-44 flex-1 rounded-lg px-2 py-1 text-sm outline-none disabled:opacity-60" style={{ border: `1px solid ${T.border}`, color: T.textPrimary }} />}
               <Btn size="sm" icon={Check} disabled={historySaving} onClick={saveEdit}>{historySaving ? "保存中…" : "保存"}</Btn>
               <button disabled={historySaving} onClick={() => setEIdx(-1)} className="text-xs disabled:opacity-60" style={{ color: T.textMuted }}>取消</button>
             </div>
@@ -2906,7 +2947,7 @@ function TraineeAttendance() {
               <span className="text-sm font-medium" style={{ color: T.textPrimary }}>{r.d}</span>
               <div className="flex flex-wrap items-center justify-end gap-3 text-sm" style={{ color: T.textMuted }}>
                 <span>出 {r.in || "—"}</span><span>退 {r.out || "—"}</span>
-                <Badge tone={attendanceStatusTone(r.s, r)}>{attendanceStatusLabel(r.s, r)}</Badge>
+                <Badge tone={attendanceStatusTone(r.s, r)}>{attendanceStatusLabel(r.s, r)}</Badge>{r.reason && <span className="max-w-56 truncate text-xs" title={r.reason}>{r.reason}</span>}
                 {attendanceTrainingDateSet.has(r.date) && <button onClick={() => startEdit(r)} className="rounded-lg p-1 hover:bg-gray-50"><Pencil size={14} style={{ color: T.textMuted }} /></button>}
               </div>
             </>
@@ -2915,7 +2956,8 @@ function TraineeAttendance() {
       ))}</Card>
       {calendarEditDate && <Modal title={`${calendarEditDate.replace(/-/g, "/")} の勤怠`} desc={attendanceByDate[calendarEditDate] ? "登録済みの時刻を修正できます。" : "出勤・退勤時刻を入力して登録します。"} onClose={() => { if (!calendarSaving) setCalendarEditDate(""); }} footer={<><Btn kind="ghost" disabled={calendarSaving} onClick={() => setCalendarEditDate("")}>キャンセル</Btn><Btn icon={Check} disabled={calendarSaving || !calendarDraft.in} onClick={saveCalendarAttendance}>{calendarSaving ? "保存中…" : attendanceByDate[calendarEditDate] ? "変更を保存" : "勤怠を登録"}</Btn></>}>
         <div className="grid gap-4 sm:grid-cols-2"><Field label="出勤時刻"><input type="time" value={calendarDraft.in} disabled={calendarSaving} onChange={e => setCalendarDraft(current => ({ ...current, in: e.target.value }))} className={fieldCls} style={{ border: `1px solid ${T.border}`, color: T.textPrimary, background: "#fff" }} /></Field><Field label="退勤時刻"><input type="time" value={calendarDraft.out} disabled={calendarSaving} onChange={e => setCalendarDraft(current => ({ ...current, out: e.target.value }))} className={fieldCls} style={{ border: `1px solid ${T.border}`, color: T.textPrimary, background: "#fff" }} /></Field></div>
-        <Field label="勤怠区分"><select value={calendarDraft.s} disabled={calendarSaving} onChange={e => setCalendarDraft(current => ({ ...current, s: e.target.value }))} className={fieldCls} style={{ border: `1px solid ${T.border}`, color: T.textPrimary, background: "#fff" }}><option value="出勤">出勤</option><option value="遅刻">遅刻</option><option value="早退">早退</option><option value="欠勤">欠勤</option><option value="休暇">休暇</option></select></Field>
+        <Field label="勤怠区分"><select value={calendarDraft.s} disabled={calendarSaving} onChange={e => setCalendarDraft(current => ({ ...current, s: e.target.value, reason: e.target.value === "出勤" ? "" : current.reason }))} className={fieldCls} style={{ border: `1px solid ${T.border}`, color: T.textPrimary, background: T.bgSurface }}><option value="出勤">出勤</option><option value="遅刻">遅刻</option><option value="早退">早退</option><option value="欠勤">欠勤</option><option value="中抜け">中抜け</option><option value="休暇">休暇</option></select></Field>
+        {attendanceNeedsReason(calendarDraft.s) && <Field label="理由（必須）"><textarea rows={2} value={calendarDraft.reason || ""} disabled={calendarSaving} onChange={e => setCalendarDraft(current => ({ ...current, reason: e.target.value }))} className={fieldCls + " resize-none"} style={{ border: `1px solid ${T.border}`, color: T.textPrimary, background: T.bgSurface }} /></Field>}
       </Modal>}
     </div>
   );
@@ -2936,19 +2978,44 @@ function AttendanceManage({ role }) {
   const [attendanceStatus, setAttendanceStatus] = useState("すべて");
   const [attendanceSort, setAttendanceSort] = useState("name");
   const [bulkBusy, setBulkBusy] = useState(false);
+  const [dayContext, setDayContext] = useState(null);
+  const [scheduleState, setScheduleState] = useState("loading");
+  const [monthlyTrainingDates, setMonthlyTrainingDates] = useState([]);
+  const [monthlyScheduleState, setMonthlyScheduleState] = useState("loading");
   const opsFilter = useOpsFilter(true);
-  const canEdit = role === "admin" || (role === "instructor" && Array.isArray(opsFilter.selectedCourse?.instructorIds) && opsFilter.selectedCourse.instructorIds.includes(opsFilter.currentUserId));
+  const canEdit = role === "admin" || (role === "instructor" && scheduleState === "ready" && Array.isArray(dayContext?.effectiveInstructorIds) && dayContext.effectiveInstructorIds.includes(opsFilter.currentUserId));
   function load() {
     setErr("");
     apiGet("/attendance?date=" + date)
       .then(items => setRows((items || []).map(r => ({
         traineeId: r.traineeId, date: r.date,
         name: "受講生 " + String(r.traineeId).slice(0, 6),
-        in: r.clockIn || "", out: r.clockOut || "", s: r.status || "出勤", note: r.note || "",
+        in: r.clockIn || "", out: r.clockOut || "", s: r.status || "出勤", note: r.reason || r.note || "", courseId: r.courseId || "",
       }))))
       .catch(e => setErr("勤怠の読み込みに失敗しました: " + (e?.errorMessage || e?.message || e)));
   }
   useEffect(() => { load(); }, [date]);
+  useEffect(() => {
+    let alive = true;
+    const courseId = opsFilter.courseId;
+    if (!courseId) { setDayContext(null); setMonthlyTrainingDates([]); setScheduleState("loading"); setMonthlyScheduleState("loading"); return () => { alive = false; }; }
+    setScheduleState("loading");
+    setMonthlyScheduleState("loading");
+    const months = [...new Set([String(date).slice(0, 7), month].filter(Boolean))];
+    Promise.all(months.map(targetMonth => apiGet(`/courses/${courseId}/workdays?month=${targetMonth}`).then(result => ({ targetMonth, result }))))
+      .then(results => {
+        if (!alive) return;
+        const dayResult = results.find(item => item.targetMonth === String(date).slice(0, 7))?.result;
+        const monthResult = results.find(item => item.targetMonth === month)?.result;
+        const context = (dayResult?.days || []).find(item => item.date === date) || null;
+        setDayContext(context);
+        setMonthlyTrainingDates((monthResult?.days || []).filter(item => item.status === "ready" && item.isTrainingDay === true).map(item => item.date));
+        setScheduleState(dayResult?.status === "setup_required" ? "setup_required" : "ready");
+        setMonthlyScheduleState(monthResult?.status === "setup_required" ? "setup_required" : "ready");
+      })
+      .catch(() => { if (alive) { setDayContext(null); setMonthlyTrainingDates([]); setScheduleState("error"); setMonthlyScheduleState("error"); } });
+    return () => { alive = false; };
+  }, [opsFilter.courseId, date, month]);
   useEffect(() => {
     if (periodMode !== "月次") return;
     let alive = true;
@@ -2965,9 +3032,11 @@ function AttendanceManage({ role }) {
   }, [periodMode, month]);
   function startEdit(row) { if (!canEdit) return; setEId(row.traineeId); setDraft({ ...row, s: row.s || "正常" }); }
   async function save() {
+    if (!canEdit || dayContext?.isTrainingDay !== true) { setErr("この日の担当講師ではないか、研修日ではないため保存できません。"); return; }
+    if (["遅刻", "早退", "欠席", "欠勤", "中抜け"].some(value => String(draft.s || "").includes(value)) && !String(draft.note || "").trim()) { setErr("遅刻・早退・欠勤・中抜けの理由を入力してください。"); return; }
     setErr("");
     try {
-      await apiPut("/attendance/" + draft.traineeId, { date: draft.date || date, clockIn: draft.in, clockOut: draft.out, status: draft.s, note: draft.note });
+      await apiPut("/attendance/" + draft.traineeId, { date: draft.date || date, courseId: opsFilter.courseId, clockIn: draft.in, clockOut: draft.out, status: draft.s, reason: draft.note, note: draft.note });
       emitNotificationRefresh();
       setEId(null); load();
     } catch (e) { setErr("保存に失敗しました：" + (e?.message || e)); }
@@ -2976,6 +3045,7 @@ function AttendanceManage({ role }) {
   // 個別の遅刻・欠席・早退は登録後にその行だけ修正する運用を想定。
   async function bulkMarkPresent(targets) {
     if (!targets.length || bulkBusy) return;
+    if (!canEdit || dayContext?.isTrainingDay !== true) { setErr("この日の担当講師ではないか、研修日ではないため一括登録できません。"); return; }
     if (!window.confirm(`${targets.length}名を本日「正常」出勤として一括登録します。よろしいですか？`)) return;
     setBulkBusy(true);
     setErr("");
@@ -2983,7 +3053,7 @@ function AttendanceManage({ role }) {
     const stdOut = courseStandardOut(opsFilter.selectedCourse) || "18:00";
     try {
       for (const row of targets) {
-        await apiPut("/attendance/" + row.traineeId, { date, clockIn: stdIn, clockOut: stdOut, status: "正常" });
+        await apiPut("/attendance/" + row.traineeId, { date, courseId: opsFilter.courseId, clockIn: stdIn, clockOut: stdOut, status: "正常" });
       }
       emitNotificationRefresh();
       load();
@@ -3016,9 +3086,10 @@ function AttendanceManage({ role }) {
     return String(nameMap[a.traineeId] || a.name || "").localeCompare(String(nameMap[b.traineeId] || b.name || ""), "ja");
   });
   // 未打刻の受講生も行として表示する（打刻済みAPIレコードに、対象受講生の未登録分を合成）
-  const registeredRows = opsFilter.apply(rows);
+  const isSelectedTrainingDay = scheduleState === "ready" && dayContext?.isTrainingDay === true;
+  const registeredRows = opsFilter.apply(rows).filter(row => !row.courseId || row.courseId === opsFilter.courseId);
   const registeredIds = new Set(registeredRows.map(r => r.traineeId));
-  const missingRows = opsFilter.targetTrainees
+  const missingRows = (isSelectedTrainingDay ? opsFilter.targetTrainees : [])
     .filter(t => t.userId && !registeredIds.has(t.userId))
     .map(t => ({ traineeId: t.userId, date, name: t.name || nameMap[t.userId] || fallbackName(t.userId), in: "", out: "", s: "", note: "" }));
   const filteredRows = sortAttendanceRows(registeredRows.concat(missingRows).filter(attendanceMatchesQuery).filter(attendanceMatchesStatus));
@@ -3026,9 +3097,8 @@ function AttendanceManage({ role }) {
   // 一括登録の対象は、検索/状態フィルタを反映した表示中の未打刻者のみ（絞り込み結果を裏切らない）
   const unregisteredForBulk = filteredRows.filter(r => !r.in);
   const unregistered = filteredRows.filter(r => !r.in && !r.s).length;
-  const monthDates = datesInMonth(month);
   const monthlyAttendance = opsFilter.targetTrainees.map(t => {
-    const items = monthlyRows.filter(r => r.traineeId === t.userId);
+    const items = monthlyRows.filter(r => r.traineeId === t.userId && (!r.courseId || r.courseId === opsFilter.courseId) && monthlyTrainingDates.includes(r.date));
     const counts = items.reduce((acc, r) => {
       acc[statusKind(r.status)] += 1;
       return acc;
@@ -3041,17 +3111,17 @@ function AttendanceManage({ role }) {
       present: counts.present,
       late: counts.late,
       absent: counts.absent,
-      missing: Math.max(monthDates.length - registered, 0),
+      missing: monthlyScheduleState === "setup_required" || monthlyScheduleState === "error" ? null : Math.max(monthlyTrainingDates.length - registered, 0),
     };
   }).filter(r => {
     const q = attendanceQuery.trim().toLowerCase();
     const byQuery = !q || [r.name, r.company, r.traineeId].some(v => String(v || "").toLowerCase().includes(q));
-    const byMonthly = monthlyFilter === "欠席ありのみ" ? r.absent > 0 : monthlyFilter === "未登録ありのみ" ? r.missing > 0 : true;
+    const byMonthly = monthlyFilter === "欠席ありのみ" ? r.absent > 0 : monthlyFilter === "未登録ありのみ" ? r.missing != null && r.missing > 0 : true;
     const byStatus = attendanceStatus === "すべて" ? true : attendanceStatus === "欠席" ? r.absent > 0 : attendanceStatus === "遅刻" ? r.late > 0 : attendanceStatus === "正常" ? r.present > 0 : attendanceStatus === "退勤未打刻" || attendanceStatus === "出勤未打刻" || attendanceStatus === "未完了" ? false : true;
     return byQuery && byMonthly && byStatus;
   }).sort((a, b) => {
-    if (attendanceSort === "status") return (b.absent + b.late + b.missing) - (a.absent + a.late + a.missing);
-    if (attendanceSort === "clockIn") return b.missing - a.missing;
+    if (attendanceSort === "status") return (b.absent + b.late + Number(b.missing || 0)) - (a.absent + a.late + Number(a.missing || 0));
+    if (attendanceSort === "clockIn") return Number(b.missing || 0) - Number(a.missing || 0);
     return String(a.name || "").localeCompare(String(b.name || ""), "ja");
   });
   return (
@@ -3061,7 +3131,7 @@ function AttendanceManage({ role }) {
           if (periodMode === "月次") {
             const companyNameOf = id => opsFilter.companies.find(c => c.companyId === id)?.name || "";
             const rows = monthlyRows
-              .filter(r => opsFilter.targetIds.has(r.traineeId))
+              .filter(r => opsFilter.targetIds.has(r.traineeId) && (!r.courseId || r.courseId === opsFilter.courseId) && monthlyTrainingDates.includes(r.date))
               .slice()
               .sort((a, b) => String(a.date || "").localeCompare(String(b.date || "")))
               .map(r => {
@@ -3074,6 +3144,10 @@ function AttendanceManage({ role }) {
           }
         }}>Excelで出力</Btn>{canEdit && periodMode === "日次" && unregisteredForBulk.length > 0 && <Btn size="sm" icon={CheckCircle2} disabled={bulkBusy} onClick={() => bulkMarkPresent(unregisteredForBulk)}>{bulkBusy ? "登録中…" : `未打刻${unregisteredForBulk.length}名を一括登録`}</Btn>}</div>} />
       {err && <div className="mb-4 rounded-lg px-3 py-2 text-xs" style={{ background: T.dangerSubtle, color: T.danger }}>{err}</div>}
+      {periodMode === "日次" && scheduleState === "setup_required" && <div className="mb-4 rounded-xl px-4 py-3 text-sm font-semibold" style={{ background: T.warningSubtle, color: T.warning }}>コース日程が未設定です。未打刻者や欠席者には数えず、編集も停止しています。</div>}
+      {periodMode === "日次" && scheduleState === "ready" && dayContext?.isTrainingDay === false && <div className="mb-4 rounded-xl px-4 py-3 text-sm" style={{ background: T.bgBase, color: T.textMuted }}>選択日は非研修日です。既存記録のみ表示し、未打刻者には数えません。</div>}
+      {periodMode === "日次" && role === "instructor" && scheduleState === "ready" && dayContext?.isTrainingDay === true && !canEdit && <div className="mb-4 rounded-xl px-4 py-3 text-sm" style={{ background: T.bgBase, color: T.textMuted }}>この日の担当講師ではないため、勤怠は閲覧のみです。</div>}
+      {periodMode === "月次" && monthlyScheduleState === "setup_required" && <div className="mb-4 rounded-xl px-4 py-3 text-sm font-semibold" style={{ background: T.warningSubtle, color: T.warning }}>コース日程が未設定のため、未登録日数は「—」で表示します。</div>}
       <OpsFilterPanel filter={opsFilter} summary={periodMode === "月次" ? `表示対象: ${opsFilter.targetTrainees.length}名 / 集計月: ${month}` : `表示対象: ${opsFilter.targetTrainees.length}名 / 勤怠登録: ${registeredRows.length}件`} />
       <Card className="mb-4 p-4">
         <div className="grid gap-3 md:grid-cols-[1fr_180px_180px]">
@@ -3092,7 +3166,7 @@ function AttendanceManage({ role }) {
       {periodMode === "月次" ? (
         <Card className="overflow-hidden">
           <div className="flex flex-wrap items-center justify-between gap-3 p-4" style={{ borderBottom: `1px solid ${T.border}` }}>
-            <div><h3 className="font-bold" style={{ color: T.textPrimary }}>月次勤怠集計</h3><p className="text-xs" style={{ color: T.textMuted }}>コース・企業の絞り込み条件を反映して、受講生ごとに月内の勤怠を集計します。</p></div>
+            <div><h3 className="font-bold" style={{ color: T.textPrimary }}>月次勤怠集計</h3><p className="text-xs" style={{ color: T.textMuted }}>選択コースの研修日 {monthlyScheduleState === "ready" ? `${monthlyTrainingDates.length}日` : "—"} を基準に集計します。</p></div>
             <Seg value={monthlyFilter} onChange={setMonthlyFilter} options={["すべて", "欠席ありのみ", "未登録ありのみ"]} />
           </div>
           {monthlyLoading ? <div className="p-4"><SkeletonRows rows={5} /></div> : (
@@ -3104,7 +3178,7 @@ function AttendanceManage({ role }) {
                 {monthlyAttendance.length === 0 ? <div className="px-4 py-8 text-center text-sm" style={{ color: T.textMuted }}>該当データがありません</div> : monthlyAttendance.map(r => (
                   <div key={r.traineeId} className="grid grid-cols-6 gap-3 px-4 py-3 text-sm" style={{ borderTop: `1px solid ${T.border}`, color: T.textPrimary }}>
                     <div className="col-span-2 flex items-center gap-2"><Avatar name={r.name} size={28} /><div className="min-w-0"><div className="truncate font-semibold">{r.name}</div><div className="truncate text-xs" style={{ color: T.textMuted }}>{r.company}</div></div></div>
-                    <div><Badge tone="green">{r.present}日</Badge></div><div><Badge tone={r.absent ? "red" : "muted"}>{r.absent}日</Badge></div><div><Badge tone={r.late ? "amber" : "muted"}>{r.late}日</Badge></div><div><Badge tone={r.missing ? "amber" : "green"}>{r.missing}日</Badge></div>
+                    <div><Badge tone="green">{r.present}日</Badge></div><div><Badge tone={r.absent ? "red" : "muted"}>{r.absent}日</Badge></div><div><Badge tone={r.late ? "amber" : "muted"}>{r.late}日</Badge></div><div><Badge tone={r.missing == null ? "muted" : r.missing ? "amber" : "green"}>{r.missing == null ? "—" : `${r.missing}日`}</Badge></div>
                   </div>
                 ))}
               </div>
@@ -3127,8 +3201,8 @@ function AttendanceManage({ role }) {
                     <label className="text-xs font-semibold" style={{ color: T.textMuted }}>出勤<input value={draft.in} onChange={e => setDraft({ ...draft, in: e.target.value })} className="mt-1 w-full rounded-xl px-3 py-2 text-sm outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary }} /></label>
                     <label className="text-xs font-semibold" style={{ color: T.textMuted }}>退勤<input value={draft.out} onChange={e => setDraft({ ...draft, out: e.target.value })} className="mt-1 w-full rounded-xl px-3 py-2 text-sm outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary }} /></label>
                   </div>
-                  <select value={draft.s} onChange={e => setDraft({ ...draft, s: e.target.value })} className="w-full rounded-xl px-3 py-2 text-sm outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary, background: T.bgSurface }}><option>正常</option><option>遅刻</option><option>早退</option><option>欠席</option><option>修正済み</option><option>未完了</option></select>
-                  <input value={draft.note} onChange={e => setDraft({ ...draft, note: e.target.value })} placeholder="備考" className="w-full rounded-xl px-3 py-2 text-sm outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary }} />
+                  <select value={draft.s} onChange={e => setDraft({ ...draft, s: e.target.value, note: e.target.value === "正常" ? "" : draft.note })} className="w-full rounded-xl px-3 py-2 text-sm outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary, background: T.bgSurface }}><option>正常</option><option>遅刻</option><option>早退</option><option>欠席</option><option>中抜け</option><option>修正済み</option><option>未完了</option></select>
+                  <input value={draft.note} onChange={e => setDraft({ ...draft, note: e.target.value })} placeholder={["遅刻", "早退", "欠席", "欠勤", "中抜け"].some(value => String(draft.s || "").includes(value)) ? "理由（必須）" : "備考"} className="w-full rounded-xl px-3 py-2 text-sm outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary }} />
                   <div className="flex justify-end gap-2"><Btn kind="ghost" size="sm" onClick={() => setEId(null)}>キャンセル</Btn><Btn size="sm" icon={Check} onClick={save}>保存</Btn></div>
                 </div>
               ) : (
@@ -3157,8 +3231,8 @@ function AttendanceManage({ role }) {
                     <input value={draft.in} onChange={e => setDraft({ ...draft, in: e.target.value })} className="w-16 rounded-lg px-1.5 py-1 text-sm outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary }} />
                     <input value={draft.out} onChange={e => setDraft({ ...draft, out: e.target.value })} className="w-16 rounded-lg px-1.5 py-1 text-sm outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary }} />
                     <select value={draft.s} onChange={e => setDraft({ ...draft, s: e.target.value })} className="w-20 rounded-xl px-1 py-1 text-sm outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary }}>
-                      <option>正常</option><option>遅刻</option><option>早退</option><option>欠席</option><option>修正済み</option><option>未完了</option></select>
-                    <input value={draft.note} onChange={e => setDraft({ ...draft, note: e.target.value })} placeholder="備考" className="flex-1 rounded-lg px-2 py-1 text-sm outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary }} />
+                      <option>正常</option><option>遅刻</option><option>早退</option><option>欠席</option><option>中抜け</option><option>修正済み</option><option>未完了</option></select>
+                    <input value={draft.note} onChange={e => setDraft({ ...draft, note: e.target.value })} placeholder={["遅刻", "早退", "欠席", "欠勤", "中抜け"].some(value => String(draft.s || "").includes(value)) ? "理由（必須）" : "備考"} className="flex-1 rounded-lg px-2 py-1 text-sm outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary }} />
                     <div className="flex w-12 items-center justify-end gap-1"><button onClick={save} className="rounded-lg p-1" style={{ color: T.success }}><Check size={16} /></button><button onClick={() => setEId(null)} className="rounded-lg p-1" style={{ color: T.textMuted }}><X size={15} /></button></div>
                   </>
                 ) : (
@@ -3740,8 +3814,13 @@ function Reports({ role }) {
   const [commentIntent, setCommentIntent] = useState({});
   const [aiCommentBusy, setAiCommentBusy] = useState(null);
   const [reportTrainingDates, setReportTrainingDates] = useState([]);
+  const [reportConflictDates, setReportConflictDates] = useState([]);
   const [reportWorkdaysLoading, setReportWorkdaysLoading] = useState(false);
   const [reportWorkdaysState, setReportWorkdaysState] = useState(() => role === "trainee" ? "loading" : "ready");
+  const [opsReportDayContext, setOpsReportDayContext] = useState(null);
+  const [opsReportTrainingDates, setOpsReportTrainingDates] = useState([]);
+  const [opsReportScheduleState, setOpsReportScheduleState] = useState("loading");
+  const [opsReportMonthScheduleState, setOpsReportMonthScheduleState] = useState("loading");
   const reportFormRef = useRef(null);
   const reportFirstInputRef = useRef(null);
   const canWrite = role === "trainee";
@@ -3757,14 +3836,11 @@ function Reports({ role }) {
   const canCommentReport = (report) => {
     if (role === "admin" || role === "client") return true;
     if (role !== "instructor") return false;
-    const trainee = opsFilter.trainees.find(t => t.userId === report?.traineeId);
-    if (!hasInstructorAssignments) return false;
-    if (opsFilter.courseId) return instructorAssignedCourseIds.has(opsFilter.courseId);
-    if (opsFilter.targetIds.has(report?.traineeId)) return true;
-    const ids = traineeCourseIds(trainee);
-    return [...ids].some(id => instructorAssignedCourseIds.has(id));
+    if (opsReportScheduleState !== "ready" || opsReportDayContext?.isTrainingDay !== true) return false;
+    if (!opsReportDayContext?.effectiveInstructorIds?.includes(opsFilter.currentUserId)) return false;
+    return !report?.courseId || report.courseId === opsFilter.courseId;
   };
-  const canComment = role === "admin" || role === "client" || hasInstructorAssignments;
+  const canComment = role === "admin" || role === "client" || (role === "instructor" && opsReportScheduleState === "ready" && opsReportDayContext?.isTrainingDay === true && opsReportDayContext?.effectiveInstructorIds?.includes(opsFilter.currentUserId));
   function blankReportDraft() {
     return { morningGoal: "", goalItems: [], learned: "", question: "", nextday: "", reflection: "", blockers: "", tomorrowGoal: "", customFields: {} };
   }
@@ -3851,23 +3927,47 @@ function Reports({ role }) {
       });
   }, [settingsCourseId, reportReloadKey, reportSupportReloadKey]);
   useEffect(() => {
-    if (!canWrite || !reportCourseId) { setReportTrainingDates([]); setReportWorkdaysState("ready"); setReportWorkdaysLoading(false); return; }
+    if (!canWrite || !reportCourseId) { setReportTrainingDates([]); setReportConflictDates([]); setReportWorkdaysState("ready"); setReportWorkdaysLoading(false); return; }
     let alive = true;
     const months = [...new Set([month, String(editingReportDate || "").slice(0, 7)].filter(Boolean))];
+    const courseIds = [...new Set(reportCourses.map(course => course.courseId).filter(Boolean))];
     setReportTrainingDates([]);
+    setReportConflictDates([]);
     setReportWorkdaysState("loading");
     setReportWorkdaysLoading(true);
-    Promise.all(months.map(targetMonth => apiGet(`/courses/${reportCourseId}/workdays?month=${targetMonth}`)))
+    Promise.all(courseIds.flatMap(courseId => months.map(targetMonth => apiGet(`/courses/${courseId}/workdays?month=${targetMonth}`).then(result => ({ courseId, result })))))
       .then(results => {
         if (!alive) return;
-        setReportTrainingDates(results.flatMap(result => (result?.days || []).filter(day => day.isTrainingDay).map(day => day.date)));
-        setReportWorkdaysState("ready");
+        const byDate = {};
+        results.forEach(({ courseId, result }) => (result?.days || []).filter(day => day.status === "ready" && day.isTrainingDay === true).forEach(day => { byDate[day.date] = [...(byDate[day.date] || []), courseId]; }));
+        setReportTrainingDates([...new Set(results.filter(item => item.courseId === reportCourseId).flatMap(({ result }) => (result?.days || []).filter(day => day.status === "ready" && day.isTrainingDay === true).map(day => day.date)))]);
+        setReportConflictDates(Object.entries(byDate).filter(([, ids]) => new Set(ids).size > 1).map(([day]) => day));
+        setReportWorkdaysState(results.some(({ result }) => result?.status === "setup_required") ? "setup_required" : "ready");
       })
       .catch(() => { if (alive) { setReportTrainingDates([]); setReportWorkdaysState("error"); setSaveErr("研修カレンダーを確認できませんでした。非研修日とは判定せず、入力を停止しています。"); } })
       .finally(() => { if (alive) setReportWorkdaysLoading(false); });
     return () => { alive = false; };
-  }, [canWrite, reportCourseId, month, editingReportDate, reportReloadKey, reportSupportReloadKey]);
+  }, [canWrite, reportCourseId, reportCourses, month, editingReportDate, reportReloadKey, reportSupportReloadKey]);
   const reportTrainingDateSet = useMemo(() => new Set(reportTrainingDates), [reportTrainingDates]);
+  const reportConflictDateSet = useMemo(() => new Set(reportConflictDates), [reportConflictDates]);
+  useEffect(() => {
+    if (!canViewReports || !opsFilter.courseId) { setOpsReportDayContext(null); setOpsReportTrainingDates([]); setOpsReportScheduleState("loading"); setOpsReportMonthScheduleState("loading"); return; }
+    let alive = true;
+    const months = [...new Set([String(date).slice(0, 7), month].filter(Boolean))];
+    setOpsReportScheduleState("loading"); setOpsReportMonthScheduleState("loading");
+    Promise.all(months.map(targetMonth => apiGet(`/courses/${opsFilter.courseId}/workdays?month=${targetMonth}`).then(result => ({ targetMonth, result }))))
+      .then(results => {
+        if (!alive) return;
+        const dayResult = results.find(item => item.targetMonth === String(date).slice(0, 7))?.result;
+        const monthResult = results.find(item => item.targetMonth === month)?.result;
+        setOpsReportDayContext((dayResult?.days || []).find(item => item.date === date) || null);
+        setOpsReportTrainingDates((monthResult?.days || []).filter(item => item.status === "ready" && item.isTrainingDay === true).map(item => item.date));
+        setOpsReportScheduleState(dayResult?.status === "setup_required" ? "setup_required" : "ready");
+        setOpsReportMonthScheduleState(monthResult?.status === "setup_required" ? "setup_required" : "ready");
+      })
+      .catch(() => { if (alive) { setOpsReportDayContext(null); setOpsReportTrainingDates([]); setOpsReportScheduleState("error"); setOpsReportMonthScheduleState("error"); } });
+    return () => { alive = false; };
+  }, [canViewReports, opsFilter.courseId, date, month]);
   useEffect(() => {
     if (!canViewReports || periodMode !== "月次") return;
     let alive = true;
@@ -3891,6 +3991,7 @@ function Reports({ role }) {
     if (saving) return;
     if (!hasAny) { setReportSaveState("error"); setSaveErr("保存する内容を入力してください。"); return; }
     if (!reportCourseId) { setSaveErr("日報の対象コースを選択してください。"); return; }
+    if (reportConflictDateSet.has(editingReportDate)) { setSaveErr("同じ日に複数の研修が重複しています。運営担当者が日程を修正するまで日報を保存できません。"); return; }
     if (!reportTrainingDateSet.has(editingReportDate)) { setSaveErr("日報は選択中のコースの研修日にのみ登録できます。"); return; }
     const missingRequired = reportFields.find(field => field.required && !String(reportFieldValue(draft, field.id)).trim());
     if (missingRequired) { setSaveErr(`「${missingRequired.label}」を入力してください。`); return; }
@@ -4000,7 +4101,7 @@ function Reports({ role }) {
   function removeGoalItem(id) {
     setDraft(d => ({ ...d, goalItems: d.goalItems.filter(g => g.id !== id) }));
   }
-  const visibleReports = canViewReports ? opsFilter.apply(reports) : reports;
+  const visibleReports = canViewReports ? opsFilter.apply(reports).filter(report => !report.courseId || report.courseId === opsFilter.courseId) : reports;
   const companyNameById = (companyId) => opsFilter.companies.find(c => c.companyId === companyId)?.name || companyId || "";
   const companyNameOfReport = (r) => {
     const trainee = opsFilter.trainees.find(t => t.userId === r.traineeId);
@@ -4017,7 +4118,7 @@ function Reports({ role }) {
     return m;
   }, [visibleReports]);
   const dailyReportRows = canViewReports && periodMode === "日次"
-    ? (opsFilter.targetTrainees.length ? opsFilter.targetTrainees : visibleReports.map(r => ({ ...(traineeById[r.traineeId] || {}), userId: r.traineeId }))).map(t => {
+    ? (opsReportScheduleState === "ready" && opsReportDayContext?.isTrainingDay === true ? (opsFilter.targetTrainees.length ? opsFilter.targetTrainees : visibleReports.map(r => ({ ...(traineeById[r.traineeId] || {}), userId: r.traineeId }))) : []).map(t => {
       const r = reportByTrainee.get(t.userId);
       const hasComment = !!(r?.comments?.length || r?.rawData?.comment || r?.comment);
       const needsCheck = !!(r?.question || r?.blockers);
@@ -4050,27 +4151,27 @@ function Reports({ role }) {
   const dailyMissing = dailyReportRows.filter(r => !r.report).length;
   const dailyUncommented = dailyReportRows.filter(r => r.report && !r.hasComment).length;
   const dailyNeedsCheck = dailyReportRows.filter(r => r.needsCheck || !r.report).length;
-  const reportMonthDates = datesInMonth(month);
   const monthlyReportRows = opsFilter.targetTrainees.map(t => {
-    const submitted = monthlyReports.filter(r => r.traineeId === t.userId).length;
-    const commented = monthlyReports.filter(r => r.traineeId === t.userId && (r.comment || (Array.isArray(r.comments) && r.comments.length))).length;
+    const scopedReports = monthlyReports.filter(r => r.traineeId === t.userId && (!r.courseId || r.courseId === opsFilter.courseId) && opsReportTrainingDates.includes(r.date));
+    const submitted = scopedReports.length;
+    const commented = scopedReports.filter(r => r.comment || (Array.isArray(r.comments) && r.comments.length)).length;
     return {
       traineeId: t.userId,
       name: t.name || nameMap[t.userId] || fallbackName(t.userId),
       company: companyNameById(t.company) || "未登録",
       submitted,
       commented,
-      missing: Math.max(reportMonthDates.length - submitted, 0),
+      missing: opsReportMonthScheduleState === "setup_required" || opsReportMonthScheduleState === "error" ? null : Math.max(opsReportTrainingDates.length - submitted, 0),
     };
   }).filter(r => {
     const q = reportQuery.trim().toLowerCase();
     const byQuery = !q || [r.name, r.company, r.traineeId].some(v => String(v || "").toLowerCase().includes(q));
-    const byMonthly = monthlyFilter === "未提出ありのみ" ? r.missing > 0 : true;
-    const byStatus = reportStatus === "すべて" ? true : reportStatus === "未提出" ? r.missing > 0 : reportStatus === "未コメント" ? r.submitted > r.commented : reportStatus === "コメント済み" ? r.commented > 0 : true;
+    const byMonthly = monthlyFilter === "未提出ありのみ" ? r.missing != null && r.missing > 0 : true;
+    const byStatus = reportStatus === "すべて" ? true : reportStatus === "未提出" ? r.missing != null && r.missing > 0 : reportStatus === "未コメント" ? r.submitted > r.commented : reportStatus === "コメント済み" ? r.commented > 0 : true;
     return byQuery && byMonthly && byStatus;
   }).sort((a, b) => {
     if (reportSort === "name") return String(a.name || "").localeCompare(String(b.name || ""), "ja");
-    if (reportSort === "status") return (b.missing + Math.max(b.submitted - b.commented, 0)) - (a.missing + Math.max(a.submitted - a.commented, 0));
+    if (reportSort === "status") return (Number(b.missing || 0) + Math.max(b.submitted - b.commented, 0)) - (Number(a.missing || 0) + Math.max(a.submitted - a.commented, 0));
     return b.submitted - a.submitted;
   });
   const traineeMonthDates = datesInMonth(month);
@@ -4079,6 +4180,7 @@ function Reports({ role }) {
   const reportCalendarOffset = new Date(reportCalendarYear, reportCalendarMonth - 1, 1).getDay();
   const reportCalendarCells = [...Array(reportCalendarOffset).fill(null), ...traineeMonthDates];
   function editReport(row) {
+    if (reportConflictDateSet.has(row.date)) { setSaveErr("この日は複数の研修が重複しています。運営担当者が日程を修正するまで編集できません。"); return; }
     if (!reportTrainingDateSet.has(row.date)) { setSaveErr("非研修日の日報は新規作成・編集できません。"); return; }
     const r = row.report;
     if (row.date !== editingReportDate) setReportWorkdaysState("loading");
@@ -4091,7 +4193,7 @@ function Reports({ role }) {
     );
     focusReportForm();
   }
-  if (canWrite && (reportDataState !== "ready" || reportWorkdaysState !== "ready" || reportFieldsState !== "ready")) {
+  if (canWrite && (reportDataState !== "ready" || reportWorkdaysState === "loading" || reportWorkdaysState === "error" || reportFieldsState !== "ready")) {
     return (
       <div>
         <SectionHead title="日報" desc="研修カレンダーの研修日に学びを記録し、講師からフィードバックを受け取ります" />
@@ -4113,6 +4215,10 @@ function Reports({ role }) {
           }}>未コメントから処理する</Btn>}
           <Seg value={periodMode} onChange={setPeriodMode} options={["日次", "月次"]} /><span className="text-xs font-semibold" style={{ color: T.textMuted }}>{periodMode === "月次" ? "対象月" : "日報確認日"}</span>{periodMode === "月次" ? <MonthPicker value={month} onChange={setMonth} /> : <input type="date" value={date} onChange={e => setDate(e.target.value)} className="rounded-xl px-3 py-2 text-sm outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary, background: "#fff" }} />}</div> : null} />
       {saveErr && !canWrite && <div className="mb-4 rounded-lg px-3 py-2 text-xs" style={{ background: T.dangerSubtle, color: T.danger }}>{saveErr}</div>}
+      {canWrite && reportWorkdaysState === "setup_required" && <div className="mb-4 rounded-xl px-4 py-3 text-sm font-semibold" style={{ background: T.warningSubtle, color: T.warning }}>所属コースの日程が未設定です。未提出には数えず、新規保存を停止しています。運営担当者へご確認ください。</div>}
+      {canViewReports && periodMode === "日次" && opsReportScheduleState === "setup_required" && <div className="mb-4 rounded-xl px-4 py-3 text-sm font-semibold" style={{ background: T.warningSubtle, color: T.warning }}>コース日程が未設定です。受講生を未提出には数えていません。</div>}
+      {canViewReports && periodMode === "日次" && opsReportScheduleState === "ready" && opsReportDayContext?.isTrainingDay === false && <div className="mb-4 rounded-xl px-4 py-3 text-sm" style={{ background: T.bgBase, color: T.textMuted }}>選択日は非研修日です。未提出者は発生しません。</div>}
+      {canViewReports && periodMode === "月次" && opsReportMonthScheduleState === "setup_required" && <div className="mb-4 rounded-xl px-4 py-3 text-sm font-semibold" style={{ background: T.warningSubtle, color: T.warning }}>コース日程が未設定のため、未提出数は「—」で表示します。</div>}
       {canViewReports && <OpsFilterPanel filter={opsFilter} summary={periodMode === "月次" ? `表示対象: ${opsFilter.targetTrainees.length}名 / 集計月: ${month}` : `表示対象: ${opsFilter.targetTrainees.length}名 / 日報保存: ${visibleReports.length}件`} />}
       {canViewReports && (
         <Card className="mb-4 p-4">
@@ -4190,7 +4296,7 @@ function Reports({ role }) {
       {canViewReports && periodMode === "月次" ? (
         <Card className="overflow-hidden">
           <div className="flex flex-wrap items-center justify-between gap-3 p-4" style={{ borderBottom: `1px solid ${T.border}` }}>
-            <div><h3 className="font-bold" style={{ color: T.textPrimary }}>月次日報集計</h3><p className="text-xs" style={{ color: T.textMuted }}>コース・企業の絞り込み条件を反映して、受講生ごとの提出状況を確認します。</p></div>
+            <div><h3 className="font-bold" style={{ color: T.textPrimary }}>月次日報集計</h3><p className="text-xs" style={{ color: T.textMuted }}>選択コースの研修日 {opsReportMonthScheduleState === "ready" ? `${opsReportTrainingDates.length}日` : "—"} を基準に集計します。</p></div>
             <Seg value={monthlyFilter} onChange={setMonthlyFilter} options={["すべて", "未提出ありのみ"]} />
           </div>
           {monthlyLoading ? <div className="p-4"><SkeletonRows rows={5} /></div> : (
@@ -4202,7 +4308,7 @@ function Reports({ role }) {
                 {monthlyReportRows.length === 0 ? <div className="px-4 py-8 text-center text-sm" style={{ color: T.textMuted }}>該当データがありません</div> : monthlyReportRows.map(r => (
                   <div key={r.traineeId} className="grid grid-cols-5 gap-3 px-4 py-3 text-sm" style={{ borderTop: `1px solid ${T.border}`, color: T.textPrimary }}>
                     <div className="col-span-2 flex items-center gap-2"><Avatar name={r.name} size={28} /><div className="min-w-0"><div className="truncate font-semibold">{r.name}</div><div className="truncate text-xs" style={{ color: T.textMuted }}>{r.company}</div></div></div>
-                    <div><Badge tone="green">{r.submitted}件</Badge></div><div><Badge tone={r.commented ? "cyan" : "muted"}>{r.commented}件</Badge></div><div><Badge tone={r.missing ? "amber" : "green"}>{r.missing}件</Badge></div>
+                    <div><Badge tone="green">{r.submitted}件</Badge></div><div><Badge tone={r.commented ? "cyan" : "muted"}>{r.commented}件</Badge></div><div><Badge tone={r.missing == null ? "muted" : r.missing ? "amber" : "green"}>{r.missing == null ? "—" : `${r.missing}件`}</Badge></div>
                   </div>
                 ))}
               </div>
@@ -4212,7 +4318,8 @@ function Reports({ role }) {
       ) : (<>
       {canWrite && <div ref={reportFormRef} style={{ scrollMarginTop: 72 }}><Card className="mb-4 p-5 transition-shadow" style={reportFormPulse ? { boxShadow: `0 0 0 3px ${T.accent}33, 0 18px 40px rgba(0,0,0,.08)` } : undefined}>
         <div className="mb-3 flex flex-wrap items-center justify-between gap-3"><div><h3 className="font-bold" style={{ color: T.textPrimary }}>朝: 目標</h3><p className="text-xs" style={{ color: T.textMuted }}>研修日を選んで、朝だけでも途中でも保存できます。</p></div><div className="flex items-center gap-2"><input type="date" value={editingReportDate} disabled={saving} onChange={e => editReport({ date: e.target.value, report: reportsByDate[e.target.value] })} className="rounded-xl px-3 py-2 text-sm outline-none disabled:opacity-60" style={{ border: `1px solid ${T.border}`, color: T.textPrimary, background: "#fff" }} /><Btn kind="soft" size="sm" icon={Plus} disabled={saving || reportWorkdaysLoading || !reportTrainingDateSet.has(editingReportDate)} onClick={addGoalItem}>目標を追加</Btn></div></div>
-        {!reportWorkdaysLoading && !reportTrainingDateSet.has(editingReportDate) && <div className="mb-4 rounded-xl px-3 py-2 text-xs font-semibold" style={{ background: T.bgBase, color: T.textMuted }}>選択日は研修カレンダーの非研修日です。下のカレンダーから研修日を選択してください。</div>}
+        {!reportWorkdaysLoading && reportConflictDateSet.has(editingReportDate) && <div className="mb-4 rounded-xl px-3 py-2 text-xs font-semibold" style={{ background: T.dangerSubtle, color: T.danger }}>同じ日に複数の研修が重複しています。日程の修正後に保存してください。</div>}
+        {!reportWorkdaysLoading && !reportConflictDateSet.has(editingReportDate) && !reportTrainingDateSet.has(editingReportDate) && <div className="mb-4 rounded-xl px-3 py-2 text-xs font-semibold" style={{ background: reportWorkdaysState === "setup_required" ? T.warningSubtle : T.bgBase, color: reportWorkdaysState === "setup_required" ? T.warning : T.textMuted }}>{reportWorkdaysState === "setup_required" ? "研修日程が未設定です。未提出とは判定せず、入力を停止しています。" : "選択日は研修カレンダーの非研修日です。下のカレンダーから研修日を選択してください。"}</div>}
         <div className="mb-4 rounded-xl px-3 py-2 text-xs font-semibold" style={{ background: reportEditState === "create" ? T.warningSubtle : T.accentSubtle, color: reportEditState === "create" ? T.warning : T.accentHover }}>
           {reportEditState === "create" ? "新しい日報を作成中" : reportEditState === "edit" ? `${editingReportDate.replace(/-/g, "/")}の日報を編集中` : "本日の日報"}
         </div>
@@ -4238,7 +4345,7 @@ function Reports({ role }) {
         ))}</div>
         <div className="mt-4 flex flex-wrap items-center justify-end gap-3" aria-live="polite">{saveErr && <span className="mr-auto text-xs font-semibold" style={{ color: T.danger }}>{saveErr}</span>}{reportSaveState === "saved" && <span className="mr-auto text-xs font-semibold" style={{ color: T.success }}>日報を保存しました</span>}<Btn icon={Send} disabled={saving || reportWorkdaysLoading || !reportTrainingDateSet.has(editingReportDate)} onClick={submit}>{saving ? "保存中…" : "日報を保存"}</Btn></div></Card>}
       {canWrite && <Card className="mb-6 overflow-hidden">
-        <div className="flex flex-wrap items-center justify-between gap-3 p-4" style={{ borderBottom: `1px solid ${T.border}` }}><div><h3 className="font-bold" style={{ color: T.textPrimary }}>日報カレンダー</h3><p className="text-xs" style={{ color: T.textMuted }}>管理者が設定した研修日だけ作成・編集できます。非研修日の既存日報は閲覧のみ残ります。</p></div><div className="flex flex-wrap items-center gap-2"><Badge tone="green">提出済み</Badge><Badge tone="amber">研修日・未提出</Badge><Badge tone="muted">非研修日</Badge><Badge tone="cyan">コメントあり</Badge><MonthPicker value={month} onChange={setMonth} /></div></div>
+        <div className="flex flex-wrap items-center justify-between gap-3 p-4" style={{ borderBottom: `1px solid ${T.border}` }}><div><h3 className="font-bold" style={{ color: T.textPrimary }}>日報カレンダー</h3><p className="text-xs" style={{ color: reportWorkdaysState === "setup_required" ? T.warning : T.textMuted }}>{reportWorkdaysState === "setup_required" ? "日程未設定のため、未提出・非研修日のどちらにも判定していません。" : "管理者が設定した研修日だけ作成・編集できます。非研修日の既存日報は閲覧のみ残ります。"}</p></div><div className="flex flex-wrap items-center gap-2"><Badge tone="green">提出済み</Badge><Badge tone="amber">研修日・未提出</Badge><Badge tone="muted">非研修日</Badge><Badge tone="cyan">コメントあり</Badge><MonthPicker value={month} onChange={setMonth} /></div></div>
         <div className="grid grid-cols-7" style={{ background: T.border, gap: 1 }}>
           {WD.map((weekday, index) => <div key={weekday} className="bg-white py-2 text-center text-xs font-bold" style={{ color: index === 0 ? T.danger : index === 6 ? T.accent : T.textMuted }}>{weekday}</div>)}
           {reportCalendarCells.map((dateValue, index) => {
@@ -4246,9 +4353,10 @@ function Reports({ role }) {
             const report = reportsByDate[dateValue];
             const future = dateValue > todayStr();
             const isTrainingDay = reportTrainingDateSet.has(dateValue);
+            const conflict = reportConflictDateSet.has(dateValue);
             const hasComment = !!report?.comments?.length;
             const isToday = dateValue === todayStr();
-            return <button key={dateValue} type="button" disabled={saving || reportWorkdaysLoading || (!report && (future || !isTrainingDay))} onClick={() => report && !isTrainingDay ? setDetailReport(report) : editReport({ date: dateValue, report })} className="min-h-20 bg-white p-1 text-left transition enabled:cursor-pointer enabled:hover:brightness-95 disabled:cursor-default sm:min-h-24 sm:p-2" style={isToday ? { boxShadow: `inset 0 0 0 2px ${T.accent}` } : undefined}><div className="flex items-center justify-between"><span className="text-xs font-bold" style={{ color: isTrainingDay ? T.textPrimary : T.textMuted }}>{Number(dateValue.slice(-2))}</span>{isToday && <span className="hidden sm:inline"><Badge tone="cyan">今日</Badge></span>}</div>{report ? <div className="mt-1 rounded-lg px-1 py-1 sm:mt-2 sm:px-2 sm:py-1.5" style={{ background: T.successSubtle }}><div className="text-[10px] font-bold sm:text-[11px]" style={{ color: T.success }}>提出済み<span className="hidden sm:inline">{!isTrainingDay ? "（閲覧のみ）" : ""}</span></div>{hasComment && <div className="mt-0.5 text-[10px] font-bold sm:mt-1 sm:text-[11px]" style={{ color: T.accentHover }}>コメント<span className="hidden sm:inline">あり</span></div>}</div> : future && isTrainingDay ? <div className="mt-1 text-[10px] sm:mt-2 sm:text-[11px]" style={{ color: T.textMuted }}>研修予定<span className="hidden sm:inline">日</span></div> : !isTrainingDay ? <div className="mt-1 text-[10px] sm:mt-2 sm:text-[11px]" style={{ color: T.textMuted }}>非研修<span className="hidden sm:inline">日</span></div> : <div className="mt-1 rounded-lg px-1 py-1 text-[10px] font-bold sm:mt-2 sm:px-2 sm:py-1.5 sm:text-[11px]" style={{ background: T.warningSubtle, color: T.warning }}>研修日<span className="hidden sm:inline">・クリックして作成</span></div>}</button>;
+            return <button key={dateValue} type="button" disabled={saving || reportWorkdaysLoading || (!report && (future || !isTrainingDay || conflict || reportWorkdaysState !== "ready"))} onClick={() => report && (!isTrainingDay || conflict) ? setDetailReport(report) : editReport({ date: dateValue, report })} className="min-h-20 bg-white p-1 text-left transition enabled:cursor-pointer enabled:hover:brightness-95 disabled:cursor-default sm:min-h-24 sm:p-2" style={isToday ? { boxShadow: `inset 0 0 0 2px ${T.accent}` } : undefined}><div className="flex items-center justify-between"><span className="text-xs font-bold" style={{ color: isTrainingDay ? T.textPrimary : T.textMuted }}>{Number(dateValue.slice(-2))}</span>{isToday && <span className="hidden sm:inline"><Badge tone="cyan">今日</Badge></span>}</div>{report ? <div className="mt-1 rounded-lg px-1 py-1 sm:mt-2 sm:px-2 sm:py-1.5" style={{ background: T.successSubtle }}><div className="text-[10px] font-bold sm:text-[11px]" style={{ color: T.success }}>提出済み<span className="hidden sm:inline">{!isTrainingDay || conflict ? "（閲覧のみ）" : ""}</span></div>{hasComment && <div className="mt-0.5 text-[10px] font-bold sm:mt-1 sm:text-[11px]" style={{ color: T.accentHover }}>コメント<span className="hidden sm:inline">あり</span></div>}</div> : conflict ? <div className="mt-1 rounded-lg px-1 py-1 text-[10px] font-bold sm:mt-2 sm:px-2 sm:py-1.5 sm:text-[11px]" style={{ background: T.dangerSubtle, color: T.danger }}>日程重複</div> : reportWorkdaysState === "setup_required" ? <div className="mt-1 text-[10px] sm:mt-2 sm:text-[11px]" style={{ color: T.warning }}>日程未設定</div> : future && isTrainingDay ? <div className="mt-1 text-[10px] sm:mt-2 sm:text-[11px]" style={{ color: T.textMuted }}>研修予定<span className="hidden sm:inline">日</span></div> : !isTrainingDay ? <div className="mt-1 text-[10px] sm:mt-2 sm:text-[11px]" style={{ color: T.textMuted }}>非研修<span className="hidden sm:inline">日</span></div> : <div className="mt-1 rounded-lg px-1 py-1 text-[10px] font-bold sm:mt-2 sm:px-2 sm:py-1.5 sm:text-[11px]" style={{ background: T.warningSubtle, color: T.warning }}>研修日<span className="hidden sm:inline">・クリックして作成</span></div>}</button>;
           })}
         </div>
       </Card>}

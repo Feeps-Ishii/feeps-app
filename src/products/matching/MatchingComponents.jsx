@@ -10,7 +10,7 @@ import {
 } from "./MatchingCatalog.js";
 import {
   candidateToSheet, fetchTraineePortfolio, matchTone, placementFormToPayload, projectFormToPayload,
-  projectToForm, useCompanies, useInstructorTrainees, useMatchingMe, useMatchingPlacements,
+  projectToForm, useCompanies, useManagedTrainees, useMatchingMe, useMatchingPlacements,
   useMatchingProjects, useProjectCandidates,
 } from "./useMatching.js";
 import { Card, Badge, Btn, Avatar, Field, fieldStyle, SectionHead, PageHeader, ProductNavCard, Modal, Stat, T, EmptyState as CommonEmptyState, SkeletonRows } from "../../components/common";
@@ -87,19 +87,20 @@ function DeleteConfirm({ title, name, warning, busy, onClose, onConfirm }) {
 // ================= Home =================
 export function MatchingHome({ goSub, role = "admin", themeColor = "#D97706" }) {
   const isManager = role === "admin" || role === "client";
-  const { projects, loading: pLoading } = useMatchingProjects();
-  const { data: meData, loading: mLoading } = useMatchingMe();
-  const { trainees, loading: tLoading } = useInstructorTrainees();
+  const isAudit = role === "admin";
+  const { projects, loading: pLoading } = useMatchingProjects(isManager, role);
+  const { items: placements, loading: plLoading } = useMatchingPlacements({}, isManager, role);
+  const { data: meData, loading: mLoading } = useMatchingMe(role === "trainee", role);
   const cards = MATCHING_HOME_CARDS[role] || MATCHING_HOME_CARDS.trainee;
-  const desc = role === "client" ? "自社受講生の実スキルから案件候補を確認し、参画状況を管理します。"
-    : role === "admin" ? "全受講生の実スキルから案件候補をマッチングし、参画状況を管理します。"
-    : role === "instructor" ? "担当受講生の案件参画結果を確認します。"
-    : "あなたのスキル・修了コースに合う案件と、参画状況を確認します。";
-  const chips = isManager
+  const desc = role === "client" ? "自社案件の登録から社員の候補選定、面談・参画までを一つの流れで管理します。"
+    : role === "admin" ? "企業が所有する案件運用を、商流・単価・個別メモに立ち入らず監査します。"
+    : "所属企業から案内された案件のうち、あなたのスキル・修了コースに合う候補と参画状況を確認します。";
+  const chips = isAudit
+    ? [{ label: "監査対象案件", value: pLoading ? 0 : projects.filter(p => p.isDeleted !== true).length, unit: "件" },
+       { label: "参画レコード", value: plLoading ? 0 : placements.length, unit: "件" }]
+    : role === "client"
     ? [{ label: "登録案件", value: pLoading ? 0 : projects.filter(p => p.isDeleted !== true).length, unit: "件" },
-       { label: "募集中", value: pLoading ? 0 : projects.filter(p => p.status === "recruiting").length, unit: "件" }]
-    : role === "instructor"
-    ? [{ label: "担当受講生", value: tLoading ? 0 : trainees.length, unit: "名" }]
+       { label: "参画中", value: plLoading ? 0 : placements.filter(p => p.status === "active").length, unit: "件" }]
     : [{ label: "おすすめ案件", value: mLoading ? 0 : (meData?.recommendedProjects?.length || 0), unit: "件" },
        { label: "参画中", value: mLoading ? 0 : (meData?.placements?.length || 0), unit: "件" }];
   return (
@@ -110,7 +111,7 @@ export function MatchingHome({ goSub, role = "admin", themeColor = "#D97706" }) 
         title="スキルを、案件へつなげる。"
         description={desc}
         chips={chips}
-        cta={{ label: isManager ? "案件一覧を開く" : "参画状況を見る", icon: Sparkles, onClick: () => goSub(isManager ? "mt_list" : "mt_placement") }}
+        cta={{ label: isAudit ? "案件監査を開く" : isManager ? "自社案件を開く" : "参画状況を見る", icon: Sparkles, onClick: () => goSub(isManager ? "mt_list" : "mt_placement") }}
       />
       <div className="grid gap-4 md:grid-cols-3">
         {cards.map(({ key, icon, label, desc: d }, i) => (
@@ -127,7 +128,7 @@ export function MatchingHome({ goSub, role = "admin", themeColor = "#D97706" }) 
 }
 
 // ================= Project Form（新規作成/編集/閲覧） =================
-function ProjectForm({ mode, form, companies, onChange, readOnly }) {
+function ProjectForm({ mode, form, companies, onChange, readOnly, ownerMode = false }) {
   function set(key, value) { onChange({ ...form, [key]: value }); }
   const dis = readOnly;
   return (
@@ -135,19 +136,25 @@ function ProjectForm({ mode, form, companies, onChange, readOnly }) {
       <Field label="案件タイトル">
         <input value={form.title} onChange={e => set("title", e.target.value)} disabled={dis} style={fieldStyle} placeholder="Java新人研修後の実務案件" />
       </Field>
-      <div className="grid gap-3 sm:grid-cols-2">
-        <Field label="会社（未選択＝Feeps社内窓口）">
-          <select value={form.companyId} onChange={e => set("companyId", e.target.value)} disabled={dis} style={fieldStyle}>
-            <option value="">未選択</option>
-            {companies.map(c => <option key={c.companyId} value={c.companyId}>{c.name}</option>)}
-          </select>
-        </Field>
-        <Field label="公開範囲">
-          <select value={form.visibility} onChange={e => set("visibility", e.target.value)} disabled={dis} style={fieldStyle}>
-            {PROJECT_VISIBILITY_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
-          </select>
-        </Field>
-      </div>
+      {ownerMode ? (
+        <div className="rounded-xl px-3 py-2 text-xs font-semibold" style={{ background: T.accentSubtle, color: T.accentHover }}>
+          所属企業の自社案件として登録され、他社や講師には公開されません。
+        </div>
+      ) : (
+        <div className="grid gap-3 sm:grid-cols-2">
+          <Field label="会社">
+            <select value={form.companyId} onChange={e => set("companyId", e.target.value)} disabled={dis} style={fieldStyle}>
+              <option value="">未選択</option>
+              {companies.map(c => <option key={c.companyId} value={c.companyId}>{c.name}</option>)}
+            </select>
+          </Field>
+          <Field label="公開範囲">
+            <select value={form.visibility} onChange={e => set("visibility", e.target.value)} disabled={dis} style={fieldStyle}>
+              {PROJECT_VISIBILITY_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+            </select>
+          </Field>
+        </div>
+      )}
       <div className="grid gap-3 sm:grid-cols-2">
         <Field label="ステータス">
           <select value={form.status} onChange={e => set("status", e.target.value)} disabled={dis} style={fieldStyle}>
@@ -202,11 +209,30 @@ function ProjectForm({ mode, form, companies, onChange, readOnly }) {
   );
 }
 
-// ================= 案件一覧（admin: CRUD可 / client: 閲覧のみ） =================
+function ProjectAuditDetail({ project }) {
+  return (
+    <div className="grid gap-4 sm:grid-cols-2">
+      <Field label="案件"><div className="text-sm font-semibold" style={{ color: T.textPrimary }}>{project.title || "案件名未設定"}</div></Field>
+      <Field label="企業"><div className="text-sm" style={{ color: T.textSecondary }}>{project.companyName || project.companyId || "企業未設定"}</div></Field>
+      <Field label="ステータス"><Badge tone={project.status === "recruiting" ? "green" : "muted"}>{projectStatusLabel(project.status)}</Badge></Field>
+      <Field label="公開区分"><div className="text-sm" style={{ color: T.textSecondary }}>{projectVisibilityLabel(project.visibility)}</div></Field>
+      <Field label="案件期間"><div className="text-sm" style={{ color: T.textSecondary }}>{project.periodStart || "未設定"}〜{project.periodEnd || ""}</div></Field>
+      <Field label="募集人数"><div className="text-sm" style={{ color: T.textSecondary }}>{project.openings || 0}名</div></Field>
+      <Field label="最終更新"><div className="text-sm" style={{ color: T.textSecondary }}>{project.updatedAt ? String(project.updatedAt).slice(0, 16).replace("T", " ") : "未設定"}</div></Field>
+      <Field label="監査ID"><div className="break-all text-xs" style={{ color: T.textMuted }}>{project.projectId}</div></Field>
+      <div className="sm:col-span-2 rounded-xl px-3 py-2 text-xs" style={{ background: T.bgBase, color: T.textMuted }}>
+        管理者には商流・単価・募集条件・社内メモ・候補者情報を表示しません。編集は企業担当者が行います。
+      </div>
+    </div>
+  );
+}
+
+// ================= 案件一覧（client: 自社CRUD / admin: 監査閲覧） =================
 export function ProjectManager({ role, onOpenCandidates }) {
-  const isAdmin = role === "admin";
-  const { projects, loading, error, actionError, clearActionError, createProject, updateProject, deleteProject } = useMatchingProjects();
-  const { companies } = useCompanies();
+  const isAudit = role === "admin";
+  const canManage = role === "client";
+  const { projects, loading, error, actionError, clearActionError, createProject, updateProject, deleteProject } = useMatchingProjects(true, role);
+  const { companies } = useCompanies(isAudit, role);
   const [query, setQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
   const [companyFilter, setCompanyFilter] = useState("");
@@ -224,7 +250,7 @@ export function ProjectManager({ role, onOpenCandidates }) {
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
     let list = projects.filter(p => (
-      (!q || [p.title, p.description, companyName(p.companyId), ...(p.tags || [])].some(v => String(v || "").toLowerCase().includes(q))) &&
+      (!q || [p.title, p.description, p.companyName, companyName(p.companyId), ...(p.tags || [])].some(v => String(v || "").toLowerCase().includes(q))) &&
       (!statusFilter || p.status === statusFilter) &&
       (!companyFilter || p.companyId === companyFilter)
     ));
@@ -247,7 +273,7 @@ export function ProjectManager({ role, onOpenCandidates }) {
   function changeSort(key) { setSort(s => s.key === key ? { key, dir: s.dir === "asc" ? "desc" : "asc" } : { key, dir: "asc" }); }
   const SortMark = ({ k }) => sort.key === k ? (sort.dir === "asc" ? <ChevronUp size={13} /> : <ChevronDown size={13} />) : null;
 
-  function startNew() { setEditing({}); setForm({ ...EMPTY_PROJECT_FORM }); clearActionError(); }
+  function startNew() { setEditing({}); setForm({ ...EMPTY_PROJECT_FORM, visibility: "client" }); clearActionError(); }
   function startEdit(p) { setEditing(p); setForm(projectToForm(p)); clearActionError(); }
   function startView(p) { setEditing({ ...p, __readOnly: true }); setForm(projectToForm(p)); clearActionError(); }
   function closeForm() { setEditing(null); }
@@ -273,14 +299,14 @@ export function ProjectManager({ role, onOpenCandidates }) {
 
   return (
     <div>
-      <SectionHead title={isAdmin ? "案件一覧" : "自社案件"} desc={isAdmin ? "案件の作成・編集・公開状態を管理します。" : "自社に紐づく案件を確認します。"}
-        action={isAdmin && <div className="flex flex-wrap items-center gap-2">
+      <SectionHead title={isAudit ? "案件監査" : "自社案件"} desc={isAudit ? "企業ごとの案件登録・公開状態を読み取り専用で確認します。" : "自社案件を登録し、募集条件と公開状態を管理します。"}
+        action={<div className="flex flex-wrap items-center gap-2">
           <Btn size="sm" kind="ghost" icon={FileSpreadsheet} onClick={() => exportMatchingExcel(filtered, [
-            [r => r.title || "", "タイトル"], [r => companyName(r.companyId) || "Feeps社内", "会社"],
+            [r => r.title || "", "タイトル"], [r => r.companyName || companyName(r.companyId) || "企業未設定", "会社"],
             [r => projectStatusLabel(r.status), "ステータス"], [r => projectVisibilityLabel(r.visibility), "公開範囲"],
-            [r => r.location || "", "勤務地"], [r => r.openings || "", "募集人数"],
+            [r => r.periodStart || "", "開始日"], [r => r.periodEnd || "", "終了日"], [r => r.openings || "", "募集人数"],
           ], "案件一覧", "案件一覧")}>Excel出力</Btn>
-          <Btn size="sm" icon={Plus} onClick={startNew}>新規案件</Btn>
+          {canManage && <Btn size="sm" icon={Plus} onClick={startNew}>新規案件</Btn>}
         </div>} />
       <ErrorBanner message={error} />
       <ErrorBanner message={actionError} onClose={clearActionError} />
@@ -300,7 +326,7 @@ export function ProjectManager({ role, onOpenCandidates }) {
             <option value="">全ステータス</option>
             {PROJECT_STATUS_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
           </select>
-          {isAdmin && (
+          {isAudit && (
             <select value={companyFilter} onChange={e => setCompanyFilter(e.target.value)} style={{ ...fieldStyle, width: "auto" }}>
               <option value="">全企業</option>
               {companies.map(c => <option key={c.companyId} value={c.companyId}>{c.name}</option>)}
@@ -311,7 +337,7 @@ export function ProjectManager({ role, onOpenCandidates }) {
           <Btn kind={sort.key === "updatedAt" ? "soft" : "ghost"} size="sm" onClick={() => changeSort("updatedAt")}>更新日 <SortMark k="updatedAt" /></Btn>
         </div>
         {loading ? <SkeletonRows rows={5} />
-          : projects.length === 0 ? <EmptyState title={isAdmin ? "案件がまだ登録されていません" : "自社案件がありません"} desc={isAdmin ? "「新規案件」から登録できます。" : "Feeps担当者が案件を登録すると表示されます。"} />
+          : projects.length === 0 ? <EmptyState title={isAudit ? "監査対象の案件がありません" : "自社案件がありません"} desc={isAudit ? "企業担当者が案件を登録すると表示されます。" : "「新規案件」から登録できます。"} />
           : filtered.length === 0 ? <div className="px-4 py-8 text-center text-sm" style={{ color: T.textMuted }}>検索条件に一致する案件がありません。</div>
           : <div>{visible.items.map((p, i) => (
             <div key={p.projectId} className="flex flex-wrap items-center gap-3 px-4 py-3" style={{ borderTop: i ? `1px solid ${T.border}` : "none", background: i % 2 ? T.bgBase : "#fff" }}>
@@ -322,7 +348,7 @@ export function ProjectManager({ role, onOpenCandidates }) {
                   <Badge tone="cyan">{projectVisibilityLabel(p.visibility)}</Badge>
                 </div>
                 <div className="mt-0.5 flex flex-wrap gap-x-3 gap-y-0.5 text-xs" style={{ color: T.textMuted }}>
-                  <span className="inline-flex items-center gap-1"><Building2 size={11} />{companyName(p.companyId) || "Feeps社内"}</span>
+                  <span className="inline-flex items-center gap-1"><Building2 size={11} />{p.companyName || companyName(p.companyId) || "企業未設定"}</span>
                   {p.location && <span className="inline-flex items-center gap-1"><MapPin size={11} />{p.location}</span>}
                   <span>募集{p.openings}名</span>
                   {p.updatedAt && <span>更新 {String(p.updatedAt).slice(0, 10)}</span>}
@@ -330,11 +356,11 @@ export function ProjectManager({ role, onOpenCandidates }) {
                 </div>
               </div>
               <div className="flex shrink-0 flex-wrap gap-2">
-                <Btn kind="ghost" size="sm" icon={Sparkles} onClick={() => onOpenCandidates(p.projectId)}>候補者を見る</Btn>
-                {isAdmin
+                {canManage && <Btn kind="ghost" size="sm" icon={Sparkles} onClick={() => onOpenCandidates(p.projectId)}>候補者を見る</Btn>}
+                {canManage
                   ? <><Btn kind="ghost" size="sm" icon={Pencil} onClick={() => startEdit(p)}>編集</Btn>
                       <Btn kind="ghost" size="sm" icon={Trash2} onClick={() => { setDeleteTarget(p); setDeleteError(""); }}>削除</Btn></>
-                  : <Btn kind="ghost" size="sm" icon={FileText} onClick={() => startView(p)}>詳細</Btn>}
+                  : <Btn kind="ghost" size="sm" icon={FileText} onClick={() => startView(p)}>監査詳細</Btn>}
               </div>
             </div>
           ))}</div>}
@@ -351,7 +377,9 @@ export function ProjectManager({ role, onOpenCandidates }) {
             ? <Btn kind="ghost" onClick={closeForm}>閉じる</Btn>
             : <><Btn kind="ghost" onClick={closeForm} disabled={saving}>キャンセル</Btn><Btn icon={Check} onClick={submit} disabled={saving || !form.title.trim()}>{saving ? "保存中…" : "保存する"}</Btn></>}
         >
-          <ProjectForm mode={editing.projectId ? "edit" : "new"} form={form} companies={companies} onChange={setForm} readOnly={Boolean(editing.__readOnly)} />
+          {editing.__readOnly
+            ? <ProjectAuditDetail project={editing} />
+            : <ProjectForm mode={editing.projectId ? "edit" : "new"} form={form} companies={companies} onChange={setForm} readOnly={false} ownerMode />}
         </Modal>
       )}
       {deleteTarget && (
@@ -486,15 +514,16 @@ function SkillSheetPreview({ data, onClose }) {
   );
 }
 
-// ================= 候補者マッチング（admin: 全候補 / client: 自社候補） =================
+// ================= 候補者マッチング（client: 自社案件 × 自社社員） =================
 export function ProjectMatching({ role, initialProjectId }) {
-  const { projects, loading: projectsLoading } = useMatchingProjects();
+  const canMatch = role === "client";
+  const { projects, loading: projectsLoading } = useMatchingProjects(canMatch, role);
   const [projectId, setProjectId] = useState(initialProjectId || "");
   useEffect(() => {
     if (initialProjectId) { setProjectId(initialProjectId); return; }
     if (!projectId && projects.length) setProjectId(projects[0].projectId);
   }, [initialProjectId, projects, projectId]);
-  const { items, loading, error } = useProjectCandidates(projectId);
+  const { items, loading, error } = useProjectCandidates(projectId, canMatch);
   const [sortKey, setSortKey] = useState("score");
   const [preview, setPreview] = useState(null); // { candidate, portfolio }
   const [previewLoading, setPreviewLoading] = useState(false);
@@ -516,13 +545,17 @@ export function ProjectMatching({ role, initialProjectId }) {
     } finally { setPreviewLoading(false); }
   }
 
+  if (!canMatch) return (
+    <Card><EmptyState title="候補者情報は企業担当者専用です" desc="管理者は案件と参画の監査画面のみ利用できます。" /></Card>
+  );
+
   if (preview) return (
     <SkillSheetPreview data={candidateToSheet(preview.candidate.trainee, preview.portfolio)} onClose={() => setPreview(null)} />
   );
 
   return (
     <div>
-      <SectionHead title="候補者マッチング" desc={role === "client" ? "自社受講生の実スキルシートから、案件にマッチする人材を選定します。" : "受講生の実スキルシートから、案件にマッチする人材を選定します。"} />
+      <SectionHead title="候補者マッチング" desc="自社社員の実スキルシートから、自社案件にマッチする人材を選定します。" />
 
       {projectsLoading ? <Card><SkeletonRows rows={2} /></Card> : projects.length === 0 ? (
         <Card><EmptyState title="案件がありません" desc="先に案件一覧から案件を作成してください。" /></Card>
@@ -569,7 +602,7 @@ export function ProjectMatching({ role, initialProjectId }) {
 
           <ErrorBanner message={error} />
           {loading || previewLoading ? <Card><SkeletonRows rows={5} /></Card> : sorted.length === 0 ? (
-            <Card><EmptyState title="候補者がいません" desc={role === "client" ? "自社受講生が登録されると候補者として表示されます。" : "受講生が登録されると候補者として表示されます。"} /></Card>
+            <Card><EmptyState title="候補者がいません" desc="自社社員が登録されると候補者として表示されます。" /></Card>
           ) : (
             <div className="space-y-3">{sorted.map((c, i) => (
               <Card key={c.trainee.traineeId} className="p-4" style={i === 0 && sortKey === "score" && c.requiredMet ? { border: `1.5px solid ${T.accent}` } : undefined}>
@@ -613,7 +646,7 @@ export function ProjectMatching({ role, initialProjectId }) {
   );
 }
 
-// ================= 参画管理（admin: CRUD可 / client: 閲覧のみ） =================
+// ================= 参画管理（client: 自社CRUD / admin: 監査閲覧） =================
 function PlacementForm({ form, onChange, projects, trainees, mode }) {
   function set(key, value) { onChange({ ...form, [key]: value }); }
   return (
@@ -659,11 +692,30 @@ function PlacementForm({ form, onChange, projects, trainees, mode }) {
 
 const EMPTY_PLACEMENT_FORM = { projectId: "", traineeId: "", status: "proposed", interviewAt: "", acceptedAt: "", startDate: "", expectedEndDate: "", actualEndDate: "", rate: "", contractType: "", notes: "" };
 
+function PlacementAuditDetail({ placement }) {
+  return (
+    <div className="grid gap-4 sm:grid-cols-2">
+      <Field label="受講生"><div className="text-sm font-semibold" style={{ color: T.textPrimary }}>{placement.traineeName || placement.traineeId || "受講生未設定"}</div></Field>
+      <Field label="案件"><div className="text-sm font-semibold" style={{ color: T.textPrimary }}>{placement.projectTitle || placement.projectId || "案件未設定"}</div></Field>
+      <Field label="ステータス"><Badge tone={placement.status === "active" ? "green" : placement.status === "completed" ? "cyan" : "amber"}>{placement.statusLabel}</Badge></Field>
+      <Field label="面談日"><div className="text-sm" style={{ color: T.textSecondary }}>{placement.interviewAt ? String(placement.interviewAt).slice(0, 10) : "未設定"}</div></Field>
+      <Field label="参画期間"><div className="text-sm" style={{ color: T.textSecondary }}>{placement.startDate || "未設定"}〜{placement.actualEndDate || placement.expectedEndDate || ""}</div></Field>
+      <Field label="最終更新"><div className="text-sm" style={{ color: T.textSecondary }}>{placement.updatedAt ? String(placement.updatedAt).slice(0, 16).replace("T", " ") : "未設定"}</div></Field>
+      <Field label="企業ID"><div className="break-all text-xs" style={{ color: T.textMuted }}>{placement.companyId || "未設定"}</div></Field>
+      <Field label="監査ID"><div className="break-all text-xs" style={{ color: T.textMuted }}>{placement.placementId}</div></Field>
+      <div className="sm:col-span-2 rounded-xl px-3 py-2 text-xs" style={{ background: T.bgBase, color: T.textMuted }}>
+        管理者には単価・契約形態・企業と社員の個別メモを表示しません。ステータス更新は企業担当者が行います。
+      </div>
+    </div>
+  );
+}
+
 export function PlacementManager({ role }) {
-  const isAdmin = role === "admin";
-  const { items, loading, error, actionError, clearActionError, createPlacement, updatePlacement, deletePlacement } = useMatchingPlacements();
-  const { projects } = useMatchingProjects();
-  const { trainees } = useInstructorTrainees();
+  const isAudit = role === "admin";
+  const canManage = role === "client";
+  const { items, loading, error, actionError, clearActionError, createPlacement, updatePlacement, deletePlacement } = useMatchingPlacements({}, true, role);
+  const { projects } = useMatchingProjects(true, role);
+  const { trainees } = useManagedTrainees(canManage, role);
   const [query, setQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
   const [sort, setSort] = useState({ key: "updatedAt", dir: "desc" });
@@ -725,13 +777,13 @@ export function PlacementManager({ role }) {
 
   return (
     <div>
-      <SectionHead title={isAdmin ? "参画状況" : "自社参画状況"} desc="案件と人材の参画状況を管理します。"
+      <SectionHead title={isAudit ? "参画監査" : "自社参画状況"} desc={isAudit ? "企業が管理する参画ステータスと更新状況を読み取り専用で確認します。" : "自社案件と自社社員の面談・参画状況を管理します。"}
         action={<div className="flex flex-wrap items-center gap-2">
           <Btn size="sm" kind="ghost" icon={FileSpreadsheet} onClick={() => exportMatchingExcel(filtered, [
             [r => r.traineeName || "", "受講生"], [r => r.projectTitle || "", "案件"], [r => r.statusLabel || "", "ステータス"],
             [r => r.startDate || "", "参画開始日"], [r => r.expectedEndDate || "", "終了予定日"],
           ], "参画状況", "参画状況")}>Excel出力</Btn>
-          {isAdmin && <Btn size="sm" icon={Plus} onClick={startNew}>参画を登録</Btn>}
+          {canManage && <Btn size="sm" icon={Plus} onClick={startNew}>参画を登録</Btn>}
         </div>} />
       <ErrorBanner message={error} />
       <ErrorBanner message={actionError} onClose={clearActionError} />
@@ -755,7 +807,7 @@ export function PlacementManager({ role }) {
           <Btn kind={sort.key === "updatedAt" ? "soft" : "ghost"} size="sm" onClick={() => changeSort("updatedAt")}>更新日 <SortMark k="updatedAt" /></Btn>
         </div>
         {loading ? <SkeletonRows rows={5} />
-          : items.length === 0 ? <EmptyState title="参画データがありません" desc={isAdmin ? "「参画を登録」から登録できます。" : "自社人材の参画が決まると表示されます。"} />
+          : items.length === 0 ? <EmptyState title="参画データがありません" desc={isAudit ? "企業担当者が参画を登録すると表示されます。" : "「参画を登録」から自社社員を紐づけられます。"} />
           : filtered.length === 0 ? <div className="px-4 py-8 text-center text-sm" style={{ color: T.textMuted }}>検索条件に一致するデータがありません。</div>
           : <div>{visible.items.map((pl, i) => (
             <div key={pl.placementId} className="flex flex-wrap items-center gap-3 px-4 py-3" style={{ borderTop: i ? `1px solid ${T.border}` : "none", background: i % 2 ? T.bgBase : "#fff" }}>
@@ -772,10 +824,10 @@ export function PlacementManager({ role }) {
                 </div>
               </div>
               <div className="flex shrink-0 gap-2">
-                {isAdmin ? <>
+                {canManage ? <>
                   <Btn kind="ghost" size="sm" icon={Pencil} onClick={() => startEdit(pl)}>編集</Btn>
                   <Btn kind="ghost" size="sm" icon={Trash2} onClick={() => { setDeleteTarget(pl); setDeleteError(""); }}>削除</Btn>
-                </> : <Btn kind="ghost" size="sm" icon={FileText} onClick={() => startView(pl)}>詳細</Btn>}
+                </> : <Btn kind="ghost" size="sm" icon={FileText} onClick={() => startView(pl)}>監査詳細</Btn>}
               </div>
             </div>
           ))}</div>}
@@ -785,17 +837,9 @@ export function PlacementManager({ role }) {
       {editing && (
         <Modal title={editing.__readOnly ? "参画詳細" : editing.placementId ? "参画編集" : "参画登録"} onClose={closeForm} size="lg"
           footer={editing.__readOnly ? <Btn kind="ghost" onClick={closeForm}>閉じる</Btn> : <><Btn kind="ghost" onClick={closeForm} disabled={saving}>キャンセル</Btn><Btn icon={Check} onClick={submit} disabled={saving || !form.projectId || !form.traineeId}>{saving ? "保存中…" : "保存する"}</Btn></>}>
-          {editing.__readOnly ? <div className="space-y-4">
-            <div className="grid gap-3 sm:grid-cols-2">
-              <Field label="受講生"><div className="text-sm font-semibold" style={{ color: T.textPrimary }}>{editing.traineeName || "氏名未設定"}</div></Field>
-              <Field label="案件"><div className="text-sm font-semibold" style={{ color: T.textPrimary }}>{editing.projectTitle || "案件名未設定"}</div></Field>
-              <Field label="ステータス"><Badge tone={editing.status === "active" ? "green" : "amber"}>{editing.statusLabel}</Badge></Field>
-              <Field label="面談日"><div className="text-sm" style={{ color: T.textSecondary }}>{editing.interviewAt ? String(editing.interviewAt).slice(0, 10) : "未設定"}</div></Field>
-              <Field label="参画期間"><div className="text-sm" style={{ color: T.textSecondary }}>{editing.startDate || "未設定"}〜{editing.expectedEndDate || editing.actualEndDate || ""}</div></Field>
-              <Field label="契約形態"><div className="text-sm" style={{ color: T.textSecondary }}>{editing.contractType || "未設定"}</div></Field>
-            </div>
-            {editing.notes && <Field label="メモ"><div className="whitespace-pre-wrap text-sm leading-relaxed" style={{ color: T.textSecondary }}>{editing.notes}</div></Field>}
-          </div> : <PlacementForm form={form} onChange={setForm} projects={projects} trainees={trainees} mode={editing.placementId ? "edit" : "new"} />}
+          {editing.__readOnly
+            ? <PlacementAuditDetail placement={editing} />
+            : <PlacementForm form={form} onChange={setForm} projects={projects} trainees={trainees} mode={editing.placementId ? "edit" : "new"} />}
         </Modal>
       )}
       {deleteTarget && (
@@ -828,13 +872,13 @@ export function MatchingMeView() {
   if (loading) return <Card><SkeletonRows rows={4} /></Card>;
   return (
     <div className="space-y-5">
-      <SectionHead title="おすすめ案件・参画状況" desc="あなたのスキル・修了コースに合う案件と、現在の参画状況・履歴です。" />
+      <SectionHead title="あなた向け案件・参画状況" desc="所属企業から案内された案件候補と、現在の参画状況・履歴です。" />
       <ErrorBanner message={error} />
       {data?.warnings?.map((w, i) => <div key={i} className="mb-2 flex items-center gap-2 rounded-xl px-3 py-2 text-xs font-semibold" style={{ background: T.warningSubtle, color: T.warning }}><AlertCircle size={14} />{w}</div>)}
 
       <Card className="p-5">
-        <h3 className="mb-3 flex items-center gap-1.5 font-bold" style={{ color: T.textPrimary }}><Sparkles size={16} />おすすめ案件</h3>
-        {!data?.recommendedProjects?.length ? <EmptyState title="現在おすすめできる案件がありません" desc="スキルシートを充実させると、より多くの案件候補が表示されます。" /> : (
+        <h3 className="mb-3 flex items-center gap-1.5 font-bold" style={{ color: T.textPrimary }}><Sparkles size={16} />あなた向け案件</h3>
+        {!data?.recommendedProjects?.length ? <EmptyState title="現在案内中の案件はありません" desc="所属企業から案件が案内されると、スキルとの一致度とともに表示されます。" /> : (
           <div className="space-y-3">{data.recommendedProjects.map(r => (
             <div key={r.project.projectId} className="rounded-xl p-3" style={{ background: T.bgBase }}>
               <div className="flex flex-wrap items-center justify-between gap-2">
@@ -875,8 +919,3 @@ export function MatchingMeView() {
     </div>
   );
 }
-
-// 2026-07-14 講師の参画状況閲覧は研修管理の受講生カルテへ統合したため、独立Matching Product専用
-// だったInstructorPlacementsView（このコンポーネント）は撤去。カルテ側は
-// products/training/TrainingComponents.jsx の TraineeParticipationStatus が
-// useTraineeMatching（useMatching.js）を直接再利用する。

@@ -1,16 +1,13 @@
 import { Activity, Briefcase, LayoutDashboard, MapPin, Sparkles } from "lucide-react";
 
-// サイドナビはロール別。admin/clientは案件管理者向け、traineeは自分向けのおすすめ・参画状況のみを
-// 表示する（Backend権限と対応させる）。instructorはMatching Productに到達しない
-// （TrainingApp.jsxのPRODUCTSから2026-07-14に除外済み）。担当受講生の参画状況は研修管理の
-// 受講生カルテ内（TrainingComponents.jsxのTraineeParticipationStatus）で読み取り専用表示する。
+// サイドナビはロール別。clientが自社案件・参画の運用所有者、adminは監査閲覧のみ、
+// traineeは本人向けのおすすめ・参画状況のみ。instructorはProduct/APIとも利用不可。
 export const MATCHING_NAV = {
   admin: [
     { sec: null, items: [["mt_home", "ホーム", LayoutDashboard]] },
-    { sec: "案件管理", items: [
-      ["mt_list",      "案件一覧",       Briefcase],
-      ["mt_matching",  "候補者マッチング", Sparkles],
-      ["mt_placement", "参画状況",       MapPin],
+    { sec: "運用監査", items: [
+      ["mt_list",      "案件監査", Briefcase],
+      ["mt_placement", "参画監査", MapPin],
     ]},
   ],
   client: [
@@ -29,17 +26,16 @@ export const MATCHING_NAV = {
 
 export const MATCHING_HOME_CARDS = {
   admin: [
-    { key: "mt_list",      icon: Briefcase, label: "案件一覧",         desc: "登録されている案件を作成・編集・管理します。" },
-    { key: "mt_matching",  icon: Sparkles,  label: "候補者マッチング", desc: "全受講生の実スキルから案件候補をマッチングします。" },
-    { key: "mt_placement", icon: MapPin,    label: "参画状況",         desc: "参画中・参画履歴を横断で管理します。" },
+    { key: "mt_list",      icon: Briefcase, label: "案件監査", desc: "企業ごとの登録状況と公開状態を読み取り専用で確認します。" },
+    { key: "mt_placement", icon: MapPin,    label: "参画監査", desc: "参画ステータスと更新状況を読み取り専用で確認します。" },
   ],
   client: [
-    { key: "mt_list",      icon: Briefcase, label: "自社案件",         desc: "自社に紐づく案件を確認します。" },
-    { key: "mt_matching",  icon: Sparkles,  label: "候補者マッチング", desc: "自社受講生の実スキルから案件候補を探します。" },
-    { key: "mt_placement", icon: MapPin,    label: "自社参画状況",     desc: "自社人材の参画先と進捗を確認します。" },
+    { key: "mt_list",      icon: Briefcase, label: "自社案件",         desc: "自社案件を登録し、募集状態と条件を管理します。" },
+    { key: "mt_matching",  icon: Sparkles,  label: "候補者マッチング", desc: "自社社員の実スキルから案件候補を選定します。" },
+    { key: "mt_placement", icon: MapPin,    label: "自社参画状況",     desc: "自社社員との面談・参画ステータスを管理します。" },
   ],
   trainee: [
-    { key: "mt_placement", icon: Activity,  label: "おすすめ案件・参画状況", desc: "自分に合う案件候補と、現在の参画状況・履歴を確認します。" },
+    { key: "mt_placement", icon: Activity,  label: "あなた向け案件・参画状況", desc: "所属企業から案内された案件候補と、現在の参画状況・履歴を確認します。" },
   ],
 };
 

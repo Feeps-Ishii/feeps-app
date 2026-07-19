@@ -431,6 +431,14 @@ const CAL_TYPES = [["training", "通常研修日"], ["holiday", "祝日/休日"]
 const calTypeLabel = (t) => (CAL_TYPES.find(x => x[0] === t)?.[1]) || t || "通常研修日";
 const calTypeTone = (t) => t === "training" ? "green" : t === "makeup" ? "cyan" : t === "closed" ? "amber" : "muted";
 const calTraining = (t) => t === "training" || t === "makeup";
+const courseEditValue = (course = {}) => ({
+  name: course.name || "", type: course.type ?? course.kind ?? "shinjin", memo: course.memo ?? course.description ?? "",
+  instructorIds: Array.isArray(course.instructorIds) ? course.instructorIds : [],
+  startDate: course.startDate || "", endDate: course.endDate || "",
+  standardClockIn: course.standardClockIn || "", standardClockOut: course.standardClockOut || "",
+  lunchBreakStart: course.lunchBreakStart || "", lunchBreakEnd: course.lunchBreakEnd || "",
+  mode: course.mode || "", venueName: course.venueName || "", venueAddress: course.venueAddress || "", onlineUrl: course.onlineUrl || "",
+});
 
 function AdminCourses({ go }) {
   const [rows, setRows] = useState([]);
@@ -442,7 +450,7 @@ function AdminCourses({ go }) {
   const [sort, setSort] = useState({ key: "name", dir: "asc" });
   const [page, setPage] = useState(1);
   const [selected, setSelected] = useState(null);
-  const [edit, setEdit] = useState({ name: "", type: "shinjin", memo: "", instructorIds: [] });
+  const [edit, setEdit] = useState(courseEditValue());
   const [trainees, setTrainees] = useState([]);
   const [users, setUsers] = useState([]);
   const [instructors, setInstructors] = useState([]);
@@ -454,6 +462,7 @@ function AdminCourses({ go }) {
   const [workdays, setWorkdays] = useState({ month: monthStr(), days: [], trainingDaysCount: 0 });
   const [calendarLoading, setCalendarLoading] = useState(false);
   const [calendarBusy, setCalendarBusy] = useState(false);
+  const [calendarEditDate, setCalendarEditDate] = useState("");
   const [detailLoading, setDetailLoading] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -471,7 +480,7 @@ function AdminCourses({ go }) {
           const fresh = list.find(x => x.courseId === selected.courseId);
           if (fresh) {
             setSelected(fresh);
-            setEdit({ name: fresh.name || "", type: typeOf(fresh), memo: memoOf(fresh), instructorIds: Array.isArray(fresh.instructorIds) ? fresh.instructorIds : [] });
+            setEdit(courseEditValue(fresh));
           }
         } else {
           const active = list.find(x => x.courseId === getActiveCourseId());
@@ -515,7 +524,7 @@ function AdminCourses({ go }) {
   async function selectCourse(c) {
     setActiveCourseId(c.courseId);
     setSelected(c);
-    setEdit({ name: c.name || "", type: typeOf(c), memo: memoOf(c), instructorIds: Array.isArray(c.instructorIds) ? c.instructorIds : [] });
+    setEdit(courseEditValue(c));
     setErr("");
     setMsg("");
     setDetailLoading(true);
@@ -556,7 +565,16 @@ function AdminCourses({ go }) {
     const items = Object.keys(calendarDirty).map(date => {
       const item = calendarItems[date] || { date, type: "training" };
       const type = item.type || "training";
-      return { date, type, title: item.title || "", note: item.note || "", isTrainingDay: calTraining(type) };
+      return {
+        date, type, title: item.title || "", note: item.note || "", isTrainingDay: calTraining(type),
+        startTime: item.startTime || "", endTime: item.endTime || "",
+        lunchBreakStart: item.lunchBreakStart || "", lunchBreakEnd: item.lunchBreakEnd || "",
+        instructorIds: Array.isArray(item.instructorIds) ? item.instructorIds : [],
+        subInstructorIds: Array.isArray(item.subInstructorIds) ? item.subInstructorIds : [],
+        mode: item.mode || "", venueName: item.venueName || "", venueAddress: item.venueAddress || "", onlineUrl: item.onlineUrl || "",
+        materialIds: Array.isArray(item.materialIds) ? item.materialIds : [],
+        materialDownloadEnabled: item.materialDownloadEnabled === true,
+      };
     });
     if (!items.length) { setMsg("保存するカレンダー変更はありません。"); return; }
     setCalendarBusy(true); setErr(""); setMsg("");
@@ -587,7 +605,13 @@ function AdminCourses({ go }) {
     if (!selected || !edit.name.trim() || busy) return;
     setBusy(true); setErr(""); setMsg("");
     try {
-      await apiPut(`/courses/${selected.courseId}`, { name: edit.name.trim(), type: edit.type, memo: edit.memo.trim(), instructorIds: edit.instructorIds });
+      await apiPut(`/courses/${selected.courseId}`, {
+        name: edit.name.trim(), type: edit.type, memo: edit.memo.trim(), instructorIds: edit.instructorIds,
+        startDate: edit.startDate, endDate: edit.endDate,
+        standardClockIn: edit.standardClockIn, standardClockOut: edit.standardClockOut,
+        lunchBreakStart: edit.lunchBreakStart, lunchBreakEnd: edit.lunchBreakEnd,
+        mode: edit.mode, venueName: edit.venueName.trim(), venueAddress: edit.venueAddress.trim(), onlineUrl: edit.onlineUrl.trim(),
+      });
       setMsg(`${edit.name.trim()} を保存しました。`);
       await load();
     } catch (e) { setErr("保存に失敗しました：" + (e?.message || e)); } finally { setBusy(false); }
@@ -647,6 +671,18 @@ function AdminCourses({ go }) {
       type,
       title: saved.title ?? base.title ?? "",
       note: saved.note ?? "",
+      startTime: saved.startTime ?? base.startTime ?? "",
+      endTime: saved.endTime ?? base.endTime ?? "",
+      lunchBreakStart: saved.lunchBreakStart ?? base.lunchBreakStart ?? "",
+      lunchBreakEnd: saved.lunchBreakEnd ?? base.lunchBreakEnd ?? "",
+      instructorIds: Array.isArray(saved.instructorIds) ? saved.instructorIds : [],
+      subInstructorIds: Array.isArray(saved.subInstructorIds) ? saved.subInstructorIds : [],
+      mode: saved.mode ?? base.mode ?? "",
+      venueName: saved.venueName ?? base.venueName ?? "",
+      venueAddress: saved.venueAddress ?? base.venueAddress ?? "",
+      onlineUrl: saved.onlineUrl ?? base.onlineUrl ?? "",
+      materialIds: Array.isArray(saved.materialIds) ? saved.materialIds : [],
+      materialDownloadEnabled: saved.materialDownloadEnabled === true,
       isTrainingDay: saved.type ? calTraining(type) : !!base.isTrainingDay,
       dirty: !!calendarDirty[date],
     };
@@ -656,6 +692,12 @@ function AdminCourses({ go }) {
     const offset = first ? (new Date(`${first}T00:00:00`).getDay() + 6) % 7 : 0;
     return [...Array.from({ length: offset }, (_, i) => ({ blank: true, key: `b${i}` })), ...calendarRows];
   }, [calendarRows]);
+  const calendarEditRow = calendarRows.find(row => row.date === calendarEditDate) || null;
+  function toggleDayInstructor(date, field, userId) {
+    const row = calendarRows.find(item => item.date === date);
+    const current = Array.isArray(row?.[field]) ? row[field] : [];
+    updateCalendar(date, { [field]: current.includes(userId) ? current.filter(id => id !== userId) : [...current, userId] });
+  }
   const SortMark = ({ k }) => sort.key === k ? (sort.dir === "asc" ? <ChevronUp size={13} /> : <ChevronDown size={13} />) : null;
   if (selected) return (
     <div>
@@ -677,7 +719,18 @@ function AdminCourses({ go }) {
             <Field label="コース名"><input value={edit.name} onChange={e => setEdit({ ...edit, name: e.target.value })} className={fieldCls} style={{ border: `1px solid ${T.border}`, color: T.textPrimary }} /></Field>
             <Field label="種別"><select value={edit.type} onChange={e => setEdit({ ...edit, type: e.target.value })} className={fieldCls} style={{ border: `1px solid ${T.border}`, color: T.textPrimary }}>{COURSE_KINDS.map(([v, l]) => <option key={v} value={v}>{l}</option>)}</select></Field>
             <div className="lg:col-span-2"><Field label="メモ"><textarea value={edit.memo} onChange={e => setEdit({ ...edit, memo: e.target.value })} rows={3} className={fieldCls + " resize-none"} style={{ border: `1px solid ${T.border}`, color: T.textPrimary }} /></Field></div>
+            <Field label="研修開始日"><input type="date" value={edit.startDate} onChange={e => setEdit({ ...edit, startDate: e.target.value })} className={fieldCls} style={{ border: `1px solid ${T.border}`, color: T.textPrimary }} /></Field>
+            <Field label="研修終了日"><input type="date" value={edit.endDate} onChange={e => setEdit({ ...edit, endDate: e.target.value })} className={fieldCls} style={{ border: `1px solid ${T.border}`, color: T.textPrimary }} /></Field>
+            <Field label="標準開始時刻"><input type="time" value={edit.standardClockIn} onChange={e => setEdit({ ...edit, standardClockIn: e.target.value })} className={fieldCls} style={{ border: `1px solid ${T.border}`, color: T.textPrimary }} /></Field>
+            <Field label="標準終了時刻"><input type="time" value={edit.standardClockOut} onChange={e => setEdit({ ...edit, standardClockOut: e.target.value })} className={fieldCls} style={{ border: `1px solid ${T.border}`, color: T.textPrimary }} /></Field>
+            <Field label="標準昼休み（開始）"><input type="time" value={edit.lunchBreakStart} onChange={e => setEdit({ ...edit, lunchBreakStart: e.target.value })} className={fieldCls} style={{ border: `1px solid ${T.border}`, color: T.textPrimary }} /></Field>
+            <Field label="標準昼休み（終了）"><input type="time" value={edit.lunchBreakEnd} onChange={e => setEdit({ ...edit, lunchBreakEnd: e.target.value })} className={fieldCls} style={{ border: `1px solid ${T.border}`, color: T.textPrimary }} /></Field>
+            <Field label="標準受講形式"><select value={edit.mode} onChange={e => setEdit({ ...edit, mode: e.target.value })} className={fieldCls} style={{ border: `1px solid ${T.border}`, color: T.textPrimary }}><option value="">未設定</option><option value="online">オンライン</option><option value="onsite">対面</option><option value="hybrid">ハイブリッド</option></select></Field>
+            <Field label="標準会場名"><input value={edit.venueName} onChange={e => setEdit({ ...edit, venueName: e.target.value })} className={fieldCls} style={{ border: `1px solid ${T.border}`, color: T.textPrimary }} /></Field>
+            <Field label="標準会場住所"><input value={edit.venueAddress} onChange={e => setEdit({ ...edit, venueAddress: e.target.value })} className={fieldCls} style={{ border: `1px solid ${T.border}`, color: T.textPrimary }} /></Field>
+            <Field label="標準オンラインURL"><input type="url" value={edit.onlineUrl} onChange={e => setEdit({ ...edit, onlineUrl: e.target.value })} className={fieldCls} style={{ border: `1px solid ${T.border}`, color: T.textPrimary }} /></Field>
           </div>
+          {(!edit.startDate || !edit.endDate) && <div className="mt-3 rounded-xl px-3 py-2 text-xs" style={{ background: T.warningSubtle, color: T.textSecondary, border: `1px solid ${T.warning}` }}>開始日・終了日が未設定の間は、日報や勤怠を欠席扱いにせず「日程設定が必要」と表示します。</div>}
           <div className="mt-5">
             <div className="mb-2 text-sm font-bold" style={{ color: T.textPrimary }}>担当講師</div>
             <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
@@ -701,19 +754,37 @@ function AdminCourses({ go }) {
         </Card>
 
         <Card className="p-5">
-          <div className="mb-3 flex flex-wrap items-center justify-between gap-2"><div><h3 className="flex items-center gap-1.5 font-bold" style={{ color: T.textPrimary }}><Calendar size={16} />研修カレンダー</h3><p className="mt-1 text-xs" style={{ color: T.textMuted }}>受講生の日報・勤怠は、ここで設定した研修日のみ登録できます。</p></div><div className="flex flex-wrap items-center gap-2"><Badge tone="green">研修日 {workdays.trainingDaysCount || 0}日</Badge><input type="month" value={calendarMonth} onChange={e => setCalendarMonth(e.target.value)} className="rounded-xl px-3 py-2 text-sm outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary }} /><Btn size="sm" icon={Check} onClick={saveCalendar}>{calendarBusy ? "保存中…" : "保存"}</Btn></div></div>
+          <div className="mb-3 flex flex-wrap items-center justify-between gap-2"><div><h3 className="flex items-center gap-1.5 font-bold" style={{ color: T.textPrimary }}><Calendar size={16} />研修カレンダー</h3><p className="mt-1 text-xs" style={{ color: T.textMuted }}>休日・振替日・日ごとの時刻・受講形式・担当講師を設定できます。</p></div><div className="flex flex-wrap items-center gap-2"><Badge tone={workdays.status === "setup_required" ? "amber" : "green"}>{workdays.status === "setup_required" ? "日程設定が必要" : `研修日 ${workdays.trainingDaysCount ?? 0}日`}</Badge><input type="month" value={calendarMonth} onChange={e => setCalendarMonth(e.target.value)} className="rounded-xl px-3 py-2 text-sm outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary }} /><Btn size="sm" icon={Check} onClick={saveCalendar}>{calendarBusy ? "保存中…" : "保存"}</Btn></div></div>
           {calendarLoading ? <SkeletonRows rows={3} />
             : <>
               <div className="space-y-2 md:hidden">
                 {calendarCells.filter(row => !row.blank).map(row => <div key={row.date} className="rounded-xl p-3" style={{ background: row.isTrainingDay ? "#fff" : T.bgBase, border: `1px solid ${row.dirty ? T.accent : T.border}` }}>
                   <div className="mb-2 flex items-center justify-between gap-2"><div className="flex items-center gap-2"><span className="text-sm font-bold" style={{ color: T.textPrimary }}>{Number(row.date.slice(8, 10))}日</span><Badge tone={row.isTrainingDay ? "green" : "muted"}>{row.isTrainingDay ? "研修日" : "非研修日"}</Badge></div>{row.dirty && <Badge tone="cyan">変更あり</Badge>}</div>
-                  <div className="grid gap-2 sm:grid-cols-3"><select value={row.type} onChange={e => updateCalendar(row.date, { type: e.target.value })} className="w-full rounded-xl px-3 py-2 text-sm outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary, background: "#fff" }}>{CAL_TYPES.map(([v, l]) => <option key={v} value={v}>{l}</option>)}</select><input value={row.title} onChange={e => updateCalendar(row.date, { title: e.target.value })} placeholder="タイトル" className="w-full rounded-xl px-3 py-2 text-sm outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary, background: "#fff" }} /><input value={row.note} onChange={e => updateCalendar(row.date, { note: e.target.value })} placeholder="メモ" className="w-full rounded-xl px-3 py-2 text-sm outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary, background: "#fff" }} /></div>
+                  <div className="grid gap-2 sm:grid-cols-3"><select value={row.type} onChange={e => updateCalendar(row.date, { type: e.target.value })} className="w-full rounded-xl px-3 py-2 text-sm outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary, background: T.bgSurface }}>{CAL_TYPES.map(([v, l]) => <option key={v} value={v}>{l}</option>)}</select><input value={row.title} onChange={e => updateCalendar(row.date, { title: e.target.value })} placeholder="タイトル" className="w-full rounded-xl px-3 py-2 text-sm outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary, background: T.bgSurface }} /><Btn kind="ghost" size="sm" icon={Pencil} onClick={() => setCalendarEditDate(row.date)}>日別設定</Btn></div>
                 </div>)}
               </div>
-              <div className="hidden overflow-x-auto md:block"><div className="grid grid-cols-7 gap-1.5" style={{ minWidth: 900 }}>{["月", "火", "水", "木", "金", "土", "日"].map(d => <div key={d} className="px-2 py-1 text-center text-xs font-bold" style={{ color: T.textMuted }}>{d}</div>)}{calendarCells.map((row, i) => row.blank ? <div key={row.key || i} className="min-h-[150px] rounded-xl" style={{ background: T.bgBase, border: `1px dashed ${T.border}` }} /> : <div key={row.date} className="min-h-[150px] rounded-xl p-2" style={{ background: row.isTrainingDay ? "#fff" : T.bgBase, border: `1px solid ${row.dirty ? T.accent : T.border}` }}><div className="mb-1 flex items-center justify-between gap-1"><span className="text-sm font-bold" style={{ color: T.textPrimary }}>{Number(row.date.slice(8, 10))}</span>{row.dirty && <span className="h-2 w-2 rounded-full" style={{ background: T.accent }} title="変更あり" />}</div><div className="mb-1 flex flex-wrap gap-1"><Badge tone={row.isTrainingDay ? "green" : "muted"}>{row.isTrainingDay ? "研修日" : "非研修日"}</Badge><Badge tone={calTypeTone(row.type)}>{calTypeLabel(row.type)}</Badge></div>{(row.title || row.note) && <div className="mb-1 line-clamp-2 text-xs" style={{ color: T.textMuted }}>{row.title || row.note}</div>}<div className="space-y-1.5"><select value={row.type} onChange={e => updateCalendar(row.date, { type: e.target.value })} className="w-full rounded-xl px-2 py-1.5 text-xs outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary }}>{CAL_TYPES.map(([v, l]) => <option key={v} value={v}>{l}</option>)}</select><input value={row.title} onChange={e => updateCalendar(row.date, { title: e.target.value })} placeholder="タイトル" className="w-full rounded-xl px-2 py-1.5 text-xs outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary }} /><input value={row.note} onChange={e => updateCalendar(row.date, { note: e.target.value })} placeholder="メモ" className="w-full rounded-xl px-2 py-1.5 text-xs outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary }} /></div></div>)}</div></div>
+              <div className="hidden overflow-x-auto md:block"><div className="grid grid-cols-7 gap-1.5" style={{ minWidth: 900 }}>{["月", "火", "水", "木", "金", "土", "日"].map(d => <div key={d} className="px-2 py-1 text-center text-xs font-bold" style={{ color: T.textMuted }}>{d}</div>)}{calendarCells.map((row, i) => row.blank ? <div key={row.key || i} className="min-h-[150px] rounded-xl" style={{ background: T.bgBase, border: `1px dashed ${T.border}` }} /> : <div key={row.date} className="min-h-[150px] rounded-xl p-2" style={{ background: row.isTrainingDay ? T.bgSurface : T.bgBase, border: `1px solid ${row.dirty ? T.accent : T.border}` }}><div className="mb-1 flex items-center justify-between gap-1"><span className="text-sm font-bold" style={{ color: T.textPrimary }}>{Number(row.date.slice(8, 10))}</span>{row.dirty && <span className="h-2 w-2 rounded-full" style={{ background: T.accent }} title="変更あり" />}</div><div className="mb-1 flex flex-wrap gap-1"><Badge tone={row.isTrainingDay ? "green" : "muted"}>{row.isTrainingDay ? "研修日" : "非研修日"}</Badge><Badge tone={calTypeTone(row.type)}>{calTypeLabel(row.type)}</Badge></div>{(row.title || row.note) && <div className="mb-1 line-clamp-2 text-xs" style={{ color: T.textMuted }}>{row.title || row.note}</div>}<div className="space-y-1.5"><select value={row.type} onChange={e => updateCalendar(row.date, { type: e.target.value })} className="w-full rounded-xl px-2 py-1.5 text-xs outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary }}>{CAL_TYPES.map(([v, l]) => <option key={v} value={v}>{l}</option>)}</select><input value={row.title} onChange={e => updateCalendar(row.date, { title: e.target.value })} placeholder="タイトル" className="w-full rounded-xl px-2 py-1.5 text-xs outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary }} /><Btn kind="ghost" size="sm" icon={Pencil} onClick={() => setCalendarEditDate(row.date)}>日別設定</Btn></div></div>)}</div></div>
             </>}
         </Card>
       </div>
+      {calendarEditRow && <Modal title={`${calendarEditRow.date} の日別設定`} desc="この日の設定はコースの標準設定より優先されます。" onClose={() => setCalendarEditDate("")} footer={<><Btn kind="ghost" onClick={() => setCalendarEditDate("")}>閉じる</Btn><Btn icon={Check} onClick={() => { setCalendarEditDate(""); setMsg("日別設定を反映しました。カレンダーの保存を押して確定してください。"); }}>設定して閉じる</Btn></>}>
+        <div className="grid gap-3 sm:grid-cols-2">
+          <Field label="日の種類"><select value={calendarEditRow.type} onChange={e => updateCalendar(calendarEditRow.date, { type: e.target.value })} className={fieldCls} style={{ border: `1px solid ${T.border}`, color: T.textPrimary }}>{CAL_TYPES.map(([v, l]) => <option key={v} value={v}>{l}</option>)}</select></Field>
+          <Field label="タイトル"><input value={calendarEditRow.title} onChange={e => updateCalendar(calendarEditRow.date, { title: e.target.value })} className={fieldCls} style={{ border: `1px solid ${T.border}`, color: T.textPrimary }} /></Field>
+          <Field label="開始時刻"><input type="time" value={calendarEditRow.startTime} onChange={e => updateCalendar(calendarEditRow.date, { startTime: e.target.value })} className={fieldCls} style={{ border: `1px solid ${T.border}`, color: T.textPrimary }} /></Field>
+          <Field label="終了時刻"><input type="time" value={calendarEditRow.endTime} onChange={e => updateCalendar(calendarEditRow.date, { endTime: e.target.value })} className={fieldCls} style={{ border: `1px solid ${T.border}`, color: T.textPrimary }} /></Field>
+          <Field label="昼休み（開始）"><input type="time" value={calendarEditRow.lunchBreakStart} onChange={e => updateCalendar(calendarEditRow.date, { lunchBreakStart: e.target.value })} className={fieldCls} style={{ border: `1px solid ${T.border}`, color: T.textPrimary }} /></Field>
+          <Field label="昼休み（終了）"><input type="time" value={calendarEditRow.lunchBreakEnd} onChange={e => updateCalendar(calendarEditRow.date, { lunchBreakEnd: e.target.value })} className={fieldCls} style={{ border: `1px solid ${T.border}`, color: T.textPrimary }} /></Field>
+          <Field label="受講形式"><select value={calendarEditRow.mode} onChange={e => updateCalendar(calendarEditRow.date, { mode: e.target.value })} className={fieldCls} style={{ border: `1px solid ${T.border}`, color: T.textPrimary }}><option value="">標準設定を使用</option><option value="online">オンライン</option><option value="onsite">対面</option><option value="hybrid">ハイブリッド</option></select></Field>
+          <Field label="会場名"><input value={calendarEditRow.venueName} onChange={e => updateCalendar(calendarEditRow.date, { venueName: e.target.value })} className={fieldCls} style={{ border: `1px solid ${T.border}`, color: T.textPrimary }} /></Field>
+          <Field label="会場住所"><input value={calendarEditRow.venueAddress} onChange={e => updateCalendar(calendarEditRow.date, { venueAddress: e.target.value })} className={fieldCls} style={{ border: `1px solid ${T.border}`, color: T.textPrimary }} /></Field>
+          <Field label="オンラインURL"><input type="url" value={calendarEditRow.onlineUrl} onChange={e => updateCalendar(calendarEditRow.date, { onlineUrl: e.target.value })} className={fieldCls} style={{ border: `1px solid ${T.border}`, color: T.textPrimary }} /></Field>
+          <div className="sm:col-span-2"><Field label="運営メモ"><textarea rows={2} value={calendarEditRow.note} onChange={e => updateCalendar(calendarEditRow.date, { note: e.target.value })} className={fieldCls + " resize-none"} style={{ border: `1px solid ${T.border}`, color: T.textPrimary }} /></Field></div>
+        </div>
+        <div className="mt-4 grid gap-4 sm:grid-cols-2">
+          {[['instructorIds', 'メイン講師'], ['subInstructorIds', 'サブ講師']].map(([field, label]) => <div key={field}><div className="mb-2 text-sm font-bold" style={{ color: T.textPrimary }}>{label}</div><div className="space-y-2">{instructors.filter(i => (edit.instructorIds || []).includes(i.userId)).map(i => { const checked = (calendarEditRow[field] || []).includes(i.userId); return <label key={i.userId} className="flex cursor-pointer items-center gap-2 rounded-xl p-2 text-sm" style={{ background: checked ? T.accentSubtle : T.bgBase, border: `1px solid ${checked ? T.accent : T.border}` }}><input type="checkbox" checked={checked} onChange={() => toggleDayInstructor(calendarEditRow.date, field, i.userId)} /><span style={{ color: T.textPrimary }}>{i.name || i.email}</span></label>; })}{!(edit.instructorIds || []).length && <div className="text-xs" style={{ color: T.textMuted }}>先にコースの担当講師を設定してください。</div>}</div></div>)}
+        </div>
+      </Modal>}
       {deleteOpen && selected && <DeleteConfirm title="コースを削除" name={selected.name || selected.courseId} warning="受講生やカリキュラムがあるコースは削除できません。" busy={busy} onClose={() => setDeleteOpen(false)} onConfirm={deleteCourse} />}
     </div>
   );
