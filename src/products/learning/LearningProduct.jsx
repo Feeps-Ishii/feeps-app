@@ -161,7 +161,7 @@ export default function LearningProduct({ subView, goSub, goProduct, role, theme
     el_skills:     <ElSkillsView     {...sp} />,
     el_cert:       <ElCertificateView {...sp} />,
     el_manage:     role === "admin" || role === "instructor"
-      ? <LearningAdminProduct initialView="courses" />
+      ? <LearningAdminProduct initialView="ai-lesson-designer" />
       : <LearningPlaceholder title="コース管理"  desc="Eラーニングコースを作成・編集・公開できます。" />,
     el_lessons:    role === "admin" || role === "instructor"
       ? <LearningAdminProduct initialView="lessons" />

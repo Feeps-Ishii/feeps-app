@@ -7,6 +7,7 @@ import {
 } from "lucide-react";
 import { Card, Badge, Btn, EmptyState, SectionHead, PageHeader, ProductNavCard, T, PRODUCT_ACCENT } from "../../components/common";
 import ElSlideLessonView from "./ElSlideLessonView.jsx";
+import LearningExperienceFlow from "./LearningExperienceFlow.jsx";
 
 // Learner-side palette: legacy key names kept, values sourced from tokens.
 // "green" is the Learning product identity -> PRODUCT_ACCENT.learning.
@@ -151,8 +152,8 @@ function LearningOverview({ lrn, goSub, goProduct, onOpenDetail, role, themeColo
       <PageHeader
         product="learning"
         label="Eラーニング"
-        title="学びを、いつでもどこでも。"
-        description="コースを受講してスキルを習得し、案件参画に活かしましょう。"
+        title="理解して、試して、身につける。"
+        description="短い説明と例のあとに自分で操作。すぐにフィードバックを受け、復習と総合テストで定着を確かめます。"
         chips={[
           { label: "修了コース", value: lrn.completed.length, unit: "本" },
           { label: "学習中", value: lrn.inprogress.length, unit: "本" },
@@ -160,6 +161,8 @@ function LearningOverview({ lrn, goSub, goProduct, onOpenDetail, role, themeColo
         ]}
         cta={{ label: "コース一覧を開く", icon: BookOpen, onClick: () => goSub("el_courses") }}
       />
+
+      <LearningExperienceFlow className="mb-6" />
 
       {/* 今日の学習 */}
       <div className="mb-6">
@@ -297,7 +300,7 @@ function LearningOverview({ lrn, goSub, goProduct, onOpenDetail, role, themeColo
           <h3 className="mb-3 text-sm font-bold" style={{ color: C.ink }}>管理機能</h3>
           <div className="grid gap-3 sm:grid-cols-3">
             {[
-              { key: "el_manage",   icon: Settings, label: "コース管理",   desc: "コースを作成・編集・公開できます。" },
+              { key: "el_manage",   icon: Settings, label: "Learning Studio", desc: "目的からAI構成案を作り、Lessonを確認して公開準備できます。" },
               { key: "el_lessons",  icon: FileText,  label: "レッスン管理", desc: "レッスンと教材を管理できます。" },
               { key: "el_students", icon: Users,     label: "受講状況",     desc: "受講生の進捗と完了状況を確認できます。" },
             ].map(({ key, icon: Icon, label, desc }) => (
@@ -1018,6 +1021,13 @@ function ElCourseDetail({ course, lrn, onBack, onOpenLesson, onStartFinalTest, o
           </div>
         </div>
       </div>
+      <LearningExperienceFlow
+        compact
+        className="mb-5"
+        activeKey={isCompleted || ["lessons_completed", "final_test_failed"].includes(courseState.status)
+          ? "final"
+          : courseState.status === "review_recommended" ? "review" : "explanation"}
+      />
       {isFinalWaiting && (
         <Card className="mb-5 p-4" style={{ background: courseState.status === "final_test_failed" ? C.redW : C.amberW, borderColor: courseState.status === "final_test_failed" ? "#FCA5A5" : "#FCD34D" }}>
           <div className="flex items-start gap-3">
@@ -1449,11 +1459,15 @@ function ElFinalTestView({ course, lrn, lessons, onBack, onOpenLesson, onModeCha
         <button onClick={onBack} className="mb-4 flex items-center gap-1.5 text-sm font-semibold transition hover:opacity-70" style={{ color: C.muted }}>
           <ChevronLeft size={16} />コース詳細へ戻る
         </button>
+        <LearningExperienceFlow activeKey="final" compact className="mb-5" />
         <Card className="mb-5 p-6 text-center">
           <div className="mx-auto mb-4 flex h-20 w-20 items-center justify-center rounded-full" style={{ background: result.passed ? C.greenW : C.amberW }}>
             {result.passed ? <Award size={36} style={{ color: C.green }} /> : <AlertCircle size={36} style={{ color: C.amber }} />}
           </div>
-          <Badge tone={result.passed ? "green" : "amber"}>{result.passed ? "合格" : "不合格"}</Badge>
+          <div className="flex flex-wrap justify-center gap-2">
+            <Badge tone={result.passed ? "green" : "amber"}>{result.passed ? "合格" : "不合格"}</Badge>
+            <Badge tone="cyan">サーバー採点済み</Badge>
+          </div>
           <div className="mt-3 text-4xl font-bold" style={{ color: result.passed ? C.green : C.amber }}>{result.score}点</div>
           <p className="mt-1 text-sm" style={{ color: C.muted }}>
             正答率 {result.score}% · {result.correctCount}/{result.questionCount}問正解 · 不正解 {result.incorrectCount}問
@@ -1558,6 +1572,7 @@ function ElFinalTestView({ course, lrn, lessons, onBack, onOpenLesson, onModeCha
       <button onClick={onBack} className="mb-4 flex items-center gap-1.5 text-sm font-semibold transition hover:opacity-70" style={{ color: C.muted }}>
         <ChevronLeft size={16} />中断して戻る
       </button>
+      <LearningExperienceFlow activeKey="final" compact className="mb-5" />
       <div className="mb-5 rounded-2xl p-5" style={{ background: `${course.color}0D`, border: `1px solid ${course.color}25` }}>
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>

@@ -6,6 +6,7 @@ import {
 } from "lucide-react";
 import { Btn, T, PRODUCT_ACCENT } from "../../components/common";
 import { LessonBodyText } from "./LearningComponents.jsx";
+import LearningExperienceFlow, { learningStageForSlide } from "./LearningExperienceFlow.jsx";
 import { apiPost } from "../../api.js";
 
 // slidesを持つLesson専用の「メインスライド中心」表示。lesson.slides?.length > 0 の場合のみ
@@ -1070,6 +1071,12 @@ export default function ElSlideLessonView({ course, lesson, lrn, onBack, onNavig
       <button onClick={onBack} className="mb-4 flex items-center gap-1.5 text-sm font-semibold transition hover:opacity-70" style={{ color: C.muted }}>
         <ChevronLeft size={16} />{course.title}へ戻る
       </button>
+
+      <LearningExperienceFlow
+        activeKey={learningStageForSlide(slides[slideIndex], slideIndex)}
+        compact
+        className="mb-5"
+      />
 
       <div className="flex flex-col gap-8 lg:flex-row lg:items-start">
         <LeftSlideNav slides={slides} current={slideIndex} onSelect={setSlideIndex} accent={accent} />

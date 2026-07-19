@@ -15,7 +15,7 @@ const VIEW_TABS = [
   { value: "materials", label: "教材管理" },
   { value: "enrollments", label: "受講状況" },
   { value: "quizzes", label: "理解度・問題" },
-  { value: "ai-lesson-designer", label: "AI Lesson Designer" },
+  { value: "ai-lesson-designer", label: "Learning Studio" },
 ];
 
 export default function LearningAdminProduct({ initialView = "courses" }) {
@@ -32,14 +32,14 @@ export default function LearningAdminProduct({ initialView = "courses" }) {
     <div className="space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <Seg value={view} onChange={setView} options={VIEW_TABS} activeFg={PRODUCT_ACCENT.learning.deep} />
-        <Btn kind="ai" size="sm" icon={Sparkles} onClick={() => setDesignerOpen(true)}>AI研修デザイナー</Btn>
+        <Btn kind="ai" size="sm" icon={Sparkles} onClick={() => setDesignerOpen(true)}>研修概要をAI設計</Btn>
       </div>
       {view === "lessons" && <LessonManager initialCourseId={selectedCourseId} />}
       {view === "materials" && <MaterialManager />}
       {view === "enrollments" && <EnrollmentManager />}
       {view === "quizzes" && <QuizManager />}
       {view === "courses" && <CourseManager onOpenLessons={openLessons} />}
-      {view === "ai-lesson-designer" && <AiLessonDesigner />}
+      {view === "ai-lesson-designer" && <AiLessonDesigner onOpenCourseManager={() => setView("courses")} />}
       {/* Mounted only while open: the modal's useLearningAdmin() fires admin API
           fetches on mount, which would otherwise duplicate every manager's own
           fetches on each Learning-admin page view. */}
