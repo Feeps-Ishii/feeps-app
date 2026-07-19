@@ -109,6 +109,7 @@ export const PRODUCT_ACCENT = {
   matching:  { accent: "#F3883B", deep: "#C26421", subtle: "#FFF0E5", gradFrom: "#963F0B", gradTo: "#B2521A" },
   analytics: { accent: "#EB77B1", deep: "#BD4F86", subtle: "#FCEAF3", gradFrom: "#94285F", gradTo: "#AE3B77" },
   admin:     { accent: "#5D7BF0", deep: "#435BC1", subtle: "#EBEFFE", gradFrom: "#435BC1", gradTo: "#5366C8" },
+  grants:    { accent: "#C9A227", deep: "#96791C", subtle: "#FBF3D9", gradFrom: "#7A6015", gradTo: "#C9A227" },
 };
 
 // Role accent (2026-07-03). Independent from PRODUCT_ACCENT — this is ONLY for the
@@ -187,4 +188,5 @@ export const PRISM_PRODUCT_GRAD = {
   talent: PRISM.gradTalent,
   matching: PRISM.gradMatching,
   analytics: PRISM.gradAnalytics,
+  grants: "linear-gradient(135deg,#7A6015,#C9A227)",
 };

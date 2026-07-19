@@ -4,6 +4,7 @@ import { apiGet, apiPut, apiPost } from "./api.js";
 import { ANALYTICS_NAV } from "./products/analytics/AnalyticsCatalog.js";
 import { MATCHING_NAV } from "./products/matching/MatchingCatalog.js";
 import { TALENT_NAV } from "./products/talent/TalentCatalog.js";
+import { GRANTS_NAV } from "./products/grants/GrantsCatalog.js";
 import FeepsOneHome from "./products/home/FeepsOneHome.jsx";
 import TrainingProduct from "./products/training/TrainingProduct.jsx";
 import Login from "./products/auth/Login.jsx";
@@ -26,7 +27,7 @@ import {
   Sparkles, Flame, X, Eye, Pencil, StickyNote, Megaphone, ArrowUpRight,
   MoreHorizontal, Check, Filter, Target, ListChecks, Lock, Mail, Lightbulb,
   Wrench, Compass, ShieldCheck, FileSpreadsheet, LogIn, Menu, Star, Activity,
-  GitBranch, Briefcase, Gauge, MapPin, User, Printer, RefreshCw, Receipt
+  GitBranch, Briefcase, Gauge, MapPin, User, Printer, RefreshCw, Receipt, Landmark
 } from "lucide-react";
 
 // Products other than Training (the default landing product) are code-split so the
@@ -39,6 +40,7 @@ const MatchingProduct = lazy(() => import("./products/matching/MatchingProduct.j
 const ProjectMatching = lazy(() => import("./products/matching/MatchingProduct.jsx").then(m => ({ default: m.ProjectMatching })));
 const TalentProduct = lazy(() => import("./products/talent/TalentProduct.jsx"));
 const AdminProduct = lazy(() => import("./products/admin/AdminProduct.jsx"));
+const GrantsProduct = lazy(() => import("./products/grants/GrantsProduct.jsx"));
 
 // Catches render/chunk-load failures in a lazily loaded Product so one broken chunk
 // (e.g. a deploy while the tab was open) degrades to a reload prompt, not a white screen.
@@ -134,6 +136,9 @@ const PRODUCTS = [
   // 唯一「担当受講生の参画状況」のみ限定的にGET許可されている(詳細はHANDOFF参照)。
   { key: "matching",  label: "案件管理",       icon: Briefcase,     color: PRODUCT_ACCENT.matching.accent, roles: ["trainee","client","admin"] },
   { key: "analytics", label: "分析・レポート", icon: Activity,      color: PRODUCT_ACCENT.analytics.accent, roles: ["admin"] },
+  // 助成金管理: instructor/traineeは業務上利用しないため除外（Backend routes/grants.mjsも
+  // isAdmin||isClient以外を全エンドポイントで403にしている、Matching同様の設計）。
+  { key: "grants",    label: "助成金管理",     icon: Landmark,      color: PRODUCT_ACCENT.grants.accent, roles: ["client","admin"] },
 ];
 
 const PRODUCT_DEFAULT_SUBVIEW = {
@@ -143,6 +148,7 @@ const PRODUCT_DEFAULT_SUBVIEW = {
   talent: "tl_home",
   matching: "mt_home",
   analytics: "an_home",
+  grants: "gr_home",
 };
 
 const EL_NAV = {
@@ -173,6 +179,7 @@ function productNavigation(product, role) {
   if (product === "talent") return TALENT_NAV[role] || TALENT_NAV.admin;
   if (product === "matching") return MATCHING_NAV[role] || MATCHING_NAV.trainee;
   if (product === "analytics") return ANALYTICS_NAV;
+  if (product === "grants") return GRANTS_NAV[role] || GRANTS_NAV.client;
   return NAV[role] || NAV.trainee;
 }
 
@@ -457,7 +464,7 @@ function GlobalRail({ products, active, onSelect, onOpenPalette }) {
       <nav className="feeps-global-products">
         {products.map(p => {
           const isActive = active === p.key;
-          const short = { home: "Home", training: "研修", learning: "学習", talent: "成長", matching: "案件", analytics: "分析" }[p.key] || p.label;
+          const short = { home: "Home", training: "研修", learning: "学習", talent: "成長", matching: "案件", analytics: "分析", grants: "助成金" }[p.key] || p.label;
           return (
             <button key={p.key} type="button" onClick={() => onSelect(p.key)} title={p.label} aria-current={isActive ? "page" : undefined}
               className={"feeps-global-link" + (isActive ? " is-active" : "")}
@@ -1121,6 +1128,7 @@ export default function App() {
     if (product === "talent") return <TalentProduct subView={subView} goSub={goSub} goProduct={goProduct} role={role} themeColor={themeColor} done={taskDone} goals={goals} />;
     if (product === "matching") return <MatchingProduct subView={subView} goSub={goSub} role={role} themeColor={themeColor} />;
     if (product === "analytics") return <AnalyticsProduct subView={subView} goSub={goSub} themeColor={themeColor} />;
+    if (product === "grants") return <GrantsProduct subView={subView} goSub={goSub} role={role} themeColor={themeColor} />;
     if (view === "matching") return <ProjectMatching role={role} />;
     if (view === "placement") return <ProjectMatching role={role} mode="placement" />;
     if (view === "risk") return <RiskBoard />;
