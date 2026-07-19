@@ -152,7 +152,9 @@ export function useLearning(role = "trainee") {
               progress: Number(item.progress || 0),
               startedAt: item.startedAt || null,
               completedAt: item.completedAt || null,
-              lastAccessedAt: item.lastStudiedAt || nextProgress[courseId]?.lastAccessedAt || null,
+              lastAccessedAt: item.lastStudiedAt || item.updatedAt || nextProgress[courseId]?.lastAccessedAt || null,
+              lastLessonId: item.lastLessonId || nextProgress[courseId]?.lastLessonId || null,
+              lastLessonTitle: item.lastLessonTitle || nextProgress[courseId]?.lastLessonTitle || "",
             };
           }
           const completionMap = item.lessonCompletion && typeof item.lessonCompletion === "object" ? item.lessonCompletion : {};
@@ -241,6 +243,7 @@ export function useLearning(role = "trainee") {
   function _pushProgressToServer(courseId, overrides = {}) {
     const course = courseById(courseId);
     const cp = overrides.courseProgress || progress[courseId] || {};
+    const lastLesson = lessonsForCourse(courseId).find(lesson => lesson.id === cp.lastLessonId);
     const doneMap = overrides.courseLessons || lessonProgress[courseId] || {};
     const reviews = overrides.courseReviews || lessonReviews.filter(r => r.courseId === courseId);
     const lessonCompletion = {};
@@ -260,6 +263,8 @@ export function useLearning(role = "trainee") {
       skills: course?.skills || [],
       startedAt: cp.startedAt || null,
       lastStudiedAt: cp.lastAccessedAt || new Date().toISOString(),
+      lastLessonId: cp.lastLessonId || null,
+      lastLessonTitle: lastLesson?.title || cp.lastLessonTitle || "",
       completedAt: cp.completedAt || null,
       lessonCompletion,
     }).catch(() => {});
@@ -294,17 +299,18 @@ export function useLearning(role = "trainee") {
     _save({ ...progress, [courseId]: nextEntry });
     _pushProgressToServerThrottled(courseId, { courseProgress: nextEntry });
   }
-  function completeCourse(courseId) {
+  function completeCourse(courseId, syncToServer = true) {
     const now = new Date().toISOString();
     const cur = progress[courseId];
-    const nextEntry = { status: "completed", progress: 100, startedAt: cur?.startedAt || now, completedAt: now };
+    const nextEntry = { ...cur, status: "completed", progress: 100, startedAt: cur?.startedAt || now, completedAt: now };
     _save({ ...progress, [courseId]: nextEntry });
-    _pushProgressToServer(courseId, { courseProgress: nextEntry });
+    if (syncToServer) _pushProgressToServer(courseId, { courseProgress: nextEntry });
     const course = courseById(courseId);
     const events = _loadEvents().filter(e => !(e.type === "el_completed" && e.courseId === courseId));
     events.unshift({ id: "ela-" + Date.now(), type: "el_completed", courseId, courseTitle: course?.title || courseId, earnedSkills: course?.skills || [], completedAt: now });
     localStorage.setItem(EVENTS_KEY, JSON.stringify(events));
     window.dispatchEvent(new Event("feeps:notifications-refresh"));
+    return nextEntry;
   }
   function completeLesson(courseId, lessonId) {
     const now = new Date().toISOString();
@@ -601,11 +607,13 @@ export function useLearning(role = "trainee") {
     return finalTestResults.filter(r => r.courseId === courseId);
   }
   function getLatestFinalTestResult(courseId) {
-    return getFinalTestResults(courseId).sort((a, b) => String(b.createdAt).localeCompare(String(a.createdAt)))[0] || null;
+    return getFinalTestResults(courseId)
+      .filter(result => result?.verification === "server_attempt_v1")
+      .sort((a, b) => String(b.createdAt || "").localeCompare(String(a.createdAt || "")))[0] || null;
   }
   function getOfficialFinalTestResult(courseId) {
     return getFinalTestResults(courseId)
-      .filter(result => result?.passed === true)
+      .filter(result => result?.passed === true && result?.verification === "server_attempt_v1")
       .sort((a, b) => {
         const scoreDiff = Number(b.score || 0) - Number(a.score || 0);
         if (scoreDiff !== 0) return scoreDiff;
@@ -640,81 +648,48 @@ export function useLearning(role = "trainee") {
     const normalizedStatus = rawStatus === "completed" ? (allLessonsDone ? "lessons_completed" : "inprogress") : (rawStatus || "not_started");
     return { status: normalizedStatus, progress: courseProgress, readyForFinalTest: false, allLessonsDone, doneCnt, total: lessons.length, latestResult, officialResult, reviewItems };
   }
-  function saveFinalTestResult(result) {
-    const next = [result, ...finalTestResults.filter(r => r.id !== result.id)];
+  async function createFinalTestAttempt(courseId) {
+    const attempt = await apiPost("/learning/final-tests/attempts", { courseId });
+    if (!attempt?.attemptId || !Array.isArray(attempt.questions) || attempt.questions.length === 0) {
+      throw new Error("総合テストを開始できませんでした");
+    }
+    return {
+      ...attempt,
+      questions: attempt.questions.map(question => ({ ...question, id: question.questionId })),
+    };
+  }
+  async function saveFinalTestResult(attemptId, answers) {
+    const saved = await apiPost("/learning/final-tests/results", { attemptId, answers });
+    const item = saved?.result;
+    if (!item || item.verification !== "server_attempt_v1") throw new Error("検証済みの総合テスト結果を保存できませんでした");
+    const normalized = { ...item, id: item.resultId || item.id };
+    const next = [normalized, ...finalTestResults.filter(r => (r.resultId || r.id) !== (normalized.resultId || normalized.id))];
     _saveFinalResults(next);
-    apiPost("/learning/final-tests/results", { ...result, resultId: result.resultId || result.id })
-      .then(saved => {
-        const item = saved?.result;
-        if (!item) return;
-        const normalized = { ...item, id: item.resultId || item.id };
-        const merged = [normalized, ...next.filter(r => (r.resultId || r.id) !== (normalized.resultId || normalized.id))];
-        _saveFinalResults(merged);
-      })
-      .catch(() => {});
-    const cur = progress[result.courseId] || {};
-    if (result.passed === true) {
-      completeCourse(result.courseId);
+    const cur = progress[normalized.courseId] || {};
+    if (normalized.passed === true) {
+      // Backendが合格結果を保存し、進捗を100%へ確定した後だけローカル表示も修了にする。
+      completeCourse(normalized.courseId, false);
     } else {
       _save({
         ...progress,
-        [result.courseId]: {
+        [normalized.courseId]: {
           ...cur,
           status: "final_test_failed",
-          progress: Math.min(90, Number(cur.progress ?? getCourseProgress(result.courseId) ?? 90)),
+          progress: Math.min(90, Number(cur.progress ?? getCourseProgress(normalized.courseId) ?? 90)),
           readyForFinalTest: true,
           completedAt: null,
-          lastFinalTestAt: result.createdAt || new Date().toISOString(),
+          lastFinalTestAt: normalized.createdAt || new Date().toISOString(),
         },
       });
     }
-    return result;
+    return normalized;
   }
-  function gradeFinalTest(courseId, questions, answers) {
-    const course = courseById(courseId);
-    const questionCount = questions.length;
-    const correctCount = questions.filter(q => Number(answers[q.id]) === Number(q.answer)).length;
-    const score = questionCount ? Math.round((correctCount / questionCount) * 100) : 0;
-    const byLesson = questions.reduce((acc, q) => {
-      if (!acc[q.lessonId]) acc[q.lessonId] = { lessonId: q.lessonId, lessonTitle: q.lessonTitle, correct: 0, total: 0 };
-      acc[q.lessonId].total += 1;
-      if (Number(answers[q.id]) === Number(q.answer)) acc[q.lessonId].correct += 1;
-      return acc;
-    }, {});
-    const lessonBreakdown = Object.values(byLesson).map(item => ({
-      ...item,
-      rate: item.total ? Math.round((item.correct / item.total) * 100) : 0,
+  function gradeFinalTest(attemptId, questions, answers) {
+    const selectedAnswers = questions.map(question => ({
+      questionId: question.questionId || question.id,
+      selected: answers[question.id],
     }));
-    const weakLessons = lessonBreakdown
-      .filter(item => item.rate < 70)
-      .map(item => ({ lessonId: item.lessonId, lessonTitle: item.lessonTitle, reason: "正答率が低い", rate: item.rate }));
-    const result = {
-      id: `final_${Date.now()}`,
-      courseId,
-      courseTitle: course?.title || courseId,
-      skills: course?.skills || [],
-      score,
-      passed: score >= 70,
-      correctCount,
-      incorrectCount: Math.max(0, questionCount - correctCount),
-      questionCount,
-      passLine: 70,
-      lessonBreakdown,
-      weakLessons,
-      answers: questions.map(q => ({
-        questionId: q.id,
-        lessonId: q.lessonId,
-        lessonTitle: q.lessonTitle,
-        question: q.question,
-        choices: q.choices,
-        selected: answers[q.id],
-        correctAnswer: q.answer,
-        correct: Number(answers[q.id]) === Number(q.answer),
-        explanation: q.explanation,
-      })),
-      createdAt: new Date().toISOString(),
-    };
-    return saveFinalTestResult(result);
+    return saveFinalTestResult(attemptId, selectedAnswers);
   }
   function getAchievements() { return _loadEvents().filter(e => e.type === "el_completed" && hasPassedFinalTest(e.courseId)); }
   function getEarnedSkills() {
@@ -751,6 +726,7 @@ export function useLearning(role = "trainee") {
     saveFinalTestPlan,
     clearFinalTestPlan,
     buildFinalTestQuestions,
+    createFinalTestAttempt,
     gradeFinalTest,
     getFinalTestResults,
     getLatestFinalTestResult,

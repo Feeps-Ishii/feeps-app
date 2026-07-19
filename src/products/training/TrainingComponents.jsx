@@ -141,6 +141,7 @@ function TraineeHome({ go, goProduct, goSub, done, taskDataState, onTaskRetry, t
   const thGoalTasks = taskDataReady ? flatTasks(goals) : [];
   const thRemaining = thGoalTasks.filter(t => !thDoneMap[t.id]);
   const thOverall = taskDataReady ? overallProgress(goals, thDoneMap) : null;
+  const thGoalDoneCount = taskDataReady ? thGoalTasks.length - thRemaining.length : null;
   const thReportToday = thHome.reports.find(r => r.date === thToday);
   const thHasReportComment = !!thReportToday?.comment || (Array.isArray(thReportToday?.comments) && thReportToday.comments.length > 0);
   const thGoalItems = Array.isArray(thReportToday?.goalItems) ? thReportToday.goalItems : [];
@@ -221,20 +222,56 @@ function TraineeHome({ go, goProduct, goSub, done, taskDataState, onTaskRetry, t
   const thSmallGoals = thRemaining.slice(0, 5);
   const thLatestReport = [...thHome.reports].sort((a, b) => String(b.date || "").localeCompare(String(a.date || "")))[0];
   const thDashboardTasks = Array.isArray(thHome.dashboard?.todayTasks) ? thHome.dashboard.todayTasks : [];
+  const thLearning = thHome.dashboard?.learning || null;
+  const thLearningAvailable = thAvailability.dashboard && thHome.dashboard?.availability?.learning !== false;
+  const thLearningProgressRaw = thLearning?.progressPercent;
+  const thLearningProgress = thLearningProgressRaw != null && Number.isFinite(Number(thLearningProgressRaw)) ? Number(thLearningProgressRaw) : null;
+  const thLearningLessonDone = Number(thLearning?.lessonProgress?.completed || 0);
+  const thLearningLessonTotal = Number(thLearning?.lessonProgress?.total || 0);
+  const thLearningCourseName = String(thLearning?.currentCourseTitle || "").trim();
+  const thLearningStateDetail = !thLearningAvailable
+    ? "修了状態を確認できません"
+    : !thLearning
+      ? "学習を始めると進捗が表示されます"
+      : thLearning.completionStage === "completed"
+        ? `総合テスト合格${thLearning.finalTest?.score != null ? `・${thLearning.finalTest.score}点` : ""}`
+        : thLearning.completionStage === "final_test_required"
+          ? "Lesson完了・総合テスト待ち"
+          : thLearning.completionStage === "unavailable"
+            ? "総合テスト結果を確認できません"
+            : thLearningLessonTotal > 0
+              ? `Lesson ${thLearningLessonDone}/${thLearningLessonTotal}`
+              : "学習中";
+  const thLearningDetail = [thLearningCourseName, thLearningStateDetail].filter(Boolean).join("・");
+  const thTrainingTests = thHome.dashboard?.summary?.trainingTests || null;
+  const thTrainingTestsAvailable = thAvailability.dashboard && thHome.dashboard?.availability?.tests !== false;
+  const thTrainingTestDetail = !thTrainingTestsAvailable
+    ? "受験状態を確認できません"
+    : !thTrainingTests || thTrainingTests.status === "not_required"
+      ? "現在、公開テストはありません"
+      : thTrainingTests.status === "completed"
+        ? "公開中のテストはすべて完了"
+        : thTrainingTests.status === "needs_review"
+          ? `${thTrainingTests.needsReview}件 採点確認中`
+          : `${thTrainingTests.unsubmitted}件 未受験`;
+  const thTodayCompletion = thHome.dashboard?.todayCompletion || null;
+  const thTodayApplicability = thTodayCompletion?.applicability || "unknown";
+  const thNoTrainingToday = thTodayApplicability === "not_training_day" || thTodayApplicability === "no_course";
+  const thTodayProgressAvailable = thTodayCompletion?.status === "completed" || thTodayCompletion?.status === "incomplete";
+  const thTodayCompletedCount = thTodayProgressAvailable ? Number(thTodayCompletion.completedCount || 0) : null;
+  const thTodayRequiredCount = thTodayProgressAvailable ? Number(thTodayCompletion.requiredCount || 0) : null;
   const thAttendanceTask = thDashboardTasks.find(task => String(task.type || "").startsWith("attendance_"));
   const thReportTask = thDashboardTasks.find(task => String(task.type || "").startsWith("daily_report_"));
-  const thTestTask = thDashboardTasks.find(task => task.type === "take_test");
   const thAttendanceDone = thAttendanceTask ? thAttendanceTask.status === "done" : !!(thAttendanceToday?.clockIn && thAttendanceToday?.clockOut);
   const thReportDone = thReportTask ? thReportTask.status === "done" : !!thReportToday;
-  const thTestsDone = thTestTask ? thTestTask.status === "done" : false;
   const thTaskCards = [
-    { key: "attendance", label: thAttendanceTask?.label || "勤怠入力", desc: thAttendanceTask?.description || (thAttendanceToday?.clockIn ? `出勤 ${thAttendanceToday.clockIn}` : "本日の勤怠を登録"), done: thAttendanceDone, unavailable: thAttendanceTask?.status === "unavailable" || (!thAttendanceTask && !thAvailability.attendance), icon: Clock, to: "attendance" },
-    { key: "today-goal", label: "今日の目標設定", desc: thHasTodayGoal ? "設定済み" : "日報で今日の目標を設定", done: thHasTodayGoal, unavailable: !thAvailability.reports, icon: Target, to: "reports" },
-    { key: "tests", label: thTestTask?.label || "テスト受験", desc: thTestTask?.description || "公開テストを確認", done: thTestsDone, unavailable: thTestTask?.status === "unavailable" || !thAvailability.dashboard, icon: ClipboardCheck, to: "tests" },
-    { key: "report", label: thReportTask?.label || "日報保存", desc: thReportTask?.description || reportSavedLabel(thReportToday), done: thReportDone, unavailable: thReportTask?.status === "unavailable" || (!thReportTask && !thAvailability.reports), icon: NotebookPen, to: "reports" },
+    { key: "attendance", label: thAttendanceTask?.label || "勤怠入力", desc: thAttendanceTask?.description || (thAttendanceToday?.clockIn ? `出勤 ${thAttendanceToday.clockIn}` : "本日の勤怠を登録"), done: thAttendanceDone, requiredToday: thAttendanceTask?.requiredToday, unavailable: thAttendanceTask?.status === "unavailable" || (!thAttendanceTask && !thAvailability.attendance), icon: Clock, to: "attendance" },
+    { key: "report", label: thReportTask?.label || "日報保存", desc: thReportTask?.description || reportSavedLabel(thReportToday), done: thReportDone, requiredToday: thReportTask?.requiredToday, unavailable: thReportTask?.status === "unavailable" || (!thReportTask && !thAvailability.reports), icon: NotebookPen, to: "reports" },
   ];
-  const thPendingTasks = thLoading ? [] : thTaskCards.filter(t => !t.done && !t.unavailable);
-  const thUnavailableTasks = thLoading ? [] : thTaskCards.filter(t => t.unavailable);
+  const thRequiredTodayTasks = thTaskCards.filter(t => t.requiredToday === true);
+  const thPendingTasks = thLoading ? [] : thRequiredTodayTasks.filter(t => !t.done && !t.unavailable);
+  const thUnavailableTasks = thLoading ? [] : thTaskCards.filter(t => t.requiredToday == null || (t.requiredToday === true && t.unavailable));
+  const thDoneTasks = thRequiredTodayTasks.filter(t => t.done && !t.unavailable);
 
   async function toggleHomeGoalItem(id, doneValue) {
     if (!thReportToday) return;
@@ -276,39 +313,57 @@ function TraineeHome({ go, goProduct, goSub, done, taskDataState, onTaskRetry, t
     tests: { undoneTitle: "未受験のテストがあります", cta: "受験する", doneTitle: "未受験テストはありません" },
     report: { undoneTitle: "今日の日報がまだです", cta: "書く", doneTitle: "日報 保存済み" },
   };
-  const thDoneTasks = thTaskCards.filter(t => t.done && !t.unavailable);
   const thNum = { fontVariantNumeric: "tabular-nums" };
+  const thTodayValue = thLoading ? "—" : thNoTrainingToday ? "研修なし" : thTodayProgressAvailable ? `${thTodayCompletedCount}/${thTodayRequiredCount}` : "—";
+  const thHeroTitle = thLoading
+    ? "今日の状況を確認しています"
+    : thNoTrainingToday
+      ? "今日は研修日ではありません"
+      : thPendingTasks.length > 0
+        ? `今日の必須項目は、あと${thPendingTasks.length}件`
+        : thUnavailableTasks.length > 0
+          ? "今日の研修状態を確認できません"
+          : "今日の必須項目は、すべて完了";
+  const thHeroDescription = thLoading
+    ? "研修日・勤怠・日報の最新状態を読み込んでいます。"
+    : thNoTrainingToday
+      ? "勤怠と日報の入力は不要です。Eラーニングや復習を進められます。"
+      : thPendingTasks.length > 0
+        ? `${thPendingTasks.map(t => t.label).join("・")}が残っています。上から順に進めましょう。`
+        : thUnavailableTasks.length > 0
+          ? "未提出や完了とは決めずに表示しています。再読み込みして最新状態を確認してください。"
+          : "おつかれさまです。次の学習内容も確認できます。";
 
   return (
     <PrismPage className="max-w-full overflow-x-hidden">
       <PrismHero
         eyebrow={`${thPrimaryCourse?.name || "FEEPS ONE"} ・ ${thToday}`}
-        title={thLoading ? "今日の状況を確認しています" : !thAttendanceToday && thUnavailableTasks.length === 0 ? "今日も、ここからはじめよう" : thPendingTasks.length > 0 ? `今日のタスクは、あと${thPendingTasks.length}件` : thUnavailableTasks.length > 0 ? "一部の状態を確認できません" : "今日のタスクは、すべて完了"}
-        description={thLoading ? "勤怠・日報・テストの最新状態を読み込んでいます。" : thPendingTasks.length > 0 ? `${thPendingTasks.map(t => t.label).join("・")}が残っています。上から順に進めましょう。` : thUnavailableTasks.length > 0 ? "未提出や完了とは決めずに表示しています。再読み込みして最新状態を確認してください。" : "おつかれさまです。次の学習内容も確認できます。"}
+        title={thHeroTitle}
+        description={thHeroDescription}
         icon={GraduationCap}
-        actions={thLoading ? null : <Btn kind="white" icon={thPendingTasks.length ? ChevronRight : thUnavailableTasks.length ? RefreshCw : BookOpen} onClick={() => thPendingTasks.length ? go(thPendingTasks[0].to) : thUnavailableTasks.length ? setThReloadKey(value => value + 1) : go("curriculum")}>{thPendingTasks.length ? (thTaskCopy[thPendingTasks[0].key]?.cta || "開く") : thUnavailableTasks.length ? "再読み込み" : "カリキュラム"}</Btn>}
+        actions={thLoading ? null : <Btn kind="white" icon={thPendingTasks.length ? ChevronRight : thUnavailableTasks.length ? RefreshCw : BookOpen} onClick={() => thPendingTasks.length ? go(thPendingTasks[0].to) : thUnavailableTasks.length ? setThReloadKey(value => value + 1) : thNoTrainingToday ? (goProduct?.("learning"), goSub?.("el_inprogress")) : go("curriculum")}>{thPendingTasks.length ? (thTaskCopy[thPendingTasks[0].key]?.cta || "開く") : thUnavailableTasks.length ? "再読み込み" : thNoTrainingToday ? "Eラーニング" : "カリキュラム"}</Btn>}
       >
-        <div className="flex flex-wrap gap-2 text-xs font-semibold"><span className="rounded-full px-3 py-1.5" style={{ background: PRISM.heroGlassStrong, border: `1px solid ${PRISM.heroLine}` }}>未対応 {thPendingTasks.length}件</span><span className="rounded-full px-3 py-1.5" style={{ background: PRISM.heroGlassStrong, border: `1px solid ${PRISM.heroLine}` }}>目標進捗 {taskDataReady ? `${thOverall}%` : "—"}</span><span className="rounded-full px-3 py-1.5" style={{ background: PRISM.heroGlassStrong, border: `1px solid ${PRISM.heroLine}` }}>出勤 {thAvailability.attendance ? (thAttendanceToday?.clockIn || "未登録") : "確認できません"}</span></div>
+        <div className="flex flex-wrap gap-2 text-xs font-semibold"><span className="rounded-full px-3 py-1.5" style={{ background: PRISM.heroGlassStrong, border: `1px solid ${PRISM.heroLine}` }}>今日の研修 {thTodayValue}</span><span className="rounded-full px-3 py-1.5" style={{ background: PRISM.heroGlassStrong, border: `1px solid ${PRISM.heroLine}` }}>Eラーニング {thLearningAvailable ? (thLearningProgress != null ? `${thLearningProgress}%` : "未開始") : "—"}</span><span className="rounded-full px-3 py-1.5" style={{ background: PRISM.heroGlassStrong, border: `1px solid ${PRISM.heroLine}` }}>出勤 {thNoTrainingToday ? "対象外" : thAvailability.attendance ? (thAttendanceToday?.clockIn || "未登録") : "確認できません"}</span></div>
       </PrismHero>
 
       {thErr && <PrismErrorRetryCard message={thErr} onRetry={() => setThReloadKey(value => value + 1)} />}
 
       <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-        <PrismKpiCard icon={ClipboardCheck} label="未対応タスク" value={thLoading ? "—" : thPendingTasks.length} unit={thLoading ? "" : "件"} detail={thLoading ? "最新状態を確認中" : thUnavailableTasks.length ? `${thUnavailableTasks.length}件は状態未確認` : thPendingTasks[0]?.label || "すべて完了"} tone={thPendingTasks.length ? "warn" : "ok"} />
-        <PrismKpiCard icon={Target} label="目標進捗" value={taskDataReady ? `${thOverall}%` : "—"} detail={taskDataState === "error" ? "状態を取得できません" : taskDataReady ? "目標と小タスクの達成率" : "読み込み中"} tone="accent" onClick={() => go("goals")} />
-        <PrismKpiCard icon={NotebookPen} label="日報連続提出" value={thAvailability.reports ? thReportStreak : "—"} unit={thAvailability.reports ? "日" : ""} detail={thAvailability.reports ? "直近の継続記録" : "状態を確認できません"} tone="teal" onClick={() => go("reports")} />
-        <PrismKpiCard icon={ClipboardCheck} label="テスト平均" value={thAvailability.tests && thAvgScore != null ? thAvgScore : "—"} unit={thAvailability.tests && thAvgScore != null ? "点" : ""} detail={thAvailability.tests ? `${thTestScores.length}件 受験済み` : "状態を確認できません"} tone="ai" onClick={() => go("tests")} />
+        <PrismKpiCard icon={ClipboardCheck} label="今日の研修" value={thTodayValue} detail={thLoading ? "最新状態を確認中" : thNoTrainingToday ? "勤怠・日報の入力は不要" : thUnavailableTasks.length ? "研修日または登録状態を確認できません" : thPendingTasks[0]?.label || "勤怠・日報は完了"} tone={thPendingTasks.length ? "warn" : thNoTrainingToday ? "neutral" : "ok"} />
+        <PrismKpiCard icon={BookOpen} label="Eラーニング" value={thLearningAvailable ? (thLearningProgress != null ? `${thLearningProgress}%` : "未開始") : "—"} detail={thLearningDetail} tone={thLearning?.completionStage === "completed" ? "ok" : "teal"} onClick={() => { goProduct?.("learning"); goSub?.("el_inprogress"); }} />
+        <PrismKpiCard icon={ClipboardCheck} label="研修テスト" value={thTrainingTestsAvailable ? (thTrainingTests?.total > 0 ? `${thTrainingTests.completed}/${thTrainingTests.total}` : "対象なし") : "—"} detail={thTrainingTestDetail} tone={thTrainingTests?.status === "completed" ? "ok" : thTrainingTests?.status === "incomplete" ? "warn" : "ai"} onClick={() => go("tests")} />
+        <PrismKpiCard icon={Target} label="個人目標・タスク" value={taskDataReady ? (thGoalTasks.length ? `${thGoalDoneCount}/${thGoalTasks.length}` : "未設定") : "—"} detail={taskDataState === "error" ? "状態を取得できません" : taskDataReady ? "研修の修了率ではありません" : "読み込み中"} tone="accent" onClick={() => go("goals")} />
       </div>
 
       <PrismCard className="p-4 sm:p-5">
-        <PrismSectionTitle title="今日やること" desc="優先度の高いものから並んでいます。" />
-        {thLoading ? <SkeletonRows rows={4} /> : thPendingTasks.length > 0 ? (
+        <PrismSectionTitle title="今日の必須項目" desc="研修日の勤怠と日報だけを表示します。期限未設定のテストは上のカードで分けて確認できます。" />
+        {thLoading ? <SkeletonRows rows={2} /> : thNoTrainingToday ? <div className="flex flex-wrap items-center gap-3 rounded-2xl px-4 py-4" style={{ background: PRISM.base, border: `1px solid ${PRISM.line}` }}><Calendar size={20} className="shrink-0" style={{ color: PRISM.mut }} /><div className="min-w-0 flex-1"><div className="text-sm font-semibold" style={{ color: PRISM.ink }}>今日は研修日ではありません。</div><div className="text-xs" style={{ color: PRISM.mut }}>勤怠・日報の入力は不要です。</div></div><Btn size="sm" kind="ghost" icon={BookOpen} onClick={() => { goProduct?.("learning"); goSub?.("el_inprogress"); }}>Eラーニング</Btn></div> : thPendingTasks.length > 0 ? (
           <div className="space-y-2.5">{thPendingTasks.map((t, i) => {
             const copy = thTaskCopy[t.key] || {};
             const Icon = t.icon;
             return <div key={t.key} className="feeps-stagger-in flex min-w-0 items-center gap-3 rounded-2xl px-3 py-3 sm:px-4" style={{ background: i === 0 ? PRISM.accentSubtle : PRISM.base, border: `1px solid ${i === 0 ? PRISM.line2 : PRISM.line}`, animationDelay: `${120 + i * 70}ms` }}><span className="grid h-9 w-9 shrink-0 place-items-center rounded-xl" style={{ background: PRISM.surface, color: i === 0 ? PRISM.accent : PRISM.mut }}><Icon size={17} /></span><div className="min-w-0 flex-1"><div className="break-words text-sm font-semibold" style={{ color: PRISM.ink }}>{copy.undoneTitle || t.label}</div><div className="break-words text-xs" style={{ color: PRISM.mut }}>{t.desc}</div></div><Btn size="sm" kind={i === 0 ? "primary" : "ghost"} onClick={() => go(t.to)}>{copy.cta || "開く"}</Btn></div>;
           })}</div>
-        ) : thUnavailableTasks.length > 0 ? <div className="flex flex-wrap items-center gap-3 rounded-2xl px-4 py-4" style={{ background: PRISM.warnSubtle, border: `1px solid ${PRISM.warnLine}` }}><AlertCircle size={20} className="shrink-0" style={{ color: PRISM.warn }} /><div className="min-w-0 flex-1"><div className="text-sm font-semibold" style={{ color: PRISM.ink }}>{thUnavailableTasks.map(task => task.label).join("・")}の状態を確認できません。</div><div className="text-xs" style={{ color: PRISM.mut }}>完了・未完了のどちらにも数えていません。</div></div><Btn size="sm" kind="ghost" icon={RefreshCw} onClick={() => setThReloadKey(value => value + 1)}>再読み込み</Btn></div> : <div className="flex flex-wrap items-center gap-3 rounded-2xl px-4 py-4" style={{ background: PRISM.okSubtle }}><CheckCircle2 size={20} className="shrink-0" style={{ color: PRISM.ok }} /><div className="min-w-0 flex-1"><div className="text-sm font-semibold" style={{ color: PRISM.ink }}>今日のタスクはすべて完了です。</div><div className="text-xs" style={{ color: PRISM.mut }}>次のカリキュラムを予習できます。</div></div><Btn size="sm" kind="ghost" onClick={() => go("curriculum")}>確認する</Btn></div>}
+        ) : thUnavailableTasks.length > 0 ? <div className="flex flex-wrap items-center gap-3 rounded-2xl px-4 py-4" style={{ background: PRISM.warnSubtle, border: `1px solid ${PRISM.warnLine}` }}><AlertCircle size={20} className="shrink-0" style={{ color: PRISM.warn }} /><div className="min-w-0 flex-1"><div className="text-sm font-semibold" style={{ color: PRISM.ink }}>今日の研修状態を確認できません。</div><div className="text-xs" style={{ color: PRISM.mut }}>完了・未完了のどちらにも数えていません。</div></div><Btn size="sm" kind="ghost" icon={RefreshCw} onClick={() => setThReloadKey(value => value + 1)}>再読み込み</Btn></div> : <div className="flex flex-wrap items-center gap-3 rounded-2xl px-4 py-4" style={{ background: PRISM.okSubtle }}><CheckCircle2 size={20} className="shrink-0" style={{ color: PRISM.ok }} /><div className="min-w-0 flex-1"><div className="text-sm font-semibold" style={{ color: PRISM.ink }}>今日の必須項目はすべて完了です。</div><div className="text-xs" style={{ color: PRISM.mut }}>未受験テストやEラーニングは上のカードで別に確認できます。</div></div><Btn size="sm" kind="ghost" onClick={() => go("curriculum")}>確認する</Btn></div>}
         {!thLoading && thPendingTasks.length > 0 && thDoneTasks.length > 0 && <div className="mt-4 flex flex-wrap items-center gap-x-4 gap-y-2">{thDoneTasks.map(t => { const copy = thTaskCopy[t.key] || {}; return <button key={t.key} onClick={() => go(t.to)} className="inline-flex items-center gap-1.5 text-xs transition hover:opacity-70" style={{ color: PRISM.mut }}><CheckCircle2 size={13} style={{ color: PRISM.ok }} />{copy.doneTitle || t.label}{t.key === "report" && thHasReportComment && <span className="rounded-full px-2 py-0.5 text-[10px] font-bold" style={{ background: PRISM.accentSubtle, color: PRISM.accentDeep }}>新着コメント</span>}</button>; })}</div>}
       </PrismCard>
 
@@ -327,9 +382,9 @@ function TraineeHome({ go, goProduct, goSub, done, taskDataState, onTaskRetry, t
       </div>
 
       <div className="grid gap-5 lg:grid-cols-[.7fr_1.3fr]">
-        <PrismCard className="flex flex-col items-center justify-center p-5 text-center">{taskDataReady ? <><PrismProgressRing percent={thOverall} gradId="trainee-goal-progress" sub="目標進捗" /><Btn className="mt-4" size="sm" kind="soft" icon={Target} onClick={() => go("goals")}>目標とタスク</Btn></> : <><AlertCircle size={22} style={{ color: taskDataState === "error" ? PRISM.warn : PRISM.mut }} /><div className="mt-2 text-sm font-semibold" style={{ color: PRISM.sub }}>{taskDataState === "error" ? "目標・タスクを確認できません" : "目標・タスクを読み込んでいます"}</div>{taskDataState === "error" && <Btn className="mt-3" size="sm" kind="ghost" icon={RefreshCw} onClick={onTaskRetry}>再読み込み</Btn>}</>}</PrismCard>
+        <PrismCard className="flex flex-col items-center justify-center p-5 text-center">{taskDataReady ? <><PrismProgressRing percent={thOverall} gradId="trainee-goal-progress" sub="個人目標" /><div className="mt-2 text-xs" style={{ color: PRISM.mut }}>研修・Eラーニングの修了率とは別です。</div><Btn className="mt-4" size="sm" kind="soft" icon={Target} onClick={() => go("goals")}>目標とタスク</Btn></> : <><AlertCircle size={22} style={{ color: taskDataState === "error" ? PRISM.warn : PRISM.mut }} /><div className="mt-2 text-sm font-semibold" style={{ color: PRISM.sub }}>{taskDataState === "error" ? "目標・タスクを確認できません" : "目標・タスクを読み込んでいます"}</div>{taskDataState === "error" && <Btn className="mt-3" size="sm" kind="ghost" icon={RefreshCw} onClick={onTaskRetry}>再読み込み</Btn>}</>}</PrismCard>
         <PrismCard className="p-4 sm:p-5">
-          <PrismSectionTitle title="進捗の内訳" desc="目標ごとの達成状況と次の小目標です。" action={taskSaveState && <span className="text-xs font-semibold" aria-live="polite" style={{ color: taskSaveState === "error" ? PRISM.bad : taskSaveState === "saved" ? PRISM.ok : PRISM.mut }}>{taskSaveState === "saving" ? "保存中…" : taskSaveState === "saved" ? "保存しました" : "保存に失敗したため元に戻しました"}</span>} />
+          <PrismSectionTitle title="個人目標の内訳" desc="目標ごとの達成状況と次の小目標です。" action={taskSaveState && <span className="text-xs font-semibold" aria-live="polite" style={{ color: taskSaveState === "error" ? PRISM.bad : taskSaveState === "saved" ? PRISM.ok : PRISM.mut }}>{taskSaveState === "saving" ? "保存中…" : taskSaveState === "saved" ? "保存しました" : "保存に失敗したため元に戻しました"}</span>} />
           {!taskDataReady ? <div className="rounded-2xl px-4 py-5 text-sm" style={{ background: PRISM.base, color: PRISM.mut }}>{taskDataState === "error" ? "取得に失敗したため、進捗を0%とは表示していません。" : "最新の進捗を確認しています。"}</div> : <>{thGoalProgress.length > 0 && <div className="space-y-3">{thGoalProgress.map(g => <div key={g.id}><div className="mb-1 flex items-baseline justify-between gap-2 text-xs"><span className="min-w-0 flex-1 font-medium" style={{ color: PRISM.sub }}>{g.title}</span><span className="shrink-0" style={{ color: PRISM.mut, ...thNum }}>{g.n}/{g.total}</span></div><div className="h-1.5 overflow-hidden rounded-full" style={{ background: PRISM.ringTrack }}><div className="h-full rounded-full" style={{ width: `${g.pct}%`, background: g.pct >= 100 ? PRISM.ok : PRISM.gradCta, transition: "width .8s ease" }} /></div></div>)}</div>}{thSmallGoals.length > 0 && <div className="mt-5"><div className="mb-2 text-xs font-semibold" style={{ color: PRISM.mut }}>次の小目標</div><div className="grid gap-2 sm:grid-cols-2">{thSmallGoals.slice(0, 4).map(t => <button key={t.id} onClick={() => toggle(t.id)} disabled={taskSaveState === "saving"} className="flex min-w-0 items-start gap-2 rounded-xl px-3 py-2 text-left disabled:opacity-60" style={{ border: `1px solid ${PRISM.line}` }}><Circle className="mt-0.5 shrink-0" size={14} style={{ color: PRISM.mut }} /><span className="min-w-0 flex-1 text-sm" style={{ color: PRISM.ink }}>{t.t}</span></button>)}</div></div>}</>}
         </PrismCard>
       </div>
@@ -1730,7 +1785,7 @@ function Tests({ role }) {
     setResults({ test: t, rows: null });
     try {
       const items = await apiGet(`/tests/${testIdOf(t)}/results`);
-      setResults({ test: t, rows: (items || []).map(r => ({ ...r, traineeId: r.traineeId, name: nameMap[r.traineeId] || fallbackName(r.traineeId), score: r.officialScore ?? r.teacherScore ?? r.score, aiScore: r.score, needsReview: r.needsReview || Object.values(r.answers || {}).filter(a => a?.needsReview).length })) });
+      setResults({ test: t, rows: (items || []).map(r => ({ ...r, traineeId: r.traineeId, name: nameMap[r.traineeId] || fallbackName(r.traineeId), score: r.officialScore ?? r.teacherScore ?? r.score, aiScore: r.score, needsReview: r.reviewedAt ? 0 : (r.needsReview || Object.values(r.answers || {}).filter(a => a?.needsReview).length) })) });
     } catch (e) {
       setResults({ test: t, rows: [], err: "結果の取得に失敗しました: " + (e?.errorMessage || e?.message || e) });
     }
@@ -1783,7 +1838,7 @@ function Tests({ role }) {
         maxScore,
         minScore,
         followCount: scores.filter(s => s < 70).length,
-        needsReview: scopedRows.filter(r => r.needsReview || Object.values(r.answers || {}).some(a => a?.needsReview)).length,
+        needsReview: scopedRows.filter(r => !r.reviewedAt && (r.needsReview || Object.values(r.answers || {}).some(a => a?.needsReview))).length,
       }];
     }));
     const visibleTests = tests.filter(t => {

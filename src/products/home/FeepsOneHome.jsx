@@ -137,13 +137,14 @@ function portalMetrics(role, dashboard, loading) {
     return labels.map(label => ({ label, value: "—" }));
   }
   if (role === "trainee") {
-    const tasks = asArray(dashboard?.todayTasks);
-    const operationalTasks = tasks.filter(task => String(task.type || "").startsWith("attendance_") || String(task.type || "").startsWith("daily_report_") || task.type === "take_test");
-    const pending = operationalTasks.filter(task => task.status === "needs_action").length;
-    const taskStatusAvailable = !operationalTasks.some(task => task.status === "unavailable");
+    const todayCompletion = dashboard?.todayCompletion || null;
+    const todayKnown = todayCompletion?.status === "completed" || todayCompletion?.status === "incomplete";
+    const todayValue = todayKnown
+      ? `${Math.max(0, Number(todayCompletion.requiredCount || 0) - Number(todayCompletion.completedCount || 0))}件`
+      : todayCompletion?.status === "not_applicable" ? "対象外" : "—";
     return [
       { label: "参加コース", value: metricValue(dashboard?.availability?.courses === false ? null : asArray(dashboard?.activeCourses).length, "件", loading) },
-      { label: "今日の未完了", value: metricValue(taskStatusAvailable ? pending : null, "件", loading) },
+      { label: "今日の未完了", value: todayValue },
       { label: "未受験テスト", value: metricValue(dashboard?.summary?.unsubmittedTests, "件", loading) },
     ];
   }
@@ -184,9 +185,9 @@ function nextPortalAction(role, dashboard) {
   }
   if (role === "trainee") {
     const tasks = asArray(dashboard?.todayTasks);
-    const nextTask = tasks.find(task => task.status === "needs_action" && task.targetUrl)
-      || tasks.find(task => task.status === "info" && task.targetUrl);
+    const nextTask = tasks.find(task => task.requiredToday === true && task.status === "needs_action" && task.targetUrl);
     if (nextTask) return { label: nextTask.actionLabel || nextTask.label || "次のタスクを開く", description: nextTask.label || "今日の未完了タスク", targetUrl: nextTask.targetUrl };
+    if (dashboard?.todayCompletion?.status === "unknown") return { label: "研修状況を確認", description: "今日の勤怠・日報を再確認", targetUrl: "/training" };
     const activeCourses = asArray(dashboard?.activeCourses);
     const activeCourseId = getActiveCourseId();
     const course = activeCourses.find(item => item.courseId === activeCourseId && item.todayCurriculum)
@@ -342,7 +343,10 @@ function TraineeHome({ dashboard, displayName, goProduct, goTraining, goSub, loa
     || activeCourses[0]
     || null;
   const todayCur = course?.todayCurriculum || null;
-  const tasks = asArray(dashboard?.todayTasks);
+  const tasks = asArray(dashboard?.todayTasks).filter(task => task.requiredToday === true);
+  const todayCompletion = dashboard?.todayCompletion || null;
+  const noTrainingToday = todayCompletion?.status === "not_applicable";
+  const todayUnknown = todayCompletion?.status === "unknown";
   const tests = asArray(dashboard?.tests);
   const warningCodes = new Set(asArray(dashboard?.warnings).map(warning => warning?.code));
   const dailyLessonAvailable = coursesAvailable && !warningCodes.has("course_daily_note_unavailable");
@@ -355,11 +359,21 @@ function TraineeHome({ dashboard, displayName, goProduct, goTraining, goSub, loa
     && !warningCodes.has("daily_report_unavailable");
   const nextTest = tests[0] || null;
   const learning = dashboard?.learning || null;
+  const learningStageLabel = !learningAvailable
+    ? "修了状態を確認できません"
+    : !learning
+      ? "学習履歴はまだありません"
+      : learning.completionStage === "completed"
+        ? `総合テスト合格${learning.finalTest?.score != null ? `・${learning.finalTest.score}点` : ""}`
+        : learning.completionStage === "final_test_required"
+          ? "Lesson完了・総合テスト待ち"
+          : learning.lessonProgress?.total > 0
+            ? `Lesson ${learning.lessonProgress.completed}/${learning.lessonProgress.total}`
+            : "学習中";
   const attendance = dashboard?.attendance || null;
   const dailyReport = dashboard?.dailyReport || null;
   const announcements = asArray(dashboard?.dailyAnnouncements);
   const comments = asArray(dashboard?.comments);
-  const testsDone = testsAvailable ? tests.filter(t => t.status !== "unsubmitted").length : null;
 
   return (
     <div className="flex flex-col gap-5">
@@ -411,15 +425,11 @@ function TraineeHome({ dashboard, displayName, goProduct, goTraining, goSub, loa
 
           <div className="col-span-12 sm:col-span-6 lg:col-span-4">
             <PBCard className="flex h-full flex-col p-5">
-              <CapLabel>学習進捗</CapLabel>
+              <CapLabel>Eラーニング</CapLabel>
               <div className="flex flex-1 items-center gap-5">
                 <ProgressRing percent={learningAvailable ? (learning?.progressPercent ?? null) : null} from={PRISM.accent} to={PRISM.teal} gradId="ring-learning" sub={learningAvailable ? learning?.currentLessonTitle : "確認できません"} />
-                <div className="min-w-0 text-xs font-semibold leading-loose" style={{ color: PRISM.sub }}>
-                  <div>テスト <b className="tabular-nums" style={{ color: PRISM.ink }}>{testsAvailable ? `${testsDone}/${tests.length}` : "—"}</b></div>
-                  <div>未受験 <b className="tabular-nums" style={{ color: PRISM.ink }}>{testsAvailable && dashboard?.summary?.unsubmittedTests != null ? dashboard.summary.unsubmittedTests : "—"}</b></div>
-                </div>
+                <div className="min-w-0 text-xs font-semibold leading-relaxed" style={{ color: PRISM.sub }}><div className="break-words" style={{ color: PRISM.ink }}>{learning?.currentCourseTitle || "Eラーニング"}</div><div className="mt-1 break-words">{learningStageLabel}</div></div>
               </div>
-              {!testsAvailable && <p className="mt-2 text-[11px] font-semibold" style={{ color: PRISM.warn }}>テスト状況を確認できません。未受験とは判定していません。</p>}
               {!learningAvailable ? <div className="mt-2 flex items-center justify-between gap-2"><p className="text-[11px] font-semibold" style={{ color: PRISM.warn }}>Eラーニングの学習履歴を確認できません。</p><button type="button" onClick={onRetry} className="shrink-0 text-[11px] font-bold" style={{ color: PRISM.accent }}>再読み込み</button></div> : !learning && <p className="mt-2 text-[11px]" style={{ color: PRISM.mut }}>Eラーニングの学習履歴はまだありません。</p>}
             </PBCard>
           </div>
@@ -427,8 +437,12 @@ function TraineeHome({ dashboard, displayName, goProduct, goTraining, goSub, loa
           <div className="col-span-12 lg:col-span-4">
             <PBCard className="p-5">
               <CapLabel>今日やること</CapLabel>
-              {tasks.length === 0 ? (
-                <p className="text-xs" style={{ color: PRISM.mut }}>やることはありません。</p>
+              {todayUnknown ? (
+                <div><p className="text-xs font-semibold" style={{ color: PRISM.warn }}>今日が研修日か、勤怠・日報の状態を確認できません。</p><button type="button" onClick={onRetry} className="mt-3 text-xs font-bold" style={{ color: PRISM.accent }}>再読み込み</button></div>
+              ) : noTrainingToday ? (
+                <p className="text-xs" style={{ color: PRISM.mut }}>今日は研修日ではありません。勤怠・日報の入力は不要です。</p>
+              ) : tasks.length === 0 ? (
+                <p className="text-xs" style={{ color: PRISM.mut }}>今日の必須項目はありません。</p>
               ) : (
                 <ul className="flex flex-col">
                   {tasks.map(t => (

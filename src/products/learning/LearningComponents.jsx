@@ -1337,6 +1337,35 @@ function ElQuizLesson({ lesson, completed, onComplete, onNext, onPrev, hasNext }
       </div>
     );
   }
+  if (attemptState === "loading") {
+    return (
+      <div>
+        <button onClick={onBack} className="mb-4 flex items-center gap-1.5 text-sm font-semibold transition hover:opacity-70" style={{ color: C.muted }}>
+          <ChevronLeft size={16} />コース詳細へ戻る
+        </button>
+        <Card className="p-8 text-center">
+          <RefreshCw size={28} className="mx-auto mb-3 animate-spin" style={{ color: course.color }} />
+          <p className="font-bold" style={{ color: C.ink }}>総合テストを準備しています</p>
+          <p className="mt-1 text-sm" style={{ color: C.muted }}>公開済みの問題から今回の受験問題を作成しています。</p>
+        </Card>
+      </div>
+    );
+  }
+  if (attemptState === "error" || !attempt) {
+    return (
+      <div>
+        <button onClick={onBack} className="mb-4 flex items-center gap-1.5 text-sm font-semibold transition hover:opacity-70" style={{ color: C.muted }}>
+          <ChevronLeft size={16} />コース詳細へ戻る
+        </button>
+        <Card className="p-8 text-center">
+          <AlertCircle size={32} className="mx-auto mb-3" style={{ color: C.amber }} />
+          <p className="font-bold" style={{ color: C.ink }}>総合テストを開始できませんでした</p>
+          <p className="mt-1 text-sm" style={{ color: C.muted }}>公開問題が設定されているか確認し、時間をおいて再度お試しください。</p>
+          <div className="mt-4"><Btn icon={RefreshCw} onClick={retake}>もう一度準備する</Btn></div>
+        </Card>
+      </div>
+    );
+  }
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between rounded-xl px-4 py-3" style={{ background: C.wash }}>
@@ -1378,29 +1407,66 @@ function ElQuizLesson({ lesson, completed, onComplete, onNext, onPrev, hasNext }
 
 function ElFinalTestView({ course, lrn, lessons, onBack, onOpenLesson, onModeChange, initialMode = "test" }) {
   const latestResult = lrn.getLatestFinalTestResult(course.id);
-  const [questions, setQuestions] = useState(() => lrn.buildFinalTestQuestions(course.id));
+  const [attempt, setAttempt] = useState(null);
+  const [questions, setQuestions] = useState([]);
   const [answers, setAnswers] = useState({});
   const [index, setIndex] = useState(0);
   const [result, setResult] = useState(initialMode === "result" ? latestResult : null);
+  const [attemptState, setAttemptState] = useState(initialMode === "result" && latestResult ? "ready" : "loading");
+  const [submitState, setSubmitState] = useState("idle");
   useEffect(() => {
     if (initialMode === "result" && latestResult) setResult(latestResult);
   }, [initialMode, latestResult?.id]);
-  const plan = lrn.getFinalTestPlan(course.id) || lrn.buildFinalTestPlan(course.id);
+  useEffect(() => {
+    if (initialMode === "result") return undefined;
+    let alive = true;
+    setAttemptState("loading");
+    lrn.createFinalTestAttempt(course.id)
+      .then(nextAttempt => {
+        if (!alive) return;
+        setAttempt(nextAttempt);
+        setQuestions(nextAttempt.questions);
+        setAnswers({});
+        setIndex(0);
+        setAttemptState("ready");
+      })
+      .catch(() => { if (alive) setAttemptState("error"); });
+    return () => { alive = false; };
+    // course切替時にだけ新しいserver attemptを発行する。
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [course.id, initialMode]);
   const current = questions[index];
   const answeredCount = Object.keys(answers).length;
   const allAnswered = questions.length > 0 && answeredCount >= questions.length;
   function selectAnswer(questionId, value) { setAnswers({ ...answers, [questionId]: value }); }
-  function submit() {
-    if (!allAnswered) return;
-    setResult(lrn.gradeFinalTest(course.id, questions, answers));
-    onModeChange?.("result");
+  async function submit() {
+    if (!allAnswered || submitState === "saving") return;
+    setSubmitState("saving");
+    try {
+      const savedResult = await lrn.gradeFinalTest(attempt.attemptId, questions, answers);
+      setResult(savedResult);
+      setSubmitState("idle");
+      onModeChange?.("result");
+    } catch {
+      setSubmitState("error");
+    }
   }
-  function retake() {
-    setQuestions(lrn.buildFinalTestQuestions(course.id));
+  async function retake() {
+    setAttemptState("loading");
     setAnswers({});
     setIndex(0);
     setResult(null);
+    setSubmitState("idle");
     onModeChange?.("test");
+    if (initialMode === "result") return;
+    try {
+      const nextAttempt = await lrn.createFinalTestAttempt(course.id);
+      setAttempt(nextAttempt);
+      setQuestions(nextAttempt.questions);
+      setAttemptState("ready");
+    } catch {
+      setAttemptState("error");
+    }
   }
   function reviewLesson(lessonId) {
     const lesson = lessons.find(ls => ls.id === lessonId);
@@ -1498,7 +1564,7 @@ function ElFinalTestView({ course, lrn, lessons, onBack, onOpenLesson, onModeCha
             <Badge tone="green">総合テスト</Badge>
             <h2 className="mt-2 text-xl font-bold" style={{ color: C.ink }}>{course.title}</h2>
             <p className="mt-1 text-sm" style={{ color: C.muted }}>
-              出題数 {questions.length}問 · 苦手重視 {plan.weaknessRatio}% · 全体確認 {plan.overallRatio}%
+              出題数 {questions.length}問 · 合格基準 {attempt.passLine}点 · サーバー採点
             </p>
           </div>
           <div className="text-right">
@@ -1511,7 +1577,7 @@ function ElFinalTestView({ course, lrn, lessons, onBack, onOpenLesson, onModeCha
       {current && (
         <Card className="p-5">
           <div className="mb-3 flex flex-wrap items-center gap-2">
-            <Badge tone={current.priority === "high" ? "amber" : "cyan"}>{current.planReason}</Badge>
+            <Badge tone="cyan">総合問題</Badge>
             <span className="text-xs" style={{ color: C.muted }}>{current.lessonTitle}</span>
           </div>
           <h3 className="mb-4 text-base font-bold" style={{ color: C.ink }}>Q{index + 1}. {current.question}</h3>
@@ -1537,9 +1603,10 @@ function ElFinalTestView({ course, lrn, lessons, onBack, onOpenLesson, onModeCha
         <div className="flex flex-wrap gap-2">
           {index < questions.length - 1
             ? <Btn icon={ChevronRight} onClick={() => setIndex(Math.min(questions.length - 1, index + 1))}>次へ</Btn>
-            : <Btn icon={Check} disabled={!allAnswered} onClick={submit}>{allAnswered ? "採点する" : `未回答 ${questions.length - answeredCount}問`}</Btn>}
+            : <Btn icon={Check} disabled={!allAnswered || submitState === "saving"} onClick={submit}>{submitState === "saving" ? "結果を保存しています…" : allAnswered ? "採点する" : `未回答 ${questions.length - answeredCount}問`}</Btn>}
         </div>
       </div>
+      {submitState === "error" && <div className="mt-3 rounded-xl px-4 py-3 text-sm font-semibold" role="alert" style={{ background: C.redW, color: C.red }}>結果を保存できませんでした。回答は残っています。通信状態を確認して、もう一度提出してください。</div>}
     </div>
   );
 }
