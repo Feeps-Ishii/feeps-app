@@ -8,9 +8,6 @@ import {
 import {
   QBANK
 } from "./TrainingCatalog.js";
-// カルテの「参画状況」セクション専用。Matching Productの案件CRUD/候補者マッチングは一切importしない
-// （読み取り専用の参画結果フックのみ再利用。GET /matching/trainees/{traineeId}はinstructor/adminのみ許可）。
-import { useTraineeMatching } from "../matching/useMatching.js";
 import { clearTraineeTestDraft, clearTrainingTargetContext, getActiveCourseId, getTraineeTestDraft, getTrainingTargetContext, setActiveCourseId, setTraineeTestDraft, setTrainingTargetContext } from "../../utils/common/courseContext.js";
 import {
   FileText, ClipboardCheck, Clock, NotebookPen, Users,
@@ -4537,58 +4534,6 @@ function TraineeList({ role, openKarte }) {
     </div>
   );
 }
-const PLACEMENT_STATUS_TONE = {
-  proposed: "muted",
-  interviewing: "amber",
-  accepted: "cyan",
-  active: "green",
-  completed: "cyan",
-  declined: "muted",
-  cancelled: "muted",
-  withdrawn: "muted",
-};
-
-// 講師/管理者向け: 担当受講生の参画状況を読み取り専用で表示する。GET /matching/trainees/{id}は
-// Backend側でinstructor(担当受講生のみ)/adminにのみ許可（Matching Product側のPlacementManager等の
-// CRUD・案件一覧・候補者マッチングは一切importしない）。rate/contractType/notes（単価・契約・社内メモ）は
-// Backendの応答に含まれていても、ここでは明示的にフィールドを限定し描画しない。
-const fmtDateOnly = (iso) => {
-  if (!iso) return "";
-  try { return new Date(iso).toLocaleDateString("ja-JP", { year: "numeric", month: "2-digit", day: "2-digit" }); }
-  catch (e) { return iso; }
-};
-
-function TraineeParticipationStatus({ traineeId }) {
-  const { items, loading, error } = useTraineeMatching(traineeId);
-  return (
-    <Card className="mb-4 p-5">
-      <div className="mb-1 flex items-center gap-2"><Briefcase size={16} style={{ color: T.textMuted }} /><h3 className="font-bold" style={{ color: T.textPrimary }}>参画状況</h3></div>
-      <p className="mb-3 text-xs" style={{ color: T.textMuted }}>担当受講生の研修後の状況を確認できます。</p>
-      {error && <div className="mb-3 rounded-lg px-3 py-2 text-xs" style={{ background: T.dangerSubtle, color: T.danger }}>{error}</div>}
-      {loading ? <SkeletonRows rows={2} /> : !items.length ? (
-        <div className="rounded-xl p-4 text-center text-sm" style={{ background: T.bgBase, color: T.textMuted }}>現在、参画情報はありません。</div>
-      ) : (
-        <div className="space-y-2">
-          {items.map(pl => (
-            <div key={pl.placementId} className="rounded-xl p-3" style={{ background: T.bgBase }}>
-              <div className="flex flex-wrap items-center justify-between gap-2">
-                <div className="text-sm font-semibold" style={{ color: T.textPrimary }}>{pl.projectTitle || "案件名未登録"}</div>
-                <Badge tone={PLACEMENT_STATUS_TONE[pl.status] || "muted"}>{pl.statusLabel || pl.status}</Badge>
-              </div>
-              <div className="mt-1.5 flex flex-wrap gap-x-4 gap-y-1 text-xs" style={{ color: T.textMuted }}>
-                {pl.interviewAt && <span>面談予定日: {fmtDateOnly(pl.interviewAt)}</span>}
-                {pl.startDate && <span>参画開始日: {fmtDateOnly(pl.startDate)}</span>}
-                {pl.expectedEndDate && <span>参画終了予定日: {fmtDateOnly(pl.expectedEndDate)}</span>}
-                {pl.updatedAt && <span>最終更新日: {fmtTs(pl.updatedAt)}</span>}
-              </div>
-            </div>
-          ))}
-        </div>
-      )}
-    </Card>
-  );
-}
-
 function Karte({ trainee, back, role }) {
   const [memos, setMemos] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -4727,7 +4672,6 @@ function Karte({ trainee, back, role }) {
           </div>
           {karteReport?.goalItems?.length > 0 && <div className="mt-3 grid gap-2 sm:grid-cols-2">{karteReport.goalItems.map(item => <div key={item.id || item.text} className="flex items-center gap-2 rounded-xl px-3 py-2" style={{ background: item.done ? T.successSubtle : T.bgBase }}>{item.done ? <CheckCircle2 size={15} style={{ color: T.success }} /> : <Circle size={15} style={{ color: T.textMuted }} />}<span className="text-sm" style={{ color: T.textPrimary }}>{item.text || "目標未入力"}</span></div>)}</div>}
         </Card>
-        {(role === "instructor" || role === "admin") && <TraineeParticipationStatus traineeId={karteTraineeId} />}
         <div className="mb-3 flex items-center gap-2"><StickyNote size={16} style={{ color: T.accent }} /><h3 className="font-bold" style={{ color: T.textPrimary }}>講師メモ</h3></div>
         {canMemo && <Card className="mb-3 p-3.5"><textarea value={note} onChange={e => setNote(e.target.value)} rows={3} placeholder="この受講生の気づき・指導方針をメモ…" className="w-full resize-none rounded-xl px-3 py-2 text-sm outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary }} />
           {memoErr && <div className="mt-2 rounded-lg px-3 py-2 text-xs" style={{ background: T.dangerSubtle, color: T.danger }}>{memoErr}</div>}

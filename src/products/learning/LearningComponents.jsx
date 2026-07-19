@@ -1337,35 +1337,6 @@ function ElQuizLesson({ lesson, completed, onComplete, onNext, onPrev, hasNext }
       </div>
     );
   }
-  if (attemptState === "loading") {
-    return (
-      <div>
-        <button onClick={onBack} className="mb-4 flex items-center gap-1.5 text-sm font-semibold transition hover:opacity-70" style={{ color: C.muted }}>
-          <ChevronLeft size={16} />コース詳細へ戻る
-        </button>
-        <Card className="p-8 text-center">
-          <RefreshCw size={28} className="mx-auto mb-3 animate-spin" style={{ color: course.color }} />
-          <p className="font-bold" style={{ color: C.ink }}>総合テストを準備しています</p>
-          <p className="mt-1 text-sm" style={{ color: C.muted }}>公開済みの問題から今回の受験問題を作成しています。</p>
-        </Card>
-      </div>
-    );
-  }
-  if (attemptState === "error" || !attempt) {
-    return (
-      <div>
-        <button onClick={onBack} className="mb-4 flex items-center gap-1.5 text-sm font-semibold transition hover:opacity-70" style={{ color: C.muted }}>
-          <ChevronLeft size={16} />コース詳細へ戻る
-        </button>
-        <Card className="p-8 text-center">
-          <AlertCircle size={32} className="mx-auto mb-3" style={{ color: C.amber }} />
-          <p className="font-bold" style={{ color: C.ink }}>総合テストを開始できませんでした</p>
-          <p className="mt-1 text-sm" style={{ color: C.muted }}>公開問題が設定されているか確認し、時間をおいて再度お試しください。</p>
-          <div className="mt-4"><Btn icon={RefreshCw} onClick={retake}>もう一度準備する</Btn></div>
-        </Card>
-      </div>
-    );
-  }
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between rounded-xl px-4 py-3" style={{ background: C.wash }}>
@@ -1549,6 +1520,35 @@ function ElFinalTestView({ course, lrn, lessons, onBack, onOpenLesson, onModeCha
               </div>
             ))}
           </div>
+        </Card>
+      </div>
+    );
+  }
+  if (attemptState === "loading") {
+    return (
+      <div>
+        <button onClick={onBack} className="mb-4 flex items-center gap-1.5 text-sm font-semibold transition hover:opacity-70" style={{ color: C.muted }}>
+          <ChevronLeft size={16} />コース詳細へ戻る
+        </button>
+        <Card className="p-8 text-center">
+          <RefreshCw size={28} className="mx-auto mb-3 animate-spin" style={{ color: course.color }} />
+          <p className="font-bold" style={{ color: C.ink }}>総合テストを準備しています</p>
+          <p className="mt-1 text-sm" style={{ color: C.muted }}>公開済みの問題から今回の受験問題を作成しています。</p>
+        </Card>
+      </div>
+    );
+  }
+  if (attemptState === "error" || !attempt) {
+    return (
+      <div>
+        <button onClick={onBack} className="mb-4 flex items-center gap-1.5 text-sm font-semibold transition hover:opacity-70" style={{ color: C.muted }}>
+          <ChevronLeft size={16} />コース詳細へ戻る
+        </button>
+        <Card className="p-8 text-center">
+          <AlertCircle size={32} className="mx-auto mb-3" style={{ color: C.amber }} />
+          <p className="font-bold" style={{ color: C.ink }}>総合テストを開始できませんでした</p>
+          <p className="mt-1 text-sm" style={{ color: C.muted }}>公開問題が設定されているか確認し、時間をおいて再度お試しください。</p>
+          <div className="mt-4"><Btn icon={RefreshCw} onClick={retake}>もう一度準備する</Btn></div>
         </Card>
       </div>
     );
