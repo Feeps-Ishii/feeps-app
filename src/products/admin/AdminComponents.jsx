@@ -4,6 +4,7 @@ import { apiGet, apiPut, apiPost } from "../../api.js";
 import {
   Card, Badge, Btn, Avatar, Stat, SectionHead, Field, Modal, T, PageHeader, ProductNavCard, SkeletonRows, SkeletonCards,
   PRISM, PrismPage, PrismCard, PrismHomeHeading, PrismKpiCard, PrismSectionTitle, PrismErrorRetryCard,
+  TraineeBulkImportPanel,
 } from "../../components/common";
 import { EmptyState } from "../training/TrainingComponents.jsx";
 import { statusKind, todayStr } from "../training/useTraining.js";
@@ -876,6 +877,7 @@ function AdminUsers() {
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState("");
   const [err, setErr] = useState("");
+  const [bulkCompanyId, setBulkCompanyId] = useState("");
 
   useEffect(() => {
     apiGet("/companies").then(l => setCompanies(l || [])).catch(() => setErr("企業一覧の取得に失敗しました。"));
@@ -1057,6 +1059,18 @@ function AdminUsers() {
           <Btn size="sm" kind="ghost" icon={FileSpreadsheet} onClick={() => exportAdminListExcel(visibleUsers, [
             [u => u.name || "", "氏名"], [u => u.email || "", "メールアドレス"], [u => roleLabel(u.role), "ロール"], [u => u.userId || "", "ユーザーID"],
           ], "ユーザー一覧", "ユーザー一覧")}>Excel出力</Btn>
+          <select value={bulkCompanyId} onChange={e => setBulkCompanyId(e.target.value)} className="rounded-xl px-3 py-2 text-xs outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary, background: T.bgSurface }}>
+            <option value="">一括登録先の企業を選択</option>
+            {companies.map(c => <option key={c.companyId} value={c.companyId}>{c.name}</option>)}
+          </select>
+          <TraineeBulkImportPanel
+            label="Excelで一括登録"
+            desc="選択した企業に所属する受講生アカウントを、ひな形Excelから一括作成します。"
+            courses={courses}
+            companyId={bulkCompanyId}
+            disabledReason={bulkCompanyId ? "" : "先に一括登録先の企業を選択してください"}
+            onCompleted={load}
+          />
           <Btn size="sm" icon={Plus} onClick={() => { setOpen(true); setErr(""); setMsg(""); }}>ユーザーを追加</Btn>
         </div>} />
       {msg && <div className="mb-4 rounded-lg px-3 py-2 text-xs" style={adminMsgStyle}>{msg}</div>}

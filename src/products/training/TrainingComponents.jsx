@@ -893,11 +893,17 @@ function Curriculum({ role, go }) {
       if (curriculumImportRef.current) curriculumImportRef.current.value = "";
     }
   }
-  function applyCurriculumImport() {
+  function applyCurriculumImport(mode) {
     if (!importPreview) return;
-    setSections(importPreview.sections);
+    if (mode === "merge") {
+      setSections(prev => mergeCurriculumSections(prev, importPreview.sections));
+      setMsg("Excelの内容を既存のカリキュラムへ追記しました。内容を確認して画面上部の「保存」を押してください。");
+    } else {
+      if (sections.length > 0 && !window.confirm("現在の編集内容を消して、Excelの内容に置き換えます。よろしいですか？")) return;
+      setSections(importPreview.sections);
+      setMsg("Excelの内容で編集画面を置き換えました。内容を確認して画面上部の「保存」を押してください。");
+    }
     setImportPreview(null);
-    setMsg("Excelの内容を編集画面へ反映しました。内容を確認して「保存」を押してください。");
   }
   const exerciseTypeLabel = type => ({ hands_on: "実技", individual: "個人演習", team: "チーム演習", submission: "提出課題" }[type] || "演習");
   function renderReadOnlyExercises(exercises, key, background = T.bgSurface) {
@@ -1157,8 +1163,15 @@ function Curriculum({ role, go }) {
             )}
         </>
       )}
-      {importPreview && <Modal title="Excel取込内容の確認" onClose={() => setImportPreview(null)} footer={<><Btn kind="ghost" onClick={() => setImportPreview(null)}>キャンセル</Btn><Btn icon={Check} onClick={applyCurriculumImport}>編集画面へ反映</Btn></>}>
-        <div className="space-y-4"><div className="rounded-xl p-3" style={{ background: T.bgBase }}><div className="text-xs" style={{ color: T.textMuted }}>ファイル</div><div className="mt-1 text-sm font-bold" style={{ color: T.textPrimary }}>{importPreview.fileName}</div></div><div className="grid grid-cols-2 gap-2 sm:grid-cols-4">{[["大項目", importPreview.summary.sections], ["Lesson", importPreview.summary.lessons], ["事前準備", importPreview.summary.preparations], ["演習", importPreview.summary.exercises]].map(([label, count]) => <div key={label} className="rounded-xl p-3 text-center" style={{ border: `1px solid ${T.border}` }}><div className="text-xl font-bold" style={{ color: T.textPrimary }}>{count}</div><div className="text-xs" style={{ color: T.textMuted }}>{label}</div></div>)}</div><div className="rounded-xl px-3 py-2 text-xs leading-5" style={{ background: T.warningSubtle, color: T.warning }}>現在の編集内容をExcelの内容に置き換えます。この時点ではサーバーへ保存されません。反映後に内容を確認し、画面上部の「保存」を押してください。</div></div>
+      {importPreview && <Modal title="Excel取込内容の確認" onClose={() => setImportPreview(null)} footer={sections.length > 0
+        ? <><Btn kind="ghost" onClick={() => setImportPreview(null)}>キャンセル</Btn><Btn kind="ghost" icon={Plus} onClick={() => applyCurriculumImport("merge")}>既存に追記する</Btn><Btn icon={Check} onClick={() => applyCurriculumImport("replace")}>既存を置き換える</Btn></>
+        : <><Btn kind="ghost" onClick={() => setImportPreview(null)}>キャンセル</Btn><Btn icon={Check} onClick={() => applyCurriculumImport("replace")}>編集画面へ反映</Btn></>}>
+        <div className="space-y-4"><div className="rounded-xl p-3" style={{ background: T.bgBase }}><div className="text-xs" style={{ color: T.textMuted }}>ファイル</div><div className="mt-1 text-sm font-bold" style={{ color: T.textPrimary }}>{importPreview.fileName}</div></div><div className="grid grid-cols-2 gap-2 sm:grid-cols-4">{[["大項目", importPreview.summary.sections], ["Lesson", importPreview.summary.lessons], ["事前準備", importPreview.summary.preparations], ["演習", importPreview.summary.exercises]].map(([label, count]) => <div key={label} className="rounded-xl p-3 text-center" style={{ border: `1px solid ${T.border}` }}><div className="text-xl font-bold" style={{ color: T.textPrimary }}>{count}</div><div className="text-xs" style={{ color: T.textMuted }}>{label}</div></div>)}</div>
+        {sections.length > 0 ? (
+          <div className="rounded-xl px-3 py-2 text-xs leading-5" style={{ background: T.warningSubtle, color: T.warning }}>このコースには既にカリキュラムがあります。「既存に追記する」は同名の大項目・中項目・Lessonへ不足分を補い、新しい大項目は末尾に追加します。「既存を置き換える」は現在の編集内容をすべて消してExcelの内容に置き換えます（確認ダイアログが表示されます）。この時点ではサーバーへ保存されません。反映後に内容を確認し、画面上部の「保存」を押してください。</div>
+        ) : (
+          <div className="rounded-xl px-3 py-2 text-xs leading-5" style={{ background: T.warningSubtle, color: T.warning }}>この時点ではサーバーへ保存されません。反映後に内容を確認し、画面上部の「保存」を押してください。</div>
+        )}</div>
       </Modal>}
     </div>
   );
@@ -3438,6 +3451,66 @@ function curriculumSectionsFromExcelRows(rows) {
     if (exercise && !lesson.exercises.some(item => item.title === exercise.title)) lesson.exercises.push(exercise);
   });
   return sections;
+}
+function mergeCurriculumExerciseList(current, additions) {
+  const merged = arr(current).map(exercise => ({ ...exercise }));
+  arr(additions).forEach(exercise => {
+    if (!merged.some(item => item.title === exercise.title)) merged.push(exercise);
+  });
+  return merged;
+}
+function mergeCurriculumLesson(existingLesson, importedLesson) {
+  return {
+    ...existingLesson,
+    content: existingLesson.content || importedLesson.content,
+    startDate: existingLesson.startDate || importedLesson.startDate,
+    endDate: existingLesson.endDate || importedLesson.endDate,
+    durationLabel: existingLesson.durationLabel || importedLesson.durationLabel,
+    learningGoals: uniqueCurriculumList(existingLesson.learningGoals, importedLesson.learningGoals),
+    preparationItems: uniqueCurriculumList(existingLesson.preparationItems, importedLesson.preparationItems),
+    skills: uniqueCurriculumList(existingLesson.skills, importedLesson.skills),
+    exercises: mergeCurriculumExerciseList(existingLesson.exercises, importedLesson.exercises),
+  };
+}
+function mergeCurriculumChapter(existingChapter, importedChapter) {
+  const lessons = arr(existingChapter.lessons).map(lesson => ({ ...lesson }));
+  arr(importedChapter.lessons).forEach(importedLesson => {
+    const index = lessons.findIndex(lesson => lesson.title === importedLesson.title);
+    if (index === -1) lessons.push({ ...importedLesson });
+    else lessons[index] = mergeCurriculumLesson(lessons[index], importedLesson);
+  });
+  return { ...existingChapter, description: existingChapter.description || importedChapter.description, lessons };
+}
+function mergeCurriculumSection(existingSection, importedSection) {
+  const chapters = arr(existingSection.chapters).map(chapter => ({ ...chapter }));
+  arr(importedSection.chapters).forEach(importedChapter => {
+    const index = chapters.findIndex(chapter => chapter.title === importedChapter.title);
+    if (index === -1) chapters.push({ ...importedChapter });
+    else chapters[index] = mergeCurriculumChapter(chapters[index], importedChapter);
+  });
+  return {
+    ...existingSection,
+    description: existingSection.description || importedSection.description,
+    content: existingSection.content || importedSection.content,
+    startDate: existingSection.startDate || importedSection.startDate,
+    endDate: existingSection.endDate || importedSection.endDate,
+    durationLabel: existingSection.durationLabel || importedSection.durationLabel,
+    learningGoals: uniqueCurriculumList(existingSection.learningGoals, importedSection.learningGoals),
+    preparationItems: uniqueCurriculumList(existingSection.preparationItems, importedSection.preparationItems),
+    exercises: mergeCurriculumExerciseList(existingSection.exercises, importedSection.exercises),
+    chapters,
+  };
+}
+// 既存カリキュラム（画面編集中のsections）へ、Excelから取り込んだsectionsを大項目/中項目/Lessonのタイトル一致で追記する。
+// 一致するものは既存の値を優先しつつ空欄項目・リスト系（学習目標等）・演習・未一致の中項目/Lessonのみ補い、一致しない大項目は末尾に追加する。
+function mergeCurriculumSections(existingSections, importedSections) {
+  const merged = arr(existingSections).map(section => ({ ...section }));
+  arr(importedSections).forEach(importedSection => {
+    const index = merged.findIndex(section => section.title === importedSection.title);
+    if (index === -1) merged.push({ ...importedSection });
+    else merged[index] = mergeCurriculumSection(merged[index], importedSection);
+  });
+  return merged;
 }
 function summarizeCurriculumSections(sections) {
   const standalone = arr(sections).filter(section => section.unitMode === "section");

@@ -18,7 +18,7 @@ import {
 import { computeGrantStages, computeNextActions } from "./grantStages.js";
 import {
   Avatar, Badge, Btn, Card, EmptyState, Field, fieldStyle, Modal, PageHeader, PrismErrorRetryCard,
-  ProductNavCard, SectionHead, SkeletonRows, T,
+  ProductNavCard, SectionHead, SkeletonRows, T, TraineeBulkImportPanel,
 } from "../../components/common";
 
 const LIST_PAGE_SIZE = 10;
@@ -449,6 +449,7 @@ export function TraineeGrantInfo({ role }) {
   const [companyId, setCompanyId] = useState("");
   const enabled = isAdmin ? !!companyId : true;
   const { trainees, loading, error, actionError, clearActionError, reload, updateTrainee } = useCompanyTrainees(companyId, enabled);
+  const { courses: bulkImportCourses } = useCompanyCourses(companyId, enabled);
   const [query, setQuery] = useState("");
   const [editing, setEditing] = useState(null);
   const [form, setForm] = useState(null);
@@ -486,7 +487,16 @@ export function TraineeGrantInfo({ role }) {
 
   return (
     <div>
-      <SectionHead title="受講生の助成金情報" desc="雇用形態・新卒既卒・IT経験を入力し、助成金対象の可否を確認します。" />
+      <SectionHead title="受講生の助成金情報" desc="雇用形態・新卒既卒・IT経験を入力し、助成金対象の可否を確認します。"
+        action={enabled && (!isAdmin || companyId) ? (
+          <TraineeBulkImportPanel
+            label="Excelで一括登録"
+            desc={isAdmin ? "選択した企業に所属する受講生アカウントを、ひな形Excelから一括作成します。" : "自社の社員（受講生）アカウントを、ひな形Excelから一括作成します。"}
+            courses={bulkImportCourses}
+            companyId={companyId}
+            onCompleted={reload}
+          />
+        ) : null} />
       {isAdmin && <CompanySelector companies={companies} loading={companiesLoading} value={companyId} onChange={setCompanyId} />}
       <ErrorBanner message={actionError} onClose={clearActionError} />
       {isAdmin && !companyId ? (
