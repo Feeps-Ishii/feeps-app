@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { apiGet, apiPost, apiPut, apiDelete } from "../../api.js";
 
 function apiErrorMessage(e, fallback) {
@@ -113,6 +113,41 @@ export function useCompanyCourses(companyId, enabled = true) {
     return () => { alive = false; };
   }, [enabled, companyId]);
   return { courses, loading, error };
+}
+
+// ---- 助成金申請ステージ計算用のコース情報まとめ取得（gr_home・gr_listの期限アラート用） ----
+// GET /grants/company-courses は既存API（companyId指定で在籍コース一覧を返す）を流用し、
+// 新規Backend呼び出しは追加しない。client: 自社分のみ1回。admin: 表示中の申請に登場する
+// companyIdごとに1回ずつ呼び出し、courseIdをキーにしたマップへまとめる（startDate/endDate参照用）。
+export function useGrantCoursesMap(grants, isAdmin, enabled = true) {
+  const companyIds = useMemo(() => {
+    if (!enabled) return [];
+    if (!isAdmin) return [""];
+    return [...new Set((grants || []).map(g => g.companyId).filter(Boolean))];
+  }, [grants, isAdmin, enabled]);
+  const key = companyIds.join(",");
+  const [coursesById, setCoursesById] = useState({});
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+
+  useEffect(() => {
+    if (!companyIds.length) { setCoursesById({}); setLoading(false); setError(""); return undefined; }
+    let alive = true;
+    setLoading(true); setError("");
+    Promise.all(companyIds.map(cid => apiGet(`/grants/company-courses${qs({ companyId: cid })}`).catch(() => null)))
+      .then(results => {
+        if (!alive) return;
+        const next = {};
+        results.forEach(res => { (res?.items || []).forEach(c => { if (c?.courseId) next[c.courseId] = c; }); });
+        setCoursesById(next);
+      })
+      .catch(e => { if (alive) setError(apiErrorMessage(e, "コース日程を確認できません。")); })
+      .finally(() => { if (alive) setLoading(false); });
+    return () => { alive = false; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [key]);
+
+  return { coursesById, loading, error };
 }
 
 // ---- 助成金申請一覧・CRUD（/grants） ----

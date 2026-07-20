@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
-  Building2, CalendarClock, Check, ChevronLeft, ChevronRight, Download, Eye, FileText,
-  MapPin, Pencil, Plus, Search, Trash2, Upload, Users, X,
+  AlertTriangle, ArrowRight, Building2, CalendarClock, Check, ChevronLeft, ChevronRight,
+  Clock, Download, Eye, FileText, MapPin, Pencil, Plus, Search, Trash2, Upload, Users, X,
 } from "lucide-react";
 import {
   APPLICATION_TYPE_OPTIONS, applicationTypeLabel, DOCUMENT_TYPE_SUGGESTIONS, documentStatusLabel,
@@ -12,9 +12,10 @@ import {
   RESERVATION_TYPE_OPTIONS, reservationStatusLabel, reservationStatusTone, reservationTypeLabel,
 } from "./GrantsCatalog.js";
 import {
-  useCompanyCourses, useCompanyProfile, useCompanyTrainees, useGrantCompanies, useGrantDocuments,
-  useGrantExports, useGrantsList, useRateMaster, useRateMasterYears, useReservations,
+  useCompanyCourses, useCompanyProfile, useCompanyTrainees, useGrantCompanies, useGrantCoursesMap,
+  useGrantDocuments, useGrantExports, useGrantsList, useRateMaster, useRateMasterYears, useReservations,
 } from "./useGrants.js";
+import { computeGrantStages, computeNextActions } from "./grantStages.js";
 import {
   Avatar, Badge, Btn, Card, EmptyState, Field, fieldStyle, Modal, PageHeader, PrismErrorRetryCard,
   ProductNavCard, SectionHead, SkeletonRows, T,
@@ -73,16 +74,102 @@ function CompanySelector({ companies, loading, value, onChange, allowAll = false
   );
 }
 
+// ---- ステージ・期限アラート・次アクション表示（2026-07-20 UX改善） ----
+// grantStages.js の純粋関数（computeGrantStages/computeNextActions）をUI化する共通部品。
+// gr_home（軽量版・要約カード）とgr_list詳細（フル版）の両方から使う。
+function stageStateTone(value) {
+  if (value === "accepted") return "green";
+  if (value === "overdue" || value === "rejected") return "red";
+  if (value === "cancelled" || value === "not_applicable" || value === "not_started") return "muted";
+  return "amber"; // preparing / submitted / under_review
+}
+
+function DeadlineText({ deadline, compact = false }) {
+  if (!deadline) return <span className="text-xs" style={{ color: T.textMuted }}>日程未設定</span>;
+  const { date, daysRemaining, overdue, urgent } = deadline;
+  const color = overdue ? T.danger : urgent ? T.warning : T.textMuted;
+  const Icon = overdue ? AlertTriangle : urgent ? Clock : null;
+  const label = overdue ? `期限超過（${Math.abs(daysRemaining)}日経過）` : `残り${daysRemaining}日`;
+  return (
+    <span className="inline-flex items-center gap-1 text-xs font-semibold" style={{ color }}>
+      {Icon && <Icon size={12} />}
+      {compact ? label : `期限 ${date}（${label}）`}
+    </span>
+  );
+}
+
+// 3ステージ（計画申請・変更申請・支給申請）タイムライン。1440px/390pxいずれもgrid-colsが
+// 3列→1列（sm未満）に落ちるだけなので横スクロールは発生しない。
+function GrantStageTimeline({ stages }) {
+  return (
+    <div className="grid gap-3 sm:grid-cols-3">
+      {stages.map(s => (
+        <Card key={s.key} className="p-3" style={s.current ? { border: `2px solid ${T.accent}` } : {}}>
+          <div className="flex items-center justify-between gap-2">
+            <span className="text-sm font-bold" style={{ color: T.textPrimary }}>{s.label}</span>
+            {s.current && <Badge tone="cyan">現在</Badge>}
+          </div>
+          <div className="mt-1.5"><Badge tone={stageStateTone(s.state.value)}>{s.state.label}</Badge></div>
+          <div className="mt-2"><DeadlineText deadline={s.deadline} /></div>
+        </Card>
+      ))}
+    </div>
+  );
+}
+
+function GrantNextActions({ actions, title = "次にやること" }) {
+  if (!actions || actions.length === 0) return null;
+  return (
+    <div className="rounded-xl p-3" style={{ background: T.accentSubtle }}>
+      <div className="mb-1.5 text-xs font-bold" style={{ color: T.textPrimary }}>{title}</div>
+      <ul className="space-y-1">
+        {actions.map((a, i) => (
+          <li key={i} className="flex items-start gap-1.5 text-xs" style={{ color: T.textSecondary }}>
+            <ArrowRight size={12} style={{ marginTop: 2, flexShrink: 0, color: T.accent }} />
+            <span>{a}</span>
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
 // ================= Home =================
 export function GrantsHome({ goSub, role = "client", themeColor = "#C9A227" }) {
+  const isAdmin = role === "admin";
   const { items: grants, loading: gLoading, error: gError, reload: gReload } = useGrantsList({}, true);
   const { items: reservations, loading: rLoading } = useReservations({}, true);
+  const { companies } = useGrantCompanies(isAdmin);
   const today = new Date().toISOString().slice(0, 10);
-  const pendingCount = grants.filter(g => !["paid", "rejected", "cancelled"].includes(g.status)).length;
+  const activeGrants = useMemo(() => grants.filter(g => !["paid", "rejected", "cancelled"].includes(g.status)), [grants]);
+  const pendingCount = activeGrants.length;
   const upcomingCount = reservations.filter(r => r.status !== "cancelled" && String(r.scheduledAt || "").slice(0, 10) >= today).length;
   const desc = role === "admin"
     ? "全社の助成金申請・提出書類・予約状況を確認できます。"
     : "自社の助成金申請・提出書類・予約状況を確認・管理します。";
+
+  // 期限アラート・次アクションの要約カード用（コース日程はgr_home表示中の申請分のみ軽量取得）。
+  const { coursesById, loading: coursesLoading, error: coursesError } = useGrantCoursesMap(activeGrants, isAdmin, !gLoading);
+  const companyName = id => companies.find(c => c.companyId === id)?.name || id;
+  const summaries = useMemo(() => {
+    if (gLoading || coursesLoading) return [];
+    return activeGrants
+      .map(g => {
+        const course = coursesById[g.courseId] || null;
+        const stages = computeGrantStages(g, course);
+        const actions = computeNextActions({ grant: g, stages, course });
+        const current = stages.find(s => s.current) || null;
+        const urgency = stages.reduce((acc, s) => {
+          if (s.deadline?.overdue) return Math.min(acc, -10000 + s.deadline.daysRemaining);
+          if (s.deadline?.urgent) return Math.min(acc, s.deadline.daysRemaining);
+          return acc;
+        }, 10000);
+        return { grant: g, current, actions, urgency };
+      })
+      .sort((a, b) => a.urgency - b.urgency);
+  }, [activeGrants, coursesById, gLoading, coursesLoading]);
+  const visibleSummaries = summaries.slice(0, 6);
+
   return (
     <div>
       <PageHeader product="grants" label="助成金管理" title="助成金申請を、迷わず前へ。" description={desc}
@@ -93,12 +180,64 @@ export function GrantsHome({ goSub, role = "client", themeColor = "#C9A227" }) {
         cta={{ label: "助成金申請を見る", icon: FileText, onClick: () => goSub("gr_list") }}
       />
       {gError && <PrismErrorRetryCard message={gError} onRetry={gReload} />}
+
+      {/* Excel帳票エクスポートの入口が分かりにくいというフィードバックへの対応（2026-07-20）。
+          gr_documents（提出書類）内の生成パネルへ直接誘導する。 */}
+      <div className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-2xl p-4" style={{ background: T.accentSubtle, border: `1px solid ${T.border}` }}>
+        <div className="flex items-start gap-3">
+          <FileText size={16} style={{ color: T.accent, marginTop: 2 }} />
+          <div>
+            <div className="text-sm font-bold" style={{ color: T.textPrimary }}>Excel帳票の生成</div>
+            <p className="text-xs" style={{ color: T.textMuted }}>計画申請・変更申請・支給申請書類一式・OFF-JT実施状況報告書をLMSデータから生成できます。</p>
+          </div>
+        </div>
+        <Btn size="sm" icon={FileText} onClick={() => goSub("gr_documents")}>帳票を生成する</Btn>
+      </div>
+
       <div className="grid gap-4 md:grid-cols-3">
         {GRANTS_HOME_CARDS.filter(c => !c.adminOnly || role === "admin").map((c, i) => (
           <ProductNavCard key={c.key} product="grants" icon={c.icon} title={c.label} desc={c.desc}
             onClick={() => goSub(c.key)} highlight={i === 0} badge={i === 0 ? "よく使う" : undefined} delay={650 + i * 60} />
         ))}
       </div>
+
+      {/* 申請ごとのステージ進行状況・期限アラート・次アクションの要約（2026-07-20 UX改善）。
+          コース日程が確認できない申請は「日程未設定」表示になり、0日・NaNには丸めない。 */}
+      {!gLoading && activeGrants.length > 0 && (
+        <div className="mt-5">
+          <div className="mb-2 flex items-center justify-between">
+            <div className="text-sm font-bold" style={{ color: T.textPrimary }}>申請の進捗・次にやること</div>
+            <Btn kind="ghost" size="sm" onClick={() => goSub("gr_list")}>すべて見る</Btn>
+          </div>
+          {coursesLoading ? <SkeletonRows rows={2} /> : (
+            <>
+              {coursesError && <div className="mb-2 text-xs" style={{ color: T.textMuted }}>{coursesError}（期限の一部が確認できません）</div>}
+              <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+                {visibleSummaries.map(({ grant, current, actions }) => (
+                  <Card key={grant.grantId} className="p-3">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className="min-w-0 flex-1 truncate text-sm font-bold" style={{ color: T.textPrimary }}>{grant.grantType || "助成金種類未設定"}</span>
+                      <Badge tone={grantStatusTone(grant.status)}>{grantStatusLabel(grant.status)}</Badge>
+                    </div>
+                    {isAdmin && <div className="mt-0.5 text-xs" style={{ color: T.textMuted }}>{companyName(grant.companyId)}</div>}
+                    {current && (
+                      <div className="mt-2 flex flex-wrap items-center gap-2">
+                        <Badge tone={stageStateTone(current.state.value)}>{current.label}：{current.state.label}</Badge>
+                        <DeadlineText deadline={current.deadline} compact />
+                      </div>
+                    )}
+                    {actions[0] && <div className="mt-2 text-xs leading-relaxed" style={{ color: T.textSecondary }}>次: {actions[0]}</div>}
+                  </Card>
+                ))}
+              </div>
+              {summaries.length > visibleSummaries.length && (
+                <div className="mt-2 text-xs" style={{ color: T.textMuted }}>他{summaries.length - visibleSummaries.length}件は「助成金申請」から確認できます。</div>
+              )}
+            </>
+          )}
+        </div>
+      )}
+
       <div className="mt-5 flex items-start gap-3 rounded-2xl p-4" style={{ background: `${themeColor}10`, border: `1px solid ${themeColor}30` }}>
         <FileText size={15} style={{ color: themeColor, marginTop: 2 }} />
         <p className="text-sm" style={{ color: T.textMuted }}><span className="font-semibold" style={{ color: T.textPrimary }}>対象:</span> このProductはadmin/client専用です。新規の助成金申請登録は運営（管理者）が行います。</p>
@@ -481,10 +620,14 @@ function GrantCreateModal({ companies, onClose, onCreate, saving, actionError, c
   );
 }
 
-function GrantDetail({ grant, role, companyName, courseName, trainees, onSave, onOpenDocuments, saving, actionError, clearActionError }) {
+function GrantDetail({
+  grant, role, companyName, courseName, course, companyProfile, documents, documentsLoading, onDocumentsGenerated,
+  trainees, onSave, onOpenDocuments, saving, actionError, clearActionError,
+}) {
   const isAdmin = role === "admin";
   const [status, setStatus] = useState(grant.status);
   const [appliedAt, setAppliedAt] = useState(grant.appliedAt || "");
+  const [changeDate, setChangeDate] = useState(grant.changeDate || "");
   const [documentsSubmittedAt, setDocumentsSubmittedAt] = useState(grant.documentsSubmittedAt || "");
   const [paidAt, setPaidAt] = useState(grant.paidAt || "");
   const [progressStage, setProgressStage] = useState(grant.progressStage || "");
@@ -493,12 +636,18 @@ function GrantDetail({ grant, role, companyName, courseName, trainees, onSave, o
   const [remarks, setRemarks] = useState(grant.remarks || "");
 
   const traineeNames = (grant.targetTraineeIds || []).map(id => trainees.find(t => t.userId === id)?.name || id);
+  const stages = useMemo(() => computeGrantStages(grant, course), [grant, course]);
+  const nextActions = useMemo(
+    () => computeNextActions({ grant, stages, course, company: companyProfile, documents: documentsLoading ? undefined : documents }),
+    [grant, stages, course, companyProfile, documents, documentsLoading],
+  );
 
   async function submit() {
     const payload = { remarks };
     if (isAdmin) {
       Object.assign(payload, {
-        status, appliedAt: appliedAt || null, documentsSubmittedAt: documentsSubmittedAt || null, paidAt: paidAt || null,
+        status, appliedAt: appliedAt || null, changeDate: changeDate || null,
+        documentsSubmittedAt: documentsSubmittedAt || null, paidAt: paidAt || null,
         progressStage, assigneeUserId, amount: amount === "" ? null : Number(amount),
       });
     }
@@ -508,6 +657,13 @@ function GrantDetail({ grant, role, companyName, courseName, trainees, onSave, o
   return (
     <div className="space-y-4">
       <ErrorBanner message={actionError} onClose={clearActionError} />
+
+      <div>
+        <div className="mb-2 text-xs font-bold" style={{ color: T.textMuted }}>ステージ・期限（計画申請→変更申請→支給申請）</div>
+        <GrantStageTimeline stages={stages} />
+      </div>
+      <GrantNextActions actions={nextActions} />
+
       <div className="grid gap-3 sm:grid-cols-2">
         <Field label="企業"><div className="text-sm font-semibold" style={{ color: T.textPrimary }}>{companyName}</div></Field>
         <Field label="コース"><div className="text-sm font-semibold" style={{ color: T.textPrimary }}>{courseName}</div></Field>
@@ -519,9 +675,12 @@ function GrantDetail({ grant, role, companyName, courseName, trainees, onSave, o
           ? <select value={status} onChange={e => setStatus(e.target.value)} style={fieldStyle}>{GRANT_STATUS_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}</select>
           : <Badge tone={grantStatusTone(grant.status)}>{grantStatusLabel(grant.status)}</Badge>}
       </Field>
-      <div className="grid gap-3 sm:grid-cols-3">
-        <Field label="申請日"><input type="date" value={appliedAt || ""} onChange={e => setAppliedAt(e.target.value)} disabled={!isAdmin} style={fieldStyle} /></Field>
-        <Field label="提出日"><input type="date" value={documentsSubmittedAt || ""} onChange={e => setDocumentsSubmittedAt(e.target.value)} disabled={!isAdmin} style={fieldStyle} /></Field>
+      <div className="grid gap-3 sm:grid-cols-2">
+        <Field label="申請日（計画申請）"><input type="date" value={appliedAt || ""} onChange={e => setAppliedAt(e.target.value)} disabled={!isAdmin} style={fieldStyle} /></Field>
+        <Field label="変更予定日（変更申請がある場合のみ）"><input type="date" value={changeDate || ""} onChange={e => setChangeDate(e.target.value)} disabled={!isAdmin} style={fieldStyle} /></Field>
+      </div>
+      <div className="grid gap-3 sm:grid-cols-2">
+        <Field label="提出日（支給申請）"><input type="date" value={documentsSubmittedAt || ""} onChange={e => setDocumentsSubmittedAt(e.target.value)} disabled={!isAdmin} style={fieldStyle} /></Field>
         <Field label="支給日"><input type="date" value={paidAt || ""} onChange={e => setPaidAt(e.target.value)} disabled={!isAdmin} style={fieldStyle} /></Field>
       </div>
       <div className="grid gap-3 sm:grid-cols-2">
@@ -535,8 +694,13 @@ function GrantDetail({ grant, role, companyName, courseName, trainees, onSave, o
       <Field label="備考（企業担当者も編集可）">
         <textarea value={remarks} onChange={e => setRemarks(e.target.value)} rows={2} style={{ ...fieldStyle, resize: "vertical" }} />
       </Field>
+
+      {/* 「どこからExcelエクスポートできるか分からない」への対応（2026-07-20）。既存の
+          GrantExportPanel（POST /grants/{id}/exports）をgr_documents画面と共通利用する。 */}
+      <GrantExportPanel grantId={grant.grantId} onGenerated={onDocumentsGenerated} />
+
       <div className="flex flex-wrap items-center justify-between gap-2 border-t pt-3" style={{ borderColor: T.border }}>
-        <Btn kind="ghost" size="sm" icon={Upload} onClick={onOpenDocuments}>提出書類を見る</Btn>
+        <Btn kind="ghost" size="sm" icon={Upload} onClick={onOpenDocuments}>提出書類一覧を見る</Btn>
         <Btn icon={Check} onClick={submit} disabled={saving}>{saving ? "保存中…" : "保存する"}</Btn>
       </div>
     </div>
@@ -547,9 +711,11 @@ function GrantDetailModal({ grant, role, companies, onClose, onSave, onOpenDocum
   const isAdmin = role === "admin";
   const { courses } = useCompanyCourses(isAdmin ? grant.companyId : "", true);
   const { trainees } = useCompanyTrainees(isAdmin ? grant.companyId : "", true);
-  const { profile: ownProfile } = useCompanyProfile("", !isAdmin);
-  const companyName = isAdmin ? (companies.find(c => c.companyId === grant.companyId)?.name || grant.companyId) : (ownProfile?.name || grant.companyId);
-  const courseName = courses.find(c => c.courseId === grant.courseId)?.name || grant.courseId;
+  const { profile: companyProfile } = useCompanyProfile(isAdmin ? grant.companyId : "", true);
+  const { items: documents, loading: documentsLoading, reload: reloadDocuments } = useGrantDocuments(grant.grantId, true);
+  const companyName = isAdmin ? (companies.find(c => c.companyId === grant.companyId)?.name || grant.companyId) : (companyProfile?.name || grant.companyId);
+  const course = courses.find(c => c.courseId === grant.courseId) || null;
+  const courseName = course?.name || grant.courseId;
 
   return (
     <Modal title={`助成金申請：${companyName}`} onClose={onClose} size="lg"
@@ -558,6 +724,7 @@ function GrantDetailModal({ grant, role, companies, onClose, onSave, onOpenDocum
         <Btn kind="ghost" onClick={onClose}>閉じる</Btn>
       </div>}>
       <GrantDetail key={`${grant.grantId}-${grant.updatedAt}`} grant={grant} role={role} companyName={companyName} courseName={courseName}
+        course={course} companyProfile={companyProfile} documents={documents} documentsLoading={documentsLoading} onDocumentsGenerated={reloadDocuments}
         trainees={trainees} onSave={onSave} onOpenDocuments={() => onOpenDocuments(grant.grantId)}
         saving={saving} actionError={actionError} clearActionError={clearActionError} />
     </Modal>
@@ -580,6 +747,8 @@ export function GrantsManager({ role, onOpenDocuments }) {
   const [deleteTarget, setDeleteTarget] = useState(null);
   const [deleteBusy, setDeleteBusy] = useState(false);
   const [deleteErr, setDeleteErr] = useState("");
+  // 一覧から直接Excel帳票を生成する導線（2026-07-20 UX改善）。詳細を開かずに素早く生成できる。
+  const [exportGrant, setExportGrant] = useState(null);
 
   const companyName = id => companies.find(c => c.companyId === id)?.name || id;
 
@@ -652,7 +821,10 @@ export function GrantsManager({ role, onOpenDocuments }) {
                   {g.updatedAt && <span>更新 {String(g.updatedAt).slice(0, 10)}</span>}
                 </div>
               </div>
-              <Btn kind="ghost" size="sm" icon={Eye} onClick={() => setDetailGrant(g)}>詳細を見る</Btn>
+              <div className="flex shrink-0 flex-wrap gap-2">
+                <Btn kind="ghost" size="sm" icon={FileText} onClick={() => setExportGrant(g)}>Excel帳票を生成</Btn>
+                <Btn kind="ghost" size="sm" icon={Eye} onClick={() => setDetailGrant(g)}>詳細を見る</Btn>
+              </div>
             </div>
           ))}</div>}
         <ListPager page={visible.page} totalPages={visible.totalPages} total={visible.total} onPage={setPage} />
@@ -667,6 +839,18 @@ export function GrantsManager({ role, onOpenDocuments }) {
           onSave={handleSave} onOpenDocuments={onOpenDocuments} saving={detailSaving}
           actionError={actionError} clearActionError={clearActionError}
           onRequestDelete={() => setDeleteTarget(detailGrant)} />
+      )}
+      {exportGrant && (
+        <Modal title={`Excel帳票を生成：${companyName(exportGrant.companyId)} / ${exportGrant.grantType || "種類未設定"}`}
+          onClose={() => setExportGrant(null)}
+          footer={<Btn kind="ghost" onClick={() => setExportGrant(null)}>閉じる</Btn>}>
+          <div className="space-y-3">
+            <GrantExportPanel grantId={exportGrant.grantId} onGenerated={reload} />
+            <Btn kind="ghost" size="sm" icon={Upload} onClick={() => { onOpenDocuments(exportGrant.grantId); setExportGrant(null); }}>
+              生成した書類を提出書類一覧で見る
+            </Btn>
+          </div>
+        </Modal>
       )}
       {deleteTarget && (
         <div>
@@ -717,8 +901,10 @@ function DocumentUploadForm({ onUpload, uploading, uploadError }) {
   );
 }
 
-// 助成金帳票のアプリ内Excel生成（POST /grants/{id}/exports）。生成物は書類一覧（下のCard）に
-// 自動生成書類として追加されるため、ここでは生成トリガーと直近結果（missingFields等）のみ表示する。
+// 助成金帳票のアプリ内Excel生成（POST /grants/{id}/exports）。生成物は提出書類一覧に自動生成書類
+// として追加されるため、ここでは生成トリガーと直近結果（missingFields等）のみ表示する。
+// gr_documents（提出書類画面）に加え、gr_list（申請一覧の行・申請詳細）からも共通利用する
+// （2026-07-20 UX改善「どこからExcelエクスポートできるか分からない」への対応、二重実装しない）。
 function GrantExportPanel({ grantId, onGenerated }) {
   const { generate, generating, error, clearError, lastResult } = useGrantExports(grantId);
   const [formType, setFormType] = useState(FORM_TYPE_OPTIONS[0].value);
