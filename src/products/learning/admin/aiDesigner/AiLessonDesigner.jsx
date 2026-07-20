@@ -275,6 +275,7 @@ function RightGenerationPanel({
   slideGenByLessonId, onGenerateSlides, onGenerateAll, generatingAll,
   reviewedLessonIds, onToggleReview, canSave, onOpenCourseManager,
   finalTestState, finalTestNotice, finalTestQuestions, onGenerateFinalTest, onOpenPreview,
+  allGenerated, allReviewed, onToggleReviewAll,
 }) {
   return (
     <div className="min-w-0 flex-1 space-y-5">
@@ -340,16 +341,30 @@ function RightGenerationPanel({
           <div>
             <div className="mb-2.5 flex flex-wrap items-center justify-between gap-2">
               <SectionLabel>Lesson生成と確認</SectionLabel>
-              <button
-                type="button"
-                onClick={onGenerateAll}
-                disabled={generatingAll}
-                className="flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-bold transition hover:opacity-80 disabled:opacity-50"
-                style={{ background: T.aiSubtle, border: `1px solid ${T.aiAccent}30`, color: T.aiAccentDeep }}
-              >
-                {generatingAll ? <Loader2 size={12} className="animate-spin" /> : <Layers3 size={12} />}
-                {generatingAll ? "Lessonを順に生成中..." : "全Lessonを生成"}
-              </button>
+              <div className="flex flex-wrap items-center gap-2">
+                <button
+                  type="button"
+                  onClick={onGenerateAll}
+                  disabled={generatingAll}
+                  className="flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-bold transition hover:opacity-80 disabled:opacity-50"
+                  style={{ background: T.aiSubtle, border: `1px solid ${T.aiAccent}30`, color: T.aiAccentDeep }}
+                >
+                  {generatingAll ? <Loader2 size={12} className="animate-spin" /> : <Layers3 size={12} />}
+                  {generatingAll ? "Lessonを順に生成中..." : "全Lessonを生成"}
+                </button>
+                {/* フェーズ4(見た目・操作性): デモコース作成時に「確認トグルを1つずつ押す」手間が
+                    体感されたため一括確認導線を追加。中身は各カードのonToggleReviewと同じ状態を
+                    まとめて更新するだけで、確認自体を省略する機能ではない(実際に生成結果は表示済み)。 */}
+                <button
+                  type="button"
+                  onClick={onToggleReviewAll}
+                  disabled={!allGenerated}
+                  className="flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-bold transition hover:opacity-80 disabled:opacity-40"
+                  style={{ background: allReviewed ? PRODUCT_ACCENT.learning.accent : NOVA.card, border: `1px solid ${allReviewed ? PRODUCT_ACCENT.learning.accent : C.line}`, color: allReviewed ? NOVA.onDark : C.body }}
+                >
+                  <CheckCircle2 size={12} />{allReviewed ? "全て確認済み（解除する）" : "全Lessonを確認済みにする"}
+                </button>
+              </div>
             </div>
             <div className="space-y-3">
               {result.lessons.map((lesson, i) => (
@@ -472,6 +487,11 @@ export default function AiLessonDesigner({ onOpenCourseManager }) {
     setReviewedLessonIds(prev => prev.includes(lessonId) ? prev.filter(id => id !== lessonId) : [...prev, lessonId]);
   }
 
+  function toggleReviewAll() {
+    if (!allGenerated) return;
+    setReviewedLessonIds(allReviewed ? [] : result.lessons.map(lesson => lesson.id));
+  }
+
   return (
     <div>
       <div className="mb-4 flex items-center gap-2.5">
@@ -504,6 +524,9 @@ export default function AiLessonDesigner({ onOpenCourseManager }) {
           reviewedLessonIds={reviewedLessonIds}
           onToggleReview={toggleReviewed}
           canSave={allReviewed}
+          allGenerated={allGenerated}
+          allReviewed={allReviewed}
+          onToggleReviewAll={toggleReviewAll}
           onOpenCourseManager={onOpenCourseManager}
           finalTestState={finalTestState}
           finalTestNotice={finalTestNotice}

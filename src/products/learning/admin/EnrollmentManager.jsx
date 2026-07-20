@@ -71,12 +71,16 @@ const statusLabel = {
   not_started: "未着手",
   in_progress: "学習中",
   completed: "修了",
+  // COURSE_PROGRESS#起点の一覧では辿れない「演習だけ提出した受講生」を表す合成行
+  // (フェーズ4残課題(a)対応、useLearningAdmin.jsが/learning/admin/exercisesから合成)。
+  exercise_only: "演習のみ（進捗未保存）",
 };
 
 const statusTone = {
   not_started: "muted",
   in_progress: "amber",
   completed: "green",
+  exercise_only: "cyan",
 };
 
 // lessonCompletion（サーバー実データ）があれば完了日時の新しい順に導出し、無ければ
@@ -119,13 +123,19 @@ function EnrollmentRow({ enrollment, selected, onSelect }) {
           </div>
           <div className="mt-1 flex flex-wrap items-center gap-2 text-xs" style={{ color: C.muted }}>
             <span className="inline-flex items-center gap-1"><Building2 size={13} />{enrollment.companyName}</span>
-            <span>{enrollment.completedLessons} / {enrollment.totalLessons} Lessons</span>
+            {enrollment.exerciseOnly
+              ? <span>演習提出 {enrollment.exerciseSubmissionCount}件</span>
+              : <span>{enrollment.completedLessons} / {enrollment.totalLessons} Lessons</span>}
             <span>最終学習: {enrollment.lastStudiedAt || "-"}</span>
           </div>
-          <div className="mt-3 grid gap-2 md:grid-cols-[1fr_52px] md:items-center">
-            <ProgressBar value={enrollment.progress} />
-            <div className="text-right text-xs font-bold" style={{ color: C.ink }}>{enrollment.progress}%</div>
-          </div>
+          {enrollment.exerciseOnly ? (
+            <p className="mt-3 text-xs" style={{ color: C.amber }}>コース進捗はまだ保存されていません（演習の提出のみ確認できます）。</p>
+          ) : (
+            <div className="mt-3 grid gap-2 md:grid-cols-[1fr_52px] md:items-center">
+              <ProgressBar value={enrollment.progress} />
+              <div className="text-right text-xs font-bold" style={{ color: C.ink }}>{enrollment.progress}%</div>
+            </div>
+          )}
         </div>
         <Btn kind="ghost" size="sm" icon={Eye} onClick={() => onSelect(enrollment)}>詳細</Btn>
       </div>
@@ -149,14 +159,23 @@ function EnrollmentDetail({ enrollment, onMemoSave, lessonsForCourse }) {
         <Badge tone={statusTone[enrollment.status]}>{statusLabel[enrollment.status]}</Badge>
       </div>
 
-      <div>
-        <div className="mb-2 flex items-center justify-between text-xs font-semibold" style={{ color: C.body }}>
+      {enrollment.exerciseOnly && (
+        <div className="rounded-xl px-3 py-2.5 text-xs" style={{ background: T.warningSubtle, color: T.warning, border: `1px solid ${T.warning}30` }}>
+          このコースの進捗（コース開始・レッスン完了）はまだサーバーへ保存されていません。演習・自由記述の提出だけがこの画面から確認できます。
+        </div>
+      )}
+
+      {!enrollment.exerciseOnly && (
+        <div>
+          <div className="mb-2 flex items-center justify-between text-xs font-semibold" style={{ color: C.body }}>
             <span>{enrollment.courseTitle}</span>
             <span>{enrollment.progress}%</span>
           </div>
           <ProgressBar value={enrollment.progress} />
         </div>
+      )}
 
+        {!enrollment.exerciseOnly && (
         <div className="grid gap-3 md:grid-cols-2">
           <div className="rounded-xl p-3" style={{ background: C.canvas }}>
             <div className="text-xs" style={{ color: C.muted }}>完了レッスン</div>
@@ -175,14 +194,18 @@ function EnrollmentDetail({ enrollment, onMemoSave, lessonsForCourse }) {
             <div className="mt-1 text-sm font-bold" style={{ color: C.ink }}>{enrollment.progress}%</div>
           </div>
         </div>
+        )}
 
+        {!enrollment.exerciseOnly && (
         <div>
           <div className="mb-2 text-xs font-bold" style={{ color: C.body }}>獲得スキル</div>
           <div className="flex flex-wrap gap-1">
             {(enrollment.skills || []).map(skill => <Badge key={skill} tone="green">{skill}</Badge>)}
           </div>
         </div>
+        )}
 
+        {!enrollment.exerciseOnly && (
         <div>
           <div className="mb-2 text-xs font-bold" style={{ color: C.body }}>最近の学習履歴</div>
           <div className="space-y-2">
@@ -191,13 +214,16 @@ function EnrollmentDetail({ enrollment, onMemoSave, lessonsForCourse }) {
             )) : <div className="text-xs" style={{ color: C.muted }}>履歴はまだありません。</div>}
           </div>
         </div>
+        )}
 
+        {!enrollment.exerciseOnly && (
         <div>
           <div className="mb-2 text-xs font-bold" style={{ color: C.body }}>未完了レッスン</div>
           <div className="rounded-xl px-3 py-2 text-xs" style={{ background: C.canvas, color: C.body }}>
             残り {incomplete} Lessons
           </div>
         </div>
+        )}
 
         <ExerciseSubmissionsPanel courseId={enrollment.courseId} traineeId={enrollment.traineeId} />
 

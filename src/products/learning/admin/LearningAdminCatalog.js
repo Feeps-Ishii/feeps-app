@@ -84,6 +84,9 @@ export const ENROLLMENT_STATUS_OPTIONS = [
   { value: "not_started", label: "未着手" },
   { value: "in_progress", label: "学習中" },
   { value: "completed", label: "修了" },
+  // 2026-07-21フェーズ4: COURSE_PROGRESS#がまだ無いが演習提出だけはある受講生(合成行、
+  // useLearningAdminのenrollments effect参照)。
+  { value: "exercise_only", label: "演習のみ（進捗未保存）" },
 ];
 
 export const LEARNING_ADMIN_QUIZZES_STORAGE_KEY = "feeps.el.admin.quizzes";

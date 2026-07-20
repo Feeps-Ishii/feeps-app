@@ -402,11 +402,15 @@ function normalizeEnrollment(enrollment, index = 0, courseLookup = {}) {
   const completedLessons = Number.isFinite(Number(enrollment.completedLessons))
     ? Number(enrollment.completedLessons)
     : Math.round((progress / 100) * totalLessons);
+  // exercise_only: COURSE_PROGRESS#がまだ無いが演習提出だけはある受講生を表す合成行
+  // (フェーズ4残課題(a)対応、useLearningAdminのenrollments effectで合成される)。
   const status = enrollment.status === "completed"
     ? "completed"
-    : enrollment.status === "not_started"
-      ? "not_started"
-      : "in_progress";
+    : enrollment.status === "exercise_only"
+      ? "exercise_only"
+      : enrollment.status === "not_started"
+        ? "not_started"
+        : "in_progress";
   return {
     id: enrollment.id || `enr_${Date.now()}_${index}`,
     traineeId: enrollment.traineeId || "",
@@ -425,6 +429,8 @@ function normalizeEnrollment(enrollment, index = 0, courseLookup = {}) {
     recentHistory: Array.isArray(enrollment.recentHistory) ? enrollment.recentHistory : [],
     lessonCompletion: enrollment.lessonCompletion || {},
     memo: enrollment.memo || "",
+    exerciseOnly: enrollment.status === "exercise_only",
+    exerciseSubmissionCount: Number(enrollment.exerciseSubmissionCount || 0),
   };
 }
 
@@ -723,7 +729,12 @@ export function useLearningAdmin() {
     Promise.all([
       apiGet("/learning/admin/enrollments"),
       apiGet("/admin/users").catch(() => null),
-    ]).then(([enrollmentItems, userItems]) => {
+      // 演習提出(EXERCISE_SUBMISSION#)は courseId/traineeId を指定しなければ担当範囲の全件を返す
+      // (Backend: routes/learning.mjsの GET /learning/admin/exercises)。COURSE_PROGRESS#を一度も
+      // 保存していない=演習だけ提出した受講生を検出するために使う（フェーズ4残課題(a)対応）。
+      // 取得失敗時は握りつぶし、既存の受講状況一覧の表示は妨げない（additive機能のため）。
+      apiGet("/learning/admin/exercises").catch(() => []),
+    ]).then(([enrollmentItems, userItems, exerciseItems]) => {
       if (!alive || !Array.isArray(enrollmentItems)) return;
       // /admin/users の正確なフィールド名は未確認のため、想定される候補を防御的に試す。
       // 一致しなければ traineeName/companyName は空のまま（normalizeEnrollment側でフォールバック済み）。
@@ -742,8 +753,39 @@ export function useLearningAdmin() {
           companyName: user?.companyName || user?.company || item.companyName || "",
         }, index, courseLookup);
       });
-      setEnrollments(normalized);
-      saveEnrollments(normalized);
+
+      const knownPairs = new Set(normalized.map(item => `${item.traineeId}#${item.courseId}`));
+      const exerciseOnlyGroups = new Map();
+      (Array.isArray(exerciseItems) ? exerciseItems : []).forEach(item => {
+        if (!item?.traineeId || !item?.courseId) return;
+        const pairKey = `${item.traineeId}#${item.courseId}`;
+        if (knownPairs.has(pairKey)) return;
+        const group = exerciseOnlyGroups.get(pairKey) || { traineeId: item.traineeId, courseId: item.courseId, courseTitle: item.courseTitle || "", count: 0, lastUpdatedAt: "" };
+        group.count += 1;
+        if (String(item.updatedAt || "") > group.lastUpdatedAt) group.lastUpdatedAt = String(item.updatedAt || "");
+        if (!group.courseTitle && item.courseTitle) group.courseTitle = item.courseTitle;
+        exerciseOnlyGroups.set(pairKey, group);
+      });
+      const exerciseOnlyNormalized = [...exerciseOnlyGroups.values()].map((group, index) => {
+        const user = usersById.get(group.traineeId);
+        return normalizeEnrollment({
+          id: `enrx_${group.traineeId}_${group.courseId}`,
+          traineeId: group.traineeId,
+          courseId: group.courseId,
+          courseTitle: group.courseTitle,
+          traineeName: user?.name || "",
+          companyName: user?.companyName || user?.company || "",
+          status: "exercise_only",
+          progress: 0,
+          completedLessons: 0,
+          lastStudiedAt: group.lastUpdatedAt ? group.lastUpdatedAt.slice(0, 10) : "",
+          exerciseSubmissionCount: group.count,
+        }, index, courseLookup);
+      });
+
+      const combined = [...normalized, ...exerciseOnlyNormalized];
+      setEnrollments(combined);
+      saveEnrollments(combined);
       setEnrollmentsError("");
     })
       .catch(e => { if (alive) setEnrollmentsError(apiErrorMessage(e, "受講状況の取得に失敗しました。")); })

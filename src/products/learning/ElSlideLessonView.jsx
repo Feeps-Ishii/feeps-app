@@ -2,7 +2,7 @@ import React, { useEffect, useState } from "react";
 import {
   ChevronLeft, ChevronRight, ChevronUp, ChevronDown, Lightbulb, FileText, Download, Check, X,
   Play, PlayCircle, Circle, CheckCircle2, Loader2, Sparkles, PanelRightClose, PanelRightOpen,
-  Clock, HelpCircle,
+  Clock, HelpCircle, AlertCircle,
 } from "lucide-react";
 import { Btn, T, PRODUCT_ACCENT } from "../../components/common";
 import { LessonBodyText } from "./LearningComponents.jsx";
@@ -36,6 +36,16 @@ function orderedSlides(lesson) {
   return [...(lesson.slides || [])].sort((a, b) => Number(a.order || 0) - Number(b.order || 0));
 }
 
+// 提出(POST /learning/exercises/submit)が必要な演習系kind。ChoiceQuizBody(4択の確認問題)は
+// 従来どおりクライアント内完結の自己チェックのままなので対象外(2026-07-21フェーズ2の設計を踏襲)。
+const EXERCISE_KINDS = new Set(["terminal", "selection_task", "ordering_puzzle", "fill_blank", "interactive_form"]);
+function slideNeedsSubmission(slide) {
+  if (!slide) return false;
+  if (EXERCISE_KINDS.has(slide.kind)) return true;
+  if (slide.kind === "quiz" && slide.interaction?.type === "descriptive") return true;
+  return false;
+}
+
 // YouTube URL(watch/youtu.be/embed の各形式)ならembed用URLを返す。それ以外(S3動画URL等)はnull。
 function youtubeEmbedUrl(url) {
   if (!url) return null;
@@ -55,13 +65,14 @@ function SectionLabel({ children }) {
   return <div className="mb-2.5 text-xs font-bold uppercase" style={{ color: C.muted, letterSpacing: "0.08em" }}>{children}</div>;
 }
 
-function LeftSlideNav({ slides, current, onSelect, accent }) {
+function LeftSlideNav({ slides, current, onSelect, accent, pendingIds }) {
   return (
     <div className="lg:sticky lg:top-6 lg:w-[190px] lg:shrink-0">
       <SectionLabel>このLessonのページ</SectionLabel>
       <div className="space-y-1">
         {slides.map((slide, i) => {
           const active = i === current;
+          const pending = pendingIds?.has(slide.id);
           return (
             <button
               key={slide.id || i}
@@ -76,7 +87,14 @@ function LeftSlideNav({ slides, current, onSelect, accent }) {
               >
                 {i + 1}
               </span>
-              <span className="truncate">{slide.navLabel || slide.title}</span>
+              <span className="min-w-0 flex-1 truncate">{slide.navLabel || slide.title}</span>
+              {pending && (
+                <span
+                  className="h-1.5 w-1.5 shrink-0 rounded-full"
+                  style={{ background: active ? "#fff" : T.warning }}
+                  title="演習が未提出です"
+                />
+              )}
             </button>
           );
         })}
@@ -854,24 +872,28 @@ export function SlideRenderer({ slide, accent, lrn, courseId, lessonId }) {
       return (
         <div>
           <h3 className="mb-4 text-xl font-bold" style={{ color: C.ink, letterSpacing: "-0.02em" }}>{slide.title}</h3>
-          <table className="w-full border-collapse overflow-hidden rounded-xl text-sm" style={{ border: `1px solid ${C.line}` }}>
-            <thead>
-              <tr>
-                {(content.columns || []).map(col => (
-                  <th key={col} className="px-3 py-2 text-left text-xs font-bold" style={{ background: T.bgBase, color: C.muted, borderBottom: `1px solid ${C.line}` }}>{col}</th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {(content.rows || []).map((row, ri) => (
-                <tr key={ri}>
-                  {row.map((cell, i) => (
-                    <td key={i} className="px-3 py-2.5" style={{ color: i === 0 ? C.ink : C.body, fontWeight: i === 0 ? 700 : 400, borderBottom: `1px solid ${C.line}` }}>{cell}</td>
+          {/* モバイル390px等、列数の多い表は横幅が入りきらないことがあるため、テーブルだけを
+              overflow-x-autoでスクロール可能にし、ページ全体の横スクロールを防ぐ。 */}
+          <div className="overflow-x-auto rounded-xl" style={{ border: `1px solid ${C.line}` }}>
+            <table className="w-full min-w-[480px] border-collapse text-sm">
+              <thead>
+                <tr>
+                  {(content.columns || []).map(col => (
+                    <th key={col} className="px-3 py-2 text-left text-xs font-bold" style={{ background: T.bgBase, color: C.muted, borderBottom: `1px solid ${C.line}` }}>{col}</th>
                   ))}
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {(content.rows || []).map((row, ri) => (
+                  <tr key={ri}>
+                    {row.map((cell, i) => (
+                      <td key={i} className="px-3 py-2.5" style={{ color: i === 0 ? C.ink : C.body, fontWeight: i === 0 ? 700 : 400, borderBottom: `1px solid ${C.line}` }}>{cell}</td>
+                    ))}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         </div>
       );
     case "video":
@@ -954,7 +976,12 @@ function MainSlidePanel({ slides, index, setIndex, accent, lrn, courseId, lesson
         >
           <ChevronLeft size={14} />前へ
         </button>
-        <span className="text-xs font-semibold tabular-nums" style={{ color: C.body }}>{index + 1} / {slides.length}</span>
+        <span className="text-xs font-semibold tabular-nums" style={{ color: C.body }}>
+          {index + 1} / {slides.length}
+          {index < slides.length - 1 && (
+            <span className="ml-1.5 font-normal" style={{ color: C.muted }}>（残り{slides.length - index - 1}枚）</span>
+          )}
+        </span>
         <button
           type="button"
           onClick={() => setIndex(i => Math.min(slides.length - 1, i + 1))}
@@ -1122,6 +1149,13 @@ export default function ElSlideLessonView({ course, lesson, lrn, onBack, onNavig
   const prev = idx > 0 ? lessons[idx - 1] : null;
   const next = idx < lessons.length - 1 ? lessons[idx + 1] : null;
 
+  // 演習未提出の明示（フェーズ4）。既存の一括取得フック(lrn.getExerciseSubmissionsForLesson)を使い、
+  // スライドごとの個別リクエストを増やさない。
+  const exerciseSubmissions = lrn?.getExerciseSubmissionsForLesson ? lrn.getExerciseSubmissionsForLesson(course.id, lesson.id) : [];
+  const submittedSlideIds = new Set(exerciseSubmissions.map(s => s.slideId));
+  const pendingSlides = slides.filter(s => slideNeedsSubmission(s) && !submittedSlideIds.has(s.id));
+  const pendingIds = new Set(pendingSlides.map(s => s.id));
+
   function handleComplete() {
     onComplete(course.id, lesson.id);
     if (next) onNavigate(next);
@@ -1140,8 +1174,24 @@ export default function ElSlideLessonView({ course, lesson, lrn, onBack, onNavig
         className="mb-5"
       />
 
+      {pendingSlides.length > 0 && (
+        <div className="mb-5 flex flex-wrap items-center justify-between gap-3 rounded-xl px-4 py-2.5" style={{ background: T.warningSubtle, border: `1px solid ${T.warning}30` }}>
+          <span className="flex items-center gap-2 text-xs font-semibold" style={{ color: T.warning }}>
+            <AlertCircle size={14} />未提出の演習が{pendingSlides.length}件あります
+          </span>
+          <button
+            type="button"
+            onClick={() => setSlideIndex(slides.findIndex(s => s.id === pendingSlides[0].id))}
+            className="text-xs font-bold underline"
+            style={{ color: T.warning }}
+          >
+            該当ページへ移動
+          </button>
+        </div>
+      )}
+
       <div className="flex flex-col gap-8 lg:flex-row lg:items-start">
-        <LeftSlideNav slides={slides} current={slideIndex} onSelect={setSlideIndex} accent={accent} />
+        <LeftSlideNav slides={slides} current={slideIndex} onSelect={setSlideIndex} accent={accent} pendingIds={pendingIds} />
         <MainSlidePanel slides={slides} index={slideIndex} setIndex={setSlideIndex} accent={accent} lrn={lrn} courseId={course.id} lessonId={lesson.id} />
         <RightSidebar course={course} lesson={lesson} lrn={lrn} idx={idx} lessons={lessons} accent={accent} compact={rightCompact} onToggle={() => setRightCompact(v => !v)} />
       </div>

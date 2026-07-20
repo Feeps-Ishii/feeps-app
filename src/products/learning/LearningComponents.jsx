@@ -1266,10 +1266,14 @@ function ElCourseDetail({ course, lrn, onBack, onOpenLesson, onStartFinalTest, o
 }
 
 // レッスン本文(Markdown)。text/video 両方の Lesson タイプで共通に使う。
+// フェーズ4(見た目・操作性)で可読性を強化: 従来はTailwindのpreflightで見出し/リスト/コードの
+// 既定スタイルが打ち消され、AI生成教材のMarkdown(見出し・箇条書き・コードブロック等)が
+// ただの同じ大きさの文字の塊に見えていた。.feeps-lesson-md(index.css)で構造だけ復元し、
+// 色・トークンはこれまで通り呼び出し側のinline style(color: C.body)に委ねる。
 function LessonBodyText({ body }) {
   if (!body) return null;
   return (
-    <div className="mb-5 text-sm leading-relaxed" style={{ color: C.body }}>
+    <div className="feeps-lesson-md mb-5 text-[15px] leading-[1.85]" style={{ color: C.body }}>
       <ReactMarkdown>{body}</ReactMarkdown>
     </div>
   );
