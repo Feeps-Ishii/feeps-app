@@ -1,5 +1,5 @@
 import {
-  Building2, CalendarClock, FileText, LayoutDashboard, Upload, Users,
+  Building2, CalendarClock, FileText, LayoutDashboard, Percent, Upload, Users,
 } from "lucide-react";
 
 // 対象ロールはadmin/clientのみ（instructor/traineeはこのProduct自体に到達不可、
@@ -13,6 +13,7 @@ export const GRANTS_NAV = {
       ["gr_list",         "助成金申請",           FileText],
       ["gr_documents",    "提出書類",             Upload],
       ["gr_reservations", "予約",                 CalendarClock],
+      ["gr_rate_master",  "助成金マスタ",         Percent],
     ]},
   ],
   client: [
@@ -33,6 +34,7 @@ export const GRANTS_HOME_CARDS = [
   { key: "gr_list",         icon: FileText,      label: "助成金申請",         desc: "申請の一覧・進捗・ステータスを管理します。" },
   { key: "gr_documents",    icon: Upload,        label: "提出書類",           desc: "申請ごとの提出書類をアップロード・確認・審査します。" },
   { key: "gr_reservations", icon: CalendarClock, label: "予約",               desc: "個社面談・成果報告会の予約を管理します。" },
+  { key: "gr_rate_master",  icon: Percent,       label: "助成金マスタ",       desc: "年度・区分ごとの助成率・単価・上限額を管理します。", adminOnly: true },
 ];
 
 // ---- 助成金申請 ----
@@ -150,12 +152,23 @@ export function itExperienceLabel(value) {
   return IT_EXPERIENCE_OPTIONS.find(o => o.value === value)?.label || (value ? value : "未設定");
 }
 
-// 企業プロフィールのうち、実装済みgrants.mjsはフィールドレベルの権限を分けていないが
-// （§12-1設計上はadmin編集のみとされる項目）、法令・行政手続きに関わる確定情報の
-// 誤入力を防ぐため、UI側でclientには読み取り専用とするガードを設ける。
-export const COMPANY_ADMIN_ONLY_FIELDS = [
-  "corporateNumber", "capitalAmount", "employeeCount", "standardWorkingHours", "trainingWorkingHours",
+// 2026-07-20ユーザー決定: 企業プロフィールは法人番号・資本金等の確定情報も含め、
+// 企業担当者（client）が自社分に限り全フィールドを編集できる（従来はadmin専用に制限、
+// release-audit-2026-07-20.md D.1参照。Backend grants.mjs companyUpdate()も同時に緩和済み）。
+// 更新者・更新日時・更新者ロールはBackendが記録し、GET /grants/company-profile が返す
+// updatedAt/updatedByRoleで画面に表示する。
+
+export const ENTERPRISE_SIZE_OPTIONS = [
+  { value: "sme", label: "中小企業" },
+  { value: "large", label: "大企業（中小企業以外）" },
 ];
+export function enterpriseSizeLabel(value) {
+  return ENTERPRISE_SIZE_OPTIONS.find(o => o.value === value)?.label || (value ? value : "未設定");
+}
+
+// ---- 年度別マスタ（助成率・単価・上限額。/grants/rate-master、admin専用） ----
+export const RATE_MASTER_COMPANY_SIZE_OPTIONS = ENTERPRISE_SIZE_OPTIONS;
+export const RATE_MASTER_APPLICATION_TYPE_OPTIONS = APPLICATION_TYPE_OPTIONS;
 
 export const EMPTY_GRANT_FORM = {
   companyId: "", courseId: "", grantType: "", applicationType: "off_the_job",

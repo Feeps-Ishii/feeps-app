@@ -6,13 +6,14 @@ import {
 import {
   APPLICATION_TYPE_OPTIONS, applicationTypeLabel, DOCUMENT_TYPE_SUGGESTIONS, documentStatusLabel,
   documentStatusTone, EMPLOYMENT_TYPE_OPTIONS, employmentTypeLabel, EMPTY_GRANT_FORM, EMPTY_RESERVATION_FORM,
-  FORM_TYPE_OPTIONS, GRADUATE_STATUS_OPTIONS, graduateStatusLabel, GRANT_STATUS_OPTIONS, GRANT_TYPE_SUGGESTIONS,
-  GRANTS_HOME_CARDS, grantStatusLabel, grantStatusTone, IT_EXPERIENCE_OPTIONS, itExperienceLabel,
+  ENTERPRISE_SIZE_OPTIONS, FORM_TYPE_OPTIONS, GRADUATE_STATUS_OPTIONS, graduateStatusLabel, GRANT_STATUS_OPTIONS,
+  GRANT_TYPE_SUGGESTIONS, GRANTS_HOME_CARDS, grantStatusLabel, grantStatusTone, IT_EXPERIENCE_OPTIONS,
+  itExperienceLabel, RATE_MASTER_APPLICATION_TYPE_OPTIONS, RATE_MASTER_COMPANY_SIZE_OPTIONS,
   RESERVATION_TYPE_OPTIONS, reservationStatusLabel, reservationStatusTone, reservationTypeLabel,
 } from "./GrantsCatalog.js";
 import {
   useCompanyCourses, useCompanyProfile, useCompanyTrainees, useGrantCompanies, useGrantDocuments,
-  useGrantExports, useGrantsList, useReservations,
+  useGrantExports, useGrantsList, useRateMaster, useRateMasterYears, useReservations,
 } from "./useGrants.js";
 import {
   Avatar, Badge, Btn, Card, EmptyState, Field, fieldStyle, Modal, PageHeader, PrismErrorRetryCard,
@@ -93,7 +94,7 @@ export function GrantsHome({ goSub, role = "client", themeColor = "#C9A227" }) {
       />
       {gError && <PrismErrorRetryCard message={gError} onRetry={gReload} />}
       <div className="grid gap-4 md:grid-cols-3">
-        {GRANTS_HOME_CARDS.map((c, i) => (
+        {GRANTS_HOME_CARDS.filter(c => !c.adminOnly || role === "admin").map((c, i) => (
           <ProductNavCard key={c.key} product="grants" icon={c.icon} title={c.label} desc={c.desc}
             onClick={() => goSub(c.key)} highlight={i === 0} badge={i === 0 ? "よく使う" : undefined} delay={650 + i * 60} />
         ))}
@@ -142,6 +143,8 @@ function BranchEditor({ branches, onChange }) {
 function companyFormToPayload(form) {
   const payload = { ...form };
   delete payload.companyId;
+  delete payload.updatedAt;
+  delete payload.updatedByRole;
   ["capitalAmount", "employeeCount"].forEach(k => {
     if (payload[k] === "" || payload[k] === null || payload[k] === undefined) delete payload[k];
     else payload[k] = Number(payload[k]);
@@ -178,7 +181,7 @@ export function CompanyProfileView({ role }) {
 
   return (
     <div>
-      <SectionHead title="企業プロフィール" desc="助成金申請の基礎情報となる企業情報です。法人番号・資本金・代表者等の確定情報は管理者のみ編集できます（Backend側でも制限済み）。" />
+      <SectionHead title="企業プロフィール" desc="助成金申請の基礎情報となる企業情報です。法人番号・代表者等の確定情報も含め、自社分は企業担当者が編集できます。行政手続きに使う情報のため、入力内容は正確にご確認のうえ保存してください。" />
       {isAdmin && <CompanySelector companies={companies} loading={companiesLoading} value={companyId} onChange={setCompanyId} />}
       {isAdmin && !companyId ? (
         <Card><EmptyState icon={Building2} title="企業を選択してください" desc="対象企業を選ぶとプロフィールが表示されます。" /></Card>
@@ -196,10 +199,9 @@ export function CompanyProfileView({ role }) {
                 <Field label="会社名"><input value={form.name} onChange={e => set("name", e.target.value)} style={fieldStyle} /></Field>
                 <Field label="住所"><input value={form.address} onChange={e => set("address", e.target.value)} style={fieldStyle} /></Field>
                 <Field label="TEL"><input value={form.tel} onChange={e => set("tel", e.target.value)} style={fieldStyle} /></Field>
-                <Field label="代表者役職"><input value={form.representativeTitle} onChange={e => set("representativeTitle", e.target.value)} disabled={!isAdmin} style={fieldStyle} /></Field>
-                <Field label="代表者氏名"><input value={form.representativeName} onChange={e => set("representativeName", e.target.value)} disabled={!isAdmin} style={fieldStyle} /></Field>
+                <Field label="代表者役職"><input value={form.representativeTitle} onChange={e => set("representativeTitle", e.target.value)} style={fieldStyle} /></Field>
+                <Field label="代表者氏名"><input value={form.representativeName} onChange={e => set("representativeName", e.target.value)} style={fieldStyle} /></Field>
               </div>
-              {!isAdmin && <div className="mt-2 rounded-lg px-3 py-2 text-xs" style={{ background: T.bgBase, color: T.textMuted }}>代表者情報は管理者のみ編集できます。</div>}
             </div>
             <div>
               <div className="mb-2 text-xs font-bold uppercase" style={{ color: T.textMuted, letterSpacing: "0.06em" }}>担当者</div>
@@ -212,13 +214,19 @@ export function CompanyProfileView({ role }) {
             <div>
               <div className="mb-2 text-xs font-bold uppercase" style={{ color: T.textMuted, letterSpacing: "0.06em" }}>助成金向け項目</div>
               <div className="grid gap-3 sm:grid-cols-3">
-                <Field label="法人番号（13桁）"><input value={form.corporateNumber} onChange={e => set("corporateNumber", e.target.value)} disabled={!isAdmin} style={fieldStyle} /></Field>
-                <Field label="資本金（円）"><input type="number" min="0" value={form.capitalAmount ?? ""} onChange={e => set("capitalAmount", e.target.value)} disabled={!isAdmin} style={fieldStyle} /></Field>
-                <Field label="従業員数"><input type="number" min="0" value={form.employeeCount ?? ""} onChange={e => set("employeeCount", e.target.value)} disabled={!isAdmin} style={fieldStyle} /></Field>
-                <Field label="通常就業時間"><input value={form.standardWorkingHours} onChange={e => set("standardWorkingHours", e.target.value)} disabled={!isAdmin} style={fieldStyle} placeholder="09:00-18:00" /></Field>
-                <Field label="研修中就業時間"><input value={form.trainingWorkingHours} onChange={e => set("trainingWorkingHours", e.target.value)} disabled={!isAdmin} style={fieldStyle} placeholder="09:00-17:00" /></Field>
+                <Field label="法人番号（13桁）"><input value={form.corporateNumber} onChange={e => set("corporateNumber", e.target.value)} style={fieldStyle} /></Field>
+                <Field label="資本金（円）"><input type="number" min="0" value={form.capitalAmount ?? ""} onChange={e => set("capitalAmount", e.target.value)} style={fieldStyle} /></Field>
+                <Field label="従業員数"><input type="number" min="0" value={form.employeeCount ?? ""} onChange={e => set("employeeCount", e.target.value)} style={fieldStyle} /></Field>
+                <Field label="通常就業時間"><input value={form.standardWorkingHours} onChange={e => set("standardWorkingHours", e.target.value)} style={fieldStyle} placeholder="09:00-18:00" /></Field>
+                <Field label="研修中就業時間"><input value={form.trainingWorkingHours} onChange={e => set("trainingWorkingHours", e.target.value)} style={fieldStyle} placeholder="09:00-17:00" /></Field>
+                <Field label="企業規模区分（自己申告）">
+                  <select value={form.enterpriseSize || ""} onChange={e => set("enterpriseSize", e.target.value)} style={fieldStyle}>
+                    <option value="">未設定</option>
+                    {ENTERPRISE_SIZE_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+                  </select>
+                </Field>
               </div>
-              {!isAdmin && <div className="mt-2 rounded-lg px-3 py-2 text-xs" style={{ background: T.bgBase, color: T.textMuted }}>法人番号・資本金・従業員数・就業時間は管理者のみ編集できます。</div>}
+              <div className="mt-2 rounded-lg px-3 py-2 text-xs" style={{ background: T.bgBase, color: T.textMuted }}>企業規模区分は助成率・上限額の判定に使う自己申告項目です（支給要領の定義に沿って選択してください）。</div>
               <div className="mt-3 grid gap-3 sm:grid-cols-2">
                 <Field label="助成金担当者役職"><input value={form.grantContactTitle} onChange={e => set("grantContactTitle", e.target.value)} style={fieldStyle} /></Field>
                 <Field label="助成金担当者氏名"><input value={form.grantContactName} onChange={e => set("grantContactName", e.target.value)} style={fieldStyle} /></Field>
@@ -227,9 +235,14 @@ export function CompanyProfileView({ role }) {
               </div>
             </div>
             <BranchEditor branches={form.branches} onChange={b => set("branches", b)} />
-            <div className="flex items-center justify-end gap-3 border-t pt-4" style={{ borderColor: T.border }}>
-              {saved && <span className="text-xs font-semibold" style={{ color: T.success }}>保存しました</span>}
-              <Btn icon={Check} onClick={submit} disabled={saving}>{saving ? "保存中…" : "保存する"}</Btn>
+            <div className="flex flex-wrap items-center justify-between gap-3 border-t pt-4" style={{ borderColor: T.border }}>
+              <span className="text-xs" style={{ color: T.textMuted }}>
+                {form.updatedAt ? `最終更新: ${form.updatedAt.slice(0, 19).replace("T", " ")}${form.updatedByRole ? `（${form.updatedByRole === "admin" ? "管理者" : "企業担当者"}）` : ""}` : "未保存"}
+              </span>
+              <div className="flex items-center gap-3">
+                {saved && <span className="text-xs font-semibold" style={{ color: T.success }}>保存しました</span>}
+                <Btn icon={Check} onClick={submit} disabled={saving}>{saving ? "保存中…" : "保存する"}</Btn>
+              </div>
             </div>
           </div>
         </Card>
@@ -1015,6 +1028,141 @@ export function ReservationManager({ role }) {
           footer={<><Btn kind="ghost" onClick={() => setCreating(false)} disabled={saving}>キャンセル</Btn><Btn icon={Check} onClick={submit} disabled={saving || !form.scheduledAt || (isAdmin && !form.companyId)}>{saving ? "登録中…" : "登録する"}</Btn></>}>
           <ReservationForm form={form} onChange={setForm} isAdmin={isAdmin} companies={companies} courses={courses} trainees={trainees} />
         </Modal>
+      )}
+    </div>
+  );
+}
+
+// ================= 助成金マスタ（年度別・助成率/単価/上限額。admin専用） =================
+function emptyRateCategoryForm() {
+  return {
+    wageSubsidyHourlyRate: "", expenseSubsidyRateRegular: "", expenseSubsidyRateFixedTerm: "",
+    expenseSubsidyCapPerPerson: "", sourceNote: "",
+  };
+}
+
+function RateCategoryCard({ title, category, onSave, saving }) {
+  const [form, setForm] = useState(emptyRateCategoryForm());
+  const [saved, setSaved] = useState(false);
+
+  useEffect(() => {
+    setForm({
+      wageSubsidyHourlyRate: category?.wageSubsidyHourlyRate ?? "",
+      expenseSubsidyRateRegular: category?.expenseSubsidyRateRegular ?? "",
+      expenseSubsidyRateFixedTerm: category?.expenseSubsidyRateFixedTerm ?? "",
+      expenseSubsidyCapPerPerson: category?.expenseSubsidyCapPerPerson ?? "",
+      sourceNote: category?.sourceNote || "",
+    });
+  }, [category]);
+
+  function set(k, v) { setForm(f => ({ ...f, [k]: v })); }
+
+  async function submit() {
+    const payload = {};
+    ["wageSubsidyHourlyRate", "expenseSubsidyRateRegular", "expenseSubsidyRateFixedTerm", "expenseSubsidyCapPerPerson"].forEach(k => {
+      payload[k] = form[k] === "" ? null : Number(form[k]);
+    });
+    payload.sourceNote = form.sourceNote;
+    try {
+      await onSave(payload);
+      setSaved(true);
+      window.setTimeout(() => setSaved(false), 2000);
+    } catch (e) { /* actionErrorは親側で表示済み */ }
+  }
+
+  return (
+    <Card className="p-4">
+      <div className="mb-3 flex items-center justify-between">
+        <div className="text-sm font-bold" style={{ color: T.textPrimary }}>{title}</div>
+        {category?.updatedAt && (
+          <span className="text-[11px]" style={{ color: T.textMuted }}>
+            更新: {String(category.updatedAt).slice(0, 10)}{category.updatedByRole ? `（${category.updatedByRole === "admin" ? "管理者" : category.updatedByRole}）` : ""}
+          </span>
+        )}
+      </div>
+      <div className="grid gap-3 sm:grid-cols-2">
+        <Field label="賃金助成単価（円/時）">
+          <input type="number" min="0" value={form.wageSubsidyHourlyRate} onChange={e => set("wageSubsidyHourlyRate", e.target.value)} style={fieldStyle} placeholder="例: 800" />
+        </Field>
+        <Field label="経費助成率・正規雇用労働者等（%）">
+          <input type="number" min="0" max="100" value={form.expenseSubsidyRateRegular} onChange={e => set("expenseSubsidyRateRegular", e.target.value)} style={fieldStyle} placeholder="例: 45" />
+        </Field>
+        <Field label="経費助成率・有期契約労働者等（%）">
+          <input type="number" min="0" max="100" value={form.expenseSubsidyRateFixedTerm} onChange={e => set("expenseSubsidyRateFixedTerm", e.target.value)} style={fieldStyle} placeholder="例: 70" />
+        </Field>
+        <Field label="経費助成上限額（円/人）">
+          <input type="number" min="0" step="10000" value={form.expenseSubsidyCapPerPerson} onChange={e => set("expenseSubsidyCapPerPerson", e.target.value)} style={fieldStyle} placeholder="例: 150000" />
+        </Field>
+      </div>
+      <div className="mt-3">
+        <Field label="根拠（支給要領の版・確認日等、任意）">
+          <input value={form.sourceNote} onChange={e => set("sourceNote", e.target.value)} style={fieldStyle} placeholder="例: 令和7年度4月版 支給要領で確認（2026-07-20）" />
+        </Field>
+      </div>
+      <div className="mt-3 flex items-center justify-end gap-3">
+        {saved && <span className="text-xs font-semibold" style={{ color: T.success }}>保存しました</span>}
+        <Btn size="sm" icon={Check} onClick={submit} disabled={saving}>{saving ? "保存中…" : "保存する"}</Btn>
+      </div>
+    </Card>
+  );
+}
+
+export function GrantRateMaster({ role }) {
+  if (role !== "admin") return null;
+  const thisFiscalYear = (() => {
+    const now = new Date();
+    return now.getMonth() + 1 >= 4 ? now.getFullYear() : now.getFullYear() - 1;
+  })();
+  const { items: years, loading: yearsLoading, error: yearsError, reload: reloadYears } = useRateMasterYears(true);
+  const [fiscalYear, setFiscalYear] = useState(thisFiscalYear);
+  const { master, loading, error, actionError, clearActionError, reload, saveCategory } = useRateMaster(fiscalYear, true);
+  const [savingKey, setSavingKey] = useState("");
+
+  async function handleSave(applicationType, companySize, payload) {
+    setSavingKey(`${applicationType}:${companySize}`);
+    try {
+      await saveCategory(applicationType, companySize, payload);
+      await reloadYears();
+    } finally {
+      setSavingKey("");
+    }
+  }
+
+  return (
+    <div>
+      <SectionHead title="助成金マスタ" desc="Excel帳票の差し込みに使う、年度・区分ごとの助成率・単価・上限額を管理します。値は未確定のままでも構いません（最新の支給要領を確認のうえ入力してください）。未入力の区分は帳票生成時にテンプレの参考値のまま出力されます。" />
+      <div className="mb-4 flex flex-wrap items-center gap-2">
+        <span className="text-xs font-semibold" style={{ color: T.textMuted }}>対象年度</span>
+        <input type="number" value={fiscalYear} onChange={e => setFiscalYear(Number(e.target.value) || thisFiscalYear)}
+          style={{ ...fieldStyle, width: "auto", minWidth: 120 }} />
+        {!yearsLoading && years.length > 0 && (
+          <select value="" onChange={e => { if (e.target.value) setFiscalYear(Number(e.target.value)); }} style={{ ...fieldStyle, width: "auto" }}>
+            <option value="">登録済み年度から選ぶ…</option>
+            {years.map(y => <option key={y.fiscalYear} value={y.fiscalYear}>{y.fiscalYear}年度</option>)}
+          </select>
+        )}
+      </div>
+      {yearsError && <PrismErrorRetryCard message={yearsError} onRetry={reloadYears} />}
+      <ErrorBanner message={actionError} onClose={clearActionError} />
+      {error ? (
+        <PrismErrorRetryCard message={error} onRetry={reload} />
+      ) : loading || !master ? (
+        <Card className="p-5"><SkeletonRows rows={6} /></Card>
+      ) : (
+        <div className="grid gap-4 md:grid-cols-2">
+          {RATE_MASTER_APPLICATION_TYPE_OPTIONS.flatMap(at => RATE_MASTER_COMPANY_SIZE_OPTIONS.map(size => {
+            const key = `${at.value}:${size.value}`;
+            return (
+              <RateCategoryCard
+                key={key}
+                title={`${at.label} / ${size.label}`}
+                category={master.categories?.[at.value]?.[size.value]}
+                saving={savingKey === key}
+                onSave={payload => handleSave(at.value, size.value, payload)}
+              />
+            );
+          }))}
+        </div>
       )}
     </div>
   );

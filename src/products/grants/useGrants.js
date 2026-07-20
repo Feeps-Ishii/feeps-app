@@ -269,6 +269,57 @@ export function useGrantExports(grantId) {
   return { generate, generating, error, clearError: () => setError(""), lastResult, clearLastResult: () => setLastResult(null) };
 }
 
+// ---- 年度別マスタ（助成率・単価・上限額、admin専用。/grants/rate-master） ----
+export function useRateMasterYears(enabled = true) {
+  const [items, setItems] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+
+  const load = useCallback(() => {
+    if (!enabled) { setItems([]); setLoading(false); setError(""); return Promise.resolve(); }
+    setLoading(true); setError("");
+    return apiGet("/grants/rate-master")
+      .then(res => setItems(Array.isArray(res?.items) ? res.items : []))
+      .catch(e => setError(apiErrorMessage(e, "助成金マスタの年度一覧を確認できません。")))
+      .finally(() => setLoading(false));
+  }, [enabled]);
+
+  useEffect(() => { load(); }, [load]);
+
+  return { items, loading, error, reload: load };
+}
+
+export function useRateMaster(fiscalYear, enabled = true) {
+  const [master, setMaster] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+  const [actionError, setActionError] = useState("");
+
+  const load = useCallback(() => {
+    if (!enabled || !fiscalYear) { setMaster(null); setLoading(false); setError(""); return Promise.resolve(); }
+    setLoading(true); setError("");
+    return apiGet(`/grants/rate-master/${encodeURIComponent(fiscalYear)}`)
+      .then(res => setMaster(res))
+      .catch(e => setError(apiErrorMessage(e, "助成金マスタを確認できません。")))
+      .finally(() => setLoading(false));
+  }, [enabled, fiscalYear]);
+
+  useEffect(() => { load(); }, [load]);
+
+  async function saveCategory(applicationType, companySize, payload) {
+    try {
+      const res = await apiPut(`/grants/rate-master/${encodeURIComponent(fiscalYear)}`, { applicationType, companySize, ...payload });
+      await load();
+      return res;
+    } catch (e) {
+      setActionError(apiErrorMessage(e, "助成金マスタの保存に失敗しました。"));
+      throw e;
+    }
+  }
+
+  return { master, loading, error, actionError, clearActionError: () => setActionError(""), reload: load, saveCategory };
+}
+
 // ---- 個社面談・成果報告会予約（/grant-reservations） ----
 export function useReservations(params = {}, enabled = true) {
   const { companyId, courseId, from, to } = params;

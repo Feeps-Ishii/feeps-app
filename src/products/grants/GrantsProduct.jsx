@@ -2,6 +2,7 @@ import React, { useState } from "react";
 import {
   CompanyProfileView,
   GrantDocuments,
+  GrantRateMaster,
   GrantsHome,
   GrantsManager,
   ReservationManager,
@@ -29,6 +30,9 @@ export default function GrantsProduct({ subView, goSub, role, themeColor }) {
     gr_list: <GrantsManager role={role} onOpenDocuments={openDocuments} />,
     gr_documents: <GrantDocuments role={role} initialGrantId={activeGrantId} onGrantConsumed={() => setActiveGrantId("")} />,
     gr_reservations: <ReservationManager role={role} />,
+    // admin専用画面。client等が直接subViewを指定してもGrantRateMaster自体がrole!=="admin"でnullを返す
+    // 二重防御（nav側もGRANTS_NAV.adminにのみ登録）。
+    gr_rate_master: <GrantRateMaster role={role} />,
   };
   return screens[subView] || screens.gr_home;
 }
