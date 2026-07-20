@@ -6,13 +6,13 @@ import {
 import {
   APPLICATION_TYPE_OPTIONS, applicationTypeLabel, DOCUMENT_TYPE_SUGGESTIONS, documentStatusLabel,
   documentStatusTone, EMPLOYMENT_TYPE_OPTIONS, employmentTypeLabel, EMPTY_GRANT_FORM, EMPTY_RESERVATION_FORM,
-  GRADUATE_STATUS_OPTIONS, graduateStatusLabel, GRANT_STATUS_OPTIONS, GRANT_TYPE_SUGGESTIONS, GRANTS_HOME_CARDS,
-  grantStatusLabel, grantStatusTone, IT_EXPERIENCE_OPTIONS, itExperienceLabel, RESERVATION_TYPE_OPTIONS,
-  reservationStatusLabel, reservationStatusTone, reservationTypeLabel,
+  FORM_TYPE_OPTIONS, GRADUATE_STATUS_OPTIONS, graduateStatusLabel, GRANT_STATUS_OPTIONS, GRANT_TYPE_SUGGESTIONS,
+  GRANTS_HOME_CARDS, grantStatusLabel, grantStatusTone, IT_EXPERIENCE_OPTIONS, itExperienceLabel,
+  RESERVATION_TYPE_OPTIONS, reservationStatusLabel, reservationStatusTone, reservationTypeLabel,
 } from "./GrantsCatalog.js";
 import {
   useCompanyCourses, useCompanyProfile, useCompanyTrainees, useGrantCompanies, useGrantDocuments,
-  useGrantsList, useReservations,
+  useGrantExports, useGrantsList, useReservations,
 } from "./useGrants.js";
 import {
   Avatar, Badge, Btn, Card, EmptyState, Field, fieldStyle, Modal, PageHeader, PrismErrorRetryCard,
@@ -704,6 +704,58 @@ function DocumentUploadForm({ onUpload, uploading, uploadError }) {
   );
 }
 
+// 助成金帳票のアプリ内Excel生成（POST /grants/{id}/exports）。生成物は書類一覧（下のCard）に
+// 自動生成書類として追加されるため、ここでは生成トリガーと直近結果（missingFields等）のみ表示する。
+function GrantExportPanel({ grantId, onGenerated }) {
+  const { generate, generating, error, clearError, lastResult } = useGrantExports(grantId);
+  const [formType, setFormType] = useState(FORM_TYPE_OPTIONS[0].value);
+
+  async function handleGenerate() {
+    clearError();
+    try {
+      await generate(formType);
+      onGenerated && onGenerated();
+    } catch (e) { /* エラーはuseGrantExports側のerrorに表示済み */ }
+  }
+
+  return (
+    <Card className="p-4">
+      <div className="mb-1 text-sm font-bold" style={{ color: T.textPrimary }}>Excel帳票を生成</div>
+      <div className="mb-3 text-xs" style={{ color: T.textMuted }}>
+        実テンプレートにLMSデータを差し込んで生成します。率・単価・署名・賃金台帳等はLMSに保持していないため空欄のままです。生成後はExcel上で確認・補完してください。
+      </div>
+      <div className="flex flex-wrap items-end gap-3">
+        <div className="min-w-[260px] flex-1">
+          <Field label="帳票種別">
+            <select value={formType} onChange={e => setFormType(e.target.value)} style={fieldStyle} disabled={generating}>
+              {FORM_TYPE_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+            </select>
+          </Field>
+        </div>
+        <Btn size="sm" icon={FileText} onClick={handleGenerate} disabled={generating}>{generating ? "生成中…" : "生成する"}</Btn>
+      </div>
+      {error && <div className="mt-2 rounded-lg px-3 py-2 text-xs" style={{ background: T.dangerSubtle, color: T.danger }}>{error}</div>}
+      {lastResult && (
+        <div className="mt-3 space-y-2">
+          {lastResult.files.length === 0
+            ? <div className="rounded-lg px-3 py-2 text-xs" style={{ background: T.warningSubtle, color: T.warning }}>
+                生成できるファイルがありませんでした。{lastResult.missingFields?.[0]?.label || "対象データを確認してください。"}
+              </div>
+            : <div className="rounded-lg px-3 py-2 text-xs" style={{ background: T.successSubtle, color: T.success }}>
+                {lastResult.files.length}件生成しました。下の「提出書類」一覧からダウンロードできます。
+              </div>}
+          {lastResult.missingFields?.length > 0 && (
+            <div className="rounded-lg px-3 py-2 text-xs" style={{ background: T.warningSubtle, color: T.warning }}>
+              未入力項目が{lastResult.missingFields.length}件あります（空欄のまま生成済み。Excel上で手動補完してください）:
+              {" "}{lastResult.missingFields.slice(0, 8).map(f => f.label).join("、")}{lastResult.missingFields.length > 8 ? " 他" : ""}
+            </div>
+          )}
+        </div>
+      )}
+    </Card>
+  );
+}
+
 export function GrantDocuments({ role, initialGrantId, onGrantConsumed }) {
   const isAdmin = role === "admin";
   const { companies } = useGrantCompanies(isAdmin);
@@ -773,6 +825,7 @@ export function GrantDocuments({ role, initialGrantId, onGrantConsumed }) {
         <Card><EmptyState icon={Upload} title="助成金申請を選択してください" desc="申請を選ぶと提出書類が表示されます。" /></Card>
       ) : (
         <div className="space-y-4">
+          <GrantExportPanel grantId={grantId} onGenerated={reload} />
           <DocumentUploadForm onUpload={handleUpload} uploading={uploading} uploadError={uploadError} />
           <ErrorBanner message={actionError} onClose={clearActionError} />
           <Card className="overflow-hidden">
@@ -784,6 +837,7 @@ export function GrantDocuments({ role, initialGrantId, onGrantConsumed }) {
                   <div className="min-w-0 flex-1">
                     <div className="flex flex-wrap items-center gap-2">
                       <span className="text-sm font-bold" style={{ color: T.textPrimary }}>{d.documentType || "種別未設定"}</span>
+                      {d.source === "generated" && <Badge tone="cyan">自動生成</Badge>}
                       <Badge tone={documentStatusTone(d.status)}>{documentStatusLabel(d.status)}</Badge>
                     </div>
                     <div className="mt-0.5 flex flex-wrap gap-x-3 gap-y-0.5 text-xs" style={{ color: T.textMuted }}>
@@ -795,7 +849,7 @@ export function GrantDocuments({ role, initialGrantId, onGrantConsumed }) {
                   </div>
                   <div className="flex shrink-0 flex-wrap gap-2">
                     <Btn kind="ghost" size="sm" icon={Download} onClick={() => handleView(d.documentId)}>DL・閲覧</Btn>
-                    {isAdmin && d.status === "submitted" && <Btn kind="ghost" size="sm" icon={Check} onClick={() => { setReviewTarget(d); setReviewNote(""); }}>審査</Btn>}
+                    {isAdmin && d.status === "submitted" && d.source !== "generated" && <Btn kind="ghost" size="sm" icon={Check} onClick={() => { setReviewTarget(d); setReviewNote(""); }}>審査</Btn>}
                     {isAdmin && <Btn kind="ghost" size="sm" icon={Trash2} onClick={() => setDeleteTarget(d)}>削除</Btn>}
                   </div>
                 </div>

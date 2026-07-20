@@ -64,6 +64,17 @@ export function applicationTypeLabel(value) {
   return APPLICATION_TYPE_OPTIONS.find(o => o.value === value)?.label || value || "";
 }
 
+// ---- 帳票（アプリ内Excel生成。POST /grants/{id}/exports） ----
+export const FORM_TYPE_OPTIONS = [
+  { value: "plan", label: "計画申請（様式第1-1号）" },
+  { value: "henkou", label: "変更申請（様式第2-1号）" },
+  { value: "shikyu", label: "支給申請書類一式（様式4-1号／6-1号／12号／13号）" },
+  { value: "offjt", label: "OFF-JT実施状況報告書（様式第8-1号・xlsm、対象受講生ごとに1ファイル）" },
+];
+export function formTypeLabel(value) {
+  return FORM_TYPE_OPTIONS.find(o => o.value === value)?.label || value || "";
+}
+
 export const GRANT_TYPE_SUGGESTIONS = [
   "人材開発支援助成金（人材育成支援コース）",
   "人材開発支援助成金（教育訓練休暇等付与コース）",

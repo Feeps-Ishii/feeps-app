@@ -245,6 +245,30 @@ export function useGrantDocuments(grantId, enabled = true) {
   };
 }
 
+// ---- 帳票のアプリ内Excel生成（POST /grants/{grantId}/exports） ----
+export function useGrantExports(grantId) {
+  const [generating, setGenerating] = useState(false);
+  const [error, setError] = useState("");
+  const [lastResult, setLastResult] = useState(null); // { formType, files, missingFields }
+
+  async function generate(formType) {
+    if (!grantId || generating) return null;
+    setGenerating(true); setError(""); setLastResult(null);
+    try {
+      const res = await apiPost(`/grants/${encodeURIComponent(grantId)}/exports`, { formType });
+      setLastResult(res);
+      return res;
+    } catch (e) {
+      setError(apiErrorMessage(e, "帳票の生成に失敗しました。"));
+      throw e;
+    } finally {
+      setGenerating(false);
+    }
+  }
+
+  return { generate, generating, error, clearError: () => setError(""), lastResult, clearLastResult: () => setLastResult(null) };
+}
+
 // ---- 個社面談・成果報告会予約（/grant-reservations） ----
 export function useReservations(params = {}, enabled = true) {
   const { companyId, courseId, from, to } = params;
