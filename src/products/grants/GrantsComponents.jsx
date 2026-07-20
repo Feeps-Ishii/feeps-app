@@ -178,7 +178,7 @@ export function CompanyProfileView({ role }) {
 
   return (
     <div>
-      <SectionHead title="企業プロフィール" desc="助成金申請の基礎情報となる企業情報です。法人番号・資本金等の確定情報は管理者のみ編集できます（UI側の保護。詳細は実装メモ参照）。" />
+      <SectionHead title="企業プロフィール" desc="助成金申請の基礎情報となる企業情報です。法人番号・資本金・代表者等の確定情報は管理者のみ編集できます（Backend側でも制限済み）。" />
       {isAdmin && <CompanySelector companies={companies} loading={companiesLoading} value={companyId} onChange={setCompanyId} />}
       {isAdmin && !companyId ? (
         <Card><EmptyState icon={Building2} title="企業を選択してください" desc="対象企業を選ぶとプロフィールが表示されます。" /></Card>
@@ -196,9 +196,10 @@ export function CompanyProfileView({ role }) {
                 <Field label="会社名"><input value={form.name} onChange={e => set("name", e.target.value)} style={fieldStyle} /></Field>
                 <Field label="住所"><input value={form.address} onChange={e => set("address", e.target.value)} style={fieldStyle} /></Field>
                 <Field label="TEL"><input value={form.tel} onChange={e => set("tel", e.target.value)} style={fieldStyle} /></Field>
-                <Field label="代表者役職"><input value={form.representativeTitle} onChange={e => set("representativeTitle", e.target.value)} style={fieldStyle} /></Field>
-                <Field label="代表者氏名"><input value={form.representativeName} onChange={e => set("representativeName", e.target.value)} style={fieldStyle} /></Field>
+                <Field label="代表者役職"><input value={form.representativeTitle} onChange={e => set("representativeTitle", e.target.value)} disabled={!isAdmin} style={fieldStyle} /></Field>
+                <Field label="代表者氏名"><input value={form.representativeName} onChange={e => set("representativeName", e.target.value)} disabled={!isAdmin} style={fieldStyle} /></Field>
               </div>
+              {!isAdmin && <div className="mt-2 rounded-lg px-3 py-2 text-xs" style={{ background: T.bgBase, color: T.textMuted }}>代表者情報は管理者のみ編集できます。</div>}
             </div>
             <div>
               <div className="mb-2 text-xs font-bold uppercase" style={{ color: T.textMuted, letterSpacing: "0.06em" }}>担当者</div>
