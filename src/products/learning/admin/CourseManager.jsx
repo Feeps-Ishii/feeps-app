@@ -1,9 +1,10 @@
 import React, { useMemo, useState } from "react";
-import { BookOpen, Clock, Eye, EyeOff, ListChecks, Pencil, Plus, Save, Search, Tag, Trash2, X } from "lucide-react";
+import { BookOpen, Clock, Eye, EyeOff, History, ListChecks, Loader2, Pencil, Plus, PlayCircle, Save, Search, Tag, Trash2, X } from "lucide-react";
 import { Badge, Btn, Card, EmptyState, Field, SectionHead, SkeletonRows, Stat, fieldStyle, T, PRODUCT_ACCENT } from "../../../components/common";
 import { COURSE_CATEGORY_OPTIONS, COURSE_COLOR_OPTIONS, COURSE_LEVEL_OPTIONS, EMPTY_COURSE_FORM } from "./LearningAdminCatalog.js";
 import { courseToForm, useLearningAdmin } from "./useLearningAdmin.js";
 import AdminModal from "./AdminModal.jsx";
+import CourseWalkthroughPreview from "./CourseWalkthroughPreview.jsx";
 
 const C = { ink: T.textPrimary, body: T.textSecondary, muted: T.textMuted, line: T.border, canvas: T.bgBase, green: PRODUCT_ACCENT.learning.accent, greenW: PRODUCT_ACCENT.learning.subtle, red: T.danger };
 
@@ -77,8 +78,9 @@ function CourseForm({ mode, form, onChange, onSubmit, onCancel }) {
   );
 }
 
-function CourseRow({ course, onEdit, onOpenLessons, onTogglePublish, onDeleteRequest }) {
+function CourseRow({ course, onEdit, onOpenLessons, onTogglePublish, onPublish, onDeleteRequest, onPreview, onShowVersions, publishing }) {
   const published = course.published !== false;
+  const versioned = Number(course.publishedVersion || 0) > 0;
   return (
     <Card className="p-4">
       <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
@@ -90,6 +92,7 @@ function CourseRow({ course, onEdit, onOpenLessons, onTogglePublish, onDeleteReq
             <div className="flex flex-wrap items-center gap-2">
               <h3 className="truncate text-sm font-bold" style={{ color: C.ink }}>{course.title}</h3>
               <Badge tone={published ? "green" : "muted"}>{published ? "公開中" : "非公開"}</Badge>
+              {versioned && <Badge tone="cyan">v{course.publishedVersion}</Badge>}
             </div>
             <p className="mt-1 line-clamp-2 text-xs" style={{ color: C.body }}>{course.desc}</p>
             <div className="mt-2 flex flex-wrap items-center gap-2 text-xs" style={{ color: C.muted }}>
@@ -104,10 +107,18 @@ function CourseRow({ course, onEdit, onOpenLessons, onTogglePublish, onDeleteReq
           </div>
         </div>
         <div className="flex shrink-0 flex-wrap gap-2">
+          <Btn kind="ghost" size="sm" icon={PlayCircle} onClick={() => onPreview(course)}>プレビュー</Btn>
           <Btn kind="ghost" size="sm" icon={ListChecks} onClick={() => onOpenLessons(course)}>レッスン管理</Btn>
           <Btn kind="ghost" size="sm" icon={Pencil} onClick={() => onEdit(course)}>編集</Btn>
-          <Btn kind="ghost" size="sm" icon={published ? EyeOff : Eye} onClick={() => onTogglePublish(course.id)}>
-            {published ? "非公開" : "公開"}
+          {versioned && <Btn kind="ghost" size="sm" icon={History} onClick={() => onShowVersions(course)}>版履歴</Btn>}
+          <Btn
+            kind="ghost"
+            size="sm"
+            icon={publishing ? Loader2 : published ? EyeOff : Eye}
+            disabled={publishing}
+            onClick={() => (published ? onTogglePublish(course.id) : onPublish(course.id))}
+          >
+            {publishing ? "公開中..." : published ? "非公開にする" : "公開する"}
           </Btn>
           <Btn kind="ghost" size="sm" icon={Trash2} onClick={() => onDeleteRequest(course)}>削除</Btn>
         </div>
@@ -119,7 +130,8 @@ function CourseRow({ course, onEdit, onOpenLessons, onTogglePublish, onDeleteReq
 export default function CourseManager({ onOpenLessons = () => {} }) {
   const {
     courses, coursesLoading, coursesError, stats,
-    createCourse, updateCourse, togglePublish, deleteCourse,
+    createCourse, updateCourse, togglePublish, publishCourse, getCourseVersions, deleteCourse,
+    lessonsForCourse, quizQuestions,
     actionError, clearActionError,
   } = useLearningAdmin();
   const [query, setQuery] = useState("");
@@ -127,6 +139,23 @@ export default function CourseManager({ onOpenLessons = () => {} }) {
   const [form, setForm] = useState({ ...EMPTY_COURSE_FORM });
   const [deleteTarget, setDeleteTarget] = useState(null);
   const [formOpen, setFormOpen] = useState(false);
+  const [publishingId, setPublishingId] = useState(null);
+  const [previewCourse, setPreviewCourse] = useState(null);
+  const [versionsCourse, setVersionsCourse] = useState(null);
+  const [versionsList, setVersionsList] = useState(null); // null=未取得 | []=取得済み0件 | [...]
+
+  async function handlePublish(courseId) {
+    setPublishingId(courseId);
+    await publishCourse(courseId);
+    setPublishingId(null);
+  }
+
+  async function handleShowVersions(course) {
+    setVersionsCourse(course);
+    setVersionsList(null);
+    const versions = await getCourseVersions(course.id);
+    setVersionsList(versions);
+  }
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -233,7 +262,11 @@ export default function CourseManager({ onOpenLessons = () => {} }) {
                   onEdit={startEdit}
                   onOpenLessons={onOpenLessons}
                   onTogglePublish={togglePublish}
+                  onPublish={handlePublish}
                   onDeleteRequest={setDeleteTarget}
+                  onPreview={setPreviewCourse}
+                  onShowVersions={handleShowVersions}
+                  publishing={publishingId === course.id}
                 />
               ))}
             </div>
@@ -282,6 +315,47 @@ export default function CourseManager({ onOpenLessons = () => {} }) {
             <Btn kind="ghost" icon={Trash2} onClick={confirmDelete}>削除する</Btn>
           </div>
         </div>
+      </AdminModal>
+
+      {previewCourse && (
+        <CourseWalkthroughPreview
+          open={Boolean(previewCourse)}
+          onClose={() => setPreviewCourse(null)}
+          course={previewCourse}
+          lessons={lessonsForCourse(previewCourse.id)}
+          finalTestQuestions={quizQuestions
+            .filter(q => q.courseId === previewCourse.id && q.type === "final" && !q.deleted)
+            .map(q => ({ question: q.question, choices: q.choices, answerIndex: q.answer, explanation: q.explanation }))}
+        />
+      )}
+
+      <AdminModal
+        open={Boolean(versionsCourse)}
+        title="公開履歴"
+        desc={versionsCourse ? `「${versionsCourse.title}」の公開バージョン一覧です。` : ""}
+        onClose={() => { setVersionsCourse(null); setVersionsList(null); }}
+        width={620}
+      >
+        {versionsList === null ? (
+          <SkeletonRows rows={3} />
+        ) : versionsList.length === 0 ? (
+          <p className="text-sm" style={{ color: C.muted }}>公開履歴がありません。</p>
+        ) : (
+          <div className="space-y-2">
+            {versionsList.map(v => (
+              <div key={v.version} className="flex items-center justify-between gap-3 rounded-xl p-3" style={{ background: C.canvas, border: `1px solid ${C.line}` }}>
+                <div>
+                  <div className="text-sm font-bold" style={{ color: C.ink }}>v{v.version}</div>
+                  <div className="text-xs" style={{ color: C.muted }}>
+                    {v.publishedAt ? new Date(v.publishedAt).toLocaleString("ja-JP") : "日時不明"}
+                    {v.publishedByRole ? `・${v.publishedByRole}が公開` : ""}
+                  </div>
+                </div>
+                <div className="text-xs" style={{ color: C.muted }}>レッスン{v.lessonCount}件・総合テスト{v.finalTestQuestionCount}問</div>
+              </div>
+            ))}
+          </div>
+        )}
       </AdminModal>
     </div>
   );

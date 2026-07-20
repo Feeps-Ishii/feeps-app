@@ -1,28 +1,35 @@
 // ==========================================================================
-// AI Lesson Designer（Learning管理画面「AI Lesson Designer」タブの本体）
+// AI Lesson Designer（Learning管理画面「Learning Studio」タブの本体）
 // 目的: 「AIが教材を完成させる」のではなく「AIが講師の設計アシスタントとして
-// コース設計・Lesson構成・講師メモまでを提案する」体験。
-// ワークフローは3段階: STEP1 コース設計 → STEP2 Lesson単位のslides生成(このファイルが対応) →
-// STEP3 ページ単位の部分再生成(将来実装)。
+// コース設計・Lesson構成・演習・総合テスト・講師メモまでを提案する」体験。
+// 2026-07-21 Phase3(AIコーススタジオ強化)で分割生成を3段階へ再設計:
+//   STEP1 コース設計(構成案) → STEP2 Lesson単位のslides生成(演習系kind込み) →
+//   STEP3 総合テスト問題の生成。各段階を個別のBedrock呼び出しに保つことで29秒の同期上限に
+//   収める(旧「AI研修デザイナー」がcourse+lessons+finalTestを1回で生成しようとして
+//   出力量過多になっていた反省、docs/specs/elearning-improvement-roadmap-2026-07.md フェーズ③)。
 // STEP1では、コース情報を入力→AI生成（Bedrock実接続）→Lesson一覧表示（タイトル・
 // 概要・学習目標・講師メモ・想定時間・難易度）→「このコースを保存する」で下書きコースとして
 // 保存、まで動作する。保存は既存のcreateCourseAwaitingApi/createLessonAwaitingApi
 // （useLearningAdmin.js）をそのまま呼ぶだけで、新しい保存の仕組み・本格編集UIは作らない。
-// 保存後もpublished:falseの下書きのままで、公開は既存の管理画面（LessonManager.jsx等）で行う運用。
-// 各Lessonカードの「このLessonを生成」ボタン（STEP2）は、concept/diagram/table/summary/
-// quiz(選択式)の5kindのみをBedrockで生成する(ADR 0005)。生成結果はコース保存前の
-// result.lessons[i].slidesに保持され、まだDBには保存されない。「このコースを保存する」を
-// 押した時に、STEP1の他フィールドと一緒にまとめて保存される（useAiLessonDesigner.js参照）。
+// 保存後もpublished:falseの下書きのままで、公開はコース管理の「公開する」（版固定公開、
+// フェーズ③新設）で行う運用。各Lessonカードの「このLessonを生成」ボタン（STEP2）は、
+// concept/diagram/table/compare/quiz(選択式/自由記述)/summaryに加え、演習トグルがONの場合は
+// terminal/selection_task/ordering_puzzle/fill_blank/interactive_formもBedrockで生成する
+// (旧AI Lesson Studio Phase1のgenerateLessonStudioSlidesWithBedrockへ統合、ADR0005/0006の
+// 対象kindを合算)。生成結果はコース保存前のresult.lessons[i].slidesに保持され、まだDBには
+// 保存されない。「このコースを保存する」を押した時に、STEP1の他フィールド・STEP3の総合テスト
+// 問題と一緒にまとめて保存される（useAiLessonDesigner.js参照）。
 // image/video/pdf_page(将来)はAIが実素材を生成できないため対象外、管理画面での手動追加のみ。
-// 到達経路: LearningAdminProduct.jsx の「AI Lesson Designer」タブ。
+// 到達経路: LearningAdminProduct.jsx の「Learning Studio」タブ。
 // ==========================================================================
 import React, { useEffect, useState } from "react";
 import {
-  Sparkles, Loader2, AlertCircle, Save, CheckCircle2, Lightbulb, Clock, Wand2, Eye, Layers3, ArrowRight,
+  Sparkles, Loader2, AlertCircle, Save, CheckCircle2, Lightbulb, Clock, Wand2, Eye, Layers3, ArrowRight, ListChecks, PlayCircle,
 } from "lucide-react";
 import { T, NOVA, PRODUCT_ACCENT, Field, fieldStyle, Seg, EmptyState } from "../../../../components/common";
 import { useAiLessonDesigner } from "./useAiLessonDesigner.js";
 import { useLearningAdmin } from "../useLearningAdmin.js";
+import CourseWalkthroughPreview from "../CourseWalkthroughPreview.jsx";
 
 const ACCENT = PRODUCT_ACCENT.learning.accent;
 const C = {
@@ -98,6 +105,18 @@ function LeftForm({ brief, setBriefField }) {
       <Field label="素材・扱う技術">
         <input style={fieldStyle} value={brief.techs} onChange={set("techs")} placeholder="例: EC2, S3, IAM" />
       </Field>
+      <label className="flex items-start gap-2 rounded-xl p-3 text-xs" style={{ background: T.bgBase, color: C.body }}>
+        <input
+          type="checkbox"
+          className="mt-0.5"
+          checked={brief.exercisesEnabled !== false}
+          onChange={e => setBriefField("exercisesEnabled", e.target.checked)}
+        />
+        <span>
+          <span className="font-bold" style={{ color: C.ink }}>演習・実技を含めて生成する</span>
+          <br />疑似端末・選択課題・並び替え・穴埋めなどの演習をLessonごとに一緒に生成します。
+        </span>
+      </label>
     </div>
   );
 }
@@ -214,11 +233,48 @@ function LessonCard({ index, lesson, slideGen, onGenerateSlides, reviewed, onTog
   );
 }
 
+// ---- STEP3: 総合テスト問題の生成・確認パネル ----
+function FinalTestPanel({ finalTestState, finalTestNotice, finalTestQuestions, onGenerate }) {
+  return (
+    <div className="rounded-2xl p-5" style={{ background: NOVA.card, border: `1px solid ${C.line}` }}>
+      <div className="mb-2.5 flex flex-wrap items-center justify-between gap-2">
+        <SectionLabel>総合テスト問題の生成（STEP3）</SectionLabel>
+        <button
+          type="button"
+          onClick={onGenerate}
+          disabled={finalTestState === "loading"}
+          className="flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-bold transition hover:opacity-80 disabled:opacity-50"
+          style={{ background: T.aiSubtle, border: `1px solid ${T.aiAccent}30`, color: T.aiAccentDeep }}
+        >
+          {finalTestState === "loading" ? <Loader2 size={12} className="animate-spin" /> : <ListChecks size={12} />}
+          {finalTestState === "loading" ? "生成中..." : finalTestQuestions.length ? "再生成" : "総合テストを生成"}
+        </button>
+      </div>
+      <p className="text-xs leading-relaxed" style={{ color: C.muted }}>
+        コース全体を横断する多肢選択式の問題を生成し、公開時にレッスンへ振り分けて保存します（受講者の総合テストは既存の出題プールからランダムに出題されます）。
+      </p>
+      {finalTestState === "error" && (
+        <p className="mt-2 whitespace-pre-wrap text-xs font-semibold" style={{ color: T.danger }}>{finalTestNotice}</p>
+      )}
+      {finalTestQuestions.length > 0 && (
+        <div className="mt-3 space-y-2">
+          {finalTestQuestions.map((q, i) => (
+            <div key={i} className="rounded-lg p-2.5" style={{ background: T.bgBase, border: `1px solid ${C.line}` }}>
+              <div className="text-xs font-bold" style={{ color: C.ink }}>{i + 1}. {q.question}</div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ---- 右: 生成ボタン＋結果。idle→loading→done/errorの4状態 ----
 function RightGenerationPanel({
   genState, onGenerate, generatedFor, notice, result, saveState, saveNotice, onSave,
   slideGenByLessonId, onGenerateSlides, onGenerateAll, generatingAll,
   reviewedLessonIds, onToggleReview, canSave, onOpenCourseManager,
+  finalTestState, finalTestNotice, finalTestQuestions, onGenerateFinalTest, onOpenPreview,
 }) {
   return (
     <div className="min-w-0 flex-1 space-y-5">
@@ -310,6 +366,22 @@ function RightGenerationPanel({
             </div>
           </div>
 
+          <FinalTestPanel
+            finalTestState={finalTestState}
+            finalTestNotice={finalTestNotice}
+            finalTestQuestions={finalTestQuestions}
+            onGenerate={onGenerateFinalTest}
+          />
+
+          <button
+            type="button"
+            onClick={onOpenPreview}
+            className="flex w-full items-center justify-center gap-2 rounded-full py-2.5 text-sm font-bold transition hover:opacity-80"
+            style={{ border: `1px solid ${ACCENT}`, color: ACCENT, background: "#fff" }}
+          >
+            <PlayCircle size={15} />受講生プレビューで通しで確認する
+          </button>
+
           {saveState === "done" ? (
             <div className="rounded-2xl p-4" style={{ background: PRODUCT_ACCENT.learning.subtle, border: `1px solid ${PRODUCT_ACCENT.learning.accent}30` }}>
               <div className="mb-1 flex items-center gap-2 text-sm font-bold" style={{ color: PRODUCT_ACCENT.learning.accent }}>
@@ -362,10 +434,12 @@ export default function AiLessonDesigner({ onOpenCourseManager }) {
   const {
     brief, setBriefField, genState, notice, result, generatedFor, generate, saveState, saveNotice, saveGenerated,
     slideGenByLessonId, generateLessonSlides,
+    finalTestState, finalTestNotice, finalTestQuestions, generateFinalTest,
   } = useAiLessonDesigner();
   const learningAdmin = useLearningAdmin();
   const [reviewedLessonIds, setReviewedLessonIds] = useState([]);
   const [generatingAll, setGeneratingAll] = useState(false);
+  const [previewOpen, setPreviewOpen] = useState(false);
   const allGenerated = !!result?.lessons?.length && result.lessons.every(lesson => (lesson.slides || []).length > 0);
   const allReviewed = allGenerated && result.lessons.every(lesson => reviewedLessonIds.includes(lesson.id));
   const activeStep = saveState === "done" || allReviewed ? 5 : allGenerated ? 4 : result ? 3 : genState === "loading" ? 2 : 1;
@@ -431,8 +505,23 @@ export default function AiLessonDesigner({ onOpenCourseManager }) {
           onToggleReview={toggleReviewed}
           canSave={allReviewed}
           onOpenCourseManager={onOpenCourseManager}
+          finalTestState={finalTestState}
+          finalTestNotice={finalTestNotice}
+          finalTestQuestions={finalTestQuestions}
+          onGenerateFinalTest={generateFinalTest}
+          onOpenPreview={() => setPreviewOpen(true)}
         />
       </div>
+
+      {result && (
+        <CourseWalkthroughPreview
+          open={previewOpen}
+          onClose={() => setPreviewOpen(false)}
+          course={{ id: "preview-course", title: result.course.title, desc: result.course.desc, color: ACCENT }}
+          lessons={result.lessons}
+          finalTestQuestions={finalTestQuestions}
+        />
+      )}
     </div>
   );
 }

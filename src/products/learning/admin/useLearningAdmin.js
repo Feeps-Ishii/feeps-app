@@ -30,6 +30,8 @@ function normalizeCourse(course) {
     desc: course.desc || "",
     published: course.status ? course.status === "published" : course.published !== false,
     deleted: course.deleted === true || course.status === "deleted",
+    // 版固定公開(フェーズ③): 0/未設定は「まだ一度も新しい公開フローを通っていない」を意味する。
+    publishedVersion: Number(course.publishedVersion || 0) || 0,
     updatedAt: course.updatedAt || null,
   };
 }
@@ -857,6 +859,34 @@ export function useLearningAdmin() {
           commit(next.map(course => (course.id === courseId ? saved : course)));
         })
         .catch(e => setActionError(apiErrorMessage(e, "コースの更新に失敗しました。")));
+    }
+  }
+
+  // 版固定公開(フェーズ③): 従来のtogglePublish(単純なPUT published:true/false切替)とは別に、
+  // 「公開する」を新しいバージョンとして固定するための専用アクション。POST .../publishは
+  // Backend側でスナップショットを作成しpublishedVersionを進める。非公開化(hide)は既存の
+  // togglePublishのまま(バージョンは進めない、最後に固定したスナップショットは維持される)。
+  async function publishCourse(courseId) {
+    setActionError("");
+    try {
+      const res = await apiPost(`/learning/admin/courses/${encodeURIComponent(courseId)}/publish`, {});
+      const saved = res?.course ? normalizeCourse(res.course) : null;
+      if (saved) commit(courses.map(course => (course.id === courseId ? saved : course)));
+      return { ok: true, version: res?.version };
+    } catch (e) {
+      setActionError(apiErrorMessage(e, "コースの公開に失敗しました。"));
+      return { ok: false, error: e };
+    }
+  }
+
+  // 版固定公開(フェーズ③): 公開履歴(いつ誰が公開したか)を取得する。一覧には出さず、
+  // 「版履歴」ボタンを押した時だけ呼ぶ(常時ロードのAPI呼び出しを増やさないため)。
+  async function getCourseVersions(courseId) {
+    try {
+      const versions = await apiGet(`/learning/admin/courses/${encodeURIComponent(courseId)}/versions`);
+      return Array.isArray(versions) ? versions : [];
+    } catch (e) {
+      return [];
     }
   }
 

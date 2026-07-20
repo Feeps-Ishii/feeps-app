@@ -17,6 +17,9 @@ const EMPTY_BRIEF = {
   difficulty: "初級",
   goals: "",
   techs: "",
+  // 2026-07-21 Phase3(AIコーススタジオ強化): 演習系kind(terminal/selection_task/ordering_puzzle/
+  // fill_blank)の一括生成をON/OFFするトグル。デフォルトON(演習込みで一括生成する)。
+  exercisesEnabled: true,
 };
 
 const DEFAULT_LESSON_COUNT_HINT = 4;
@@ -36,6 +39,11 @@ export function useAiLessonDesigner() {
   const [saveState, setSaveState] = useState("idle"); // idle | saving | done | error
   const [saveNotice, setSaveNotice] = useState("");
   const [slideGenByLessonId, setSlideGenByLessonId] = useState({}); // { [lessonId]: { status, notice } }
+  // 2026-07-21 Phase3(AIコーススタジオ強化) Stage3: 総合テスト生成の状態。コース設計(STEP1)→
+  // レッスンごとの生成(STEP2、演習込み)に続く3段階目。
+  const [finalTestState, setFinalTestState] = useState("idle"); // idle | loading | done | error
+  const [finalTestNotice, setFinalTestNotice] = useState("");
+  const [finalTestQuestions, setFinalTestQuestions] = useState([]); // [{lessonRef, question, choices, answerIndex, explanation}]
 
   function setBriefField(key, value) {
     setBrief(prev => ({ ...prev, [key]: value }));
@@ -46,6 +54,9 @@ export function useAiLessonDesigner() {
     setGenState("loading");
     setNotice("");
     setGeneratedFor({ ...brief });
+    setFinalTestState("idle");
+    setFinalTestNotice("");
+    setFinalTestQuestions([]);
     try {
       const data = await apiPost("/learning/admin/ai-lesson-designer/generate", {
         targetAudience: brief.audience.trim(),
@@ -89,6 +100,37 @@ export function useAiLessonDesigner() {
     setSaveState("idle");
     setSaveNotice("");
     setSlideGenByLessonId({});
+    setFinalTestState("idle");
+    setFinalTestNotice("");
+    setFinalTestQuestions([]);
+  }
+
+  // Stage3: コース全体の総合テスト問題を生成する。各Lessonのslides生成(STEP2)が完了した後に
+  // 呼ぶ想定(lessonTitle/summary/goalを渡すため)。まだコースは未保存なので、各questionには
+  // 一時的なlessonId(result.lessons[i].id)をlessonRefとして持たせ、保存時(saveGenerated)に
+  // 実際のlessonIdへ対応付ける。
+  async function generateFinalTest() {
+    if (!result?.lessons?.length || finalTestState === "loading") return { ok: false };
+    setFinalTestState("loading");
+    setFinalTestNotice("");
+    try {
+      const data = await apiPost("/learning/admin/ai-lesson-designer/final-test/generate", {
+        courseTitle: result.course.title || "",
+        lessons: result.lessons.map(l => ({ lessonRef: l.id, title: l.title || "", summary: l.summary || "", goal: l.goal || "" })),
+        questionCountHint: Math.min(8, Math.max(4, result.lessons.length)),
+      });
+      const questions = Array.isArray(data?.questions) ? data.questions : [];
+      if (!questions.length) throw new Error("総合テスト問題が返りませんでした。");
+      setFinalTestQuestions(questions);
+      setFinalTestState("done");
+      return { ok: true, count: questions.length };
+    } catch (e) {
+      const debug = [e?.errorCode, e?.errorMessage, e?.hint].filter(Boolean).join("\n");
+      const msg = debug || e?.message || "総合テスト問題の生成に失敗しました。";
+      setFinalTestNotice(msg);
+      setFinalTestState("error");
+      return { ok: false, error: msg };
+    }
   }
 
   // STEP2: 1Lesson分のslidesをBedrockで生成し、result.lessons内の該当Lessonへ反映する。
@@ -106,6 +148,9 @@ export function useAiLessonDesigner() {
         teacherMemo: lesson.teacherMemo || "",
         difficulty: lesson.difficulty || "",
         estimatedMinutes: lesson.estimatedMinutes,
+        // 2026-07-21 Phase3: 演習系kind(terminal/selection_task/ordering_puzzle/fill_blank)を
+        // このLessonの生成に含めるかどうか。brief.exercisesEnabledで一括ON/OFFする。
+        simulatedEnvEnabled: brief.exercisesEnabled !== false,
       });
       const slides = Array.isArray(data?.slides) ? data.slides.map((s, i) => ({ id: nextId("slide"), order: i, ...s })) : [];
       if (!slides.length) throw new Error("スライド候補が返りませんでした。");
@@ -149,9 +194,12 @@ export function useAiLessonDesigner() {
         desc: result.course.desc || "",
         published: false,
       });
+      // lessonRef(生成時の一時id、result.lessons[i].id)→実lessonIdの対応表。Stage3の総合テスト
+      // 問題をLEARNING#QUIZ(type:"final")として保存する際、実際に保存されたlessonIdへ付け替える。
+      const lessonIdByRef = {};
       for (let i = 0; i < result.lessons.length; i += 1) {
         const lesson = result.lessons[i];
-        await learningAdmin.createLessonAwaitingApi(course.id, {
+        const savedLesson = await learningAdmin.createLessonAwaitingApi(course.id, {
           title: lesson.title || `レッスン${i + 1}`,
           type: "text",
           duration: lesson.estimatedMinutes ? `${lesson.estimatedMinutes}分` : "",
@@ -164,10 +212,42 @@ export function useAiLessonDesigner() {
           slides: lesson.slides || [],
           published: false,
         });
+        lessonIdByRef[lesson.id] = savedLesson?.id || null;
       }
+
+      // Stage3: 生成済みの総合テスト問題があれば、実lessonIdへ対応付けてLEARNING#QUIZ
+      // (type:"final"、既存のquiz-questions API・既存の総合テスト集計経路をそのまま使う)として
+      // 保存する。1問でも失敗しても、コース/レッスン保存自体は既に完了しているため黙殺せず
+      // 件数を記録するだけに留める(コース保存自体を失敗扱いにしない)。
+      let savedFinalTestCount = 0;
+      if (finalTestQuestions.length && lessonIdByRef && Object.values(lessonIdByRef).some(Boolean)) {
+        const fallbackLessonId = Object.values(lessonIdByRef).find(Boolean);
+        for (const q of finalTestQuestions) {
+          const lessonId = lessonIdByRef[q.lessonRef] || fallbackLessonId;
+          if (!lessonId) continue;
+          try {
+            await apiPost("/learning/admin/quiz-questions", {
+              courseId: course.id,
+              lessonId,
+              type: "final",
+              question: q.question,
+              choices: q.choices,
+              answer: q.answerIndex,
+              explanation: q.explanation || "",
+              published: true,
+            });
+            savedFinalTestCount += 1;
+          } catch (e) {
+            // 1問の保存失敗はコース保存全体を失敗にしない(管理画面の理解度・問題管理から後で追加できる)。
+          }
+        }
+      }
+
       setSaveState("done");
-      setSaveNotice(`「${course.title}」を下書きコースとして保存しました。管理画面から確認・公開してください。`);
-      return { ok: true, courseId: course.id };
+      setSaveNotice(
+        `「${course.title}」を下書きコースとして保存しました。${savedFinalTestCount ? `総合テスト問題${savedFinalTestCount}件も保存しました。` : ""}管理画面から確認・公開してください。`
+      );
+      return { ok: true, courseId: course.id, savedFinalTestCount };
     } catch (e) {
       setSaveState("error");
       const msg = [e?.errorMessage, e?.message].filter(Boolean).join(" / ");
@@ -180,5 +260,6 @@ export function useAiLessonDesigner() {
     brief, setBriefField, genState, notice, result, generatedFor, generate, reset,
     saveState, saveNotice, saveGenerated,
     slideGenByLessonId, generateLessonSlides,
+    finalTestState, finalTestNotice, finalTestQuestions, generateFinalTest,
   };
 }

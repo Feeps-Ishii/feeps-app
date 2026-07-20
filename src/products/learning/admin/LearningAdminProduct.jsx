@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import { Sparkles } from "lucide-react";
-import { Btn, Seg, PRODUCT_ACCENT } from "../../../components/common";
+import { Btn, Seg, T, PRODUCT_ACCENT } from "../../../components/common";
 import CourseManager from "./CourseManager.jsx";
 import EnrollmentManager from "./EnrollmentManager.jsx";
 import LessonManager from "./LessonManager.jsx";
@@ -32,8 +32,18 @@ export default function LearningAdminProduct({ initialView = "courses" }) {
     <div className="space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <Seg value={view} onChange={setView} options={VIEW_TABS} activeFg={PRODUCT_ACCENT.learning.deep} />
-        <Btn kind="ai" size="sm" icon={Sparkles} onClick={() => setDesignerOpen(true)}>研修概要をAI設計</Btn>
+        {/* 2026-07-21 Phase3(AIコーススタジオ強化): 「AI研修デザイナー」(ai-curriculum/generate、
+            course+lessons+finalTestを1回で生成)は分割生成に対応した「Learning Studio」タブへ
+            機能統合したため非推奨。コード・APIは削除せず残す(既存の叩き台生成としては動作する、
+            利用中の講師が居る可能性を考慮し互換のため)が、入口はここに残しつつ非推奨である旨を
+            明示する。新規はLearning Studioタブの利用を案内する。 */}
+        <Btn kind="ghost" size="sm" icon={Sparkles} onClick={() => setDesignerOpen(true)} title="非推奨: Learning Studioタブの利用を推奨します">
+          研修概要をAI設計（非推奨）
+        </Btn>
       </div>
+      <p className="text-[11px]" style={{ color: T.textMuted }}>
+        「研修概要をAI設計」は旧方式です。演習・総合テストまで一括生成できる「Learning Studio」タブの利用を推奨します。
+      </p>
       {view === "lessons" && <LessonManager initialCourseId={selectedCourseId} />}
       {view === "materials" && <MaterialManager />}
       {view === "enrollments" && <EnrollmentManager />}
