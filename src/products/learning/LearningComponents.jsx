@@ -147,6 +147,16 @@ function LearningOverview({ lrn, goSub, goProduct, onOpenDetail, role, themeColo
   const todayCompleted = lrn.completed.filter(c => lrn.progress[c.id]?.completedAt?.slice(0, 10) === todayStr());
   const recommend = lrn.notStarted.slice(0, 3);
   const resume = getLearningResume(lrn);
+  // 演習の誤答・AI採点低評価から復習対象コースを集計(2026-07-21追加)。コースごとに件数をまとめ、
+  // Homeではコース詳細への導線のみ提示する（レッスン単位の「復習する」導線はコース詳細のWeakExercisesCard）。
+  const weakByCourse = (lrn.getAllWeakItems ? lrn.getAllWeakItems() : []).reduce((acc, item) => {
+    if (!item.courseId) return acc;
+    acc[item.courseId] = (acc[item.courseId] || 0) + 1;
+    return acc;
+  }, {});
+  const weakCourses = Object.entries(weakByCourse)
+    .map(([courseId, count]) => ({ course: lrn.courseById ? lrn.courseById(courseId) : null, count }))
+    .filter(entry => entry.course);
   return (
     <div>
       <PageHeader
@@ -208,6 +218,29 @@ function LearningOverview({ lrn, goSub, goProduct, onOpenDetail, role, themeColo
           <div className="flex-1">
             <span className="text-sm font-bold" style={{ color: C.green }}>今日も学習しました！</span>
             <p className="mt-0.5 text-xs" style={{ color: C.green }}>{todayCompleted.map(c => c.title).join("・")} を修了</p>
+          </div>
+        </div>
+      )}
+
+      {/* 復習が必要な演習（誤答・AI採点低評価の集計、2026-07-21追加） */}
+      {weakCourses.length > 0 && (
+        <div className="mb-6 rounded-2xl p-4" style={{ background: C.amberW, border: `1px solid ${C.amber}30` }}>
+          <div className="mb-2 flex items-center gap-2">
+            <AlertCircle size={16} style={{ color: C.amber }} />
+            <span className="text-sm font-bold" style={{ color: C.ink }}>復習が必要な演習があります</span>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            {weakCourses.map(({ course, count }) => (
+              <button
+                key={course.id}
+                type="button"
+                onClick={() => onOpenDetail && onOpenDetail(course)}
+                className="flex items-center gap-2 rounded-xl bg-white px-3 py-2 text-xs font-semibold transition hover:shadow-sm"
+                style={{ border: `1px solid ${C.line}`, color: C.ink }}
+              >
+                {course.title}<Badge tone="amber">{count}件</Badge>
+              </button>
+            ))}
           </div>
         </div>
       )}
@@ -654,6 +687,50 @@ function ElCertificateView({ lrn, goSub }) {
     </div>
   );
 }
+// 演習(terminal/selection_task/ordering_puzzle/fill_blank/interactive_form/descriptive)の不正解・
+// AI採点低評価から集計したweakItems(GET /learning/progress/me レスポンス拡張、useLearning.jsの
+// getCourseWeakItems/getAllWeakItemsが返す)をレッスン単位でまとめて表示する。総合テストのweakLessons
+// (FinalTestLatestResultCard)とは別集計軸(演習単位)のため独立したカードにする。2026-07-21追加。
+function WeakExercisesCard({ items, lessons, onOpenLesson }) {
+  if (!items || !items.length) return null;
+  const byLesson = new Map();
+  items.forEach(item => {
+    if (!item.lessonId) return;
+    const list = byLesson.get(item.lessonId) || [];
+    list.push(item);
+    byLesson.set(item.lessonId, list);
+  });
+  const groups = [...byLesson.entries()].filter(([lessonId]) => lessons.some(ls => ls.id === lessonId));
+  if (!groups.length) return null;
+  return (
+    <Card className="mb-5 p-5" style={{ background: C.amberW, border: `1px solid ${C.amber}30` }}>
+      <div className="mb-3 flex items-center justify-between gap-3">
+        <div className="flex items-center gap-2">
+          <AlertCircle size={16} style={{ color: C.amber }} />
+          <h3 className="text-base font-bold" style={{ color: C.ink, letterSpacing: "-0.02em" }}>復習が必要な演習</h3>
+        </div>
+        <Badge tone="amber">{groups.length} Lessons</Badge>
+      </div>
+      <p className="mb-3 text-xs" style={{ color: C.muted }}>確認問題・演習で不正解、またはAI採点が基準未満だった単元です。再挑戦すると自動的にこの一覧から外れます。</p>
+      <div className="space-y-2">
+        {groups.map(([lessonId, group]) => {
+          const lesson = lessons.find(ls => ls.id === lessonId);
+          const label = [...new Set(group.map(g => g.slideTitle).filter(Boolean))].join("・") || `${group.length}件の演習`;
+          return (
+            <div key={lessonId} className="flex flex-col gap-2 rounded-xl bg-white p-3 sm:flex-row sm:items-center sm:justify-between" style={{ border: `1px solid ${C.line}` }}>
+              <div className="min-w-0">
+                <div className="text-sm font-bold" style={{ color: C.ink }}>{lesson.title}</div>
+                <div className="mt-1 truncate text-xs" style={{ color: C.muted }}>{label}</div>
+              </div>
+              <Btn size="sm" kind="ghost" icon={PlayCircle} onClick={() => onOpenLesson(lesson)}>復習する</Btn>
+            </div>
+          );
+        })}
+      </div>
+    </Card>
+  );
+}
+
 function ReviewLessonList({ title, desc, lessons, items, onOpenLesson, onReviewed }) {
   if (!items.length) return null;
   return (
@@ -1076,6 +1153,7 @@ function ElCourseDetail({ course, lrn, onBack, onOpenLesson, onStartFinalTest, o
         onShowResult={onShowFinalResult}
       />
       <FinalTestLatestResultCard result={latestFinalResult} lessons={lessons} onOpenLesson={openLesson} />
+      <WeakExercisesCard items={lrn.getCourseWeakItems ? lrn.getCourseWeakItems(course.id) : []} lessons={lessons} onOpenLesson={openLesson} />
       <div className="mb-5">
         <ReviewLessonList
           title="復習した方がいいLesson"

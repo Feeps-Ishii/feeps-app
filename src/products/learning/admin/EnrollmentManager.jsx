@@ -1,10 +1,71 @@
-import React, { useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { BookOpen, Building2, CheckCircle2, Clock, Eye, Search, Target, User } from "lucide-react";
 import { Badge, Btn, Card, EmptyState, Modal, SectionHead, SkeletonRows, Stat, fieldStyle, T, PRODUCT_ACCENT } from "../../../components/common";
 import { ENROLLMENT_STATUS_OPTIONS } from "./LearningAdminCatalog.js";
 import { useLearningAdmin } from "./useLearningAdmin.js";
+import { apiGet } from "../../../api.js";
 
 const C = { ink: T.textPrimary, body: T.textSecondary, muted: T.textMuted, line: T.border, canvas: T.bgBase, green: PRODUCT_ACCENT.learning.accent, amber: T.warning, cyan: T.accent };
+
+const EXERCISE_KIND_LABEL = {
+  terminal: "ターミナル演習",
+  selection_task: "選択式演習",
+  ordering_puzzle: "並べ替え演習",
+  fill_blank: "穴埋め演習",
+  interactive_form: "設定演習",
+  descriptive: "自由記述（AI採点）",
+};
+
+// 担当コースのみ閲覧可能（Backend GET /learning/admin/exercises が
+// getInstructorLearningCourseScope で講師スコープを強制するため、フロントは追加フィルタ不要
+// = EnrollmentManagerの既存パターン(受講状況)と同じ「バックエンドが返した範囲をそのまま信頼する」設計）。
+function ExerciseSubmissionsPanel({ courseId, traineeId }) {
+  const [items, setItems] = useState(null);
+  const [error, setError] = useState("");
+
+  useEffect(() => {
+    let alive = true;
+    setItems(null);
+    setError("");
+    apiGet(`/learning/admin/exercises?courseId=${encodeURIComponent(courseId)}&traineeId=${encodeURIComponent(traineeId)}`)
+      .then(rows => { if (alive) setItems(Array.isArray(rows) ? rows : []); })
+      .catch(() => { if (alive) setError("演習提出状況の取得に失敗しました。"); });
+    return () => { alive = false; };
+  }, [courseId, traineeId]);
+
+  return (
+    <div>
+      <div className="mb-2 text-xs font-bold" style={{ color: C.body }}>演習・自由記述の提出状況</div>
+      {error && <div className="rounded-lg px-3 py-2 text-xs" style={{ background: T.dangerSubtle, color: T.danger }}>{error}</div>}
+      {!error && items === null && <div className="text-xs" style={{ color: C.muted }}>読み込み中...</div>}
+      {!error && items && items.length === 0 && <div className="text-xs" style={{ color: C.muted }}>まだ演習の提出はありません。</div>}
+      {!error && items && items.length > 0 && (
+        <div className="space-y-2">
+          {items.map(item => (
+            <div key={item.id} className="rounded-xl p-3" style={{ background: C.canvas, border: `1px solid ${C.line}` }}>
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="text-xs font-bold" style={{ color: C.ink }}>{item.lessonTitle || item.lessonId}</span>
+                <Badge tone="cyan">{EXERCISE_KIND_LABEL[item.kind] || item.kind}</Badge>
+                {item.isCorrect === true && <Badge tone="green">正解</Badge>}
+                {item.isCorrect === false && <Badge tone="amber">不正解</Badge>}
+                {item.kind === "descriptive" && item.aiScore != null && <Badge tone={item.aiScore >= 70 ? "green" : "amber"}>AI採点 {item.aiScore}点</Badge>}
+                {item.aiFeedbackError && <Badge tone="amber">AIフィードバック生成失敗</Badge>}
+                <span className="ml-auto text-[11px]" style={{ color: C.muted }}>試行 {item.attemptCount}回 / {String(item.updatedAt || "").slice(0, 16).replace("T", " ")}</span>
+              </div>
+              {item.slideTitle && <div className="mt-1 text-[11px]" style={{ color: C.muted }}>{item.slideTitle}</div>}
+              {typeof item.submittedAnswer === "string" && item.submittedAnswer && (
+                <p className="mt-1.5 text-xs leading-relaxed" style={{ color: C.body }}>{item.submittedAnswer}</p>
+              )}
+              {item.aiFeedback && (
+                <p className="mt-1.5 text-xs leading-relaxed" style={{ color: C.body }}><span className="font-semibold">AIフィードバック: </span>{item.aiFeedback}</p>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
 
 const statusLabel = {
   not_started: "未着手",
@@ -137,6 +198,8 @@ function EnrollmentDetail({ enrollment, onMemoSave, lessonsForCourse }) {
             残り {incomplete} Lessons
           </div>
         </div>
+
+        <ExerciseSubmissionsPanel courseId={enrollment.courseId} traineeId={enrollment.traineeId} />
 
         <div>
           <div className="mb-2 text-xs font-bold" style={{ color: C.body }}>管理者メモ</div>

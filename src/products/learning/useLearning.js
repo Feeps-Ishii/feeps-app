@@ -115,6 +115,11 @@ export function useLearning(role = "trainee") {
   const [courseCatalogState, setCourseCatalogState] = useState("loading");
   const [lessonCatalogStates, setLessonCatalogStates] = useState({});
   const [apiMaterialsByCourse, setApiMaterialsByCourse] = useState({});
+  // 演習提出(EXERCISE_SUBMISSION)。サーバーを正本とし、Home/コース詳細の復習導線(weakItemsByCourse、
+  // GET /learning/progress/me のレスポンスに追加されたフィールド)とスライド演習の再開表示に使う。
+  const [exerciseSubmissions, setExerciseSubmissions] = useState([]);
+  const [exerciseSubmissionsState, setExerciseSubmissionsState] = useState("loading");
+  const [weakItemsByCourse, setWeakItemsByCourse] = useState({});
   const lastProgressPushRef = useRef({});
   useEffect(() => {
     let alive = true;
@@ -134,9 +139,26 @@ export function useLearning(role = "trainee") {
   // （サーバーに記録が無いコースはローカル値をそのまま維持する）。
   useEffect(() => {
     let alive = true;
+    apiGet("/learning/exercises/me")
+      .then(items => {
+        if (!alive) return;
+        if (!Array.isArray(items)) { setExerciseSubmissionsState("error"); return; }
+        setExerciseSubmissions(items);
+        setExerciseSubmissionsState("ready");
+      })
+      .catch(() => { if (alive) setExerciseSubmissionsState("error"); });
+    return () => { alive = false; };
+  }, []);
+  useEffect(() => {
+    let alive = true;
     apiGet("/learning/progress/me")
       .then(items => {
         if (!alive || !Array.isArray(items) || items.length === 0) return;
+        const nextWeakItemsByCourse = {};
+        items.forEach(item => {
+          if (item?.courseId) nextWeakItemsByCourse[item.courseId] = Array.isArray(item.weakItems) ? item.weakItems : [];
+        });
+        setWeakItemsByCourse(nextWeakItemsByCourse);
         const nextProgress = { ...progress };
         const nextLessons = { ...lessonProgress };
         const nextReviews = [...lessonReviews];
@@ -360,6 +382,34 @@ export function useLearning(role = "trainee") {
   // S3実ファイル教材(s3keyあり)の閲覧/ダウンロード用に、都度サーバーから署名付きURLを取得する。
   async function getMaterialViewUrl(materialId) {
     return apiGet(`/learning/materials/view?materialId=${encodeURIComponent(materialId)}`);
+  }
+  // 演習(terminal/selection_task/ordering_puzzle/fill_blank/interactive_form/descriptive)の解答を
+  // Backendへ永続化する。descriptiveはBackend側でAI採点・教材根拠付きフィードバックを生成して返す。
+  // 成功時はローカルのexerciseSubmissionsも即時反映し、復習導線(weakItemsByCourse)の再計算を待たず
+  // 呼び出し元(Bodyコンポーネント)がsubmission.aiFeedback等をそのまま表示できるようにする。
+  async function submitExercise(payload) {
+    const data = await apiPost("/learning/exercises/submit", payload);
+    const submission = data?.submission;
+    if (submission) {
+      setExerciseSubmissions(prev => {
+        const idx = prev.findIndex(s => s.id === submission.id);
+        if (idx >= 0) { const next = [...prev]; next[idx] = submission; return next; }
+        return [submission, ...prev];
+      });
+    }
+    return submission;
+  }
+  function getExerciseSubmission(courseId, lessonId, slideId) {
+    return exerciseSubmissions.find(s => s.courseId === courseId && s.lessonId === lessonId && s.slideId === slideId) || null;
+  }
+  function getExerciseSubmissionsForLesson(courseId, lessonId) {
+    return exerciseSubmissions.filter(s => s.courseId === courseId && s.lessonId === lessonId);
+  }
+  function getCourseWeakItems(courseId) {
+    return weakItemsByCourse[courseId] || [];
+  }
+  function getAllWeakItems() {
+    return Object.entries(weakItemsByCourse).flatMap(([courseId, items]) => items.map(item => ({ ...item, courseId })));
   }
   function getLessonReview(courseId, lessonId) {
     return lessonReviews.find(r => r.courseId === courseId && r.lessonId === lessonId) || null;
@@ -746,5 +796,12 @@ export function useLearning(role = "trainee") {
     inprogress,
     notStarted,
     catalog,
+    exerciseSubmissions,
+    exerciseSubmissionsState,
+    submitExercise,
+    getExerciseSubmission,
+    getExerciseSubmissionsForLesson,
+    getCourseWeakItems,
+    getAllWeakItems,
   };
 }

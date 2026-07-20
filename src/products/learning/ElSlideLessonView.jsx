@@ -7,16 +7,16 @@ import {
 import { Btn, T, PRODUCT_ACCENT } from "../../components/common";
 import { LessonBodyText } from "./LearningComponents.jsx";
 import LearningExperienceFlow, { learningStageForSlide } from "./LearningExperienceFlow.jsx";
-import { apiPost } from "../../api.js";
 
 // slidesを持つLesson専用の「メインスライド中心」表示。lesson.slides?.length > 0 の場合のみ
 // ElLessonView.jsx からこのコンポーネントへ分岐する（既存のvideo/text/quiz Lessonはこのファイルを
 // 一切経由しない）。UIモック(products/learning/mock/LessonPreviewMock.jsx)で検証した構成を踏襲しつつ、
 // 実データ（course.color, lrn の各種Hook）に接続している。
-// terminalの interaction はPhase1では本物のコード実行を行わないフロント内デモ動作のまま。
+// terminalの interaction はPhase1では本物のコード実行を行わないフロント内デモ動作のまま
+// （判定はクライアント内、2026-07-21よりPOST /learning/exercises/submitで結果を永続化）。
 // quizのinteraction.type: "choice"(デフォルト、選択式、フロント内で完結) / "descriptive"(自由記述、
-// Training製品で既に本番稼働中のPOST /ai/tests/evaluateをそのまま流用してAI採点。Backend新規実装
-// なし。回答・スコアは永続化しない、フロント内デモのまま。2026-07-07追加)。
+// 2026-07-21よりPOST /learning/exercises/submitでBackendがBedrock採点・教材根拠付きフィードバックを
+// 生成し提出とともに永続化する。修了判定には使わない自己学習用フィードバック)。
 
 const C = {
   ink: T.textPrimary, body: T.textSecondary, muted: T.textMuted, line: T.border, canvas: T.bgBase,
@@ -85,12 +85,17 @@ function LeftSlideNav({ slides, current, onSelect, accent }) {
   );
 }
 
-function TerminalSlideBody({ slide, accent }) {
+function TerminalSlideBody({ slide, accent, lrn, courseId, lessonId }) {
   const interaction = slide.interaction || {};
-  const [command, setCommand] = useState(interaction.initialCommand || "");
+  const existing = lrn?.getExerciseSubmission ? lrn.getExerciseSubmission(courseId, lessonId, slide.id) : null;
+  const [command, setCommand] = useState(existing?.submittedAnswer || interaction.initialCommand || "");
   const [running, setRunning] = useState(false);
-  const [result, setResult] = useState(null);
+  const [result, setResult] = useState(() => (existing
+    ? { ok: existing.isCorrect === true, text: existing.isCorrect ? interaction.successOutput : interaction.errorOutput }
+    : null));
 
+  // terminalの正誤判定はPhase1同様クライアント内の完全一致のみ(温存)。判定結果だけを
+  // POST /learning/exercises/submitへ送って履歴・復習導線用に永続化する(fire-and-forget)。
   function handleRun() {
     setRunning(true);
     setResult(null);
@@ -98,6 +103,9 @@ function TerminalSlideBody({ slide, accent }) {
       setRunning(false);
       const ok = command.trim() === String(interaction.expectedCommand || "").trim();
       setResult({ ok, text: ok ? interaction.successOutput : interaction.errorOutput });
+      if (lrn?.submitExercise && courseId && lessonId) {
+        lrn.submitExercise({ courseId, lessonId, slideId: slide.id, kind: "terminal", submittedAnswer: command.trim(), isCorrect: ok }).catch(() => {});
+      }
     }, 600);
   }
 
@@ -199,31 +207,39 @@ function ChoiceQuizBody({ slide, interaction }) {
   );
 }
 
-// 自由記述式quiz。Training製品で既に本番稼働中のPOST /ai/tests/evaluate(questionType: "descriptive")
-// をそのまま流用してBedrockでAI採点する。Backend側の新規実装は無い。回答・スコアは永続化しない
-// (terminal/quizと同じくフロント内デモで完結、ページ離脱で消える)。
-function DescriptiveQuizBody({ slide, interaction, accent }) {
-  const [answer, setAnswer] = useState("");
-  const [state, setState] = useState("idle"); // idle | grading | done | error
-  const [result, setResult] = useState(null);
-  const [errorMsg, setErrorMsg] = useState("");
+// 自由記述式quiz。Eラーニング改善フェーズ2(2026-07-21)でPOST /learning/exercises/submit
+// (kind: "descriptive")へ切替。Backend側でこのレッスンの他スライド本文を教材根拠としてBedrockへ渡し、
+// 提出・AI採点結果ともに永続化される（以前のPOST /ai/tests/evaluate流用は永続化されず廃止）。
+// AIフィードバックは自己学習用であり修了判定には使わないため、その旨とAI生成である旨を明示する。
+function DescriptiveQuizBody({ slide, interaction, accent, lrn, courseId, lessonId }) {
+  const existing = lrn?.getExerciseSubmission ? lrn.getExerciseSubmission(courseId, lessonId, slide.id) : null;
+  const [answer, setAnswer] = useState(existing?.submittedAnswer || "");
+  const [state, setState] = useState(() => {
+    if (!existing) return "idle";
+    return existing.aiFeedbackError ? "error" : (existing.aiFeedback != null ? "done" : "idle");
+  }); // idle | grading | done | error
+  const [result, setResult] = useState(() => (existing && !existing.aiFeedbackError && existing.aiFeedback != null
+    ? { score: existing.aiScore, comment: existing.aiFeedback, basis: existing.aiFeedbackBasis }
+    : null));
+  const [errorMsg, setErrorMsg] = useState(existing?.aiFeedbackError
+    ? "前回の提出でAIフィードバックの生成に失敗しました。回答は保存されています。もう一度お試しください。"
+    : "");
 
   async function handleGrade() {
-    if (!answer.trim() || state === "grading") return;
+    if (!answer.trim() || state === "grading" || !lrn?.submitExercise) return;
     setState("grading");
     setErrorMsg("");
     try {
-      const data = await apiPost("/ai/tests/evaluate", {
-        questionId: slide.id || "",
-        questionType: "descriptive",
-        answerMode: "explanation",
-        question: interaction.question || "",
-        studentAnswer: answer.trim(),
-        modelAnswer: interaction.modelAnswer || "",
-        explanation: interaction.rubric || "",
-        points: 10,
+      const submission = await lrn.submitExercise({
+        courseId, lessonId, slideId: slide.id, kind: "descriptive",
+        submittedAnswer: answer.trim(),
       });
-      setResult(data);
+      if (submission?.aiFeedbackError) {
+        setErrorMsg("回答は保存されました。AIフィードバックの生成に失敗しました。時間をおいて再度お試しください。");
+        setState("error");
+        return;
+      }
+      setResult({ score: submission?.aiScore, comment: submission?.aiFeedback, basis: submission?.aiFeedbackBasis });
       setState("done");
     } catch (e) {
       setErrorMsg(e?.errorMessage || e?.message || "採点に失敗しました。時間をおいて再度お試しください。");
@@ -254,29 +270,40 @@ function DescriptiveQuizBody({ slide, interaction, accent }) {
           style={{ background: accent }}
         >
           {state === "grading" ? <Loader2 size={14} className="animate-spin" /> : <Sparkles size={14} />}
-          {state === "grading" ? "採点しています..." : "採点する"}
+          {state === "grading" ? "採点しています..." : "AIフィードバックを受ける"}
         </button>
       )}
       {state === "error" && (
         <p className="mt-3 text-xs font-semibold" style={{ color: "#ef4444" }}>{errorMsg}</p>
       )}
       {state === "done" && result && (
-        <div className="mt-4 rounded-xl p-4" style={{ background: result.correct ? "#f0fdf4" : "#fffbeb", border: `1px solid ${result.correct ? "#bbf7d0" : "#fde68a"}` }}>
-          <div className="mb-1 text-sm font-bold" style={{ color: result.correct ? "#15803d" : "#b45309" }}>
-            AI採点: {Number(result.score) || 0}点{result.correct ? "（正解）" : ""}
+        <div className="mt-4 rounded-xl p-4" style={{ background: T.bgBase, border: `1px solid ${C.line}` }}>
+          <div className="mb-1.5 flex items-center gap-1.5 text-xs font-bold uppercase" style={{ color: accent, letterSpacing: "0.06em" }}>
+            <Sparkles size={13} />AIによるフィードバック（参考評価: {Number(result.score) || 0}点・修了判定には使用しません）
           </div>
           {result.comment && <p className="text-sm leading-relaxed" style={{ color: C.body }}>{result.comment}</p>}
-          {result.advice && <p className="mt-2 text-xs leading-relaxed" style={{ color: C.muted }}>アドバイス: {result.advice}</p>}
+          {Array.isArray(result.basis) && result.basis.length > 0 && (
+            <div className="mt-3">
+              <div className="mb-1 text-[11px] font-bold" style={{ color: C.muted }}>根拠にした教材</div>
+              <ul className="space-y-1">
+                {result.basis.map((b, i) => (
+                  <li key={i} className="text-xs leading-relaxed" style={{ color: C.muted }}>
+                    <span className="font-semibold" style={{ color: C.body }}>{b.slideTitle}</span>{b.note ? `：${b.note}` : ""}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
         </div>
       )}
     </div>
   );
 }
 
-function QuizSlideBody({ slide, accent }) {
+function QuizSlideBody({ slide, accent, lrn, courseId, lessonId }) {
   const interaction = slide.interaction || {};
   if (interaction.type === "descriptive") {
-    return <DescriptiveQuizBody slide={slide} interaction={interaction} accent={accent} />;
+    return <DescriptiveQuizBody slide={slide} interaction={interaction} accent={accent} lrn={lrn} courseId={courseId} lessonId={lessonId} />;
   }
   return <ChoiceQuizBody slide={slide} interaction={interaction} />;
 }
@@ -372,15 +399,23 @@ function ImageSlideBody({ slide, content, lrn }) {
 // ---- AI Lesson Studio Phase3: 操作できる教材(2026-07-14追加) ----
 // selection_task/ordering_puzzle/fill_blank/interactive_formの4kind。いずれも
 // 操作→判定→解説→(既存の"次へ"ボタンで)次へ、という流れを各コンポーネント内で完結させる。
-// ドラッグ操作・CLI・コード入力は対象外(並び替えはボタンでの入れ替えのみ)。回答・採点結果は
-// 永続化しない(既存quiz/terminalと同じくフロント内デモで完結、ページ離脱で消える)。
+// ドラッグ操作・CLI・コード入力は対象外(並び替えはボタンでの入れ替えのみ)。判定ロジック自体は
+// クライアント内のまま温存し、判定結果をPOST /learning/exercises/submitで永続化する
+// (2026-07-21、Eラーニング改善フェーズ2)。
 
-function SelectionTaskBody({ slide }) {
+function SelectionTaskBody({ slide, lrn, courseId, lessonId }) {
   const content = slide.content || {};
-  const [selected, setSelected] = useState(null);
+  const existing = lrn?.getExerciseSubmission ? lrn.getExerciseSubmission(courseId, lessonId, slide.id) : null;
+  const [selected, setSelected] = useState(Number.isInteger(existing?.submittedAnswer) ? existing.submittedAnswer : null);
   const answered = selected !== null;
   const isCorrect = answered && selected === content.correctIndex;
   const choices = content.choices || [];
+  function choose(i) {
+    setSelected(i);
+    if (lrn?.submitExercise && courseId && lessonId) {
+      lrn.submitExercise({ courseId, lessonId, slideId: slide.id, kind: "selection_task", submittedAnswer: i, isCorrect: i === content.correctIndex }).catch(() => {});
+    }
+  }
   return (
     <div>
       <h3 className="mb-4 text-xl font-bold" style={{ color: C.ink, letterSpacing: "-0.02em" }}>{slide.title}</h3>
@@ -398,7 +433,7 @@ function SelectionTaskBody({ slide }) {
               key={i}
               type="button"
               disabled={answered}
-              onClick={() => setSelected(i)}
+              onClick={() => choose(i)}
               className="flex items-center justify-between gap-2 rounded-xl px-4 py-3 text-left text-sm font-semibold transition disabled:cursor-default"
               style={{ border: `1.5px solid ${border}`, background: bg, color: C.ink }}
             >
@@ -431,11 +466,15 @@ function shuffleIndexes(n) {
   return a;
 }
 
-function OrderingPuzzleBody({ slide }) {
+function OrderingPuzzleBody({ slide, lrn, courseId, lessonId }) {
   const content = slide.content || {};
   const correctItems = content.items || [];
-  const [order, setOrder] = useState(() => shuffleIndexes(correctItems.length));
-  const [checked, setChecked] = useState(false);
+  const existing = lrn?.getExerciseSubmission ? lrn.getExerciseSubmission(courseId, lessonId, slide.id) : null;
+  const existingOrder = Array.isArray(existing?.submittedAnswer) && existing.submittedAnswer.length === correctItems.length
+    ? existing.submittedAnswer
+    : null;
+  const [order, setOrder] = useState(() => existingOrder || shuffleIndexes(correctItems.length));
+  const [checked, setChecked] = useState(!!existingOrder);
   const isCorrect = checked && order.every((idx, pos) => idx === pos);
 
   function move(pos, dir) {
@@ -447,6 +486,14 @@ function OrderingPuzzleBody({ slide }) {
       [next[pos], next[target]] = [next[target], next[pos]];
       return next;
     });
+  }
+
+  function handleCheck() {
+    setChecked(true);
+    if (lrn?.submitExercise && courseId && lessonId) {
+      const ok = order.every((idx, pos) => idx === pos);
+      lrn.submitExercise({ courseId, lessonId, slideId: slide.id, kind: "ordering_puzzle", submittedAnswer: order, isCorrect: ok }).catch(() => {});
+    }
   }
 
   return (
@@ -478,7 +525,7 @@ function OrderingPuzzleBody({ slide }) {
         <p className="mt-3 text-xs" style={{ color: C.muted }}>ヒント: {content.hint}</p>
       )}
       {!checked ? (
-        <Btn className="mt-4" size="sm" icon={Check} onClick={() => setChecked(true)}>判定する</Btn>
+        <Btn className="mt-4" size="sm" icon={Check} onClick={handleCheck}>判定する</Btn>
       ) : (
         <div className="mt-4 rounded-xl p-4" style={{ background: isCorrect ? "#f0fdf4" : "#fffbeb", border: `1px solid ${isCorrect ? "#bbf7d0" : "#fde68a"}` }}>
           <div className="mb-1 text-sm font-bold" style={{ color: isCorrect ? "#15803d" : "#b45309" }}>{isCorrect ? "正解です！" : "順番が違います"}</div>
@@ -489,10 +536,11 @@ function OrderingPuzzleBody({ slide }) {
   );
 }
 
-function FillBlankBody({ slide, accent }) {
+function FillBlankBody({ slide, accent, lrn, courseId, lessonId }) {
   const content = slide.content || {};
-  const [value, setValue] = useState("");
-  const [checked, setChecked] = useState(false);
+  const existing = lrn?.getExerciseSubmission ? lrn.getExerciseSubmission(courseId, lessonId, slide.id) : null;
+  const [value, setValue] = useState(typeof existing?.submittedAnswer === "string" ? existing.submittedAnswer : "");
+  const [checked, setChecked] = useState(!!existing);
   const accepted = [content.answer, ...(content.acceptableAnswers || [])]
     .map(s => String(s || "").trim().toLowerCase())
     .filter(Boolean);
@@ -501,6 +549,10 @@ function FillBlankBody({ slide, accent }) {
   function submit() {
     if (!value.trim() || checked) return;
     setChecked(true);
+    if (lrn?.submitExercise && courseId && lessonId) {
+      const ok = accepted.includes(value.trim().toLowerCase());
+      lrn.submitExercise({ courseId, lessonId, slideId: slide.id, kind: "fill_blank", submittedAnswer: value.trim(), isCorrect: ok }).catch(() => {});
+    }
   }
 
   return (
@@ -534,11 +586,13 @@ function FillBlankBody({ slide, accent }) {
 // 疑似設定画面。ADR0006の「テンプレート方式」思想を踏襲し、AIはfields(値)のみ生成、描画・
 // 判定ロジックはこの固定コンポーネントが担う。判定はAIではなくルールベース(correctValueとの
 // 文字列一致)。実際のAWS/Azureコンソールに似せる必要はなく、教育用のシンプルなUIで構成する。
-function InteractiveFormBody({ slide, accent }) {
+function InteractiveFormBody({ slide, accent, lrn, courseId, lessonId }) {
   const content = slide.content || {};
   const fields = content.fields || [];
-  const [values, setValues] = useState(() => Object.fromEntries(fields.map(f => [f.key, ""])));
-  const [checked, setChecked] = useState(false);
+  const existing = lrn?.getExerciseSubmission ? lrn.getExerciseSubmission(courseId, lessonId, slide.id) : null;
+  const existingValues = existing?.submittedAnswer && typeof existing.submittedAnswer === "object" ? existing.submittedAnswer : null;
+  const [values, setValues] = useState(() => Object.fromEntries(fields.map(f => [f.key, existingValues?.[f.key] || ""])));
+  const [checked, setChecked] = useState(!!existingValues);
 
   function setFieldValue(key, v) {
     if (checked) return;
@@ -553,6 +607,14 @@ function InteractiveFormBody({ slide, accent }) {
 
   const allFilled = fields.every(f => String(values[f.key] || "").trim());
   const allCorrect = checked && fields.every(isFieldCorrect);
+
+  function handleSubmit() {
+    setChecked(true);
+    if (lrn?.submitExercise && courseId && lessonId) {
+      const ok = fields.every(isFieldCorrect);
+      lrn.submitExercise({ courseId, lessonId, slideId: slide.id, kind: "interactive_form", submittedAnswer: values, isCorrect: ok }).catch(() => {});
+    }
+  }
 
   return (
     <div>
@@ -613,7 +675,7 @@ function InteractiveFormBody({ slide, accent }) {
         })}
       </div>
       {!checked ? (
-        <Btn className="mt-4" size="sm" icon={Check} onClick={() => setChecked(true)} disabled={!allFilled}>作成する</Btn>
+        <Btn className="mt-4" size="sm" icon={Check} onClick={handleSubmit} disabled={!allFilled}>作成する</Btn>
       ) : (
         <div className="mt-4 rounded-xl p-4" style={{ background: allCorrect ? "#f0fdf4" : "#fffbeb", border: `1px solid ${allCorrect ? "#bbf7d0" : "#fde68a"}` }}>
           <div className="mb-1 text-sm font-bold" style={{ color: allCorrect ? "#15803d" : "#b45309" }}>{allCorrect ? "正しく設定できました！" : "一部の設定を見直しましょう"}</div>
@@ -773,7 +835,7 @@ function DiagramBody({ slide, accent }) {
 
 // CMS(admin/slideEditor/LessonSlideStudio.jsx)のプレビューパネルから「受講者画面と全く同じ表示」を
 // 再現するために再利用する。ここでexportしても受講画面側の挙動・呼び出し方は一切変えない。
-export function SlideRenderer({ slide, accent, lrn }) {
+export function SlideRenderer({ slide, accent, lrn, courseId, lessonId }) {
   if (!slide) return null;
   const content = slide.content || {};
   switch (slide.kind) {
@@ -815,9 +877,9 @@ export function SlideRenderer({ slide, accent, lrn }) {
     case "video":
       return <VideoSlideBody slide={slide} />;
     case "terminal":
-      return <TerminalSlideBody slide={slide} accent={accent} />;
+      return <TerminalSlideBody slide={slide} accent={accent} lrn={lrn} courseId={courseId} lessonId={lessonId} />;
     case "quiz":
-      return <QuizSlideBody slide={slide} accent={accent} />;
+      return <QuizSlideBody slide={slide} accent={accent} lrn={lrn} courseId={courseId} lessonId={lessonId} />;
     case "compare": {
       // AI Lesson Studio Phase1で追加。content: { left: {label, items[]}, right: {label, items[]} }
       // (docs/specs/ai-lesson-studio-spec.md §4.3)。既存kindと同じくcontentが空でもクラッシュしない。
@@ -846,13 +908,13 @@ export function SlideRenderer({ slide, accent, lrn }) {
       );
     }
     case "selection_task":
-      return <SelectionTaskBody slide={slide} />;
+      return <SelectionTaskBody slide={slide} lrn={lrn} courseId={courseId} lessonId={lessonId} />;
     case "ordering_puzzle":
-      return <OrderingPuzzleBody slide={slide} />;
+      return <OrderingPuzzleBody slide={slide} lrn={lrn} courseId={courseId} lessonId={lessonId} />;
     case "fill_blank":
-      return <FillBlankBody slide={slide} accent={accent} />;
+      return <FillBlankBody slide={slide} accent={accent} lrn={lrn} courseId={courseId} lessonId={lessonId} />;
     case "interactive_form":
-      return <InteractiveFormBody slide={slide} accent={accent} />;
+      return <InteractiveFormBody slide={slide} accent={accent} lrn={lrn} courseId={courseId} lessonId={lessonId} />;
     case "summary":
     default:
       return (
@@ -870,7 +932,7 @@ export function SlideRenderer({ slide, accent, lrn }) {
   }
 }
 
-function MainSlidePanel({ slides, index, setIndex, accent, lrn }) {
+function MainSlidePanel({ slides, index, setIndex, accent, lrn, courseId, lessonId }) {
   const slide = slides[index];
   const slideCaption = slide?.caption || "";
   const captionShownInBody = slide?.kind === "image";
@@ -878,7 +940,7 @@ function MainSlidePanel({ slides, index, setIndex, accent, lrn }) {
     <div className="min-w-0 flex-1">
       <div className="rounded-2xl p-8" style={{ background: "#fff", border: `1px solid ${C.line}` }}>
         <div className="flex min-h-[300px] flex-col justify-center">
-          <SlideRenderer slide={slide} accent={accent} lrn={lrn} />
+          <SlideRenderer slide={slide} accent={accent} lrn={lrn} courseId={courseId} lessonId={lessonId} key={slide?.id} />
         </div>
       </div>
 
@@ -1080,7 +1142,7 @@ export default function ElSlideLessonView({ course, lesson, lrn, onBack, onNavig
 
       <div className="flex flex-col gap-8 lg:flex-row lg:items-start">
         <LeftSlideNav slides={slides} current={slideIndex} onSelect={setSlideIndex} accent={accent} />
-        <MainSlidePanel slides={slides} index={slideIndex} setIndex={setSlideIndex} accent={accent} lrn={lrn} />
+        <MainSlidePanel slides={slides} index={slideIndex} setIndex={setSlideIndex} accent={accent} lrn={lrn} courseId={course.id} lessonId={lesson.id} />
         <RightSidebar course={course} lesson={lesson} lrn={lrn} idx={idx} lessons={lessons} accent={accent} compact={rightCompact} onToggle={() => setRightCompact(v => !v)} />
       </div>
 
