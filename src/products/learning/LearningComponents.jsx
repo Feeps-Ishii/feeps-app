@@ -3,7 +3,7 @@ import ReactMarkdown from "react-markdown";
 import {
   BookOpen, FileText, Settings, Users, Search, PlayCircle, Award,
   Sparkles, Flame, ChevronRight, ChevronLeft, Check, CheckCircle2,
-  Circle, AlertCircle, Lightbulb, Calendar, Clock, RefreshCw, Download
+  Circle, AlertCircle, Lightbulb, Calendar, Clock, RefreshCw, Download, Code2
 } from "lucide-react";
 import { Card, Badge, Btn, EmptyState, SectionHead, PageHeader, ProductNavCard, T, PRODUCT_ACCENT } from "../../components/common";
 import ElSlideLessonView from "./ElSlideLessonView.jsx";
@@ -157,6 +157,9 @@ function LearningOverview({ lrn, goSub, goProduct, onOpenDetail, role, themeColo
   const weakCourses = Object.entries(weakByCourse)
     .map(([courseId, count]) => ({ course: lrn.courseById ? lrn.courseById(courseId) : null, count }))
     .filter(entry => entry.course);
+  // 2026-07-22: 開発演習(DevLab)独立タブ廃止に伴い、「学習」の2本柱
+  // （Eラーニング／開発演習）としてホームで並べて提示する。clientはDevLab対象外。
+  const canUseDevLab = role === "trainee" || role === "instructor" || role === "admin";
   return (
     <div>
       <PageHeader
@@ -171,6 +174,13 @@ function LearningOverview({ lrn, goSub, goProduct, onOpenDetail, role, themeColo
         ]}
         cta={{ label: "コース一覧を開く", icon: BookOpen, onClick: () => goSub("el_courses") }}
       />
+
+      {canUseDevLab && (
+        <div className="mb-6 grid gap-4 sm:grid-cols-2">
+          <ProductNavCard product="learning" icon={BookOpen} title="Eラーニング" desc="コースで学び、演習・総合テストで定着させる" onClick={() => goSub("el_courses")} delay={160} />
+          <ProductNavCard product="devlab" icon={Code2} title="開発演習" desc={isCreator ? "疑似案件を作成・公開し、提出状況を確認する" : "疑似的な開発案件に参加し、実践経験を積む"} onClick={() => goSub(isCreator ? "el_devlab_manage" : "el_devlab")} delay={200} />
+        </div>
+      )}
 
       <LearningExperienceFlow className="mb-6" />
 

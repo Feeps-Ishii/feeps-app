@@ -5,7 +5,6 @@ import { ANALYTICS_NAV } from "./products/analytics/AnalyticsCatalog.js";
 import { MATCHING_NAV } from "./products/matching/MatchingCatalog.js";
 import { TALENT_NAV } from "./products/talent/TalentCatalog.js";
 import { GRANTS_NAV } from "./products/grants/GrantsCatalog.js";
-import { DEVLAB_NAV } from "./products/devlab/DevLabCatalog.js";
 import FeepsOneHome from "./products/home/FeepsOneHome.jsx";
 import TrainingProduct from "./products/training/TrainingProduct.jsx";
 import Login from "./products/auth/Login.jsx";
@@ -28,7 +27,7 @@ import {
   Sparkles, Flame, X, Eye, Pencil, StickyNote, Megaphone, ArrowUpRight,
   MoreHorizontal, Check, Filter, Target, ListChecks, Lock, Mail, Lightbulb,
   Wrench, Compass, ShieldCheck, FileSpreadsheet, LogIn, Menu, Star, Activity,
-  GitBranch, Briefcase, Gauge, MapPin, User, Printer, RefreshCw, Receipt, Landmark, Code2
+  GitBranch, Briefcase, Gauge, MapPin, User, Printer, RefreshCw, Receipt, Landmark, Code2, ClipboardList
 } from "lucide-react";
 
 // Products other than Training (the default landing product) are code-split so the
@@ -42,7 +41,6 @@ const ProjectMatching = lazy(() => import("./products/matching/MatchingProduct.j
 const TalentProduct = lazy(() => import("./products/talent/TalentProduct.jsx"));
 const AdminProduct = lazy(() => import("./products/admin/AdminProduct.jsx"));
 const GrantsProduct = lazy(() => import("./products/grants/GrantsProduct.jsx"));
-const DevLabProduct = lazy(() => import("./products/devlab/DevLabProduct.jsx"));
 
 // Catches render/chunk-load failures in a lazily loaded Product so one broken chunk
 // (e.g. a deploy while the tab was open) degrades to a reload prompt, not a white screen.
@@ -141,9 +139,6 @@ const PRODUCTS = [
   // 助成金管理: instructor/traineeは業務上利用しないため除外（Backend routes/grants.mjsも
   // isAdmin||isClient以外を全エンドポイントで403にしている、Matching同様の設計）。
   { key: "grants",    label: "助成金管理",     icon: Landmark,      color: PRODUCT_ACCENT.grants.accent, roles: ["client","admin"] },
-  // 開発演習(DevLab、2026-07-21新設): 疑似的な開発案件をステップ制で進めるProduct。
-  // clientは対象外（Backend routes/devlab.mjsも全エンドポイントを403にしている）。
-  { key: "devlab",    label: "開発演習",       icon: Code2,         color: PRODUCT_ACCENT.devlab.accent, roles: ["trainee","instructor","admin"] },
 ];
 
 const PRODUCT_DEFAULT_SUBVIEW = {
@@ -154,17 +149,24 @@ const PRODUCT_DEFAULT_SUBVIEW = {
   matching: "mt_home",
   analytics: "an_home",
   grants: "gr_home",
-  devlab: "dl_home",
 };
 
+// 2026-07-22: 開発演習(DevLab)は独立Productを廃止し、「学習」内の2本柱
+// （Eラーニング／開発演習）の一方として統合。ユーザー要望「サイドバーに演習タブが
+// 独立してあるのは違和感、学習の中に2つの武器がある構成にしたい」に対応。
+// 実装(products/devlab/)はそのまま、Learning側のnav/subViewから接続するのみ。
+// subViewキーはEL_NAVの命名規約(el_*)に合わせてel_devlab / el_devlab_manageとする
+// （旧DEVLAB_NAVのdl_projects/dl_manageに相当。clientは対象外＝Backendも403のまま）。
 const EL_NAV = {
   trainee: [
     { sec: null, items: [["el_home", "ホーム", LayoutDashboard]] },
-    { sec: "学習", items: [["el_courses", "コース一覧", BookOpen], ["el_recommend", "おすすめ", Lightbulb], ["el_inprogress", "学習中", PlayCircle], ["el_completed", "修了済み", Award], ["el_skills", "獲得スキル", Sparkles], ["el_cert", "修了証", CheckCircle2]] },
+    { sec: "Eラーニング", items: [["el_courses", "コース一覧", BookOpen], ["el_recommend", "おすすめ", Lightbulb], ["el_inprogress", "学習中", PlayCircle], ["el_completed", "修了済み", Award], ["el_skills", "獲得スキル", Sparkles], ["el_cert", "修了証", CheckCircle2]] },
+    { sec: "開発演習", items: [["el_devlab", "案件一覧", Code2]] },
   ],
   instructor: [
     { sec: null, items: [["el_home", "ホーム", LayoutDashboard]] },
-    { sec: "学習", items: [["el_courses", "コース一覧", BookOpen], ["el_recommend", "おすすめ", Lightbulb], ["el_inprogress", "学習中", PlayCircle], ["el_completed", "修了済み", Award], ["el_skills", "獲得スキル", Sparkles], ["el_cert", "修了証", CheckCircle2]] },
+    { sec: "Eラーニング", items: [["el_courses", "コース一覧", BookOpen], ["el_recommend", "おすすめ", Lightbulb], ["el_inprogress", "学習中", PlayCircle], ["el_completed", "修了済み", Award], ["el_skills", "獲得スキル", Sparkles], ["el_cert", "修了証", CheckCircle2]] },
+    { sec: "開発演習", items: [["el_devlab_manage", "案件管理", ClipboardList]] },
     { sec: "管理", items: [["el_manage", "コース管理", Settings], ["el_students", "受講状況", Users]] },
   ],
   client: [
@@ -173,7 +175,8 @@ const EL_NAV = {
   ],
   admin: [
     { sec: null, items: [["el_home", "ホーム", LayoutDashboard]] },
-    { sec: "学習", items: [["el_courses", "コース一覧", BookOpen], ["el_completed", "修了済み", Award], ["el_cert", "修了証", CheckCircle2]] },
+    { sec: "Eラーニング", items: [["el_courses", "コース一覧", BookOpen], ["el_completed", "修了済み", Award], ["el_cert", "修了証", CheckCircle2]] },
+    { sec: "開発演習", items: [["el_devlab_manage", "案件管理", ClipboardList]] },
     { sec: "管理", items: [["el_manage", "コース管理", Settings], ["el_students", "受講状況", Users]] },
   ],
 };
@@ -186,7 +189,6 @@ function productNavigation(product, role) {
   if (product === "matching") return MATCHING_NAV[role] || MATCHING_NAV.trainee;
   if (product === "analytics") return ANALYTICS_NAV;
   if (product === "grants") return GRANTS_NAV[role] || GRANTS_NAV.client;
-  if (product === "devlab") return DEVLAB_NAV[role] || DEVLAB_NAV.trainee;
   return NAV[role] || NAV.trainee;
 }
 
@@ -495,7 +497,7 @@ function GlobalRail({ products, active, onSelect, onOpenPalette }) {
       <nav className="feeps-global-products">
         {products.map(p => {
           const isActive = active === p.key;
-          const short = { home: "Home", training: "研修", learning: "学習", talent: "成長", matching: "案件", analytics: "分析", grants: "助成金", devlab: "演習" }[p.key] || p.label;
+          const short = { home: "Home", training: "研修", learning: "学習", talent: "成長", matching: "案件", analytics: "分析", grants: "助成金" }[p.key] || p.label;
           return (
             <button key={p.key} type="button" onClick={() => onSelect(p.key)} title={p.label} aria-current={isActive ? "page" : undefined}
               className={"feeps-global-link" + (isActive ? " is-active" : "")}
@@ -1160,7 +1162,6 @@ export default function App() {
     if (product === "matching") return <MatchingProduct subView={subView} goSub={goSub} role={role} themeColor={themeColor} />;
     if (product === "analytics") return <AnalyticsProduct subView={subView} goSub={goSub} themeColor={themeColor} />;
     if (product === "grants") return <GrantsProduct subView={subView} goSub={goSub} role={role} themeColor={themeColor} />;
-    if (product === "devlab") return <DevLabProduct subView={subView} goSub={goSub} role={role} themeColor={themeColor} />;
     if (view === "matching") return <ProjectMatching role={role} />;
     if (view === "placement") return <ProjectMatching role={role} mode="placement" />;
     if (view === "risk") return <RiskBoard />;

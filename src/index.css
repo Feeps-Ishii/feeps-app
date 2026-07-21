@@ -39,12 +39,15 @@ body,
   transform: translateY(-1px);
 }
 
-/* Hero CTA hover: slight sink of the white surface + 1px lift. */
+/* Hero CTA hover: 1px lift only. The button's background is the dark NOVA.ink
+   surface with white (NOVA.onDark) text — a near-white hover background used
+   to invert that contrast and wash the text out. Lighten slightly instead so
+   text/background contrast is preserved. */
 .feeps-hero-cta {
   transition: background 0.15s ease, transform 0.15s ease;
 }
 .feeps-hero-cta:hover {
-  background: #F1F1EE !important;
+  background: #33363B !important;
   transform: translateY(-1px);
 }
 

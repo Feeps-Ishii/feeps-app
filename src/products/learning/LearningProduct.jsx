@@ -16,7 +16,13 @@ import {
 } from "./LearningComponents.jsx";
 import LearningAdminProduct from "./admin/LearningAdminProduct.jsx";
 import EnrollmentManager from "./admin/EnrollmentManager.jsx";
+import DevLabProduct from "../devlab/DevLabProduct.jsx";
 import { setProductDetailHistory } from "../../utils/common/navigationHistory.js";
+
+// 2026-07-22: 開発演習(DevLab)は独立Productを廃止し、Eラーニングと並ぶ「学習」内の
+// もう1本の柱として統合（ファイルはproducts/devlab/に残置、DevLabProduct自体の
+// role guardも維持しつつLearning側でも二重に制御する）。
+const DEVLAB_ALLOWED_ROLES = ["trainee", "instructor", "admin"];
 
 export default function LearningProduct({ subView, goSub, goProduct, role, themeColor, navigationTarget }) {
   const lrn = useLearning(role);
@@ -171,6 +177,12 @@ export default function LearningProduct({ subView, goSub, goProduct, role, theme
     el_students:   role === "admin" || role === "instructor"
       ? <EnrollmentManager />
       : <LearningPlaceholder title="受講状況"   desc="受講生の進捗と完了状況を確認できます。" />,
+    el_devlab:        DEVLAB_ALLOWED_ROLES.includes(role)
+      ? <DevLabProduct subView="dl_projects" goSub={goSub} role={role} themeColor={themeColor} />
+      : <LearningPlaceholder title="開発演習" desc="この機能はご利用いただけません。" />,
+    el_devlab_manage: (role === "admin" || role === "instructor")
+      ? <DevLabProduct subView="dl_manage" goSub={goSub} role={role} themeColor={themeColor} />
+      : <LearningPlaceholder title="案件管理" desc="この機能はご利用いただけません。" />,
   };
   return (
     <>
