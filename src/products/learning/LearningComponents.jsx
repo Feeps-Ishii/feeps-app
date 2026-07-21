@@ -1671,6 +1671,27 @@ function ElFinalTestView({ course, lrn, lessons, onBack, onOpenLesson, onModeCha
           </div>
         </div>
         <div className="mt-4"><Bar value={questions.length ? Math.round(((index + 1) / questions.length) * 100) : 0} tone="green" /></div>
+        {questions.length > 1 && (
+          <div className="mt-4 flex flex-wrap gap-2" role="group" aria-label="設問一覧">
+            {questions.map((q, qi) => {
+              const isCurrent = qi === index;
+              const isAnswered = answers[q.id] !== undefined;
+              return (
+                <button key={q.id} type="button" onClick={() => setIndex(qi)}
+                  aria-current={isCurrent ? "step" : undefined}
+                  aria-label={`設問${qi + 1}${isAnswered ? "（回答済み）" : "（未回答）"}`}
+                  className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-xs font-bold transition"
+                  style={{
+                    border: `1.5px solid ${isCurrent ? course.color : isAnswered ? `${course.color}60` : C.line2}`,
+                    background: isCurrent ? course.color : isAnswered ? `${course.color}15` : "#fff",
+                    color: isCurrent ? "#fff" : isAnswered ? course.color : C.muted,
+                  }}>
+                  {qi + 1}
+                </button>
+              );
+            })}
+          </div>
+        )}
       </div>
       {current && (
         <Card className="p-5">
