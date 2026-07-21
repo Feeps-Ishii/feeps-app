@@ -27,8 +27,8 @@ body,
   from { opacity: 0; transform: translateY(8px); }
   to { opacity: 1; transform: none; }
 }
-.feeps-hero-in { animation: feepsRiseIn 0.45s ease both; }
-.feeps-stagger-in { animation: feepsRiseIn 0.4s ease both; }
+.feeps-hero-in { animation: feepsRiseIn 0.28s cubic-bezier(.2,.8,.2,1) both; }
+.feeps-stagger-in { animation: feepsRiseIn 0.22s cubic-bezier(.2,.8,.2,1) both; }
 
 /* Product nav card hover: border to product accent + 1px lift. */
 .feeps-navcard {

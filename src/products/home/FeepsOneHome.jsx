@@ -240,7 +240,7 @@ function PortalProductCard({ product, index, onOpen }) {
         background: NOVA.card,
         border: `1px solid ${NOVA.line}`,
         boxShadow: NOVA.shadowSm,
-        animationDelay: `${160 + index * 60}ms`,
+        animationDelay: `${100 + index * 40}ms`,
       }}
       aria-label={`${product.label}を開く`}
     >
@@ -782,9 +782,18 @@ function ClientSummaryHome({ dashboard, goProduct, goTraining, goSub, loading, e
   );
 }
 
+// 2026-07-21 体感速度対応(P3): TrainingApp.jsxの画面ラッパーはproduct切替のたびに
+// key変更で完全アンマウント→再マウントする（他タブ→Home遷移を含む）。dashboard系APIは
+// 1〜2秒台かかることがあり、毎回スケルトンから待たせると「もっさり」に感じるため、
+// role単位でモジュールスコープにキャッシュし、再マウント時は前回値を即表示しつつ
+// バックグラウンドで再取得する（表示内容・レイアウトは変更しない。取得失敗時は
+// 既存キャッシュを保持したままエラー表示のみ行い、0件/未登録には見せない）。
+const dashboardCacheByRole = new Map();
+
 export default function FeepsOneHome({ role, displayName, goProduct, goTraining, goSub, products = [] }) {
-  const [dashboard, setDashboard] = useState(null);
-  const [loadingDashboard, setLoadingDashboard] = useState(false);
+  const cachedEntry = dashboardCacheByRole.get(role);
+  const [dashboard, setDashboard] = useState(cachedEntry ? cachedEntry.data : null);
+  const [loadingDashboard, setLoadingDashboard] = useState(!cachedEntry);
   const [dashboardError, setDashboardError] = useState("");
 
   const loadDashboard = useMemo(() => async () => {
@@ -794,12 +803,17 @@ export default function FeepsOneHome({ role, displayName, goProduct, goTraining,
       : role === "client" ? "/dashboard/client"
       : "";
     if (!path) { setDashboard(null); return; }
+    const hadCache = dashboardCacheByRole.has(role);
     setLoadingDashboard(true);
     setDashboardError("");
     try {
-      setDashboard(await apiGet(path));
+      const data = await apiGet(path);
+      dashboardCacheByRole.set(role, { data });
+      setDashboard(data);
     } catch (e) {
-      setDashboard(null);
+      // キャッシュがあれば維持したまま再試行を促す（前回表示していた実データを
+      // 一時的な取得失敗で消さない）。初回失敗時のみ従来通りnullにする
+      if (!hadCache) setDashboard(null);
       setDashboardError(e?.errorMessage || e?.message || "Dashboard APIの取得に失敗しました。");
     } finally {
       setLoadingDashboard(false);
@@ -808,6 +822,7 @@ export default function FeepsOneHome({ role, displayName, goProduct, goTraining,
 
   useEffect(() => {
     loadDashboard();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [loadDashboard]);
 
   const roleDashboard = dashboardError && !dashboard

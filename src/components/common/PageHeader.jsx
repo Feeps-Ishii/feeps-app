@@ -45,13 +45,13 @@ export default function PageHeader({ product = "training", label, title, descrip
           <div className="mt-5 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
             {chips.length > 0 && (
               <div className="grid grid-cols-2 gap-3 sm:flex sm:flex-wrap">
-                {chips.slice(0, 4).map((chip, i) => <Chip key={chip.label} {...chip} delay={450 + i * 70} />)}
+                {chips.slice(0, 4).map((chip, i) => <Chip key={chip.label} {...chip} delay={120 + i * 40} />)}
               </div>
             )}
             {cta && (
               <button type="button" onClick={cta.onClick}
                 className="feeps-hero-cta feeps-stagger-in inline-flex min-h-11 w-full shrink-0 items-center justify-center gap-1.5 rounded-[14px] px-4 py-2.5 text-sm font-bold sm:w-auto"
-                style={{ color: NOVA.onDark, background: NOVA.ink, boxShadow: NOVA.shadowMd, animationDelay: `${450 + Math.min(chips.length, 4) * 70}ms` }}>
+                style={{ color: NOVA.onDark, background: NOVA.ink, boxShadow: NOVA.shadowMd, animationDelay: `${120 + Math.min(chips.length, 4) * 40}ms` }}>
                 {CtaIcon && <CtaIcon size={15} aria-hidden="true" />}{cta.label}
               </button>
             )}

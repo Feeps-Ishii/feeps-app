@@ -198,7 +198,7 @@ export function GrantsHome({ goSub, role = "client", themeColor = "#C9A227" }) {
       <div className="grid gap-4 md:grid-cols-3">
         {GRANTS_HOME_CARDS.filter(c => !c.adminOnly || role === "admin").map((c, i) => (
           <ProductNavCard key={c.key} product="grants" icon={c.icon} title={c.label} desc={c.desc}
-            onClick={() => goSub(c.key)} highlight={i === 0} badge={i === 0 ? "よく使う" : undefined} delay={650 + i * 60} />
+            onClick={() => goSub(c.key)} highlight={i === 0} badge={i === 0 ? "よく使う" : undefined} delay={200 + i * 40} />
         ))}
       </div>
 

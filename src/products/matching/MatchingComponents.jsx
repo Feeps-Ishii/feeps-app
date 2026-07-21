@@ -116,7 +116,7 @@ export function MatchingHome({ goSub, role = "admin", themeColor = "#D97706" }) 
       <div className="grid gap-4 md:grid-cols-3">
         {cards.map(({ key, icon, label, desc: d }, i) => (
           <ProductNavCard key={key} product="matching" icon={icon} title={label} desc={d}
-            onClick={() => goSub(key)} highlight={i === 0} badge={i === 0 ? "よく使う" : undefined} delay={650 + i * 60} />
+            onClick={() => goSub(key)} highlight={i === 0} badge={i === 0 ? "よく使う" : undefined} delay={200 + i * 40} />
         ))}
       </div>
       <div className="mt-5 flex items-start gap-3 rounded-2xl p-4" style={{ background: `${themeColor}08`, border: `1px solid ${themeColor}20` }}>

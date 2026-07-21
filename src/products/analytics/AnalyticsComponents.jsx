@@ -42,7 +42,7 @@ export function AnalyticsHome({ goSub, themeColor = T.danger }) {
         {ANALYTICS_HOME_CARDS.map(({ key, icon, label, desc }, i) => (
           <ProductNavCard key={key} product="analytics" icon={icon} title={label}
             desc={desc}
-            onClick={() => goSub(key)} delay={650 + i * 60} />
+            onClick={() => goSub(key)} delay={200 + i * 40} />
         ))}
       </div>
       <div className="mt-5 flex items-start gap-3 rounded-2xl p-4" style={{ background: `${themeColor}08`, border: `1px solid ${themeColor}20` }}>

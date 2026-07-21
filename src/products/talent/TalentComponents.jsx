@@ -153,7 +153,7 @@ function TalentHome({ goSub, goProduct, role = "trainee", themeColor = PRODUCT_A
       <div className="grid gap-4 md:grid-cols-3">
         {cfg.cards.map(({ key, icon, label, desc }, i) => (
           <ProductNavCard key={key} product="talent" icon={icon} title={label} desc={desc}
-            onClick={() => goSub(key)} highlight={key === "tl_sheet"} badge={key === "tl_sheet" ? "よく使う" : undefined} delay={650 + i * 60} />
+            onClick={() => goSub(key)} highlight={key === "tl_sheet"} badge={key === "tl_sheet" ? "よく使う" : undefined} delay={200 + i * 40} />
         ))}
       </div>
       {cfg.next && (
