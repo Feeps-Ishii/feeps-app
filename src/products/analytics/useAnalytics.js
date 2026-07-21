@@ -16,18 +16,44 @@ const datesInMonth = (ym) => {
   return Array.from({ length: last }, (_, i) => ym + "-" + String(i + 1).padStart(2, "0"));
 };
 
+// 前月比較用: "YYYY-MM" の前月を返す
+const prevMonthOf = (ym) => {
+  const [y, m] = String(ym || "").split("-").map(Number);
+  if (!y || !m) return null;
+  const t = new Date(y, m - 2, 1);
+  return `${t.getFullYear()}-${String(t.getMonth() + 1).padStart(2, "0")}`;
+};
+
+// 出席・日報の延べ件数のみ集計（対象受講生はmemberIdsで絞り込み）。前月比較用に当月・前月で共用する。
+const sumAttReport = (attAll, repAll, memberIds) => {
+  const att = attAll.filter(a => memberIds.has(a?.traineeId));
+  const present = att.filter(a => a?.clockIn).length;
+  const absent = att.filter(a => /欠|absent/i.test(String(a?.status || ""))).length;
+  const late = att.filter(a => /遅|late/i.test(String(a?.status || ""))).length;
+  const reports = repAll.filter(r => memberIds.has(r?.traineeId || r?.userId)).length;
+  const commented = repAll.filter(r => memberIds.has(r?.traineeId || r?.userId) && hasReportComment(r)).length;
+  return { present, absent, late, reports, commented };
+};
+
 // 月次レポート: 既存APIのフロント集計（コース別の出席/日報/テスト。大量データ時はBackend集計API化が前提）
 export function useMonthlyReport() {
   const [month, setMonth] = useState(() => todayStr().slice(0, 7));
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState("");
+  // 前月比較: 出席・日報はattendance/reportsのdateパラメータで前月分を取得できるため比較を出す。
+  // テスト結果APIは日付を持たず月で絞り込めないため、テスト平均・受験数の前月比較はスコープ外とする。
+  const [prevTotals, setPrevTotals] = useState(null);
+  const [prevErr, setPrevErr] = useState("");
 
   useEffect(() => {
     let alive = true;
     setLoading(true);
     setErr("");
+    setPrevErr("");
     const dates = datesInMonth(month);
+    const prevMonth = prevMonthOf(month);
+    const prevDates = datesInMonth(prevMonth);
     (async () => {
       try {
         const [trainees, courses, tests] = await Promise.all([
@@ -37,11 +63,13 @@ export function useMonthlyReport() {
         ]);
         const courseList = (Array.isArray(courses) ? courses : []).filter(c => c?.deleted !== true);
         const activeTests = (Array.isArray(tests) ? tests : []).filter(t => (t?.status || "published") !== "archived");
-        const [attDays, repDays, memberPairs, resultPairs] = await Promise.all([
+        const [attDays, repDays, memberPairs, resultPairs, prevAttDays, prevRepDays] = await Promise.all([
           Promise.all(dates.map(d => apiGet("/attendance?date=" + d).catch(() => []))),
           Promise.all(dates.map(d => apiGet("/reports?date=" + d).catch(() => []))),
           Promise.all(courseList.map(c => apiGet(`/courses/${c.courseId}/trainees`).then(rows => [c.courseId, Array.isArray(rows) ? rows : []]).catch(() => [c.courseId, []]))),
           Promise.all(activeTests.map(t => { const id = t.testId || t.id; return apiGet(`/tests/${id}/results`).then(rows => [t, Array.isArray(rows) ? rows : []]).catch(() => [t, []]); })),
+          Promise.all(prevDates.map(d => apiGet("/attendance?date=" + d).catch(() => null))),
+          Promise.all(prevDates.map(d => apiGet("/reports?date=" + d).catch(() => null))),
         ]);
         if (!alive) return;
         const attAll = attDays.flatMap(x => x || []);
@@ -49,12 +77,7 @@ export function useMonthlyReport() {
         const membersByCourse = Object.fromEntries(memberPairs);
         const rows = courseList.map(c => {
           const memberIds = new Set((membersByCourse[c.courseId] || []).map(t => t.userId).filter(Boolean));
-          const att = attAll.filter(a => memberIds.has(a?.traineeId));
-          const present = att.filter(a => a?.clockIn).length;
-          const absent = att.filter(a => /欠|absent/i.test(String(a?.status || ""))).length;
-          const late = att.filter(a => /遅|late/i.test(String(a?.status || ""))).length;
-          const reports = repAll.filter(r => memberIds.has(r?.traineeId || r?.userId)).length;
-          const commented = repAll.filter(r => memberIds.has(r?.traineeId || r?.userId) && hasReportComment(r)).length;
+          const { present, absent, late, reports, commented } = sumAttReport(attAll, repAll, memberIds);
           const scores = resultPairs.filter(([t]) => t.courseId === c.courseId).flatMap(([, rs]) => rs.filter(r => memberIds.has(r?.traineeId || r?.userId)).map(r => Number(r?.score)).filter(Number.isFinite));
           return {
             courseId: c.courseId,
@@ -80,6 +103,19 @@ export function useMonthlyReport() {
             testCount: totalTests,
           },
         });
+
+        // 前月分: いずれかの日で取得失敗（null）した場合は前月データなし扱い
+        const prevOk = prevAttDays.every(x => x !== null) && prevRepDays.every(x => x !== null);
+        if (prevOk) {
+          const prevAttAll = prevAttDays.flatMap(x => x || []);
+          const prevRepAll = prevRepDays.flatMap(x => x || []);
+          const allMemberIds = new Set(Object.values(membersByCourse).flat().map(t => t.userId).filter(Boolean));
+          const prevAgg = sumAttReport(prevAttAll, prevRepAll, allMemberIds);
+          setPrevTotals(prevAgg);
+        } else {
+          setPrevTotals(null);
+          setPrevErr("前月データなし");
+        }
       } catch (e) {
         if (alive) setErr("月次レポートの集計に失敗しました：" + (e?.errorMessage || e?.message || e));
       } finally {
@@ -89,7 +125,7 @@ export function useMonthlyReport() {
     return () => { alive = false; };
   }, [month]);
 
-  return { month, setMonth, data, loading, err };
+  return { month, setMonth, data, loading, err, prevTotals, prevErr };
 }
 
 export function useAwsCosts() {
@@ -98,6 +134,8 @@ export function useAwsCosts() {
   const [err, setErr] = useState("");
   const [aiData, setAiData] = useState(null);
   const [aiErr, setAiErr] = useState("");
+  const [prevData, setPrevData] = useState(null);
+  const [prevAiData, setPrevAiData] = useState(null);
   const [month, setMonth] = useState(() => {
     const d = new Date();
     return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
@@ -108,21 +146,27 @@ export function useAwsCosts() {
     setLoading(true);
     setErr("");
     setAiErr("");
+    const prevMonth = prevMonthOf(month);
     Promise.allSettled([
       apiGet(`/admin/aws-costs?month=${month}`),
       apiGet(`/admin/ai-usage?month=${month}`),
-    ]).then(([ceRes, aiRes]) => {
+      apiGet(`/admin/aws-costs?month=${prevMonth}`),
+      apiGet(`/admin/ai-usage?month=${prevMonth}`),
+    ]).then(([ceRes, aiRes, cePrevRes, aiPrevRes]) => {
       if (!alive) return;
       if (ceRes.status === "fulfilled") setData(ceRes.value);
       else setErr("AWS利用料金の取得に失敗しました：" + (ceRes.reason?.message || ceRes.reason));
       if (aiRes.status === "fulfilled") setAiData(aiRes.value);
       else setAiErr("AI利用ログの取得に失敗しました：" + (aiRes.reason?.message || aiRes.reason));
+      // 前月データは取得失敗しても画面全体は落とさず「前月データなし」表示にする
+      setPrevData(cePrevRes.status === "fulfilled" ? cePrevRes.value : null);
+      setPrevAiData(aiPrevRes.status === "fulfilled" ? aiPrevRes.value : null);
       setLoading(false);
     });
     return () => { alive = false; };
   }, [month]);
 
-  return { data, loading, err, aiData, aiErr, month, setMonth };
+  return { data, loading, err, aiData, aiErr, month, setMonth, prevData, prevAiData };
 }
 
 // 2026-07-21 監査対応: 「今日」基準のraw /reports・/attendance集計だと、非研修日に全員が

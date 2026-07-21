@@ -29,6 +29,25 @@ const fmtAmt = (amount) => {
 const featureLabel = (f) => ({ quizGenerate: "テスト問題生成", testEvaluate: "テスト採点" })[f] || f || "その他";
 const fmtTokens = (n) => !n ? "0" : n >= 1000000 ? `${(n / 1000000).toFixed(1)}M` : n >= 1000 ? `${(n / 1000).toFixed(1)}K` : String(n);
 
+// 前月比: 前月値が取得できない場合は0との比較に丸めず「前月データなし」を返す
+function deltaLabel(cur, prev, fmt) {
+  if (prev == null || !Number.isFinite(Number(prev)) || !Number.isFinite(Number(cur))) return "前月データなし";
+  const curN = Number(cur), prevN = Number(prev);
+  const diff = curN - prevN;
+  const sign = diff > 0 ? "+" : diff < 0 ? "−" : "±";
+  const diffStr = fmt(Math.abs(diff));
+  let pctStr = "";
+  if (prevN !== 0) {
+    const pct = Math.round((diff / prevN) * 1000) / 10;
+    const pSign = pct > 0 ? "+" : pct < 0 ? "−" : "±";
+    pctStr = ` (${pSign}${Math.abs(pct)}%)`;
+  }
+  return `前月比 ${sign}${diffStr}${pctStr}`;
+}
+const moneyFmt2 = (n) => `$${n.toFixed(2)}`;
+const moneyFmt4 = (n) => `$${n.toFixed(4)}`;
+const countFmt = (n) => `${n}`;
+
 export function AnalyticsHome({ goSub, themeColor = T.danger }) {
   return (
     <div>
@@ -54,7 +73,7 @@ export function AnalyticsHome({ goSub, themeColor = T.danger }) {
 }
 
 export function AwsCostDashboard() {
-  const { data, loading, err, aiData, aiErr, month, setMonth } = useAwsCosts();
+  const { data, loading, err, aiData, aiErr, month, setMonth, prevData, prevAiData } = useAwsCosts();
 
   if (loading) return (
     <div>
@@ -82,10 +101,14 @@ export function AwsCostDashboard() {
       {data && (
         <>
           <div className="mb-5 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-            <Stat icon={Receipt} label="今月合計" value={fmtAmt(data.total?.amount)} tone="cyan" />
-            <Stat icon={Sparkles} label="Bedrock料金" value={fmtAmt(data.bedrock?.amount)} tone="amber" />
-            <Stat icon={Activity} label="Cost Explorer API料金" value={fmtAmt(data.costExplorerApi?.amount)} tone="amber" />
-            <Stat icon={Activity} label="サービス数" value={`${data.byService?.length || 0}件`} tone="green" />
+            <Stat icon={Receipt} label="今月合計" value={fmtAmt(data.total?.amount)} tone="cyan"
+              sub={deltaLabel(data.total?.amount, prevData?.total?.amount, moneyFmt2)} />
+            <Stat icon={Sparkles} label="Bedrock料金" value={fmtAmt(data.bedrock?.amount)} tone="amber"
+              sub={deltaLabel(data.bedrock?.amount, prevData?.bedrock?.amount, moneyFmt2)} />
+            <Stat icon={Activity} label="Cost Explorer API料金" value={fmtAmt(data.costExplorerApi?.amount)} tone="amber"
+              sub={deltaLabel(data.costExplorerApi?.amount, prevData?.costExplorerApi?.amount, moneyFmt2)} />
+            <Stat icon={Activity} label="サービス数" value={`${data.byService?.length || 0}件`} tone="green"
+              sub={deltaLabel(data.byService?.length || 0, prevData ? (prevData.byService?.length || 0) : null, countFmt)} />
           </div>
           <div className="grid gap-4 md:grid-cols-2">
             <Card>
@@ -186,10 +209,14 @@ export function AwsCostDashboard() {
         {aiData && (
           <>
             <div className="mb-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-              <Stat icon={Sparkles} label="今月推定料金" value={aiData.totalRequests === 0 ? "$0.00" : `$${parseFloat(aiData.totalEstimatedCostUsd || 0).toFixed(4)}`} tone="amber" />
-              <Stat icon={Activity} label="AI利用回数" value={`${aiData.totalRequests || 0}回`} tone="cyan" />
-              <Stat icon={Upload} label="入力トークン" value={fmtTokens(aiData.totalInputTokens)} tone="green" />
-              <Stat icon={Download} label="出力トークン" value={fmtTokens(aiData.totalOutputTokens)} tone="green" />
+              <Stat icon={Sparkles} label="今月推定料金" value={aiData.totalRequests === 0 ? "$0.00" : `$${parseFloat(aiData.totalEstimatedCostUsd || 0).toFixed(4)}`} tone="amber"
+                sub={deltaLabel(aiData.totalEstimatedCostUsd || 0, prevAiData ? (prevAiData.totalEstimatedCostUsd || 0) : null, moneyFmt4)} />
+              <Stat icon={Activity} label="AI利用回数" value={`${aiData.totalRequests || 0}回`} tone="cyan"
+                sub={deltaLabel(aiData.totalRequests || 0, prevAiData ? (prevAiData.totalRequests || 0) : null, countFmt)} />
+              <Stat icon={Upload} label="入力トークン" value={fmtTokens(aiData.totalInputTokens)} tone="green"
+                sub={deltaLabel(aiData.totalInputTokens || 0, prevAiData ? (prevAiData.totalInputTokens || 0) : null, fmtTokens)} />
+              <Stat icon={Download} label="出力トークン" value={fmtTokens(aiData.totalOutputTokens)} tone="green"
+                sub={deltaLabel(aiData.totalOutputTokens || 0, prevAiData ? (prevAiData.totalOutputTokens || 0) : null, fmtTokens)} />
             </div>
             {aiData.totalRequests === 0 ? (
               <div className="rounded-xl px-4 py-6 text-center text-sm" style={{ background: T.bgBase, color: T.textMuted }}>まだ AI 機能の利用記録がありません。</div>
@@ -344,7 +371,7 @@ async function exportMonthlyReportExcel(data, month) {
 }
 
 export function MonthlyReport() {
-  const { month, setMonth, data, loading, err } = useMonthlyReport();
+  const { month, setMonth, data, loading, err, prevTotals, prevErr } = useMonthlyReport();
   return (
     <div>
       <SectionHead title="月次レポート" desc="コース別の出席・日報・テスト状況を月次で集計します"
@@ -360,8 +387,10 @@ export function MonthlyReport() {
       ) : (<>
         <div className="mb-5 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
           <Stat icon={Activity} label="受講生数" value={`${data.totals.trainees}名`} tone="cyan" />
-          <Stat icon={ShieldCheck} label="出席延べ" value={`${data.totals.present}件`} tone="green" sub={`遅刻 ${data.totals.late} / 欠席 ${data.totals.absent}`} />
-          <Stat icon={Upload} label="日報提出延べ" value={`${data.totals.reports}件`} tone={data.totals.reports ? "green" : "muted"} sub={`コメント済み ${data.totals.commented}`} />
+          <Stat icon={ShieldCheck} label="出席延べ" value={`${data.totals.present}件`} tone="green"
+            sub={<>{`遅刻 ${data.totals.late} / 欠席 ${data.totals.absent}`}<br />{deltaLabel(data.totals.present, prevTotals ? prevTotals.present : null, countFmt)}</>} />
+          <Stat icon={Upload} label="日報提出延べ" value={`${data.totals.reports}件`} tone={data.totals.reports ? "green" : "muted"}
+            sub={<>{`コメント済み ${data.totals.commented}`}<br />{deltaLabel(data.totals.reports, prevTotals ? prevTotals.reports : null, countFmt)}</>} />
           <Stat icon={Sparkles} label="テスト平均" value={data.totals.avgScore == null ? "結果なし" : `${data.totals.avgScore}点`} tone={data.totals.avgScore != null && data.totals.avgScore < 70 ? "amber" : "cyan"} sub={`受験 ${data.totals.testCount}件`} />
         </div>
         <Card className="overflow-hidden">
@@ -384,7 +413,7 @@ export function MonthlyReport() {
             </div>
           </div>
         </Card>
-        <p className="mt-3 text-xs" style={{ color: T.textMuted }}>既存APIのフロント集計です。出席・日報は月内の延べ件数、テスト平均は公開テストの受験結果から算出しています。</p>
+        <p className="mt-3 text-xs" style={{ color: T.textMuted }}>既存APIのフロント集計です。出席・日報は月内の延べ件数、テスト平均は公開テストの受験結果から算出しています。出席・日報提出の前月比のみ表示しています（テスト結果APIは日付を持たないためテスト平均・受験数の前月比較は対象外です）。{prevErr && `（${prevErr}）`}</p>
       </>)}
     </div>
   );
