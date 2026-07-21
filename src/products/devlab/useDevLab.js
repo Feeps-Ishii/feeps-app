@@ -207,6 +207,76 @@ export function useDevLabSubmissions(projectId) {
   return { submissions, loading, error, reload: load, override, busy, actionError, clearActionError: () => setActionError("") };
 }
 
+// ---- ワークスペース（プロジェクト体験）: 公開テンプレ一覧＋自分の進行状況 ----
+export function useDevLabWorkspaceTemplates() {
+  const [templates, setTemplates] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+
+  const load = useCallback(() => {
+    setLoading(true); setError("");
+    return apiGet("/devlab/workspace-templates")
+      .then(res => setTemplates(Array.isArray(res?.items) ? res.items : []))
+      .catch(e => setError(apiErrorMessage(e, "テンプレート一覧を確認できません。")))
+      .finally(() => setLoading(false));
+  }, []);
+
+  useEffect(() => { load(); }, [load]);
+
+  return { templates, loading, error, reload: load };
+}
+
+// ---- ワークスペース（プロジェクト体験）: テンプレ詳細（files込み）＋自分のoverlayをマージ ----
+export function useDevLabWorkspaceDetail(templateId) {
+  const [template, setTemplate] = useState(null);
+  const [workspace, setWorkspace] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+
+  const load = useCallback(() => {
+    if (!templateId) return Promise.resolve();
+    setLoading(true); setError("");
+    return apiGet(`/devlab/workspace-templates/${encodeURIComponent(templateId)}`)
+      .then(res => { setTemplate(res?.template || null); setWorkspace(res?.workspace || null); })
+      .catch(e => setError(apiErrorMessage(e, "テンプレートを確認できません。")))
+      .finally(() => setLoading(false));
+  }, [templateId]);
+
+  useEffect(() => { load(); }, [load]);
+
+  return { template, workspace, loading, error, reload: load };
+}
+
+// ---- ワークスペース（プロジェクト体験）: overlay保存・リセット ----
+export function useDevLabWorkspaceActions() {
+  const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState("");
+
+  async function save(templateId, overlay, deletedPaths) {
+    setSaving(true); setSaveError("");
+    try {
+      const res = await apiPut(`/devlab/workspaces/${encodeURIComponent(templateId)}`, { overlay, deletedPaths });
+      return res?.workspace || null;
+    } catch (e) {
+      const message = apiErrorMessage(e, "保存に失敗しました。");
+      setSaveError(message);
+      throw e;
+    } finally { setSaving(false); }
+  }
+
+  async function reset(templateId) {
+    setSaving(true); setSaveError("");
+    try {
+      await apiDelete(`/devlab/workspaces/${encodeURIComponent(templateId)}`);
+    } catch (e) {
+      setSaveError(apiErrorMessage(e, "リセットに失敗しました。"));
+      throw e;
+    } finally { setSaving(false); }
+  }
+
+  return { save, reset, saving, saveError, clearSaveError: () => setSaveError("") };
+}
+
 // ---- 自分のスキルシート（実績下書き反映の判定用） ----
 export function useMySkillSheet() {
   const [sheet, setSheet] = useState(null);

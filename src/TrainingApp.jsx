@@ -27,7 +27,7 @@ import {
   Sparkles, Flame, X, Eye, Pencil, StickyNote, Megaphone, ArrowUpRight,
   MoreHorizontal, Check, Filter, Target, ListChecks, Lock, Mail, Lightbulb,
   Wrench, Compass, ShieldCheck, FileSpreadsheet, LogIn, Menu, Star, Activity,
-  GitBranch, Briefcase, Gauge, MapPin, User, Printer, RefreshCw, Receipt, Landmark, Code2, ClipboardList
+  GitBranch, Briefcase, Gauge, MapPin, User, Printer, RefreshCw, Receipt, Landmark, Code2, ClipboardList, FolderTree
 } from "lucide-react";
 
 // Products other than Training (the default landing product) are code-split so the
@@ -161,12 +161,12 @@ const EL_NAV = {
   trainee: [
     { sec: null, items: [["el_home", "ホーム", LayoutDashboard]] },
     { sec: "Eラーニング", items: [["el_courses", "コース一覧", BookOpen], ["el_recommend", "おすすめ", Lightbulb], ["el_inprogress", "学習中", PlayCircle], ["el_completed", "修了済み", Award], ["el_skills", "獲得スキル", Sparkles], ["el_cert", "修了証", CheckCircle2]] },
-    { sec: "開発演習", items: [["el_devlab", "案件一覧", Code2]] },
+    { sec: "開発演習", items: [["el_devlab", "案件一覧", Code2], ["el_devlab_workspace", "プロジェクト体験", FolderTree]] },
   ],
   instructor: [
     { sec: null, items: [["el_home", "ホーム", LayoutDashboard]] },
     { sec: "Eラーニング", items: [["el_courses", "コース一覧", BookOpen], ["el_recommend", "おすすめ", Lightbulb], ["el_inprogress", "学習中", PlayCircle], ["el_completed", "修了済み", Award], ["el_skills", "獲得スキル", Sparkles], ["el_cert", "修了証", CheckCircle2]] },
-    { sec: "開発演習", items: [["el_devlab_manage", "案件管理", ClipboardList]] },
+    { sec: "開発演習", items: [["el_devlab_manage", "案件管理", ClipboardList], ["el_devlab_workspace", "プロジェクト体験", FolderTree]] },
     { sec: "管理", items: [["el_manage", "コース管理", Settings], ["el_students", "受講状況", Users]] },
   ],
   client: [
@@ -176,7 +176,7 @@ const EL_NAV = {
   admin: [
     { sec: null, items: [["el_home", "ホーム", LayoutDashboard]] },
     { sec: "Eラーニング", items: [["el_courses", "コース一覧", BookOpen], ["el_completed", "修了済み", Award], ["el_cert", "修了証", CheckCircle2]] },
-    { sec: "開発演習", items: [["el_devlab_manage", "案件管理", ClipboardList]] },
+    { sec: "開発演習", items: [["el_devlab_manage", "案件管理", ClipboardList], ["el_devlab_workspace", "プロジェクト体験", FolderTree]] },
     { sec: "管理", items: [["el_manage", "コース管理", Settings], ["el_students", "受講状況", Users]] },
   ],
 };

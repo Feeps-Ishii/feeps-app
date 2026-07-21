@@ -9,6 +9,7 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@codesandbox/sandpack-react": "^2.20.0",
     "aws-amplify": "^6.18.0",
     "lucide-react": "^0.460.0",
     "pdfjs-dist": "^4.10.38",
