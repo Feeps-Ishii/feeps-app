@@ -22,8 +22,10 @@ export default function LearningProduct({ subView, goSub, goProduct, role, theme
   const [completionCourse, setCompletionCourse] = useState(null);
   const [activeCourse, setActiveCourse] = useState(null);
   const [activeLesson, setActiveLesson] = useState(null);
+  // 2026-07-21 監査P1(T-4)対応: 「復習が必要な演習」からの直接ジャンプ先スライドを保持する
+  const [activeSlideId, setActiveSlideId] = useState(null);
   const [activeFinalTestMode, setActiveFinalTestMode] = useState(null);
-  useEffect(() => { setActiveCourse(null); setActiveLesson(null); setActiveFinalTestMode(null); }, [subView]);
+  useEffect(() => { setActiveCourse(null); setActiveLesson(null); setActiveSlideId(null); setActiveFinalTestMode(null); }, [subView]);
   const historyCourse = navigationTarget?.kind === "learning" ? lrn.courseById(navigationTarget.courseId) : null;
   const historyLesson = historyCourse && navigationTarget?.lessonId
     ? lrn.lessonsForCourse(historyCourse.id).find(lesson => lesson.id === navigationTarget.lessonId) || null
@@ -35,20 +37,20 @@ export default function LearningProduct({ subView, goSub, goProduct, role, theme
     if (!historyCourse) {
       if (lrn.courseCatalogState !== "ready") return;
       setProductDetailHistory(null, { historyAction: "replace" });
-      setActiveCourse(null); setActiveLesson(null); setActiveFinalTestMode(null);
+      setActiveCourse(null); setActiveLesson(null); setActiveSlideId(null); setActiveFinalTestMode(null);
       return;
     }
     if (navigationTarget.lessonId && !historyLesson) {
       if (historyLessonState !== "ready") return;
       setProductDetailHistory({ kind: "learning", courseId: historyCourse.id }, { historyAction: "replace" });
-      setActiveCourse(historyCourse); setActiveLesson(null); setActiveFinalTestMode(null);
+      setActiveCourse(historyCourse); setActiveLesson(null); setActiveSlideId(null); setActiveFinalTestMode(null);
       return;
     }
     if (navigationTarget.mode && historyLessonState !== "ready") return;
     if (navigationTarget.mode === "result" && !historyFinalResult) {
       if (lrn.finalTestResultsState !== "ready") return;
       setProductDetailHistory({ kind: "learning", courseId: historyCourse.id }, { historyAction: "replace" });
-      setActiveCourse(historyCourse); setActiveLesson(null); setActiveFinalTestMode(null);
+      setActiveCourse(historyCourse); setActiveLesson(null); setActiveSlideId(null); setActiveFinalTestMode(null);
       return;
     }
     setActiveCourse(historyCourse);
@@ -59,12 +61,13 @@ export default function LearningProduct({ subView, goSub, goProduct, role, theme
   function handleComplete(course) { handleOpenDetail(course); }
   function handleOpenDetail(course) {
     setProductDetailHistory({ kind: "learning", courseId: course.id });
-    setActiveCourse(course); setActiveLesson(null); setActiveFinalTestMode(null);
+    setActiveCourse(course); setActiveLesson(null); setActiveSlideId(null); setActiveFinalTestMode(null);
   }
-  function handleOpenLesson(lesson) {
+  function handleOpenLesson(lesson, slideId) {
     if (activeCourse && lesson?.id) lrn.touchLesson(activeCourse.id, lesson.id);
     if (activeCourse && lesson?.id) setProductDetailHistory({ kind: "learning", courseId: activeCourse.id, lessonId: lesson.id });
     setActiveLesson(lesson);
+    setActiveSlideId(slideId || null);
     setActiveFinalTestMode(null);
   }
   function handleBackToDetail() { window.history.back(); }
@@ -121,7 +124,8 @@ export default function LearningProduct({ subView, goSub, goProduct, role, theme
       <>
         <ElLessonView course={activeCourse} lesson={activeLesson} lrn={lrn}
           lessons={lrn.lessonsForCourse(activeCourse.id)}
-          onBack={handleBackToDetail} onNavigate={handleOpenLesson} onComplete={handleLessonComplete} />
+          onBack={handleBackToDetail} onNavigate={handleOpenLesson} onComplete={handleLessonComplete}
+          initialSlideId={activeSlideId} />
         {modal}
       </>
     );

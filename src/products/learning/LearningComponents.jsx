@@ -722,7 +722,9 @@ function WeakExercisesCard({ items, lessons, onOpenLesson }) {
                 <div className="text-sm font-bold" style={{ color: C.ink }}>{lesson.title}</div>
                 <div className="mt-1 truncate text-xs" style={{ color: C.muted }}>{label}</div>
               </div>
-              <Btn size="sm" kind="ghost" icon={PlayCircle} onClick={() => onOpenLesson(lesson)}>復習する</Btn>
+              {/* 2026-07-21 監査P1(T-4)対応: 対象スライド(先頭の演習)へ直接ジャンプする。従来は
+                  lesson先頭(1ページ目)にしか飛べず、目的のスライドまで手動で辿る必要があった */}
+              <Btn size="sm" kind="ghost" icon={PlayCircle} onClick={() => onOpenLesson(lesson, group[0]?.slideId)}>復習する</Btn>
             </div>
           );
         })}
@@ -1019,7 +1021,7 @@ function ElCourseDetail({ course, lrn, onBack, onOpenLesson, onStartFinalTest, o
   const latestFinalResult = lrn.getLatestFinalTestResult(course.id);
   const TYPE_LABEL = { video: "動画", text: "テキスト", quiz: "テスト" };
   const TYPE_TONE  = { video: "cyan",  text: "muted",   quiz: "amber" };
-  function openLesson(ls) { lrn.startCourse(course.id); lrn.touchLesson(course.id, ls.id); onOpenLesson(ls); }
+  function openLesson(ls, slideId) { lrn.startCourse(course.id); lrn.touchLesson(course.id, ls.id); onOpenLesson(ls, slideId); }
   function handleStartCourse() { lrn.startCourse(course.id); onOpenLesson(nextLesson || lessons[0]); }
   function handleReviewed(lessonId) { lrn.markLessonReviewed(course.id, lessonId); }
   function handleBuildFinalPlan() { lrn.buildFinalTestPlan(course.id); }
@@ -1834,7 +1836,7 @@ function LessonMaterialsCard({ materials, onOpenMaterial }) {
   );
 }
 
-function ElLessonView({ course, lesson, lrn, onBack, onNavigate, onComplete, lessons }) {
+function ElLessonView({ course, lesson, lrn, onBack, onNavigate, onComplete, lessons, initialSlideId }) {
   // slidesを持つLessonだけ「メインスライド中心UI」へ分岐する。既存Lesson(slidesなし)はこの下の
   // 既存実装をそのまま通る。
   if (lesson.slides?.length > 0) {
@@ -1842,6 +1844,7 @@ function ElLessonView({ course, lesson, lrn, onBack, onNavigate, onComplete, les
       <ElSlideLessonView
         course={course} lesson={lesson} lrn={lrn}
         onBack={onBack} onNavigate={onNavigate} onComplete={onComplete} lessons={lessons}
+        initialSlideId={initialSlideId}
       />
     );
   }

@@ -1877,7 +1877,11 @@ function Tests({ role }) {
         testStatus === "採点確認待ち" ? Number(stats.needsReview || 0) > 0 :
         testStatus === "公開中" ? (t.status || "published") === "published" :
         testStatus === "下書き" ? t.status === "draft" : true;
-      return byQuery && byStatus;
+      // 2026-07-21 監査P1(I-6)対応: コースフィルタ(OpsFilterPanel)は表示対象の受講生数・統計には
+      // 反映されていたが、一覧に出すテスト自体は一切絞り込まれていなかった（企業共通テストなど
+      // courseId未設定のテストは対象外にしない）。これが「フィルタが効いていないように見える」根本原因。
+      const byCourse = !opsFilter.courseId || !t.courseId || t.courseId === opsFilter.courseId;
+      return byQuery && byStatus && byCourse;
     }).sort((a, b) => {
       const sa = testStats[testIdOf(a)] || {};
       const sb = testStats[testIdOf(b)] || {};
@@ -4190,8 +4194,12 @@ function Reports({ role }) {
     visibleReports.forEach(r => { if (r.traineeId) m.set(r.traineeId, r); });
     return m;
   }, [visibleReports]);
+  // 2026-07-21 監査P1(I-3)対応: 選択日が非研修日/日程未設定のとき、下の一覧は必ず0件になる。
+  // 見出しのOpsFilterPanel（在籍ベースのtargetTrainees件数）と矛盾しないよう、この場合は
+  // 見出し側の表示対象数も0件に揃え、理由を併記する（詳細はdisplayDailyReportRowsの空表示と対応）。
+  const dailyReportsApplicable = opsReportScheduleState === "ready" && opsReportDayContext?.isTrainingDay === true;
   const dailyReportRows = canViewReports && periodMode === "日次"
-    ? (opsReportScheduleState === "ready" && opsReportDayContext?.isTrainingDay === true ? (opsFilter.targetTrainees.length ? opsFilter.targetTrainees : visibleReports.map(r => ({ ...(traineeById[r.traineeId] || {}), userId: r.traineeId }))) : []).map(t => {
+    ? (dailyReportsApplicable ? (opsFilter.targetTrainees.length ? opsFilter.targetTrainees : visibleReports.map(r => ({ ...(traineeById[r.traineeId] || {}), userId: r.traineeId }))) : []).map(t => {
       const r = reportByTrainee.get(t.userId);
       const hasComment = !!(r?.comments?.length || r?.rawData?.comment || r?.comment);
       const needsCheck = !!(r?.question || r?.blockers);
@@ -4224,16 +4232,26 @@ function Reports({ role }) {
   const dailyMissing = dailyReportRows.filter(r => !r.report).length;
   const dailyUncommented = dailyReportRows.filter(r => r.report && !r.hasComment).length;
   const dailyNeedsCheck = dailyReportRows.filter(r => r.needsCheck || !r.report).length;
+  // 2026-07-21 監査P1(I-4)対応: 月次サマリーの各行から該当日の日次確認画面へ直接遷移できるよう、
+  // 未提出/未コメントの中で最も新しい研修日をdrilldownDateとして持たせる（全て解消済みなら直近研修日）
   const monthlyReportRows = opsFilter.targetTrainees.map(t => {
     const scopedReports = monthlyReports.filter(r => r.traineeId === t.userId && (!r.courseId || r.courseId === opsFilter.courseId) && opsReportTrainingDates.includes(r.date));
+    const reportByDate = new Map(scopedReports.map(r => [r.date, r]));
     const submitted = scopedReports.length;
     const commented = scopedReports.filter(r => r.comment || (Array.isArray(r.comments) && r.comments.length)).length;
+    const missingDates = opsReportTrainingDates.filter(d => !reportByDate.has(d));
+    const uncommentedDates = opsReportTrainingDates.filter(d => {
+      const rep = reportByDate.get(d);
+      return rep && !(rep.comment || (Array.isArray(rep.comments) && rep.comments.length));
+    });
+    const drilldownDate = missingDates[missingDates.length - 1] || uncommentedDates[uncommentedDates.length - 1] || opsReportTrainingDates[opsReportTrainingDates.length - 1] || null;
     return {
       traineeId: t.userId,
       name: t.name || nameMap[t.userId] || fallbackName(t.userId),
       company: companyNameById(t.company) || "未登録",
       submitted,
       commented,
+      drilldownDate,
       missing: opsReportMonthScheduleState === "setup_required" || opsReportMonthScheduleState === "error" ? null : Math.max(opsReportTrainingDates.length - submitted, 0),
     };
   }).filter(r => {
@@ -4292,7 +4310,11 @@ function Reports({ role }) {
       {canViewReports && periodMode === "日次" && opsReportScheduleState === "setup_required" && <div className="mb-4 rounded-xl px-4 py-3 text-sm font-semibold" style={{ background: T.warningSubtle, color: T.warning }}>コース日程が未設定です。受講生を未提出には数えていません。</div>}
       {canViewReports && periodMode === "日次" && opsReportScheduleState === "ready" && opsReportDayContext?.isTrainingDay === false && <div className="mb-4 rounded-xl px-4 py-3 text-sm" style={{ background: T.bgBase, color: T.textMuted }}>選択日は非研修日です。未提出者は発生しません。</div>}
       {canViewReports && periodMode === "月次" && opsReportMonthScheduleState === "setup_required" && <div className="mb-4 rounded-xl px-4 py-3 text-sm font-semibold" style={{ background: T.warningSubtle, color: T.warning }}>コース日程が未設定のため、未提出数は「—」で表示します。</div>}
-      {canViewReports && <OpsFilterPanel filter={opsFilter} summary={periodMode === "月次" ? `表示対象: ${opsFilter.targetTrainees.length}名 / 集計月: ${month}` : `表示対象: ${opsFilter.targetTrainees.length}名 / 日報保存: ${visibleReports.length}件`} />}
+      {canViewReports && <OpsFilterPanel filter={opsFilter} summary={periodMode === "月次"
+        ? `表示対象: ${opsFilter.targetTrainees.length}名 / 集計月: ${month}`
+        : dailyReportsApplicable
+          ? `表示対象: ${opsFilter.targetTrainees.length}名 / 日報保存: ${visibleReports.length}件`
+          : `表示対象: 0名（選択日は対象外のため。在籍${opsFilter.targetTrainees.length}名）`} />}
       {canViewReports && (
         <Card className="mb-4 p-4">
           <div className="grid gap-3 md:grid-cols-[1fr_170px_170px_auto]">
@@ -4378,12 +4400,31 @@ function Reports({ role }) {
                 <div className="grid grid-cols-5 gap-3 px-4 py-2.5 text-xs font-semibold" style={{ background: T.bgBase, color: T.textMuted }}>
                   <div className="col-span-2">受講生</div><div>提出数</div><div>コメント済み</div><div>未提出数</div>
                 </div>
-                {monthlyReportRows.length === 0 ? <div className="px-4 py-8 text-center text-sm" style={{ color: T.textMuted }}>該当データがありません</div> : monthlyReportRows.map(r => (
-                  <div key={r.traineeId} className="grid grid-cols-5 gap-3 px-4 py-3 text-sm" style={{ borderTop: `1px solid ${T.border}`, color: T.textPrimary }}>
-                    <div className="col-span-2 flex items-center gap-2"><Avatar name={r.name} size={28} /><div className="min-w-0"><div className="truncate font-semibold">{r.name}</div><div className="truncate text-xs" style={{ color: T.textMuted }}>{r.company}</div></div></div>
-                    <div><Badge tone="green">{r.submitted}件</Badge></div><div><Badge tone={r.commented ? "cyan" : "muted"}>{r.commented}件</Badge></div><div><Badge tone={r.missing == null ? "muted" : r.missing ? "amber" : "green"}>{r.missing == null ? "—" : `${r.missing}件`}</Badge></div>
-                  </div>
-                ))}
+                {monthlyReportRows.length === 0 ? <div className="px-4 py-8 text-center text-sm" style={{ color: T.textMuted }}>該当データがありません</div> : monthlyReportRows.map(r => {
+                  const canDrilldown = Boolean(r.drilldownDate);
+                  const rowContent = (
+                    <>
+                      <div className="col-span-2 flex items-center gap-2"><Avatar name={r.name} size={28} /><div className="min-w-0"><div className="truncate font-semibold">{r.name}</div><div className="truncate text-xs" style={{ color: T.textMuted }}>{r.company}</div></div></div>
+                      <div><Badge tone="green">{r.submitted}件</Badge></div><div><Badge tone={r.commented ? "cyan" : "muted"}>{r.commented}件</Badge></div>
+                      <div className="flex items-center justify-between gap-2"><Badge tone={r.missing == null ? "muted" : r.missing ? "amber" : "green"}>{r.missing == null ? "—" : `${r.missing}件`}</Badge>{canDrilldown && <ChevronRight size={16} className="shrink-0" style={{ color: T.textMuted }} />}</div>
+                    </>
+                  );
+                  // 2026-07-21 監査P1(I-4)対応: 行クリックで未提出/未コメントの最新該当日の日次確認画面へ遷移する
+                  return canDrilldown ? (
+                    <button key={r.traineeId} type="button" onClick={() => {
+                      setPeriodMode("日次");
+                      setDate(r.drilldownDate);
+                      setReportQuery(r.name || "");
+                      setTrainingTargetContext({ view: "reports", courseId: opsFilter.courseId, date: r.drilldownDate }, { historyAction: "push" });
+                    }} className="grid w-full grid-cols-5 items-center gap-3 px-4 py-3 text-left text-sm transition hover:bg-slate-50" style={{ borderTop: `1px solid ${T.border}`, color: T.textPrimary }} title={`${r.drilldownDate.replace(/-/g, "/")}の日報確認を開く`}>
+                      {rowContent}
+                    </button>
+                  ) : (
+                    <div key={r.traineeId} className="grid grid-cols-5 gap-3 px-4 py-3 text-sm" style={{ borderTop: `1px solid ${T.border}`, color: T.textPrimary }}>
+                      {rowContent}
+                    </div>
+                  );
+                })}
               </div>
             </div>
           )}

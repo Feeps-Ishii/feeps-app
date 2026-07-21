@@ -1165,9 +1165,15 @@ function ReactionBar({ course, lesson, lrn, accent }) {
   );
 }
 
-export default function ElSlideLessonView({ course, lesson, lrn, onBack, onNavigate, onComplete, lessons }) {
+export default function ElSlideLessonView({ course, lesson, lrn, onBack, onNavigate, onComplete, lessons, initialSlideId }) {
   const slides = orderedSlides(lesson);
-  const [slideIndex, setSlideIndex] = useState(0);
+  // 2026-07-21 監査P1(T-4)対応: 「復習が必要な演習」から該当スライドへ直接ジャンプできるよう、
+  // initialSlideIdが渡された場合はそのスライドから開始する（見つからなければ従来通り先頭から）
+  const [slideIndex, setSlideIndex] = useState(() => {
+    if (!initialSlideId) return 0;
+    const found = slides.findIndex(s => s.id === initialSlideId);
+    return found >= 0 ? found : 0;
+  });
   const [rightCompact, setRightCompact] = useState(true);
   const accent = course.color || PRODUCT_ACCENT.learning.accent;
   const lessonsDone = lrn.getLessonsDone(course.id);

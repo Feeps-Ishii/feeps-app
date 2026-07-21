@@ -16,8 +16,8 @@ import {
 } from "../../components/common";
 
 // 勤怠・日報ステータスの短い日本語ラベル（Dashboard APIの生ステータス値をそのまま出さない）
-const ATT_LABEL = { completed: "退勤済み", working: "出勤中", not_clocked_in: "未打刻", absent: "欠席", late: "遅刻", early_leave: "早退", unknown: "確認中" };
-const REPORT_LABEL = { commented: "コメントあり", submitted: "提出済み", not_submitted: "未提出" };
+const ATT_LABEL = { completed: "退勤済み", working: "出勤中", not_clocked_in: "未打刻", absent: "欠席", late: "遅刻", early_leave: "早退", unknown: "確認中", not_applicable: "対象外" };
+const REPORT_LABEL = { commented: "コメントあり", submitted: "提出済み", not_submitted: "未提出", not_applicable: "対象外" };
 const TODO_ICON = {
   report_unchecked: FileText, report_uncommented: MessageSquare, attendance_alert: Clock,
   test_pending_review: ClipboardCheck, test_unsubmitted: ClipboardCheck, test_low_score: ClipboardCheck,
@@ -121,12 +121,14 @@ const ROLE_PORTAL_COPY = {
   },
 };
 
-function metricValue(value, unit, loading) {
+function metricValue(value, unit) {
   if (value == null) return "—";
   return `${value}${unit}`;
 }
 
-function portalMetrics(role, dashboard, loading) {
+// 2026-07-21 監査P1(C-1)対応: dashboard取得中の「—」（一時的）と、取得失敗が続く「—」
+// （unknown、要再試行）を見分けられるようタイトルを分ける。取得できていれば必ず実数（0でも）を表示する
+function portalMetrics(role, dashboard, loading, hasError) {
   if (!dashboard) {
     const labels = {
       trainee: ["参加コース", "今日の未完了", "未受験テスト"],
@@ -134,7 +136,7 @@ function portalMetrics(role, dashboard, loading) {
       admin: ["稼働コース", "全受講生", "要確認"],
       client: ["自社受講生", "本日出席", "日報未提出"],
     }[role] || ["利用状況", "今日の対応", "要確認"];
-    return labels.map(label => ({ label, value: "—" }));
+    return labels.map(label => ({ label, value: "—", loading: !hasError, title: hasError ? "確認できません。再読み込みしてください。" : "読み込み中です。" }));
   }
   if (role === "trainee") {
     const todayCompletion = dashboard?.todayCompletion || null;
@@ -190,13 +192,22 @@ function nextPortalAction(role, dashboard) {
     if (dashboard?.todayCompletion?.status === "unknown") return { label: "研修状況を確認", description: "今日の勤怠・日報を再確認", targetUrl: "/training" };
     const activeCourses = asArray(dashboard?.activeCourses);
     const activeCourseId = getActiveCourseId();
-    const course = activeCourses.find(item => item.courseId === activeCourseId && item.todayCurriculum)
-      || activeCourses.find(item => item.todayCurriculum)
-      || activeCourses.find(item => item.courseId === activeCourseId)
-      || activeCourses[0];
-    return course
-      ? { label: "今日の研修を開く", description: course.courseName || "所属コース", targetUrl: `/training/curriculum?courseId=${encodeURIComponent(course.courseId)}` }
-      : { label: "学習コースを見る", description: "公開中のコースを確認", targetUrl: "/learning/courses" };
+    // 2026-07-21 監査P1(T-1)対応: 「今日の研修を開く」は今日実際に単元がある場合のみ表示する。
+    // 非研修日にactiveCourses[0]へフォールバックしていた旧ロジックは、下部「今日の学習状況」
+    // セクション（noTrainingToday表示）と同一画面内で矛盾していた。
+    const todayCourse = activeCourses.find(item => item.courseId === activeCourseId && item.todayCurriculum)
+      || activeCourses.find(item => item.todayCurriculum);
+    if (todayCourse) {
+      return { label: "今日の研修を開く", description: todayCourse.courseName || "所属コース", targetUrl: `/training/curriculum?courseId=${encodeURIComponent(todayCourse.courseId)}` };
+    }
+    if (activeCourses.length === 0) {
+      return { label: "学習コースを見る", description: "公開中のコースを確認", targetUrl: "/learning/courses" };
+    }
+    const learningTargetUrl = dashboard?.learning?.targetUrl || "/learning";
+    const allCoursesEnded = activeCourses.every(item => item.courseEnded === true);
+    return allCoursesEnded
+      ? { label: "復習・Eラーニングへ", description: "研修は終了しました。学んだ内容を復習できます。", targetUrl: learningTargetUrl }
+      : { label: "Eラーニングを進める", description: "今日は研修日ではありません。学習を進めましょう。", targetUrl: learningTargetUrl };
   }
   if (role === "instructor") {
     const todo = asArray(dashboard?.todos).find(item => Number(item.count || 0) > 0 && item.targetUrl);
@@ -248,10 +259,10 @@ function PortalProductCard({ product, index, onOpen }) {
   );
 }
 
-function ProductPortal({ role, displayName, products, dashboard, loading, goProduct, goTraining, goSub }) {
+function ProductPortal({ role, displayName, products, dashboard, loading, error, goProduct, goTraining, goSub }) {
   const copy = ROLE_PORTAL_COPY[role] || ROLE_PORTAL_COPY.trainee;
   const availableProducts = asArray(products).filter(product => product?.key && product.key !== "home");
-  const metrics = portalMetrics(role, dashboard, loading);
+  const metrics = portalMetrics(role, dashboard, loading, Boolean(error));
   const nextAction = nextPortalAction(role, dashboard);
   const orbitProducts = availableProducts.slice(0, 5);
   const openNext = () => openTargetUrl(nextAction.targetUrl, { goProduct, goTraining, goSub });
@@ -283,7 +294,11 @@ function ProductPortal({ role, displayName, products, dashboard, loading, goProd
                 {metrics.map(metric => (
                   <div key={metric.label} className="rounded-2xl px-3 py-3" style={{ background: PRISM.heroGlassStrong, border: `1px solid ${PRISM.heroLine}` }}>
                     <div className="truncate text-[10px] font-semibold" style={{ color: NOVA.onDarkMuted }}>{metric.label}</div>
-                    <div className="mt-1 truncate text-lg font-bold tabular-nums">{metric.value}</div>
+                    {metric.loading ? (
+                      <span className="feeps-shimmer mt-2 block h-4 w-10 rounded" aria-label="読み込み中" />
+                    ) : (
+                      <div className="mt-1 truncate text-lg font-bold tabular-nums" title={metric.title}>{metric.value}</div>
+                    )}
                   </div>
                 ))}
               </div>
@@ -595,9 +610,11 @@ function InstructorHome({ dashboard, displayName, goProduct, goTraining, goSub, 
             </div>
             <div className="col-span-12 lg:col-span-5">
               <PBCard className="p-5">
-                <CapLabel>担当コース</CapLabel>
+                {/* 2026-07-21 監査P1(I-1)対応: 上部サマリー「担当Nコース」との矛盾を解消するため、
+                    このパネルが「本日開講中」のみのスコープであることを見出し・空表示の双方で明示する */}
+                <CapLabel>本日開講中の担当コース</CapLabel>
                 {todayCourses.length === 0 ? (
-                  <p className="text-xs" style={{ color: PRISM.mut }}>担当コースがありません。</p>
+                  <p className="text-xs" style={{ color: PRISM.mut }}>本日開講の授業はありません（担当{summary.assignedCourses ?? 0}コース中）。</p>
                 ) : (
                   <ul className="flex flex-col">
                     {todayCourses.slice(0, 4).map(c => (
@@ -811,6 +828,7 @@ export default function FeepsOneHome({ role, displayName, goProduct, goTraining,
         products={products}
         dashboard={dashboard}
         loading={loadingDashboard}
+        error={dashboardError}
         goProduct={goProduct}
         goTraining={goTraining}
         goSub={goSub}
