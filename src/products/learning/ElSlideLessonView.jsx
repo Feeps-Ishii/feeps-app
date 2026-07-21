@@ -279,6 +279,20 @@ function DescriptiveQuizBody({ slide, interaction, accent, lrn, courseId, lesson
         className="w-full resize-y rounded-xl px-3 py-2.5 text-sm outline-none disabled:opacity-70"
         style={{ border: `1px solid ${C.line}`, color: C.ink }}
       />
+      {/* 2026-07-21監査対応(T-3): 回答後にtextareaが恒久disabledになり、「復習が必要な演習」欄の
+          「再挑戦すると自動的にこの一覧から外れます」という案内と矛盾していた。「書き直して再挑戦する」で
+          stateをidleへ戻しtextareaを再度有効化する。提出はsubmitExercise側でattemptCountを増やして
+          上書き保存される（履歴はattemptCount/createdAt/updatedAtで保持）。 */}
+      {state === "done" && (
+        <button
+          type="button"
+          onClick={() => { setState("idle"); setResult(null); setErrorMsg(""); }}
+          className="mt-3 rounded-full px-4 py-2 text-xs font-bold transition hover:opacity-80"
+          style={{ border: `1px solid ${C.line}`, color: C.ink }}
+        >
+          書き直して再挑戦する
+        </button>
+      )}
       {state !== "done" && (
         <button
           type="button"
@@ -467,6 +481,19 @@ function SelectionTaskBody({ slide, lrn, courseId, lessonId }) {
           <div className="mb-1 text-sm font-bold" style={{ color: isCorrect ? "#15803d" : "#b45309" }}>{isCorrect ? "正解です！" : "不正解です"}</div>
           <p className="text-sm leading-relaxed" style={{ color: C.body }}>{content.explanation}</p>
         </div>
+      )}
+      {/* 2026-07-21監査対応(T-3): 一度回答すると選択肢が恒久disabledになり「復習が必要な演習」欄の
+          「再挑戦すると自動的にこの一覧から外れます」という案内と矛盾していた。再挑戦を許可し、
+          提出はsubmitExercise側でattemptCountを増やして保存される（履歴は保持したまま上書き）。 */}
+      {answered && (
+        <button
+          type="button"
+          onClick={() => setSelected(null)}
+          className="mt-3 rounded-full px-4 py-2 text-xs font-bold transition hover:opacity-80"
+          style={{ border: `1px solid ${C.line}`, color: C.ink }}
+        >
+          再挑戦する
+        </button>
       )}
     </div>
   );

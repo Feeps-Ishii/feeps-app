@@ -7,7 +7,7 @@ import {
   TraineeBulkImportPanel,
 } from "../../components/common";
 import { EmptyState } from "../training/TrainingComponents.jsx";
-import { statusKind, todayStr } from "../training/useTraining.js";
+import { todayStr } from "../training/useTraining.js";
 import { getActiveCourseId, setActiveCourseId } from "../../utils/common/courseContext.js";
 import {
   ClipboardCheck, Clock, NotebookPen, Users,
@@ -48,6 +48,7 @@ function AdminHome({ go, openRisk }) {
   const [reports, setReports] = useState([]);
   const [attendance, setAttendance] = useState([]);
   const [courseMap, setCourseMap] = useState({});
+  const [dash, setDash] = useState(null);
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState("");
   const labelKind = (k) => (k === "regular" ? "定常" : k === "elearning" ? "Eラーニング" : k === "support" ? "継続支援" : "新人研修");
@@ -72,6 +73,10 @@ function AdminHome({ go, openRisk }) {
   useEffect(() => {
     apiGet("/reports?date=" + date).then(r => setReports(r || [])).catch(e => { console.warn("admin reports failed", e); setErr("日報の取得に失敗しました：" + (e?.message || e)); });
     apiGet("/attendance?date=" + date).then(r => setAttendance(r || [])).catch(e => { console.warn("admin attendance failed", e); setAttendance([]); });
+    // 2026-07-21 監査対応: 「本日のアラート」「優先して確認する研修」は「今日」基準のraw集計だと
+    // 非研修日に全コースが一律「要確認」化してしまう（オオカミ少年化）ため、直近研修日までの
+    // 未解消異常を累積で数える/dashboard/adminの集計結果を使う（dashboard.mjs参照）。
+    apiGet("/dashboard/admin?date=" + date).then(setDash).catch(e => { console.warn("admin dashboard failed", e); setDash(null); });
   }, [date]);
   const trainees = users.filter(u => u.role === "trainee");
   const reportIds = new Set(reports.map(r => r.traineeId));
@@ -79,7 +84,6 @@ function AdminHome({ go, openRisk }) {
   const traineeIds = new Set(trainees.map(t => t.userId));
   const reportSubmitted = trainees.filter(t => reportIds.has(t.userId)).length;
   const attendanceRegistered = trainees.filter(t => attendanceIds.has(t.userId)).length;
-  const absentCount = attendance.filter(a => traineeIds.has(a.traineeId) && statusKind(a.status) === "absent").length;
   const reportMissingCount = Math.max(trainees.length - reportSubmitted, 0);
   const attendanceMissingCount = Math.max(trainees.length - attendanceRegistered, 0);
   const reportRate = trainees.length ? Math.round((reportSubmitted / trainees.length) * 100) : 0;
@@ -90,10 +94,17 @@ function AdminHome({ go, openRisk }) {
     const companyIds = new Set(members.map(t => t.company || "").filter(Boolean));
     const reportCount = members.filter(t => reportIds.has(t.userId)).length;
     const attendanceCount = members.filter(t => attendanceIds.has(t.userId)).length;
-    return { ...c, members, companyCount: companyIds.size, reportCount, attendanceCount, needsAttention: members.length > 0 && (reportCount < members.length || attendanceCount < members.length) };
+    return { ...c, members, companyCount: companyIds.size, reportCount, attendanceCount };
   });
-  const attentionCourses = courseSummaries.filter(c => c.needsAttention);
-  const alertCount = reportMissingCount + attendanceMissingCount + absentCount + attentionCourses.length;
+  // 「要確認研修」「本日のアラート」はdashboard.mjsの累積未解消集計（直近研修日基準）を正とする。
+  // 取得前・失敗時はraw今日集計にフォールバックする（0件偽装はしない）。
+  const dashCourses = dash?.courses || null;
+  const attentionCourses = dashCourses
+    ? courseSummaries.filter(c => dashCourses.find(dc => dc.courseId === c.courseId && (dc.status === "needs_attention" || dc.status === "unassigned")))
+    : courseSummaries.filter(c => c.members.length > 0 && (c.reportCount < c.members.length || c.attendanceCount < c.members.length));
+  const followUpStudents = dash?.summary?.followUpStudents;
+  const alertCount = followUpStudents != null ? followUpStudents : (reportMissingCount + attendanceMissingCount + attentionCourses.length);
+  const followUps = dash?.followUps || [];
   const companySummaries = companies.map(co => {
     const members = trainees.filter(t => t.company === co.companyId);
     const memberIds = new Set(members.map(t => t.userId));
@@ -115,9 +126,9 @@ function AdminHome({ go, openRisk }) {
 
       <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
         <PrismKpiCard icon={Users} label="全受講生" value={trainees.length} unit="名" detail="登録済み受講生" tone="teal" onClick={() => go && go("users")} />
-        <PrismKpiCard icon={Clock} label="出席登録率" value={`${attendanceRate}%`} detail={`${attendanceRegistered}/${trainees.length}名 登録`} tone={attendanceMissingCount || absentCount ? "warn" : "ok"} onClick={() => go && go("attendance")} />
-        <PrismKpiCard icon={NotebookPen} label="日報提出率" value={`${reportRate}%`} detail={`${reportSubmitted}/${trainees.length}名 提出`} tone={reportMissingCount ? "warn" : "ok"} onClick={() => go && go("reports")} />
-        <PrismKpiCard icon={AlertCircle} label="本日のアラート" value={alertCount} unit="件" detail="未提出・未登録・欠席・要確認" tone={alertCount ? "bad" : "ok"} />
+        <PrismKpiCard icon={Clock} label="出席登録率" value={`${attendanceRate}%`} detail={`${attendanceRegistered}/${trainees.length}名 登録（本日）`} tone={attendanceMissingCount ? "warn" : "ok"} onClick={() => go && go("attendance")} />
+        <PrismKpiCard icon={NotebookPen} label="日報提出率" value={`${reportRate}%`} detail={`${reportSubmitted}/${trainees.length}名 提出（本日）`} tone={reportMissingCount ? "warn" : "ok"} onClick={() => go && go("reports")} />
+        <PrismKpiCard icon={AlertCircle} label="要フォロー" value={alertCount} unit="名" detail="直近研修日までの未解消異常" tone={alertCount ? "bad" : "ok"} />
       </div>
 
       <div className="flex flex-wrap items-center justify-between gap-3">
@@ -137,18 +148,44 @@ function AdminHome({ go, openRisk }) {
       <PrismCard className="p-4 sm:p-5">
         <PrismSectionTitle
           title="優先して確認する研修"
-          desc="日報または勤怠の登録が不足しているコースです。"
+          desc="直近研修日までに欠席・遅刻・早退・勤怠未登録・日報未提出などの未解消異常があるコースです（今日が研修日かは問いません）。"
           action={<div className="flex flex-wrap gap-2"><Badge tone={attentionCourses.length ? "amber" : "green"}>{attentionCourses.length}件</Badge><Btn size="sm" kind="ghost" icon={NotebookPen} onClick={() => go && go("reports")}>日報</Btn><Btn size="sm" kind="soft" icon={Clock} onClick={() => go && go("attendance")}>勤怠</Btn></div>}
         />
         <div className="grid gap-2 md:grid-cols-2">
           {attentionCourses.length ? attentionCourses.slice(0, 6).map(c => (
             <div key={c.courseId} className="flex items-center gap-3 rounded-2xl p-3" style={{ background: PRISM.warnSubtle, border: `1px solid ${PRISM.warnLine}` }}>
               <span className="grid h-9 w-9 shrink-0 place-items-center rounded-xl" style={{ background: PRISM.surface, color: PRISM.warn }}><AlertCircle size={17} /></span>
-              <div className="min-w-0 flex-1"><div className="truncate font-semibold" style={{ color: PRISM.ink }}>{c.name}</div><div className="mt-1 text-xs" style={{ color: PRISM.sub }}>日報 {c.reportCount}/{c.members.length} ・ 勤怠 {c.attendanceCount}/{c.members.length}</div></div>
+              <div className="min-w-0 flex-1"><div className="truncate font-semibold" style={{ color: PRISM.ink }}>{c.name}</div><div className="mt-1 text-xs" style={{ color: PRISM.sub }}>所属{c.members.length}名 ・ 本日日報 {c.reportCount}/{c.members.length} ・ 本日出席 {c.attendanceCount}/{c.members.length}</div></div>
               <Btn size="sm" kind="ghost" icon={ChevronRight} onClick={() => openCourse(c.courseId)}>開く</Btn>
             </div>
-          )) : <div className="rounded-2xl p-4 text-sm md:col-span-2" style={{ background: PRISM.okSubtle, color: PRISM.ok }}>今日の要確認研修はありません。</div>}
+          )) : <div className="rounded-2xl p-4 text-sm md:col-span-2" style={{ background: PRISM.okSubtle, color: PRISM.ok }}>現在要確認の研修はありません。</div>}
         </div>
+      </PrismCard>
+
+      <PrismCard className="p-4 sm:p-5">
+        <PrismSectionTitle
+          title="要フォロー受講生"
+          desc="欠席・遅刻・早退・勤怠未登録・日報未提出・テスト未受験を、直近研修日までの累積かつ理由別に表示します。"
+          action={<Badge tone={followUps.length ? "amber" : "green"}>{followUps.length}名</Badge>}
+        />
+        {followUps.length ? (
+          <div className="grid gap-2 md:grid-cols-2">
+            {followUps.slice(0, 8).map(f => (
+              <div key={f.traineeId} className="flex items-center gap-3 rounded-2xl p-3" style={{ background: PRISM.base, border: `1px solid ${PRISM.line}` }}>
+                <span className="grid h-9 w-9 shrink-0 place-items-center rounded-full text-xs font-bold text-white" style={{ background: PRISM.accent }}>{String(f.traineeName || "?").slice(0, 1)}</span>
+                <div className="min-w-0 flex-1">
+                  <div className="truncate text-sm font-semibold" style={{ color: PRISM.ink }}>{f.traineeName}</div>
+                  <div className="truncate text-xs" style={{ color: PRISM.mut }}>{f.companyName || f.courseName}</div>
+                </div>
+                <div className="flex shrink-0 flex-wrap justify-end gap-1">
+                  {(f.reasons || []).slice(0, 2).map((r, i) => (
+                    <Badge key={i} tone={r.severity === "critical" ? "red" : r.severity === "warning" ? "amber" : "cyan"}>{r.label}</Badge>
+                  ))}
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : <div className="rounded-2xl p-4 text-sm" style={{ background: PRISM.okSubtle, color: PRISM.ok }}>現在フォローが必要な受講生はいません。</div>}
       </PrismCard>
 
       <div className="grid gap-5 xl:grid-cols-2">

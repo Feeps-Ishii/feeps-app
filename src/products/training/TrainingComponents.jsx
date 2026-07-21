@@ -4878,6 +4878,7 @@ function ClientHome({ openKarte, go }) {
   const [clientLoading, setClientLoading] = useState(true);
   const [clientErr, setClientErr] = useState("");
   const [clientCompanyName, setClientCompanyName] = useState("");
+  const [clientDash, setClientDash] = useState(null);
   const clientDate = todayStr();
   useEffect(() => {
     let alive = true;
@@ -4889,8 +4890,12 @@ function ClientHome({ openKarte, go }) {
       apiGet("/attendance?date=" + clientDate),
       apiGet("/tests"),
       apiGet("/companies").catch(() => []),
+      // 2026-07-21 監査対応(C-2): 「優先フォロー」は「今日」基準のraw勤怠/日報だと非研修日に
+      // 全員が同じ「勤怠未登録」に埋没する。/dashboard/clientの累積未解消集計（直近研修日基準・
+      // 理由別）を使って実際の欠席・遅刻と正常受講生を区別する。
+      apiGet("/dashboard/client").catch(() => null),
     ])
-      .then(async ([ts, cs, rs, atts, tests, companies]) => {
+      .then(async ([ts, cs, rs, atts, tests, companies, dash]) => {
         const visibleTests = (Array.isArray(tests) ? tests : []).filter(t => (t.status || "published") !== "archived").slice(0, 8);
         const resultPairs = await Promise.all(visibleTests.map(t => {
           const tid = t.testId || t.id;
@@ -4903,6 +4908,7 @@ function ClientHome({ openKarte, go }) {
         setClientAttendance(Array.isArray(atts) ? atts : []);
         setClientTests(visibleTests);
         setClientTestResults(Object.fromEntries(resultPairs));
+        setClientDash(dash);
         // /companies はclient権限では自社のみ返る（common.mjs）。Excel出力のraw ID表示回避のため企業名を保持する。
         setClientCompanyName(Array.isArray(companies) && companies[0]?.name || "");
       })
@@ -4938,13 +4944,28 @@ function ClientHome({ openKarte, go }) {
   const clientTodayComments = clientReportsForToday
     .flatMap(r => normalizeReportComments(r).slice(-1).map(c => ({ ...c, traineeId: r.traineeId || r.userId, traineeName: (clientTrainees.find(t => (t.userId || t.id) === (r.traineeId || r.userId))?.name) || "受講生" })))
     .slice(0, 3);
-  const clientFollowRows = [
-    ...clientAttendanceMissing.map(t => ({ trainee: t, reason: "勤怠未登録", tone: "amber" })),
-    ...clientAbsent.map(t => ({ trainee: t, reason: "欠席", tone: "red" })),
-    ...clientReportMissing.map(t => ({ trainee: t, reason: "日報未保存", tone: "amber" })),
-    ...clientTestMissing.map(t => ({ trainee: t, reason: "テスト未受験", tone: "cyan" })),
-    ...clientLowScores.map(t => ({ trainee: t, reason: "理解度低下", tone: "red" })),
-  ];
+  // 2026-07-21 監査対応(C-2): /dashboard/clientが取得できた場合は、直近研修日までの累積・
+  // 理由別の未解消異常（欠席/遅刻/早退/勤怠未登録/日報未提出/テスト未受験）を優先フォローの
+  // 根拠にする。取得失敗時のみ、従来の当日rawベースへフォールバックする（0件偽装はしない）。
+  const clientFollowRows = clientDash
+    ? [
+        ...(clientDash.followUps || []).flatMap(f => {
+          const trainee = clientTrainees.find(t => (t.userId || t.id) === f.traineeId) || { userId: f.traineeId, name: f.traineeName };
+          return (f.reasons || []).map(r => ({
+            trainee,
+            reason: r.label,
+            tone: r.severity === "critical" ? "red" : r.severity === "warning" ? "amber" : "cyan",
+          }));
+        }),
+        ...clientLowScores.map(t => ({ trainee: t, reason: "理解度低下", tone: "red" })),
+      ]
+    : [
+        ...clientAttendanceMissing.map(t => ({ trainee: t, reason: "勤怠未登録", tone: "amber" })),
+        ...clientAbsent.map(t => ({ trainee: t, reason: "欠席", tone: "red" })),
+        ...clientReportMissing.map(t => ({ trainee: t, reason: "日報未保存", tone: "amber" })),
+        ...clientTestMissing.map(t => ({ trainee: t, reason: "テスト未受験", tone: "cyan" })),
+        ...clientLowScores.map(t => ({ trainee: t, reason: "理解度低下", tone: "red" })),
+      ];
   const clientName = t => t.name || t.email || t.userId || "受講生";
   return (
     <PrismPage>

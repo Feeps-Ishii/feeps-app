@@ -626,11 +626,12 @@ function InstructorHome({ dashboard, displayName, goProduct, goTraining, goSub, 
 function AdminBoardHome({ dashboard, goProduct, goTraining, goSub, loading, error, onRetry }) {
   const open = url => openTargetUrl(url, { goProduct, goTraining, goSub });
   const courses = asArray(dashboard?.courses);
+  const followUps = asArray(dashboard?.followUps);
   const summary = dashboard?.summary || {};
 
   return (
     <div className="flex flex-col gap-5">
-      <SectionTitle title="研修運営の状況" desc={`${dateLabel()} · 稼働中 ${summary.totalCourses ?? 0}コース · 受講生 ${summary.totalStudents ?? 0}名`} />
+      <SectionTitle title="研修運営の状況" desc={`${dateLabel()} · 全${summary.totalCourses ?? 0}コース（本日開講 ${summary.todayTrainingCourses ?? 0}件） · 受講生 ${summary.totalStudents ?? 0}名`} />
 
       {error && <ErrorRetryCard message={error} onRetry={onRetry} />}
 
@@ -650,9 +651,34 @@ function AdminBoardHome({ dashboard, goProduct, goTraining, goSub, loading, erro
             <PBCard className="p-4"><CapLabel><AlertCircle size={12} className="mr-1 inline" />要確認コース</CapLabel><div className="text-2xl font-extrabold tabular-nums" style={{ color: summary.coursesNeedingAttention ? PRISM.warn : PRISM.ink }}>{summary.coursesNeedingAttention ?? 0}<span className="ml-1 text-sm font-semibold" style={{ color: PRISM.mut }}>件</span></div></PBCard>
           </div>
 
+          <PBCard className="p-5">
+            <CapLabel>要フォロー（直近研修日までの未解消異常）</CapLabel>
+            {followUps.length === 0 ? (
+              <p className="mt-2 text-xs" style={{ color: PRISM.mut }}>現在フォローが必要な受講生はいません。</p>
+            ) : (
+              <ul className="mt-1 flex flex-col">
+                {followUps.slice(0, 6).map(f => (
+                  <li key={f.traineeId} className="flex items-center gap-3 border-b py-2.5 last:border-b-0" style={{ borderColor: PRISM.line }}>
+                    <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-xs font-bold text-white" style={{ background: PRISM.accent }}>{String(f.traineeName || "?").slice(0, 1)}</span>
+                    <div className="min-w-0 flex-1">
+                      <div className="truncate text-sm font-bold" style={{ color: PRISM.ink }}>{f.traineeName}</div>
+                      <div className="truncate text-xs" style={{ color: PRISM.mut }}>{f.companyName || f.courseName}</div>
+                    </div>
+                    <div className="flex shrink-0 flex-wrap justify-end gap-1">
+                      {asArray(f.reasons).slice(0, 2).map((r, i) => (
+                        <SeverityChip key={i} severity={r.severity}>{r.label}</SeverityChip>
+                      ))}
+                    </div>
+                    <button type="button" onClick={() => open(f.targetUrl)} aria-label="詳細を見る"><ChevronRight size={16} style={{ color: PRISM.mut }} /></button>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </PBCard>
+
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             {courses.length === 0 ? (
-              <PBCard className="p-5 sm:col-span-2"><p className="text-xs" style={{ color: PRISM.mut }}>稼働中のコースはありません。</p></PBCard>
+              <PBCard className="p-5 sm:col-span-2"><p className="text-xs" style={{ color: PRISM.mut }}>コースがありません。</p></PBCard>
             ) : courses.map(c => (
               <PBCard key={c.courseId} className="p-5" hover>
                 <div className="flex items-center justify-between gap-2">
@@ -665,8 +691,8 @@ function AdminBoardHome({ dashboard, goProduct, goTraining, goSub, loading, erro
                   {c.companyName || "企業未設定"} · 受講生{c.studentCount}名{c.instructorNames.length > 0 ? ` · ${c.instructorNames.join("、")}` : ""}
                 </p>
                 <div className="mt-3 flex gap-5 text-xs" style={{ color: PRISM.sub }}>
-                  <span>日報 <b className="tabular-nums" style={{ color: PRISM.ink }}>{c.reportRate != null ? `${c.reportRate}%` : "—"}</b></span>
-                  <span>出席 <b className="tabular-nums" style={{ color: PRISM.ink }}>{c.attendanceRate != null ? `${c.attendanceRate}%` : "—"}</b></span>
+                  <span>本日日報 <b className="tabular-nums" style={{ color: PRISM.ink }}>{c.reportRate != null ? `${c.reportRate}%` : "—"}</b></span>
+                  <span>本日出席 <b className="tabular-nums" style={{ color: PRISM.ink }}>{c.attendanceRate != null ? `${c.attendanceRate}%` : "—"}</b></span>
                 </div>
                 <div className="mt-3"><Btn size="sm" kind="ghost" icon={ArrowRight} onClick={() => open(c.targetUrl)}>コースを開く</Btn></div>
               </PBCard>

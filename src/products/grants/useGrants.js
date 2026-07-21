@@ -144,8 +144,12 @@ export function useGrantCoursesMap(grants, isAdmin, enabled = true) {
       .catch(e => { if (alive) setError(apiErrorMessage(e, "コース日程を確認できません。")); })
       .finally(() => { if (alive) setLoading(false); });
     return () => { alive = false; };
+    // key（companyIds.join(",")）だけを見ると、client( companyIds=[""] )はenabled切替前後で
+    // 常に空文字列のままになり、[] → [""] へ変化してもkeyが変わらず再取得が走らない
+    // （2026-07-21 監査C-3: 企業担当者Homeの助成金カードが「日程未設定」に固定される根本原因）。
+    // enabledの変化も依存に含め、disabled→enabled遷移で確実に再取得させる。
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [key]);
+  }, [key, enabled]);
 
   return { coursesById, loading, error };
 }

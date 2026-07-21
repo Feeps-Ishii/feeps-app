@@ -5,13 +5,6 @@ const todayStr = () => {
   const d = new Date();
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 };
-const statusKind = (status) => {
-  const s = String(status || "").toLowerCase();
-  if (["present", "出勤", "attended"].includes(s)) return "present";
-  if (["absent", "欠席"].includes(s)) return "absent";
-  if (["late", "遅刻", "early", "早退"].includes(s)) return "late";
-  return "unknown";
-};
 const fallbackName = (id) => "受講生 " + String(id || "").slice(0, 6);
 const hasReportComment = r => !!r?.comment || (Array.isArray(r?.comments) && r.comments.length > 0);
 
@@ -132,6 +125,11 @@ export function useAwsCosts() {
   return { data, loading, err, aiData, aiErr, month, setMonth };
 }
 
+// 2026-07-21 監査対応: 「今日」基準のraw /reports・/attendance集計だと、非研修日に全員が
+// 同じ「日報未提出」理由で埋没し、実際の欠席・遅刻が見えなくなる（P0 A-3）。dashboard.mjsの
+// 累積未解消集計（コースの直近研修日までの未解消異常。admin/instructor/client共通ロジック）から
+// 日報・勤怠のシグナルを取り、実際に起きている異常の種類（欠席/遅刻/早退/勤怠未登録/未コメント）
+// をそのままリスク理由として使う。
 export function useRiskAnalysis() {
   const [riskData, setRiskData] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -145,14 +143,12 @@ export function useRiskAnalysis() {
     Promise.all([
       apiGet("/trainees"),
       apiGet("/companies").catch(() => []),
-      apiGet("/reports?date=" + date).catch(() => []),
-      apiGet("/attendance?date=" + date).catch(() => []),
+      apiGet("/dashboard/admin?date=" + date).catch(() => null),
       apiGet("/tests").catch(() => []),
-    ]).then(async ([trainees, companies, reports, attendances, tests]) => {
+    ]).then(async ([trainees, companies, dash, tests]) => {
       const traineeList = Array.isArray(trainees) ? trainees : [];
       const companyMap = Object.fromEntries((Array.isArray(companies) ? companies : []).map(c => [c.companyId, c.name]));
-      const reportById = Object.fromEntries((Array.isArray(reports) ? reports : []).map(r => [r.traineeId, r]));
-      const attendanceById = Object.fromEntries((Array.isArray(attendances) ? attendances : []).map(a => [a.traineeId, a]));
+      const followUpById = Object.fromEntries((Array.isArray(dash?.followUps) ? dash.followUps : []).map(f => [f.traineeId, f]));
       const testList = (Array.isArray(tests) ? tests : []).filter(t => (t.status || "published") !== "archived");
       const resultPairs = await Promise.all(
         testList.map(t => {
@@ -165,9 +161,7 @@ export function useRiskAnalysis() {
 
       const data = traineeList.map(t => {
         const uid = t.userId;
-        const report = reportById[uid];
-        const att = attendanceById[uid];
-        const attKind = statusKind(att?.status);
+        const followUpReasons = followUpById[uid]?.reasons || [];
         const scores = testList.flatMap(test => {
           const tid = test.testId || test.id;
           return (testResults[tid] || []).filter(r => r.traineeId === uid)
@@ -178,20 +172,21 @@ export function useRiskAnalysis() {
           const tid = test.testId || test.id;
           return !(testResults[tid] || []).some(r => r.traineeId === uid);
         });
-        const needsComment = report && (report.question || report.blockers) && !hasReportComment(report);
 
         let score = 0;
         const signals = { 日報: 0, 勤怠: 0, テスト: 0, コメント: 0 };
         const reasons = [];
 
-        if (!report) { score += 20; signals.日報 += 20; reasons.push("日報未提出"); }
-        if (!att) { score += 15; signals.勤怠 += 15; reasons.push("勤怠未登録"); }
-        else if (attKind === "absent") { score += 25; signals.勤怠 += 25; reasons.push("欠席"); }
-        else if (attKind === "late") { score += 10; signals.勤怠 += 10; reasons.push("遅刻/早退"); }
+        followUpReasons.forEach(r => {
+          if (r.type === "report_missing") { score += 20; signals.日報 += 20; reasons.push(r.label || "日報未提出"); }
+          else if (r.type === "report_uncommented") { score += 10; signals.コメント += 10; reasons.push(r.label || "日報未コメント"); }
+          else if (r.type === "attendance_missing") { score += 15; signals.勤怠 += 15; reasons.push(r.label || "勤怠未登録"); }
+          else if (r.type === "attendance_absent") { score += 25; signals.勤怠 += 25; reasons.push(r.label || "欠席"); }
+          else if (r.type === "attendance_late" || r.type === "attendance_early_leave") { score += 10; signals.勤怠 += 10; reasons.push(r.label || "遅刻/早退"); }
+        });
         if (avgScore !== null && avgScore < 60) { score += 25; signals.テスト += 25; reasons.push("テスト平均60点未満"); }
         else if (avgScore !== null && avgScore < 70) { score += 15; signals.テスト += 15; reasons.push("テスト平均70点未満"); }
         if (hasUntaken) { score += 15; signals.テスト += 15; reasons.push("未受験テストあり"); }
-        if (needsComment) { score += 10; signals.コメント += 10; reasons.push("コメント未対応"); }
 
         return {
           userId: uid,
