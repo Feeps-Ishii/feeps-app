@@ -1445,7 +1445,7 @@ function Materials({ role }) {
 }
 
 /* ===== テスト ===== */
-function useOpsFilter(enabled = true) {
+function useOpsFilter(enabled = true, { resolveCompanyCourses = false } = {}) {
   const [companies, setCompanies] = useState([]);
   const [courses, setCourses] = useState([]);
   const [trainees, setTrainees] = useState([]);
@@ -1453,6 +1453,9 @@ function useOpsFilter(enabled = true) {
   const [courseId, setCourseId] = useState(() => getActiveCourseId());
   const [companyId, setCompanyId] = useState("");
   const [courseTrainees, setCourseTrainees] = useState([]);
+  // 企業→コースの対応はコース:企業=1:1ではなくN:M（1コースに複数企業の受講生が在籍しうる）。
+  // ENROLLMENTS経由の在籍受講生の所属企業を集めて解決する（Backendの getClientCourseIds と同じ考え方の逆引き）。
+  const [courseCompanyMap, setCourseCompanyMap] = useState(null);
   useEffect(() => {
     if (!enabled) return;
     getCurrentUser().then(u => setCurrentUserId(u?.userId || u?.username || "")).catch(() => {});
@@ -1468,6 +1471,21 @@ function useOpsFilter(enabled = true) {
     if (!enabled || !courseId) { setCourseTrainees([]); return; }
     apiGet(`/courses/${courseId}/trainees`).then(l => setCourseTrainees(l || [])).catch(() => setCourseTrainees([]));
   }, [enabled, courseId]);
+  const coursesKey = useMemo(() => courses.map(c => c.courseId).join("|"), [courses]);
+  useEffect(() => {
+    if (!enabled || !resolveCompanyCourses || !companyId || !courses.length) { setCourseCompanyMap(null); return; }
+    let alive = true;
+    Promise.all(courses.map(c => apiGet(`/courses/${c.courseId}/trainees`)
+      .then(list => [c.courseId, new Set((list || []).map(t => t.company).filter(Boolean))])
+      .catch(() => [c.courseId, new Set()])))
+      .then(pairs => { if (alive) setCourseCompanyMap(Object.fromEntries(pairs)); });
+    return () => { alive = false; };
+  }, [enabled, resolveCompanyCourses, companyId, coursesKey]);
+  // companyIdが選択された企業に紐づく（複数あり得る）コースIDの集合。未解決（読み込み中）はnull
+  const companyCourseIds = useMemo(() => {
+    if (!companyId || !courseCompanyMap) return null;
+    return new Set(Object.entries(courseCompanyMap).filter(([, companySet]) => companySet.has(companyId)).map(([cid]) => cid));
+  }, [companyId, courseCompanyMap]);
   const courseIds = useMemo(() => new Set(courseTrainees.map(t => t.userId)), [courseTrainees]);
   const targetTrainees = useMemo(() => trainees.filter(t => {
     if (companyId && t.company !== companyId) return false;
@@ -1478,7 +1496,7 @@ function useOpsFilter(enabled = true) {
   const selectedCourse = useMemo(() => courses.find(c => c.courseId === courseId) || null, [courses, courseId]);
   const apply = (rows) => !courseId && !companyId ? rows : rows.filter(r => targetIds.has(r.traineeId));
   function chooseCourseId(id) { setCourseId(id); setActiveCourseId(id); }
-  return { companies, courses, trainees, currentUserId, selectedCourse, courseId, setCourseId: chooseCourseId, companyId, setCompanyId, targetTrainees, targetIds, apply };
+  return { companies, courses, trainees, currentUserId, selectedCourse, courseId, setCourseId: chooseCourseId, companyId, setCompanyId, companyCourseIds, targetTrainees, targetIds, apply };
 }
 function OpsFilterPanel({ filter, summary, note = "コースと企業を両方選ぶとAND条件で絞り込みます。" }) {
   return (
@@ -1626,7 +1644,7 @@ function Tests({ role }) {
   const [testSort, setTestSort] = useState("priority");
   const canManage = role === "instructor" || role === "admin";
   const canViewResults = canManage || role === "client";
-  const opsFilter = useOpsFilter(canViewResults);
+  const opsFilter = useOpsFilter(canViewResults, { resolveCompanyCourses: true });
   const instructorAssignedCourseIds = useMemo(() => new Set(
     opsFilter.courses
       .filter(c => courseInstructorIds(c).includes(opsFilter.currentUserId))
@@ -1881,7 +1899,12 @@ function Tests({ role }) {
       // 反映されていたが、一覧に出すテスト自体は一切絞り込まれていなかった（企業共通テストなど
       // courseId未設定のテストは対象外にしない）。これが「フィルタが効いていないように見える」根本原因。
       const byCourse = !opsFilter.courseId || !t.courseId || t.courseId === opsFilter.courseId;
-      return byQuery && byStatus && byCourse;
+      // 2026-07-21 P2対応(残件1): 企業フィルタは一覧へ未反映だった。コース:企業は1:1ではなくN:Mのため
+      // （1コースに複数企業の受講生が在籍しうる）、companyCourseIds（該当企業の受講生が在籍する全コースID）
+      // に含まれるかで判定する。courseIdが同時指定されている場合はそちらで既に一意に絞られているため対象外、
+      // companyCourseIds未解決（読み込み中）の間は誤って一覧を空にしないよう素通しする。
+      const byCompany = !!opsFilter.courseId || !opsFilter.companyId || !t.courseId || !opsFilter.companyCourseIds || opsFilter.companyCourseIds.has(t.courseId);
+      return byQuery && byStatus && byCourse && byCompany;
     }).sort((a, b) => {
       const sa = testStats[testIdOf(a)] || {};
       const sb = testStats[testIdOf(b)] || {};
@@ -1892,12 +1915,16 @@ function Tests({ role }) {
     });
     const filteredRows = results?.rows ? opsFilter.apply(results.rows) : [];
     const avg = filteredRows.length ? Math.round(filteredRows.reduce((s, r) => s + Number(r.score || 0), 0) / filteredRows.length) : 0;
-    const allScores = Object.values(testStats).flatMap(s => s.rows.map(r => Number(r.score)).filter(n => Number.isFinite(n)));
+    // 2026-07-21 P2対応(残件2): サマリーカードがコースフィルタ後も全コース分のまま集計されていたバグ。
+    // testStats自体は全テスト分保持しつつ、上部集計カードは一覧と同じ visibleTests（コース・企業・検索・状態
+    // 絞り込み後）ベースへ変更し、一覧本体との整合を取る。
+    const visibleTestStats = visibleTests.map(t => testStats[testIdOf(t)] || {});
+    const allScores = visibleTestStats.flatMap(s => (s.rows || []).map(r => Number(r.score)).filter(n => Number.isFinite(n)));
     const overallAvg = allScores.length ? Math.round(allScores.reduce((s, n) => s + n, 0) / allScores.length) : null;
-    const totalSubmitted = Object.values(testStats).reduce((s, v) => s + v.submitted, 0);
-    const totalUnsubmitted = Object.values(testStats).reduce((s, v) => s + v.unsubmitted, 0);
-    const totalFollow = Object.values(testStats).reduce((s, v) => s + v.followCount, 0);
-    const totalNeedsReview = Object.values(testStats).reduce((s, v) => s + v.needsReview, 0);
+    const totalSubmitted = visibleTestStats.reduce((s, v) => s + (v.submitted || 0), 0);
+    const totalUnsubmitted = visibleTestStats.reduce((s, v) => s + (v.unsubmitted || 0), 0);
+    const totalFollow = visibleTestStats.reduce((s, v) => s + (v.followCount || 0), 0);
+    const totalNeedsReview = visibleTestStats.reduce((s, v) => s + (v.needsReview || 0), 0);
     return (
     <div>
       <SectionHead title={canManage ? "テスト管理" : "テスト結果"} desc={canManage ? "範囲と重点を指定して作成・受験後すぐ自動採点" : "自社受講生の公開テスト結果を確認します"} action={canCreateTests ? <div className="flex flex-wrap gap-2"><Btn kind="ai" icon={Sparkles} onClick={() => { setBuildFocus(null); setBuildStudent(null); setBuilding(true); }}>AIでテスト作成</Btn><Btn icon={Plus} onClick={() => { setBuildFocus(null); setBuildStudent(null); setBuilding(true); }}>テストを作成</Btn></div> : null} />
@@ -1909,7 +1936,7 @@ function Tests({ role }) {
           <Badge tone={testSource === "db" ? "green" : "muted"}>{testSource === "db" ? "実データ" : "データなし"}</Badge>
         </div>
         <div className="grid gap-3 p-4 sm:grid-cols-2 lg:grid-cols-6">
-          <div className="rounded-xl p-3" style={{ background: T.bgBase }}><div className="text-xs font-bold" style={{ color: T.textMuted }}>テスト数</div><div className="mt-1 text-2xl font-bold" style={{ color: T.textPrimary }}>{tests.length}</div></div>
+          <div className="rounded-xl p-3" style={{ background: T.bgBase }}><div className="text-xs font-bold" style={{ color: T.textMuted }}>テスト数</div><div className="mt-1 text-2xl font-bold" style={{ color: T.textPrimary }}>{visibleTests.length}</div></div>
           <div className="rounded-xl p-3" style={{ background: T.successSubtle }}><div className="text-xs font-bold" style={{ color: T.success }}>提出数</div><div className="mt-1 text-2xl font-bold" style={{ color: T.textPrimary }}>{totalSubmitted}</div></div>
           <div className="rounded-xl p-3" style={{ background: T.warningSubtle }}><div className="text-xs font-bold" style={{ color: T.warning }}>未受験</div><div className="mt-1 text-2xl font-bold" style={{ color: T.textPrimary }}>{totalUnsubmitted}</div></div>
           <div className="rounded-xl p-3" style={{ background: T.accentSubtle }}><div className="text-xs font-bold" style={{ color: T.accentHover }}>平均点</div><div className="mt-1 text-2xl font-bold" style={{ color: T.textPrimary }}>{overallAvg == null ? "—" : `${overallAvg}点`}</div></div>
