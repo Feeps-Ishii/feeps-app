@@ -172,11 +172,13 @@ export function useDevLabAdmin() {
   return { projects, loading, error, reload: load, create, update, remove, generate, busy, actionError, clearActionError: () => setActionError("") };
 }
 
-// ---- admin/instructor: 提出状況閲覧 ----
+// ---- admin/instructor: 提出状況閲覧＋手動上書き ----
 export function useDevLabSubmissions(projectId) {
   const [submissions, setSubmissions] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [actionError, setActionError] = useState("");
+  const [busy, setBusy] = useState(false);
 
   const load = useCallback(() => {
     setLoading(true); setError("");
@@ -189,7 +191,20 @@ export function useDevLabSubmissions(projectId) {
 
   useEffect(() => { load(); }, [load]);
 
-  return { submissions, loading, error, reload: load };
+  // AIの誤判定への保険。合否(passed)をtrue/falseへ手動上書きする。
+  async function override(traineeId, stepId, passed, overrideNote) {
+    setBusy(true); setActionError("");
+    try {
+      const res = await apiPut(`/devlab/admin/submissions/${encodeURIComponent(traineeId)}/${encodeURIComponent(projectId)}/${encodeURIComponent(stepId)}`, { passed, overrideNote });
+      await load();
+      return res?.submission || null;
+    } catch (e) {
+      setActionError(apiErrorMessage(e, "上書きに失敗しました。"));
+      throw e;
+    } finally { setBusy(false); }
+  }
+
+  return { submissions, loading, error, reload: load, override, busy, actionError, clearActionError: () => setActionError("") };
 }
 
 // ---- 自分のスキルシート（実績下書き反映の判定用） ----

@@ -54,19 +54,39 @@ export function devLabMyStatusTone(value) {
   return DEVLAB_MY_STATUS_OPTIONS.find(o => o.value === value)?.tone || "muted";
 }
 
-export const EMPTY_DEVLAB_STEP = { title: "", goal: "", deliverableGuide: "", rubric: "" };
+// 2026-07-21 チェックリスト充足方式確定: rubric(自由記述)を廃止し、checklist[{text,criteria,required,reqIds}]へ。
+export const EMPTY_DEVLAB_CHECK = { text: "", criteria: "", required: true, reqIds: [] };
+export const EMPTY_DEVLAB_STEP = { title: "", goal: "", deliverableGuide: "", checklist: [{ ...EMPTY_DEVLAB_CHECK }, { ...EMPTY_DEVLAB_CHECK }, { ...EMPTY_DEVLAB_CHECK }] };
 
 export function emptyDevLabForm() {
   return {
     title: "", clientName: "", background: "",
     requirementsText: "", techStackText: "",
     requiredSkills: [],
+    functionalRequirements: [{ reqId: "F-1", text: "" }, { reqId: "F-2", text: "" }],
     level: "beginner", estimatedHours: "",
-    steps: [{ ...EMPTY_DEVLAB_STEP }, { ...EMPTY_DEVLAB_STEP }, { ...EMPTY_DEVLAB_STEP }],
+    steps: [{ ...EMPTY_DEVLAB_STEP, checklist: [{ ...EMPTY_DEVLAB_CHECK }, { ...EMPTY_DEVLAB_CHECK }] }, { ...EMPTY_DEVLAB_STEP, checklist: [{ ...EMPTY_DEVLAB_CHECK }, { ...EMPTY_DEVLAB_CHECK }] }, { ...EMPTY_DEVLAB_STEP, checklist: [{ ...EMPTY_DEVLAB_CHECK }, { ...EMPTY_DEVLAB_CHECK }] }],
     status: "draft",
     visibilityScope: "all",
     targetCompanyIds: [],
   };
+}
+
+function normalizeFunctionalRequirementsForForm(list) {
+  const items = Array.isArray(list) ? list : [];
+  return items.map((r, i) => ({ reqId: r.reqId || `F-${i + 1}`, text: r.text || "" }));
+}
+
+function normalizeChecklistForForm(list) {
+  const items = Array.isArray(list) ? list : [];
+  if (!items.length) return [{ ...EMPTY_DEVLAB_CHECK }];
+  return items.map(c => ({
+    checkId: c.checkId,
+    text: c.text || "",
+    criteria: c.criteria || "",
+    required: c.required !== false,
+    reqIds: Array.isArray(c.reqIds) ? c.reqIds : [],
+  }));
 }
 
 // AI下書き生成結果 → 編集フォームへ流し込む変換
@@ -78,9 +98,13 @@ export function draftToForm(draft) {
     requirementsText: (draft.requirements || []).join("\n"),
     techStackText: (draft.techStack || []).join(", "),
     requiredSkills: draft.requiredSkills || [],
+    functionalRequirements: normalizeFunctionalRequirementsForForm(draft.functionalRequirements),
     level: draft.level || "beginner",
     estimatedHours: "",
-    steps: (draft.steps || []).map(s => ({ title: s.title || "", goal: s.goal || "", deliverableGuide: s.deliverableGuide || "", rubric: s.rubric || "" })),
+    steps: (draft.steps || []).map(s => ({
+      title: s.title || "", goal: s.goal || "", deliverableGuide: s.deliverableGuide || "",
+      checklist: normalizeChecklistForForm(s.checklist),
+    })),
     status: "draft",
     visibilityScope: "all",
     targetCompanyIds: [],
@@ -96,6 +120,9 @@ export function formToPayload(form) {
     requirements: (form.requirementsText || "").split("\n").map(s => s.trim()).filter(Boolean),
     techStack: (form.techStackText || "").split(",").map(s => s.trim()).filter(Boolean),
     requiredSkills: form.requiredSkills || [],
+    functionalRequirements: (form.functionalRequirements || [])
+      .filter(r => r.text.trim())
+      .map((r, i) => ({ reqId: r.reqId || `F-${i + 1}`, text: r.text.trim() })),
     level: form.level,
     estimatedHours: Number(form.estimatedHours) || 0,
     steps: (form.steps || []).filter(s => s.title.trim()).map((s, i) => ({
@@ -104,7 +131,13 @@ export function formToPayload(form) {
       title: s.title.trim(),
       goal: s.goal.trim(),
       deliverableGuide: s.deliverableGuide.trim(),
-      rubric: s.rubric.trim(),
+      checklist: (s.checklist || []).filter(c => c.text.trim()).map(c => ({
+        checkId: c.checkId,
+        text: c.text.trim(),
+        criteria: c.criteria.trim(),
+        required: c.required !== false,
+        reqIds: c.reqIds || [],
+      })),
     })),
     status: form.status,
     visibilityScope: form.visibilityScope,
@@ -121,9 +154,12 @@ export function projectToForm(project) {
     requirementsText: (project.requirements || []).join("\n"),
     techStackText: (project.techStack || []).join(", "),
     requiredSkills: project.requiredSkills || [],
+    functionalRequirements: normalizeFunctionalRequirementsForForm(project.functionalRequirements),
     level: project.level || "beginner",
     estimatedHours: project.estimatedHours ? String(project.estimatedHours) : "",
-    steps: (project.steps && project.steps.length) ? project.steps.map(s => ({ ...s })) : [{ ...EMPTY_DEVLAB_STEP }],
+    steps: (project.steps && project.steps.length)
+      ? project.steps.map(s => ({ ...s, checklist: normalizeChecklistForForm(s.checklist) }))
+      : [{ ...EMPTY_DEVLAB_STEP }],
     status: project.status || "draft",
     visibilityScope: project.visibilityScope || "all",
     targetCompanyIds: project.targetCompanyIds || [],
