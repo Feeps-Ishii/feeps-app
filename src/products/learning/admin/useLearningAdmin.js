@@ -32,6 +32,9 @@ function normalizeCourse(course) {
     deleted: course.deleted === true || course.status === "deleted",
     // 版固定公開(フェーズ③): 0/未設定は「まだ一度も新しい公開フローを通っていない」を意味する。
     publishedVersion: Number(course.publishedVersion || 0) || 0,
+    // 可視範囲制御（企業単位、2026-07-21追加）: 未設定・不正値は"all"扱い。
+    visibilityScope: course.visibilityScope === "companies" ? "companies" : "all",
+    targetCompanyIds: Array.isArray(course.targetCompanyIds) ? course.targetCompanyIds : [],
     updatedAt: course.updatedAt || null,
   };
 }
@@ -91,6 +94,9 @@ function toCoursePayload(form) {
     level: form.level,
     desc: form.desc.trim(),
     published: Boolean(form.published),
+    // 可視範囲制御（企業単位、2026-07-21追加）: Backend側でadmin以外は無視して既存値を維持する。
+    visibilityScope: form.visibilityScope === "companies" ? "companies" : "all",
+    targetCompanyIds: Array.isArray(form.targetCompanyIds) ? form.targetCompanyIds : [],
     updatedAt: new Date().toISOString(),
   };
 }
@@ -110,6 +116,8 @@ function toCourseApiPayload(course) {
     status: course.published === false ? "draft" : "published",
     published: course.published !== false,
     deleted: course.deleted === true,
+    visibilityScope: course.visibilityScope === "companies" ? "companies" : "all",
+    targetCompanyIds: Array.isArray(course.targetCompanyIds) ? course.targetCompanyIds : [],
   };
 }
 
@@ -125,6 +133,8 @@ export function courseToForm(course) {
     color: course.color || "#14A3B8",
     published: course.published !== false,
     lessons: Number(course.lessons || 0),
+    visibilityScope: course.visibilityScope === "companies" ? "companies" : "all",
+    targetCompanyIds: Array.isArray(course.targetCompanyIds) ? course.targetCompanyIds : [],
   };
 }
 

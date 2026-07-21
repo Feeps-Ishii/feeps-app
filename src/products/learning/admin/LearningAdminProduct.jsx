@@ -18,7 +18,7 @@ const VIEW_TABS = [
   { value: "ai-lesson-designer", label: "Learning Studio" },
 ];
 
-export default function LearningAdminProduct({ initialView = "courses" }) {
+export default function LearningAdminProduct({ initialView = "courses", role }) {
   const [view, setView] = useState(initialView);
   const [selectedCourseId, setSelectedCourseId] = useState("");
   const [designerOpen, setDesignerOpen] = useState(false);
@@ -48,7 +48,7 @@ export default function LearningAdminProduct({ initialView = "courses" }) {
       {view === "materials" && <MaterialManager />}
       {view === "enrollments" && <EnrollmentManager />}
       {view === "quizzes" && <QuizManager />}
-      {view === "courses" && <CourseManager onOpenLessons={openLessons} />}
+      {view === "courses" && <CourseManager onOpenLessons={openLessons} role={role} />}
       {view === "ai-lesson-designer" && <AiLessonDesigner onOpenCourseManager={() => setView("courses")} />}
       {/* Mounted only while open: the modal's useLearningAdmin() fires admin API
           fetches on mount, which would otherwise duplicate every manager's own

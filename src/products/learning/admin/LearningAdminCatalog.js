@@ -34,7 +34,15 @@ export const EMPTY_COURSE_FORM = {
   skillsText: "",
   color: "#16A34A",
   published: false,
+  // 可視範囲制御（企業単位、2026-07-21追加）: "all"=全体公開 / "companies"=targetCompanyIdsのみ。
+  visibilityScope: "all",
+  targetCompanyIds: [],
 };
+
+export const COURSE_VISIBILITY_SCOPE_OPTIONS = [
+  { value: "all", label: "全体公開" },
+  { value: "companies", label: "特定企業のみ" },
+];
 
 export const LESSON_TYPE_OPTIONS = [
   { value: "video", label: "Video" },

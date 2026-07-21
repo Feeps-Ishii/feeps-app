@@ -1,17 +1,26 @@
-import React, { useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { BookOpen, Clock, Eye, EyeOff, History, ListChecks, Loader2, Pencil, Plus, PlayCircle, Save, Search, Tag, Trash2, X } from "lucide-react";
 import { Badge, Btn, Card, EmptyState, Field, SectionHead, SkeletonRows, Stat, fieldStyle, T, PRODUCT_ACCENT } from "../../../components/common";
-import { COURSE_CATEGORY_OPTIONS, COURSE_COLOR_OPTIONS, COURSE_LEVEL_OPTIONS, EMPTY_COURSE_FORM } from "./LearningAdminCatalog.js";
+import { apiGet } from "../../../api.js";
+import { COURSE_CATEGORY_OPTIONS, COURSE_COLOR_OPTIONS, COURSE_LEVEL_OPTIONS, COURSE_VISIBILITY_SCOPE_OPTIONS, EMPTY_COURSE_FORM } from "./LearningAdminCatalog.js";
 import { courseToForm, useLearningAdmin } from "./useLearningAdmin.js";
 import AdminModal from "./AdminModal.jsx";
 import CourseWalkthroughPreview from "./CourseWalkthroughPreview.jsx";
 
 const C = { ink: T.textPrimary, body: T.textSecondary, muted: T.textMuted, line: T.border, canvas: T.bgBase, green: PRODUCT_ACCENT.learning.accent, greenW: PRODUCT_ACCENT.learning.subtle, red: T.danger };
 
-function CourseForm({ mode, form, onChange, onSubmit, onCancel }) {
+function CourseForm({ mode, form, onChange, onSubmit, onCancel, canEditVisibility, companies, companiesError }) {
   function set(key, value) {
     onChange({ ...form, [key]: value });
   }
+
+  function toggleTargetCompany(companyId) {
+    const current = Array.isArray(form.targetCompanyIds) ? form.targetCompanyIds : [];
+    const next = current.includes(companyId) ? current.filter(id => id !== companyId) : [...current, companyId];
+    set("targetCompanyIds", next);
+  }
+
+  const companyName = (id) => companies.find(c => c.companyId === id)?.name || id;
 
   return (
     <div>
@@ -63,6 +72,53 @@ function CourseForm({ mode, form, onChange, onSubmit, onCancel }) {
         </Field>
         <Field label="取得スキル（カンマ区切り）">
           <input style={fieldStyle} value={form.skillsText} onChange={e => set("skillsText", e.target.value)} placeholder="AWS, IAM, S3" />
+        </Field>
+        <Field label="公開範囲">
+          {canEditVisibility ? (
+            <div className="space-y-2">
+              <select
+                style={fieldStyle}
+                value={form.visibilityScope || "all"}
+                onChange={e => set("visibilityScope", e.target.value)}
+              >
+                {COURSE_VISIBILITY_SCOPE_OPTIONS.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}
+              </select>
+              {form.visibilityScope === "companies" && (
+                <div className="rounded-xl border p-3" style={{ borderColor: C.line }}>
+                  {companiesError ? (
+                    <p className="text-xs" style={{ color: C.red }}>{companiesError}</p>
+                  ) : companies.length === 0 ? (
+                    <p className="text-xs" style={{ color: C.muted }}>企業一覧を取得中、または登録企業がありません。</p>
+                  ) : (
+                    <div className="grid gap-1.5 sm:grid-cols-2">
+                      {companies.map(company => (
+                        <label key={company.companyId} className="flex items-center gap-2 text-xs" style={{ color: C.ink }}>
+                          <input
+                            type="checkbox"
+                            checked={(form.targetCompanyIds || []).includes(company.companyId)}
+                            onChange={() => toggleTargetCompany(company.companyId)}
+                          />
+                          {company.name || company.companyId}
+                        </label>
+                      ))}
+                    </div>
+                  )}
+                  <p className="mt-2 text-[11px]" style={{ color: C.muted }}>
+                    選択した企業に所属する受講生のみがこのコースを閲覧できます（管理者・講師には影響しません）。
+                  </p>
+                </div>
+              )}
+            </div>
+          ) : (
+            <div className="rounded-xl p-3 text-xs" style={{ background: C.canvas, color: C.body }}>
+              {form.visibilityScope === "companies" ? (
+                <>特定企業のみ公開（{(form.targetCompanyIds || []).length}社: {(form.targetCompanyIds || []).map(companyName).join("、") || "未設定"}）</>
+              ) : (
+                <>全体公開</>
+              )}
+              <p className="mt-1 text-[11px]" style={{ color: C.muted }}>公開範囲の変更は管理者のみ行えます。</p>
+            </div>
+          )}
         </Field>
         <label className="flex items-center gap-2 rounded-xl p-3 text-sm font-semibold" style={{ background: C.canvas, color: C.ink }}>
           <input type="checkbox" checked={form.published} onChange={e => set("published", e.target.checked)} />
@@ -127,13 +183,23 @@ function CourseRow({ course, onEdit, onOpenLessons, onTogglePublish, onPublish, 
   );
 }
 
-export default function CourseManager({ onOpenLessons = () => {} }) {
+export default function CourseManager({ onOpenLessons = () => {}, role }) {
   const {
     courses, coursesLoading, coursesError, stats,
     createCourse, updateCourse, togglePublish, publishCourse, getCourseVersions, deleteCourse,
     lessonsForCourse, quizQuestions,
     actionError, clearActionError,
   } = useLearningAdmin();
+  const canEditVisibility = role === "admin";
+  // 可視範囲制御（企業単位、2026-07-21追加）: 企業一覧は既存の /companies を再利用する（新規API追加禁止）。
+  // GET /companies は admin・instructor どちらも呼び出せる（isInstructorはadminを含む判定）。
+  const [companies, setCompanies] = useState([]);
+  const [companiesError, setCompaniesError] = useState("");
+  useEffect(() => {
+    apiGet("/companies")
+      .then(list => setCompanies(Array.isArray(list) ? list : []))
+      .catch(() => setCompaniesError("企業一覧を取得できませんでした。"));
+  }, []);
   const [query, setQuery] = useState("");
   const [editingCourse, setEditingCourse] = useState(null);
   const [form, setForm] = useState({ ...EMPTY_COURSE_FORM });
@@ -294,6 +360,9 @@ export default function CourseManager({ onOpenLessons = () => {} }) {
           onChange={setForm}
           onSubmit={submit}
           onCancel={closeForm}
+          canEditVisibility={canEditVisibility}
+          companies={companies}
+          companiesError={companiesError}
         />
       </AdminModal>
 

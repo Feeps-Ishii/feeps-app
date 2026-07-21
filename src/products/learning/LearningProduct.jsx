@@ -165,13 +165,13 @@ export default function LearningProduct({ subView, goSub, goProduct, role, theme
     el_skills:     <ElSkillsView     {...sp} />,
     el_cert:       <ElCertificateView {...sp} />,
     el_manage:     role === "admin" || role === "instructor"
-      ? <LearningAdminProduct initialView="ai-lesson-designer" />
+      ? <LearningAdminProduct initialView="ai-lesson-designer" role={role} />
       : <LearningPlaceholder title="コース管理"  desc="Eラーニングコースを作成・編集・公開できます。" />,
     el_lessons:    role === "admin" || role === "instructor"
-      ? <LearningAdminProduct initialView="lessons" />
+      ? <LearningAdminProduct initialView="lessons" role={role} />
       : <LearningPlaceholder title="レッスン管理" desc="コースのレッスンと教材を管理できます。" />,
     el_students:   role === "admin" || role === "instructor"
-      ? <LearningAdminProduct initialView="enrollments" />
+      ? <LearningAdminProduct initialView="enrollments" role={role} />
       : <LearningPlaceholder title="受講状況"   desc="受講生の進捗と完了状況を確認できます。" />,
   };
   return (
