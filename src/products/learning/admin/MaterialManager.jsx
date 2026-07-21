@@ -47,7 +47,7 @@ const typeIcon = {
   file: File,
 };
 
-function MaterialForm({ mode, form, courses, lessons, onChange, onSubmit, onCancel }) {
+function MaterialForm({ mode, form, courses, lessons, onChange, onSubmit, onCancel, lockCourseId }) {
   const [uploading, setUploading] = useState(false);
   const [uploadError, setUploadError] = useState("");
 
@@ -101,12 +101,20 @@ function MaterialForm({ mode, form, courses, lessons, onChange, onSubmit, onCanc
 
       <div className="space-y-3">
         <div className="grid gap-3 md:grid-cols-2">
-          <Field label="コース">
-            <select style={fieldStyle} value={form.courseId} onChange={e => set("courseId", e.target.value)}>
-              <option value="">選択してください</option>
-              {courses.map(course => <option key={course.id} value={course.id}>{course.title}</option>)}
-            </select>
-          </Field>
+          {lockCourseId ? (
+            <Field label="コース">
+              <div className="rounded-lg px-3 py-2 text-sm" style={{ background: C.canvas, color: C.ink }}>
+                {courses.find(c => c.id === lockCourseId)?.title || lockCourseId}
+              </div>
+            </Field>
+          ) : (
+            <Field label="コース">
+              <select style={fieldStyle} value={form.courseId} onChange={e => set("courseId", e.target.value)}>
+                <option value="">選択してください</option>
+                {courses.map(course => <option key={course.id} value={course.id}>{course.title}</option>)}
+              </select>
+            </Field>
+          )}
           <Field label="レッスン">
             <select style={fieldStyle} value={form.lessonId} onChange={e => set("lessonId", e.target.value)}>
               <option value="">選択してください</option>
@@ -238,7 +246,7 @@ function MaterialRow({ material, courseName, lessonName, onEdit, onTogglePublish
   );
 }
 
-export default function MaterialManager() {
+export default function MaterialManager({ fixedCourseId }) {
   const {
     courses,
     lessonsForCourse,
@@ -253,7 +261,7 @@ export default function MaterialManager() {
     actionError,
     clearActionError,
   } = useLearningAdmin();
-  const initialCourseId = courses[0]?.id || "";
+  const initialCourseId = fixedCourseId || courses[0]?.id || "";
   const initialLessonId = initialCourseId ? lessonsForCourse(initialCourseId)[0]?.id || "" : "";
   const [query, setQuery] = useState("");
   const [courseFilter, setCourseFilter] = useState("");
@@ -262,6 +270,8 @@ export default function MaterialManager() {
   const [deleteTarget, setDeleteTarget] = useState(null);
   const [formOpen, setFormOpen] = useState(false);
 
+  // コース詳細（2026-07-21再編）から呼ばれる場合はコースを固定し、コース選択セレクトを隠す。
+  const effectiveCourseFilter = fixedCourseId || courseFilter;
   const lessonsForForm = form.courseId ? lessonsForCourse(form.courseId) : [];
   const courseName = (courseId) => courses.find(course => course.id === courseId)?.title || "未選択";
   const lessonName = (courseId, lessonId) => lessonsForCourse(courseId).find(lesson => lesson.id === lessonId)?.title || "未選択";
@@ -269,7 +279,7 @@ export default function MaterialManager() {
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
     return materials.filter(material => {
-      if (courseFilter && material.courseId !== courseFilter) return false;
+      if (effectiveCourseFilter && material.courseId !== effectiveCourseFilter) return false;
       if (!q) return true;
       return [
         material.title,
@@ -282,10 +292,10 @@ export default function MaterialManager() {
         ...(material.tags || []),
       ].some(value => String(value || "").toLowerCase().includes(q));
     });
-  }, [materials, query, courseFilter]);
+  }, [materials, query, effectiveCourseFilter]);
 
   function startNew() {
-    const courseId = courseFilter || initialCourseId;
+    const courseId = effectiveCourseFilter || initialCourseId;
     const lessonId = courseId ? lessonsForCourse(courseId)[0]?.id || "" : "";
     setEditingMaterial(null);
     setForm({ ...EMPTY_MATERIAL_FORM, courseId, lessonId });
@@ -301,7 +311,7 @@ export default function MaterialManager() {
   }
 
   function closeForm() {
-    const courseId = courseFilter || initialCourseId;
+    const courseId = effectiveCourseFilter || initialCourseId;
     const lessonId = courseId ? lessonsForCourse(courseId)[0]?.id || "" : "";
     setEditingMaterial(null);
     setForm({ ...EMPTY_MATERIAL_FORM, courseId, lessonId });
@@ -361,7 +371,7 @@ export default function MaterialManager() {
       <div className="grid gap-5">
         <div className="space-y-3">
           <Card className="p-4">
-            <div className="grid gap-3 md:grid-cols-[minmax(0,1fr)_220px]">
+            <div className={fixedCourseId ? "grid gap-3" : "grid gap-3 md:grid-cols-[minmax(0,1fr)_220px]"}>
               <div className="flex items-center gap-2 rounded-xl border px-3 py-2" style={{ borderColor: C.line, background: "#fff" }}>
                 <Search size={16} style={{ color: C.muted }} />
                 <input
@@ -372,10 +382,12 @@ export default function MaterialManager() {
                   style={{ color: C.ink }}
                 />
               </div>
-              <select style={fieldStyle} value={courseFilter} onChange={e => setCourseFilter(e.target.value)}>
-                <option value="">全コース</option>
-                {courses.map(course => <option key={course.id} value={course.id}>{course.title}</option>)}
-              </select>
+              {!fixedCourseId && (
+                <select style={fieldStyle} value={courseFilter} onChange={e => setCourseFilter(e.target.value)}>
+                  <option value="">全コース</option>
+                  {courses.map(course => <option key={course.id} value={course.id}>{course.title}</option>)}
+                </select>
+              )}
             </div>
           </Card>
 
@@ -418,6 +430,7 @@ export default function MaterialManager() {
           onChange={setForm}
           onSubmit={submit}
           onCancel={closeForm}
+          lockCourseId={fixedCourseId}
         />
       </AdminModal>
 

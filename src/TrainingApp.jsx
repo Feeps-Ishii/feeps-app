@@ -159,7 +159,7 @@ const EL_NAV = {
   instructor: [
     { sec: null, items: [["el_home", "ホーム", LayoutDashboard]] },
     { sec: "学習", items: [["el_courses", "コース一覧", BookOpen], ["el_recommend", "おすすめ", Lightbulb], ["el_inprogress", "学習中", PlayCircle], ["el_completed", "修了済み", Award], ["el_skills", "獲得スキル", Sparkles], ["el_cert", "修了証", CheckCircle2]] },
-    { sec: "管理", items: [["el_manage", "コース管理", Settings], ["el_lessons", "レッスン管理", FileText], ["el_students", "受講状況", Users]] },
+    { sec: "管理", items: [["el_manage", "コース管理", Settings], ["el_students", "受講状況", Users]] },
   ],
   client: [
     { sec: null, items: [["el_home", "ホーム", LayoutDashboard]] },
@@ -168,7 +168,7 @@ const EL_NAV = {
   admin: [
     { sec: null, items: [["el_home", "ホーム", LayoutDashboard]] },
     { sec: "学習", items: [["el_courses", "コース一覧", BookOpen], ["el_completed", "修了済み", Award], ["el_cert", "修了証", CheckCircle2]] },
-    { sec: "管理", items: [["el_manage", "コース管理", Settings], ["el_lessons", "レッスン管理", FileText], ["el_students", "受講状況", Users]] },
+    { sec: "管理", items: [["el_manage", "コース管理", Settings], ["el_students", "受講状況", Users]] },
   ],
 };
 

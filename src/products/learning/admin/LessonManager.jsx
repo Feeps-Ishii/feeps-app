@@ -137,7 +137,7 @@ function LessonRow({ lesson, index, total, onEdit, onEditSlides, onTogglePublish
   );
 }
 
-export default function LessonManager({ initialCourseId }) {
+export default function LessonManager({ initialCourseId, fixedCourseId }) {
   const {
     courses,
     coursesLoading,
@@ -160,7 +160,9 @@ export default function LessonManager({ initialCourseId }) {
   const [formOpen, setFormOpen] = useState(false);
   const [slideEditingLesson, setSlideEditingLesson] = useState(null);
 
-  const selectedCourse = courses.find(course => course.id === selectedCourseId) || courses[0];
+  // コース詳細（2026-07-21再編）から呼ばれる場合はコースを固定し、コース選択セレクトを隠す。
+  const effectiveCourseId = fixedCourseId || selectedCourseId;
+  const selectedCourse = courses.find(course => course.id === effectiveCourseId) || (fixedCourseId ? undefined : courses[0]);
   const lessons = selectedCourse ? lessonsForCourse(selectedCourse.id) : [];
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -233,17 +235,19 @@ export default function LessonManager({ initialCourseId }) {
         </div>
       )}
 
-      <Card className="p-5">
-        <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_280px] lg:items-end">
-          <div>
-            <div className="text-sm font-bold" style={{ color: C.ink }}>対象コース</div>
-            <p className="mt-1 text-xs" style={{ color: C.body }}>レッスンを管理するコースを選択してください。</p>
+      {!fixedCourseId && (
+        <Card className="p-5">
+          <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_280px] lg:items-end">
+            <div>
+              <div className="text-sm font-bold" style={{ color: C.ink }}>対象コース</div>
+              <p className="mt-1 text-xs" style={{ color: C.body }}>レッスンを管理するコースを選択してください。</p>
+            </div>
+            <select style={fieldStyle} value={selectedCourse?.id || ""} onChange={e => changeCourse(e.target.value)}>
+              {courses.map(course => <option key={course.id} value={course.id}>{course.title}</option>)}
+            </select>
           </div>
-          <select style={fieldStyle} value={selectedCourse?.id || ""} onChange={e => changeCourse(e.target.value)}>
-            {courses.map(course => <option key={course.id} value={course.id}>{course.title}</option>)}
-          </select>
-        </div>
-      </Card>
+        </Card>
+      )}
 
       <div className="grid gap-3 md:grid-cols-4">
         <Stat icon={BookOpen} label="レッスン数" value={lessons.length} sub="選択コース" tone="green" />

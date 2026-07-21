@@ -333,8 +333,7 @@ function LearningOverview({ lrn, goSub, goProduct, onOpenDetail, role, themeColo
           <h3 className="mb-3 text-sm font-bold" style={{ color: C.ink }}>管理機能</h3>
           <div className="grid gap-3 sm:grid-cols-3">
             {[
-              { key: "el_manage",   icon: Settings, label: "Learning Studio", desc: "目的からAI構成案を作り、Lessonを確認して公開準備できます。" },
-              { key: "el_lessons",  icon: FileText,  label: "レッスン管理", desc: "レッスンと教材を管理できます。" },
+              { key: "el_manage",   icon: Settings, label: "コース管理", desc: "コースの作成・編集・レッスン・教材・公開状態を管理できます。" },
               { key: "el_students", icon: Users,     label: "受講状況",     desc: "受講生の進捗と完了状況を確認できます。" },
             ].map(({ key, icon: Icon, label, desc }) => (
               <Card key={key} className="cursor-pointer p-4 transition hover:shadow-md" onClick={() => goSub(key)}>

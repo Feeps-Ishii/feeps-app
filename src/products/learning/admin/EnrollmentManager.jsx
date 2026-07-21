@@ -243,7 +243,7 @@ function EnrollmentDetail({ enrollment, onMemoSave, lessonsForCourse }) {
   );
 }
 
-export default function EnrollmentManager() {
+export default function EnrollmentManager({ fixedCourseId }) {
   const {
     courses, enrollments, enrollmentsLoading, enrollmentsError,
     enrollmentStats, updateEnrollmentMemo, lessonsForCourse,
@@ -255,12 +255,15 @@ export default function EnrollmentManager() {
   const [companyFilter, setCompanyFilter] = useState("");
   const [selectedEnrollment, setSelectedEnrollment] = useState(null);
 
+  // コース詳細（2026-07-21再編）から呼ばれる場合はコースを固定し、コース選択セレクトを隠す。
+  // サイドバー「受講状況」(el_students)からの全体横断ビューはfixedCourseIdなしのまま維持する。
+  const effectiveCourseFilter = fixedCourseId || courseFilter;
   const companies = useMemo(() => Array.from(new Set(enrollments.map(e => e.companyName).filter(Boolean))).sort(), [enrollments]);
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
     return enrollments.filter(enrollment => {
-      if (courseFilter && enrollment.courseId !== courseFilter) return false;
+      if (effectiveCourseFilter && enrollment.courseId !== effectiveCourseFilter) return false;
       if (statusFilter && enrollment.status !== statusFilter) return false;
       if (companyFilter && enrollment.companyName !== companyFilter) return false;
       if (!q) return true;
@@ -272,7 +275,7 @@ export default function EnrollmentManager() {
         ...(enrollment.skills || []),
       ].some(value => String(value || "").toLowerCase().includes(q));
     });
-  }, [enrollments, query, courseFilter, statusFilter, companyFilter]);
+  }, [enrollments, query, effectiveCourseFilter, statusFilter, companyFilter]);
 
   function saveMemo(enrollmentId, memo) {
     updateEnrollmentMemo(enrollmentId, memo);
@@ -312,7 +315,7 @@ export default function EnrollmentManager() {
 
       <div className="space-y-3">
         <Card className="p-4">
-          <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_180px_150px_180px]">
+          <div className={fixedCourseId ? "grid gap-3 lg:grid-cols-[minmax(0,1fr)_150px_180px]" : "grid gap-3 lg:grid-cols-[minmax(0,1fr)_180px_150px_180px]"}>
             <div className="flex items-center gap-2 rounded-xl border px-3 py-2" style={{ borderColor: C.line, background: "#fff" }}>
               <Search size={16} style={{ color: C.muted }} />
               <input
@@ -323,10 +326,12 @@ export default function EnrollmentManager() {
                 style={{ color: C.ink }}
               />
             </div>
-            <select style={fieldStyle} value={courseFilter} onChange={e => setCourseFilter(e.target.value)}>
-              <option value="">全コース</option>
-              {courses.map(course => <option key={course.id} value={course.id}>{course.title}</option>)}
-            </select>
+            {!fixedCourseId && (
+              <select style={fieldStyle} value={courseFilter} onChange={e => setCourseFilter(e.target.value)}>
+                <option value="">全コース</option>
+                {courses.map(course => <option key={course.id} value={course.id}>{course.title}</option>)}
+              </select>
+            )}
             <select style={fieldStyle} value={statusFilter} onChange={e => setStatusFilter(e.target.value)}>
               <option value="">全ステータス</option>
               {ENROLLMENT_STATUS_OPTIONS.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}

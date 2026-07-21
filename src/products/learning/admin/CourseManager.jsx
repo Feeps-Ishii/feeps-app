@@ -1,15 +1,33 @@
-import React, { useEffect, useMemo, useState } from "react";
-import { BookOpen, Clock, Eye, EyeOff, History, ListChecks, Loader2, Pencil, Plus, PlayCircle, Save, Search, Tag, Trash2, X } from "lucide-react";
+import React, { useMemo, useState } from "react";
+import { BookOpen, Clock, Eye, EyeOff, History, ListChecks, Loader2, Pencil, Plus, PlayCircle, Save, Search, Sparkles, Tag, Trash2, X } from "lucide-react";
 import { Badge, Btn, Card, EmptyState, Field, SectionHead, SkeletonRows, Stat, fieldStyle, T, PRODUCT_ACCENT } from "../../../components/common";
-import { apiGet } from "../../../api.js";
 import { COURSE_CATEGORY_OPTIONS, COURSE_COLOR_OPTIONS, COURSE_LEVEL_OPTIONS, COURSE_VISIBILITY_SCOPE_OPTIONS, EMPTY_COURSE_FORM } from "./LearningAdminCatalog.js";
-import { courseToForm, useLearningAdmin } from "./useLearningAdmin.js";
+import { useLearningAdmin } from "./useLearningAdmin.js";
 import AdminModal from "./AdminModal.jsx";
 import CourseWalkthroughPreview from "./CourseWalkthroughPreview.jsx";
+import { useCompanyDirectory, companyNameResolver } from "./useCompanyDirectory.js";
 
 const C = { ink: T.textPrimary, body: T.textSecondary, muted: T.textMuted, line: T.border, canvas: T.bgBase, green: PRODUCT_ACCENT.learning.accent, greenW: PRODUCT_ACCENT.learning.subtle, red: T.danger };
 
-function CourseForm({ mode, form, onChange, onSubmit, onCancel, canEditVisibility, companies, companiesError }) {
+// コース一覧・コース詳細(設定タブ)の両方から使う公開範囲バッジ。
+// 2026-07-21 コース中心構造への再編で共通コンポーネント化。
+export function VisibilityBadges({ course, companies, companiesError }) {
+  const scope = course.visibilityScope || "all";
+  if (scope !== "companies") return <Badge tone="green">全体公開</Badge>;
+  const ids = Array.isArray(course.targetCompanyIds) ? course.targetCompanyIds : [];
+  if (!ids.length) return <Badge tone="amber">対象企業未設定</Badge>;
+  const nameFor = companyNameResolver(companies, companiesError);
+  const shown = ids.slice(0, 3);
+  const extra = ids.length - shown.length;
+  return (
+    <>
+      {shown.map(id => <Badge key={id} tone="cyan">{nameFor(id)}</Badge>)}
+      {extra > 0 && <Badge tone="muted">+{extra}社</Badge>}
+    </>
+  );
+}
+
+export function CourseForm({ mode, form, onChange, onSubmit, onCancel, canEditVisibility, companies, companiesError }) {
   function set(key, value) {
     onChange({ ...form, [key]: value });
   }
@@ -134,13 +152,19 @@ function CourseForm({ mode, form, onChange, onSubmit, onCancel, canEditVisibilit
   );
 }
 
-function CourseRow({ course, onEdit, onOpenLessons, onTogglePublish, onPublish, onDeleteRequest, onPreview, onShowVersions, publishing }) {
+function CourseRow({ course, onEdit, onOpenLessons, onSelectCourse, onTogglePublish, onPublish, onDeleteRequest, onPreview, onShowVersions, publishing, companies, companiesError }) {
   const published = course.published !== false;
   const versioned = Number(course.publishedVersion || 0) > 0;
   return (
     <Card className="p-4">
       <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-        <div className="flex min-w-0 gap-3">
+        <div
+          className="flex min-w-0 cursor-pointer gap-3"
+          role="button"
+          tabIndex={0}
+          onClick={() => onSelectCourse(course)}
+          onKeyDown={e => { if (e.key === "Enter") onSelectCourse(course); }}
+        >
           <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl text-white" style={{ background: course.color || C.green }}>
             <BookOpen size={22} />
           </div>
@@ -149,6 +173,7 @@ function CourseRow({ course, onEdit, onOpenLessons, onTogglePublish, onPublish, 
               <h3 className="truncate text-sm font-bold" style={{ color: C.ink }}>{course.title}</h3>
               <Badge tone={published ? "green" : "muted"}>{published ? "公開中" : "非公開"}</Badge>
               {versioned && <Badge tone="cyan">v{course.publishedVersion}</Badge>}
+              <VisibilityBadges course={course} companies={companies} companiesError={companiesError} />
             </div>
             <p className="mt-1 line-clamp-2 text-xs" style={{ color: C.body }}>{course.desc}</p>
             <div className="mt-2 flex flex-wrap items-center gap-2 text-xs" style={{ color: C.muted }}>
@@ -183,28 +208,23 @@ function CourseRow({ course, onEdit, onOpenLessons, onTogglePublish, onPublish, 
   );
 }
 
-export default function CourseManager({ onOpenLessons = () => {}, role }) {
+export default function CourseManager({ onOpenLessons = () => {}, onSelectCourse = () => {}, onOpenStudio = () => {}, role }) {
   const {
     courses, coursesLoading, coursesError, stats,
-    createCourse, updateCourse, togglePublish, publishCourse, getCourseVersions, deleteCourse,
+    createCourse, togglePublish, publishCourse, getCourseVersions, deleteCourse,
     lessonsForCourse, quizQuestions,
     actionError, clearActionError,
   } = useLearningAdmin();
   const canEditVisibility = role === "admin";
   // 可視範囲制御（企業単位、2026-07-21追加）: 企業一覧は既存の /companies を再利用する（新規API追加禁止）。
   // GET /companies は admin・instructor どちらも呼び出せる（isInstructorはadminを含む判定）。
-  const [companies, setCompanies] = useState([]);
-  const [companiesError, setCompaniesError] = useState("");
-  useEffect(() => {
-    apiGet("/companies")
-      .then(list => setCompanies(Array.isArray(list) ? list : []))
-      .catch(() => setCompaniesError("企業一覧を取得できませんでした。"));
-  }, []);
+  const { companies, companiesError } = useCompanyDirectory();
   const [query, setQuery] = useState("");
-  const [editingCourse, setEditingCourse] = useState(null);
   const [form, setForm] = useState({ ...EMPTY_COURSE_FORM });
   const [deleteTarget, setDeleteTarget] = useState(null);
   const [formOpen, setFormOpen] = useState(false);
+  // 「＋コース追加」の入口選択（自分で作る／AIに任せる、2026-07-21コース中心構造再編）。
+  const [addChoiceOpen, setAddChoiceOpen] = useState(false);
   const [publishingId, setPublishingId] = useState(null);
   const [previewCourse, setPreviewCourse] = useState(null);
   const [versionsCourse, setVersionsCourse] = useState(null);
@@ -235,39 +255,35 @@ export default function CourseManager({ onOpenLessons = () => {}, role }) {
     ].some(value => String(value || "").toLowerCase().includes(q)));
   }, [courses, query]);
 
+  function openAddChoice() {
+    setAddChoiceOpen(true);
+  }
+
   function startNew() {
-    setEditingCourse(null);
+    setAddChoiceOpen(false);
     setForm({ ...EMPTY_COURSE_FORM });
     setDeleteTarget(null);
     setFormOpen(true);
   }
 
-  function startEdit(course) {
-    setEditingCourse(course);
-    setForm(courseToForm(course));
-    setDeleteTarget(null);
-    setFormOpen(true);
+  function startStudio() {
+    setAddChoiceOpen(false);
+    onOpenStudio();
   }
 
   function closeForm() {
-    setEditingCourse(null);
     setForm({ ...EMPTY_COURSE_FORM });
     setFormOpen(false);
   }
 
   function submit() {
-    if (editingCourse) {
-      updateCourse(editingCourse.id, form);
-    } else {
-      createCourse(form);
-    }
+    createCourse(form);
     closeForm();
   }
 
   function confirmDelete() {
     if (!deleteTarget) return;
     deleteCourse(deleteTarget.id);
-    if (editingCourse?.id === deleteTarget.id) closeForm();
     setDeleteTarget(null);
   }
 
@@ -293,7 +309,7 @@ export default function CourseManager({ onOpenLessons = () => {}, role }) {
               コース情報はBackend APIに保存され、受講生・講師画面にも即時反映されます。
             </p>
           </div>
-          <Btn icon={Plus} onClick={startNew}>新規コース</Btn>
+          <Btn icon={Plus} onClick={openAddChoice}>＋コース追加</Btn>
         </div>
       </Card>
 
@@ -325,14 +341,17 @@ export default function CourseManager({ onOpenLessons = () => {}, role }) {
                 <CourseRow
                   key={course.id}
                   course={course}
-                  onEdit={startEdit}
+                  onEdit={onSelectCourse}
                   onOpenLessons={onOpenLessons}
+                  onSelectCourse={onSelectCourse}
                   onTogglePublish={togglePublish}
                   onPublish={handlePublish}
                   onDeleteRequest={setDeleteTarget}
                   onPreview={setPreviewCourse}
                   onShowVersions={handleShowVersions}
                   publishing={publishingId === course.id}
+                  companies={companies}
+                  companiesError={companiesError}
                 />
               ))}
             </div>
@@ -341,7 +360,7 @@ export default function CourseManager({ onOpenLessons = () => {}, role }) {
           ) : (
             <EmptyState
               title={courses.length ? "該当するコースがありません" : "コースがまだ登録されていません"}
-              desc={courses.length ? "検索条件を変更するか、新規コースを作成してください。" : "「新規コース」からEラーニングコースを作成してください。"}
+              desc={courses.length ? "検索条件を変更するか、新規コースを作成してください。" : "「＋コース追加」からEラーニングコースを作成してください。"}
             />
           )}
         </div>
@@ -349,13 +368,48 @@ export default function CourseManager({ onOpenLessons = () => {}, role }) {
       </div>
 
       <AdminModal
+        open={addChoiceOpen}
+        title="コースを追加"
+        desc="コースの作り方を選んでください。"
+        onClose={() => setAddChoiceOpen(false)}
+        width={520}
+      >
+        <div className="grid gap-3 sm:grid-cols-2">
+          <button
+            type="button"
+            onClick={startNew}
+            className="rounded-2xl border p-4 text-left transition hover:shadow-md"
+            style={{ borderColor: C.line }}
+          >
+            <div className="mb-2 flex h-9 w-9 items-center justify-center rounded-xl text-white" style={{ background: C.green }}>
+              <Pencil size={16} />
+            </div>
+            <div className="text-sm font-bold" style={{ color: C.ink }}>自分で作る</div>
+            <p className="mt-1 text-xs" style={{ color: C.body }}>コース情報を手入力し、レッスン・教材・問題をあとから追加します。</p>
+          </button>
+          <button
+            type="button"
+            onClick={startStudio}
+            className="rounded-2xl border p-4 text-left transition hover:shadow-md"
+            style={{ borderColor: C.line }}
+          >
+            <div className="mb-2 flex h-9 w-9 items-center justify-center rounded-xl text-white" style={{ background: PRODUCT_ACCENT.learning.deep }}>
+              <Sparkles size={16} />
+            </div>
+            <div className="text-sm font-bold" style={{ color: C.ink }}>AIに任せる</div>
+            <p className="mt-1 text-xs" style={{ color: C.body }}>Learning Studioで目的からAI構成案・Lesson・総合テストを作成します。</p>
+          </button>
+        </div>
+      </AdminModal>
+
+      <AdminModal
         open={formOpen}
-        title={editingCourse ? "コース編集" : "コース新規作成"}
+        title="コース新規作成"
         desc="受講者向けのコース情報を登録し、Learning管理APIへ保存します。"
         onClose={closeForm}
       >
         <CourseForm
-          mode={editingCourse ? "edit" : "new"}
+          mode="new"
           form={form}
           onChange={setForm}
           onSubmit={submit}

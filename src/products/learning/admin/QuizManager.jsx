@@ -26,7 +26,7 @@ const reviewStatusLabel = {
   review_later: "後で復習したい",
 };
 
-function QuizForm({ mode, form, courses, lessons, onChange, onSubmit, onCancel }) {
+function QuizForm({ mode, form, courses, lessons, onChange, onSubmit, onCancel, lockCourseId }) {
   function set(key, value) {
     const next = { ...form, [key]: value };
     if (key === "courseId") next.lessonId = "";
@@ -45,12 +45,20 @@ function QuizForm({ mode, form, courses, lessons, onChange, onSubmit, onCancel }
 
       <div className="space-y-3">
         <div className="grid gap-3 md:grid-cols-2">
-          <Field label="コース">
-            <select style={fieldStyle} value={form.courseId} onChange={e => set("courseId", e.target.value)}>
-              <option value="">選択してください</option>
-              {courses.map(course => <option key={course.id} value={course.id}>{course.title}</option>)}
-            </select>
-          </Field>
+          {lockCourseId ? (
+            <Field label="コース">
+              <div className="rounded-lg px-3 py-2 text-sm" style={{ background: C.canvas, color: C.ink }}>
+                {courses.find(c => c.id === lockCourseId)?.title || lockCourseId}
+              </div>
+            </Field>
+          ) : (
+            <Field label="コース">
+              <select style={fieldStyle} value={form.courseId} onChange={e => set("courseId", e.target.value)}>
+                <option value="">選択してください</option>
+                {courses.map(course => <option key={course.id} value={course.id}>{course.title}</option>)}
+              </select>
+            </Field>
+          )}
           <Field label="Lesson">
             <select style={fieldStyle} value={form.lessonId} onChange={e => set("lessonId", e.target.value)}>
               <option value="">選択してください</option>
@@ -264,7 +272,7 @@ function FinalSettingsPanel({ settings, onSave }) {
   );
 }
 
-export default function QuizManager() {
+export default function QuizManager({ fixedCourseId }) {
   const {
     courses,
     lessonsForCourse,
@@ -286,7 +294,7 @@ export default function QuizManager() {
     actionError,
     clearActionError,
   } = useLearningAdmin();
-  const initialCourseId = courses[0]?.id || "";
+  const initialCourseId = fixedCourseId || courses[0]?.id || "";
   const [query, setQuery] = useState("");
   const [courseFilter, setCourseFilter] = useState("");
   const [typeFilter, setTypeFilter] = useState("");
@@ -297,15 +305,21 @@ export default function QuizManager() {
   const [form, setForm] = useState({ ...EMPTY_QUIZ_FORM, courseId: initialCourseId, lessonId: initialCourseId ? lessonsForCourse(initialCourseId)[0]?.id || "" : "" });
   const [formOpen, setFormOpen] = useState(false);
 
+  // コース詳細（2026-07-21再編）から呼ばれる場合はコースを固定し、コース選択セレクトを隠す。
+  const effectiveCourseFilter = fixedCourseId || courseFilter;
   const lessonsForForm = form.courseId ? lessonsForCourse(form.courseId) : [];
   const allLessons = useMemo(() => courses.flatMap(course => lessonsForCourse(course.id)), [courses, lessonsForCourse]);
+  const reviewLessons = fixedCourseId ? lessonsForCourse(fixedCourseId) : allLessons;
+  const reviewFlagsForPanel = fixedCourseId
+    ? reviewFlags.filter(flag => reviewLessons.some(lesson => lesson.id === flag.lessonId))
+    : reviewFlags;
   const courseName = (courseId) => courses.find(course => course.id === courseId)?.title || "未選択";
   const lessonName = (courseId, lessonId) => lessonsForCourse(courseId).find(lesson => lesson.id === lessonId)?.title || lessonId || "未選択";
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
     return quizQuestions.filter(item => {
-      if (courseFilter && item.courseId !== courseFilter) return false;
+      if (effectiveCourseFilter && item.courseId !== effectiveCourseFilter) return false;
       if (typeFilter && item.type !== typeFilter) return false;
       if (difficultyFilter && item.difficulty !== difficultyFilter) return false;
       if (publishedFilter === "published" && !item.published) return false;
@@ -322,10 +336,10 @@ export default function QuizManager() {
         ...(item.tags || []),
       ].some(value => String(value || "").toLowerCase().includes(q));
     });
-  }, [quizQuestions, query, courseFilter, typeFilter, difficultyFilter, publishedFilter]);
+  }, [quizQuestions, query, effectiveCourseFilter, typeFilter, difficultyFilter, publishedFilter]);
 
   function startNew() {
-    const courseId = courseFilter || initialCourseId;
+    const courseId = effectiveCourseFilter || initialCourseId;
     setEditingQuestion(null);
     setDeleteTarget(null);
     setForm({ ...EMPTY_QUIZ_FORM, courseId, lessonId: courseId ? lessonsForCourse(courseId)[0]?.id || "" : "" });
@@ -340,7 +354,7 @@ export default function QuizManager() {
   }
 
   function closeForm() {
-    const courseId = courseFilter || initialCourseId;
+    const courseId = effectiveCourseFilter || initialCourseId;
     setEditingQuestion(null);
     setForm({ ...EMPTY_QUIZ_FORM, courseId, lessonId: courseId ? lessonsForCourse(courseId)[0]?.id || "" : "" });
     setFormOpen(false);
@@ -388,15 +402,17 @@ export default function QuizManager() {
       <div className="grid gap-5">
         <div className="space-y-3">
           <Card className="p-4">
-            <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_160px_150px_140px_130px]">
+            <div className={fixedCourseId ? "grid gap-3 lg:grid-cols-[minmax(0,1fr)_150px_140px_130px]" : "grid gap-3 lg:grid-cols-[minmax(0,1fr)_160px_150px_140px_130px]"}>
               <div className="flex items-center gap-2 rounded-xl border px-3 py-2" style={{ borderColor: C.line }}>
                 <Search size={16} style={{ color: C.muted }} />
                 <input className="w-full bg-transparent text-sm outline-none" value={query} onChange={e => setQuery(e.target.value)} placeholder="問題文・タグ・スキルで検索" style={{ color: C.ink }} />
               </div>
-              <select style={fieldStyle} value={courseFilter} onChange={e => setCourseFilter(e.target.value)}>
-                <option value="">全コース</option>
-                {courses.map(course => <option key={course.id} value={course.id}>{course.title}</option>)}
-              </select>
+              {!fixedCourseId && (
+                <select style={fieldStyle} value={courseFilter} onChange={e => setCourseFilter(e.target.value)}>
+                  <option value="">全コース</option>
+                  {courses.map(course => <option key={course.id} value={course.id}>{course.title}</option>)}
+                </select>
+              )}
               <select style={fieldStyle} value={typeFilter} onChange={e => setTypeFilter(e.target.value)}>
                 <option value="">全タイプ</option>
                 {QUIZ_TYPE_OPTIONS.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}
@@ -452,6 +468,7 @@ export default function QuizManager() {
           onChange={setForm}
           onSubmit={submit}
           onCancel={closeForm}
+          lockCourseId={fixedCourseId}
         />
       </AdminModal>
 
@@ -476,7 +493,7 @@ export default function QuizManager() {
       </AdminModal>
 
       <div className="grid gap-5 xl:grid-cols-2">
-        <ReviewPanel lessons={allLessons} reviewFlags={reviewFlags} onSave={upsertReviewFlag} onDelete={deleteReviewFlag} />
+        <ReviewPanel lessons={reviewLessons} reviewFlags={reviewFlagsForPanel} onSave={upsertReviewFlag} onDelete={deleteReviewFlag} />
         <FinalSettingsPanel settings={finalTestSettings} onSave={updateFinalTestSettings} />
       </div>
     </div>
