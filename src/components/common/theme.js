@@ -110,6 +110,9 @@ export const PRODUCT_ACCENT = {
   analytics: { accent: "#EB77B1", deep: "#BD4F86", subtle: "#FCEAF3", gradFrom: "#94285F", gradTo: "#AE3B77" },
   admin:     { accent: "#5D7BF0", deep: "#435BC1", subtle: "#EBEFFE", gradFrom: "#435BC1", gradTo: "#5366C8" },
   grants:    { accent: "#C9A227", deep: "#96791C", subtle: "#FBF3D9", gradFrom: "#7A6015", gradTo: "#C9A227" },
+  // devlab（開発演習、2026-07-21新設）: 既存7色（blue/teal/purple/orange/rose/indigo/gold）と
+  // 被らない緑系。「開発・完走」のイメージ。
+  devlab:    { accent: "#2FAE66", deep: "#1F8B4D", subtle: "#E7F8EE", gradFrom: "#146B39", gradTo: "#2FAE66" },
 };
 
 // Role accent (2026-07-03). Independent from PRODUCT_ACCENT — this is ONLY for the
