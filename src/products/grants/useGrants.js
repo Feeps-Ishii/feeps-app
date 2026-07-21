@@ -308,6 +308,32 @@ export function useGrantExports(grantId) {
   return { generate, generating, error, clearError: () => setError(""), lastResult, clearLastResult: () => setLastResult(null) };
 }
 
+// ---- 助成金計算（下書き）。GET /grants/{grantId}/calculation-draft（2026-07-21実装）。
+// 呼び出すたびに不足項目チェック＋計算を行い、賃金助成額が算出できればGrant.calculatedAmountDraft
+// へ保存される（自動確定はしない。amountへの反映は既存のupdateGrant(amount)を使う）。 ----
+export function useGrantCalculationDraft(grantId) {
+  const [calculating, setCalculating] = useState(false);
+  const [error, setError] = useState("");
+  const [result, setResult] = useState(null);
+
+  async function calculate() {
+    if (!grantId || calculating) return null;
+    setCalculating(true); setError("");
+    try {
+      const res = await apiGet(`/grants/${encodeURIComponent(grantId)}/calculation-draft`);
+      setResult(res);
+      return res;
+    } catch (e) {
+      setError(apiErrorMessage(e, "助成金計算（下書き）の算出に失敗しました。"));
+      throw e;
+    } finally {
+      setCalculating(false);
+    }
+  }
+
+  return { calculate, calculating, error, clearError: () => setError(""), result, clearResult: () => setResult(null) };
+}
+
 // ---- 年度別マスタ（助成率・単価・上限額、admin専用。/grants/rate-master） ----
 export function useRateMasterYears(enabled = true) {
   const [items, setItems] = useState([]);

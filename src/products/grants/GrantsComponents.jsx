@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
-  AlertTriangle, ArrowRight, Building2, CalendarClock, Check, ChevronLeft, ChevronRight,
+  AlertTriangle, ArrowRight, Building2, CalendarClock, Calculator, Check, ChevronLeft, ChevronRight,
   Clock, Download, Eye, FileText, MapPin, Pencil, Plus, Search, Trash2, Upload, Users, X,
 } from "lucide-react";
 import {
@@ -12,8 +12,9 @@ import {
   RESERVATION_TYPE_OPTIONS, reservationStatusLabel, reservationStatusTone, reservationTypeLabel,
 } from "./GrantsCatalog.js";
 import {
-  useCompanyCourses, useCompanyProfile, useCompanyTrainees, useGrantCompanies, useGrantCoursesMap,
-  useGrantDocuments, useGrantExports, useGrantsList, useRateMaster, useRateMasterYears, useReservations,
+  useCompanyCourses, useCompanyProfile, useCompanyTrainees, useGrantCalculationDraft, useGrantCompanies,
+  useGrantCoursesMap, useGrantDocuments, useGrantExports, useGrantsList, useRateMaster, useRateMasterYears,
+  useReservations,
 } from "./useGrants.js";
 import { computeGrantStages, computeNextActions } from "./grantStages.js";
 import {
@@ -630,6 +631,79 @@ function GrantCreateModal({ companies, onClose, onCreate, saving, actionError, c
   );
 }
 
+// ---- 助成金計算（下書き）セクション。docs/specs/grant-calculation-spec.md §4-3。
+// GET /grants/{id}/calculation-draftを叩き、不足項目チェック＋賃金助成額（下書き）を表示する。
+// 経費助成額は実費入力のUIをLMSが持たないため常に「不足」表示（手動算定を促すのみ）。
+// 「amountへ反映」はAPIを新設せず、既存のamount入力欄（GrantDetailのstate）へ値をセットするだけ
+// （実際の確定PUTは既存の「保存する」ボタンで行う。自動確定はしない）。
+function GrantCalculationDraftPanel({ grant, isAdmin, onReflectAmount }) {
+  const { calculate, calculating, error, result } = useGrantCalculationDraft(grant.grantId);
+
+  async function handleCalculate() {
+    try { await calculate(); } catch (e) { /* errorはhook側で表示 */ }
+  }
+
+  const lastDraft = grant.calculatedAmountDraft;
+  const lastDraftAt = grant.calculatedAmountDraftAt;
+
+  return (
+    <Card className="p-4">
+      <div className="mb-1 flex items-center gap-1.5 text-sm font-bold" style={{ color: T.textPrimary }}>
+        <Calculator size={15} />助成金計算（下書き）
+      </div>
+      <div className="mb-3 text-xs" style={{ color: T.textMuted }}>
+        実訓練時間数（勤怠から機械算出）×年度別マスタの賃金助成単価から、賃金助成額の下書きを計算します。
+        確定額（上の「金額（円）」欄）は自動更新されません。内容を確認のうえ、必要なら手動調整して保存してください。
+      </div>
+
+      {!result && lastDraft != null && (
+        <div className="mb-3 rounded-lg px-3 py-2 text-xs" style={{ background: T.bgBase, color: T.textSecondary }}>
+          前回の下書き計算: {Number(lastDraft).toLocaleString("ja-JP")}円{lastDraftAt ? `（${String(lastDraftAt).slice(0, 10)}算出）` : ""}
+        </div>
+      )}
+
+      <Btn size="sm" icon={Calculator} onClick={handleCalculate} disabled={calculating}>
+        {calculating ? "計算中…" : "助成金額を計算する（下書き）"}
+      </Btn>
+
+      {error && <div className="mt-2 rounded-lg px-3 py-2 text-xs" style={{ background: T.dangerSubtle, color: T.danger }}>{error}</div>}
+
+      {result && (
+        <div className="mt-3 space-y-2">
+          {result.missingItems?.length > 0 && (
+            <div className="rounded-lg px-3 py-2 text-xs" style={{ background: T.warningSubtle, color: T.warning }}>
+              <div className="mb-1 font-bold">不足項目（{result.missingItems.length}件）</div>
+              <ul className="list-disc space-y-0.5 pl-4">
+                {result.missingItems.map(item => <li key={item.code}>{item.label}</li>)}
+              </ul>
+            </div>
+          )}
+          {result.canCalculateWage && result.wageSubsidy ? (
+            <div className="rounded-lg px-3 py-2 text-xs" style={{ background: T.successSubtle, color: T.success }}>
+              <div className="mb-1 font-bold">賃金助成額（下書き）</div>
+              <div>実訓練時間数合計: 約{result.wageSubsidy.totalActualTrainingHoursDecimal}時間（{result.wageSubsidy.totalActualTrainingMinutes}分）</div>
+              <div>単価: {Number(result.wageSubsidy.hourlyRate).toLocaleString("ja-JP")}円/時間（{result.fiscalYear}年度マスタ）</div>
+              <div className="mt-1 text-sm font-bold">賃金助成額: {Number(result.wageSubsidy.amount).toLocaleString("ja-JP")}円</div>
+              <div className="mt-1" style={{ color: T.textMuted }}>経費助成額は実費未入力のため対象外です。合計（下書き）＝賃金助成額のみ。</div>
+              {isAdmin && (
+                <div className="mt-2">
+                  <Btn kind="ghost" size="sm" onClick={() => onReflectAmount(result.totalDraftAmount)}>
+                    この値を「金額（円）」欄へ反映（保存するまで確定しません）
+                  </Btn>
+                </div>
+              )}
+            </div>
+          ) : (
+            <div className="rounded-lg px-3 py-2 text-xs" style={{ background: T.bgBase, color: T.textMuted }}>
+              不足項目を解消すると賃金助成額（下書き）が計算されます。
+            </div>
+          )}
+        </div>
+      )}
+    </Card>
+  );
+}
+
 function GrantDetail({
   grant, role, companyName, courseName, course, companyProfile, documents, documentsLoading, onDocumentsGenerated,
   trainees, onSave, onOpenDocuments, saving, actionError, clearActionError,
@@ -698,6 +772,9 @@ function GrantDetail({
         <Field label="担当者"><input value={assigneeUserId} onChange={e => setAssigneeUserId(e.target.value)} disabled={!isAdmin} style={fieldStyle} /></Field>
       </div>
       <Field label="金額（円）"><input type="number" min="0" value={amount} onChange={e => setAmount(e.target.value)} disabled={!isAdmin} style={fieldStyle} /></Field>
+
+      <GrantCalculationDraftPanel grant={grant} isAdmin={isAdmin} onReflectAmount={value => setAmount(value != null ? String(value) : "")} />
+
       <Field label="対象受講生">
         <div className="flex flex-wrap gap-1.5">{traineeNames.length ? traineeNames.map((n, i) => <Badge key={i} tone="cyan">{n}</Badge>) : <span className="text-xs" style={{ color: T.textMuted }}>未設定</span>}</div>
       </Field>
