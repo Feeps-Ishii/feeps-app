@@ -321,7 +321,7 @@ export function RiskBoard() {
           })}
         </Card>
       )}
-      <p className="mt-3 text-xs" style={{ color: T.textMuted }}>※ 日報・勤怠は当日分、テストは受験済み全結果の平均で算出します。</p>
+      <p className="mt-3 text-xs" style={{ color: T.textMuted }}>※ 日報・勤怠はコースの直近研修日までの未解消異常（欠席・遅刻・早退・勤怠未登録・日報未提出・未コメント）の累積、テストは受験済み全結果の平均・未受験の有無で算出します。「今日」が研修日でなくても、これまでの実績をそのまま反映します。</p>
     </div>
   );
 }
