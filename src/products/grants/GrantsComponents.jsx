@@ -631,9 +631,55 @@ function GrantCreateModal({ companies, onClose, onCreate, saving, actionError, c
   );
 }
 
+// 経費実費（Grant.expenseActualCosts）フォーム⇔API変換。docs/specs/grant-calculation-spec.md §2-3。
+// number入力は空文字を許容するため文字列でstate保持し、送信時のみnull/numberへ変換する。
+const EXPENSE_COST_FIELDS = ["perPersonEnrollmentFee", "perPersonCertificationFee", "inCompanyCostTotal", "previousReceivedDeduction"];
+function expenseCostsToForm(costs) {
+  const form = { note: costs?.note || "" };
+  for (const field of EXPENSE_COST_FIELDS) form[field] = costs?.[field] != null ? String(costs[field]) : "";
+  return form;
+}
+function expenseCostsFromForm(form) {
+  const out = { note: form.note || "" };
+  for (const field of EXPENSE_COST_FIELDS) out[field] = form[field] === "" || form[field] == null ? null : Number(form[field]);
+  return out;
+}
+
+// ---- 経費実費入力セクション。docs/specs/grant-calculation-spec.md §2-3・§3。
+// 会計・請求書データはLMSが自動取得できないため、企業担当者または管理者が手入力する
+// （PUT /grants/{id} のexpenseActualCosts、GrantDetailのsubmit()で他フィールドと一緒に保存される）。
+function GrantExpenseCostsPanel({ expenseCosts, onChange }) {
+  return (
+    <Card className="p-4">
+      <div className="mb-1 text-sm font-bold" style={{ color: T.textPrimary }}>経費実費（1人当たり訓練経費の元データ）</div>
+      <div className="mb-3 text-xs" style={{ color: T.textMuted }}>
+        会計・請求書データはLMSで自動取得できないため、実費を入力してください。入力後「保存する」を押し、
+        下の「助成金額を計算する（下書き）」で経費助成額を再計算できます。
+      </div>
+      <div className="grid gap-3 sm:grid-cols-2">
+        <Field label="1人当たり入学料等（事業外訓練の経費、円）">
+          <input type="number" min="0" value={expenseCosts.perPersonEnrollmentFee} onChange={e => onChange("perPersonEnrollmentFee", e.target.value)} style={fieldStyle} />
+        </Field>
+        <Field label="1人当たり職業能力検定等費用（円）">
+          <input type="number" min="0" value={expenseCosts.perPersonCertificationFee} onChange={e => onChange("perPersonCertificationFee", e.target.value)} style={fieldStyle} />
+        </Field>
+        <Field label="事業内訓練の経費（按分後合計額、円。通常は空欄のままでよい）">
+          <input type="number" min="0" value={expenseCosts.inCompanyCostTotal} onChange={e => onChange("inCompanyCostTotal", e.target.value)} style={fieldStyle} />
+        </Field>
+        <Field label="既受給控除額（円、任意）">
+          <input type="number" min="0" value={expenseCosts.previousReceivedDeduction} onChange={e => onChange("previousReceivedDeduction", e.target.value)} style={fieldStyle} />
+        </Field>
+      </div>
+      <Field label="根拠メモ（請求書番号等、任意）">
+        <textarea value={expenseCosts.note} onChange={e => onChange("note", e.target.value)} rows={2} style={{ ...fieldStyle, resize: "vertical" }} />
+      </Field>
+    </Card>
+  );
+}
+
 // ---- 助成金計算（下書き）セクション。docs/specs/grant-calculation-spec.md §4-3。
-// GET /grants/{id}/calculation-draftを叩き、不足項目チェック＋賃金助成額（下書き）を表示する。
-// 経費助成額は実費入力のUIをLMSが持たないため常に「不足」表示（手動算定を促すのみ）。
+// GET /grants/{id}/calculation-draftを叩き、不足項目チェック＋賃金助成額・経費助成額（下書き）を表示する。
+// 経費助成額は上のGrantExpenseCostsPanelで実費が入力・保存済みの場合のみ計算される。
 // 「amountへ反映」はAPIを新設せず、既存のamount入力欄（GrantDetailのstate）へ値をセットするだけ
 // （実際の確定PUTは既存の「保存する」ボタンで行う。自動確定はしない）。
 function GrantCalculationDraftPanel({ grant, isAdmin, onReflectAmount }) {
@@ -678,13 +724,32 @@ function GrantCalculationDraftPanel({ grant, isAdmin, onReflectAmount }) {
               </ul>
             </div>
           )}
-          {result.canCalculateWage && result.wageSubsidy ? (
+          {result.canCalculateWage && result.wageSubsidy && (
             <div className="rounded-lg px-3 py-2 text-xs" style={{ background: T.successSubtle, color: T.success }}>
               <div className="mb-1 font-bold">賃金助成額（下書き）</div>
               <div>実訓練時間数合計: 約{result.wageSubsidy.totalActualTrainingHoursDecimal}時間（{result.wageSubsidy.totalActualTrainingMinutes}分）</div>
               <div>単価: {Number(result.wageSubsidy.hourlyRate).toLocaleString("ja-JP")}円/時間（{result.fiscalYear}年度マスタ）</div>
               <div className="mt-1 text-sm font-bold">賃金助成額: {Number(result.wageSubsidy.amount).toLocaleString("ja-JP")}円</div>
-              <div className="mt-1" style={{ color: T.textMuted }}>経費助成額は実費未入力のため対象外です。合計（下書き）＝賃金助成額のみ。</div>
+            </div>
+          )}
+          {result.canCalculateExpense && result.expenseSubsidy ? (
+            <div className="rounded-lg px-3 py-2 text-xs" style={{ background: T.successSubtle, color: T.success }}>
+              <div className="mb-1 font-bold">経費助成額（下書き）</div>
+              <div>1人当たり訓練経費: {Number(result.expenseSubsidy.perPersonTrainingCost).toLocaleString("ja-JP")}円</div>
+              <div>対象者数: 正規雇用労働者等 {result.expenseSubsidy.regularCount}名（助成率{result.expenseSubsidy.rateRegular}%） / 有期契約労働者等 {result.expenseSubsidy.fixedTermCount}名（助成率{result.expenseSubsidy.rateFixedTerm}%）</div>
+              <div>上限額: 1人当たり{Number(result.expenseSubsidy.capPerPerson).toLocaleString("ja-JP")}円（合計上限 {Number(result.expenseSubsidy.capTotal).toLocaleString("ja-JP")}円）</div>
+              <div className="mt-1 text-sm font-bold">経費助成額: {Number(result.expenseSubsidy.amount).toLocaleString("ja-JP")}円</div>
+            </div>
+          ) : (
+            !result.canCalculateWage || result.expenseSubsidy == null ? (
+              <div className="rounded-lg px-3 py-2 text-xs" style={{ background: T.bgBase, color: T.textMuted }}>
+                {result.canCalculateWage ? "経費助成額は不足項目を解消すると計算されます（上の「経費実費」入力を確認してください）。" : "不足項目を解消すると助成額（下書き）が計算されます。"}
+              </div>
+            ) : null
+          )}
+          {result.totalDraftAmount != null && (
+            <div className="rounded-lg px-3 py-2 text-xs" style={{ background: T.bgBase, color: T.textPrimary }}>
+              <div className="text-sm font-bold">合計（下書き）: {Number(result.totalDraftAmount).toLocaleString("ja-JP")}円</div>
               {isAdmin && (
                 <div className="mt-2">
                   <Btn kind="ghost" size="sm" onClick={() => onReflectAmount(result.totalDraftAmount)}>
@@ -692,10 +757,6 @@ function GrantCalculationDraftPanel({ grant, isAdmin, onReflectAmount }) {
                   </Btn>
                 </div>
               )}
-            </div>
-          ) : (
-            <div className="rounded-lg px-3 py-2 text-xs" style={{ background: T.bgBase, color: T.textMuted }}>
-              不足項目を解消すると賃金助成額（下書き）が計算されます。
             </div>
           )}
         </div>
@@ -718,6 +779,9 @@ function GrantDetail({
   const [assigneeUserId, setAssigneeUserId] = useState(grant.assigneeUserId || "");
   const [amount, setAmount] = useState(grant.amount != null ? String(grant.amount) : "");
   const [remarks, setRemarks] = useState(grant.remarks || "");
+  // 経費実費（1人当たり訓練経費の元データ）。docs/specs/grant-calculation-spec.md §2-3・§3。
+  // remarksと同様、admin・client（自社分）どちらも編集可能（実費データの出所は自社の会計・請求書）。
+  const [expenseCosts, setExpenseCosts] = useState(() => expenseCostsToForm(grant.expenseActualCosts));
 
   const traineeNames = (grant.targetTraineeIds || []).map(id => trainees.find(t => t.userId === id)?.name || id);
   const stages = useMemo(() => computeGrantStages(grant, course), [grant, course]);
@@ -726,8 +790,12 @@ function GrantDetail({
     [grant, stages, course, companyProfile, documents, documentsLoading],
   );
 
+  function updateExpenseCost(field, value) {
+    setExpenseCosts(prev => ({ ...prev, [field]: value }));
+  }
+
   async function submit() {
-    const payload = { remarks };
+    const payload = { remarks, expenseActualCosts: expenseCostsFromForm(expenseCosts) };
     if (isAdmin) {
       Object.assign(payload, {
         status, appliedAt: appliedAt || null, changeDate: changeDate || null,
@@ -773,6 +841,7 @@ function GrantDetail({
       </div>
       <Field label="金額（円）"><input type="number" min="0" value={amount} onChange={e => setAmount(e.target.value)} disabled={!isAdmin} style={fieldStyle} /></Field>
 
+      <GrantExpenseCostsPanel expenseCosts={expenseCosts} onChange={updateExpenseCost} />
       <GrantCalculationDraftPanel grant={grant} isAdmin={isAdmin} onReflectAmount={value => setAmount(value != null ? String(value) : "")} />
 
       <Field label="対象受講生">
