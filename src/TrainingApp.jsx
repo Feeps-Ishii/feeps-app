@@ -327,6 +327,17 @@ async function loadRoleNotifications(role) {
       const note = await apiGet(`/courses/${firstCourse.courseId}/daily-note?date=${date}`).catch(e => { console.warn("notifications trainee daily-note failed", e); return null; });
       if (note?.announcement) add(result, { id: notifId(role, "daily-note", firstCourse.courseId), severity: "low", category: "連絡", title: "本日の連絡があります", desc: note.announcement, to: "home", targetUrl: "/training/home" });
     }
+    const matchingMe = await apiGet("/matching/me").catch(e => { console.warn("notifications trainee matching failed", e); return null; });
+    if (matchingMe) {
+      const candidateCount = Array.isArray(matchingMe.recommendedProjects) ? matchingMe.recommendedProjects.length : 0;
+      if (candidateCount > 0) {
+        add(result, { id: notifId(role, "matching-candidates", candidateCount), severity: "low", category: "案件", title: `新しい案件候補が${candidateCount}件あります`, desc: "所属企業から案内された案件候補を確認できます。", to: { product: "matching", subView: "mt_placement" } });
+      }
+      const pendingPlacements = (Array.isArray(matchingMe.placements) ? matchingMe.placements : []).filter(p => p.status === "proposed" || p.status === "interviewing");
+      if (pendingPlacements.length) {
+        add(result, { id: notifId(role, "matching-pending", pendingPlacements.length), severity: "medium", category: "案件", title: `対応待ちの参画ステータスが${pendingPlacements.length}件あります`, desc: pendingPlacements.slice(0, 3).map(p => `${p.projectTitle || "案件"}（${p.statusLabel || p.status}）`).join("、"), to: { product: "matching", subView: "mt_placement" } });
+      }
+    }
     return result;
   }
 
@@ -387,6 +398,19 @@ async function loadRoleNotifications(role) {
     const lowScores = visibleTests.flatMap(test => (resultMap[testIdOf(test)] || []).filter(r => ids.has(r.traineeId || r.userId) && Number(r.score) < 70));
     if (missingTests.length) add(result, { id: notifId(role, "tests-missing", date), severity: "medium", category: "テスト", title: `テスト未受験の受講生が${missingTests.length}名います`, desc: missingTests.slice(0, 3).map(userName).join("、"), to: "tests", targetUrl: "/training/tests" });
     if (lowScores.length) add(result, { id: notifId(role, "low-score", date), severity: "high", category: "成長確認", title: `理解度低下の可能性が${lowScores.length}件あります`, desc: "70点未満のテスト結果があります。", to: "tests", targetUrl: "/training/tests" });
+    const [myProjects, myPlacements] = await Promise.all([
+      apiGet("/projects").catch(e => { console.warn("notifications client projects failed", e); return []; }),
+      apiGet("/placements").catch(e => { console.warn("notifications client placements failed", e); return []; }),
+    ]);
+    const placementRows = Array.isArray(myPlacements) ? myPlacements : (Array.isArray(myPlacements?.items) ? myPlacements.items : []);
+    const pendingDecision = placementRows.filter(p => p.status === "proposed" || p.status === "interviewing");
+    if (pendingDecision.length) {
+      add(result, { id: notifId(role, "matching-pending", pendingDecision.length), severity: "medium", category: "案件", title: `対応待ちの参画が${pendingDecision.length}件あります`, desc: pendingDecision.slice(0, 3).map(p => `${p.traineeName || "候補者"}（${p.statusLabel || p.status}）`).join("、"), to: { product: "matching", subView: "mt_placement" } });
+    }
+    const recruitingProjects = (Array.isArray(myProjects) ? myProjects : (Array.isArray(myProjects?.items) ? myProjects.items : [])).filter(p => p.status === "recruiting");
+    if (recruitingProjects.length) {
+      add(result, { id: notifId(role, "matching-recruiting", recruitingProjects.length), severity: "low", category: "案件", title: `募集中の自社案件が${recruitingProjects.length}件あります`, desc: "候補者マッチングで自社人材の適合度を確認できます。", to: { product: "matching", subView: "mt_matching" } });
+    }
     return result;
   }
 
