@@ -1,6 +1,6 @@
 import React, { useMemo, useState } from "react";
 import {
-  Award, CheckCircle2, ClipboardList, Clock3, Code2, Link2, Loader2, Pencil, Plus, Sparkles, Trash2, XCircle, X,
+  Award, CheckCircle2, ClipboardList, Clock3, Code2, FolderTree, Link2, Loader2, Paperclip, Pencil, Plus, Sparkles, Trash2, XCircle, X,
 } from "lucide-react";
 import {
   Badge, Btn, Card, EmptyState, Field, PageHeader, SectionHead, SkeletonRows, fieldStyle, T,
@@ -13,7 +13,7 @@ import {
 } from "./DevLabCatalog.js";
 import {
   useDevLabProjects, useDevLabMe, useDevLabActions, useDevLabAdmin, useDevLabSubmissions, useMySkillSheet,
-  useDevLabWorkspaceTemplates,
+  useDevLabWorkspaceTemplates, useDevLabLinkedWorkspaceOverlay,
 } from "./useDevLab.js";
 
 // ===================== ホーム =====================
@@ -100,6 +100,18 @@ export function DevLabCombinedCatalog({ onOpenProject, onOpenTemplate }) {
   const loading = loadingProjects || loadingTemplates;
   const error = errorProjects || errorTemplates;
   const isEmpty = !loading && projects.length === 0 && templates.length === 0;
+  // 案件×ワークスペース連携(2026-07-22追加): リンク済み案件カードに「プロジェクト連携」バッジ、
+  // リンクされているテンプレートのカードには対応案件名を小さく表示する(重複感の解消)。
+  const linkedProjectsByTemplate = useMemo(() => {
+    const map = new Map();
+    for (const p of projects) {
+      if (!p.workspaceTemplateId) continue;
+      const list = map.get(p.workspaceTemplateId) || [];
+      list.push(p);
+      map.set(p.workspaceTemplateId, list);
+    }
+    return map;
+  }, [projects]);
 
   return (
     <div>
@@ -137,6 +149,7 @@ export function DevLabCombinedCatalog({ onOpenProject, onOpenTemplate }) {
                 <div className="mt-2 flex flex-wrap gap-1.5">
                   <Badge tone="muted">案件（提出型）</Badge>
                   <Badge tone="cyan">{devLabLevelLabel(project.level)}</Badge>
+                  {project.workspaceTemplateId && <Badge tone="green"><Link2 size={11} />プロジェクト連携</Badge>}
                   {project.estimatedHours > 0 && <Badge tone="muted"><Clock3 size={11} />約{project.estimatedHours}時間</Badge>}
                   {(project.techStack || []).slice(0, 3).map(tech => <Badge key={tech} tone="muted">{tech}</Badge>)}
                 </div>
@@ -160,8 +173,14 @@ export function DevLabCombinedCatalog({ onOpenProject, onOpenTemplate }) {
                 <p className="mt-2 text-xs leading-relaxed" style={{ color: T.textSecondary }}>{tpl.description}</p>
                 <div className="mt-2 flex flex-wrap gap-1.5">
                   <Badge tone="cyan">プロジェクト体験</Badge>
+                  <Badge tone="muted">{devLabLevelLabel(tpl.level)}</Badge>
                   <Badge tone="muted">{tpl.stack === "spring_sim" ? "疑似コンソール実行" : "ブラウザ内プレビュー"}</Badge>
                 </div>
+                {(linkedProjectsByTemplate.get(tpl.id) || []).length > 0 && (
+                  <p className="mt-1.5 text-[11px]" style={{ color: T.textMuted }}>
+                    対応案件: {linkedProjectsByTemplate.get(tpl.id).map(p => p.title).join("、")}
+                  </p>
+                )}
               </button>
             ))}
           </div>
@@ -213,12 +232,13 @@ function ChecklistResult({ checklist, checkResults }) {
 }
 
 // ===================== 受講生: 案件詳細/進行画面 =====================
-export function ProjectDetail({ projectId, onBack }) {
+export function ProjectDetail({ projectId, onBack, onOpenWorkspace }) {
   const { projects, loading, error, reload: reloadProjects } = useDevLabProjects();
   const { assignments, submissions, reload: reloadMe } = useDevLabMe();
   const { sheet, reload: reloadSheet } = useMySkillSheet();
   const { start, submitStep, complete, addToSkillSheet, busy, actionError, clearActionError } = useDevLabActions([reloadProjects, reloadMe, reloadSheet]);
   const [draft, setDraft] = useState({ submittedText: "", submittedUrl: "" });
+  const [attachWorkspaceFiles, setAttachWorkspaceFiles] = useState(true);
   const [completeError, setCompleteError] = useState(null);
   const [worksDraftPreview, setWorksDraftPreview] = useState(null);
 
@@ -226,6 +246,9 @@ export function ProjectDetail({ projectId, onBack }) {
   const assignment = useMemo(() => assignments.find(a => a.projectId === projectId), [assignments, projectId]);
   const mySubmissions = useMemo(() => submissions.filter(s => s.projectId === projectId), [submissions, projectId]);
   const byStep = useMemo(() => new Map(mySubmissions.map(s => [s.stepId, s])), [mySubmissions]);
+  // 案件×ワークスペース連携(2026-07-22追加): リンク済み案件のみ、自分のworkspace overlayを取得し
+  // 提出フォームの「ワークスペースのコードを添付」チェックON時にsubmittedFilesとして同送する。
+  const { overlay: workspaceOverlay } = useDevLabLinkedWorkspaceOverlay(project?.workspaceTemplateId);
 
   if (loading) return <Card><SkeletonRows rows={4} /></Card>;
   if (error || !project) {
@@ -250,7 +273,11 @@ export function ProjectDetail({ projectId, onBack }) {
   async function handleSubmit(step) {
     clearActionError();
     if (!draft.submittedText.trim() && !draft.submittedUrl.trim()) return;
-    await submitStep(projectId, step.stepId, draft);
+    const payload = { ...draft };
+    if (project.workspaceTemplateId && attachWorkspaceFiles && workspaceOverlay && Object.keys(workspaceOverlay).length > 0) {
+      payload.submittedFiles = workspaceOverlay;
+    }
+    await submitStep(projectId, step.stepId, payload);
     setDraft({ submittedText: "", submittedUrl: "" });
   }
 
@@ -305,6 +332,15 @@ export function ProjectDetail({ projectId, onBack }) {
         )}
       </Card>
 
+      {project.workspaceTemplateId && onOpenWorkspace && (
+        <Card className="mb-4 p-4">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <p className="text-sm" style={{ color: T.textSecondary }}>この案件にはベースプロジェクトのワークスペースがリンクされています。実際にコードを編集してから提出しましょう。</p>
+            <Btn kind="ghost" size="sm" icon={FolderTree} onClick={() => onOpenWorkspace(project.workspaceTemplateId)}>ワークスペースで作業する</Btn>
+          </div>
+        </Card>
+      )}
+
       {actionError && <Card className="mb-4 p-4"><p className="text-sm" style={{ color: T.danger }}>{actionError}</p></Card>}
 
       {!assignment ? (
@@ -355,6 +391,12 @@ export function ProjectDetail({ projectId, onBack }) {
                       <Field label="URL（任意。GitHub等）">
                         <input style={fieldStyle} value={draft.submittedUrl} onChange={e => setDraft({ ...draft, submittedUrl: e.target.value })} placeholder="https://github.com/..." />
                       </Field>
+                      {project.workspaceTemplateId && (
+                        <label className="flex items-center gap-1.5 text-xs" style={{ color: T.textPrimary }}>
+                          <input type="checkbox" checked={attachWorkspaceFiles} onChange={e => setAttachWorkspaceFiles(e.target.checked)} />
+                          <Paperclip size={12} />ワークスペースのコードを添付する（AI判定の根拠として使われます）
+                        </label>
+                      )}
                       <Btn size="sm" icon={Link2} disabled={busy || (!draft.submittedText.trim() && !draft.submittedUrl.trim())} onClick={() => handleSubmit(step)}>{submission ? "再提出する" : "提出する"}</Btn>
                     </div>
                   )}
@@ -628,6 +670,8 @@ function ProjectForm({ mode, role, form, onChange, onSave, onCancel, onGenerate,
   const [generating, setGenerating] = useState(false);
   const [genError, setGenError] = useState("");
   const isAdmin = role === "admin";
+  // 案件→テンプレートのリンク(2026-07-22追加): publishedテンプレの一覧からselect、「リンクなし」も可。
+  const { templates: workspaceTemplates } = useDevLabWorkspaceTemplates();
 
   function set(key, value) { onChange({ ...form, [key]: value }); }
 
@@ -700,6 +744,14 @@ function ProjectForm({ mode, role, form, onChange, onSave, onCancel, onGenerate,
             <StepEditor steps={form.steps} functionalRequirements={form.functionalRequirements} onChange={steps => set("steps", steps)} />
           </Field>
 
+          <Field label="リンクするワークスペーステンプレート（任意）">
+            <select style={fieldStyle} value={form.workspaceTemplateId || ""} onChange={e => set("workspaceTemplateId", e.target.value)}>
+              <option value="">リンクなし</option>
+              {workspaceTemplates.map(t => <option key={t.id} value={t.id}>{t.title}（{devLabLevelLabel(t.level)}）</option>)}
+            </select>
+            <p className="mt-1 text-xs" style={{ color: T.textMuted }}>リンクすると、受講生は案件詳細から該当のワークスペースで実際にコードを編集し、提出時にそのコードを添付できるようになります。</p>
+          </Field>
+
           <Field label="公開状態">
             <select style={fieldStyle} value={form.status} onChange={e => set("status", e.target.value)}>
               <option value="draft">下書き</option>
@@ -759,6 +811,27 @@ function OverrideForm({ submission, onOverride, busy }) {
   );
 }
 
+// 管理側の提出閲覧: 添付ファイル名一覧＋内容の展開表示(2026-07-22追加)。
+function SubmittedFilesViewer({ files }) {
+  const entries = Object.entries(files || {});
+  if (!entries.length) return null;
+  return (
+    <div className="mt-2 rounded-xl p-3" style={{ background: T.bgBase, border: `1px solid ${T.border}` }}>
+      <div className="mb-1.5 flex items-center gap-1.5 text-xs font-bold" style={{ color: T.textMuted }}>
+        <Paperclip size={12} />添付ファイル（{entries.length}件）
+      </div>
+      <div className="space-y-1.5">
+        {entries.map(([path, content]) => (
+          <details key={path} className="rounded-lg" style={{ border: `1px solid ${T.border}` }}>
+            <summary className="cursor-pointer px-2 py-1 text-xs font-semibold" style={{ color: T.textPrimary }}>{path}</summary>
+            <pre className="max-h-64 overflow-auto px-2 pb-2 text-[11px] leading-relaxed" style={{ color: T.textSecondary, whiteSpace: "pre-wrap" }}>{content}</pre>
+          </details>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 function SubmissionsPanel({ projectId, project, onBack }) {
   const { submissions, loading, error, override, busy } = useDevLabSubmissions(projectId);
   const [openOverrideKey, setOpenOverrideKey] = useState("");
@@ -799,6 +872,7 @@ function SubmissionsPanel({ projectId, project, onBack }) {
                   {s.submittedText && <p className="mt-1 text-sm" style={{ color: T.textPrimary }}>{s.submittedText}</p>}
                   {s.submittedUrl && <a href={s.submittedUrl} target="_blank" rel="noreferrer" className="mt-1 block text-xs" style={{ color: T.accentHover }}>{s.submittedUrl}</a>}
                   {checklistByStep.get(s.stepId) && <div className="mt-2"><ChecklistResult checklist={checklistByStep.get(s.stepId)} checkResults={s.checkResults} /></div>}
+                  <SubmittedFilesViewer files={s.submittedFiles} />
                   {(s.aiComment || s.aiAdvice) && (
                     <div className="mt-2 rounded-xl p-3 text-xs" style={{ background: T.bgBase }}>
                       <div className="mb-1 font-bold" style={{ color: T.textMuted }}>AIレビュー（参考）</div>

@@ -277,6 +277,28 @@ export function useDevLabWorkspaceActions() {
   return { save, reset, saving, saveError, clearSaveError: () => setSaveError("") };
 }
 
+// ---- 案件×ワークスペース連携(2026-07-22追加): リンクされたテンプレの自分のoverlayのみ取得。
+// ステップ提出フォームの「ワークスペースのコードを添付」チェックON時にsubmittedFilesとして
+// 同送するために使う。files込み全体を毎回引く必要はないが、Backendは1エンドポイントで
+// template+workspaceを返す設計のため、そのままこのエンドポイントを叩いてoverlayだけ拾う。 ----
+export function useDevLabLinkedWorkspaceOverlay(templateId) {
+  const [overlay, setOverlay] = useState(null);
+  const [loading, setLoading] = useState(false);
+
+  const load = useCallback(() => {
+    if (!templateId) { setOverlay(null); return Promise.resolve(); }
+    setLoading(true);
+    return apiGet(`/devlab/workspace-templates/${encodeURIComponent(templateId)}`)
+      .then(res => setOverlay(res?.workspace?.overlay || null))
+      .catch(() => setOverlay(null))
+      .finally(() => setLoading(false));
+  }, [templateId]);
+
+  useEffect(() => { load(); }, [load]);
+
+  return { overlay, loading, reload: load };
+}
+
 // ---- 自分のスキルシート（実績下書き反映の判定用） ----
 export function useMySkillSheet() {
   const [sheet, setSheet] = useState(null);

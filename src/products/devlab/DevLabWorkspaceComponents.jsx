@@ -8,7 +8,7 @@ import {
 import {
   Badge, Btn, Card, EmptyState, SectionHead, SkeletonRows, T,
 } from "../../components/common";
-import { devLabMyStatusLabel, devLabMyStatusTone, devLabWorkspaceStackLabel } from "./DevLabCatalog.js";
+import { devLabLevelLabel, devLabMyStatusLabel, devLabMyStatusTone, devLabWorkspaceStackLabel } from "./DevLabCatalog.js";
 import {
   useDevLabWorkspaceTemplates, useDevLabWorkspaceDetail, useDevLabWorkspaceActions,
 } from "./useDevLab.js";
@@ -104,6 +104,7 @@ export function WorkspaceCatalog({ onOpenTemplate }) {
                 </div>
                 <p className="mt-2 text-xs leading-relaxed" style={{ color: T.textSecondary }}>{tpl.description}</p>
                 <div className="mt-2 flex flex-wrap gap-1.5">
+                  <Badge tone="muted">{devLabLevelLabel(tpl.level)}</Badge>
                   <Badge tone={tpl.stack === "spring_sim" ? "amber" : "cyan"}>{tpl.stack === "spring_sim" ? "疑似コンソール実行" : "ブラウザ内プレビュー"}</Badge>
                 </div>
               </button>
@@ -145,7 +146,7 @@ function SandpackChangeWatcher({ onChange }) {
 }
 
 // ===================== ワークスペース詳細（React: エディタ＋プレビュー／spring_sim: エディタ＋疑似コンソール） =====================
-export function WorkspaceDetail({ templateId, onBack }) {
+export function WorkspaceDetail({ templateId, onBack, backLabel }) {
   const { template, workspace, loading, error, reload } = useDevLabWorkspaceDetail(templateId);
   const { save, reset, saving, saveError, clearSaveError } = useDevLabWorkspaceActions();
   const [pending, setPending] = useState(null); // {overlay, deletedPaths} 直近のエディタ差分
@@ -233,7 +234,7 @@ export function WorkspaceDetail({ templateId, onBack }) {
     <div className="flex h-full flex-col">
       <div className="flex flex-wrap items-center justify-between gap-2 pb-3">
         <button type="button" onClick={onBack} className="text-xs font-semibold" style={{ color: T.textMuted }}>
-          <ArrowLeft size={12} className="mr-1 inline" />一覧へ戻る
+          <ArrowLeft size={12} className="mr-1 inline" />{backLabel || "一覧へ戻る"}
         </button>
         <div className="flex items-center gap-2">
           <SaveStatusBadge state={saveState} />

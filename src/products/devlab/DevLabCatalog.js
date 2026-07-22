@@ -76,6 +76,7 @@ export function emptyDevLabForm() {
     status: "draft",
     visibilityScope: "all",
     targetCompanyIds: [],
+    workspaceTemplateId: "",
   };
 }
 
@@ -115,6 +116,7 @@ export function draftToForm(draft) {
     status: "draft",
     visibilityScope: "all",
     targetCompanyIds: [],
+    workspaceTemplateId: "",
   };
 }
 
@@ -149,6 +151,7 @@ export function formToPayload(form) {
     status: form.status,
     visibilityScope: form.visibilityScope,
     targetCompanyIds: form.targetCompanyIds,
+    workspaceTemplateId: form.workspaceTemplateId || "",
   };
 }
 
@@ -170,5 +173,6 @@ export function projectToForm(project) {
     status: project.status || "draft",
     visibilityScope: project.visibilityScope || "all",
     targetCompanyIds: project.targetCompanyIds || [],
+    workspaceTemplateId: project.workspaceTemplateId || "",
   };
 }
