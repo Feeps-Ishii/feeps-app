@@ -4054,24 +4054,45 @@ function Reports({ role }) {
   }, [canWrite, reportCourseId, reportCourses, month, editingReportDate, reportReloadKey, reportSupportReloadKey]);
   const reportTrainingDateSet = useMemo(() => new Set(reportTrainingDates), [reportTrainingDates]);
   const reportConflictDateSet = useMemo(() => new Set(reportConflictDates), [reportConflictDates]);
+  // 2026-07-22 バグ修正(2): コース「すべて」選択時（opsFilter.courseId未指定）は、単一コースの
+  // workdays取得しか行っておらず研修日を判定できないため、一覧が常に0件になっていた。
+  // 「すべて」のときは表示対象となりうる全コース分のworkdaysを取得し、いずれか1コースでも当日が
+  // 研修日ならisTrainingDayとする（研修日は和集合、担当講師IDも和集合）。コース明示選択時は従来通り。
+  const opsReportCourseIdsKey = useMemo(() => opsFilter.courses.map(c => c.courseId).filter(Boolean).join("|"), [opsFilter.courses]);
   useEffect(() => {
-    if (!canViewReports || !opsFilter.courseId) { setOpsReportDayContext(null); setOpsReportTrainingDates([]); setOpsReportScheduleState("loading"); setOpsReportMonthScheduleState("loading"); return; }
+    if (!canViewReports) { setOpsReportDayContext(null); setOpsReportTrainingDates([]); setOpsReportScheduleState("loading"); setOpsReportMonthScheduleState("loading"); return; }
+    const targetCourseIds = opsFilter.courseId ? [opsFilter.courseId] : opsReportCourseIdsKey.split("|").filter(Boolean);
+    if (!targetCourseIds.length) { setOpsReportDayContext(null); setOpsReportTrainingDates([]); setOpsReportScheduleState("loading"); setOpsReportMonthScheduleState("loading"); return; }
     let alive = true;
     const months = [...new Set([String(date).slice(0, 7), month].filter(Boolean))];
     setOpsReportScheduleState("loading"); setOpsReportMonthScheduleState("loading");
-    Promise.all(months.map(targetMonth => apiGet(`/courses/${opsFilter.courseId}/workdays?month=${targetMonth}`).then(result => ({ targetMonth, result }))))
+    Promise.all(targetCourseIds.flatMap(courseId => months.map(targetMonth =>
+      apiGet(`/courses/${courseId}/workdays?month=${targetMonth}`)
+        .then(result => ({ courseId, targetMonth, result }))
+        .catch(() => ({ courseId, targetMonth, result: null }))
+    )))
       .then(results => {
         if (!alive) return;
-        const dayResult = results.find(item => item.targetMonth === String(date).slice(0, 7))?.result;
-        const monthResult = results.find(item => item.targetMonth === month)?.result;
-        setOpsReportDayContext((dayResult?.days || []).find(item => item.date === date) || null);
-        setOpsReportTrainingDates((monthResult?.days || []).filter(item => item.status === "ready" && item.isTrainingDay === true).map(item => item.date));
-        setOpsReportScheduleState(dayResult?.status === "setup_required" ? "setup_required" : "ready");
-        setOpsReportMonthScheduleState(monthResult?.status === "setup_required" ? "setup_required" : "ready");
+        const dayResults = results.filter(item => item.targetMonth === String(date).slice(0, 7));
+        const monthResults = results.filter(item => item.targetMonth === month);
+        const dayContexts = dayResults.map(item => (item.result?.days || []).find(d => d.date === date)).filter(Boolean);
+        const trainingDayContexts = dayContexts.filter(ctx => ctx.isTrainingDay === true);
+        setOpsReportDayContext(trainingDayContexts.length
+          ? { isTrainingDay: true, effectiveInstructorIds: [...new Set(trainingDayContexts.flatMap(ctx => ctx.effectiveInstructorIds || []))] }
+          : (dayContexts.length ? { isTrainingDay: false } : null));
+        const trainingDatesSet = new Set();
+        monthResults.forEach(item => {
+          if (item.result?.status === "ready") (item.result.days || []).forEach(d => { if (d.isTrainingDay === true) trainingDatesSet.add(d.date); });
+        });
+        setOpsReportTrainingDates([...trainingDatesSet]);
+        const dayStatuses = dayResults.map(item => item.result?.status);
+        setOpsReportScheduleState(dayStatuses.some(s => s === "ready") ? "ready" : (dayStatuses.every(s => s === "setup_required") ? "setup_required" : "error"));
+        const monthStatuses = monthResults.map(item => item.result?.status);
+        setOpsReportMonthScheduleState(monthStatuses.some(s => s === "ready") ? "ready" : (monthStatuses.every(s => s === "setup_required") ? "setup_required" : "error"));
       })
       .catch(() => { if (alive) { setOpsReportDayContext(null); setOpsReportTrainingDates([]); setOpsReportScheduleState("error"); setOpsReportMonthScheduleState("error"); } });
     return () => { alive = false; };
-  }, [canViewReports, opsFilter.courseId, date, month]);
+  }, [canViewReports, opsFilter.courseId, opsReportCourseIdsKey, date, month]);
   useEffect(() => {
     if (!canViewReports || periodMode !== "月次") return;
     let alive = true;
