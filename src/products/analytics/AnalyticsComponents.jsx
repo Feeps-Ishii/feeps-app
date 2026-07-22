@@ -3,7 +3,7 @@ import {
   Activity, AlertCircle, ChevronRight, Download,
   Receipt, ShieldCheck, Sparkles, Upload
 } from "lucide-react";
-import { ANALYTICS_HOME_CARDS, RISK_SIG_LABEL } from "./AnalyticsCatalog.js";
+import { ANALYTICS_HOME_CARDS, RISK_SIG_LABEL, AWS_RESOURCE_INVENTORY, AWS_RESOURCE_INVENTORY_DATE } from "./AnalyticsCatalog.js";
 import { useAwsCosts, useMonthlyReport, useRiskAnalysis } from "./useAnalytics.js";
 import { Card, Badge, Btn, Avatar, Stat, SectionHead, PageHeader, ProductNavCard, SkeletonRows, MonthPicker, T, EmptyState as CommonEmptyState } from "../../components/common";
 
@@ -200,6 +200,38 @@ export function AwsCostDashboard() {
           )}
         </>
       )}
+      <div className="mt-8 border-t pt-6" style={{ borderColor: T.border }}>
+        <div className="mb-4">
+          <h3 className="text-base font-bold" style={{ color: T.textPrimary }}>使用リソースの棚卸し</h3>
+          <p className="text-xs" style={{ color: T.textMuted }}>Feeps One が利用しているAWSサービスとリソースの一覧です（棚卸し日: {AWS_RESOURCE_INVENTORY_DATE}）</p>
+        </div>
+        <Card>
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm" style={{ borderCollapse: "collapse" }}>
+              <thead>
+                <tr style={{ borderBottom: `1px solid ${T.border}` }}>
+                  <th className="px-4 py-2 text-left text-xs font-semibold" style={{ color: T.textMuted }}>サービス</th>
+                  <th className="px-4 py-2 text-left text-xs font-semibold" style={{ color: T.textMuted }}>内容</th>
+                  <th className="px-4 py-2 text-left text-xs font-semibold" style={{ color: T.textMuted }}>説明</th>
+                </tr>
+              </thead>
+              <tbody>
+                {AWS_RESOURCE_INVENTORY.map((r, i) => (
+                  <tr key={r.service} style={{ borderTop: i ? `1px solid ${T.border}` : "none" }}>
+                    <td className="px-4 py-2.5 font-semibold" style={{ color: T.textPrimary }}>{r.service}</td>
+                    <td className="px-4 py-2.5" style={{ color: T.textSecondary }}>{r.detail}</td>
+                    <td className="px-4 py-2.5" style={{ color: T.textMuted }}>{r.note}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </Card>
+        <div className="mt-3 space-y-1.5">
+          <p className="text-xs" style={{ color: T.textMuted }}>※ 本AWSアカウントは他プロジェクトと共用のため、この画面の金額はProject=FeepsOneタグが付与されたリソース分のみです。</p>
+          <p className="text-xs" style={{ color: T.textMuted }}>※ タグを追加したリソースの料金がこの画面に反映されるまで、最大24時間かかる場合があります。</p>
+        </div>
+      </div>
       <div className="mt-8 border-t pt-6" style={{ borderColor: T.border }}>
         <div className="mb-4">
           <h3 className="text-base font-bold" style={{ color: T.textPrimary }}>Feeps One AI利用料金</h3>

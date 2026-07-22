@@ -17,3 +17,16 @@ export const RISK_SIG_LABEL = {
   テスト: "テスト（点数・未受験）",
   コメント: "コメント未対応",
 };
+
+// AWSリソース棚卸し（静的定義・手動メンテ）。詳細: docs/operations/aws-resource-inventory-2026-07.md
+export const AWS_RESOURCE_INVENTORY_DATE = "2026-07-22";
+export const AWS_RESOURCE_INVENTORY = [
+  { service: "DynamoDB", detail: "22テーブル（PITR全有効）", note: "アプリの主データストア" },
+  { service: "Lambda", detail: "1関数（feeps-api-ApiFunction）", note: "APIバックエンド" },
+  { service: "API Gateway", detail: "HTTP API 1本", note: "Lambda統合のAPIエンドポイント" },
+  { service: "S3", detail: "2バケット（教材／配信）", note: "教材＝バージョニング＋90日ライフサイクル、配信＝フロントエンド静的ホスティング" },
+  { service: "CloudFront", detail: "配信ディストリビューション 1", note: "フロントエンド配信CDN" },
+  { service: "Cognito", detail: "User Pool 1", note: "認証基盤" },
+  { service: "Bedrock", detail: "オンデマンド呼び出し", note: "AI機能（テスト問題生成・採点等）" },
+  { service: "Cost Explorer API", detail: "24hキャッシュ", note: "本画面の料金取得元" },
+];
