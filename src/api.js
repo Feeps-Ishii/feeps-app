@@ -2,10 +2,21 @@ import { fetchAuthSession } from "aws-amplify/auth";
 
 const BASE = "https://yit7ypsa40.execute-api.ap-northeast-1.amazonaws.com";
 
+// 管理者のロール切り替え（表示確認用ビュー）: 実ロールがadminのユーザーが別ロールの
+// 画面を確認しているとき、TrainingApp.jsxがここへ現在の表示ロールを渡す。
+// Backend(getAuthContext)は「管理者からの降格リクエストのみ」有効とし、他ロールが
+// このヘッダーを付けても無視する（昇格には使えない）。詳細: docs/api/api-routes.md
+let viewRoleOverride = null;
+export function setViewRoleOverride(role) {
+  viewRoleOverride = role || null;
+}
+
 async function authHeaders() {
   const session = await fetchAuthSession();
   const idToken = session.tokens?.idToken?.toString();
-  return idToken ? { authorization: "Bearer " + idToken } : {};
+  const headers = idToken ? { authorization: "Bearer " + idToken } : {};
+  if (viewRoleOverride) headers["x-feeps-view-role"] = viewRoleOverride;
+  return headers;
 }
 
 async function throwApiError(res, path, method) {

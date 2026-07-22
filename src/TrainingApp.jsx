@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useEffect, useLayoutEffect, useCallback, useRef, lazy, Suspense } from "react";
 import { signIn, signOut, getCurrentUser, confirmSignIn, fetchAuthSession } from "aws-amplify/auth";
-import { apiGet, apiPut, apiPost } from "./api.js";
+import { apiGet, apiPut, apiPost, setViewRoleOverride } from "./api.js";
 import { ANALYTICS_NAV } from "./products/analytics/AnalyticsCatalog.js";
 import { MATCHING_NAV } from "./products/matching/MatchingCatalog.js";
 import { TALENT_NAV } from "./products/talent/TalentCatalog.js";
@@ -881,6 +881,11 @@ export default function App() {
     };
   }, [authRetryKey]);
   useEffect(() => { storageSet("feeps.role", role); }, [role]);
+  // 管理者のロール切り替え（表示確認用ビュー）: 実ロールがadmin確認済みのときだけ
+  // Backendへ現在の表示ロールを伝える。他ロールでは常にnull（送らない＝昇格に使えない）。
+  useEffect(() => {
+    setViewRoleOverride(verifiedRoleRef.current === "admin" ? role : null);
+  }, [role, loggedIn]);
   useEffect(() => { storageSet("feeps.view", view); }, [view]);
   useEffect(() => { storageSet("feeps.product", product); }, [product]);
   useEffect(() => { storageSet("feeps.subView", subView); }, [subView]);
@@ -963,6 +968,9 @@ export default function App() {
     return () => clearTimeout(id);
   }, [view, loggedIn, refreshNotifications]);
   const me = ROLES[role];
+  // 管理者のロール切り替え（表示確認用ビュー）
+  const isAdminUser = verifiedRoleRef.current === "admin";
+  const isViewingAsOther = isAdminUser && role !== "admin";
   const roleAccent = ROLE_ACCENT[role] || ROLE_ACCENT.default;
   const nav = useMemo(() => productNavigation(product, role), [product, role]);
   const activeView = product === "training" ? view : subView;
@@ -1050,7 +1058,12 @@ export default function App() {
     setKarte(null);
   }
   function switchRole(r) {
-    const fixedRole = verifiedRoleRef.current || (userProfile?.role && ROLES[userProfile.role] ? userProfile.role : r);
+    // 管理者のロール切り替え（表示確認用ビュー）: 実ロール（Cognito検証済み）がadminの
+    // ときだけ任意のロールへ切り替え可能。それ以外は従来通り実ロールへ強制（なりすまし防止）。
+    const isAdminUser = verifiedRoleRef.current === "admin";
+    const fixedRole = isAdminUser
+      ? (ROLES[r] ? r : "admin")
+      : (verifiedRoleRef.current || (userProfile?.role && ROLES[userProfile.role] ? userProfile.role : r));
     if (fixedRole !== role) resetNavigationHistorySession();
     clearTrainingTargetContext();
     clearTraineeTestDraft();
@@ -1212,8 +1225,8 @@ export default function App() {
       {demoOpen && (<>
         <div className="fixed inset-0" style={{ zIndex: Z.dropdown - 1 }} onClick={() => setDemoOpen(false)} />
         <div className="absolute left-0 top-full mt-1 min-w-[172px] rounded-xl py-1" style={{ zIndex: Z.dropdown, background: T.bgSurface, border: `1px solid ${T.border}`, boxShadow: NOVA.shadowMd }}>
-          <div className="px-3 py-1.5 text-[10px] font-semibold uppercase tracking-wider" style={{ color: T.textMuted }}>{userProfile?.role ? "実ロール" : "ロール切替（開発用）"}</div>
-          {Object.values(ROLES).filter(r => !userProfile?.role || r.key === role).map(r => { const active = role === r.key;
+          <div className="px-3 py-1.5 text-[10px] font-semibold uppercase tracking-wider" style={{ color: T.textMuted }}>{isAdminUser ? "表示ロール切替" : userProfile?.role ? "実ロール" : "ロール切替（開発用）"}</div>
+          {Object.values(ROLES).filter(r => isAdminUser || !userProfile?.role || r.key === role).map(r => { const active = role === r.key;
             return <button key={r.key} onClick={() => { switchRole(r.key); setDemoOpen(false); }}
               className="flex w-full items-center gap-2 px-3 py-2 text-xs font-semibold transition hover:bg-black/5"
               style={{ color: active ? T.accent : T.textSecondary }}>
@@ -1314,6 +1327,12 @@ export default function App() {
     }}>
       <GlobalRail products={availableProducts} active={product} onSelect={goProduct} onOpenPalette={() => setPaletteOpen(true)} />
       <div className="shrink-0">
+        {isViewingAsOther && (
+          <div className="flex w-full flex-wrap items-center justify-center gap-x-2 gap-y-0.5 px-3 py-1.5 text-center text-xs font-semibold" style={{ background: T.warningSubtle, color: T.warning, borderBottom: `1px solid ${T.warning}40` }}>
+            <span>{me.label}ビューで表示確認中です（表示確認用ビュー・データはご自身の管理者アカウントのものです）</span>
+            <button type="button" onClick={() => switchRole("admin")} className="rounded-full px-2 py-0.5 font-bold underline underline-offset-2 transition hover:opacity-70">管理者に戻る</button>
+          </div>
+        )}
         {/* モバイル: 下部タブを使わず、Productと画面を同じドロワーで切り替える。 */}
         <div className="feeps-mobile-topbar flex w-full max-w-full items-center gap-2 px-3 lg:hidden">
           <button ref={drawerTriggerRef} type="button" onClick={() => setDrawerOpen(true)} aria-label="ナビゲーションを開く" aria-expanded={drawerOpen} className="feeps-icon-button"><Menu size={20} /></button>
@@ -1384,8 +1403,8 @@ export default function App() {
                       <User size={13} />プロフィールを開く
                     </button>
                     <div className="my-1 h-px" style={{ background: T.border }} />
-                    <div className="px-3 py-1 text-[10px] font-semibold uppercase tracking-wider" style={{ color: T.textMuted }}>{userProfile?.role ? "実ロール" : "ロール切替（開発用）"}</div>
-                    {Object.values(ROLES).filter(r => !userProfile?.role || r.key === role).map(r => { const activeRole = role === r.key;
+                    <div className="px-3 py-1 text-[10px] font-semibold uppercase tracking-wider" style={{ color: T.textMuted }}>{isAdminUser ? "表示ロール切替" : userProfile?.role ? "実ロール" : "ロール切替（開発用）"}</div>
+                    {Object.values(ROLES).filter(r => isAdminUser || !userProfile?.role || r.key === role).map(r => { const activeRole = role === r.key;
                       return <button key={r.key} type="button" onClick={() => { switchRole(r.key); setSidebarUserOpen(false); }}
                         className="flex w-full items-center gap-2 px-3 py-2 text-xs font-semibold transition hover:bg-black/5"
                         style={{ color: activeRole ? T.accent : T.textSecondary }}>
