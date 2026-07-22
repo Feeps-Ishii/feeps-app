@@ -4864,8 +4864,10 @@ function Karte({ trainee, back, role }) {
   const [memos, setMemos] = useState([]);
   const [loading, setLoading] = useState(true);
   const [note, setNote] = useState("");
+  const [memoVisibility, setMemoVisibility] = useState("staff");
   const [busy, setBusy] = useState(false);
   const [memoErr, setMemoErr] = useState("");
+  const [memoLoadErr, setMemoLoadErr] = useState("");
   const [companies, setCompanies] = useState([]);
   const [companiesLoaded, setCompaniesLoaded] = useState(false);
   const [profile, setProfile] = useState(null);
@@ -4896,9 +4898,10 @@ function Karte({ trainee, back, role }) {
 
   function load() {
     setLoading(true);
+    setMemoLoadErr("");
     apiGet("/karte/" + karteTraineeId)
       .then(items => setMemos(items || []))
-      .catch(() => {})
+      .catch(() => setMemoLoadErr("カルテメモを取得できませんでした。もう一度お試しください。"))
       .finally(() => setLoading(false));
   }
   useEffect(() => { load(); }, [karteTraineeId]);
@@ -4954,8 +4957,10 @@ function Karte({ trainee, back, role }) {
     setBusy(true);
     setMemoErr("");
     try {
-      await apiPost("/karte/" + karteTraineeId, { text: note.trim() });
-      setNote(""); load();
+      await apiPost("/karte/" + karteTraineeId, { text: note.trim(), visibility: memoVisibility });
+      setNote("");
+      setMemoVisibility("staff");
+      load();
     } catch (e) {
       setMemoErr("メモの保存に失敗しました。もう一度お試しください。");
     } finally { setBusy(false); }
@@ -5001,14 +5006,19 @@ function Karte({ trainee, back, role }) {
           </div>
           {karteReport?.goalItems?.length > 0 && <div className="mt-3 grid gap-2 sm:grid-cols-2">{karteReport.goalItems.map(item => <div key={item.id || item.text} className="flex items-center gap-2 rounded-xl px-3 py-2" style={{ background: item.done ? T.successSubtle : T.bgBase }}>{item.done ? <CheckCircle2 size={15} style={{ color: T.success }} /> : <Circle size={15} style={{ color: T.textMuted }} />}<span className="text-sm" style={{ color: T.textPrimary }}>{item.text || "目標未入力"}</span></div>)}</div>}
         </Card>
-        <div className="mb-3 flex items-center gap-2"><StickyNote size={16} style={{ color: T.accent }} /><h3 className="font-bold" style={{ color: T.textPrimary }}>講師メモ</h3></div>
+        <div className="mb-3 flex items-start gap-2"><StickyNote size={16} className="mt-0.5" style={{ color: T.accent }} /><div><h3 className="font-bold" style={{ color: T.textPrimary }}>{role === "client" ? "講師からの共有メモ" : "カルテメモ"}</h3><p className="mt-0.5 text-xs" style={{ color: T.textMuted }}>{role === "client" ? "企業担当者への公開が設定されたメモだけを表示します。" : "メモごとに企業担当者への公開範囲を選べます。"}</p></div></div>
         {canMemo && <Card className="mb-3 p-3.5"><textarea value={note} onChange={e => setNote(e.target.value)} rows={3} placeholder="この受講生の気づき・指導方針をメモ…" className="w-full resize-none rounded-xl px-3 py-2 text-sm outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary }} />
+          <div className="mt-3 grid gap-2 sm:grid-cols-2">
+            <button type="button" aria-pressed={memoVisibility === "staff"} onClick={() => setMemoVisibility("staff")} className="flex items-start gap-2 rounded-xl px-3 py-2.5 text-left" style={{ background: memoVisibility === "staff" ? T.accentSubtle : T.bgBase, border: `1px solid ${memoVisibility === "staff" ? T.accent : T.border}` }}><Lock size={16} className="mt-0.5 shrink-0" style={{ color: memoVisibility === "staff" ? T.accent : T.textMuted }} /><span><span className="block text-sm font-bold" style={{ color: T.textPrimary }}>内部メモ</span><span className="block text-xs" style={{ color: T.textMuted }}>講師・管理者のみ</span></span></button>
+            <button type="button" aria-pressed={memoVisibility === "client"} onClick={() => setMemoVisibility("client")} className="flex items-start gap-2 rounded-xl px-3 py-2.5 text-left" style={{ background: memoVisibility === "client" ? T.successSubtle : T.bgBase, border: `1px solid ${memoVisibility === "client" ? T.success : T.border}` }}><Eye size={16} className="mt-0.5 shrink-0" style={{ color: memoVisibility === "client" ? T.success : T.textMuted }} /><span><span className="block text-sm font-bold" style={{ color: T.textPrimary }}>企業共有メモ</span><span className="block text-xs" style={{ color: T.textMuted }}>企業担当者にも表示</span></span></button>
+          </div>
           {memoErr && <div className="mt-2 rounded-lg px-3 py-2 text-xs" style={{ background: T.dangerSubtle, color: T.danger }}>{memoErr}</div>}
-          <div className="mt-2 flex justify-end"><Btn size="sm" icon={Plus} onClick={addMemo}>{busy ? "追加中…" : "メモを追加"}</Btn></div></Card>}
+          <div className="mt-2 flex justify-end"><Btn size="sm" icon={Plus} onClick={addMemo}>{busy ? "追加中…" : memoVisibility === "client" ? "企業共有メモを追加" : "内部メモを追加"}</Btn></div></Card>}
         <div className="space-y-2">
           {loading ? <Card><SkeletonRows rows={3} /></Card>
-            : memos.map((m, i) => (<Card key={m.memoId || i} className="p-3.5"><p className="text-sm leading-relaxed" style={{ color: T.textSecondary }}>{m.text}</p><div className="mt-1.5 text-xs" style={{ color: T.textMuted }}>{m.who} ・ {fmtTs(m.at)}</div></Card>))}
-          {!loading && !memos.length && <Card><EmptyState title="メモはまだありません" desc="気づきや指導方針を残しましょう" /></Card>}
+            : memoLoadErr ? <PrismErrorRetryCard message={memoLoadErr} onRetry={load} />
+              : memos.map((m, i) => (<Card key={m.memoId || i} className="p-3.5"><div className="mb-2 flex flex-wrap items-center justify-between gap-2"><Badge tone={m.visibility === "client" ? "green" : "muted"}>{m.visibility === "client" ? "企業担当者に公開" : "講師・管理者のみ"}</Badge><span className="text-xs" style={{ color: T.textMuted }}>{m.who} ・ {fmtTs(m.at)}</span></div><p className="text-sm leading-relaxed" style={{ color: T.textSecondary }}>{m.text}</p></Card>))}
+          {!loading && !memoLoadErr && !memos.length && <Card><EmptyState title={role === "client" ? "共有メモはまだありません" : "メモはまだありません"} desc={role === "client" ? "講師が企業共有に設定したメモがここに表示されます" : "気づきや指導方針を残しましょう"} /></Card>}
         </div>
       </div>
     </div>
