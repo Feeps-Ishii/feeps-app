@@ -4276,10 +4276,31 @@ function Reports({ role }) {
   const displayDailyReportRows = sortReportRows(dailyReportRows.filter(reportRowMatchesQuery).filter(reportRowMatchesStatus));
   const reviewReports = displayDailyReportRows.map(row => row.report).filter(Boolean);
   const reviewIndex = detailReport && !canWrite ? reviewReports.findIndex(report => report.id === detailReport.id) : -1;
+  // 2026-07-22 機能追加: 月次モードでは「次の受講生」ではなく「次の日」で送る。
+  // CourseCalendarに登録された研修日（opsReportTrainingDates）のみを対象にし、非研修日はスキップする。
+  const monthNavDates = periodMode === "月次" ? opsReportTrainingDates : [];
+  const monthNavIndex = detailReport && periodMode === "月次" ? monthNavDates.indexOf(detailReport.rawDate || detailReport.date || "") : -1;
+  function goToMonthlyDate(targetDate) {
+    if (!targetDate || !detailReport) return;
+    const traineeId = detailReport.traineeId;
+    const rep = monthlyReportsByTraineeDate.get(`${traineeId}__${targetDate}`);
+    setDetailReport(rep || { __unsubmitted: true, traineeId, name: detailReport.name || nameMap[traineeId] || fallbackName(traineeId), rawDate: targetDate, date: targetDate });
+  }
   const dailySubmitted = dailyReportRows.filter(r => r.report).length;
   const dailyMissing = dailyReportRows.filter(r => !r.report).length;
   const dailyUncommented = dailyReportRows.filter(r => r.report && !r.hasComment).length;
   const dailyNeedsCheck = dailyReportRows.filter(r => r.needsCheck || !r.report).length;
+  // 2026-07-22 機能追加: 月次モードの詳細モーダルで「前の日/次の日」を送れるよう、
+  // 受講生×日付で該当日報を引けるマップを用意する（受講生を固定したまま日付だけ切り替える）。
+  const monthlyReportsByTraineeDate = useMemo(() => {
+    const m = new Map();
+    monthlyReports.forEach(r => {
+      if (!r.traineeId || !r.date) return;
+      if (opsFilter.courseId && r.courseId && r.courseId !== opsFilter.courseId) return;
+      m.set(`${r.traineeId}__${r.date}`, r);
+    });
+    return m;
+  }, [monthlyReports, opsFilter.courseId]);
   // 2026-07-21 監査P1(I-4)対応: 月次サマリーの各行から該当日の日次確認画面へ直接遷移できるよう、
   // 未提出/未コメントの中で最も新しい研修日をdrilldownDateとして持たせる（全て解消済みなら直近研修日）
   const monthlyReportRows = opsFilter.targetTrainees.map(t => {
@@ -4531,7 +4552,14 @@ function Reports({ role }) {
           三項演算子の外側（常時マウント）に配置。以前はperiodMode==="日次"分岐の内側にあり、月次
           集計の行クリックでdetailReportをsetしてもモーダルの入れ物自体が描画されず開かなかった。 */}
       {detailReport && (
-        <Modal title={canWrite ? `${(detailReport.rawDate || detailReport.date || "").replace(/-/g, "/")} の日報` : `${nameMap[detailReport.traineeId] || detailReport.name}さんの日報`} desc={canWrite ? "閲覧専用です。編集する場合は一覧の編集ボタンから開いてください。" : `${(detailReport.rawDate || detailReport.date || "").replace(/-/g, "/")} ・ ${reviewIndex >= 0 ? `${reviewIndex + 1} / ${reviewReports.length}人` : "日報確認"}`} onClose={() => setDetailReport(null)} footer={canWrite || detailReport.__unsubmitted ? <Btn kind="ghost" onClick={() => setDetailReport(null)}>閉じる</Btn> : <div className="flex w-full items-center justify-between gap-3"><Btn kind="ghost" icon={ChevronLeft} disabled={reviewIndex <= 0} onClick={() => setDetailReport(reviewReports[reviewIndex - 1])}>前の受講生</Btn><span className="text-xs font-semibold" style={{ color: T.textMuted }}>{reviewIndex >= 0 ? `${reviewIndex + 1} / ${reviewReports.length}` : ""}</span><Btn kind="ghost" icon={ChevronRight} disabled={reviewIndex < 0 || reviewIndex >= reviewReports.length - 1} onClick={() => setDetailReport(reviewReports[reviewIndex + 1])}>次の受講生</Btn></div>} size="lg">
+        <Modal title={canWrite ? `${(detailReport.rawDate || detailReport.date || "").replace(/-/g, "/")} の日報` : `${nameMap[detailReport.traineeId] || detailReport.name}さんの日報`} desc={canWrite ? "閲覧専用です。編集する場合は一覧の編集ボタンから開いてください。" : periodMode === "月次" ? `${(detailReport.rawDate || detailReport.date || "").replace(/-/g, "/")} ・ ${monthNavIndex >= 0 ? `研修日 ${monthNavIndex + 1} / ${monthNavDates.length}日目` : "日報確認"}` : `${(detailReport.rawDate || detailReport.date || "").replace(/-/g, "/")} ・ ${reviewIndex >= 0 ? `${reviewIndex + 1} / ${reviewReports.length}人` : "日報確認"}`} onClose={() => setDetailReport(null)} footer={
+          canWrite ? <Btn kind="ghost" onClick={() => setDetailReport(null)}>閉じる</Btn>
+          // 2026-07-22 機能追加: 月次モードは受講生を固定したまま「前の日/次の日」で研修日を送る
+          // （CourseCalendar登録の研修日のみが対象。__unsubmitted＝未提出日も遷移先として含める）。
+          : periodMode === "月次" ? <div className="flex w-full items-center justify-between gap-3"><Btn kind="ghost" icon={ChevronLeft} disabled={monthNavIndex <= 0} onClick={() => goToMonthlyDate(monthNavDates[monthNavIndex - 1])}>前の日</Btn><span className="text-xs font-semibold" style={{ color: T.textMuted }}>{monthNavIndex >= 0 ? `${monthNavIndex + 1} / ${monthNavDates.length}日` : ""}</span><Btn kind="ghost" icon={ChevronRight} disabled={monthNavIndex < 0 || monthNavIndex >= monthNavDates.length - 1} onClick={() => goToMonthlyDate(monthNavDates[monthNavIndex + 1])}>次の日</Btn></div>
+          : detailReport.__unsubmitted ? <Btn kind="ghost" onClick={() => setDetailReport(null)}>閉じる</Btn>
+          : <div className="flex w-full items-center justify-between gap-3"><Btn kind="ghost" icon={ChevronLeft} disabled={reviewIndex <= 0} onClick={() => setDetailReport(reviewReports[reviewIndex - 1])}>前の受講生</Btn><span className="text-xs font-semibold" style={{ color: T.textMuted }}>{reviewIndex >= 0 ? `${reviewIndex + 1} / ${reviewReports.length}` : ""}</span><Btn kind="ghost" icon={ChevronRight} disabled={reviewIndex < 0 || reviewIndex >= reviewReports.length - 1} onClick={() => setDetailReport(reviewReports[reviewIndex + 1])}>次の受講生</Btn></div>
+        } size="lg">
           {detailReport.__unsubmitted ? (
             // 2026-07-22 バグ修正(3): 月次サマリーの未提出日は表示できる日報がないため、月次の表示状態を
             // 保持したまま、ここから明示的にのみ日次確認画面へ移動できるようにする（自動遷移はしない）。
