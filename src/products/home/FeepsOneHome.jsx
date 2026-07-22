@@ -1,8 +1,7 @@
 import React, { useEffect, useMemo, useState } from "react";
 import {
   ArrowRight, BookOpen, Building2, AlertCircle,
-  Clock, ClipboardCheck, MessageSquare, ListChecks,
-  FileText, Megaphone, ChevronRight, Users,
+  Megaphone, ChevronRight, Users,
   Sparkles, ArrowUpRight, RefreshCw,
 } from "lucide-react";
 import { apiGet } from "../../api.js";
@@ -18,11 +17,6 @@ import {
 // 勤怠・日報ステータスの短い日本語ラベル（Dashboard APIの生ステータス値をそのまま出さない）
 const ATT_LABEL = { completed: "退勤済み", working: "出勤中", not_clocked_in: "未打刻", absent: "欠席", late: "遅刻", early_leave: "早退", unknown: "確認中", not_applicable: "対象外" };
 const REPORT_LABEL = { commented: "コメントあり", submitted: "提出済み", not_submitted: "未提出", not_applicable: "対象外" };
-const TODO_ICON = {
-  report_unchecked: FileText, report_uncommented: MessageSquare, attendance_alert: Clock,
-  test_pending_review: ClipboardCheck, test_unsubmitted: ClipboardCheck, test_low_score: ClipboardCheck,
-  follow_up_students: Users, lesson_prep: BookOpen,
-};
 
 function asArray(value) {
   return Array.isArray(value) ? value : [];
@@ -132,7 +126,7 @@ function portalMetrics(role, dashboard, loading, hasError) {
   if (!dashboard) {
     const labels = {
       trainee: ["参加コース", "今日の未完了", "未受験テスト"],
-      instructor: ["担当コース", "未確認日報", "勤怠アラート"],
+      instructor: ["本日の研修", "対象受講生", "カリキュラム"],
       admin: ["稼働コース", "全受講生", "要確認"],
       client: ["自社受講生", "本日出席", "日報未提出"],
     }[role] || ["利用状況", "今日の対応", "要確認"];
@@ -151,12 +145,13 @@ function portalMetrics(role, dashboard, loading, hasError) {
     ];
   }
   if (role === "instructor") {
-    const summary = dashboard?.summary || {};
-    const reportCount = Number(summary.pendingReports || 0) + Number(summary.uncommentedReports || 0);
+    const todayCourses = asArray(dashboard?.todayCourses);
+    const todayStudents = todayCourses.reduce((sum, course) => sum + Number(course?.studentCount || 0), 0);
+    const preparedCourses = todayCourses.filter(course => course?.todayCurriculum?.title).length;
     return [
-      { label: "担当コース", value: metricValue(summary.assignedCourses, "件", loading) },
-      { label: "未確認日報", value: metricValue(reportCount, "件", loading) },
-      { label: "勤怠アラート", value: metricValue(summary.attendanceAlerts, "件", loading) },
+      { label: "本日の研修", value: metricValue(todayCourses.length, "件", loading) },
+      { label: "対象受講生", value: metricValue(todayStudents, "名", loading) },
+      { label: "カリキュラム", value: todayCourses.length ? `${preparedCourses}/${todayCourses.length}件` : "対象なし" },
     ];
   }
   if (role === "admin") {
@@ -210,10 +205,16 @@ function nextPortalAction(role, dashboard) {
       : { label: "Eラーニングを進める", description: "今日は研修日ではありません。学習を進めましょう。", targetUrl: learningTargetUrl };
   }
   if (role === "instructor") {
-    const todo = asArray(dashboard?.todos).find(item => Number(item.count || 0) > 0 && item.targetUrl);
-    return todo
-      ? { label: todo.label || "確認事項を開く", description: `${todo.count}件の対応があります`, targetUrl: todo.targetUrl }
-      : { label: "今日の授業準備を開く", description: "カリキュラム・教材・テストを確認", targetUrl: "/training/curriculum" };
+    const todayCourses = asArray(dashboard?.todayCourses);
+    if (todayCourses.length === 0) {
+      return { label: "研修管理を開く", description: "本日の担当研修はありません", targetUrl: "/training" };
+    }
+    const course = todayCourses.find(item => !item?.todayCurriculum?.title) || todayCourses[0];
+    return {
+      label: course?.todayCurriculum?.title ? "本日の担当研修を確認" : "授業準備を確認",
+      description: course?.courseName || `${todayCourses.length}件の担当研修`,
+      targetUrl: course?.courseId ? `/training/curriculum?courseId=${encodeURIComponent(course.courseId)}` : "/training/curriculum",
+    };
   }
   if (role === "admin") {
     const attention = Number(dashboard?.summary?.coursesNeedingAttention || 0);
@@ -537,15 +538,13 @@ function TraineeHome({ dashboard, displayName, goProduct, goTraining, goSub, loa
 /* ===== 講師Home（/dashboard/instructor の実データのみで構成） ===== */
 function InstructorHome({ dashboard, displayName, goProduct, goTraining, goSub, loading, error, onRetry }) {
   const open = url => openTargetUrl(url, { goProduct, goTraining, goSub });
-  const todos = asArray(dashboard?.todos);
-  const followUps = asArray(dashboard?.followUps);
   const todayCourses = asArray(dashboard?.todayCourses);
   const scope = dashboard?.scope;
   const summary = dashboard?.summary || {};
 
   return (
     <div className="flex flex-col gap-5">
-      <SectionTitle title="今日の研修運営" desc={`${dateLabel()} · 担当 ${summary.assignedCourses ?? 0}コース`} />
+      <SectionTitle title="本日の担当研修" desc={`${dateLabel()} · 本日 ${todayCourses.length}コース`} />
 
       {error && <ErrorRetryCard message={error} onRetry={onRetry} />}
 
@@ -557,82 +556,45 @@ function InstructorHome({ dashboard, displayName, goProduct, goTraining, goSub, 
       )}
 
       {loading && !dashboard ? (
-        <PBCard className="p-2"><div className="grid gap-3 p-2 sm:grid-cols-2 lg:grid-cols-4">{Array.from({ length: 4 }).map((_, i) => (
-          <div key={i} className="rounded-xl p-4" style={{ background: PRISM.base }}>
-            <span className="feeps-shimmer mb-2 block h-2.5 rounded" style={{ width: "50%" }} />
-            <span className="feeps-shimmer block h-5 rounded" style={{ width: "30%" }} />
-          </div>
-        ))}</div></PBCard>
+        <PBCard className="p-5">
+          <span className="feeps-shimmer mb-3 block h-3 w-32 rounded" />
+          <span className="feeps-shimmer block h-20 rounded-2xl" />
+        </PBCard>
       ) : (
-        <>
-          {todos.length > 0 && (
-            <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
-              {todos.slice(0, 4).map(t => {
-                const Icon = TODO_ICON[t.type] || ListChecks;
-                const tone = t.severity === "critical" ? PRISM.bad : t.severity === "warning" ? PRISM.warn : PRISM.ink;
+        <PBCard className="p-5">
+          <CapLabel>本日開講中の担当コース</CapLabel>
+          {todayCourses.length === 0 ? (
+            <div className="rounded-2xl px-5 py-8 text-center" style={{ background: PRISM.base, border: `1px solid ${PRISM.line}` }}>
+              <span className="mx-auto grid h-11 w-11 place-items-center rounded-2xl" style={{ background: PRISM.accentSubtle, color: PRISM.accent }}><BookOpen size={20} /></span>
+              <p className="mt-3 text-sm font-bold" style={{ color: PRISM.ink }}>本日の担当研修はありません</p>
+              <p className="mt-1 text-xs" style={{ color: PRISM.mut }}>過去の記録は研修管理から確認できます（担当{summary.assignedCourses ?? 0}コース）。</p>
+            </div>
+          ) : (
+            <div className="grid gap-3 lg:grid-cols-2">
+              {todayCourses.slice(0, 4).map(c => {
+                const startTime = c.dayContext?.startTime || "";
+                const endTime = c.dayContext?.endTime || "";
+                const timeLabel = startTime && endTime ? `${startTime} - ${endTime}` : startTime || endTime;
                 return (
-                  <button key={t.type} type="button" onClick={() => open(t.targetUrl)} className="text-left">
-                    <PBCard className="p-4" hover>
-                      <div className="flex items-center justify-between gap-2">
-                        <span className="truncate text-[11px] font-bold" style={{ color: PRISM.sub }}>{t.label}</span>
-                        <Icon size={14} className="shrink-0" style={{ color: tone }} />
+                  <div key={c.courseId} className="rounded-2xl p-4" style={{ background: PRISM.base, border: `1px solid ${PRISM.line}` }}>
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <div className="truncate text-sm font-bold" style={{ color: PRISM.ink }}>{c.courseName}</div>
+                        <div className="mt-1 flex flex-wrap gap-x-3 gap-y-1 text-xs" style={{ color: PRISM.mut }}>
+                          <span>受講生 {c.studentCount}名</span>
+                          {timeLabel && <span>{timeLabel}</span>}
+                        </div>
+                        <p className="mt-2 truncate text-xs" style={{ color: PRISM.sub }}>{c.todayCurriculum?.title || "今日のカリキュラム未設定"}</p>
                       </div>
-                      <div className="mt-1.5 text-2xl font-extrabold tabular-nums" style={{ color: tone }}>{t.count}</div>
-                    </PBCard>
-                  </button>
+                      <Btn size="sm" kind="ghost" icon={ArrowRight} onClick={() => open(`/training/curriculum?courseId=${encodeURIComponent(c.courseId)}`)}>開く</Btn>
+                    </div>
+                  </div>
                 );
               })}
             </div>
           )}
-
-          <div className="grid grid-cols-12 gap-4">
-            <div className="col-span-12 lg:col-span-7">
-              <PBCard className="p-5">
-                <CapLabel>要フォロー</CapLabel>
-                {followUps.length === 0 ? (
-                  <p className="text-xs" style={{ color: PRISM.mut }}>現在フォローが必要な受講生はいません。</p>
-                ) : (
-                  <ul className="flex flex-col">
-                    {followUps.slice(0, 5).map(f => (
-                      <li key={f.traineeId} className="flex items-center gap-3 border-b py-2.5 last:border-b-0" style={{ borderColor: PRISM.line }}>
-                        <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-xs font-bold text-white" style={{ background: PRISM.accent }}>{String(f.traineeName || "?").slice(0, 1)}</span>
-                        <div className="min-w-0 flex-1">
-                          <div className="truncate text-sm font-bold" style={{ color: PRISM.ink }}>{f.traineeName}</div>
-                          <div className="truncate text-xs" style={{ color: PRISM.mut }}>{f.courseName}</div>
-                        </div>
-                        <SeverityChip severity={f.severity}>{f.reasons?.[0]?.label || "要確認"}</SeverityChip>
-                        <button type="button" onClick={() => open(f.targetUrl)} aria-label="詳細を見る"><ChevronRight size={16} style={{ color: PRISM.mut }} /></button>
-                      </li>
-                    ))}
-                  </ul>
-                )}
-              </PBCard>
-            </div>
-            <div className="col-span-12 lg:col-span-5">
-              <PBCard className="p-5">
-                {/* 2026-07-21 監査P1(I-1)対応: 上部サマリー「担当Nコース」との矛盾を解消するため、
-                    このパネルが「本日開講中」のみのスコープであることを見出し・空表示の双方で明示する */}
-                <CapLabel>本日開講中の担当コース</CapLabel>
-                {todayCourses.length === 0 ? (
-                  <p className="text-xs" style={{ color: PRISM.mut }}>本日開講の授業はありません（担当{summary.assignedCourses ?? 0}コース中）。</p>
-                ) : (
-                  <ul className="flex flex-col">
-                    {todayCourses.slice(0, 4).map(c => (
-                      <li key={c.courseId} className="border-b py-2.5 last:border-b-0" style={{ borderColor: PRISM.line }}>
-                        <div className="flex items-center justify-between gap-2">
-                          <span className="truncate text-sm font-bold" style={{ color: PRISM.ink }}>{c.courseName}</span>
-                          <span className="shrink-0 text-xs tabular-nums" style={{ color: PRISM.mut }}>{c.studentCount}名</span>
-                        </div>
-                        <p className="mt-1 truncate text-xs" style={{ color: PRISM.sub }}>{c.todayCurriculum?.title || "今日のカリキュラム未設定"}</p>
-                      </li>
-                    ))}
-                  </ul>
-                )}
-                <div className="mt-3"><Btn size="sm" kind="ghost" icon={ArrowRight} full onClick={() => open("/training/curriculum")}>研修管理を開く</Btn></div>
-              </PBCard>
-            </div>
-          </div>
-        </>
+          <div className="mt-4"><Btn size="sm" kind="ghost" icon={ArrowRight} full onClick={() => open("/training")}>研修管理を開く</Btn></div>
+        </PBCard>
       )}
     </div>
   );
