@@ -69,10 +69,13 @@ body,
 .feeps-fade-in { animation: feepsFadeIn 0.4s ease both; }
 
 @keyframes feepsFloat {
-  from { transform: translateY(-3px); }
-  to { transform: translateY(4px); }
+  from { transform: translate3d(0, -3px, 0); }
+  to { transform: translate3d(0, 4px, 0); }
 }
-.feeps-float { animation: feepsFloat 7s ease-in-out infinite alternate; }
+.feeps-float {
+  animation: feepsFloat 7s ease-in-out infinite alternate;
+  will-change: transform;
+}
 
 /* Canonical shimmer for "AI generating" progress states. */
 @keyframes feepsShimmer {
@@ -85,11 +88,11 @@ body,
   animation: feepsShimmer 1.6s linear infinite;
 }
 
-/* Shell polish: sidebar collapse width + sticky-header elevation. */
-.feeps-sidebar { transition: width 0.2s ease; }
+/* Shell polish: keep sticky-header elevation lightweight. Shell/sidebar widths
+   settle immediately so Product switches do not relayout the whole page on
+   every animation frame; the Context Rail uses a compositor-only entrance. */
 .feeps-header { transition: box-shadow 0.15s ease, border-color 0.15s ease; }
 @media (prefers-reduced-motion: reduce) {
-  .feeps-sidebar,
   .feeps-header { transition: none; }
 }
 
@@ -134,6 +137,7 @@ body,
   .feeps-shimmer,
   .feeps-blob,
   .feeps-draw { animation: none; }
+  .feeps-float { will-change: auto; }
   .feeps-draw { stroke-dashoffset: 0; }
   .feeps-login-cta,
   .feeps-login-cta:hover:not(:disabled) { transition: none; transform: none; }
@@ -374,6 +378,11 @@ body.feeps-modal-open .feeps-main-scroll { overflow: hidden !important; }
   box-shadow: 8px 0 26px color-mix(in srgb, var(--nova-rail) 5%, transparent);
   -webkit-backdrop-filter: blur(20px) saturate(115%);
   backdrop-filter: blur(20px) saturate(115%);
+  animation: feepsContextRailIn .18s cubic-bezier(.2,.8,.2,1);
+}
+@keyframes feepsContextRailIn {
+  from { opacity: .72; transform: translate3d(-12px, 0, 0); }
+  to { opacity: 1; transform: none; }
 }
 .feeps-context-head { min-height: 72px; border-bottom: 1px solid var(--nova-line); }
 .feeps-context-rail nav { scrollbar-color: color-mix(in srgb, var(--nova-muted) 28%, transparent) transparent; }
@@ -392,7 +401,6 @@ body.feeps-modal-open .feeps-main-scroll { overflow: hidden !important; }
   background: var(--nova-glass);
   -webkit-backdrop-filter: blur(18px) saturate(118%);
   backdrop-filter: blur(18px) saturate(118%);
-  transition: margin-left .2s ease, width .2s ease;
 }
 .feeps-command-button {
   min-height: 44px;
@@ -419,7 +427,7 @@ body.feeps-modal-open .feeps-main-scroll { overflow: hidden !important; }
   color: var(--nova-ink);
   background: var(--nova-card);
 }
-.feeps-shell-body { transition: margin-left .2s ease, width .2s ease; }
+.feeps-shell-body { min-width: 0; }
 .feeps-mobile-topbar {
   min-height: 60px;
   border-bottom: 1px solid var(--nova-line);
@@ -550,6 +558,7 @@ body.feeps-modal-open .feeps-main-scroll { overflow: hidden !important; }
 @media (prefers-reduced-motion: reduce) {
   .view-anim,
   .feeps-mobile-drawer,
+  .feeps-context-rail,
   .feeps-auth-card,
   .feeps-auth-core,
   .feeps-auth-orbit-chip { animation: none; }

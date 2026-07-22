@@ -631,16 +631,20 @@ function SideNav({ groups, view, karte, go, badges = {}, collapsed = false, pa =
   useLayoutEffect(() => {
     const container = containerRef.current;
     if (!container) return;
-    const activeEl = container.querySelector('[data-nav-active="true"]');
-    if (!activeEl) { setPill(prev => (prev === null ? prev : null)); return; }
-    const next = { top: activeEl.offsetTop, height: activeEl.offsetHeight };
-    // No dependency array on purpose (must re-measure after any render, e.g. sidebar
-    // collapse/expand or badge changes shifting layout). Without this guard, calling
-    // setPill with a brand-new object every render — even when the value is
-    // unchanged — is itself a state change, which re-triggers the effect forever
-    // (React error #185 / Maximum update depth exceeded).
-    setPill(prev => (prev && prev.top === next.top && prev.height === next.height) ? prev : next);
-  });
+    const measure = () => {
+      const activeEl = container.querySelector('[data-nav-active="true"]');
+      if (!activeEl) { setPill(prev => (prev === null ? prev : null)); return; }
+      const next = { top: activeEl.offsetTop, height: activeEl.offsetHeight };
+      // Calling setPill with a brand-new object for unchanged measurements would
+      // re-trigger the layout effect indefinitely (React error #185).
+      setPill(prev => (prev && prev.top === next.top && prev.height === next.height) ? prev : next);
+    };
+    measure();
+    if (typeof ResizeObserver === "undefined") return undefined;
+    const observer = new ResizeObserver(measure);
+    observer.observe(container);
+    return () => observer.disconnect();
+  }, [groups, view, karte, collapsed, badges]);
 
   return (
     <div ref={containerRef} className="relative">

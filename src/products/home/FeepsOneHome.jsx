@@ -269,7 +269,7 @@ function ProductPortal({ role, displayName, products, dashboard, loading, error,
 
   return (
     <section className="flex flex-col gap-4">
-      <div className="feeps-hero-in relative overflow-hidden rounded-[30px] p-6 sm:p-8 lg:p-10" style={{ background: NOVA.gradPortal, boxShadow: NOVA.shadowAccent, color: NOVA.onDark }}>
+      <div className="relative overflow-hidden rounded-[30px] p-6 sm:p-8 lg:p-10" style={{ background: NOVA.gradPortal, boxShadow: NOVA.shadowAccent, color: NOVA.onDark }}>
         <span className="pointer-events-none absolute -left-16 -top-20 h-56 w-56 rounded-full" style={{ border: `1px solid ${PRISM.heroLine}` }} />
         <span className="pointer-events-none absolute -left-5 -top-10 h-36 w-36 rounded-full" style={{ border: `1px solid ${PRISM.heroLine}` }} />
         <div className="relative grid items-center gap-8 lg:grid-cols-[minmax(0,1.15fr)_minmax(300px,.85fr)]">
