@@ -305,6 +305,34 @@ function emitNotificationRefresh() {
   try { window.dispatchEvent(new Event("feeps:notifications-refresh")); } catch (e) {}
 }
 
+// 2026-07-22 バグ修正(1): 日報・勤怠の「未提出」通知バッジが、選択日(today)が研修実施日で
+// ないコースの受講生まで一律「未提出」として数えてしまっていた問題への対応。コースごとの
+// 研修カレンダー（/courses/:id/workdays）でtodayが実際に研修日か確認し、研修日でないコースの
+// 受講生は「未提出」集計から除外する（TrainingComponents.jsxのOpsFilterPanelと同じ考え方）。
+async function fetchCourseTrainingTodayMap(courseIds, date) {
+  const month = String(date).slice(0, 7);
+  const uniqueIds = [...new Set((courseIds || []).filter(Boolean))];
+  const pairs = await Promise.all(uniqueIds.map(courseId =>
+    apiGet(`/courses/${courseId}/workdays?month=${month}`)
+      .then(result => [courseId, result])
+      .catch(e => { console.warn("notifications workdays failed", { courseId, error: e }); return [courseId, null]; })
+  ));
+  const map = new Map();
+  pairs.forEach(([courseId, result]) => {
+    const day = result?.status === "ready" ? (result.days || []).find(d => d.date === date) : null;
+    map.set(courseId, day?.isTrainingDay === true);
+  });
+  return map;
+}
+function traineeCourseIds(t) {
+  const ids = new Set();
+  if (t?.course) ids.add(t.course);
+  if (t?.courseId) ids.add(t.courseId);
+  if (Array.isArray(t?.courseIds)) t.courseIds.forEach(id => { if (id) ids.add(id); });
+  if (Array.isArray(t?.courses)) t.courses.forEach(c => { const id = typeof c === "string" ? c : c?.courseId || c?.id; if (id) ids.add(id); });
+  return ids;
+}
+
 async function loadRoleNotifications(role) {
   const date = todayStr();
   const add = (list, n) => {
@@ -371,10 +399,15 @@ async function loadRoleNotifications(role) {
     const attendance = (Array.isArray(attendanceList) ? attendanceList : []).filter(a => ids.has(a.traineeId || a.userId));
     const reportIds = new Set(reports.map(r => r.traineeId || r.userId));
     const attById = Object.fromEntries(attendance.map(a => [a.traineeId || a.userId, a]));
-    const reportMissing = trainees.filter(t => !reportIds.has(traineeIdOf(t)));
+    // 選択日が研修実施日であるコースの受講生のみを「未提出/未登録」の対象にする（修正1）
+    const trainingTodayByCourse = await fetchCourseTrainingTodayMap(assigned.map(c => c.courseId), date);
+    const applicableCourseIds = new Set(assigned.filter(c => trainingTodayByCourse.get(c.courseId) === true).map(c => c.courseId));
+    const applicableTraineeIds = new Set(traineePairs.filter(([c]) => applicableCourseIds.has(c.courseId)).flatMap(([, rows]) => rows.map(traineeIdOf)).filter(Boolean));
+    const applicableTrainees = trainees.filter(t => applicableTraineeIds.has(traineeIdOf(t)));
+    const reportMissing = applicableTrainees.filter(t => !reportIds.has(traineeIdOf(t)));
     const uncommented = reports.filter(r => !hasReportComment(r));
-    const attendanceMissing = trainees.filter(t => !attById[traineeIdOf(t)]);
-    const absent = trainees.filter(t => statusKind(attById[traineeIdOf(t)]?.status) === "absent");
+    const attendanceMissing = applicableTrainees.filter(t => !attById[traineeIdOf(t)]);
+    const absent = applicableTrainees.filter(t => statusKind(attById[traineeIdOf(t)]?.status) === "absent");
     const follow = reports.filter(r => r.question || r.blockers);
     if (reportMissing.length) add(result, { id: notifId(role, "reports-missing", date), severity: "high", category: "日報", title: `日報未保存の受講生が${reportMissing.length}名います`, desc: reportMissing.slice(0, 3).map(userName).join("、"), to: "reports", targetUrl: "/training/reports" });
     if (uncommented.length) add(result, { id: notifId(role, "uncommented", date), severity: "medium", category: "コメント", title: `未コメントの日報が${uncommented.length}件あります`, desc: "質問や困りごとがない日報も確認対象です。", to: "reports", targetUrl: "/training/reports" });
@@ -400,8 +433,11 @@ async function loadRoleNotifications(role) {
     const attendanceToday = (Array.isArray(attendance) ? attendance : []).filter(a => ids.has(a.traineeId || a.userId));
     const reportIds = new Set(reportsToday.map(r => r.traineeId || r.userId));
     const attById = Object.fromEntries(attendanceToday.map(a => [a.traineeId || a.userId, a]));
-    const reportMissing = members.filter(t => !reportIds.has(traineeIdOf(t)));
-    const absent = members.filter(t => statusKind(attById[traineeIdOf(t)]?.status) === "absent");
+    // 選択日が研修実施日であるコースの受講生のみを「未提出/欠席」の対象にする（修正1）
+    const trainingTodayByCourseClient = await fetchCourseTrainingTodayMap(members.flatMap(t => [...traineeCourseIds(t)]), date);
+    const applicableMembers = members.filter(t => [...traineeCourseIds(t)].some(id => trainingTodayByCourseClient.get(id) === true));
+    const reportMissing = applicableMembers.filter(t => !reportIds.has(traineeIdOf(t)));
+    const absent = applicableMembers.filter(t => statusKind(attById[traineeIdOf(t)]?.status) === "absent");
     if (reportMissing.length) add(result, { id: notifId(role, "reports-missing", date), severity: "high", category: "日報", title: `自社受講生の日報未保存が${reportMissing.length}名います`, desc: reportMissing.slice(0, 3).map(userName).join("、"), to: "reports", targetUrl: "/training/reports" });
     if (absent.length) add(result, { id: notifId(role, "absent", date), severity: "high", category: "勤怠", title: `自社受講生に欠席者が${absent.length}名います`, desc: absent.slice(0, 3).map(userName).join("、"), to: "attendance", targetUrl: "/training/attendance" });
     const visibleTests = (Array.isArray(tests) ? tests : []).filter(t => (t.status || "published") !== "archived").slice(0, 8);
@@ -438,16 +474,22 @@ async function loadRoleNotifications(role) {
   const traineeIds = new Set(trainees.map(t => t.userId));
   const reportIds = new Set((Array.isArray(reports) ? reports : []).map(r => r.traineeId || r.userId));
   const attById = Object.fromEntries((Array.isArray(attendance) ? attendance : []).map(a => [a.traineeId || a.userId, a]));
-  const reportMissing = trainees.filter(t => !reportIds.has(t.userId));
-  const attendanceMissing = trainees.filter(t => !attById[t.userId]);
-  const absent = trainees.filter(t => statusKind(attById[t.userId]?.status) === "absent");
+  const activeCourses = (Array.isArray(courses) ? courses : []).slice(0, 20);
+  const coursePairs = await Promise.all(activeCourses.map(c => apiGet(`/courses/${c.courseId}/trainees`).then(rows => [c, Array.isArray(rows) ? rows : []]).catch(() => [c, []])));
+  // 選択日が研修実施日であるコースの受講生のみを「未提出/未登録」の対象にする（修正1）
+  const trainingTodayByCourseAdmin = await fetchCourseTrainingTodayMap(activeCourses.map(c => c.courseId), date);
+  const applicableCourseIdsAdmin = new Set(activeCourses.filter(c => trainingTodayByCourseAdmin.get(c.courseId) === true).map(c => c.courseId));
+  const applicableTraineeIdsAdmin = new Set(coursePairs.filter(([c]) => applicableCourseIdsAdmin.has(c.courseId)).flatMap(([, rows]) => rows.map(t => t.userId)).filter(Boolean));
+  const applicableTraineesAdmin = trainees.filter(t => applicableTraineeIdsAdmin.has(t.userId));
+  const reportMissing = applicableTraineesAdmin.filter(t => !reportIds.has(t.userId));
+  const attendanceMissing = applicableTraineesAdmin.filter(t => !attById[t.userId]);
+  const absent = applicableTraineesAdmin.filter(t => statusKind(attById[t.userId]?.status) === "absent");
   if (reportMissing.length) add(result, { id: notifId(role, "reports-missing", date), severity: "high", category: "日報", title: `本日の日報未保存が${reportMissing.length}件あります`, desc: "日報管理画面で未保存者を確認してください。", to: "reports", targetUrl: "/training/reports" });
   if (attendanceMissing.length) add(result, { id: notifId(role, "attendance-missing", date), severity: "medium", category: "勤怠", title: `勤怠未登録が${attendanceMissing.length}件あります`, desc: "勤怠管理画面で未登録者を確認してください。", to: "attendance", targetUrl: "/training/attendance" });
   if (absent.length) add(result, { id: notifId(role, "absent", date), severity: "high", category: "勤怠", title: `欠席者が${absent.length}名います`, desc: absent.slice(0, 3).map(userName).join("、"), to: "attendance", targetUrl: "/training/attendance" });
   const published = (Array.isArray(tests) ? tests : []).filter(t => (t.status || "published") === "published");
   if (published.length) add(result, { id: notifId(role, "published-tests", published.length), severity: "low", category: "テスト", title: `公開中テストが${published.length}件あります`, desc: "受験状況と結果を確認できます。", to: "tests", targetUrl: "/training/tests" });
-  const coursePairs = await Promise.all((Array.isArray(courses) ? courses : []).slice(0, 20).map(c => apiGet(`/courses/${c.courseId}/trainees`).then(rows => [c, Array.isArray(rows) ? rows : []]).catch(() => [c, []])));
-  const courseAlerts = coursePairs.filter(([, rows]) => rows.some(t => traineeIds.has(t.userId) && (!reportIds.has(t.userId) || !attById[t.userId])));
+  const courseAlerts = coursePairs.filter(([c, rows]) => applicableCourseIdsAdmin.has(c.courseId) && rows.some(t => traineeIds.has(t.userId) && (!reportIds.has(t.userId) || !attById[t.userId])));
   if (courseAlerts.length) add(result, { id: notifId(role, "course-alerts", date), severity: "high", category: "コース別", title: `要確認コースが${courseAlerts.length}件あります`, desc: courseAlerts.slice(0, 3).map(([c]) => c.name).join("、"), to: "courses", targetUrl: "/training/courses" });
   return result;
 }

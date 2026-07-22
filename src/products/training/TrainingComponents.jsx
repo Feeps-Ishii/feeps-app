@@ -3131,7 +3131,7 @@ function AttendanceManage({ role }) {
   });
   // 未打刻の受講生も行として表示する（打刻済みAPIレコードに、対象受講生の未登録分を合成）
   const isSelectedTrainingDay = scheduleState === "ready" && dayContext?.isTrainingDay === true;
-  const registeredRows = opsFilter.apply(rows).filter(row => !row.courseId || row.courseId === opsFilter.courseId);
+  const registeredRows = opsFilter.apply(rows).filter(row => !opsFilter.courseId || !row.courseId || row.courseId === opsFilter.courseId);
   const registeredIds = new Set(registeredRows.map(r => r.traineeId));
   const missingRows = (isSelectedTrainingDay ? opsFilter.targetTrainees : [])
     .filter(t => t.userId && !registeredIds.has(t.userId))
@@ -3142,7 +3142,7 @@ function AttendanceManage({ role }) {
   const unregisteredForBulk = filteredRows.filter(r => !r.in);
   const unregistered = filteredRows.filter(r => !r.in && !r.s).length;
   const monthlyAttendance = opsFilter.targetTrainees.map(t => {
-    const items = monthlyRows.filter(r => r.traineeId === t.userId && (!r.courseId || r.courseId === opsFilter.courseId) && monthlyTrainingDates.includes(r.date));
+    const items = monthlyRows.filter(r => r.traineeId === t.userId && (!opsFilter.courseId || !r.courseId || r.courseId === opsFilter.courseId) && monthlyTrainingDates.includes(r.date));
     const counts = items.reduce((acc, r) => {
       acc[statusKind(r.status)] += 1;
       return acc;
@@ -3175,7 +3175,7 @@ function AttendanceManage({ role }) {
           if (periodMode === "月次") {
             const companyNameOf = id => opsFilter.companies.find(c => c.companyId === id)?.name || "";
             const rows = monthlyRows
-              .filter(r => opsFilter.targetIds.has(r.traineeId) && (!r.courseId || r.courseId === opsFilter.courseId) && monthlyTrainingDates.includes(r.date))
+              .filter(r => opsFilter.targetIds.has(r.traineeId) && (!opsFilter.courseId || !r.courseId || r.courseId === opsFilter.courseId) && monthlyTrainingDates.includes(r.date))
               .slice()
               .sort((a, b) => String(a.date || "").localeCompare(String(b.date || "")))
               .map(r => {
@@ -3942,7 +3942,7 @@ function Reports({ role }) {
     if (role !== "instructor") return false;
     if (opsReportScheduleState !== "ready" || opsReportDayContext?.isTrainingDay !== true) return false;
     if (!opsReportDayContext?.effectiveInstructorIds?.includes(opsFilter.currentUserId)) return false;
-    return !report?.courseId || report.courseId === opsFilter.courseId;
+    return !opsFilter.courseId || !report?.courseId || report.courseId === opsFilter.courseId;
   };
   const canComment = role === "admin" || role === "client" || (role === "instructor" && opsReportScheduleState === "ready" && opsReportDayContext?.isTrainingDay === true && opsReportDayContext?.effectiveInstructorIds?.includes(opsFilter.currentUserId));
   function blankReportDraft() {
@@ -4205,7 +4205,7 @@ function Reports({ role }) {
   function removeGoalItem(id) {
     setDraft(d => ({ ...d, goalItems: d.goalItems.filter(g => g.id !== id) }));
   }
-  const visibleReports = canViewReports ? opsFilter.apply(reports).filter(report => !report.courseId || report.courseId === opsFilter.courseId) : reports;
+  const visibleReports = canViewReports ? opsFilter.apply(reports).filter(report => !opsFilter.courseId || !report.courseId || report.courseId === opsFilter.courseId) : reports;
   const companyNameById = (companyId) => opsFilter.companies.find(c => c.companyId === companyId)?.name || companyId || "";
   const companyNameOfReport = (r) => {
     const trainee = opsFilter.trainees.find(t => t.userId === r.traineeId);
@@ -4262,7 +4262,7 @@ function Reports({ role }) {
   // 2026-07-21 監査P1(I-4)対応: 月次サマリーの各行から該当日の日次確認画面へ直接遷移できるよう、
   // 未提出/未コメントの中で最も新しい研修日をdrilldownDateとして持たせる（全て解消済みなら直近研修日）
   const monthlyReportRows = opsFilter.targetTrainees.map(t => {
-    const scopedReports = monthlyReports.filter(r => r.traineeId === t.userId && (!r.courseId || r.courseId === opsFilter.courseId) && opsReportTrainingDates.includes(r.date));
+    const scopedReports = monthlyReports.filter(r => r.traineeId === t.userId && (!opsFilter.courseId || !r.courseId || r.courseId === opsFilter.courseId) && opsReportTrainingDates.includes(r.date));
     const reportByDate = new Map(scopedReports.map(r => [r.date, r]));
     const submitted = scopedReports.length;
     const commented = scopedReports.filter(r => r.comment || (Array.isArray(r.comments) && r.comments.length)).length;
@@ -4279,6 +4279,9 @@ function Reports({ role }) {
       submitted,
       commented,
       drilldownDate,
+      // 2026-07-22 バグ修正(3): 提出済みの日報があれば詳細モーダルをその場で開く（月次の表示状態を
+      // 保持したまま「詳細表示」できるようにする）。未提出日はモーダル内から明示的に日次画面へ遷移する。
+      drilldownReport: drilldownDate ? reportByDate.get(drilldownDate) || null : null,
       missing: opsReportMonthScheduleState === "setup_required" || opsReportMonthScheduleState === "error" ? null : Math.max(opsReportTrainingDates.length - submitted, 0),
     };
   }).filter(r => {
@@ -4436,13 +4439,14 @@ function Reports({ role }) {
                       <div className="flex items-center justify-between gap-2"><Badge tone={r.missing == null ? "muted" : r.missing ? "amber" : "green"}>{r.missing == null ? "—" : `${r.missing}件`}</Badge>{canDrilldown && <ChevronRight size={16} className="shrink-0" style={{ color: T.textMuted }} />}</div>
                     </>
                   );
-                  // 2026-07-21 監査P1(I-4)対応: 行クリックで未提出/未コメントの最新該当日の日次確認画面へ遷移する
+                  // 2026-07-21 監査P1(I-4)対応: 行クリックで未提出/未コメントの最新該当日を確認できるようにする。
+                  // 2026-07-22 バグ修正(3): 日次画面への強制遷移で月次の表示状態（対象月・periodMode）が
+                  // 失われる不具合のため、提出済み日報があればその場で詳細モーダルを開く（月次表示のまま）。
+                  // 未提出日はモーダル内の明示ボタンからのみ日次画面へ遷移する。
                   return canDrilldown ? (
                     <button key={r.traineeId} type="button" onClick={() => {
-                      setPeriodMode("日次");
-                      setDate(r.drilldownDate);
-                      setReportQuery(r.name || "");
-                      setTrainingTargetContext({ view: "reports", courseId: opsFilter.courseId, date: r.drilldownDate }, { historyAction: "push" });
+                      if (r.drilldownReport) setDetailReport(r.drilldownReport);
+                      else setDetailReport({ __unsubmitted: true, traineeId: r.traineeId, name: r.name, rawDate: r.drilldownDate, date: r.drilldownDate });
                     }} className="grid w-full grid-cols-5 items-center gap-3 px-4 py-3 text-left text-sm transition hover:bg-slate-50" style={{ borderTop: `1px solid ${T.border}`, color: T.textPrimary }} title={`${r.drilldownDate.replace(/-/g, "/")}の日報確認を開く`}>
                       {rowContent}
                     </button>
@@ -4502,8 +4506,24 @@ function Reports({ role }) {
         </div>
       </Card>}
       {detailReport && (
-        <Modal title={canWrite ? `${(detailReport.rawDate || detailReport.date || "").replace(/-/g, "/")} の日報` : `${nameMap[detailReport.traineeId] || detailReport.name}さんの日報`} desc={canWrite ? "閲覧専用です。編集する場合は一覧の編集ボタンから開いてください。" : `${(detailReport.rawDate || detailReport.date || "").replace(/-/g, "/")} ・ ${reviewIndex >= 0 ? `${reviewIndex + 1} / ${reviewReports.length}人` : "日報確認"}`} onClose={() => setDetailReport(null)} footer={canWrite ? <Btn kind="ghost" onClick={() => setDetailReport(null)}>閉じる</Btn> : <div className="flex w-full items-center justify-between gap-3"><Btn kind="ghost" icon={ChevronLeft} disabled={reviewIndex <= 0} onClick={() => setDetailReport(reviewReports[reviewIndex - 1])}>前の受講生</Btn><span className="text-xs font-semibold" style={{ color: T.textMuted }}>{reviewIndex >= 0 ? `${reviewIndex + 1} / ${reviewReports.length}` : ""}</span><Btn kind="ghost" icon={ChevronRight} disabled={reviewIndex < 0 || reviewIndex >= reviewReports.length - 1} onClick={() => setDetailReport(reviewReports[reviewIndex + 1])}>次の受講生</Btn></div>} size="lg">
-          {(detailReport.morningGoal || detailReport.goalItems?.length) && (
+        <Modal title={canWrite ? `${(detailReport.rawDate || detailReport.date || "").replace(/-/g, "/")} の日報` : `${nameMap[detailReport.traineeId] || detailReport.name}さんの日報`} desc={canWrite ? "閲覧専用です。編集する場合は一覧の編集ボタンから開いてください。" : `${(detailReport.rawDate || detailReport.date || "").replace(/-/g, "/")} ・ ${reviewIndex >= 0 ? `${reviewIndex + 1} / ${reviewReports.length}人` : "日報確認"}`} onClose={() => setDetailReport(null)} footer={canWrite || detailReport.__unsubmitted ? <Btn kind="ghost" onClick={() => setDetailReport(null)}>閉じる</Btn> : <div className="flex w-full items-center justify-between gap-3"><Btn kind="ghost" icon={ChevronLeft} disabled={reviewIndex <= 0} onClick={() => setDetailReport(reviewReports[reviewIndex - 1])}>前の受講生</Btn><span className="text-xs font-semibold" style={{ color: T.textMuted }}>{reviewIndex >= 0 ? `${reviewIndex + 1} / ${reviewReports.length}` : ""}</span><Btn kind="ghost" icon={ChevronRight} disabled={reviewIndex < 0 || reviewIndex >= reviewReports.length - 1} onClick={() => setDetailReport(reviewReports[reviewIndex + 1])}>次の受講生</Btn></div>} size="lg">
+          {detailReport.__unsubmitted ? (
+            // 2026-07-22 バグ修正(3): 月次サマリーの未提出日は表示できる日報がないため、月次の表示状態を
+            // 保持したまま、ここから明示的にのみ日次確認画面へ移動できるようにする（自動遷移はしない）。
+            <div className="rounded-xl p-4 text-sm font-semibold" style={{ background: T.warningSubtle, color: T.warning }}>
+              {(detailReport.rawDate || detailReport.date || "").replace(/-/g, "/")} は日報が未提出です。
+              <div className="mt-3">
+                <Btn kind="ghost" size="sm" icon={ChevronRight} onClick={() => {
+                  setPeriodMode("日次");
+                  setDate(detailReport.date);
+                  setReportQuery(detailReport.name || "");
+                  setDetailReport(null);
+                  setTrainingTargetContext({ view: "reports", courseId: opsFilter.courseId, date: detailReport.date }, { historyAction: "push" });
+                }}>この日の日報確認画面を開く</Btn>
+              </div>
+            </div>
+          ) : (<>
+          {Boolean(detailReport.morningGoal || detailReport.goalItems?.length) && (
             <div className="mb-4 rounded-xl p-3.5" style={{ background: T.accentSubtle }}>
               <div className="mb-2 text-xs font-bold" style={{ color: T.accent }}>朝の目標</div>
               {detailReport.morningGoal && <div className="mb-2 text-sm font-semibold" style={{ color: T.textPrimary }}>{detailReport.morningGoal}</div>}
@@ -4515,7 +4535,7 @@ function Reports({ role }) {
               ))}</div>}
             </div>
           )}
-          <div className="grid gap-3 sm:grid-cols-2">
+          <div className="grid grid-cols-1 gap-3">
             {reportDetailItems(detailReport, reportFields).map(item => (
               <div key={item.key} className="rounded-xl p-3.5" style={{ background: T.bgBase }}>
                 <div className="mb-1 text-xs font-bold" style={{ color: T.accent }}>{item.title}</div>
@@ -4542,6 +4562,7 @@ function Reports({ role }) {
             <div>提出日時: {detailReport.submittedAt || detailReport.createdAt || detailReport.rawData?.submittedAt || detailReport.rawData?.createdAt ? fmtTs(detailReport.submittedAt || detailReport.createdAt || detailReport.rawData?.submittedAt || detailReport.rawData?.createdAt) : "記録なし"}</div>
             <div>更新日時: {reportUpdatedAt(detailReport) ? fmtTs(reportUpdatedAt(detailReport)) : "記録なし"}</div>
           </div>
+          </>)}
         </Modal>
       )}
       {settingsOpen && (
