@@ -157,11 +157,15 @@ const PRODUCT_DEFAULT_SUBVIEW = {
 // 実装(products/devlab/)はそのまま、Learning側のnav/subViewから接続するのみ。
 // subViewキーはEL_NAVの命名規約(el_*)に合わせてel_devlab / el_devlab_manageとする
 // （旧DEVLAB_NAVのdl_projects/dl_manageに相当。clientは対象外＝Backendも403のまま）。
+// 2026-07-22: trainee向けは「案件一覧」「プロジェクト体験」が並んで紛らわしいという
+// フィードバックにより、el_devlab 1項目(ラベル「開発演習」)へ統合。統合カタログ
+// (DevLabCombinedCatalog)が両方をカードで並べる。instructor/adminは案件管理と
+// プロジェクト体験の性質が異なるため従来通り2項目を維持する。
 const EL_NAV = {
   trainee: [
     { sec: null, items: [["el_home", "ホーム", LayoutDashboard]] },
     { sec: "Eラーニング", items: [["el_courses", "コース一覧", BookOpen], ["el_recommend", "おすすめ", Lightbulb], ["el_inprogress", "学習中", PlayCircle], ["el_completed", "修了済み", Award], ["el_skills", "獲得スキル", Sparkles], ["el_cert", "修了証", CheckCircle2]] },
-    { sec: "開発演習", items: [["el_devlab", "案件一覧", Code2], ["el_devlab_workspace", "プロジェクト体験", FolderTree]] },
+    { sec: "開発演習", items: [["el_devlab", "開発演習", Code2]] },
   ],
   instructor: [
     { sec: null, items: [["el_home", "ホーム", LayoutDashboard]] },

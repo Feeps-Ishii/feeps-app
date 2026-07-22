@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
   SandpackProvider, SandpackLayout, SandpackFileExplorer, SandpackCodeEditor, SandpackPreview, useSandpack,
 } from "@codesandbox/sandpack-react";
@@ -8,7 +8,7 @@ import {
 import {
   Badge, Btn, Card, EmptyState, SectionHead, SkeletonRows, T,
 } from "../../components/common";
-import { devLabMyStatusLabel, devLabMyStatusTone } from "./DevLabCatalog.js";
+import { devLabMyStatusLabel, devLabMyStatusTone, devLabWorkspaceStackLabel } from "./DevLabCatalog.js";
 import {
   useDevLabWorkspaceTemplates, useDevLabWorkspaceDetail, useDevLabWorkspaceActions,
 } from "./useDevLab.js";
@@ -97,7 +97,7 @@ export function WorkspaceCatalog({ onOpenTemplate }) {
               >
                 <div className="flex items-start justify-between gap-2">
                   <div className="min-w-0">
-                    <div className="text-xs font-semibold" style={{ color: T.textMuted }}>{tpl.stack === "spring_sim" ? "Java / Spring Boot" : "React"}</div>
+                    <div className="text-xs font-semibold" style={{ color: T.textMuted }}>{devLabWorkspaceStackLabel(tpl.stack)}</div>
                     <div className="mt-0.5 truncate text-base font-bold" style={{ color: T.textPrimary }}>{tpl.title}</div>
                   </div>
                   <Badge tone={devLabMyStatusTone(tpl.myStatus)}>{devLabMyStatusLabel(tpl.myStatus)}</Badge>
@@ -157,6 +157,19 @@ export function WorkspaceDetail({ templateId, onBack }) {
 
   useEffect(() => () => { if (autosaveTimer.current) clearTimeout(autosaveTimer.current); }, []);
 
+  // SandpackProviderへ渡すfiles propはマウント時（＝template/workspaceが実際にロード/再ロードされた時）
+  // だけ再生成する。ここをuseMemoでガードせず毎レンダー新規オブジェクトにすると、タイプ入力→
+  // SandpackChangeWatcher.onChange→setPending/setSaveState→親再レンダー→files参照変化→
+  // sandpack-react内部のuseFilesが`useEffect([props.files,...])`で内部stateをprops.filesへ
+  // 巻き戻す、という無限ループになり「入力してもすぐ消える」バグを引き起こしていた
+  // (sandpack-react/dist/index.js useFiles参照)。template/workspaceの参照は
+  // useDevLabWorkspaceDetailのload()時のみ変わるため、これを依存にすることで
+  // 自動保存等の派生state更新では再生成されなくなる。
+  const initialFiles = useMemo(
+    () => (template ? buildInitialSandpackFiles(template.files, workspace?.overlay, workspace?.deletedPaths) : {}),
+    [template, workspace],
+  );
+
   function handleSandpackChange(overlay, deletedPaths) {
     // マウント直後（テンプレ既定と一致=差分なし）は保存不要。実際に編集が入った時だけdirty化する。
     if (Object.keys(overlay).length === 0 && deletedPaths.length === 0) return;
@@ -212,7 +225,6 @@ export function WorkspaceDetail({ templateId, onBack }) {
     );
   }
 
-  const initialFiles = buildInitialSandpackFiles(template.files, workspace?.overlay, workspace?.deletedPaths);
   const isSpring = template.stack === "spring_sim";
   const activeFile = template.entryHint ? withLeadingSlash(template.entryHint) : undefined;
   const scenarios = template.simulatedRun?.scenarios || [];
@@ -241,7 +253,7 @@ export function WorkspaceDetail({ templateId, onBack }) {
       <div className="mb-3">
         <div className="flex items-center gap-2">
           <h2 className="text-base font-bold" style={{ color: T.textPrimary }}>{template.title}</h2>
-          <Badge tone={isSpring ? "amber" : "cyan"}>{isSpring ? "Java / Spring Boot" : "React"}</Badge>
+          <Badge tone={isSpring ? "amber" : "cyan"}>{devLabWorkspaceStackLabel(template.stack)}</Badge>
         </div>
         <p className="mt-1 text-xs" style={{ color: T.textSecondary }}>{template.description}</p>
       </div>
@@ -263,8 +275,26 @@ export function WorkspaceDetail({ templateId, onBack }) {
       >
         <SandpackChangeWatcher onChange={handleSandpackChange} />
         <SandpackLayout style={{ borderRadius: 16, border: `1px solid ${T.border}` }}>
-          <SandpackFileExplorer style={{ height: 480 }} />
-          <SandpackCodeEditor style={{ height: 480 }} showTabs showLineNumbers showInlineErrors />
+          {/*
+            ファイルツリー幅対応(2026-07-22実機フィードバック): 既定のflex:0.2/minWidth:200pxだと
+            Java系の深い階層でファイル名が「co…」のように省略され読めない。要素へ渡すstyleは
+            SandpackLayoutが敷く`.sp-layout > .sp-file-explorer`のflex指定より優先される(インライン
+            styleは同要素のstylesheetルールに勝つ)ため、ここでflex-basisを広げつつ、CSSの
+            resizeプロパティでユーザーがドラッグして幅を調整できるようにする(1440px想定で
+            エディタ/プレビューとのバランスを保ちつつ既定でも広め)。
+          */}
+          <SandpackFileExplorer
+            style={{
+              height: 480,
+              flex: "0 0 260px",
+              minWidth: 220,
+              maxWidth: 480,
+              width: 260,
+              resize: "horizontal",
+              overflow: "auto",
+            }}
+          />
+          <SandpackCodeEditor style={{ height: 480 }} showTabs showLineNumbers showInlineErrors closableTabs />
           {!isSpring && <SandpackPreview style={{ height: 480 }} showNavigator showRefreshButton />}
         </SandpackLayout>
       </SandpackProvider>

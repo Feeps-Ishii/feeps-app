@@ -8,11 +8,12 @@ import {
 import { useCompanyDirectory, companyNameResolver } from "../learning/admin/useCompanyDirectory.js";
 import {
   DEVLAB_LEVEL_OPTIONS, DEVLAB_VISIBILITY_SCOPE_OPTIONS, devLabLevelLabel,
-  devLabStatusLabel, devLabStatusTone, devLabMyStatusLabel, devLabMyStatusTone,
+  devLabStatusLabel, devLabStatusTone, devLabMyStatusLabel, devLabMyStatusTone, devLabWorkspaceStackLabel,
   EMPTY_DEVLAB_CHECK, emptyDevLabForm, draftToForm, formToPayload, projectToForm,
 } from "./DevLabCatalog.js";
 import {
   useDevLabProjects, useDevLabMe, useDevLabActions, useDevLabAdmin, useDevLabSubmissions, useMySkillSheet,
+  useDevLabWorkspaceTemplates,
 } from "./useDevLab.js";
 
 // ===================== ホーム =====================
@@ -75,6 +76,91 @@ export function ProjectCatalog({ onOpenProject }) {
                   <Badge tone="cyan">{devLabLevelLabel(project.level)}</Badge>
                   {project.estimatedHours > 0 && <Badge tone="muted"><Clock3 size={11} />約{project.estimatedHours}時間</Badge>}
                   {(project.techStack || []).slice(0, 4).map(tech => <Badge key={tech} tone="muted">{tech}</Badge>)}
+                </div>
+              </button>
+            ))}
+          </div>
+        )}
+      </Card>
+    </div>
+  );
+}
+
+// ===================== 受講生: 開発演習カタログ（案件一覧＋プロジェクト体験を統合、2026-07-22） =====================
+// ユーザー要望「案件一覧とプロジェクト体験は似ているので1つにまとめたい」に対応し、
+// サイドナビの2項目(el_devlab/el_devlab_workspace)を1項目(el_devlab)へ統合。この画面はその
+// 統合カタログで、チェックリスト提出型の案件(dev_project)とワークスペース(dev_workspace_template)
+// をカードとして並べ、種別バッジで区別する。クリック時の遷移先(ProjectDetail/WorkspaceDetail)は
+// 従来のまま変更しない。useDevLabWorkspaceTemplatesはSandpackに依存しないAPI hookのため、
+// Sandpackを直接importする唯一のファイル(DevLabWorkspaceComponents.jsx、docs/decisions/0011)の
+// lazy分割境界を崩さずにここへ持ち込める。
+export function DevLabCombinedCatalog({ onOpenProject, onOpenTemplate }) {
+  const { projects, loading: loadingProjects, error: errorProjects, reload: reloadProjects } = useDevLabProjects();
+  const { templates, loading: loadingTemplates, error: errorTemplates, reload: reloadTemplates } = useDevLabWorkspaceTemplates();
+  const loading = loadingProjects || loadingTemplates;
+  const error = errorProjects || errorTemplates;
+  const isEmpty = !loading && projects.length === 0 && templates.length === 0;
+
+  return (
+    <div>
+      <SectionHead
+        icon={Code2}
+        title="開発演習"
+        desc="疑似的な開発案件（提出・AIレビュー）とベースプロジェクト（ブラウザ内で編集・体験）から選んで参加できます。"
+      />
+      {error && (
+        <Card className="mb-4 p-4">
+          <p className="text-sm" style={{ color: T.danger }}>{error}</p>
+          <Btn kind="ghost" size="sm" className="mt-2" onClick={() => { reloadProjects(); reloadTemplates(); }}>再試行</Btn>
+        </Card>
+      )}
+      <Card>
+        {loading ? <SkeletonRows rows={3} /> : isEmpty ? (
+          <EmptyState icon={Code2} title="公開中の案件・プロジェクトはありません" desc="新しいコンテンツが公開されるまでお待ちください。" />
+        ) : (
+          <div className="grid gap-3 p-4 sm:grid-cols-2">
+            {projects.map(project => (
+              <button
+                key={`project-${project.id}`}
+                type="button"
+                onClick={() => onOpenProject(project.id)}
+                className="rounded-2xl p-4 text-left transition hover:-translate-y-0.5 hover:shadow-md"
+                style={{ background: T.bgBase, border: `1px solid ${T.border}` }}
+              >
+                <div className="flex items-start justify-between gap-2">
+                  <div className="min-w-0">
+                    <div className="text-xs font-semibold" style={{ color: T.textMuted }}>{project.clientName || "案件"}</div>
+                    <div className="mt-0.5 truncate text-base font-bold" style={{ color: T.textPrimary }}>{project.title}</div>
+                  </div>
+                  <Badge tone={devLabMyStatusTone(project.myStatus)}>{devLabMyStatusLabel(project.myStatus)}</Badge>
+                </div>
+                <div className="mt-2 flex flex-wrap gap-1.5">
+                  <Badge tone="muted">案件（提出型）</Badge>
+                  <Badge tone="cyan">{devLabLevelLabel(project.level)}</Badge>
+                  {project.estimatedHours > 0 && <Badge tone="muted"><Clock3 size={11} />約{project.estimatedHours}時間</Badge>}
+                  {(project.techStack || []).slice(0, 3).map(tech => <Badge key={tech} tone="muted">{tech}</Badge>)}
+                </div>
+              </button>
+            ))}
+            {templates.map(tpl => (
+              <button
+                key={`template-${tpl.id}`}
+                type="button"
+                onClick={() => onOpenTemplate(tpl.id)}
+                className="rounded-2xl p-4 text-left transition hover:-translate-y-0.5 hover:shadow-md"
+                style={{ background: T.bgBase, border: `1px solid ${T.border}` }}
+              >
+                <div className="flex items-start justify-between gap-2">
+                  <div className="min-w-0">
+                    <div className="text-xs font-semibold" style={{ color: T.textMuted }}>{devLabWorkspaceStackLabel(tpl.stack)}</div>
+                    <div className="mt-0.5 truncate text-base font-bold" style={{ color: T.textPrimary }}>{tpl.title}</div>
+                  </div>
+                  <Badge tone={devLabMyStatusTone(tpl.myStatus)}>{devLabMyStatusLabel(tpl.myStatus)}</Badge>
+                </div>
+                <p className="mt-2 text-xs leading-relaxed" style={{ color: T.textSecondary }}>{tpl.description}</p>
+                <div className="mt-2 flex flex-wrap gap-1.5">
+                  <Badge tone="cyan">プロジェクト体験</Badge>
+                  <Badge tone="muted">{tpl.stack === "spring_sim" ? "疑似コンソール実行" : "ブラウザ内プレビュー"}</Badge>
                 </div>
               </button>
             ))}

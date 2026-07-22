@@ -54,6 +54,13 @@ export function devLabMyStatusTone(value) {
   return DEVLAB_MY_STATUS_OPTIONS.find(o => o.value === value)?.tone || "muted";
 }
 
+// ワークスペース（プロジェクト体験）のstack表示ラベル。2026-07-22 fullstack_js追加分。
+export function devLabWorkspaceStackLabel(stack) {
+  if (stack === "spring_sim") return "Java / Spring Boot";
+  if (stack === "fullstack_js") return "React + API（フルスタック）";
+  return "React";
+}
+
 // 2026-07-21 チェックリスト充足方式確定: rubric(自由記述)を廃止し、checklist[{text,criteria,required,reqIds}]へ。
 export const EMPTY_DEVLAB_CHECK = { text: "", criteria: "", required: true, reqIds: [] };
 export const EMPTY_DEVLAB_STEP = { title: "", goal: "", deliverableGuide: "", checklist: [{ ...EMPTY_DEVLAB_CHECK }, { ...EMPTY_DEVLAB_CHECK }, { ...EMPTY_DEVLAB_CHECK }] };
