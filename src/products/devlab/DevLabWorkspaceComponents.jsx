@@ -1,9 +1,10 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
+import ReactMarkdown from "react-markdown";
 import {
   SandpackProvider, SandpackLayout, SandpackFileExplorer, SandpackCodeEditor, SandpackPreview, useSandpack,
 } from "@codesandbox/sandpack-react";
 import {
-  ArrowLeft, Code2, FolderTree, Loader2, Play, RefreshCcw, Save, Terminal,
+  ArrowLeft, Code2, FileText, FolderTree, Loader2, Play, RefreshCcw, Save, Terminal,
 } from "lucide-react";
 import {
   Badge, Btn, Card, EmptyState, SectionHead, SkeletonRows, T,
@@ -55,6 +56,44 @@ function stripLeadingSlash(path) {
 function withLeadingSlash(path) {
   const p = String(path || "");
   return p.startsWith("/") ? p : `/${p}`;
+}
+
+// テンプレファイルからREADME.md相当（パスの末尾がreadme.md、大文字小文字不問）を抜き出す。
+// 無ければnull（パネル自体を表示しない）。
+function extractReadmeContent(files) {
+  if (!files) return null;
+  const entry = Object.entries(files).find(([path]) => /(^|\/)readme\.md$/i.test(stripLeadingSlash(path)));
+  return entry ? entry[1] : null;
+}
+
+// 「課題の説明」パネル。既存の学習教材Markdown表示(LearningComponents.jsxのLessonBodyText)と
+// 同じ`.feeps-lesson-md`(index.css)クラス・react-markdown(既存依存、新規追加なし)を流用し、
+// DevLabワークスペース独自のチャンク分離(ADR-0011 D)を保つため、大きいLearningComponents.jsx
+// を直接importせずローカルで完結させている。デフォルト展開、長い内容は折りたたみ可能。
+function ReadmePanel({ content }) {
+  const [expanded, setExpanded] = useState(true);
+  if (!content) return null;
+  return (
+    <Card className="mb-3 p-4">
+      <div className="flex items-center justify-between gap-2">
+        <div className="flex items-center gap-2">
+          <FileText size={14} style={{ color: T.textMuted }} />
+          <h3 className="text-sm font-bold" style={{ color: T.textPrimary }}>課題の説明（README）</h3>
+        </div>
+        <button type="button" onClick={() => setExpanded(e => !e)} className="text-xs font-semibold" style={{ color: T.accent }}>
+          {expanded ? "折りたたむ" : "続きを見る"}
+        </button>
+      </div>
+      {expanded && (
+        <div
+          className="feeps-lesson-md mt-3 text-[13px] leading-[1.8]"
+          style={{ color: T.textSecondary, maxHeight: 340, overflow: "auto" }}
+        >
+          <ReactMarkdown>{content}</ReactMarkdown>
+        </div>
+      )}
+    </Card>
+  );
 }
 
 // テンプレファイル＋自分のoverlayをマージし、deletedPathsを除いたSandpack向けfiles初期状態を作る。
@@ -170,6 +209,7 @@ export function WorkspaceDetail({ templateId, onBack, backLabel }) {
     () => (template ? buildInitialSandpackFiles(template.files, workspace?.overlay, workspace?.deletedPaths) : {}),
     [template, workspace],
   );
+  const readmeContent = useMemo(() => extractReadmeContent(template?.files), [template]);
 
   function handleSandpackChange(overlay, deletedPaths) {
     // マウント直後（テンプレ既定と一致=差分なし）は保存不要。実際に編集が入った時だけdirty化する。
@@ -259,6 +299,8 @@ export function WorkspaceDetail({ templateId, onBack, backLabel }) {
         <p className="mt-1 text-xs" style={{ color: T.textSecondary }}>{template.description}</p>
       </div>
 
+      <ReadmePanel content={readmeContent} />
+
       {saveError && <Card className="mb-3 p-3"><p className="text-xs" style={{ color: T.danger }}>{saveError}</p></Card>}
 
       <SandpackProvider
@@ -275,6 +317,13 @@ export function WorkspaceDetail({ templateId, onBack, backLabel }) {
         }}
       >
         <SandpackChangeWatcher onChange={handleSandpackChange} />
+        {/*
+          レイアウト(2026-07-22実機フィードバック): [ツリー|エディタ|プレビュー]の3カラムだと
+          エディタが狭い。上段=[ファイルツリー|エディタ(広く)]・下段=実行結果(プレビュー/疑似
+          コンソール)の上下2段構成へ変更。SandpackLayoutは単なるflexラッパーで、同一
+          SandpackProvider配下であれば複数回使ってよい(状態は全てProviderが持つ)ため、
+          上段用・下段用で2つに分けている。
+        */}
         <SandpackLayout style={{ borderRadius: 16, border: `1px solid ${T.border}` }}>
           {/*
             ファイルツリー幅対応(2026-07-22実機フィードバック): 既定のflex:0.2/minWidth:200pxだと
@@ -282,11 +331,11 @@ export function WorkspaceDetail({ templateId, onBack, backLabel }) {
             SandpackLayoutが敷く`.sp-layout > .sp-file-explorer`のflex指定より優先される(インライン
             styleは同要素のstylesheetルールに勝つ)ため、ここでflex-basisを広げつつ、CSSの
             resizeプロパティでユーザーがドラッグして幅を調整できるようにする(1440px想定で
-            エディタ/プレビューとのバランスを保ちつつ既定でも広め)。
+            エディタとのバランスを保ちつつ既定でも広め)。
           */}
           <SandpackFileExplorer
             style={{
-              height: 480,
+              height: 560,
               flex: "0 0 260px",
               minWidth: 220,
               maxWidth: 480,
@@ -295,9 +344,17 @@ export function WorkspaceDetail({ templateId, onBack, backLabel }) {
               overflow: "auto",
             }}
           />
-          <SandpackCodeEditor style={{ height: 480 }} showTabs showLineNumbers showInlineErrors closableTabs />
-          {!isSpring && <SandpackPreview style={{ height: 480 }} showNavigator showRefreshButton />}
+          <SandpackCodeEditor style={{ height: 560 }} showTabs showLineNumbers showInlineErrors closableTabs />
         </SandpackLayout>
+        {!isSpring && (
+          <SandpackLayout style={{ marginTop: 12, borderRadius: 16, border: `1px solid ${T.border}` }}>
+            <SandpackPreview
+              style={{ height: 340, minHeight: 220, resize: "vertical", overflow: "auto" }}
+              showNavigator
+              showRefreshButton
+            />
+          </SandpackLayout>
+        )}
       </SandpackProvider>
       {!isSpring && (
         <p className="mt-2 text-xs leading-relaxed" style={{ color: T.textMuted }}>
