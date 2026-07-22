@@ -3192,7 +3192,11 @@ function AttendanceManage({ role }) {
       {periodMode === "日次" && scheduleState === "ready" && dayContext?.isTrainingDay === false && <div className="mb-4 rounded-xl px-4 py-3 text-sm" style={{ background: T.bgBase, color: T.textMuted }}>選択日は非研修日です。既存記録のみ表示し、未打刻者には数えません。</div>}
       {periodMode === "日次" && role === "instructor" && scheduleState === "ready" && dayContext?.isTrainingDay === true && !canEdit && <div className="mb-4 rounded-xl px-4 py-3 text-sm" style={{ background: T.bgBase, color: T.textMuted }}>この日の担当講師ではないため、勤怠は閲覧のみです。</div>}
       {periodMode === "月次" && monthlyScheduleState === "setup_required" && <div className="mb-4 rounded-xl px-4 py-3 text-sm font-semibold" style={{ background: T.warningSubtle, color: T.warning }}>コース日程が未設定のため、未登録日数は「—」で表示します。</div>}
-      <OpsFilterPanel filter={opsFilter} summary={periodMode === "月次" ? `表示対象: ${opsFilter.targetTrainees.length}名 / 集計月: ${month}` : `表示対象: ${opsFilter.targetTrainees.length}名 / 勤怠登録: ${registeredRows.length}件`} />
+      <OpsFilterPanel filter={opsFilter} summary={periodMode === "月次"
+        ? `表示対象: ${opsFilter.targetTrainees.length}名 / 集計月: ${month}`
+        : scheduleState === "ready" && dayContext?.isTrainingDay === false
+          ? `表示対象: 0名（選択日は対象外のため。在籍${opsFilter.targetTrainees.length}名）`
+          : `表示対象: ${opsFilter.targetTrainees.length}名 / 勤怠登録: ${registeredRows.length}件`} />
       <Card className="mb-4 p-4">
         <div className="grid gap-3 md:grid-cols-[1fr_180px_180px]">
           <div className="relative">
@@ -5043,8 +5047,32 @@ function ClientHome({ openKarte, go }) {
           return apiGet(`/tests/${tid}/results`).then(rows => [tid, Array.isArray(rows) ? rows : []]);
         }));
         if (!alive) return;
-        setClientTrainees(Array.isArray(ts) ? ts : []);
-        setClientCourses(Array.isArray(cs) ? cs : []);
+        const dashboardTrainees = Array.isArray(dash?.trainees) ? dash.trainees : [];
+        const dashboardById = new Map(dashboardTrainees.map(t => [t.traineeId, t]));
+        const apiTrainees = Array.isArray(ts) ? ts : [];
+        const visibleTrainees = apiTrainees.length
+          ? apiTrainees.map(t => {
+              const dashboardTrainee = dashboardById.get(t.userId || t.id);
+              return {
+                ...t,
+                course: t.course || dashboardTrainee?.courseId || "",
+                courseIds: Array.isArray(t.courseIds) && t.courseIds.length
+                  ? t.courseIds
+                  : dashboardTrainee?.courseId ? [dashboardTrainee.courseId] : [],
+              };
+            })
+          : dashboardTrainees.map(t => ({
+              userId: t.traineeId,
+              name: t.name,
+              course: t.courseId || "",
+              courseIds: t.courseId ? [t.courseId] : [],
+            }));
+        const apiCourses = Array.isArray(cs) ? cs : [];
+        const dashboardCourses = [...new Map(dashboardTrainees
+          .filter(t => t.courseId)
+          .map(t => [t.courseId, { courseId: t.courseId, name: t.courseName || t.courseId }])).values()];
+        setClientTrainees(visibleTrainees);
+        setClientCourses(apiCourses.length ? apiCourses : dashboardCourses);
         setClientReports(Array.isArray(rs) ? rs : []);
         setClientAttendance(Array.isArray(atts) ? atts : []);
         setClientTests(visibleTests);
