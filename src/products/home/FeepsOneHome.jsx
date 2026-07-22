@@ -15,7 +15,7 @@ import {
 } from "../../components/common";
 
 // 勤怠・日報ステータスの短い日本語ラベル（Dashboard APIの生ステータス値をそのまま出さない）
-const ATT_LABEL = { completed: "退勤済み", working: "出勤中", not_clocked_in: "未打刻", absent: "欠席", late: "遅刻", early_leave: "早退", unknown: "確認中", not_applicable: "対象外" };
+const ATT_LABEL = { completed: "退勤済み", working: "出勤中", not_clocked_in: "未打刻", absent: "欠席", late: "遅刻", early_leave: "早退", unknown: "確認中", not_applicable: "対象外", not_training_day: "本日は研修なし", setup_required: "日程設定待ち", conflict: "日程要確認" };
 const REPORT_LABEL = { commented: "コメントあり", submitted: "提出済み", not_submitted: "未提出", not_applicable: "対象外" };
 
 function asArray(value) {

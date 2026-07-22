@@ -5064,17 +5064,22 @@ function ClientHome({ openKarte, go }) {
     return fromProfiles.length ? fromProfiles : clientCourses;
   }, [clientTrainees, clientCourseById, clientCourses]);
   const clientIds = useMemo(() => new Set(clientTrainees.map(t => t.userId || t.id).filter(Boolean)), [clientTrainees]);
-  const clientReportsForToday = clientReports.filter(r => clientIds.has(r.traineeId || r.userId));
-  const clientAttendanceForToday = clientAttendance.filter(a => clientIds.has(a.traineeId || a.userId));
+  const clientDashTrainees = Array.isArray(clientDash?.trainees) ? clientDash.trainees : [];
+  const clientTodayTraineeIds = new Set(clientDashTrainees.filter(t => t.dayStatus === "training_day").map(t => t.traineeId));
+  const clientTodayTrainees = clientDash
+    ? clientTrainees.filter(t => clientTodayTraineeIds.has(t.userId || t.id))
+    : clientTrainees;
+  const clientReportsForToday = clientReports.filter(r => clientIds.has(r.traineeId || r.userId) && (!clientDash || clientTodayTraineeIds.has(r.traineeId || r.userId)));
+  const clientAttendanceForToday = clientAttendance.filter(a => clientIds.has(a.traineeId || a.userId) && (!clientDash || clientTodayTraineeIds.has(a.traineeId || a.userId)));
   const clientReportIds = new Set(clientReportsForToday.map(r => r.traineeId || r.userId));
   const clientAttendanceById = Object.fromEntries(clientAttendanceForToday.map(a => [a.traineeId || a.userId, a]));
-  const clientPresent = clientTrainees.filter(t => {
+  const clientPresent = clientTodayTrainees.filter(t => {
     const a = clientAttendanceById[t.userId || t.id];
     return a && (statusKind(a.status) === "present" || a.clockIn);
   });
-  const clientAbsent = clientTrainees.filter(t => statusKind(clientAttendanceById[t.userId || t.id]?.status) === "absent");
-  const clientAttendanceMissing = clientTrainees.filter(t => !clientAttendanceById[t.userId || t.id]);
-  const clientReportMissing = clientTrainees.filter(t => !clientReportIds.has(t.userId || t.id));
+  const clientAbsent = clientTodayTrainees.filter(t => statusKind(clientAttendanceById[t.userId || t.id]?.status) === "absent");
+  const clientAttendanceMissing = clientTodayTrainees.filter(t => !clientAttendanceById[t.userId || t.id]);
+  const clientReportMissing = clientTodayTrainees.filter(t => !clientReportIds.has(t.userId || t.id));
   const clientHasTestResult = (traineeId, testId) => (clientTestResults[testId] || []).some(r => (r.traineeId || r.userId) === traineeId);
   const clientTestMissing = clientTests.length ? clientTrainees.filter(t => clientTests.some(test => !clientHasTestResult(t.userId || t.id, test.testId || test.id))) : [];
   const clientLowScores = clientTrainees.filter(t => {
@@ -5108,6 +5113,12 @@ function ClientHome({ openKarte, go }) {
         ...clientLowScores.map(t => ({ trainee: t, reason: "理解度低下", tone: "red" })),
       ];
   const clientName = t => t.name || t.email || t.userId || "受講生";
+  const clientAttendanceDetail = clientTodayTrainees.length
+    ? `登録済み ${clientAttendanceForToday.length}/${clientTodayTrainees.length}名`
+    : "本日は研修なし";
+  const clientReportDetail = clientTodayTrainees.length
+    ? `保存済み ${clientReportsForToday.length}/${clientTodayTrainees.length}名`
+    : "本日は研修なし";
   return (
     <PrismPage>
       <PrismHomeHeading
@@ -5120,16 +5131,16 @@ function ClientHome({ openKarte, go }) {
       {clientErr && <PrismErrorRetryCard message={clientErr} />}
 
       <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-        <PrismKpiCard icon={Clock} label="勤怠未登録" value={clientAttendanceMissing.length} unit="名" detail={`登録済み ${clientAttendanceForToday.length}/${clientTrainees.length}名`} tone={clientAttendanceMissing.length ? "warn" : "ok"} onClick={() => go && go("attendance")} />
+        <PrismKpiCard icon={Clock} label="勤怠未登録" value={clientAttendanceMissing.length} unit="名" detail={clientAttendanceDetail} tone={clientAttendanceMissing.length ? "warn" : "ok"} onClick={() => go && go("attendance")} />
         <PrismKpiCard icon={ClipboardCheck} label="テスト未受験" value={clientTests.length ? clientTestMissing.length : "—"} unit={clientTests.length ? "名" : ""} detail={clientTests.length ? `${clientTests.length}テストを集計` : "対象テストなし"} tone={clientTestMissing.length ? "warn" : "neutral"} onClick={() => go && go("tests")} />
         <PrismKpiCard icon={Gauge} label="理解度低下" value={clientTests.length ? clientLowScores.length : "—"} unit={clientTests.length ? "名" : ""} detail="平均70点未満" tone={clientLowScores.length ? "bad" : "neutral"} onClick={() => go && go("skillmap")} />
-        <PrismKpiCard icon={NotebookPen} label="日報未保存" value={clientReportMissing.length} unit="名" detail={`保存済み ${clientReportsForToday.length}/${clientTrainees.length}名`} tone={clientReportMissing.length ? "warn" : "ok"} onClick={() => go && go("reports")} />
+        <PrismKpiCard icon={NotebookPen} label="日報未保存" value={clientReportMissing.length} unit="名" detail={clientReportDetail} tone={clientReportMissing.length ? "warn" : "ok"} onClick={() => go && go("reports")} />
       </div>
 
       <div className="grid gap-5 xl:grid-cols-[1.15fr_.85fr]">
         <PrismCard className="p-4 sm:p-5">
-          <PrismSectionTitle title="優先フォロー" desc="勤怠・日報・テストから対応候補をまとめています。" action={<Badge tone={clientFollowRows.length ? "amber" : "green"}>{clientFollowRows.length}件</Badge>} />
-          {clientLoading ? <SkeletonRows rows={4} /> : clientFollowRows.length ? <div className="grid gap-2 sm:grid-cols-2">{clientFollowRows.slice(0, 8).map((row, i) => <button key={(row.trainee.userId || row.trainee.id) + row.reason + i} onClick={() => openKarte({ id: row.trainee.userId || row.trainee.id, name: row.trainee.name, email: row.trainee.email, company: row.trainee.company })} className="flex w-full items-center gap-2 rounded-2xl px-3 py-2.5 text-left" style={{ background: row.tone === "red" ? PRISM.badSubtle : PRISM.warnSubtle, border: `1px solid ${row.tone === "red" ? PRISM.badLine : PRISM.warnLine}` }}><Avatar name={clientName(row.trainee)} size={30} /><span className="min-w-0 flex-1 truncate text-sm font-semibold" style={{ color: PRISM.ink }}>{clientName(row.trainee)}</span><Badge tone={row.tone}>{row.reason}</Badge><ChevronRight size={14} style={{ color: PRISM.mut }} /></button>)}</div> : <div className="rounded-2xl p-4 text-sm" style={{ background: PRISM.okSubtle, color: PRISM.ok }}>今日の要フォロー者はいません。</div>}
+          <PrismSectionTitle title="過去分を含む優先フォロー" desc="直近研修日までの勤怠・日報・テストから、対応待ちをまとめています。" action={<Badge tone={clientFollowRows.length ? "amber" : "green"}>{clientFollowRows.length}件</Badge>} />
+          {clientLoading ? <SkeletonRows rows={4} /> : clientFollowRows.length ? <div className="grid gap-2 sm:grid-cols-2">{clientFollowRows.slice(0, 8).map((row, i) => <button key={(row.trainee.userId || row.trainee.id) + row.reason + i} onClick={() => openKarte({ id: row.trainee.userId || row.trainee.id, name: row.trainee.name, email: row.trainee.email, company: row.trainee.company })} className="flex w-full items-center gap-2 rounded-2xl px-3 py-2.5 text-left" style={{ background: row.tone === "red" ? PRISM.badSubtle : PRISM.warnSubtle, border: `1px solid ${row.tone === "red" ? PRISM.badLine : PRISM.warnLine}` }}><Avatar name={clientName(row.trainee)} size={30} /><span className="min-w-0 flex-1 truncate text-sm font-semibold" style={{ color: PRISM.ink }}>{clientName(row.trainee)}</span><Badge tone={row.tone}>{row.reason}</Badge><ChevronRight size={14} style={{ color: PRISM.mut }} /></button>)}</div> : <div className="rounded-2xl p-4 text-sm" style={{ background: PRISM.okSubtle, color: PRISM.ok }}>現在、対応待ちの受講生はいません。</div>}
         </PrismCard>
 
         <PrismCard className="p-4 sm:p-5">

@@ -175,7 +175,7 @@ function NoticeCard({ courses, date, onSaved }) {
         action={defaultCourse && !editingCourseId ? <Btn size="sm" kind="soft" icon={Megaphone} onClick={() => startEdit(defaultCourse)}>{hasAnyNotice ? "編集する" : "登録する"}</Btn> : null}
       />
       {!courses.length ? (
-        <EmptyBlock title="担当コースがありません" desc="担当コースが設定されるとお知らせを登録できます。" />
+        <EmptyBlock title="本日の担当コースはありません" desc="本日はお知らせ登録の対象となる研修がありません。" />
       ) : (
         <div className="space-y-2">
           {courses.map(course => {
@@ -254,8 +254,13 @@ export default function InstructorWorkspace({ go, displayName = "講師" }) {
   const noticeCount = todayCourses.filter(c => !!textOf(asObject(c.dailyNote).announcement)).length;
   const assignedCourseCount = num(summary.assignedCourses || data?.scope?.assignedCourseCount);
   const activeStudentCount = num(summary.activeStudents);
-  const pendingReportCount = num(summary.pendingReports) + num(summary.uncommentedReports);
-  const attendanceAlertCount = num(summary.attendanceAlerts);
+  const todaySummary = asObject(summary.today);
+  const backlogSummary = asObject(summary.backlog);
+  const todayPendingReportCount = num(todaySummary.pendingReports) + num(todaySummary.uncommentedReports);
+  const todayAttendanceAlertCount = num(todaySummary.attendanceAlerts);
+  const backlogPendingReportCount = num(backlogSummary.pendingReports) + num(backlogSummary.uncommentedReports);
+  const backlogAttendanceAlertCount = num(backlogSummary.attendanceAlerts);
+  const hasBacklog = backlogPendingReportCount > 0 || backlogAttendanceAlertCount > 0;
 
   const courseBlocks = useMemo(() => todayCourses.map(course => {
     const links = asObject(course.links);
@@ -285,8 +290,8 @@ export default function InstructorWorkspace({ go, displayName = "講師" }) {
       <div className="feeps-stagger-in grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
         <PrismKpiCard icon={BookOpen} label="担当コース" value={assignedCourseCount} unit="件" detail="担当中の研修" onClick={() => go("courses")} />
         <PrismKpiCard icon={GraduationCap} label="受講生" value={activeStudentCount} unit="名" detail="担当コースの受講生" tone="teal" onClick={() => go("trainees")} />
-        <PrismKpiCard icon={NotebookPen} label="未確認日報" value={pendingReportCount} unit="件" detail="提出・コメント待ち" tone={pendingReportCount ? "warn" : "ok"} onClick={() => go("reports")} />
-        <PrismKpiCard icon={Clock} label="勤怠アラート" value={attendanceAlertCount} unit="件" detail="欠席・遅刻・未打刻" tone={attendanceAlertCount ? "bad" : "ok"} onClick={() => go("attendance")} />
+        <PrismKpiCard icon={NotebookPen} label="本日の日報対応" value={todayPendingReportCount} unit="件" detail={todayCourses.length ? "未提出・未コメント" : "本日は研修なし"} tone={todayPendingReportCount ? "warn" : "ok"} onClick={() => go("reports")} />
+        <PrismKpiCard icon={Clock} label="本日の勤怠" value={todayAttendanceAlertCount} unit="件" detail={todayCourses.length ? "欠席・遅刻・未打刻" : "本日は研修なし"} tone={todayAttendanceAlertCount ? "bad" : "ok"} onClick={() => go("attendance")} />
       </div>
 
       {error && <PrismErrorRetryCard message={error} onRetry={() => load()} />}
@@ -299,14 +304,26 @@ export default function InstructorWorkspace({ go, displayName = "講師" }) {
             <NoticeCard courses={courseBlocks} date={date} onSaved={() => load({ silent: true })} />
             <PrismCard className="p-4">
               <SectionTitle icon={ClipboardCheck} title="今日やること" desc="ここだけ見れば授業開始に進めます。" />
-              <div className="grid gap-3 sm:grid-cols-2">
-                <ActionCard icon={Clock} title="勤怠確認" value={`異常 ${attendanceAlertCount}件`} desc="欠席・遅刻・未打刻を確認します。" buttonLabel="確認する" onClick={() => go("attendance")} tone={attendanceAlertCount ? "alert" : "normal"} />
-                <ActionCard icon={NotebookPen} title="日報確認" value={`未確認 ${pendingReportCount}件`} desc="提出状況と未コメントを確認します。" buttonLabel="確認する" onClick={() => go("reports")} tone={pendingReportCount ? "alert" : "normal"} />
-                <ActionCard icon={BookOpen} title="授業準備" value={`${todayLessonCount}件`} desc="今日のカリキュラム、教材、テストを開きます。" buttonLabel="開く" onClick={() => go("curriculum")} />
-                <ActionCard icon={ClipboardCheck} title="テスト" value="結果と採点" desc="受験状況の確認と採点を行います。" buttonLabel="開く" onClick={() => go("tests")} />
-              </div>
+              {todayCourses.length ? (
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <ActionCard icon={Clock} title="勤怠確認" value={`本日 ${todayAttendanceAlertCount}件`} desc="本日の欠席・遅刻・未打刻を確認します。" buttonLabel="確認する" onClick={() => go("attendance")} tone={todayAttendanceAlertCount ? "alert" : "normal"} />
+                  <ActionCard icon={NotebookPen} title="日報確認" value={`本日 ${todayPendingReportCount}件`} desc="本日の提出状況と未コメントを確認します。" buttonLabel="確認する" onClick={() => go("reports")} tone={todayPendingReportCount ? "alert" : "normal"} />
+                  <ActionCard icon={BookOpen} title="授業準備" value={`${todayLessonCount}件`} desc="今日のカリキュラム、教材、テストを開きます。" buttonLabel="開く" onClick={() => go("curriculum")} />
+                  <ActionCard icon={ClipboardCheck} title="テスト" value="結果と採点" desc="受験状況の確認と採点を行います。" buttonLabel="開く" onClick={() => go("tests")} />
+                </div>
+              ) : <EmptyBlock title="本日の研修はありません" desc="勤怠・日報・授業準備の当日対応はありません。" />}
             </PrismCard>
           </div>
+
+          <PrismCard className="p-4">
+            <SectionTitle icon={ClipboardCheck} title="過去の対応待ち" desc="本日より前の研修日に残っている確認事項です。" />
+            {hasBacklog ? (
+              <div className="grid gap-3 sm:grid-cols-2">
+                <ActionCard icon={NotebookPen} title="日報の対応待ち" value={`${backlogPendingReportCount}件`} desc="過去の未提出・未コメント日報を確認します。" buttonLabel="日報を確認" onClick={() => go("reports")} tone={backlogPendingReportCount ? "alert" : "normal"} />
+                <ActionCard icon={Clock} title="勤怠の対応待ち" value={`${backlogAttendanceAlertCount}件`} desc="過去の欠席・遅刻・早退・未打刻を確認します。" buttonLabel="勤怠を確認" onClick={() => go("attendance")} tone={backlogAttendanceAlertCount ? "alert" : "normal"} />
+              </div>
+            ) : <EmptyBlock title="過去の対応待ちはありません" desc="確認が必要な日報・勤怠はありません。" />}
+          </PrismCard>
 
           <PrismCard className="p-4">
             <SectionTitle icon={GraduationCap} title="今日の担当コース" desc="必要な情報だけを表示します。" />
@@ -325,12 +342,12 @@ export default function InstructorWorkspace({ go, displayName = "講師" }) {
                   </div>
                 ))}
               </div>
-            ) : <EmptyBlock title="今日の担当コースはありません" desc="担当コースが設定されるとここに表示されます。" />}
+            ) : <EmptyBlock title="今日の担当コースはありません" desc={`本日は研修実施日ではありません。担当${assignedCourseCount}コースの情報は「担当コース」から確認できます。`} />}
           </PrismCard>
 
           <div className="grid gap-4 xl:grid-cols-[.9fr_1.1fr]">
             <PrismCard className="p-4">
-              <SectionTitle icon={FileText} title="最近の提出" desc="最新5件だけ表示します。" action={<Btn size="sm" kind="ghost" icon={ArrowUpRight} onClick={() => go("reports")}>一覧へ</Btn>} />
+              <SectionTitle icon={FileText} title="本日の更新" desc="本日更新された最新5件を表示します。" action={<Btn size="sm" kind="ghost" icon={ArrowUpRight} onClick={() => go("reports")}>一覧へ</Btn>} />
               {recentActivity.length ? (
                 <div className="space-y-1.5">
                   {recentActivity.map((item, index) => (
@@ -346,7 +363,7 @@ export default function InstructorWorkspace({ go, displayName = "講師" }) {
                     </button>
                   ))}
                 </div>
-              ) : <EmptyBlock title="最近の提出はありません" desc="提出やコメントがあるとここに表示されます。" />}
+              ) : <EmptyBlock title="本日の更新はありません" desc="本日、日報・勤怠・テストの更新はありません。" />}
             </PrismCard>
 
             <PrismCard className="p-4">
@@ -372,7 +389,7 @@ export default function InstructorWorkspace({ go, displayName = "講師" }) {
                     );
                   })}
                 </div>
-              ) : <EmptyBlock title="授業準備データはありません" desc="カリキュラムや教材が登録されるとここに表示されます。" />}
+              ) : <EmptyBlock title="本日の授業準備はありません" desc="本日は研修実施日ではありません。" />}
             </PrismCard>
           </div>
 
