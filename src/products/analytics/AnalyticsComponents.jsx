@@ -84,7 +84,7 @@ export function AwsCostDashboard() {
 
   return (
     <div>
-      <SectionHead title="AWS利用料金" desc="Feeps One リソース（Project=FeepsOne タグ）の利用料金と AI コストを確認します（最大24時間遅延）" />
+      <SectionHead title="AWS利用料金" desc="Feeps One で発生しているAWS料金の合計（Project=FeepsOne タグ付きリソース + Bedrock + Cost Explorer API）を確認します（最大24時間遅延）" />
       {err && <div className="mb-4 rounded-lg px-3 py-2 text-xs" style={{ background: T.dangerSubtle, color: T.danger }}>{err}</div>}
       {data && !data.tagEnabled && data.tagNote && (
         <div className="mb-4 rounded-lg px-4 py-3 text-sm" style={{ background: T.warningSubtle, color: T.warning }}>
@@ -102,7 +102,8 @@ export function AwsCostDashboard() {
         <>
           <div className="mb-5 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
             <Stat icon={Receipt} label="今月合計" value={fmtAmt(data.total?.amount)} tone="cyan"
-              sub={deltaLabel(data.total?.amount, prevData?.total?.amount, moneyFmt2)} />
+              sub={deltaLabel(data.total?.amount, prevData?.total?.amount, moneyFmt2)}
+              title={data.totalNote} />
             <Stat icon={Sparkles} label="Bedrock料金" value={fmtAmt(data.bedrock?.amount)} tone="amber"
               sub={deltaLabel(data.bedrock?.amount, prevData?.bedrock?.amount, moneyFmt2)} />
             <Stat icon={Activity} label="Cost Explorer API料金" value={fmtAmt(data.costExplorerApi?.amount)} tone="amber"
@@ -121,9 +122,9 @@ export function AwsCostDashboard() {
                 </div>
               ) : (
                 <div>
-                  {(data.byService || []).slice(0, 15).map((s, i) => (
+                  {(data.byService || []).slice(0, 17).map((s, i) => (
                     <div key={s.service} className="flex items-center justify-between px-4 py-2.5" style={{ borderTop: i ? `1px solid ${T.border}` : "none" }}>
-                      <span className="truncate text-sm" style={{ color: T.textSecondary, maxWidth: "65%" }}>{s.service}</span>
+                      <span className="truncate text-sm" style={{ color: s.external ? T.textMuted : T.textSecondary, maxWidth: "65%" }}>{s.service}</span>
                       <span className="shrink-0 text-sm font-semibold" style={{ color: parseFloat(s.amount) > 0 ? T.textPrimary : T.textMuted }}>{fmtAmt(s.amount)}</span>
                     </div>
                   ))}
@@ -137,7 +138,7 @@ export function AwsCostDashboard() {
                 </div>
                 <div className="px-4 py-4">
                   <div className="text-2xl font-bold" style={{ color: T.accentHover }}>{fmtAmt(data.bedrock?.amount)}</div>
-                  <div className="mt-1 text-xs" style={{ color: T.textMuted }}>AI機能利用料金（{month.replace("-", "/")}）</div>
+                  <div className="mt-1 text-xs" style={{ color: T.textMuted }}>AI機能利用料金（{month.replace("-", "/")}・今月合計に含まれています）</div>
                   {(data.bedrock?.services || []).length > 0 && (
                     <div className="mt-3 space-y-1.5">
                       {(data.bedrock.services || []).slice(0, 3).map(s => (
@@ -157,7 +158,7 @@ export function AwsCostDashboard() {
                 </div>
                 <div className="px-4 py-4">
                   <div className="text-2xl font-bold" style={{ color: T.warning }}>{fmtAmt(data.costExplorerApi?.amount)}</div>
-                  <div className="mt-1 text-xs" style={{ color: T.textMuted }}>タグ付きFeepsOne料金とは別枠のAPI利用料金</div>
+                  <div className="mt-1 text-xs" style={{ color: T.textMuted }}>タグ非依存で集計しているAPI利用料金（今月合計に含まれています）</div>
                   {(data.costExplorerApi?.services || []).length > 0 && (
                     <div className="mt-3 space-y-1.5">
                       {(data.costExplorerApi.services || []).map(s => (

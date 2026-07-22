@@ -296,7 +296,7 @@ export function WorkspaceDetail({ templateId, onBack, backLabel }) {
             }}
           />
           <SandpackCodeEditor style={{ height: 480 }} showTabs showLineNumbers showInlineErrors closableTabs />
-          {!isSpring && <SandpackPreview style={{ height: 480 }} showNavigator showRefreshButton />}
+          {!isSpring && <SandpackPreview style={{ height: 480 }} showNavigator showRefreshButton showOpenInCodeSandbox={false} />}
         </SandpackLayout>
       </SandpackProvider>
 
