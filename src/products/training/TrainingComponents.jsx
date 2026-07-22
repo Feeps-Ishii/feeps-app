@@ -4526,6 +4526,10 @@ function Reports({ role }) {
           })}
         </div>
       </Card>}
+      </>)}
+      {/* 2026-07-22 バグ修正: 詳細モーダル・設定モーダル・日次カード一覧はperiodMode==="月次"の
+          三項演算子の外側（常時マウント）に配置。以前はperiodMode==="日次"分岐の内側にあり、月次
+          集計の行クリックでdetailReportをsetしてもモーダルの入れ物自体が描画されず開かなかった。 */}
       {detailReport && (
         <Modal title={canWrite ? `${(detailReport.rawDate || detailReport.date || "").replace(/-/g, "/")} の日報` : `${nameMap[detailReport.traineeId] || detailReport.name}さんの日報`} desc={canWrite ? "閲覧専用です。編集する場合は一覧の編集ボタンから開いてください。" : `${(detailReport.rawDate || detailReport.date || "").replace(/-/g, "/")} ・ ${reviewIndex >= 0 ? `${reviewIndex + 1} / ${reviewReports.length}人` : "日報確認"}`} onClose={() => setDetailReport(null)} footer={canWrite || detailReport.__unsubmitted ? <Btn kind="ghost" onClick={() => setDetailReport(null)}>閉じる</Btn> : <div className="flex w-full items-center justify-between gap-3"><Btn kind="ghost" icon={ChevronLeft} disabled={reviewIndex <= 0} onClick={() => setDetailReport(reviewReports[reviewIndex - 1])}>前の受講生</Btn><span className="text-xs font-semibold" style={{ color: T.textMuted }}>{reviewIndex >= 0 ? `${reviewIndex + 1} / ${reviewReports.length}` : ""}</span><Btn kind="ghost" icon={ChevronRight} disabled={reviewIndex < 0 || reviewIndex >= reviewReports.length - 1} onClick={() => setDetailReport(reviewReports[reviewIndex + 1])}>次の受講生</Btn></div>} size="lg">
           {detailReport.__unsubmitted ? (
@@ -4611,7 +4615,6 @@ function Reports({ role }) {
               <ChevronRight size={16} style={{ color: T.textMuted }} /></div></button>
         </Card>
       ))}</div>}
-      </>)}
     </div>
   );
 }
