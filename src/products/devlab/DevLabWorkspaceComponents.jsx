@@ -296,9 +296,14 @@ export function WorkspaceDetail({ templateId, onBack, backLabel }) {
             }}
           />
           <SandpackCodeEditor style={{ height: 480 }} showTabs showLineNumbers showInlineErrors closableTabs />
-          {!isSpring && <SandpackPreview style={{ height: 480 }} showNavigator showRefreshButton showOpenInCodeSandbox={false} />}
+          {!isSpring && <SandpackPreview style={{ height: 480 }} showNavigator showRefreshButton />}
         </SandpackLayout>
       </SandpackProvider>
+      {!isSpring && (
+        <p className="mt-2 text-xs leading-relaxed" style={{ color: T.textMuted }}>
+          「Open Sandbox」でCodeSandbox（外部サイト）を開くことができますが、そちらでの編集内容はこのアプリには保存・反映されません。提出に使うコードは必ずこの画面内のエディタで編集してください。
+        </p>
+      )}
 
       {isSpring && (
         <Card className="mt-4 p-4">
