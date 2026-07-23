@@ -4868,6 +4868,12 @@ function Karte({ trainee, back, role }) {
   const [busy, setBusy] = useState(false);
   const [memoErr, setMemoErr] = useState("");
   const [memoLoadErr, setMemoLoadErr] = useState("");
+  const [editingMemo, setEditingMemo] = useState(null);
+  const [editText, setEditText] = useState("");
+  const [editVisibility, setEditVisibility] = useState("staff");
+  const [editErr, setEditErr] = useState("");
+  const [memoActionId, setMemoActionId] = useState("");
+  const [memoActionErr, setMemoActionErr] = useState("");
   const [companies, setCompanies] = useState([]);
   const [companiesLoaded, setCompaniesLoaded] = useState(false);
   const [profile, setProfile] = useState(null);
@@ -4965,6 +4971,42 @@ function Karte({ trainee, back, role }) {
       setMemoErr("メモの保存に失敗しました。もう一度お試しください。");
     } finally { setBusy(false); }
   }
+
+  function openMemoEdit(memo) {
+    setEditingMemo(memo);
+    setEditText(memo.text || "");
+    setEditVisibility(memo.visibility === "client" ? "client" : "staff");
+    setEditErr("");
+  }
+
+  async function saveMemoEdit() {
+    if (!editingMemo || !editText.trim() || memoActionId) return;
+    setMemoActionId(editingMemo.memoId);
+    setEditErr("");
+    try {
+      await apiPut(`/karte/${karteTraineeId}/${encodeURIComponent(editingMemo.memoId)}`, {
+        text: editText.trim(),
+        visibility: editVisibility,
+      });
+      setEditingMemo(null);
+      load();
+    } catch (e) {
+      setEditErr("メモの更新に失敗しました。もう一度お試しください。");
+    } finally { setMemoActionId(""); }
+  }
+
+  async function deleteMemo(memo) {
+    if (!memo?.memoId || memoActionId) return;
+    if (!window.confirm("このメモを削除しますか？この操作は取り消せません。")) return;
+    setMemoActionId(memo.memoId);
+    setMemoActionErr("");
+    try {
+      await apiDeleteBase(`/karte/${karteTraineeId}/${encodeURIComponent(memo.memoId)}`);
+      load();
+    } catch (e) {
+      setMemoActionErr("メモの削除に失敗しました。もう一度お試しください。");
+    } finally { setMemoActionId(""); }
+  }
   const karteCourses = karteStatus.courses || [];
   const karteReport = karteStatus.reports?.[0];
   const karteAttendance = karteStatus.attendance?.[0];
@@ -5014,12 +5056,33 @@ function Karte({ trainee, back, role }) {
           </div>
           {memoErr && <div className="mt-2 rounded-lg px-3 py-2 text-xs" style={{ background: T.dangerSubtle, color: T.danger }}>{memoErr}</div>}
           <div className="mt-2 flex justify-end"><Btn size="sm" icon={Plus} onClick={addMemo}>{busy ? "追加中…" : memoVisibility === "client" ? "企業共有メモを追加" : "内部メモを追加"}</Btn></div></Card>}
+        {memoActionErr && <div className="rounded-lg px-3 py-2 text-xs" style={{ background: T.dangerSubtle, color: T.danger }}>{memoActionErr}</div>}
         <div className="space-y-2">
           {loading ? <Card><SkeletonRows rows={3} /></Card>
             : memoLoadErr ? <PrismErrorRetryCard message={memoLoadErr} onRetry={load} />
-              : memos.map((m, i) => (<Card key={m.memoId || i} className="p-3.5"><div className="mb-2 flex flex-wrap items-center justify-between gap-2"><Badge tone={m.visibility === "client" ? "green" : "muted"}>{m.visibility === "client" ? "企業担当者に公開" : "講師・管理者のみ"}</Badge><span className="text-xs" style={{ color: T.textMuted }}>{m.who} ・ {fmtTs(m.at)}</span></div><p className="text-sm leading-relaxed" style={{ color: T.textSecondary }}>{m.text}</p></Card>))}
+              : memos.map((m, i) => (<Card key={m.memoId || i} className="p-3.5">
+                <div className="mb-2 flex flex-wrap items-start justify-between gap-2">
+                  <div className="flex flex-wrap items-center gap-2"><Badge tone={m.visibility === "client" ? "green" : "muted"}>{m.visibility === "client" ? "企業担当者に公開" : "講師・管理者のみ"}</Badge><span className="text-xs" style={{ color: T.textMuted }}>{m.who} ・ {fmtTs(m.at)}{m.updatedAt ? ` ・ ${fmtTs(m.updatedAt)} 更新` : ""}</span></div>
+                  {canMemo && <div className="flex gap-2"><Btn kind="ghost" size="sm" icon={Pencil} onClick={() => openMemoEdit(m)} disabled={Boolean(memoActionId)}>編集</Btn><Btn kind="danger" size="sm" icon={Trash2} onClick={() => deleteMemo(m)} disabled={Boolean(memoActionId)}>{memoActionId === m.memoId ? "削除中…" : "削除"}</Btn></div>}
+                </div>
+                <p className="whitespace-pre-wrap text-sm leading-relaxed" style={{ color: T.textSecondary }}>{m.text}</p>
+              </Card>))}
           {!loading && !memoLoadErr && !memos.length && <Card><EmptyState title={role === "client" ? "共有メモはまだありません" : "メモはまだありません"} desc={role === "client" ? "講師が企業共有に設定したメモがここに表示されます" : "気づきや指導方針を残しましょう"} /></Card>}
         </div>
+        {editingMemo && <Modal
+          title="カルテメモを編集"
+          desc="本文と企業担当者への公開範囲を変更できます。"
+          onClose={() => setEditingMemo(null)}
+          dirty={editText !== (editingMemo.text || "") || editVisibility !== (editingMemo.visibility === "client" ? "client" : "staff")}
+          footer={<><Btn kind="ghost" onClick={() => setEditingMemo(null)}>キャンセル</Btn><Btn onClick={saveMemoEdit} disabled={!editText.trim() || Boolean(memoActionId)}>{memoActionId ? "保存中…" : "変更を保存"}</Btn></>}
+        >
+          <textarea value={editText} onChange={e => setEditText(e.target.value)} rows={5} aria-label="メモ本文" className="w-full resize-y rounded-xl px-3 py-2 text-sm outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary }} />
+          <div className="mt-3 grid gap-2 sm:grid-cols-2">
+            <button type="button" aria-pressed={editVisibility === "staff"} onClick={() => setEditVisibility("staff")} className="flex items-start gap-2 rounded-xl px-3 py-2.5 text-left" style={{ background: editVisibility === "staff" ? T.accentSubtle : T.bgBase, border: `1px solid ${editVisibility === "staff" ? T.accent : T.border}` }}><Lock size={16} className="mt-0.5 shrink-0" style={{ color: editVisibility === "staff" ? T.accent : T.textMuted }} /><span><span className="block text-sm font-bold" style={{ color: T.textPrimary }}>内部メモ</span><span className="block text-xs" style={{ color: T.textMuted }}>講師・管理者のみ</span></span></button>
+            <button type="button" aria-pressed={editVisibility === "client"} onClick={() => setEditVisibility("client")} className="flex items-start gap-2 rounded-xl px-3 py-2.5 text-left" style={{ background: editVisibility === "client" ? T.successSubtle : T.bgBase, border: `1px solid ${editVisibility === "client" ? T.success : T.border}` }}><Eye size={16} className="mt-0.5 shrink-0" style={{ color: editVisibility === "client" ? T.success : T.textMuted }} /><span><span className="block text-sm font-bold" style={{ color: T.textPrimary }}>企業共有メモ</span><span className="block text-xs" style={{ color: T.textMuted }}>企業担当者にも表示</span></span></button>
+          </div>
+          {editErr && <div className="mt-3 rounded-lg px-3 py-2 text-xs" style={{ background: T.dangerSubtle, color: T.danger }}>{editErr}</div>}
+        </Modal>}
       </div>
     </div>
   );
