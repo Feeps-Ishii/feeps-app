@@ -440,7 +440,9 @@ function AdminCompanies() {
   return (
     <div>
       <SectionHead title="企業管理" desc="契約企業の管理" action={<div className="flex flex-wrap items-center gap-2">
-        <Btn size="sm" kind="ghost" icon={FileSpreadsheet} onClick={() => exportAdminListExcel(visibleRows, [
+        <label className="flex items-center gap-1.5 text-xs font-semibold" style={{ color: T.textMuted }}>
+          <input type="checkbox" checked={showArchivedCourses} onChange={e => setShowArchivedCourses(e.target.checked)} />終了したコースも表示
+        </label><Btn size="sm" kind="ghost" icon={FileSpreadsheet} onClick={() => exportAdminListExcel(visibleRows, [
           [r => r.name || "", "企業名"], [r => memoOf(r), "メモ"], [r => r.companyId || "", "企業ID"],
         ], "企業一覧", "企業一覧")}>Excel出力</Btn>
         <Btn size="sm" icon={Plus} onClick={() => { setOpen(true); setErr(""); setMsg(""); }}>企業を追加</Btn>
@@ -528,6 +530,7 @@ function AdminCourses({ go }) {
   const [traineeListOpen, setTraineeListOpen] = useState(false);
   const [traineeSectionOpen, setTraineeSectionOpen] = useState(false);
   const [bulkRange, setBulkRange] = useState({ from: "", to: "" });
+  const [showArchivedCourses, setShowArchivedCourses] = useState(false);
   const [calendarMonth, setCalendarMonth] = useState(monthStr());
   const [calendarItems, setCalendarItems] = useState({});
   const [calendarDirty, setCalendarDirty] = useState({});
@@ -579,7 +582,9 @@ function AdminCourses({ go }) {
       const matchesQuery = !s || `${r.name || ""} ${kindLabel(typeOf(r))} ${memoOf(r)} ${assignedNames}`.toLowerCase().includes(s);
       const matchesFilter = courseFilter === "すべて"
         || (courseFilter === "担当講師未設定" ? !(r.instructorIds || []).length : kindLabel(typeOf(r)) === courseFilter);
-      return matchesQuery && matchesFilter;
+      // 終了したコースは既定で隠す（statusが無い既存コースはactive扱い）
+      const matchesStatus = showArchivedCourses || r.status !== "archived";
+      return matchesQuery && matchesFilter && matchesStatus;
     });
     const dir = sort.dir === "asc" ? 1 : -1;
     return [...list].sort((a, b) => {
@@ -587,8 +592,8 @@ function AdminCourses({ go }) {
       const bv = sort.key === "type" ? kindLabel(typeOf(b)) : b.name || "";
       return String(av).localeCompare(String(bv), "ja") * dir;
     });
-  }, [rows, q, courseFilter, sort, instructors]);
-  useEffect(() => { setPage(1); }, [q, courseFilter, sort.key, sort.dir, rows.length]);
+  }, [rows, q, courseFilter, sort, instructors, showArchivedCourses]);
+  useEffect(() => { setPage(1); }, [q, courseFilter, sort.key, sort.dir, rows.length, showArchivedCourses]);
   const visiblePage = pageSlice(visibleRows, page, pageSize);
   function changeSort(key) {
     setSort(s => s.key === key ? { key, dir: s.dir === "asc" ? "desc" : "asc" } : { key, dir: "asc" });
@@ -675,6 +680,7 @@ function AdminCourses({ go }) {
         instructorIds: Array.isArray(item.instructorIds) ? item.instructorIds : [],
         subInstructorIds: Array.isArray(item.subInstructorIds) ? item.subInstructorIds : [],
         mode: item.mode || "", venueName: item.venueName || "", venueAddress: item.venueAddress || "", onlineUrl: item.onlineUrl || "",
+        status: item.status === "archived" ? "archived" : "active",
         materialIds: Array.isArray(item.materialIds) ? item.materialIds : [],
         materialDownloadEnabled: item.materialDownloadEnabled === true,
       };
@@ -714,6 +720,7 @@ function AdminCourses({ go }) {
         standardClockIn: edit.standardClockIn, standardClockOut: edit.standardClockOut,
         lunchBreakStart: edit.lunchBreakStart, lunchBreakEnd: edit.lunchBreakEnd,
         mode: edit.mode, venueName: edit.venueName.trim(), venueAddress: edit.venueAddress.trim(), onlineUrl: edit.onlineUrl.trim(),
+        status: edit.status || "active",
       });
       setMsg(`${edit.name.trim()} を保存しました。`);
       await load();
@@ -870,7 +877,16 @@ function AdminCourses({ go }) {
               {!instructors.length && <div className="text-sm" style={{ color: T.textMuted }}>講師ユーザーがまだ登録されていません。</div>}
             </div>
           </div>
-          <div className="mt-4 flex flex-wrap justify-end gap-2"><Btn kind="ghost" icon={Trash2} onClick={() => setDeleteOpen(true)} disabled={busy}>削除</Btn><Btn icon={Check} onClick={save}>{busy ? "保存中…" : "保存する"}</Btn></div>
+          <div className="mt-4 flex flex-wrap justify-end gap-2"><Btn kind="ghost" onClick={async () => {
+            const next = edit.status === "archived" ? "active" : "archived";
+            if (!window.confirm(next === "archived" ? "このコースを「終了」にします。コース一覧の既定表示から外れます（データは残ります）。" : "このコースを「稼働中」に戻します。")) return;
+            try {
+              await apiPut(`/courses/${selected.courseId}`, { name: edit.name.trim(), type: edit.type, memo: edit.memo.trim(), status: next });
+              setEdit(e => ({ ...e, status: next }));
+              setMsg(next === "archived" ? "コースを終了にしました。" : "コースを稼働中に戻しました。");
+              await load();
+            } catch (e) { setErr("状態の変更に失敗しました：" + (e?.errorMessage || e?.message || e)); }
+          }} disabled={busy}>{edit.status === "archived" ? "稼働中に戻す" : "コースを終了にする"}</Btn><Btn kind="ghost" icon={Trash2} onClick={() => setDeleteOpen(true)} disabled={busy}>削除</Btn><Btn icon={Check} onClick={save}>{busy ? "保存中…" : "保存する"}</Btn></div>
         </Card>
 
         <Card className="p-5">

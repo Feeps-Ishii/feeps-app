@@ -656,7 +656,7 @@ function SideNav({ groups, view, karte, go, badges = {}, collapsed = false, pa =
             : <div className="relative z-[1] mb-1.5 px-3 text-[11px] font-bold uppercase" style={{ color: T.textMuted, letterSpacing: "0.08em" }}>{g.sec}</div>)}
           {g.items.map(([k, lab, I]) => { const active = view === k && !karte; const b = badges[k];
             return (
-              <button key={k} onClick={() => go(k)} title={collapsed ? lab : undefined} data-nav-active={active ? "true" : undefined} aria-current={active ? "page" : undefined}
+              <button key={k} onClick={() => go(k)} title={collapsed ? (b ? `${lab}（未対応の通知 ${b}件）` : lab) : (b ? `未対応の通知 ${b}件` : undefined)} data-nav-active={active ? "true" : undefined} aria-current={active ? "page" : undefined}
                 className={"relative z-[1] mb-1 flex min-h-[44px] w-full items-center rounded-xl transition-colors " + (collapsed ? "justify-center px-0" : "gap-3 px-3") + (active ? "" : " hover:bg-black/[.04]")}
                 style={{ color: active ? T.textPrimary : T.textSecondary, fontWeight: active ? 600 : 500 }}>
                 <span className="relative inline-flex shrink-0">
@@ -664,7 +664,7 @@ function SideNav({ groups, view, karte, go, badges = {}, collapsed = false, pa =
                   {collapsed && b ? <span className="absolute -right-1 -top-1 h-1.5 w-1.5 rounded-full" style={{ background: T.accent }} /> : null}
                 </span>
                 {!collapsed && <span className="flex-1 truncate text-left text-sm">{lab}</span>}
-                {!collapsed && b ? <span className="flex h-5 items-center justify-center rounded-full px-1.5 text-xs font-bold text-white" style={{ background: T.accent, minWidth: 20, fontVariantNumeric: "tabular-nums" }}>{b}</span> : null}
+                {!collapsed && b ? <span title={`未対応の通知 ${b}件`} aria-label={`未対応の通知 ${b}件`} className="flex h-5 items-center justify-center rounded-full px-1.5 text-xs font-bold text-white" style={{ background: T.accent, minWidth: 20, fontVariantNumeric: "tabular-nums" }}>{b}</span> : null}
               </button>
             );
           })}

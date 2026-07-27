@@ -1436,7 +1436,7 @@ function Materials({ role }) {
             </select>
           </div>
           {loading ? <Card><SkeletonRows /></Card>
-            : items.length === 0 ? <Card><EmptyState title="資料がありません" desc={canEdit ? "「ファイルを追加」からアップロードできます" : "講師が資料を準備中です"} /></Card>
+            : items.length === 0 ? <Card><EmptyState title="資料がありません" desc={canEdit ? "「ファイルを追加」からアップロードできます" : "このコースに公開されている資料はありません"} /></Card>
             : <Card>{renderMaterialList() || items.map((m, i) => (
                 <div key={m.materialId} className="flex items-center justify-between px-4 py-3" style={{ borderBottom: i < items.length - 1 ? `1px solid ${T.border}` : "none" }}>
                   <div className="flex min-w-0 items-center gap-3">
