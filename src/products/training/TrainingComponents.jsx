@@ -5863,10 +5863,19 @@ function ReadOnlyCompanies({ role }) {
         {loading ? <SkeletonRows rows={4} />
           : rows.length === 0 ? <EmptyState title="企業がありません" desc="表示できる企業情報がありません" />
             : <div className="divide-y" style={{ borderColor: T.border }}>{rows.map(c => (
-              <div key={c.companyId} className="flex items-center gap-3 px-4 py-3">
-                <div className="flex h-9 w-9 items-center justify-center rounded-xl" style={{ background: T.accentSubtle, color: T.accent }}><Building2 size={17} /></div>
-                <div className="min-w-0 flex-1"><div className="truncate text-sm font-bold" style={{ color: T.textPrimary }}>{c.name || c.companyId}</div><div className="truncate text-xs" style={{ color: T.textMuted }}>{c.memo || c.note || c.companyId}</div></div>
-                <Badge tone="muted">R</Badge>
+              <div key={c.companyId} className="flex items-start gap-3 px-4 py-3">
+                <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl" style={{ background: T.accentSubtle, color: T.accentHover }}><Building2 size={17} /></div>
+                <div className="min-w-0 flex-1">
+                  <div className="truncate text-sm font-bold" style={{ color: T.textPrimary }}>{c.name || "（企業名未登録）"}</div>
+                  <div className="mt-1 grid gap-x-4 gap-y-0.5 text-xs sm:grid-cols-2" style={{ color: T.textMuted }}>
+                    {c.address && <div className="truncate">住所: {c.address}</div>}
+                    {c.tel && <div className="truncate">電話: {c.tel}</div>}
+                    {c.contactPersonName && <div className="truncate">担当者: {c.contactPersonName}</div>}
+                    {(c.memo || c.note) && <div className="truncate">メモ: {c.memo || c.note}</div>}
+                  </div>
+                  {!c.address && !c.tel && !c.contactPersonName && !(c.memo || c.note) && <div className="mt-1 text-xs" style={{ color: T.textMuted }}>詳細情報は未登録です。</div>}
+                </div>
+                <Badge tone="muted">閲覧のみ</Badge>
               </div>
             ))}</div>}
       </Card>
@@ -5938,7 +5947,7 @@ function ReadOnlyCourses({ role, go }) {
           </Card>
           {role !== "trainee" && <>
             {detailLoading ? <Card><SkeletonRows rows={4} /></Card> : <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4"><Stat icon={Users} label="所属受講生" value={`${trainees.length}名`} /><Stat icon={NotebookPen} label="本日の日報未保存" value={`${missingReports}名`} tone={missingReports ? "amber" : "green"} /><Stat icon={Clock} label="本日の勤怠未登録" value={`${missingAttendance}名`} tone={missingAttendance ? "amber" : "green"} /><Stat icon={Calendar} label="今月の研修日" value={`${workdays.trainingDaysCount || 0}日`} tone="cyan" /></div>}
-            <Card className="p-5"><div className="mb-3"><h3 className="font-bold" style={{ color: T.textPrimary }}>このコースで行うこと</h3><p className="text-xs" style={{ color: T.textMuted }}>コース選択を保ったまま、必要な管理画面へ移動します。</p></div><div className="flex flex-wrap gap-2"><Btn kind="soft" size="sm" icon={Calendar} onClick={() => go?.("curriculum")}>カリキュラム</Btn><Btn kind="ghost" size="sm" icon={NotebookPen} onClick={() => go?.("reports")}>日報</Btn><Btn kind="ghost" size="sm" icon={Clock} onClick={() => go?.("attendance")}>勤怠</Btn><Btn kind="ghost" size="sm" icon={ClipboardCheck} onClick={() => go?.("tests")}>テスト</Btn><Btn kind="ghost" size="sm" icon={FileText} onClick={() => go?.("materials")}>研修資料</Btn><Btn kind="ghost" size="sm" icon={Users} onClick={() => go?.("trainees")}>受講生</Btn></div></Card>
+            <Card className="p-5"><div className="mb-3"><h3 className="font-bold" style={{ color: T.textPrimary }}>このコースで行うこと</h3><p className="text-xs" style={{ color: T.textMuted }}>{role === "client" ? "コース選択を保ったまま、確認したい画面へ移動します。" : "コース選択を保ったまま、必要な管理画面へ移動します。"}</p></div><div className="flex flex-wrap gap-2"><Btn kind="soft" size="sm" icon={Calendar} onClick={() => go?.("curriculum")}>カリキュラム</Btn><Btn kind="ghost" size="sm" icon={NotebookPen} onClick={() => go?.("reports")}>日報</Btn><Btn kind="ghost" size="sm" icon={Clock} onClick={() => go?.("attendance")}>勤怠</Btn><Btn kind="ghost" size="sm" icon={ClipboardCheck} onClick={() => go?.("tests")}>テスト</Btn><Btn kind="ghost" size="sm" icon={FileText} onClick={() => go?.("materials")}>研修資料</Btn><Btn kind="ghost" size="sm" icon={Users} onClick={() => go?.("trainees")}>受講生</Btn></div></Card>
             <Card className="overflow-hidden"><div className="flex items-center justify-between gap-2 p-4" style={{ borderBottom: `1px solid ${T.border}` }}><div><h3 className="font-bold" style={{ color: T.textPrimary }}>所属受講生</h3><p className="text-xs" style={{ color: T.textMuted }}>選択コースに所属する受講生</p></div><Badge tone="cyan">{traineeIds.size}名</Badge></div>{detailLoading ? <SkeletonRows rows={3} /> : trainees.length === 0 ? <div className="px-4 py-8 text-center text-sm" style={{ color: T.textMuted }}>所属受講生はいません。</div> : <div className="grid gap-2 p-4 md:grid-cols-2">{trainees.slice(0, 8).map(student => <div key={student.userId || student.id} className="flex items-center gap-2 rounded-xl p-3" style={{ background: T.bgBase }}><Avatar name={student.name || student.email} size={32} /><div className="min-w-0"><div className="truncate text-sm font-semibold" style={{ color: T.textPrimary }}>{student.name || "氏名未設定"}</div><div className="truncate text-xs" style={{ color: T.textMuted }}>{student.email || student.userId}</div></div></div>)}</div>}</Card>
           </>}
         </div>}
