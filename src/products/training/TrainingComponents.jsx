@@ -2345,12 +2345,11 @@ function TestBuilder({ back, focus, student, onSaved, initialTest = null, duplic
             <input type="number" min="1" max="20" value={questionCount} onChange={e => setQuestionCount(e.target.value)} className="w-full rounded-xl px-3 py-2.5 text-sm outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary }} />
             <div className="mt-1 text-[11px] leading-snug" style={{ color: T.textMuted }}>選択肢・コード記述式など内容量が多い問題では、指定数より少なく生成される場合があります。</div>
           </Field>
-          <div className="lg:col-span-2"><Field label="AIへの追加指示"><input value={aiInstruction} onChange={e => setAiInstruction(e.target.value)} placeholder="例: EC2とVPCを重点的に。実務でつまずきやすい観点を多めに。" className="w-full rounded-xl px-3 py-2.5 text-sm outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary }} /></Field></div>
         </div>
         <div className="mb-2 mt-4 text-xs font-bold" style={{ color: T.textPrimary }}>② どんな問題にするか</div>
         <div className="grid gap-3 lg:grid-cols-2">
           <Field label={"\u51fa\u984c\u30bf\u30a4\u30d7"}><select value={questionFormat} onChange={e => setQuestionFormat(e.target.value)} className="w-full rounded-xl px-3 py-2.5 text-sm outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary }}><option value="choice">{"\u9078\u629e\u5f0f"}</option><option value="descriptive">{"\u8a18\u8ff0\u5f0f"}</option><option value="code">{"\u30b3\u30fc\u30c9\u8a18\u8ff0\u5f0f"}</option><option value="mixed">{"\u6df7\u5728"}</option></select></Field>
-          <Field label={"\u8a18\u8ff0\u5f0f\u306e\u50be\u5411"}><select value={answerMode} onChange={e => setAnswerMode(e.target.value)} className="w-full rounded-xl px-3 py-2.5 text-sm outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary }}><option value="explanation">{"\u6587\u7ae0\u56de\u7b54\u4e2d\u5fc3"}</option><option value="exact">{"\u6c7a\u5b9a\u56de\u7b54\u4e2d\u5fc3"}</option><option value="codeExact">{"\u30b3\u30fc\u30c9\u56de\u7b54\u4e2d\u5fc3"}</option><option value="mixed">{"\u6df7\u5728"}</option></select></Field>
+          {questionFormat !== "選択式" && <Field label={"\u8a18\u8ff0\u5f0f\u306e\u50be\u5411"}><select value={answerMode} onChange={e => setAnswerMode(e.target.value)} className="w-full rounded-xl px-3 py-2.5 text-sm outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary }}><option value="explanation">{"\u6587\u7ae0\u56de\u7b54\u4e2d\u5fc3"}</option><option value="exact">{"\u6c7a\u5b9a\u56de\u7b54\u4e2d\u5fc3"}</option><option value="codeExact">{"\u30b3\u30fc\u30c9\u56de\u7b54\u4e2d\u5fc3"}</option><option value="mixed">{"\u6df7\u5728"}</option></select></Field>}
         </div>
         <div className="mt-3 rounded-xl bg-white px-3 py-2 text-xs leading-relaxed" style={{ color: T.textSecondary, border: `1px solid ${T.border}` }}>
           <div className="font-bold" style={{ color: T.textPrimary }}>{answerModeLabel(answerMode)}{"\u306e\u4f8b"}</div>
@@ -2359,6 +2358,7 @@ function TestBuilder({ back, focus, student, onSaved, initialTest = null, duplic
         </div>
         <div className="mt-4 rounded-xl bg-white p-3" style={{ border: `1px solid ${T.border}` }}>
           <div className="mb-2 text-xs font-bold" style={{ color: T.textPrimary }}>③ 出題してほしい内容（任意）</div>
+          <div className="mb-3"><Field label="AIへの追加指示"><input value={aiInstruction} onChange={e => setAiInstruction(e.target.value)} placeholder="例: EC2とVPCを重点的に。実務でつまずきやすい観点を多めに。" className="w-full rounded-xl px-3 py-2.5 text-sm outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary }} /></Field></div>
           <label className="text-xs font-semibold" style={{ color: T.textMuted }}>出題内容・範囲<span className="ml-1 font-normal">（テストの説明としても保存されます）</span></label>
           <textarea value={scope} onChange={e => setScope(e.target.value)} rows={2} placeholder="例）RAG・Bedrock・Lambda を中心に。特にハルシネーション対策を重点的に出題したい。"
             className="mt-1 w-full resize-none rounded-xl px-3 py-2.5 text-sm outline-none focus:border-cyan-400" style={{ border: `1px solid ${T.border}`, color: T.textPrimary }} />
