@@ -4488,8 +4488,14 @@ function Reports({ role, userProfile }) {
   const latestTrainingDateForTrainee = useMemo(() => {
     const today = todayStr();
     const past = reportTrainingDates.filter(d => d <= today).sort();
-    return past.length ? past[past.length - 1] : (reportTrainingDates.slice().sort()[0] || "");
-  }, [reportTrainingDates]);
+    if (past.length) return past[past.length - 1];
+    if (reportTrainingDates.length) return reportTrainingDates.slice().sort()[0];
+    // 表示中の月に研修日が無い場合（研修終了後など）は、コースの研修期間の最終日へ移動させる。
+    // その月のカレンダーが読み込まれ、研修日を選び直せる状態になる。
+    const course = reportCourses.find(c => c.courseId === reportCourseId);
+    const end = course?.endDate || "";
+    return end && end !== editingReportDate ? end : "";
+  }, [reportTrainingDates, reportCourses, reportCourseId, editingReportDate]);
   const reportConflictDateSet = useMemo(() => new Set(reportConflictDates), [reportConflictDates]);
   // 2026-07-22 バグ修正(2): コース「すべて」選択時（opsFilter.courseId未指定）は、単一コースの
   // workdays取得しか行っておらず研修日を判定できないため、一覧が常に0件になっていた。
@@ -4956,7 +4962,7 @@ function Reports({ role, userProfile }) {
       ) : (<>
       {canWrite && <div ref={reportFormRef} style={{ scrollMarginTop: 72 }}><Card className="mb-4 p-5 transition-shadow" style={reportFormPulse ? { boxShadow: `0 0 0 3px ${T.accent}33, 0 18px 40px rgba(0,0,0,.08)` } : undefined}>
         <div className="mb-3 flex flex-wrap items-center justify-between gap-3"><div><h3 className="font-bold" style={{ color: T.textPrimary }}>朝: 目標</h3><p className="text-xs" style={{ color: T.textMuted }}>研修日を選んで、朝だけでも途中でも保存できます。</p>
-          {latestTrainingDateForTrainee && latestTrainingDateForTrainee !== editingReportDate && <button type="button" onClick={() => setEditingReportDate(latestTrainingDateForTrainee)} className="mt-1 text-xs font-semibold" style={{ color: T.accentHover }}>直近の研修日（{latestTrainingDateForTrainee.replace(/-/g, "/")}）を開く</button>}
+          {latestTrainingDateForTrainee && latestTrainingDateForTrainee !== editingReportDate && <button type="button" onClick={() => setEditingReportDate(latestTrainingDateForTrainee)} className="mt-1 text-xs font-semibold" style={{ color: T.accentHover }}>{reportTrainingDates.length ? "直近の研修日" : "研修期間の最終日"}（{latestTrainingDateForTrainee.replace(/-/g, "/")}）を開く</button>}
           </div><div className="flex items-center gap-2"><input type="date" value={editingReportDate} disabled={saving} onChange={e => editReport({ date: e.target.value, report: reportsByDate[e.target.value] })} className="rounded-xl px-3 py-2 text-sm outline-none disabled:opacity-60" style={{ border: `1px solid ${T.border}`, color: T.textPrimary, background: "#fff" }} /><Btn kind="soft" size="sm" icon={Plus} disabled={saving || reportWorkdaysLoading || !reportTrainingDateSet.has(editingReportDate)} onClick={addGoalItem}>目標を追加</Btn></div></div>
         {!reportWorkdaysLoading && reportConflictDateSet.has(editingReportDate) && <div className="mb-4 rounded-xl px-3 py-2 text-xs font-semibold" style={{ background: T.dangerSubtle, color: T.danger }}>同じ日に複数の研修が重複しています。日程の修正後に保存してください。</div>}
         {!reportWorkdaysLoading && !reportConflictDateSet.has(editingReportDate) && !reportTrainingDateSet.has(editingReportDate) && <div className="mb-4 rounded-xl px-3 py-2 text-xs font-semibold" style={{ background: reportWorkdaysState === "setup_required" ? T.warningSubtle : T.bgBase, color: reportWorkdaysState === "setup_required" ? T.warning : T.textMuted }}>{reportWorkdaysState === "setup_required" ? "研修日程が未設定です。未提出とは判定せず、入力を停止しています。" : "選択日は研修カレンダーの非研修日です。下のカレンダーから研修日を選択してください。"}</div>}
