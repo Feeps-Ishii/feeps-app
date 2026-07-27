@@ -3037,7 +3037,9 @@ function TraineeAttendance() {
 }
 function AttendanceManage({ role, userProfile }) {
   const nameMap = useNameMap();
-  const [date, setDate] = useState(todayStr());
+  // 受講生詳細からの遷移で対象日を引き継ぐ
+  const [navAttendanceTarget] = useState(() => role === "trainee" ? null : getTrainingTargetContext("attendance", { consume: true }));
+  const [date, setDate] = useState(() => navAttendanceTarget?.date || todayStr());
   const [rows, setRows] = useState([]);
   const [eId, setEId] = useState(null);
   const [draft, setDraft] = useState({});
@@ -3054,6 +3056,8 @@ function AttendanceManage({ role, userProfile }) {
   const [attendanceSort, setAttendanceSort] = useState("name");
   const [bulkBusy, setBulkBusy] = useState(false);
   const [selectedRowIds, setSelectedRowIds] = useState([]);
+  const [showDeleted, setShowDeleted] = useState(false);
+  const [attendanceDetail, setAttendanceDetail] = useState(null);
   const [dayContext, setDayContext] = useState(null);
   const [scheduleState, setScheduleState] = useState("loading");
   const [monthlyTrainingDates, setMonthlyTrainingDates] = useState([]);
@@ -3109,6 +3113,17 @@ function AttendanceManage({ role, userProfile }) {
     if (failures.length) setBulkTarget(t => ({ ...t, err: `${failures.length}件の保存に失敗しました。`, failures }));
     else setBulkTarget(null);
   }
+  async function restoreAttendance(row) {
+    if (!row || deleteBusy) return;
+    setDeleteBusy(true); setErr("");
+    try {
+      await apiPut(`/attendance/${row.traineeId}/${row.date}/restore`, {});
+      emitNotificationRefresh();
+      load();
+    } catch (e) {
+      setErr("元に戻せませんでした：" + (e?.errorMessage || e?.message || e));
+    } finally { setDeleteBusy(false); }
+  }
   async function confirmDeleteAttendance() {
     if (!deletingRow || deleteBusy) return;
     setDeleteBusy(true);
@@ -3126,15 +3141,16 @@ function AttendanceManage({ role, userProfile }) {
   }
   function load() {
     setErr("");
-    apiGet("/attendance?date=" + date)
+    apiGet("/attendance?date=" + date + (showDeleted ? "&includeDeleted=1" : ""))
       .then(items => setRows((items || []).map(r => ({
         traineeId: r.traineeId, date: r.date,
         name: "受講生 " + String(r.traineeId).slice(0, 6),
         in: r.clockIn || "", out: r.clockOut || "", s: r.status || "出勤", note: r.reason || r.note || "", courseId: r.courseId || "",
+        deleted: r.deleted === true,
       }))))
       .catch(e => setErr("勤怠の読み込みに失敗しました: " + (e?.errorMessage || e?.message || e)));
   }
-  useEffect(() => { load(); }, [date]);
+  useEffect(() => { load(); }, [date, showDeleted]);
   useEffect(() => {
     let alive = true;
     const courseId = opsFilter.courseId;
@@ -3327,6 +3343,9 @@ function AttendanceManage({ role, userProfile }) {
               表示中{filteredRows.length}名をすべて選択
             </label>
             <span className="text-xs" style={{ color: T.textMuted }}>{selectedRowIds.length}名選択中</span>
+            <label className="ml-auto flex items-center gap-1.5 text-xs" style={{ color: T.textMuted }}>
+              <input type="checkbox" checked={showDeleted} onChange={e => setShowDeleted(e.target.checked)} />削除済みも表示
+            </label>
             {selectedRowIds.length > 0 && <>
               <span className="mx-1 text-xs" style={{ color: T.textMuted }}>|</span>
               {["正常", "遅刻", "早退", "欠席"].map(s => (
@@ -3419,8 +3438,8 @@ function AttendanceManage({ role, userProfile }) {
                   </div>
                   {a.note && <div className="mt-3 text-xs" style={{ color: T.textMuted }}>備考: {a.note}</div>}
                   {(canEdit || canDeleteRow(a)) && <div className="mt-3 flex justify-end gap-2">
-                    {canEdit && <Btn kind="ghost" size="sm" icon={Pencil} onClick={() => startEdit(a)}>修正</Btn>}
-                    {canDeleteRow(a) && <Btn kind="ghost" size="sm" icon={Trash2} onClick={() => setDeletingRow(a)}>削除</Btn>}
+                    <Btn kind="ghost" size="sm" onClick={() => setAttendanceDetail(a)}>詳細</Btn>{a.deleted ? <Btn kind="ghost" size="sm" icon={RefreshCw} disabled={deleteBusy} onClick={() => restoreAttendance(a)}>元に戻す</Btn> : canEdit && <Btn kind="ghost" size="sm" icon={Pencil} onClick={() => startEdit(a)}>修正</Btn>}
+                    {!a.deleted && canDeleteRow(a) && <Btn kind="ghost" size="sm" icon={Trash2} onClick={() => setDeletingRow(a)}>削除</Btn>}
                   </div>}
                 </div>
               )}
@@ -3462,6 +3481,51 @@ function AttendanceManage({ role, userProfile }) {
         </div>
       </Card>
       </>)}
+      {attendanceDetail && (() => {
+        const idx = filteredRows.findIndex(x => x.traineeId === attendanceDetail.traineeId);
+        const row = idx >= 0 ? filteredRows[idx] : attendanceDetail;
+        const go = (step) => { const next = filteredRows[idx + step]; if (next) { setAttendanceDetail(next); setEId(null); } };
+        const editing = canEdit && eId === row.traineeId;
+        return (
+          <Modal title={`${nameMap[row.traineeId] || row.name}さんの勤怠`} desc={`${date}${filteredRows.length ? ` ・ ${idx + 1} / ${filteredRows.length}人` : ""}`}
+            onClose={() => { setAttendanceDetail(null); setEId(null); }}
+            footer={<>
+              <Btn kind="ghost" icon={ChevronLeft} disabled={idx <= 0} onClick={() => go(-1)}>前の受講生</Btn>
+              {editing
+                ? <><Btn kind="ghost" onClick={() => setEId(null)}>キャンセル</Btn><Btn icon={Check} onClick={async () => { await save(); setEId(null); }}>保存</Btn></>
+                : canEdit && !row.deleted && <Btn icon={Pencil} onClick={() => startEdit(row)}>修正する</Btn>}
+              <Btn kind="ghost" icon={ChevronRight} disabled={idx < 0 || idx >= filteredRows.length - 1} onClick={() => go(1)}>次の受講生</Btn>
+            </>}>
+            {editing ? (
+              <div className="space-y-3">
+                <div className="grid grid-cols-2 gap-2">
+                  <label className="text-xs font-semibold" style={{ color: T.textSecondary }}>出勤
+                    <input value={draft.in} onChange={e => setDraft({ ...draft, in: e.target.value })} className="mt-1 w-full rounded-xl px-3 py-2 text-sm outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary }} /></label>
+                  <label className="text-xs font-semibold" style={{ color: T.textSecondary }}>退勤
+                    <input value={draft.out} onChange={e => setDraft({ ...draft, out: e.target.value })} className="mt-1 w-full rounded-xl px-3 py-2 text-sm outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary }} /></label>
+                </div>
+                <label className="text-xs font-semibold" style={{ color: T.textSecondary }}>状態
+                  <select value={draft.s} onChange={e => setDraft({ ...draft, s: e.target.value })} className="mt-1 w-full rounded-xl px-3 py-2 text-sm outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary, background: "#fff" }}>
+                    <option>正常</option><option>遅刻</option><option>早退</option><option>欠席</option><option>中抜け</option><option>修正済み</option><option>未完了</option>
+                  </select></label>
+                <label className="text-xs font-semibold" style={{ color: T.textSecondary }}>理由・備考
+                  <input value={draft.note} onChange={e => setDraft({ ...draft, note: e.target.value })} className="mt-1 w-full rounded-xl px-3 py-2 text-sm outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary }} /></label>
+              </div>
+            ) : (
+              <div className="space-y-2 text-sm" style={{ color: T.textPrimary }}>
+                {row.deleted && <div className="rounded-xl px-3 py-2 text-xs font-semibold" style={{ background: T.bgBase, color: T.textMuted }}>この勤怠は削除済みです。一覧の「元に戻す」で戻せます。</div>}
+                <div className="grid grid-cols-2 gap-2">
+                  <div className="rounded-xl p-3" style={{ background: T.bgBase }}><div className="text-xs" style={{ color: T.textMuted }}>出勤</div><div className="mt-1 font-semibold">{row.in || "—"}</div></div>
+                  <div className="rounded-xl p-3" style={{ background: T.bgBase }}><div className="text-xs" style={{ color: T.textMuted }}>退勤</div><div className="mt-1 font-semibold">{row.out || "—"}</div></div>
+                </div>
+                <div className="flex items-center gap-2"><span className="text-xs" style={{ color: T.textMuted }}>状態</span><Badge tone={attendanceStatusTone(row.s, row)}>{attendanceStatusLabel(row.s, row)}</Badge></div>
+                <div className="text-xs" style={{ color: T.textMuted }}>理由・備考: {row.note || "—"}</div>
+                {!row.deleted && canDeleteRow(row) && <div className="pt-2"><Btn kind="ghost" size="sm" icon={Trash2} onClick={() => { setDeletingRow(row); setAttendanceDetail(null); }}>削除</Btn></div>}
+              </div>
+            )}
+          </Modal>
+        );
+      })()}
       {deletingRow && (
         <Modal title="勤怠を削除しますか？" danger onClose={() => !deleteBusy && setDeletingRow(null)}
           footer={<><Btn kind="ghost" onClick={() => setDeletingRow(null)} disabled={deleteBusy}>キャンセル</Btn><Btn onClick={confirmDeleteAttendance} disabled={deleteBusy}>{deleteBusy ? "削除中..." : "削除"}</Btn></>}>
@@ -4094,8 +4158,10 @@ function Reports({ role, userProfile }) {
   const [deletingReport, setDeletingReport] = useState(null);
   const [deletingReportBusy, setDeletingReportBusy] = useState(false);
   const [initialReportTarget] = useState(() => role === "trainee" ? getTrainingTargetContext("reports", { consume: false }) : null);
+  // 受講生詳細からの遷移（管理者・講師）で、対象日をそのまま開く
+  const [navReportTarget] = useState(() => role === "trainee" ? null : getTrainingTargetContext("reports", { consume: true }));
   const [reports, setReports] = useState([]);
-  const [date, setDate] = useState(() => initialReportTarget?.date || todayStr());
+  const [date, setDate] = useState(() => initialReportTarget?.date || navReportTarget?.date || todayStr());
   const [draft, setDraft] = useState({ morningGoal: "", goalItems: [], learned: "", question: "", nextday: "", reflection: "", blockers: "", tomorrowGoal: "", customFields: {} });
   const [cText, setCText] = useState({});
   const [commenting, setCommenting] = useState(null);
@@ -4109,6 +4175,7 @@ function Reports({ role, userProfile }) {
   const [month, setMonth] = useState(monthStr());
   const [monthlyReports, setMonthlyReports] = useState([]);
   const [reportBulk, setReportBulk] = useState(null);
+  const [showDeletedReports, setShowDeletedReports] = useState(false);
   const [reportBulkBusy, setReportBulkBusy] = useState(false);
   const [monthlyLoading, setMonthlyLoading] = useState(false);
   const [monthlyFilter, setMonthlyFilter] = useState("すべて");
@@ -4219,6 +4286,16 @@ function Reports({ role, userProfile }) {
     if (failures.length) setReportBulk(s => ({ ...s, err: `${failures.length}件の保存に失敗しました。`, failures }));
     else setReportBulk(null);
   }
+  async function restoreReport(report) {
+    if (!report || deletingReportBusy) return;
+    setDeletingReportBusy(true); setSaveErr("");
+    try {
+      await apiPut(`/reports/${report.traineeId}/${report.rawDate || report.date}/restore`, {});
+      setReportReloadKey(k => k + 1);
+    } catch (e) {
+      setSaveErr("元に戻せませんでした：" + (e?.errorMessage || e?.message || e));
+    } finally { setDeletingReportBusy(false); }
+  }
   async function confirmDeleteReport() {
     if (!deletingReport || deletingReportBusy) return;
     setDeletingReportBusy(true);
@@ -4292,14 +4369,14 @@ function Reports({ role, userProfile }) {
     } else if (canViewReports) {
       setReportDataState("ready");
       setSaveErr("");
-      apiGet("/reports?date=" + date)
+      apiGet("/reports?date=" + date + (showDeletedReports ? "&includeDeleted=1" : ""))
         .then(items => setReports((items || []).map(mapReportInstructor)))
         .catch(e => setSaveErr("日報の読み込みに失敗しました: " + (e?.errorMessage || e?.message || e)));
     } else {
       setReportDataState("ready");
       setReports([]);
     }
-  }, [role, date, canViewReports, reportReloadKey]);
+  }, [role, date, canViewReports, reportReloadKey, showDeletedReports]);
   const settingsCourseId = canWrite ? reportCourseId : (opsFilter.courseId || (role === "admin" ? opsFilter.courses[0]?.courseId : opsFilter.courses.find(c => instructorAssignedCourseIds.has(c.courseId))?.courseId) || "");
   useEffect(() => {
     const loadVersion = ++reportFieldsLoadVersionRef.current;
@@ -4665,6 +4742,9 @@ function Reports({ role, userProfile }) {
             const firstId = nextUncommentedId(null);
             if (firstId) setDetailReport(reports.find(report => report.id === firstId) || null);
           }}>未コメントから処理する</Btn>}
+        {role === "admin" && periodMode === "日次" && <label className="flex items-center gap-1.5 text-xs" style={{ color: T.textMuted }}>
+          <input type="checkbox" checked={showDeletedReports} onChange={e => setShowDeletedReports(e.target.checked)} />削除済みも表示
+        </label>}
           <Seg value={periodMode} onChange={setPeriodMode} options={["日次", "月次"]} /><span className="text-xs font-semibold" style={{ color: T.textMuted }}>{periodMode === "月次" ? "対象月" : "日報確認日"}</span>{periodMode === "月次" ? <MonthPicker value={month} onChange={setMonth} /> : <input type="date" value={date} onChange={e => setDate(e.target.value)} className="rounded-xl px-3 py-2 text-sm outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary, background: "#fff" }} />}</div> : null} />
       {saveErr && !canWrite && <div className="mb-4 rounded-lg px-3 py-2 text-xs" style={{ background: T.dangerSubtle, color: T.danger }}>{saveErr}</div>}
       {canWrite && reportWorkdaysState === "setup_required" && <div className="mb-4 rounded-xl px-4 py-3 text-sm font-semibold" style={{ background: T.warningSubtle, color: T.warning }}>所属コースの日程が未設定です。未提出には数えず、新規保存を停止しています。運営担当者へご確認ください。</div>}
@@ -4738,10 +4818,10 @@ function Reports({ role, userProfile }) {
                     <div className="col-span-3 flex min-w-0 items-center gap-2"><Avatar name={t.name || nameMap[rowId] || fallbackName(rowId)} size={28} /><div className="min-w-0"><div className="truncate font-semibold">{t.name || nameMap[rowId] || fallbackName(rowId)}</div><div className="truncate text-xs" style={{ color: T.textMuted }}>{t.email || ""}</div></div></div>
                     <div className="col-span-2 truncate text-xs" style={{ color: T.textMuted }}>{companyNameById(t.company || r?.org || "") || "未設定"}</div>
                     <div className="col-span-2 truncate text-xs" style={{ color: T.textMuted }}>{courseNameOfTrainee(t)}</div>
-                    <div><Badge tone={r ? "green" : "amber"}>{r ? "保存済み" : "未提出"}</Badge></div>
+                    <div><Badge tone={r?.deleted ? "muted" : r ? "green" : "amber"}>{r?.deleted ? "削除済み" : r ? "保存済み" : "未提出"}</Badge></div>
                     <div><Badge tone={row.hasComment ? "cyan" : r ? "amber" : "muted"}>{row.hasComment ? "あり" : r ? "未コメント" : "-"}</Badge></div>
                     <div className="col-span-2 text-xs" style={{ color: T.textMuted }}>{r ? (reportUpdatedAt(r) ? fmtTs(reportUpdatedAt(r)) : "保存済み") : "-"}</div>
-                    <div>{r ? <button onClick={() => setDetailReport(r)} className="text-xs font-semibold" style={{ color: T.accentHover }}>詳細</button> : <span className="text-xs" style={{ color: T.textMuted }}>-</span>}</div>
+                    <div className="flex items-center gap-2">{r?.deleted ? <Btn kind="ghost" size="sm" icon={RefreshCw} disabled={deletingReportBusy} onClick={() => restoreReport(r)}>元に戻す</Btn> : r ? <button onClick={() => setDetailReport(r)} className="text-xs font-semibold" style={{ color: T.accentHover }}>詳細</button> : <span className="text-xs" style={{ color: T.textMuted }}>-</span>}</div>
                   </div>
                 );
               })}
@@ -5012,7 +5092,14 @@ function Reports({ role, userProfile }) {
 }
 
 /* ===== 受講生一覧 → カルテ ===== */
-function TraineeList({ role, openKarte }) {
+function TraineeList({ role, openKarte, go }) {
+  // 受講生詳細から、その受講生・その日の日報／勤怠へ直接移動する（日付とコースを選び直さなくて済む）。
+  function openTrainingView(view) {
+    if (!go) return;
+    const courseId = selected?.course || detail?.userCourses?.[0]?.courseId || "";
+    setTrainingTargetContext({ view, courseId, date });
+    go(view, { trainingTarget: { view, courseId, date } });
+  }
   const [data, setData] = useState([]);
   const [loading, setLoading] = useState(true);
   const [loadedCourseFilter, setLoadedCourseFilter] = useState(null);
@@ -5133,7 +5220,16 @@ function TraineeList({ role, openKarte }) {
             </div>}
         </Card>
         <Card className="p-5">
-          <div className="mb-3 flex items-center justify-between"><h3 className="font-bold" style={{ color: T.textPrimary }}>確認日の状況</h3><Badge tone="muted">{date}</Badge></div>
+          <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+            <h3 className="font-bold" style={{ color: T.textPrimary }}>確認日の状況</h3>
+            <div className="flex flex-wrap items-center gap-2">
+              <Badge tone="muted">{date}</Badge>
+              {go && <>
+                <Btn kind="ghost" size="sm" onClick={() => openTrainingView("reports")}>この日の日報を開く</Btn>
+                <Btn kind="ghost" size="sm" onClick={() => openTrainingView("attendance")}>この日の勤怠を開く</Btn>
+              </>}
+            </div>
+          </div>
           <div className="grid gap-3 sm:grid-cols-2">
             <div className="rounded-xl p-3" style={{ background: T.bgBase }}><div className="text-xs font-bold" style={{ color: T.textMuted }}>日報</div><div className="mt-1"><Badge tone={detail.reports.length ? "green" : "muted"}>{canDeep ? (detail.reports.length ? "保存済み" : "未保存") : "権限内で未取得"}</Badge></div></div>
             <div className="rounded-xl p-3" style={{ background: T.bgBase }}><div className="text-xs font-bold" style={{ color: T.textMuted }}>勤怠</div><div className="mt-1"><Badge tone={detail.attendance.length ? "green" : "muted"}>{canDeep ? (detail.attendance.length ? "登録済み" : "未登録") : "権限内で未取得"}</Badge></div></div>
