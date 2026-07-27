@@ -1445,7 +1445,8 @@ function Materials({ role }) {
 }
 
 /* ===== テスト ===== */
-function useOpsFilter(enabled = true, { resolveCompanyCourses = false } = {}) {
+// assignedCourseIds: 一般管理者の担当コース。渡された場合、担当が1件だけなら初期選択し、UIで「担当」を示す。
+function useOpsFilter(enabled = true, { resolveCompanyCourses = false, assignedCourseIds = null } = {}) {
   const [companies, setCompanies] = useState([]);
   const [courses, setCourses] = useState([]);
   const [trainees, setTrainees] = useState([]);
@@ -1456,6 +1457,7 @@ function useOpsFilter(enabled = true, { resolveCompanyCourses = false } = {}) {
   // 企業→コースの対応はコース:企業=1:1ではなくN:M（1コースに複数企業の受講生が在籍しうる）。
   // ENROLLMENTS経由の在籍受講生の所属企業を集めて解決する（Backendの getClientCourseIds と同じ考え方の逆引き）。
   const [courseCompanyMap, setCourseCompanyMap] = useState(null);
+  const assignedKey = Array.isArray(assignedCourseIds) ? assignedCourseIds.join("|") : "";
   useEffect(() => {
     if (!enabled) return;
     getCurrentUser().then(u => setCurrentUserId(u?.userId || u?.username || "")).catch(() => {});
@@ -1463,10 +1465,14 @@ function useOpsFilter(enabled = true, { resolveCompanyCourses = false } = {}) {
     apiGet("/courses").then(l => {
       const list = l || [];
       setCourses(list);
-      setCourseId(current => current && list.some(course => course.courseId === current) ? current : "");
+      setCourseId(current => {
+        if (current && list.some(course => course.courseId === current)) return current;
+        const assigned = assignedKey ? list.filter(course => assignedKey.split("|").includes(course.courseId)) : [];
+        return assigned.length === 1 ? assigned[0].courseId : "";
+      });
     }).catch(() => {});
     apiGet("/trainees").then(l => setTrainees(l || [])).catch(() => {});
-  }, [enabled]);
+  }, [enabled, assignedKey]);
   useEffect(() => {
     if (!enabled || !courseId) { setCourseTrainees([]); return; }
     apiGet(`/courses/${courseId}/trainees`).then(l => setCourseTrainees(l || [])).catch(() => setCourseTrainees([]));
@@ -1496,16 +1502,22 @@ function useOpsFilter(enabled = true, { resolveCompanyCourses = false } = {}) {
   const selectedCourse = useMemo(() => courses.find(c => c.courseId === courseId) || null, [courses, courseId]);
   const apply = (rows) => !courseId && !companyId ? rows : rows.filter(r => targetIds.has(r.traineeId));
   function chooseCourseId(id) { setCourseId(id); setActiveCourseId(id); }
-  return { companies, courses, trainees, currentUserId, selectedCourse, courseId, setCourseId: chooseCourseId, companyId, setCompanyId, companyCourseIds, targetTrainees, targetIds, apply };
+  const assignedSet = useMemo(() => new Set(assignedKey ? assignedKey.split("|") : []), [assignedKey]);
+  return { companies, courses, trainees, currentUserId, selectedCourse, courseId, setCourseId: chooseCourseId, companyId, setCompanyId, companyCourseIds, targetTrainees, targetIds, apply, assignedSet };
 }
 function OpsFilterPanel({ filter, summary, note = "コースと企業を両方選ぶとAND条件で絞り込みます。" }) {
+  const assignedSet = filter.assignedSet || new Set();
+  const assignedCourses = assignedSet.size ? filter.courses.filter(c => assignedSet.has(c.courseId)) : [];
+  const outOfScope = assignedSet.size > 0 && !!filter.courseId && !assignedSet.has(filter.courseId);
   return (
     <Card className="mb-5 p-4">
       <div className="flex flex-wrap items-end gap-3">
-        <Field label="コース"><select value={filter.courseId} onChange={e => filter.setCourseId(e.target.value)} className="w-full rounded-xl px-3 py-2 text-sm outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary, minWidth: 220 }}><option value="">すべて</option>{filter.courses.map(c => <option key={c.courseId} value={c.courseId}>{c.name}</option>)}</select></Field>
+        <Field label="コース"><select value={filter.courseId} onChange={e => filter.setCourseId(e.target.value)} className="w-full rounded-xl px-3 py-2 text-sm outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary, minWidth: 220 }}><option value="">すべて</option>{filter.courses.map(c => <option key={c.courseId} value={c.courseId}>{assignedSet.has(c.courseId) ? `${c.name}（担当）` : c.name}</option>)}</select></Field>
         <Field label="企業"><select value={filter.companyId} onChange={e => filter.setCompanyId(e.target.value)} className="w-full rounded-xl px-3 py-2 text-sm outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary, minWidth: 220 }}><option value="">すべて</option>{filter.companies.map(c => <option key={c.companyId} value={c.companyId}>{c.name}</option>)}</select></Field>
         <div className="flex-1 text-xs leading-relaxed" style={{ color: T.textMuted }}>{note}</div>
       </div>
+      {assignedCourses.length > 0 && <div className="mt-3 text-xs" style={{ color: T.textSecondary }}>担当コース: {assignedCourses.map(c => c.name).join(" / ")}</div>}
+      {outOfScope && <div className="mt-2 rounded-xl px-3 py-2 text-xs font-semibold" style={{ background: T.warningSubtle, color: T.warning }}>担当外のコースのため、閲覧のみで編集・削除はできません。</div>}
       {summary && <div className="mt-3 rounded-xl px-3 py-2 text-xs font-semibold" style={{ background: T.bgBase, color: T.textSecondary }}>{summary}</div>}
     </Card>
   );
@@ -2693,6 +2705,11 @@ function Attendance({ role, userProfile }) {
 // admin(role==="admin")が対象コースの日報・勤怠を編集・削除できるかどうか。
 // 正本の権限判定は必ずBackend側（canAdminManageReportsAttendance / training.mjs, admin.mjs）で行う。
 // ここではUXのためのボタン表示制御のみを行う。
+// 一般管理者(adminTier==="standard")のときだけ担当コースIDを返す。super・他ロールはnull（従来どおり全件表示）。
+function standardAdminAssignedCourseIds(role, userProfile) {
+  if (role !== "admin" || !userProfile || userProfile.adminTier !== "standard") return null;
+  return Array.isArray(userProfile.assignedCourseIds) ? userProfile.assignedCourseIds : null;
+}
 function adminCanManageReportsAttendance(userProfile, courseId) {
   if (!userProfile || userProfile.role !== "admin") return false;
   if (userProfile.adminTier !== "standard") return true; // super（未設定含む既存admin）は全コース可
@@ -3038,13 +3055,56 @@ function AttendanceManage({ role, userProfile }) {
   const [scheduleState, setScheduleState] = useState("loading");
   const [monthlyTrainingDates, setMonthlyTrainingDates] = useState([]);
   const [monthlyScheduleState, setMonthlyScheduleState] = useState("loading");
-  const opsFilter = useOpsFilter(true);
+  const [bulkTarget, setBulkTarget] = useState(null);
+  const [monthlyReloadKey, setMonthlyReloadKey] = useState(0);
+  const opsFilter = useOpsFilter(true, { assignedCourseIds: standardAdminAssignedCourseIds(role, userProfile) });
   const canEdit = role === "admin"
     ? adminCanManageReportsAttendance(userProfile, opsFilter.courseId)
     : (role === "instructor" && scheduleState === "ready" && Array.isArray(dayContext?.effectiveInstructorIds) && dayContext.effectiveInstructorIds.includes(opsFilter.currentUserId));
   // 削除は管理者のみ（対象行のcourseId基準。表示制御のみ・正本はBackend判定）。
   function canDeleteRow(row) {
     return role === "admin" && adminCanManageReportsAttendance(userProfile, row.courseId || opsFilter.courseId);
+  }
+  // 月次の一括編集: 受講生1名 × その月の研修日をまとめて修正する。保存は変更行だけを既存の PUT /attendance/{id} へ逐次送る。
+  const bulkEditable = role === "admin" && !!opsFilter.courseId && monthlyScheduleState === "ready"
+    && adminCanManageReportsAttendance(userProfile, opsFilter.courseId);
+  function openBulkEdit(row) {
+    const byDate = {};
+    monthlyRows.filter(r => r.traineeId === row.traineeId && (!r.courseId || r.courseId === opsFilter.courseId)).forEach(r => { byDate[r.date] = r; });
+    setBulkTarget({
+      traineeId: row.traineeId,
+      name: row.name,
+      err: "",
+      failures: [],
+      rows: monthlyTrainingDates.map(d => {
+        const cur = byDate[d];
+        const value = { in: cur?.clockIn || "", out: cur?.clockOut || "", s: cur?.status || "", note: cur?.reason || cur?.note || "" };
+        return { date: d, existed: !!cur, ...value, orig: value };
+      }),
+    });
+  }
+  const bulkChanged = bulkTarget ? bulkTarget.rows.filter(r => r.in !== r.orig.in || r.out !== r.orig.out || r.s !== r.orig.s || r.note !== r.orig.note) : [];
+  async function saveBulkEdit() {
+    if (!bulkTarget || bulkBusy || !bulkChanged.length) return;
+    const invalid = bulkChanged.find(r => ["遅刻", "早退", "欠席", "欠勤", "中抜け"].some(v => String(r.s || "").includes(v)) && !String(r.note || "").trim());
+    if (invalid) { setBulkTarget(t => ({ ...t, err: `${invalid.date} は理由の入力が必要です。` })); return; }
+    const blank = bulkChanged.find(r => !String(r.s || "").trim());
+    if (blank) { setBulkTarget(t => ({ ...t, err: `${blank.date} の状態を選択してください。` })); return; }
+    setBulkBusy(true);
+    setBulkTarget(t => ({ ...t, err: "", failures: [] }));
+    const failures = [];
+    for (const r of bulkChanged) {
+      try {
+        await apiPut("/attendance/" + bulkTarget.traineeId, { date: r.date, courseId: opsFilter.courseId, clockIn: r.in, clockOut: r.out, status: r.s, reason: r.note, note: r.note });
+      } catch (e) {
+        failures.push({ date: r.date, message: e?.errorMessage || e?.message || String(e) });
+      }
+    }
+    setBulkBusy(false);
+    emitNotificationRefresh();
+    setMonthlyReloadKey(k => k + 1);
+    if (failures.length) setBulkTarget(t => ({ ...t, err: `${failures.length}件の保存に失敗しました。`, failures }));
+    else setBulkTarget(null);
   }
   async function confirmDeleteAttendance() {
     if (!deletingRow || deleteBusy) return;
@@ -3106,7 +3166,7 @@ function AttendanceManage({ role, userProfile }) {
       .catch(e => alive && setErr("月次勤怠の読み込みに失敗しました: " + (e?.errorMessage || e?.message || e)))
       .finally(() => alive && setMonthlyLoading(false));
     return () => { alive = false; };
-  }, [periodMode, month]);
+  }, [periodMode, month, monthlyReloadKey]);
   function startEdit(row) { if (!canEdit) return; setEId(row.traineeId); setDraft({ ...row, s: row.s || "正常" }); }
   async function save() {
     if (!canEdit || dayContext?.isTrainingDay !== true) { setErr("この日の担当講師ではないか、研修日ではないため保存できません。"); return; }
@@ -3247,19 +3307,20 @@ function AttendanceManage({ role, userProfile }) {
       {periodMode === "月次" ? (
         <Card className="overflow-hidden">
           <div className="flex flex-wrap items-center justify-between gap-3 p-4" style={{ borderBottom: `1px solid ${T.border}` }}>
-            <div><h3 className="font-bold" style={{ color: T.textPrimary }}>月次勤怠集計</h3><p className="text-xs" style={{ color: T.textMuted }}>選択コースの研修日 {monthlyScheduleState === "ready" ? `${monthlyTrainingDates.length}日` : "—"} を基準に集計します。</p></div>
+            <div><h3 className="font-bold" style={{ color: T.textPrimary }}>月次勤怠集計</h3><p className="text-xs" style={{ color: T.textMuted }}>選択コースの研修日 {monthlyScheduleState === "ready" ? `${monthlyTrainingDates.length}日` : "—"} を基準に集計します。{role === "admin" && !opsFilter.courseId ? "コースを選ぶと、受講生ごとに1か月分をまとめて編集できます。" : ""}</p></div>
             <Seg value={monthlyFilter} onChange={setMonthlyFilter} options={["すべて", "欠席ありのみ", "未登録ありのみ"]} />
           </div>
           {monthlyLoading ? <div className="p-4"><SkeletonRows rows={5} /></div> : (
             <div className="overflow-x-auto">
               <div className="feeps-zebra" style={{ minWidth: 680 }}>
-                <div className="grid grid-cols-6 gap-3 px-4 py-2.5 text-xs font-semibold" style={{ background: T.bgBase, color: T.textMuted }}>
-                  <div className="col-span-2">受講生</div><div>出席数</div><div>欠席数</div><div>遅刻数</div><div>未登録数</div>
+                <div className="grid grid-cols-7 gap-3 px-4 py-2.5 text-xs font-semibold" style={{ background: T.bgBase, color: T.textMuted }}>
+                  <div className="col-span-2">受講生</div><div>出席数</div><div>欠席数</div><div>遅刻数</div><div>未登録数</div><div>操作</div>
                 </div>
                 {monthlyAttendance.length === 0 ? <div className="px-4 py-8 text-center text-sm" style={{ color: T.textMuted }}>該当データがありません</div> : monthlyAttendance.map(r => (
-                  <div key={r.traineeId} className="grid grid-cols-6 gap-3 px-4 py-3 text-sm" style={{ borderTop: `1px solid ${T.border}`, color: T.textPrimary }}>
+                  <div key={r.traineeId} className="grid grid-cols-7 gap-3 px-4 py-3 text-sm" style={{ borderTop: `1px solid ${T.border}`, color: T.textPrimary }}>
                     <div className="col-span-2 flex items-center gap-2"><Avatar name={r.name} size={28} /><div className="min-w-0"><div className="truncate font-semibold">{r.name}</div><div className="truncate text-xs" style={{ color: T.textMuted }}>{r.company}</div></div></div>
                     <div><Badge tone="green">{r.present}日</Badge></div><div><Badge tone={r.absent ? "red" : "muted"}>{r.absent}日</Badge></div><div><Badge tone={r.late ? "amber" : "muted"}>{r.late}日</Badge></div><div><Badge tone={r.missing == null ? "muted" : r.missing ? "amber" : "green"}>{r.missing == null ? "—" : `${r.missing}日`}</Badge></div>
+                    <div>{bulkEditable && <Btn kind="ghost" size="sm" icon={Pencil} onClick={() => openBulkEdit(r)}>まとめて編集</Btn>}</div>
                   </div>
                 ))}
               </div>
@@ -3342,6 +3403,36 @@ function AttendanceManage({ role, userProfile }) {
           footer={<><Btn kind="ghost" onClick={() => setDeletingRow(null)} disabled={deleteBusy}>キャンセル</Btn><Btn onClick={confirmDeleteAttendance} disabled={deleteBusy}>{deleteBusy ? "削除中..." : "削除"}</Btn></>}>
           <p className="text-sm" style={{ color: T.textPrimary }}>{`${nameMap[deletingRow.traineeId] || deletingRow.name}さんの ${deletingRow.date} の勤怠記録を削除します。`}</p>
           <p className="mt-2 text-xs" style={{ color: T.textMuted }}>一覧からは除外されますが、監査目的で記録はシステム上に保持されます（論理削除）。</p>
+        </Modal>
+      )}
+      {bulkTarget && (
+        <Modal title={`${bulkTarget.name}さんの${month.replace("-", "年")}月の勤怠`} onClose={() => !bulkBusy && setBulkTarget(null)}
+          footer={<><Btn kind="ghost" onClick={() => setBulkTarget(null)} disabled={bulkBusy}>キャンセル</Btn><Btn icon={Check} onClick={saveBulkEdit} disabled={bulkBusy || !bulkChanged.length}>{bulkBusy ? "保存中..." : `変更した${bulkChanged.length}日を保存`}</Btn></>}>
+          <p className="mb-3 text-xs" style={{ color: T.textMuted }}>研修日 {bulkTarget.rows.length}日を表示しています。変更した日だけを保存します（未登録日は状態を選ぶと新規登録されます）。</p>
+          {bulkTarget.err && <div className="mb-3 rounded-xl px-3 py-2 text-sm font-semibold" style={{ background: T.dangerSubtle, color: T.danger }}>{bulkTarget.err}</div>}
+          {bulkTarget.failures.length > 0 && <div className="mb-3 rounded-xl px-3 py-2 text-xs" style={{ background: T.dangerSubtle, color: T.danger }}>{bulkTarget.failures.map(f => <div key={f.date}>{f.date}: {f.message}</div>)}</div>}
+          <div className="overflow-x-auto">
+            <div style={{ minWidth: 560 }}>
+              <div className="grid grid-cols-12 gap-2 px-2 py-2 text-xs font-semibold" style={{ background: T.bgBase, color: T.textMuted }}>
+                <div className="col-span-3">研修日</div><div className="col-span-2">出勤</div><div className="col-span-2">退勤</div><div className="col-span-2">状態</div><div className="col-span-3">理由・備考</div>
+              </div>
+              {bulkTarget.rows.map((r, i) => {
+                const changed = r.in !== r.orig.in || r.out !== r.orig.out || r.s !== r.orig.s || r.note !== r.orig.note;
+                const update = (patch) => setBulkTarget(t => ({ ...t, rows: t.rows.map((x, xi) => xi === i ? { ...x, ...patch } : x) }));
+                return (
+                  <div key={r.date} className="grid grid-cols-12 items-center gap-2 px-2 py-2 text-sm" style={{ borderTop: `1px solid ${T.border}`, background: changed ? T.accentSubtle : "transparent" }}>
+                    <div className="col-span-3 text-xs font-semibold" style={{ color: T.textPrimary }}>{r.date.slice(5).replace("-", "/")}{!r.existed && <span className="ml-1 text-[10px]" style={{ color: T.warning }}>未登録</span>}</div>
+                    <input className="col-span-2 rounded-lg px-2 py-1.5 text-sm outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary }} value={r.in} onChange={e => update({ in: e.target.value })} placeholder="09:00" />
+                    <input className="col-span-2 rounded-lg px-2 py-1.5 text-sm outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary }} value={r.out} onChange={e => update({ out: e.target.value })} placeholder="17:30" />
+                    <select className="col-span-2 rounded-lg px-2 py-1.5 text-sm outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary, background: "#fff" }} value={r.s} onChange={e => update({ s: e.target.value, note: e.target.value === "正常" ? "" : r.note })}>
+                      <option value="">—</option><option>正常</option><option>遅刻</option><option>早退</option><option>欠席</option><option>中抜け</option>
+                    </select>
+                    <input className="col-span-3 rounded-lg px-2 py-1.5 text-sm outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary }} value={r.note} onChange={e => update({ note: e.target.value })} placeholder={["遅刻", "早退", "欠席", "中抜け"].some(v => String(r.s || "").includes(v)) ? "理由（必須）" : "備考"} />
+                  </div>
+                );
+              })}
+            </div>
+          </div>
         </Modal>
       )}
     </div>
@@ -3984,7 +4075,7 @@ function Reports({ role, userProfile }) {
   const reportFirstInputRef = useRef(null);
   const canWrite = role === "trainee";
   const canViewReports = role === "admin" || role === "instructor" || role === "client";
-  const opsFilter = useOpsFilter(canViewReports);
+  const opsFilter = useOpsFilter(canViewReports, { assignedCourseIds: standardAdminAssignedCourseIds(role, userProfile) });
   const instructorAssignedCourseIds = useMemo(() => new Set(
     opsFilter.courses
       .filter(c => courseInstructorIds(c).includes(opsFilter.currentUserId))
