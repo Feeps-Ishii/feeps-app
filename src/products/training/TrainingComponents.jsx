@@ -1008,10 +1008,10 @@ function Curriculum({ role, go }) {
             : sections.length === 0 && !canEdit ? <Card><EmptyState title="まだ登録がありません" desc="講師がカリキュラムを準備中です" /></Card>
             : (
               <div className="space-y-4">
-                {!canEdit && <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl px-1">
+                {<div className="flex flex-wrap items-center justify-between gap-3 rounded-xl px-1">
                   <div>
-                    <div className="text-sm font-bold" style={{ color: T.textPrimary }}>大項目から全体を確認</div>
-                    <p className="mt-0.5 text-xs" style={{ color: T.textMuted }}>必要な大項目だけ開くと、学習の流れを見失わずに確認できます。</p>
+                    <div className="text-sm font-bold" style={{ color: T.textPrimary }}>{canEdit ? "大項目を選んで編集" : "大項目から全体を確認"}</div>
+                    <p className="mt-0.5 text-xs" style={{ color: T.textMuted }}>{canEdit ? "編集したい大項目だけ開きます。全部を開いたままにしないほうが探しやすく、動作も軽くなります。" : "必要な大項目だけ開くと、学習の流れを見失わずに確認できます。"}</p>
                   </div>
                   <div className="flex items-center gap-2">
                     <button type="button" onClick={() => setExpandedCurriculumSections(Object.fromEntries(sections.map((section, index) => [curriculumSectionKey(section, index), true])))} className="rounded-lg px-3 py-2 text-xs font-bold" style={{ color: T.accentHover, background: T.accentSubtle }}>すべて展開</button>
@@ -1027,6 +1027,16 @@ function Curriculum({ role, go }) {
                           <input value={section.description || ""} onChange={e => updateSection(si, "description", e.target.value)} placeholder="大項目の説明" className="rounded-xl px-3 py-2 text-sm outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary }} />
                           <button onClick={() => removeSection(si)} className="rounded-lg px-3 py-2 text-xs font-semibold" style={{ color: T.danger, border: `1px solid ${T.border}` }}>大項目削除</button>
                         </div>
+                        <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl px-3 py-2" style={{ background: T.bgBase }}>
+                          <span className="text-xs font-semibold" style={{ color: T.textMuted }}>
+                            中項目 {(section.chapters || []).length}件 ・ 小項目 {(section.chapters || []).reduce((n, c) => n + (c.lessons || []).length, 0)}件
+                          </span>
+                          <button type="button" onClick={() => setExpandedCurriculumSections(state => ({ ...state, [curriculumSectionKey(section, si)]: !state[curriculumSectionKey(section, si)] }))}
+                            className="rounded-lg px-3 py-1.5 text-xs font-bold" style={{ color: T.accentHover, border: `1px solid ${T.border}`, background: T.bgSurface }}>
+                            {expandedCurriculumSections[curriculumSectionKey(section, si)] ? "この大項目を閉じる" : "この大項目を編集する"}
+                          </button>
+                        </div>
+                        {!!expandedCurriculumSections[curriculumSectionKey(section, si)] && (<>
                         <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl p-3" style={{ background: T.accentSubtle }}><div><div className="text-sm font-bold" style={{ color: T.textPrimary }}>この大項目の構成</div><p className="text-xs" style={{ color: T.textMuted }}>大項目だけで完結する研修か、中・小項目へ分ける研修かを選べます。</p></div><select value={section.unitMode || "lessons"} onChange={e => updateSection(si, "unitMode", e.target.value)} className="rounded-xl bg-white px-3 py-2 text-sm font-semibold outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary }}><option value="lessons">中・小項目に分ける</option><option value="section">大項目を1つの単元にする</option></select></div>
                         {section.unitMode === "section" ? (
                           <div className="rounded-xl p-4" style={{ background: T.bgBase, border: `1px solid ${T.border}` }}>
@@ -1106,6 +1116,7 @@ function Curriculum({ role, go }) {
                         ))}
                         <button onClick={() => addChapter(si)} className="flex w-full items-center justify-center gap-2 rounded-xl py-2.5 text-sm font-semibold" style={{ border: `1.5px dashed ${T.border}`, color: T.accent }}><Plus size={15} />中項目を追加</button>
                         </>}
+                        </>)}
                       </div>
                     ) : (
                       <div>
@@ -1199,6 +1210,17 @@ function Materials({ role }) {
   const selectedCourse = useMemo(() => courses.find(c => c.courseId === courseId) || null, [courses, courseId]);
   const canEdit = role === "admin" || (role === "instructor" && Array.isArray(selectedCourse?.instructorIds) && selectedCourse.instructorIds.includes(currentUserId));
   const materialsById = useMemo(() => Object.fromEntries(items.map(m => [m.materialId, m])), [items]);
+  // 紐づけ先は大項目ごとにoptgroupで区切る（フラットな一覧だと大項目かLessonか分からない）
+  const materialTargetGroups = useMemo(() => arr(curriculumSections).map(section => ({
+    label: section.title || "名称未設定",
+    options: [
+      { value: `section:${section.id}`, label: `大項目全体: ${section.title || "名称未設定"}` },
+      ...arr(section.chapters).flatMap(chapter => arr(chapter.lessons).map(lesson => ({
+        value: `lesson:${lesson.id}`,
+        label: `${chapter.title || "章"} / ${lesson.title || "名称未設定"}`,
+      }))),
+    ],
+  })), [curriculumSections]);
   const materialTargetOptions = useMemo(() => arr(curriculumSections).flatMap(section => [
     { value: `section:${section.id}`, label: `紐づけ先 — 大項目: ${section.title || "名称未設定"}` },
     ...arr(section.chapters).flatMap(chapter => arr(chapter.lessons).map(lesson => ({ value: `lesson:${lesson.id}`, label: `紐づけ先 — Lesson補足: ${lesson.title || "名称未設定"}` }))),
@@ -1388,7 +1410,11 @@ function Materials({ role }) {
           <div className="flex flex-wrap items-center justify-end gap-2">
             <select value={uploadTarget} onChange={e => setUploadTarget(e.target.value)} title="資料を紐づけるカリキュラム" disabled={curriculumLoading} className="max-w-[260px] rounded-xl px-2 py-2 text-xs outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary, background: T.bgSurface }}>
               <option value="course">紐づけ先 — コース共通</option>
-              {materialTargetOptions.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}
+              {materialTargetGroups.map(group => (
+                <optgroup key={group.label} label={group.label}>
+                  {group.options.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}
+                </optgroup>
+              ))}
             </select>
             <select value={mode} onChange={e => setMode(e.target.value)} title="アップロード時の公開方法" className="rounded-xl px-2 py-2 text-xs outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary, background: T.bgSurface }}>
               <option value="view">閲覧可</option><option value="download">DLのみ</option>
@@ -3366,7 +3392,7 @@ function AttendanceManage({ role, userProfile }) {
       )}
       {periodMode === "日次" && scheduleState === "setup_required" && <div className="mb-4 rounded-xl px-4 py-3 text-sm font-semibold" style={{ background: T.warningSubtle, color: T.warning }}>コース日程が未設定です。未打刻者や欠席者には数えず、編集も停止しています。</div>}
       {periodMode === "日次" && scheduleState === "ready" && dayContext?.isTrainingDay === false && <div className="mb-4 rounded-xl px-4 py-3 text-sm" style={{ background: T.bgBase, color: T.textMuted }}>選択日は非研修日です。既存記録のみ表示し、未打刻者には数えません。</div>}
-      {periodMode === "日次" && role === "instructor" && scheduleState === "ready" && dayContext?.isTrainingDay === true && !canEdit && <div className="mb-4 rounded-xl px-4 py-3 text-sm" style={{ background: T.bgBase, color: T.textMuted }}>この日の担当講師ではないため、勤怠は閲覧のみです。</div>}
+      {periodMode === "日次" && role === "instructor" && scheduleState === "ready" && dayContext?.isTrainingDay === true && !canEdit && <div className="mb-4 rounded-xl px-4 py-3 text-sm" style={{ background: T.bgBase, color: T.textMuted }}>この日の担当講師ではないため、勤怠は閲覧のみです。受講生本人は研修期間中いつでも自分で修正できます。訂正が必要な場合は受講生へ依頼するか、管理者へご連絡ください。</div>}
       {periodMode === "月次" && monthlyScheduleState === "setup_required" && <div className="mb-4 rounded-xl px-4 py-3 text-sm font-semibold" style={{ background: T.warningSubtle, color: T.warning }}>コース日程が未設定のため、未登録日数は「—」で表示します。</div>}
       <OpsFilterPanel filter={opsFilter} summary={periodMode === "月次"
         ? `表示対象: ${opsFilter.targetTrainees.length}名 / 集計月: ${month}`
