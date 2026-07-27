@@ -2334,6 +2334,7 @@ function TestBuilder({ back, focus, student, onSaved, initialTest = null, duplic
           </div>
           <Badge tone="cyan">講師確認後に公開</Badge>
         </div>
+        <div className="mb-2 text-xs font-bold" style={{ color: T.textPrimary }}>① どこから出すか</div>
         <div className="grid gap-3 lg:grid-cols-3">
           <Field label="対象範囲"><select value={curriculumId} onChange={e => setCurriculumId(e.target.value)} disabled={!courseId || curriculumLoading} className="w-full rounded-xl px-3 py-2.5 text-sm outline-none disabled:opacity-60" style={{ border: `1px solid ${T.border}`, color: T.textPrimary }}><option value="">{!courseId ? "先に対象コースを選択" : curriculumLoading ? "取得中..." : "コース全体"}</option>{curriculumItems.map((item, i) => {
             const id = curriculumKey(item, i);
@@ -2346,7 +2347,8 @@ function TestBuilder({ back, focus, student, onSaved, initialTest = null, duplic
           </Field>
           <div className="lg:col-span-2"><Field label="AIへの追加指示"><input value={aiInstruction} onChange={e => setAiInstruction(e.target.value)} placeholder="例: EC2とVPCを重点的に。実務でつまずきやすい観点を多めに。" className="w-full rounded-xl px-3 py-2.5 text-sm outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary }} /></Field></div>
         </div>
-        <div className="mt-3 grid gap-3 lg:grid-cols-2">
+        <div className="mb-2 mt-4 text-xs font-bold" style={{ color: T.textPrimary }}>② どんな問題にするか</div>
+        <div className="grid gap-3 lg:grid-cols-2">
           <Field label={"\u51fa\u984c\u30bf\u30a4\u30d7"}><select value={questionFormat} onChange={e => setQuestionFormat(e.target.value)} className="w-full rounded-xl px-3 py-2.5 text-sm outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary }}><option value="choice">{"\u9078\u629e\u5f0f"}</option><option value="descriptive">{"\u8a18\u8ff0\u5f0f"}</option><option value="code">{"\u30b3\u30fc\u30c9\u8a18\u8ff0\u5f0f"}</option><option value="mixed">{"\u6df7\u5728"}</option></select></Field>
           <Field label={"\u8a18\u8ff0\u5f0f\u306e\u50be\u5411"}><select value={answerMode} onChange={e => setAnswerMode(e.target.value)} className="w-full rounded-xl px-3 py-2.5 text-sm outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary }}><option value="explanation">{"\u6587\u7ae0\u56de\u7b54\u4e2d\u5fc3"}</option><option value="exact">{"\u6c7a\u5b9a\u56de\u7b54\u4e2d\u5fc3"}</option><option value="codeExact">{"\u30b3\u30fc\u30c9\u56de\u7b54\u4e2d\u5fc3"}</option><option value="mixed">{"\u6df7\u5728"}</option></select></Field>
         </div>
@@ -2355,29 +2357,12 @@ function TestBuilder({ back, focus, student, onSaved, initialTest = null, duplic
           <div className="mt-1">{modeExamples[answerMode]}</div>
           <div className="mt-3 flex flex-wrap gap-2">{instructionSamples.map((s, i) => <button key={i} type="button" onClick={() => appendInstruction(s)} className="rounded-full px-3 py-1 text-xs font-semibold" style={{ background: i === 1 ? T.warningSubtle : T.bgBase, color: i === 1 ? T.warning : T.accentHover, border: `1px solid ${T.border}` }}>{i === 1 ? "\u69cb\u6587\u554f\u984c\u3092\u4e2d\u5fc3\u306b\u3057\u305f\u3044\uff08\u304a\u3059\u3059\u3081\uff09" : s}</button>)}</div>
         </div>
-        {selectedScope?.learningContext && <div className="mt-3 rounded-xl bg-white px-3 py-2 text-xs leading-relaxed" style={{ color: T.textMuted, border: `1px solid ${T.border}` }}>AIへ渡す学習内容: {selectedScope.label}</div>}
-        {curriculumErr && <div className="mt-3 rounded-xl px-3 py-2 text-xs font-semibold" style={{ background: "#fff", color: T.textMuted, border: `1px solid ${T.border}` }}>{curriculumErr}</div>}
-        <div className="mt-4 flex flex-wrap items-center gap-2">
-          <Btn kind="ai" size="sm" icon={Sparkles} onClick={gen} disabled={aiGenerating || aiGeneratingMore}>{aiGenerating ? "生成中..." : "問題候補を作成"}</Btn>
-          <Btn size="sm" kind="ghost" icon={Plus} onClick={addBlankQuestion}>空の設問を追加</Btn>
-          <span className="text-xs" style={{ color: T.textMuted }}>指定: {questionCount}問 / {questionFormat} / {level}</span>
-        </div>
-        {aiNotice && <div className="mt-3 rounded-xl px-3 py-2 text-xs font-semibold" style={{ background: "#fff", color: T.warning, border: `1px solid ${T.border}` }}>{aiNotice}</div>}
-        {aiShortfall > 0 && (
-          <div className="mt-3 flex flex-wrap items-center gap-2 rounded-xl px-3 py-2 text-xs font-semibold" style={{ background: T.warningSubtle, color: T.warning, border: `1px solid ${T.border}` }}>
-            <span>内容量の都合により、指定{aiRequestedCount}問中{aiGeneratedCount}問のみ生成されています。</span>
-            <Btn kind="ai" size="sm" icon={RefreshCw} onClick={genMore} disabled={aiGenerating || aiGeneratingMore}>{aiGeneratingMore ? "生成中..." : `残り${aiShortfall}問を生成`}</Btn>
-          </div>
-        )}
-      </Card>
+        <div className="mt-4 rounded-xl bg-white p-3" style={{ border: `1px solid ${T.border}` }}>
+          <div className="mb-2 text-xs font-bold" style={{ color: T.textPrimary }}>③ 出題してほしい内容（任意）</div>
+          <label className="text-xs font-semibold" style={{ color: T.textMuted }}>出題内容・範囲<span className="ml-1 font-normal">（テストの説明としても保存されます）</span></label>
+          <textarea value={scope} onChange={e => setScope(e.target.value)} rows={2} placeholder="例）RAG・Bedrock・Lambda を中心に。特にハルシネーション対策を重点的に出題したい。"
+            className="mt-1 w-full resize-none rounded-xl px-3 py-2.5 text-sm outline-none focus:border-cyan-400" style={{ border: `1px solid ${T.border}`, color: T.textPrimary }} />
 
-      <Card className="mb-4 p-5">
-        <label className="text-xs font-semibold" style={{ color: T.textMuted }}>出題内容・範囲</label>
-        <textarea value={scope} onChange={e => setScope(e.target.value)} rows={2} placeholder="例）RAG・Bedrock・Lambda を中心に。特にハルシネーション対策を重点的に出題したい。"
-          className="mt-1 w-full resize-none rounded-xl px-3 py-2.5 text-sm outline-none focus:border-cyan-400" style={{ border: `1px solid ${T.border}`, color: T.textPrimary }} />
-      </Card>
-
-      <Card className="mb-4 p-5">
         <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
           <label className="text-xs font-semibold" style={{ color: T.textMuted }}>重点トピック</label>
           <span className="text-xs" style={{ color: T.textMuted }}>苦手な分野を「多め」にすると問題数が増えます</span></div>
@@ -2396,7 +2381,24 @@ function TestBuilder({ back, focus, student, onSaved, initialTest = null, duplic
           <datalist id="topic-list">{allTopics.map(t => <option key={t} value={t} />)}</datalist>
           <Btn kind="ghost" size="sm" icon={Plus} onClick={() => addT(nt)}>追加</Btn>
         </div>
+        </div>
+        {selectedScope?.learningContext && <div className="mt-3 rounded-xl bg-white px-3 py-2 text-xs leading-relaxed" style={{ color: T.textMuted, border: `1px solid ${T.border}` }}>AIへ渡す学習内容: {selectedScope.label}</div>}
+        {curriculumErr && <div className="mt-3 rounded-xl px-3 py-2 text-xs font-semibold" style={{ background: "#fff", color: T.textMuted, border: `1px solid ${T.border}` }}>{curriculumErr}</div>}
+        <div className="mt-4 flex flex-wrap items-center gap-2">
+          <Btn kind="ai" size="sm" icon={Sparkles} onClick={gen} disabled={aiGenerating || aiGeneratingMore}>{aiGenerating ? "生成中..." : "問題候補を作成"}</Btn>
+          <Btn size="sm" kind="ghost" icon={Plus} onClick={addBlankQuestion}>空の設問を追加</Btn>
+          <span className="text-xs" style={{ color: T.textMuted }}>指定: {questionCount}問 / {questionFormat} / {level}</span>
+        </div>
+        {aiNotice && <div className="mt-3 rounded-xl px-3 py-2 text-xs font-semibold" style={{ background: "#fff", color: T.warning, border: `1px solid ${T.border}` }}>{aiNotice}</div>}
+        {aiShortfall > 0 && (
+          <div className="mt-3 flex flex-wrap items-center gap-2 rounded-xl px-3 py-2 text-xs font-semibold" style={{ background: T.warningSubtle, color: T.warning, border: `1px solid ${T.border}` }}>
+            <span>内容量の都合により、指定{aiRequestedCount}問中{aiGeneratedCount}問のみ生成されています。</span>
+            <Btn kind="ai" size="sm" icon={RefreshCw} onClick={genMore} disabled={aiGenerating || aiGeneratingMore}>{aiGeneratingMore ? "生成中..." : `残り${aiShortfall}問を生成`}</Btn>
+          </div>
+        )}
       </Card>
+
+
 
       {qs.length > 0 && (
         <div className="mb-3 flex flex-wrap items-center gap-2 text-xs"><span className="font-bold" style={{ color: T.textPrimary }}>全{qs.length}問</span>
@@ -2611,7 +2613,7 @@ function TestTaking({ test, back, onDone, preview = false }) {
     return (
       <div>
         <div className="flex flex-wrap items-center justify-between gap-2"><Btn kind="ghost" size="sm" icon={ChevronLeft} onClick={back}>テスト一覧へ</Btn>{!preview && <Badge tone="green">結果を保存しました</Badge>}</div>
-        <Card className="mx-auto mt-6 max-w-lg overflow-hidden">
+        <Card className="mx-auto mt-6 max-w-3xl overflow-hidden">
           <div className="p-8 text-center text-white" style={{ background: pass ? "linear-gradient(135deg,#1FA463,#3FCB86)" : "linear-gradient(135deg,#DF9520,#F0B860)" }}>
             <div className="text-sm opacity-90">{test.title}</div>
             <div className="mt-2 text-5xl font-bold">{result.score}<span className="text-2xl">点</span></div>
