@@ -1677,6 +1677,8 @@ function Tests({ role }) {
   const [results, setResults] = useState(null);
   const [testResultsMap, setTestResultsMap] = useState({});
   const [reviewDrafts, setReviewDrafts] = useState({});
+  const [onlyNeedsReview, setOnlyNeedsReview] = useState(false);
+  const [bulkReviewBusy, setBulkReviewBusy] = useState(false);
   const [testQuery, setTestQuery] = useState("");
   const [testStatus, setTestStatus] = useState("すべて");
   const [testSort, setTestSort] = useState("priority");
@@ -1885,6 +1887,23 @@ function Tests({ role }) {
       await showResults(results.test);
     } catch (e) { setTestErr("講師評価の保存に失敗しました。"); }
   }
+  // 入力済みの採点をまとめて保存する（1件ずつ「保存」を押す手間を省く）
+  async function saveAllTeacherReviews() {
+    const keys = Object.keys(reviewDrafts);
+    if (!keys.length || bulkReviewBusy || !results?.rows) return;
+    setBulkReviewBusy(true);
+    setTestErr("");
+    const failed = [];
+    for (const key of keys) {
+      const traineeId = key.split(":").pop();
+      const row = results.rows.find(r => r.traineeId === traineeId);
+      if (!row) continue;
+      try { await saveTeacherReview(row); }
+      catch (e) { failed.push(row.name || traineeId); }
+    }
+    setBulkReviewBusy(false);
+    if (failed.length) setTestErr(`${failed.length}件の保存に失敗しました：${failed.join(" / ")}`);
+  }
 
   if (taking) return <TestTaking test={taking} preview={takingPreview} back={closeTaking} onDone={handleDone} />;
   if (building) return <TestBuilder back={() => { setBuilding(false); setEditingTest(null); setDuplicateTest(false); }} focus={buildFocus} student={buildStudent} onSaved={loadTests} initialTest={editingTest} duplicate={duplicateTest} />;
@@ -1951,7 +1970,8 @@ function Tests({ role }) {
       if (testSort === "unsubmitted") return Number(sb.unsubmitted || 0) - Number(sa.unsubmitted || 0);
       return (Number(sb.needsReview || 0) + Number(sb.followCount || 0) + Number(sb.unsubmitted || 0)) - (Number(sa.needsReview || 0) + Number(sa.followCount || 0) + Number(sa.unsubmitted || 0));
     });
-    const filteredRows = results?.rows ? opsFilter.apply(results.rows) : [];
+    const filteredRows = (results?.rows ? opsFilter.apply(results.rows) : [])
+      .filter(r => !onlyNeedsReview || (!r.reviewedAt && (r.needsReview || Object.values(r.answers || {}).some(a => a?.needsReview))));
     const avg = filteredRows.length ? Math.round(filteredRows.reduce((s, r) => s + Number(r.score || 0), 0) / filteredRows.length) : 0;
     // 2026-07-21 P2対応(残件2): サマリーカードがコースフィルタ後も全コース分のまま集計されていたバグ。
     // testStats自体は全テスト分保持しつつ、上部集計カードは一覧と同じ visibleTests（コース・企業・検索・状態
@@ -2022,7 +2042,12 @@ function Tests({ role }) {
             {results.rows === null ? <SkeletonRows rows={3} />
               : results.err ? <div className="text-xs" style={{ color: T.danger }}>{results.err}</div>
               : filteredRows.length === 0 ? <div className="py-6 text-center text-sm" style={{ color: T.textMuted }}>該当データがありません。</div>
-              : <div><div className="mb-3 rounded-xl px-3 py-2 text-xs font-semibold" style={{ background: T.bgBase, color: T.textSecondary }}>表示対象: {opsFilter.targetTrainees.length}名 / 受験済み: {filteredRows.length}件 / 平均点: {avg}点</div>{filteredRows.slice().sort((a, b) => b.score - a.score).map((r) => {
+              : <div>{canGradeResults && <div className="mb-3 flex flex-wrap items-center gap-2">
+                  <label className="flex items-center gap-1.5 text-xs font-semibold" style={{ color: T.textMuted }}>
+                    <input type="checkbox" checked={onlyNeedsReview} onChange={e => setOnlyNeedsReview(e.target.checked)} />採点待ちのみ表示
+                  </label>
+                  {Object.keys(reviewDrafts).length > 0 && <Btn size="sm" icon={Check} disabled={bulkReviewBusy} onClick={saveAllTeacherReviews}>{bulkReviewBusy ? "保存中…" : `入力した${Object.keys(reviewDrafts).length}件をまとめて保存`}</Btn>}
+                </div>}<div className="mb-3 rounded-xl px-3 py-2 text-xs font-semibold" style={{ background: T.bgBase, color: T.textSecondary }}>表示対象: {opsFilter.targetTrainees.length}名 / 受験済み: {filteredRows.length}件 / 平均点: {avg}点</div>{filteredRows.slice().sort((a, b) => b.score - a.score).map((r) => {
                   const key = `${testIdOf(results.test)}:${r.traineeId}`;
                   const draft = reviewDrafts[key] || {};
                   const aiItems = Object.values(r.answers || {}).map(a => a?.aiEvaluation).filter(Boolean);
@@ -2754,6 +2779,12 @@ function TraineeAttendance() {
   const [draft, setDraft] = useState({});
   const [err, setErr] = useState("");
   const [histMonth, setHistMonth] = useState(monthStr());
+  // 研修が終わったコースでは今月に研修日が無く、月を何度も戻さないと自分の記録へ辿り着けない。
+  // 記録のある最新月へ1クリックで移動できるようにする。
+  const latestRecordMonth = useMemo(() => {
+    const dates = hist.map(r => r.date).filter(Boolean).sort();
+    return dates.length ? String(dates[dates.length - 1]).slice(0, 7) : "";
+  }, [hist]);
   const [histQuery, setHistQuery] = useState("");
   const [histSort, setHistSort] = useState("desc");
   const [enrolledCourses, setEnrolledCourses] = useState([]);
@@ -3003,7 +3034,12 @@ function TraineeAttendance() {
         </div>
       </Card>
       <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
-        <div><h3 className="text-sm font-bold" style={{ color: T.textPrimary }}>月別勤怠一覧</h3><p className="text-xs" style={{ color: T.textMuted }}>登録済みの研修日は編集できます。</p></div>
+        <div className="flex flex-wrap items-center gap-2">
+          <div><h3 className="text-sm font-bold" style={{ color: T.textPrimary }}>月別勤怠一覧</h3><p className="text-xs" style={{ color: T.textMuted }}>登録済みの研修日は編集できます。</p></div>
+          {latestRecordMonth && latestRecordMonth !== histMonth && (
+            <Btn kind="ghost" size="sm" onClick={() => { setWorkdaysState("loading"); setHistMonth(latestRecordMonth); }}>最後に記録した月へ（{latestRecordMonth.replace("-", "年")}月）</Btn>
+          )}
+        </div>
         <div className="flex flex-wrap items-center gap-2">
           <MonthPicker value={histMonth} onChange={value => { if (value !== histMonth) setWorkdaysState("loading"); setHistMonth(value); }} />
           <div className="relative">
@@ -4447,6 +4483,13 @@ function Reports({ role, userProfile }) {
     return () => { alive = false; };
   }, [canWrite, reportCourseId, reportCourses, month, editingReportDate, reportReloadKey, reportSupportReloadKey]);
   const reportTrainingDateSet = useMemo(() => new Set(reportTrainingDates), [reportTrainingDates]);
+  // 研修が終わったコースでは今日が非研修日のため、初期表示のままだと入力も確認もできない。
+  // 直近（今日以前の最後）の研修日へ1クリックで移動できるようにする。
+  const latestTrainingDateForTrainee = useMemo(() => {
+    const today = todayStr();
+    const past = reportTrainingDates.filter(d => d <= today).sort();
+    return past.length ? past[past.length - 1] : (reportTrainingDates.slice().sort()[0] || "");
+  }, [reportTrainingDates]);
   const reportConflictDateSet = useMemo(() => new Set(reportConflictDates), [reportConflictDates]);
   // 2026-07-22 バグ修正(2): コース「すべて」選択時（opsFilter.courseId未指定）は、単一コースの
   // workdays取得しか行っておらず研修日を判定できないため、一覧が常に0件になっていた。
@@ -4912,7 +4955,9 @@ function Reports({ role, userProfile }) {
         </Card>
       ) : (<>
       {canWrite && <div ref={reportFormRef} style={{ scrollMarginTop: 72 }}><Card className="mb-4 p-5 transition-shadow" style={reportFormPulse ? { boxShadow: `0 0 0 3px ${T.accent}33, 0 18px 40px rgba(0,0,0,.08)` } : undefined}>
-        <div className="mb-3 flex flex-wrap items-center justify-between gap-3"><div><h3 className="font-bold" style={{ color: T.textPrimary }}>朝: 目標</h3><p className="text-xs" style={{ color: T.textMuted }}>研修日を選んで、朝だけでも途中でも保存できます。</p></div><div className="flex items-center gap-2"><input type="date" value={editingReportDate} disabled={saving} onChange={e => editReport({ date: e.target.value, report: reportsByDate[e.target.value] })} className="rounded-xl px-3 py-2 text-sm outline-none disabled:opacity-60" style={{ border: `1px solid ${T.border}`, color: T.textPrimary, background: "#fff" }} /><Btn kind="soft" size="sm" icon={Plus} disabled={saving || reportWorkdaysLoading || !reportTrainingDateSet.has(editingReportDate)} onClick={addGoalItem}>目標を追加</Btn></div></div>
+        <div className="mb-3 flex flex-wrap items-center justify-between gap-3"><div><h3 className="font-bold" style={{ color: T.textPrimary }}>朝: 目標</h3><p className="text-xs" style={{ color: T.textMuted }}>研修日を選んで、朝だけでも途中でも保存できます。</p>
+          {latestTrainingDateForTrainee && latestTrainingDateForTrainee !== editingReportDate && <button type="button" onClick={() => setEditingReportDate(latestTrainingDateForTrainee)} className="mt-1 text-xs font-semibold" style={{ color: T.accentHover }}>直近の研修日（{latestTrainingDateForTrainee.replace(/-/g, "/")}）を開く</button>}
+          </div><div className="flex items-center gap-2"><input type="date" value={editingReportDate} disabled={saving} onChange={e => editReport({ date: e.target.value, report: reportsByDate[e.target.value] })} className="rounded-xl px-3 py-2 text-sm outline-none disabled:opacity-60" style={{ border: `1px solid ${T.border}`, color: T.textPrimary, background: "#fff" }} /><Btn kind="soft" size="sm" icon={Plus} disabled={saving || reportWorkdaysLoading || !reportTrainingDateSet.has(editingReportDate)} onClick={addGoalItem}>目標を追加</Btn></div></div>
         {!reportWorkdaysLoading && reportConflictDateSet.has(editingReportDate) && <div className="mb-4 rounded-xl px-3 py-2 text-xs font-semibold" style={{ background: T.dangerSubtle, color: T.danger }}>同じ日に複数の研修が重複しています。日程の修正後に保存してください。</div>}
         {!reportWorkdaysLoading && !reportConflictDateSet.has(editingReportDate) && !reportTrainingDateSet.has(editingReportDate) && <div className="mb-4 rounded-xl px-3 py-2 text-xs font-semibold" style={{ background: reportWorkdaysState === "setup_required" ? T.warningSubtle : T.bgBase, color: reportWorkdaysState === "setup_required" ? T.warning : T.textMuted }}>{reportWorkdaysState === "setup_required" ? "研修日程が未設定です。未提出とは判定せず、入力を停止しています。" : "選択日は研修カレンダーの非研修日です。下のカレンダーから研修日を選択してください。"}</div>}
         <div className="mb-4 rounded-xl px-3 py-2 text-xs font-semibold" style={{ background: reportEditState === "create" ? T.warningSubtle : T.accentSubtle, color: reportEditState === "create" ? T.warning : T.accentHover }}>
