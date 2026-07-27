@@ -232,21 +232,49 @@ const adminErrStyle = { background: T.dangerSubtle, color: T.danger };
 const adminPanelStyle = { background: T.bgBase, color: T.textMuted };
 const API_BASE = "https://yit7ypsa40.execute-api.ap-northeast-1.amazonaws.com";
 const LIST_PAGE_SIZE = 12;
+const LIST_PAGE_SIZES = [12, 30, 50, 100];
 function pageSlice(rows, page, size = LIST_PAGE_SIZE) {
   const totalPages = Math.max(1, Math.ceil(rows.length / size));
   const safePage = Math.min(Math.max(1, page), totalPages);
   const start = (safePage - 1) * size;
   return { items: rows.slice(start, start + size), page: safePage, totalPages, total: rows.length, start };
 }
-function ListPager({ page, totalPages, total, onPage }) {
-  if (totalPages <= 1) return null;
+// ページ番号へ直接飛べるページャ。件数が多い一覧で「前へ/次へ」だけだと目的の行まで遠いため、
+// 表示件数の切り替えとページ番号ボタン（現在位置の前後2ページ＋先頭/末尾）を持たせる。
+function pageNumbers(page, totalPages) {
+  const set = new Set([1, totalPages, page - 1, page, page + 1]);
+  return [...set].filter(n => n >= 1 && n <= totalPages).sort((a, b) => a - b);
+}
+function ListPager({ page, totalPages, total, onPage, size, onSize, start = 0 }) {
+  const showSize = typeof onSize === "function";
+  if (totalPages <= 1 && !(showSize && total > LIST_PAGE_SIZE)) return null;
+  const nums = pageNumbers(page, totalPages);
+  const end = Math.min(start + (size || LIST_PAGE_SIZE), total);
   return (
     <div className="flex flex-wrap items-center justify-between gap-3 px-4 py-3" style={{ borderTop: `1px solid ${T.border}` }}>
-      <div className="text-xs font-semibold" style={{ color: T.textMuted }}>{total}件中 {page}/{totalPages}ページ</div>
-      <div className="flex items-center gap-2">
-        <Btn kind="ghost" size="sm" icon={ChevronLeft} onClick={() => onPage(page - 1)} disabled={page <= 1}>前へ</Btn>
-        <Btn kind="ghost" size="sm" icon={ChevronRight} onClick={() => onPage(page + 1)} disabled={page >= totalPages}>次へ</Btn>
+      <div className="flex flex-wrap items-center gap-3">
+        <div className="text-xs font-semibold" style={{ color: T.textMuted }}>{total}件中 {total === 0 ? 0 : start + 1}〜{end}件</div>
+        {showSize && (
+          <label className="flex items-center gap-1.5 text-xs" style={{ color: T.textMuted }}>表示件数
+            <select value={size || LIST_PAGE_SIZE} onChange={e => onSize(Number(e.target.value))} className="rounded-lg px-2 py-1 text-xs outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary, background: T.bgSurface }}>
+              {LIST_PAGE_SIZES.map(n => <option key={n} value={n}>{n}件</option>)}
+            </select>
+          </label>
+        )}
       </div>
+      {totalPages > 1 && (
+        <div className="flex flex-wrap items-center gap-1">
+          <Btn kind="ghost" size="sm" icon={ChevronLeft} onClick={() => onPage(page - 1)} disabled={page <= 1}>前へ</Btn>
+          {nums.map((n, i) => (
+            <span key={n} className="flex items-center gap-1">
+              {i > 0 && n - nums[i - 1] > 1 && <span className="px-1 text-xs" style={{ color: T.textMuted }}>…</span>}
+              <button type="button" onClick={() => onPage(n)} className="min-w-[28px] rounded-lg px-2 py-1 text-xs font-semibold"
+                style={n === page ? { background: T.accent, color: "#fff" } : { border: `1px solid ${T.border}`, color: T.textSecondary }}>{n}</button>
+            </span>
+          ))}
+          <Btn kind="ghost" size="sm" icon={ChevronRight} onClick={() => onPage(page + 1)} disabled={page >= totalPages}>次へ</Btn>
+        </div>
+      )}
     </div>
   );
 }
@@ -290,6 +318,7 @@ function AdminCompanies() {
   const [q, setQ] = useState("");
   const [sort, setSort] = useState({ key: "name", dir: "asc" });
   const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(LIST_PAGE_SIZE);
   const [selected, setSelected] = useState(null);
   const [edit, setEdit] = useState({ name: "", memo: "" });
   const [trainees, setTrainees] = useState([]);
@@ -324,7 +353,7 @@ function AdminCompanies() {
     return [...list].sort((a, b) => String(sort.key === "memo" ? memoOf(a) : a.name || "").localeCompare(String(sort.key === "memo" ? memoOf(b) : b.name || ""), "ja") * dir);
   }, [rows, q, sort]);
   useEffect(() => { setPage(1); }, [q, sort.key, sort.dir, rows.length]);
-  const visiblePage = pageSlice(visibleRows, page);
+  const visiblePage = pageSlice(visibleRows, page, pageSize);
   function changeSort(key) {
     setSort(s => s.key === key ? { key, dir: s.dir === "asc" ? "desc" : "asc" } : { key, dir: "asc" });
   }
@@ -449,7 +478,7 @@ function AdminCompanies() {
                 </button>
               );
             })}
-          <ListPager page={visiblePage.page} totalPages={visiblePage.totalPages} total={visiblePage.total} onPage={setPage} />
+          <ListPager page={visiblePage.page} totalPages={visiblePage.totalPages} total={visiblePage.total} onPage={setPage} size={pageSize} onSize={n => { setPageSize(n); setPage(1); }} start={visiblePage.start} />
         </Card>
       </div>
       {open && (
@@ -487,13 +516,18 @@ function AdminCourses({ go }) {
   const [courseFilter, setCourseFilter] = useState("すべて");
   const [sort, setSort] = useState({ key: "name", dir: "asc" });
   const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(LIST_PAGE_SIZE);
   const [selected, setSelected] = useState(null);
   const [edit, setEdit] = useState(courseEditValue());
   const [trainees, setTrainees] = useState([]);
   const [users, setUsers] = useState([]);
   const [instructors, setInstructors] = useState([]);
   const [companies, setCompanies] = useState([]);
-  const [addTraineeId, setAddTraineeId] = useState("");
+  const [addTraineeIds, setAddTraineeIds] = useState([]);
+  const [addTraineeQuery, setAddTraineeQuery] = useState("");
+  const [traineeListOpen, setTraineeListOpen] = useState(false);
+  const [traineeSectionOpen, setTraineeSectionOpen] = useState(false);
+  const [bulkRange, setBulkRange] = useState({ from: "", to: "" });
   const [calendarMonth, setCalendarMonth] = useState(monthStr());
   const [calendarItems, setCalendarItems] = useState({});
   const [calendarDirty, setCalendarDirty] = useState({});
@@ -555,7 +589,7 @@ function AdminCourses({ go }) {
     });
   }, [rows, q, courseFilter, sort, instructors]);
   useEffect(() => { setPage(1); }, [q, courseFilter, sort.key, sort.dir, rows.length]);
-  const visiblePage = pageSlice(visibleRows, page);
+  const visiblePage = pageSlice(visibleRows, page, pageSize);
   function changeSort(key) {
     setSort(s => s.key === key ? { key, dir: s.dir === "asc" ? "desc" : "asc" } : { key, dir: "asc" });
   }
@@ -597,6 +631,37 @@ function AdminCourses({ go }) {
       return { ...items, [date]: { ...base, ...patch } };
     });
     setCalendarDirty(d => ({ ...d, [date]: true }));
+  }
+  // 研修カレンダーの一括設定。49日分を1日ずつラジオで選ぶ運用を避けるため、
+  // 期間指定・平日/土日・表示中の月に対してまとめてtypeを適用する。
+  function bulkSetCalendar({ from, to, type, weekdaysOnly = false, weekendOnly = false }) {
+    const start = from || `${calendarMonth}-01`;
+    const endDefault = new Date(Number(calendarMonth.slice(0, 4)), Number(calendarMonth.slice(5, 7)), 0);
+    const end = to || `${calendarMonth}-${String(endDefault.getDate()).padStart(2, "0")}`;
+    if (start > end) { setErr("開始日が終了日より後になっています。"); return; }
+    const targets = [];
+    for (let d = new Date(start); d <= new Date(end); d.setDate(d.getDate() + 1)) {
+      const day = d.getDay();
+      if (weekdaysOnly && (day === 0 || day === 6)) continue;
+      if (weekendOnly && day !== 0 && day !== 6) continue;
+      targets.push(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`);
+    }
+    if (!targets.length) { setMsg("対象の日がありません。"); return; }
+    setCalendarItems(items => {
+      const next = { ...items };
+      for (const date of targets) {
+        const base = next[date] || { date, type: "training", title: "", note: "" };
+        next[date] = { ...base, type };
+      }
+      return next;
+    });
+    setCalendarDirty(d => {
+      const next = { ...d };
+      for (const date of targets) next[date] = true;
+      return next;
+    });
+    setErr("");
+    setMsg(`${targets.length}日を「${(CAL_TYPES.find(([v]) => v === type) || [])[1] || type}」にしました。内容を確認して「保存」を押してください。`);
   }
   async function saveCalendar() {
     if (!selected?.courseId || calendarBusy) return;
@@ -667,15 +732,26 @@ function AdminCourses({ go }) {
       setErr(e?.message || "削除に失敗しました。");
     } finally { setBusy(false); }
   }
-  async function addTrainee() {
-    if (!selected || !addTraineeId || busy) return;
+  // 受講生の一括追加。1人ずつ選ぶ運用だと50名のコースで50往復になるため、
+  // 複数選択（企業単位の一括選択つき）で既存APIへ逐次POSTする。
+  async function addTrainees(ids) {
+    const targets = (ids || []).filter(Boolean);
+    if (!selected || !targets.length || busy) return;
     setBusy(true); setErr(""); setMsg("");
+    const failed = [];
     try {
-      await apiPost(`/courses/${selected.courseId}/trainees`, { traineeId: addTraineeId });
-      setMsg("受講生をコースに追加しました。");
-      setAddTraineeId("");
+      for (const traineeId of targets) {
+        try {
+          await apiPost(`/courses/${selected.courseId}/trainees`, { traineeId });
+        } catch (e) {
+          failed.push(`${traineeName(traineeId)}（${e?.errorMessage || e?.message || e}）`);
+        }
+      }
+      setAddTraineeIds([]);
       await reloadCourseTrainees(selected.courseId);
-    } catch (e) { setErr("受講生の追加に失敗しました：" + (e?.message || e)); } finally { setBusy(false); }
+      if (failed.length) setErr(`${failed.length}名の追加に失敗しました：${failed.join(" / ")}`);
+      else setMsg(`${targets.length}名をコースに追加しました。`);
+    } finally { setBusy(false); }
   }
   async function removeTrainee(traineeId) {
     if (!selected || !traineeId || busy) return;
@@ -687,10 +763,25 @@ function AdminCourses({ go }) {
     } catch (e) { setErr("所属解除に失敗しました：" + (e?.message || e)); } finally { setBusy(false); }
   }
   const companyName = (id) => companies.find(c => c.companyId === id)?.name || id || "（未選択）";
+  const traineeName = (id) => {
+    const u = users.find(x => x.userId === id);
+    return u?.name || u?.email || id;
+  };
   const traineeOptions = useMemo(() => {
     const enrolled = new Set(trainees.map(t => t.userId));
     return users.filter(u => u.role === "trainee" && !enrolled.has(u.userId));
   }, [users, trainees]);
+  const traineeCandidates = useMemo(() => {
+    const q = addTraineeQuery.trim().toLowerCase();
+    if (!q) return traineeOptions;
+    return traineeOptions.filter(t => [t.name, t.email, companyName(t.company)]
+      .some(v => String(v || "").toLowerCase().includes(q)));
+  }, [traineeOptions, addTraineeQuery, companies]);
+  const candidateCompanies = useMemo(() => {
+    const ids = [...new Set(traineeOptions.map(t => t.company).filter(Boolean))];
+    return ids.map(id => ({ companyId: id, name: companyName(id), count: traineeOptions.filter(t => t.company === id).length }));
+  }, [traineeOptions, companies]);
+  const toggleAddTrainee = (id) => setAddTraineeIds(s => s.includes(id) ? s.filter(x => x !== id) : [...s, id]);
   const instructorName = (id) => instructors.find(x => x.userId === id)?.name || instructors.find(x => x.userId === id)?.email || id;
   const instructorNames = (ids = []) => (Array.isArray(ids) ? ids : []).map(instructorName).filter(Boolean).join("、") || "未設定";
   function toggleInstructor(id) {
@@ -783,16 +874,74 @@ function AdminCourses({ go }) {
         </Card>
 
         <Card className="p-5">
-          <div className="mb-3 flex items-center justify-between"><h3 className="flex items-center gap-1.5 font-bold" style={{ color: T.textPrimary }}><Users size={16} />所属受講生</h3><Badge tone="cyan">{trainees.length}名</Badge></div>
+          <div className="mb-3 flex items-center justify-between gap-2">
+            <h3 className="flex items-center gap-1.5 font-bold" style={{ color: T.textPrimary }}><Users size={16} />所属受講生</h3>
+            <div className="flex items-center gap-2">
+              <Badge tone="cyan">{trainees.length}名</Badge>
+              <Btn kind="ghost" size="sm" onClick={() => setTraineeSectionOpen(v => !v)}>{traineeSectionOpen ? "閉じる" : "開く"}</Btn>
+            </div>
+          </div>
           <div className="mb-3 rounded-xl p-3 text-xs leading-relaxed" style={adminPanelStyle}>このコースには複数企業の受講生を所属できます。合同研修や研修後のEラーニング利用にも対応します。</div>
-          <div className="mb-3 flex flex-wrap items-end gap-2"><div className="min-w-0 flex-1"><Field label="未所属の受講生を追加"><select value={addTraineeId} onChange={e => setAddTraineeId(e.target.value)} className={fieldCls} style={{ border: `1px solid ${T.border}`, color: T.textPrimary }}><option value="">（選択してください）</option>{traineeOptions.map(t => <option key={t.userId} value={t.userId}>{t.name || t.email} / {companyName(t.company)}</option>)}</select></Field></div><Btn size="sm" icon={Plus} onClick={addTrainee}>{busy ? "追加中…" : "追加"}</Btn></div>
-          {detailLoading ? <SkeletonCards count={2} />
+          <div className="mb-3 rounded-xl p-3" style={adminPanelStyle}>
+            <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+              <div className="text-sm font-bold" style={{ color: T.textPrimary }}>未所属の受講生を追加<span className="ml-2 text-xs font-normal" style={{ color: T.textMuted }}>{traineeOptions.length}名が未所属</span></div>
+              <div className="flex flex-wrap items-center gap-2">
+                {addTraineeIds.length > 0 && <Badge tone="cyan">{addTraineeIds.length}名選択中</Badge>}
+                <Btn size="sm" icon={Plus} disabled={busy || !addTraineeIds.length} onClick={() => addTrainees(addTraineeIds)}>{busy ? "追加中…" : `選択した${addTraineeIds.length || ""}名を追加`}</Btn>
+              </div>
+            </div>
+            <div className="mb-2 flex flex-wrap items-center gap-2">
+              <input value={addTraineeQuery} onChange={e => { setAddTraineeQuery(e.target.value); setTraineeListOpen(true); }} placeholder="氏名・メール・企業で絞り込み" className="min-w-[200px] flex-1 rounded-xl px-3 py-2 text-sm outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary, background: T.bgSurface }} />
+              <Btn kind="ghost" size="sm" onClick={() => setTraineeListOpen(v => !v)}>{traineeListOpen ? "一覧を閉じる" : "一覧から選ぶ"}</Btn>
+            </div>
+            {candidateCompanies.length > 0 && (
+              <div className="mb-2 flex flex-wrap items-center gap-1.5">
+                <span className="text-xs" style={{ color: T.textMuted }}>企業ごとにまとめて選択:</span>
+                {candidateCompanies.map(c => (
+                  <button key={c.companyId} type="button" onClick={() => setAddTraineeIds(s => [...new Set([...s, ...traineeOptions.filter(t => t.company === c.companyId).map(t => t.userId)])])}
+                    className="rounded-lg px-2 py-1 text-xs font-semibold" style={{ border: `1px solid ${T.border}`, color: T.textSecondary, background: T.bgSurface }}>{c.name} {c.count}名</button>
+                ))}
+                {addTraineeIds.length > 0 && <button type="button" onClick={() => setAddTraineeIds([])} className="rounded-lg px-2 py-1 text-xs font-semibold" style={{ color: T.textMuted }}>選択を解除</button>}
+              </div>
+            )}
+            {traineeListOpen && (
+              <div className="max-h-64 overflow-y-auto rounded-xl" style={{ border: `1px solid ${T.border}`, background: T.bgSurface }}>
+                {traineeCandidates.length === 0
+                  ? <div className="px-3 py-4 text-center text-xs" style={{ color: T.textMuted }}>該当する受講生がいません。</div>
+                  : traineeCandidates.map(t => (
+                    <label key={t.userId} className="flex cursor-pointer items-center gap-2 px-3 py-2 text-sm" style={{ borderBottom: `1px solid ${T.border}` }}>
+                      <input type="checkbox" checked={addTraineeIds.includes(t.userId)} onChange={() => toggleAddTrainee(t.userId)} />
+                      <span className="truncate" style={{ color: T.textPrimary }}>{t.name || t.email}</span>
+                      <span className="truncate text-xs" style={{ color: T.textMuted }}>{t.email} / {companyName(t.company)}</span>
+                    </label>
+                  ))}
+              </div>
+            )}
+          </div>
+          {!traineeSectionOpen
+            ? <div className="rounded-xl px-4 py-3 text-center text-xs" style={adminPanelStyle}>所属受講生{trainees.length}名。「開く」で一覧を表示します（この下に研修カレンダーがあります）。</div>
+            : detailLoading ? <SkeletonCards count={2} />
             : trainees.length === 0 ? <div className="rounded-xl px-4 py-5 text-center text-sm" style={adminPanelStyle}>所属受講生はいません。</div>
             : <div className="grid gap-2 md:grid-cols-2">{trainees.map(t => <div key={t.userId} className="flex items-center gap-2 rounded-xl p-2" style={{ background: T.bgBase }}><Avatar name={t.name || t.email} size={28} /><div className="min-w-0 flex-1"><div className="truncate text-sm font-semibold" style={{ color: T.textPrimary }}>{t.name || "（氏名未設定）"}</div><div className="truncate text-xs" style={{ color: T.textMuted }}>{t.email || t.userId} / {companyName(t.company)}</div></div><Btn kind="ghost" size="sm" icon={X} onClick={() => removeTrainee(t.userId)}>解除</Btn></div>)}</div>}
         </Card>
 
         <Card className="p-5">
           <div className="mb-3 flex flex-wrap items-center justify-between gap-2"><div><h3 className="flex items-center gap-1.5 font-bold" style={{ color: T.textPrimary }}><Calendar size={16} />研修カレンダー</h3><p className="mt-1 text-xs" style={{ color: T.textMuted }}>休日・振替日・日ごとの時刻・受講形式・担当講師を設定できます。</p></div><div className="flex flex-wrap items-center gap-2"><Badge tone={workdays.status === "setup_required" ? "amber" : "green"}>{workdays.status === "setup_required" ? "日程設定が必要" : `研修日 ${workdays.trainingDaysCount ?? 0}日`}</Badge><input type="month" value={calendarMonth} onChange={e => setCalendarMonth(e.target.value)} className="rounded-xl px-3 py-2 text-sm outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary }} /><Btn size="sm" icon={Check} onClick={saveCalendar}>{calendarBusy ? "保存中…" : "保存"}</Btn></div></div>
+          <div className="mb-3 rounded-xl p-3" style={adminPanelStyle}>
+            <div className="mb-2 text-sm font-bold" style={{ color: T.textPrimary }}>まとめて設定</div>
+            <div className="mb-2 flex flex-wrap items-end gap-2">
+              <Field label="開始日"><input type="date" value={bulkRange.from} onChange={e => setBulkRange(s => ({ ...s, from: e.target.value }))} className="w-full rounded-xl px-3 py-2 text-sm outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary, background: T.bgSurface }} /></Field>
+              <Field label="終了日"><input type="date" value={bulkRange.to} onChange={e => setBulkRange(s => ({ ...s, to: e.target.value }))} className="w-full rounded-xl px-3 py-2 text-sm outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary, background: T.bgSurface }} /></Field>
+              <Btn size="sm" onClick={() => setBulkRange({ from: selected?.startDate || "", to: selected?.endDate || "" })}>研修期間を入れる</Btn>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <Btn size="sm" icon={Check} onClick={() => bulkSetCalendar({ ...bulkRange, type: "training", weekdaysOnly: true })}>平日を研修日にする</Btn>
+              <Btn kind="ghost" size="sm" onClick={() => bulkSetCalendar({ ...bulkRange, type: "holiday", weekendOnly: true })}>土日を休日にする</Btn>
+              <Btn kind="ghost" size="sm" onClick={() => bulkSetCalendar({ ...bulkRange, type: "training" })}>全日を研修日にする</Btn>
+              <Btn kind="ghost" size="sm" onClick={() => bulkSetCalendar({ ...bulkRange, type: "holiday" })}>全日を休日にする</Btn>
+            </div>
+            <p className="mt-2 text-xs" style={{ color: T.textMuted }}>日付を空にすると表示中の月が対象になります。適用後は内容を確認して「保存」を押してください。</p>
+          </div>
           {calendarLoading ? <SkeletonRows rows={3} />
             : <>
               <div className="space-y-2 md:hidden">
@@ -874,7 +1023,7 @@ function AdminCourses({ go }) {
                 </button>
               );
             })}
-          <ListPager page={visiblePage.page} totalPages={visiblePage.totalPages} total={visiblePage.total} onPage={setPage} />
+          <ListPager page={visiblePage.page} totalPages={visiblePage.totalPages} total={visiblePage.total} onPage={setPage} size={pageSize} onSize={n => { setPageSize(n); setPage(1); }} start={visiblePage.start} />
         </Card>
       </div>
       {open && (
@@ -904,6 +1053,7 @@ function AdminUsers() {
   const [roleFilter, setRoleFilter] = useState("すべて");
   const [sort, setSort] = useState({ key: "name", dir: "asc" });
   const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(LIST_PAGE_SIZE);
   const [selected, setSelected] = useState(null);
   const [edit, setEdit] = useState({ name: "", company: "", role: "trainee" });
   const [adminPerm, setAdminPerm] = useState({ adminTier: "standard", canEditReportsAttendance: false, assignedCourseIds: [] });
@@ -961,7 +1111,7 @@ function AdminUsers() {
     });
   }, [users, q, roleFilter, sort, companies]);
   useEffect(() => { setPage(1); }, [q, roleFilter, sort.key, sort.dir, users.length]);
-  const visiblePage = pageSlice(visibleUsers, page);
+  const visiblePage = pageSlice(visibleUsers, page, pageSize);
   function changeSort(key) {
     setSort(s => s.key === key ? { key, dir: s.dir === "asc" ? "desc" : "asc" } : { key, dir: "asc" });
   }
@@ -1217,7 +1367,7 @@ function AdminUsers() {
                 </button>
               );
             })}
-          <ListPager page={visiblePage.page} totalPages={visiblePage.totalPages} total={visiblePage.total} onPage={setPage} />
+          <ListPager page={visiblePage.page} totalPages={visiblePage.totalPages} total={visiblePage.total} onPage={setPage} size={pageSize} onSize={n => { setPageSize(n); setPage(1); }} start={visiblePage.start} />
         </Card>
       </div>
 

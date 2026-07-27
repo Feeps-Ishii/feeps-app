@@ -3051,6 +3051,7 @@ function AttendanceManage({ role, userProfile }) {
   const [attendanceStatus, setAttendanceStatus] = useState("すべて");
   const [attendanceSort, setAttendanceSort] = useState("name");
   const [bulkBusy, setBulkBusy] = useState(false);
+  const [selectedRowIds, setSelectedRowIds] = useState([]);
   const [dayContext, setDayContext] = useState(null);
   const [scheduleState, setScheduleState] = useState("loading");
   const [monthlyTrainingDates, setMonthlyTrainingDates] = useState([]);
@@ -3200,6 +3201,40 @@ function AttendanceManage({ role, userProfile }) {
       setBulkBusy(false);
     }
   }
+  // 選択した受講生の勤怠をまとめて更新する。1行ずつ「修正→保存」を繰り返す運用を避けるため、
+  // 状態の一括変更と時刻の一括指定を既存の PUT /attendance/{id} へ逐次送る。
+  async function bulkApplyAttendance(patch) {
+    const targets = filteredRows.filter(r => selectedRowIds.includes(r.traineeId));
+    if (!targets.length || bulkBusy) return;
+    if (!canEdit || dayContext?.isTrainingDay !== true) { setErr("この日の担当講師ではないか、研修日ではないため一括変更できません。"); return; }
+    const needsReason = ["遅刻", "早退", "欠席", "欠勤", "中抜け"].some(v => String(patch.status || "").includes(v));
+    let reason = "";
+    if (needsReason) {
+      reason = window.prompt(`${targets.length}名を「${patch.status}」にします。理由を入力してください（全員に同じ理由が入ります）`, "") || "";
+      if (!reason.trim()) { setErr("遅刻・早退・欠席などは理由が必要です。"); return; }
+    } else if (!window.confirm(`選択した${targets.length}名の勤怠をまとめて変更します。よろしいですか？`)) return;
+    setBulkBusy(true);
+    setErr("");
+    const failed = [];
+    for (const row of targets) {
+      try {
+        await apiPut("/attendance/" + row.traineeId, {
+          date, courseId: opsFilter.courseId,
+          clockIn: patch.clockIn ?? row.in ?? "",
+          clockOut: patch.clockOut ?? row.out ?? "",
+          status: patch.status ?? row.s ?? "正常",
+          reason: reason || row.note || "", note: reason || row.note || "",
+        });
+      } catch (e) {
+        failed.push(`${nameMap[row.traineeId] || row.name}（${e?.errorMessage || e?.message || e}）`);
+      }
+    }
+    setBulkBusy(false);
+    setSelectedRowIds([]);
+    emitNotificationRefresh();
+    load();
+    if (failed.length) setErr(`${failed.length}名の変更に失敗しました：${failed.join(" / ")}`);
+  }
   const attendanceMatchesQuery = (row) => {
     const q = attendanceQuery.trim().toLowerCase();
     if (!q) return true;
@@ -3281,6 +3316,33 @@ function AttendanceManage({ role, userProfile }) {
           }
         }}>Excelで出力</Btn>{canEdit && periodMode === "日次" && unregisteredForBulk.length > 0 && <Btn size="sm" icon={CheckCircle2} disabled={bulkBusy} onClick={() => bulkMarkPresent(unregisteredForBulk)}>{bulkBusy ? "登録中…" : `未打刻${unregisteredForBulk.length}名を一括登録`}</Btn>}</div>} />
       {err && <div className="mb-4 rounded-lg px-3 py-2 text-xs" style={{ background: T.dangerSubtle, color: T.danger }}>{err}</div>}
+      {canEdit && periodMode === "日次" && filteredRows.length > 0 && (
+        <Card className="mb-4 p-3">
+          <div className="flex flex-wrap items-center gap-2">
+            <label className="flex items-center gap-1.5 text-sm font-semibold" style={{ color: T.textPrimary }}>
+              <input type="checkbox" checked={selectedRowIds.length > 0 && selectedRowIds.length === filteredRows.length}
+                onChange={e => setSelectedRowIds(e.target.checked ? filteredRows.map(r => r.traineeId) : [])} />
+              表示中{filteredRows.length}名をすべて選択
+            </label>
+            <span className="text-xs" style={{ color: T.textMuted }}>{selectedRowIds.length}名選択中</span>
+            {selectedRowIds.length > 0 && <>
+              <span className="mx-1 text-xs" style={{ color: T.textMuted }}>|</span>
+              {["正常", "遅刻", "早退", "欠席"].map(s => (
+                <Btn key={s} kind="ghost" size="sm" disabled={bulkBusy} onClick={() => bulkApplyAttendance({ status: s })}>{s}にする</Btn>
+              ))}
+              <Btn kind="ghost" size="sm" disabled={bulkBusy} onClick={() => {
+                const inTime = window.prompt("出勤時刻（例 09:00）", courseStandardIn(opsFilter.selectedCourse) || "09:00");
+                if (!inTime) return;
+                const outTime = window.prompt("退勤時刻（例 17:30）", courseStandardOut(opsFilter.selectedCourse) || "17:30");
+                if (!outTime) return;
+                bulkApplyAttendance({ clockIn: inTime, clockOut: outTime });
+              }}>時刻をまとめて入力</Btn>
+              <Btn kind="ghost" size="sm" onClick={() => setSelectedRowIds([])}>選択解除</Btn>
+            </>}
+          </div>
+          {bulkBusy && <div className="mt-2 text-xs" style={{ color: T.textMuted }}>変更中…</div>}
+        </Card>
+      )}
       {periodMode === "日次" && scheduleState === "setup_required" && <div className="mb-4 rounded-xl px-4 py-3 text-sm font-semibold" style={{ background: T.warningSubtle, color: T.warning }}>コース日程が未設定です。未打刻者や欠席者には数えず、編集も停止しています。</div>}
       {periodMode === "日次" && scheduleState === "ready" && dayContext?.isTrainingDay === false && <div className="mb-4 rounded-xl px-4 py-3 text-sm" style={{ background: T.bgBase, color: T.textMuted }}>選択日は非研修日です。既存記録のみ表示し、未打刻者には数えません。</div>}
       {periodMode === "日次" && role === "instructor" && scheduleState === "ready" && dayContext?.isTrainingDay === true && !canEdit && <div className="mb-4 rounded-xl px-4 py-3 text-sm" style={{ background: T.bgBase, color: T.textMuted }}>この日の担当講師ではないため、勤怠は閲覧のみです。</div>}
@@ -3366,11 +3428,11 @@ function AttendanceManage({ role, userProfile }) {
         <div className="hidden overflow-x-auto md:block">
           <div className="feeps-zebra" style={{ minWidth: 600 }}>
             <div className="flex items-center gap-3 px-4 py-2.5 text-xs font-semibold" style={{ background: T.bgBase, color: T.textMuted }}>
-              <div className="w-40">受講生</div><div className="w-16">出勤</div><div className="w-16">退勤</div><div className="w-20">状態</div><div className="flex-1">備考</div>{(canEdit || role === "admin") && <div className="w-20" />}</div>
+              {canEdit && <div className="w-6" />}<div className="w-40">受講生</div><div className="w-16">出勤</div><div className="w-16">退勤</div><div className="w-20">状態</div><div className="flex-1">備考</div>{(canEdit || role === "admin") && <div className="w-20" />}</div>
             {filteredRows.length === 0 ? <div className="px-4 py-8 text-center text-sm" style={{ color: T.textMuted }}>該当データがありません</div> : filteredRows.map((a) => {
               return (
               <div key={a.traineeId} className="flex items-center gap-3 px-4 py-3 text-sm" style={{ borderTop: `1px solid ${T.border}`, color: T.textPrimary }}>
-                <div className="flex w-40 items-center gap-2"><Avatar name={nameMap[a.traineeId] || a.name} size={28} /><span className="truncate">{nameMap[a.traineeId] || a.name}</span></div>
+                {canEdit && <div className="w-6"><input type="checkbox" checked={selectedRowIds.includes(a.traineeId)} onChange={() => setSelectedRowIds(s => s.includes(a.traineeId) ? s.filter(x => x !== a.traineeId) : [...s, a.traineeId])} /></div>}<div className="flex w-40 items-center gap-2"><Avatar name={nameMap[a.traineeId] || a.name} size={28} /><span className="truncate">{nameMap[a.traineeId] || a.name}</span></div>
                 {canEdit && eId === a.traineeId ? (
                   <>
                     <input value={draft.in} onChange={e => setDraft({ ...draft, in: e.target.value })} className="w-16 rounded-lg px-1.5 py-1 text-sm outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary }} />
@@ -4044,6 +4106,8 @@ function Reports({ role, userProfile }) {
   const [periodMode, setPeriodMode] = useState("日次");
   const [month, setMonth] = useState(monthStr());
   const [monthlyReports, setMonthlyReports] = useState([]);
+  const [reportBulk, setReportBulk] = useState(null);
+  const [reportBulkBusy, setReportBulkBusy] = useState(false);
   const [monthlyLoading, setMonthlyLoading] = useState(false);
   const [monthlyFilter, setMonthlyFilter] = useState("すべて");
   const [reportQuery, setReportQuery] = useState("");
@@ -4114,6 +4178,44 @@ function Reports({ role, userProfile }) {
     } finally {
       setAdminReportSaving(false);
     }
+  }
+  // 月次の一括編集: 受講生1名 × その月の研修日をまとめて修正する（勤怠と同じ操作の型）。
+  // 保存は変更した日だけを既存の PUT /reports/{traineeId} へ逐次送る。
+  const reportBulkEditable = role === "admin" && !!opsFilter.courseId && periodMode === "月次"
+    && opsReportMonthScheduleState === "ready" && adminCanManageReportsAttendance(userProfile, opsFilter.courseId);
+  function openReportBulkEdit(row) {
+    const rows = opsReportTrainingDates.map(d => {
+      const rep = monthlyReportsByTraineeDate.get(`${row.traineeId}__${d}`);
+      const value = {};
+      for (const f of reportFields) value[f.id] = rep?.customFields?.[f.id] ?? "";
+      return { date: d, existed: !!rep, values: value, orig: { ...value } };
+    });
+    setReportBulk({ traineeId: row.traineeId, name: row.name, rows, err: "", failures: [] });
+  }
+  const reportBulkChanged = reportBulk
+    ? reportBulk.rows.filter(r => reportFields.some(f => (r.values[f.id] || "") !== (r.orig[f.id] || "")))
+    : [];
+  async function saveReportBulkEdit() {
+    if (!reportBulk || reportBulkBusy || !reportBulkChanged.length) return;
+    const missing = reportBulkChanged.find(r => !r.existed);
+    if (missing) {
+      setReportBulk(s => ({ ...s, err: `${missing.date} は日報が未提出のため、この画面からは保存できません（未提出日は受講生の提出後に編集できます）。` }));
+      return;
+    }
+    setReportBulkBusy(true);
+    setReportBulk(s => ({ ...s, err: "", failures: [] }));
+    const failures = [];
+    for (const r of reportBulkChanged) {
+      try {
+        await apiPut(`/reports/${reportBulk.traineeId}`, { date: r.date, customFields: r.values });
+      } catch (e) {
+        failures.push({ date: r.date, message: e?.errorMessage || e?.message || String(e) });
+      }
+    }
+    setReportBulkBusy(false);
+    setReportReloadKey(k => k + 1);
+    if (failures.length) setReportBulk(s => ({ ...s, err: `${failures.length}件の保存に失敗しました。`, failures }));
+    else setReportBulk(null);
   }
   async function confirmDeleteReport() {
     if (!deletingReport || deletingReportBusy) return;
@@ -4654,8 +4756,8 @@ function Reports({ role, userProfile }) {
           {monthlyLoading ? <div className="p-4"><SkeletonRows rows={5} /></div> : (
             <div className="overflow-x-auto">
               <div style={{ minWidth: 560 }}>
-                <div className="grid grid-cols-5 gap-3 px-4 py-2.5 text-xs font-semibold" style={{ background: T.bgBase, color: T.textMuted }}>
-                  <div className="col-span-2">受講生</div><div>提出数</div><div>コメント済み</div><div>未提出数</div>
+                <div className={`grid ${reportBulkEditable ? "grid-cols-6" : "grid-cols-5"} gap-3 px-4 py-2.5 text-xs font-semibold`} style={{ background: T.bgBase, color: T.textMuted }}>
+                  <div className="col-span-2">受講生</div><div>提出数</div><div>コメント済み</div><div>未提出数</div>{reportBulkEditable && <div>操作</div>}
                 </div>
                 {monthlyReportRows.length === 0 ? <div className="px-4 py-8 text-center text-sm" style={{ color: T.textMuted }}>該当データがありません</div> : monthlyReportRows.map(r => {
                   const canDrilldown = Boolean(r.drilldownDate);
@@ -4670,11 +4772,22 @@ function Reports({ role, userProfile }) {
                   // 2026-07-22 バグ修正(3): 日次画面への強制遷移で月次の表示状態（対象月・periodMode）が
                   // 失われる不具合のため、提出済み日報があればその場で詳細モーダルを開く（月次表示のまま）。
                   // 未提出日はモーダル内の明示ボタンからのみ日次画面へ遷移する。
+                  const openDrilldown = () => {
+                    if (r.drilldownReport) setDetailReport(r.drilldownReport);
+                    else setDetailReport({ __unsubmitted: true, traineeId: r.traineeId, name: r.name, rawDate: r.drilldownDate, date: r.drilldownDate });
+                  };
+                  // 月次の行末に「まとめて編集」を置く（勤怠と同じ操作の型に揃える）。
+                  // 行クリックのドリルダウンはbutton、まとめて編集はその外側に置く（buttonの入れ子を避ける）。
+                  if (reportBulkEditable) return (
+                    <div key={r.traineeId} className="grid grid-cols-6 items-center gap-3 px-4 py-3 text-sm" style={{ borderTop: `1px solid ${T.border}`, color: T.textPrimary }}>
+                      {canDrilldown
+                        ? <button type="button" onClick={openDrilldown} className="col-span-5 grid grid-cols-5 items-center gap-3 text-left">{rowContent}</button>
+                        : <div className="col-span-5 grid grid-cols-5 items-center gap-3">{rowContent}</div>}
+                      <div><Btn kind="ghost" size="sm" icon={Pencil} onClick={() => openReportBulkEdit(r)}>まとめて編集</Btn></div>
+                    </div>
+                  );
                   return canDrilldown ? (
-                    <button key={r.traineeId} type="button" onClick={() => {
-                      if (r.drilldownReport) setDetailReport(r.drilldownReport);
-                      else setDetailReport({ __unsubmitted: true, traineeId: r.traineeId, name: r.name, rawDate: r.drilldownDate, date: r.drilldownDate });
-                    }} className="grid w-full grid-cols-5 items-center gap-3 px-4 py-3 text-left text-sm transition hover:bg-slate-50" style={{ borderTop: `1px solid ${T.border}`, color: T.textPrimary }} title={`${r.drilldownDate.replace(/-/g, "/")}の日報確認を開く`}>
+                    <button key={r.traineeId} type="button" onClick={openDrilldown} className="grid w-full grid-cols-5 items-center gap-3 px-4 py-3 text-left text-sm transition hover:bg-slate-50" style={{ borderTop: `1px solid ${T.border}`, color: T.textPrimary }} title={`${r.drilldownDate.replace(/-/g, "/")}の日報確認を開く`}>
                       {rowContent}
                     </button>
                   ) : (
@@ -4828,6 +4941,38 @@ function Reports({ role, userProfile }) {
           </>)}
         </Modal>
       )}
+      {reportBulk && (
+        <Modal title={`${reportBulk.name}さんの${month.replace("-", "年")}月の日報`} onClose={() => !reportBulkBusy && setReportBulk(null)}
+          footer={<><Btn kind="ghost" onClick={() => setReportBulk(null)} disabled={reportBulkBusy}>キャンセル</Btn><Btn icon={Check} onClick={saveReportBulkEdit} disabled={reportBulkBusy || !reportBulkChanged.length}>{reportBulkBusy ? "保存中..." : `変更した${reportBulkChanged.length}日を保存`}</Btn></>}>
+          <p className="mb-3 text-xs" style={{ color: T.textMuted }}>研修日 {reportBulk.rows.length}日を表示しています。変更した日だけを保存します（未提出の日は受講生の提出後に編集できます）。</p>
+          {reportBulk.err && <div className="mb-3 rounded-xl px-3 py-2 text-sm font-semibold" style={{ background: T.dangerSubtle, color: T.danger }}>{reportBulk.err}</div>}
+          {reportBulk.failures.length > 0 && <div className="mb-3 rounded-xl px-3 py-2 text-xs" style={{ background: T.dangerSubtle, color: T.danger }}>{reportBulk.failures.map(f => <div key={f.date}>{f.date}: {f.message}</div>)}</div>}
+          <div className="space-y-3">
+            {reportBulk.rows.map((r, i) => {
+              const changed = reportFields.some(f => (r.values[f.id] || "") !== (r.orig[f.id] || ""));
+              const update = (fid, v) => setReportBulk(s => ({ ...s, rows: s.rows.map((x, xi) => xi === i ? { ...x, values: { ...x.values, [fid]: v } } : x) }));
+              return (
+                <div key={r.date} className="rounded-xl p-3" style={{ border: `1px solid ${changed ? T.accent : T.border}`, background: changed ? T.accentSubtle : "transparent" }}>
+                  <div className="mb-2 flex items-center gap-2 text-xs font-bold" style={{ color: T.textPrimary }}>
+                    {r.date.replace(/-/g, "/")}
+                    {!r.existed && <Badge tone="amber">未提出</Badge>}
+                    {changed && <Badge tone="cyan">変更あり</Badge>}
+                  </div>
+                  <div className="grid gap-2 md:grid-cols-2">
+                    {reportFields.map(f => (
+                      <label key={f.id} className="text-xs font-semibold" style={{ color: T.textSecondary }}>{f.label}
+                        <textarea rows={2} disabled={!r.existed} value={r.values[f.id] || ""} onChange={e => update(f.id, e.target.value)}
+                          className="mt-1 w-full rounded-lg px-2 py-1.5 text-sm outline-none disabled:opacity-50"
+                          style={{ border: `1px solid ${T.border}`, color: T.textPrimary, background: "#fff" }} />
+                      </label>
+                    ))}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </Modal>
+      )}
       {deletingReport && (
         <Modal title="日報を削除しますか？" danger onClose={() => !deletingReportBusy && setDeletingReport(null)}
           footer={<><Btn kind="ghost" onClick={() => setDeletingReport(null)} disabled={deletingReportBusy}>キャンセル</Btn><Btn onClick={confirmDeleteReport} disabled={deletingReportBusy}>{deletingReportBusy ? "削除中..." : "削除"}</Btn></>}>
@@ -4873,6 +5018,7 @@ function TraineeList({ role, openKarte }) {
   const [q, setQ] = useState("");
   const [courseFilter, setCourseFilter] = useState(() => getActiveCourseId());
   const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(LIST_PAGE_SIZE);
   const [date, setDate] = useState(todayStr());
   const [courses, setCourses] = useState([]);
   const [courseOptionsStatus, setCourseOptionsStatus] = useState("loading");
@@ -4966,7 +5112,7 @@ function TraineeList({ role, openKarte }) {
     return data.filter(t => !s || `${t.name || ""} ${t.email || ""} ${t.company || ""} ${companyName(t.company)}`.toLowerCase().includes(s));
   }, [data, q, companies]);
   useEffect(() => { setPage(1); }, [q, courseFilter, data.length]);
-  const visiblePage = pageSlice(visibleData, page);
+  const visiblePage = pageSlice(visibleData, page, pageSize);
   const listLoading = loading || loadedCourseFilter !== courseFilter;
   if (selected) return (
     <div>
@@ -5029,7 +5175,7 @@ function TraineeList({ role, openKarte }) {
                 );
               })}
             </div>
-            <ListPager page={visiblePage.page} totalPages={visiblePage.totalPages} total={visiblePage.total} onPage={setPage} />
+            <ListPager page={visiblePage.page} totalPages={visiblePage.totalPages} total={visiblePage.total} onPage={setPage} size={pageSize} onSize={n => { setPageSize(n); setPage(1); }} start={visiblePage.start} />
           </Card>
           <Card className="hidden p-5 xl:col-span-3">
             {!selected ? <EmptyState title="受講生を選択してください" desc="一覧から受講生を選ぶと詳細を表示します。" />
@@ -5525,21 +5671,49 @@ const adminMsgStyle = { background: T.successSubtle, color: T.success };
 const adminErrStyle = { background: T.dangerSubtle, color: T.danger };
 const adminPanelStyle = { background: T.bgBase, color: T.textMuted };
 const LIST_PAGE_SIZE = 12;
+const LIST_PAGE_SIZES = [12, 30, 50, 100];
 function pageSlice(rows, page, size = LIST_PAGE_SIZE) {
   const totalPages = Math.max(1, Math.ceil(rows.length / size));
   const safePage = Math.min(Math.max(1, page), totalPages);
   const start = (safePage - 1) * size;
   return { items: rows.slice(start, start + size), page: safePage, totalPages, total: rows.length, start };
 }
-function ListPager({ page, totalPages, total, onPage }) {
-  if (totalPages <= 1) return null;
+// ページ番号へ直接飛べるページャ。件数が多い一覧で「前へ/次へ」だけだと目的の行まで遠いため、
+// 表示件数の切り替えとページ番号ボタン（現在位置の前後2ページ＋先頭/末尾）を持たせる。
+function pageNumbers(page, totalPages) {
+  const set = new Set([1, totalPages, page - 1, page, page + 1]);
+  return [...set].filter(n => n >= 1 && n <= totalPages).sort((a, b) => a - b);
+}
+function ListPager({ page, totalPages, total, onPage, size, onSize, start = 0 }) {
+  const showSize = typeof onSize === "function";
+  if (totalPages <= 1 && !(showSize && total > LIST_PAGE_SIZE)) return null;
+  const nums = pageNumbers(page, totalPages);
+  const end = Math.min(start + (size || LIST_PAGE_SIZE), total);
   return (
     <div className="flex flex-wrap items-center justify-between gap-3 px-4 py-3" style={{ borderTop: `1px solid ${T.border}` }}>
-      <div className="text-xs font-semibold" style={{ color: T.textMuted }}>{total}件中 {page}/{totalPages}ページ</div>
-      <div className="flex items-center gap-2">
-        <Btn kind="ghost" size="sm" icon={ChevronLeft} onClick={() => onPage(page - 1)} disabled={page <= 1}>前へ</Btn>
-        <Btn kind="ghost" size="sm" icon={ChevronRight} onClick={() => onPage(page + 1)} disabled={page >= totalPages}>次へ</Btn>
+      <div className="flex flex-wrap items-center gap-3">
+        <div className="text-xs font-semibold" style={{ color: T.textMuted }}>{total}件中 {total === 0 ? 0 : start + 1}〜{end}件</div>
+        {showSize && (
+          <label className="flex items-center gap-1.5 text-xs" style={{ color: T.textMuted }}>表示件数
+            <select value={size || LIST_PAGE_SIZE} onChange={e => onSize(Number(e.target.value))} className="rounded-lg px-2 py-1 text-xs outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary, background: T.bgSurface }}>
+              {LIST_PAGE_SIZES.map(n => <option key={n} value={n}>{n}件</option>)}
+            </select>
+          </label>
+        )}
       </div>
+      {totalPages > 1 && (
+        <div className="flex flex-wrap items-center gap-1">
+          <Btn kind="ghost" size="sm" icon={ChevronLeft} onClick={() => onPage(page - 1)} disabled={page <= 1}>前へ</Btn>
+          {nums.map((n, i) => (
+            <span key={n} className="flex items-center gap-1">
+              {i > 0 && n - nums[i - 1] > 1 && <span className="px-1 text-xs" style={{ color: T.textMuted }}>…</span>}
+              <button type="button" onClick={() => onPage(n)} className="min-w-[28px] rounded-lg px-2 py-1 text-xs font-semibold"
+                style={n === page ? { background: T.accent, color: "#fff" } : { border: `1px solid ${T.border}`, color: T.textSecondary }}>{n}</button>
+            </span>
+          ))}
+          <Btn kind="ghost" size="sm" icon={ChevronRight} onClick={() => onPage(page + 1)} disabled={page >= totalPages}>次へ</Btn>
+        </div>
+      )}
     </div>
   );
 }
