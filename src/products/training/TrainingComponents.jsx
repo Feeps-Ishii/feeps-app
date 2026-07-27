@@ -3449,7 +3449,7 @@ function AttendanceManage({ role, userProfile }) {
         <div className="hidden overflow-x-auto md:block">
           <div className="feeps-zebra" style={{ minWidth: 600 }}>
             <div className="flex items-center gap-3 px-4 py-2.5 text-xs font-semibold" style={{ background: T.bgBase, color: T.textMuted }}>
-              {canEdit && <div className="w-6" />}<div className="w-40">受講生</div><div className="w-16">出勤</div><div className="w-16">退勤</div><div className="w-20">状態</div><div className="flex-1">備考</div>{(canEdit || role === "admin") && <div className="w-20" />}</div>
+              {canEdit && <div className="w-6" />}<div className="w-40">受講生</div><div className="w-16">出勤</div><div className="w-16">退勤</div><div className="w-20">状態</div><div className="flex-1">備考</div><div className="w-28 text-right">操作</div></div>
             {filteredRows.length === 0 ? <div className="px-4 py-8 text-center text-sm" style={{ color: T.textMuted }}>該当データがありません</div> : filteredRows.map((a) => {
               return (
               <div key={a.traineeId} className="flex items-center gap-3 px-4 py-3 text-sm" style={{ borderTop: `1px solid ${T.border}`, color: T.textPrimary }}>
@@ -3469,9 +3469,11 @@ function AttendanceManage({ role, userProfile }) {
                     <div className="w-16" style={{ color: T.textMuted }}>{a.out || "—"}</div>
                     <div className="w-20"><Badge tone={attendanceStatusTone(a.s, a)}>{attendanceStatusLabel(a.s, a)}</Badge></div>
                     <div className="flex-1 truncate text-xs" style={{ color: T.textMuted }}>{a.note || "—"}</div>
-                    {(canEdit || canDeleteRow(a)) && <div className="flex w-20 justify-end gap-1">
-                      {canEdit && <button onClick={() => startEdit(a)} className="rounded-lg p-1 hover:bg-gray-50"><Pencil size={15} style={{ color: T.textMuted }} /></button>}
-                      {canDeleteRow(a) && <button onClick={() => setDeletingRow(a)} className="rounded-lg p-1 hover:bg-gray-50"><Trash2 size={15} style={{ color: T.danger }} /></button>}
+                    <div className="flex w-28 justify-end gap-1">
+                      <button onClick={() => setAttendanceDetail(a)} className="rounded-lg px-2 py-1 text-xs font-semibold" style={{ color: T.accentHover }}>詳細</button>
+                      {a.deleted && <button onClick={() => restoreAttendance(a)} disabled={deleteBusy} className="rounded-lg px-2 py-1 text-xs font-semibold" style={{ color: T.accentHover }}>元に戻す</button>}
+                      {!a.deleted && canEdit && <button onClick={() => startEdit(a)} className="rounded-lg p-1 hover:bg-gray-50"><Pencil size={15} style={{ color: T.textMuted }} /></button>}
+                      {!a.deleted && canDeleteRow(a) && <button onClick={() => setDeletingRow(a)} className="rounded-lg p-1 hover:bg-gray-50"><Trash2 size={15} style={{ color: T.danger }} /></button>}
                     </div>}
                   </>
                 )}
