@@ -899,13 +899,16 @@ function AdminUsers() {
   const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [open, setOpen] = useState(false);
-  const [form, setForm] = useState({ email: "", name: "", role: "trainee", tempPassword: "Feeps#1234", companyId: "", courseId: "" });
+  const [form, setForm] = useState({ email: "", name: "", role: "trainee", tempPassword: "Feeps#1234", companyId: "", courseId: "", adminTier: "standard", canEditReportsAttendance: false, assignedCourseIds: [] });
   const [q, setQ] = useState("");
   const [roleFilter, setRoleFilter] = useState("すべて");
   const [sort, setSort] = useState({ key: "name", dir: "asc" });
   const [page, setPage] = useState(1);
   const [selected, setSelected] = useState(null);
   const [edit, setEdit] = useState({ name: "", company: "", role: "trainee" });
+  const [adminPerm, setAdminPerm] = useState({ adminTier: "standard", canEditReportsAttendance: false, assignedCourseIds: [] });
+  const [adminPermBusy, setAdminPermBusy] = useState(false);
+  const [myProfile, setMyProfile] = useState(null);
   const [courseIds, setCourseIds] = useState([]);
   const [courseLoading, setCourseLoading] = useState(false);
   const [companies, setCompanies] = useState([]);
@@ -915,10 +918,13 @@ function AdminUsers() {
   const [msg, setMsg] = useState("");
   const [err, setErr] = useState("");
   const [bulkCompanyId, setBulkCompanyId] = useState("");
+  // 管理者内の「スーパー管理者」判定。一般管理者への権限付与UIはスーパー管理者にのみ表示する（表示制御のみ・正本はBackend）。
+  const isSuperAdminViewer = !!myProfile && myProfile.role === "admin" && myProfile.adminTier !== "standard";
 
   useEffect(() => {
     apiGet("/companies").then(l => setCompanies(l || [])).catch(() => setErr("企業一覧の取得に失敗しました。"));
     apiGet("/courses").then(l => setCourses(l || [])).catch(() => setErr("コース一覧の取得に失敗しました。"));
+    apiGet("/profile/me").then(p => setMyProfile(p || null)).catch(() => setMyProfile(null));
   }, []);
 
   function load() {
@@ -973,6 +979,11 @@ function AdminUsers() {
   function selectUser(u) {
     setSelected(u);
     setEdit({ name: u.name || "", company: u.company || "", role: u.role || "trainee" });
+    setAdminPerm({
+      adminTier: u.adminTier === "standard" ? "standard" : "super",
+      canEditReportsAttendance: u.canEditReportsAttendance === true,
+      assignedCourseIds: Array.isArray(u.assignedCourseIds) ? u.assignedCourseIds : [],
+    });
     setCourseIds([]);
     setErr("");
     setMsg("");
@@ -984,15 +995,39 @@ function AdminUsers() {
     if (!form.email.trim() || !form.tempPassword.trim()) { setErr("メールと仮パスワードは必須です。"); return; }
     setBusy(true);
     try {
-      await apiPost("/admin/users", { email: form.email.trim(), name: form.name.trim(), role: form.role, tempPassword: form.tempPassword, companyId: form.companyId, courseId: form.role === "trainee" ? form.courseId : "" });
+      const payload = { email: form.email.trim(), name: form.name.trim(), role: form.role, tempPassword: form.tempPassword, companyId: form.companyId, courseId: form.role === "trainee" ? form.courseId : "" };
+      if (form.role === "admin" && isSuperAdminViewer) {
+        payload.adminTier = form.adminTier;
+        payload.canEditReportsAttendance = form.adminTier === "standard" && form.canEditReportsAttendance === true;
+        payload.assignedCourseIds = form.adminTier === "standard" ? form.assignedCourseIds : [];
+      }
+      await apiPost("/admin/users", payload);
       setMsg(`${form.email.trim()} を作成しました（ロール：${roleLabel(form.role)}）。初回ログイン時にパスワード変更が必要です。`);
-      setForm({ email: "", name: "", role: "trainee", tempPassword: "Feeps#1234", companyId: "", courseId: "" });
+      setForm({ email: "", name: "", role: "trainee", tempPassword: "Feeps#1234", companyId: "", courseId: "", adminTier: "standard", canEditReportsAttendance: false, assignedCourseIds: [] });
       setOpen(false);
       load();
     } catch (e) {
       const m = String(e?.message || e);
       setErr(m.includes("409") ? "このメールアドレスは既に登録済みです。" : "作成に失敗しました：" + m);
     } finally { setBusy(false); }
+  }
+  async function saveAdminPermissions() {
+    if (!selected || adminPermBusy) return;
+    setErr(""); setMsg(""); setAdminPermBusy(true);
+    try {
+      await apiPut(`/admin/users/${selected.userId}/admin-permissions`, {
+        adminTier: adminPerm.adminTier,
+        canEditReportsAttendance: adminPerm.adminTier === "standard" && adminPerm.canEditReportsAttendance === true,
+        assignedCourseIds: adminPerm.adminTier === "standard" ? adminPerm.assignedCourseIds : [],
+      });
+      setMsg("管理者権限を保存しました。");
+      await load();
+    } catch (e) {
+      setErr("管理者権限の保存に失敗しました：" + (e?.message || e));
+    } finally { setAdminPermBusy(false); }
+  }
+  function toggleAdminPermCourse(courseId) {
+    setAdminPerm(s => ({ ...s, assignedCourseIds: s.assignedCourseIds.includes(courseId) ? s.assignedCourseIds.filter(id => id !== courseId) : [...s.assignedCourseIds, courseId] }));
   }
   async function save() {
     if (!selected || busy) return;
@@ -1084,6 +1119,43 @@ function AdminUsers() {
             <div className="rounded-xl p-3 text-xs" style={adminPanelStyle}>所属コースは受講生ロールのユーザーに設定します。</div>
           )}
         </Card>
+        {selected.role === "admin" && isSuperAdminViewer && (
+          <Card className="p-5">
+            <div className="mb-3 flex items-center justify-between">
+              <h3 className="flex items-center gap-1.5 font-bold" style={{ color: T.textPrimary }}><ShieldCheck size={16} />管理者権限</h3>
+              <Badge tone={adminPerm.adminTier === "super" ? "red" : "cyan"}>{adminPerm.adminTier === "super" ? "スーパー管理者" : "一般管理者"}</Badge>
+            </div>
+            <p className="mb-3 text-xs leading-relaxed" style={{ color: T.textMuted }}>スーパー管理者は日報・勤怠を含む全機能を無条件に利用できます。一般管理者は、ここで権限を付与した場合のみ、担当コースの範囲で日報・勤怠の編集・削除ができます。</p>
+            <div className="space-y-3">
+              <Field label="管理者種別"><select value={adminPerm.adminTier} onChange={e => setAdminPerm(s => ({ ...s, adminTier: e.target.value }))} className={fieldCls} style={{ border: `1px solid ${T.border}`, color: T.textPrimary }}>
+                <option value="standard">一般管理者</option>
+                <option value="super">スーパー管理者</option>
+              </select></Field>
+              {adminPerm.adminTier === "standard" && (<>
+                <label className="flex items-center gap-2 text-sm" style={{ color: T.textPrimary }}>
+                  <input type="checkbox" checked={adminPerm.canEditReportsAttendance} onChange={e => setAdminPerm(s => ({ ...s, canEditReportsAttendance: e.target.checked }))} />
+                  日報・勤怠の編集・削除権限を付与する
+                </label>
+                {adminPerm.canEditReportsAttendance && (
+                  <Field label="担当コース（このコース範囲のみ編集・削除できます）">
+                    {courses.length === 0 ? <div className="rounded-xl px-4 py-5 text-center text-sm" style={adminPanelStyle}>コースがありません。</div> : (
+                      <div className="grid gap-2 md:grid-cols-2">{courses.map(c => {
+                        const checked = adminPerm.assignedCourseIds.includes(c.courseId);
+                        return (
+                          <label key={c.courseId} className="flex cursor-pointer items-center gap-2 rounded-xl p-3 transition hover:bg-slate-50" style={{ background: checked ? T.accentSubtle : T.bgBase, border: `1px solid ${checked ? T.accent : T.border}` }}>
+                            <input type="checkbox" checked={checked} onChange={() => toggleAdminPermCourse(c.courseId)} />
+                            <div className="min-w-0 flex-1"><div className="truncate text-sm font-semibold" style={{ color: T.textPrimary }}>{c.name}</div><div className="text-xs" style={{ color: T.textMuted }}>{kindLabel(c.type || c.kind)}</div></div>
+                          </label>
+                        );
+                      })}</div>
+                    )}
+                  </Field>
+                )}
+              </>)}
+            </div>
+            <div className="mt-4 flex justify-end"><Btn size="sm" icon={Check} onClick={saveAdminPermissions} disabled={adminPermBusy}>{adminPermBusy ? "保存中..." : "管理者権限を保存"}</Btn></div>
+          </Card>
+        )}
       </div>
       {deleteOpen && selected && <DeleteConfirm title="ユーザーを削除" name={selected.name || selected.email || selected.userId} warning="所属コース、担当コース、カルテ・日報・勤怠・テスト結果があるユーザーは削除できません。" busy={busy} onClose={() => setDeleteOpen(false)} onConfirm={deleteUser} />}
     </div>
@@ -1157,6 +1229,35 @@ function AdminUsers() {
             <Field label="ロール"><select value={form.role} onChange={e => setForm({ ...form, role: e.target.value })} className={fieldCls} style={{ border: `1px solid ${T.border}`, color: T.textPrimary }}>{ROLE_OPTS.map(([v, l]) => <option key={v} value={v}>{l}</option>)}</select></Field>
             <Field label="所属企業（任意）"><select value={form.companyId} onChange={e => setForm({ ...form, companyId: e.target.value })} className={fieldCls} style={{ border: `1px solid ${T.border}`, color: T.textPrimary }}><option value="">（未選択）</option>{companies.map(c => <option key={c.companyId} value={c.companyId}>{c.name}</option>)}</select></Field>
             {form.role === "trainee" && <Field label="所属コース（任意）"><select value={form.courseId} onChange={e => setForm({ ...form, courseId: e.target.value })} className={fieldCls} style={{ border: `1px solid ${T.border}`, color: T.textPrimary }}><option value="">（未選択）</option>{courses.map(c => <option key={c.courseId} value={c.courseId}>{c.name}（{kindLabel(c.kind)}）</option>)}</select></Field>}
+            {form.role === "admin" && isSuperAdminViewer && (
+              <div className="rounded-xl p-3 space-y-3" style={{ border: `1px solid ${T.border}`, background: T.bgBase }}>
+                <Field label="管理者種別"><select value={form.adminTier} onChange={e => setForm({ ...form, adminTier: e.target.value })} className={fieldCls} style={{ border: `1px solid ${T.border}`, color: T.textPrimary }}>
+                  <option value="standard">一般管理者</option>
+                  <option value="super">スーパー管理者</option>
+                </select></Field>
+                {form.adminTier === "standard" && (<>
+                  <label className="flex items-center gap-2 text-sm" style={{ color: T.textPrimary }}>
+                    <input type="checkbox" checked={form.canEditReportsAttendance} onChange={e => setForm({ ...form, canEditReportsAttendance: e.target.checked })} />
+                    日報・勤怠の編集権限を付与する
+                  </label>
+                  {form.canEditReportsAttendance && (
+                    <Field label="担当コース（このコース範囲のみ編集・削除できます）">
+                      <div className="max-h-40 space-y-1 overflow-y-auto rounded-lg p-2" style={{ border: `1px solid ${T.border}` }}>
+                        {courses.map(c => (
+                          <label key={c.courseId} className="flex items-center gap-2 text-sm" style={{ color: T.textPrimary }}>
+                            <input type="checkbox" checked={form.assignedCourseIds.includes(c.courseId)} onChange={() => setForm(s => ({ ...s, assignedCourseIds: s.assignedCourseIds.includes(c.courseId) ? s.assignedCourseIds.filter(id => id !== c.courseId) : [...s.assignedCourseIds, c.courseId] }))} />
+                            {c.name}（{kindLabel(c.kind)}）
+                          </label>
+                        ))}
+                      </div>
+                    </Field>
+                  )}
+                </>)}
+              </div>
+            )}
+            {form.role === "admin" && !isSuperAdminViewer && (
+              <div className="rounded-lg px-3 py-2 text-xs" style={{ background: T.bgBase, color: T.textMuted }}>管理者アカウントの作成にはスーパー管理者権限が必要です。作成後の権限設定はスーパー管理者に依頼してください。</div>
+            )}
             <Field label="仮パスワード（初回ログイン時に変更）"><input value={form.tempPassword} onChange={e => setForm({ ...form, tempPassword: e.target.value })} className={fieldCls} style={{ border: `1px solid ${T.border}`, color: T.textPrimary }} /></Field>
             {err && <div className="rounded-lg px-3 py-2 text-xs" style={adminErrStyle}>{err}</div>}
           </div>

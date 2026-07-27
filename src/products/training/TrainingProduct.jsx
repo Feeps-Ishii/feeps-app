@@ -22,6 +22,7 @@ export default function TrainingProduct({
   goals,
   setGoals,
   displayName,
+  userProfile,
 }) {
   if (karte) return <Karte trainee={karte} back={() => setKarte(null)} role={role} />;
   if (view === "home") {
@@ -39,8 +40,8 @@ export default function TrainingProduct({
   if (view === "elearning") return <ElearningView go={go} />;
   if (view === "materials") return <Materials role={role} />;
   if (view === "tests") return <Tests role={role} />;
-  if (view === "attendance") return <Attendance role={role} />;
-  if (view === "reports") return <Reports role={role} />;
+  if (view === "attendance") return <Attendance role={role} userProfile={userProfile} />;
+  if (view === "reports") return <Reports role={role} userProfile={userProfile} />;
   if (view === "trainees") return <TraineeList role={role} openKarte={setKarte} />;
   return null;
 }

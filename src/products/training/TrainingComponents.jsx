@@ -2685,9 +2685,19 @@ async function exportAttendanceExcel(data, date) {
 }
 
 /* ===== 勤怠 ===== */
-function Attendance({ role }) {
+function Attendance({ role, userProfile }) {
   if (role === "trainee") return <TraineeAttendance />;
-  return <AttendanceManage role={role} />;
+  return <AttendanceManage role={role} userProfile={userProfile} />;
+}
+
+// admin(role==="admin")が対象コースの日報・勤怠を編集・削除できるかどうか。
+// 正本の権限判定は必ずBackend側（canAdminManageReportsAttendance / training.mjs, admin.mjs）で行う。
+// ここではUXのためのボタン表示制御のみを行う。
+function adminCanManageReportsAttendance(userProfile, courseId) {
+  if (!userProfile || userProfile.role !== "admin") return false;
+  if (userProfile.adminTier !== "standard") return true; // super（未設定含む既存admin）は全コース可
+  if (userProfile.canEditReportsAttendance !== true) return false;
+  return Array.isArray(userProfile.assignedCourseIds) && !!courseId && userProfile.assignedCourseIds.includes(courseId);
 }
 function TraineeAttendance() {
   const today = todayStr();
@@ -3006,13 +3016,15 @@ function TraineeAttendance() {
     </div>
   );
 }
-function AttendanceManage({ role }) {
+function AttendanceManage({ role, userProfile }) {
   const nameMap = useNameMap();
   const [date, setDate] = useState(todayStr());
   const [rows, setRows] = useState([]);
   const [eId, setEId] = useState(null);
   const [draft, setDraft] = useState({});
   const [err, setErr] = useState("");
+  const [deletingRow, setDeletingRow] = useState(null);
+  const [deleteBusy, setDeleteBusy] = useState(false);
   const [periodMode, setPeriodMode] = useState("日次");
   const [month, setMonth] = useState(monthStr());
   const [monthlyRows, setMonthlyRows] = useState([]);
@@ -3027,7 +3039,28 @@ function AttendanceManage({ role }) {
   const [monthlyTrainingDates, setMonthlyTrainingDates] = useState([]);
   const [monthlyScheduleState, setMonthlyScheduleState] = useState("loading");
   const opsFilter = useOpsFilter(true);
-  const canEdit = role === "admin" || (role === "instructor" && scheduleState === "ready" && Array.isArray(dayContext?.effectiveInstructorIds) && dayContext.effectiveInstructorIds.includes(opsFilter.currentUserId));
+  const canEdit = role === "admin"
+    ? adminCanManageReportsAttendance(userProfile, opsFilter.courseId)
+    : (role === "instructor" && scheduleState === "ready" && Array.isArray(dayContext?.effectiveInstructorIds) && dayContext.effectiveInstructorIds.includes(opsFilter.currentUserId));
+  // 削除は管理者のみ（対象行のcourseId基準。表示制御のみ・正本はBackend判定）。
+  function canDeleteRow(row) {
+    return role === "admin" && adminCanManageReportsAttendance(userProfile, row.courseId || opsFilter.courseId);
+  }
+  async function confirmDeleteAttendance() {
+    if (!deletingRow || deleteBusy) return;
+    setDeleteBusy(true);
+    setErr("");
+    try {
+      await apiDeleteBase(`/attendance/${deletingRow.traineeId}/${deletingRow.date}`);
+      emitNotificationRefresh();
+      setDeletingRow(null);
+      load();
+    } catch (e) {
+      setErr("削除に失敗しました：" + (e?.errorMessage || e?.message || e));
+    } finally {
+      setDeleteBusy(false);
+    }
+  }
   function load() {
     setErr("");
     apiGet("/attendance?date=" + date)
@@ -3260,7 +3293,10 @@ function AttendanceManage({ role }) {
                     <div className="rounded-xl p-3" style={{ background: T.bgBase }}><div className="text-xs" style={{ color: T.textMuted }}>退勤</div><div className="mt-1 font-semibold" style={{ color: T.textPrimary }}>{a.out || "—"}</div></div>
                   </div>
                   {a.note && <div className="mt-3 text-xs" style={{ color: T.textMuted }}>備考: {a.note}</div>}
-                  {canEdit && <div className="mt-3 flex justify-end"><Btn kind="ghost" size="sm" icon={Pencil} onClick={() => startEdit(a)}>修正</Btn></div>}
+                  {(canEdit || canDeleteRow(a)) && <div className="mt-3 flex justify-end gap-2">
+                    {canEdit && <Btn kind="ghost" size="sm" icon={Pencil} onClick={() => startEdit(a)}>修正</Btn>}
+                    {canDeleteRow(a) && <Btn kind="ghost" size="sm" icon={Trash2} onClick={() => setDeletingRow(a)}>削除</Btn>}
+                  </div>}
                 </div>
               )}
             </div>
@@ -3269,7 +3305,7 @@ function AttendanceManage({ role }) {
         <div className="hidden overflow-x-auto md:block">
           <div className="feeps-zebra" style={{ minWidth: 600 }}>
             <div className="flex items-center gap-3 px-4 py-2.5 text-xs font-semibold" style={{ background: T.bgBase, color: T.textMuted }}>
-              <div className="w-40">受講生</div><div className="w-16">出勤</div><div className="w-16">退勤</div><div className="w-20">状態</div><div className="flex-1">備考</div>{canEdit && <div className="w-12" />}</div>
+              <div className="w-40">受講生</div><div className="w-16">出勤</div><div className="w-16">退勤</div><div className="w-20">状態</div><div className="flex-1">備考</div>{(canEdit || role === "admin") && <div className="w-20" />}</div>
             {filteredRows.length === 0 ? <div className="px-4 py-8 text-center text-sm" style={{ color: T.textMuted }}>該当データがありません</div> : filteredRows.map((a) => {
               return (
               <div key={a.traineeId} className="flex items-center gap-3 px-4 py-3 text-sm" style={{ borderTop: `1px solid ${T.border}`, color: T.textPrimary }}>
@@ -3289,7 +3325,10 @@ function AttendanceManage({ role }) {
                     <div className="w-16" style={{ color: T.textMuted }}>{a.out || "—"}</div>
                     <div className="w-20"><Badge tone={attendanceStatusTone(a.s, a)}>{attendanceStatusLabel(a.s, a)}</Badge></div>
                     <div className="flex-1 truncate text-xs" style={{ color: T.textMuted }}>{a.note || "—"}</div>
-                    {canEdit && <div className="flex w-12 justify-end"><button onClick={() => startEdit(a)} className="rounded-lg p-1 hover:bg-gray-50"><Pencil size={15} style={{ color: T.textMuted }} /></button></div>}
+                    {(canEdit || canDeleteRow(a)) && <div className="flex w-20 justify-end gap-1">
+                      {canEdit && <button onClick={() => startEdit(a)} className="rounded-lg p-1 hover:bg-gray-50"><Pencil size={15} style={{ color: T.textMuted }} /></button>}
+                      {canDeleteRow(a) && <button onClick={() => setDeletingRow(a)} className="rounded-lg p-1 hover:bg-gray-50"><Trash2 size={15} style={{ color: T.danger }} /></button>}
+                    </div>}
                   </>
                 )}
               </div>
@@ -3298,6 +3337,13 @@ function AttendanceManage({ role }) {
         </div>
       </Card>
       </>)}
+      {deletingRow && (
+        <Modal title="勤怠を削除しますか？" danger onClose={() => !deleteBusy && setDeletingRow(null)}
+          footer={<><Btn kind="ghost" onClick={() => setDeletingRow(null)} disabled={deleteBusy}>キャンセル</Btn><Btn onClick={confirmDeleteAttendance} disabled={deleteBusy}>{deleteBusy ? "削除中..." : "削除"}</Btn></>}>
+          <p className="text-sm" style={{ color: T.textPrimary }}>{`${nameMap[deletingRow.traineeId] || deletingRow.name}さんの ${deletingRow.date} の勤怠記録を削除します。`}</p>
+          <p className="mt-2 text-xs" style={{ color: T.textMuted }}>一覧からは除外されますが、監査目的で記録はシステム上に保持されます（論理削除）。</p>
+        </Modal>
+      )}
     </div>
   );
 }
@@ -3885,8 +3931,13 @@ function mapReportInstructor(r) {
   };
 }
 
-function Reports({ role }) {
+function Reports({ role, userProfile }) {
   const nameMap = useNameMap();
+  const [adminEditingReport, setAdminEditingReport] = useState(false);
+  const [adminReportDraft, setAdminReportDraft] = useState(null);
+  const [adminReportSaving, setAdminReportSaving] = useState(false);
+  const [deletingReport, setDeletingReport] = useState(null);
+  const [deletingReportBusy, setDeletingReportBusy] = useState(false);
   const [initialReportTarget] = useState(() => role === "trainee" ? getTrainingTargetContext("reports", { consume: false }) : null);
   const [reports, setReports] = useState([]);
   const [date, setDate] = useState(() => initialReportTarget?.date || todayStr());
@@ -3949,6 +4000,45 @@ function Reports({ role }) {
     return !opsFilter.courseId || !report?.courseId || report.courseId === opsFilter.courseId;
   };
   const canComment = role === "admin" || role === "client" || (role === "instructor" && opsReportScheduleState === "ready" && opsReportDayContext?.isTrainingDay === true && opsReportDayContext?.effectiveInstructorIds?.includes(opsFilter.currentUserId));
+  useEffect(() => { setAdminEditingReport(false); setAdminReportDraft(null); }, [detailReport?.id, detailReport?.traineeId, detailReport?.rawDate]);
+  // 管理者による日報の内容編集・削除。表示制御のみ・正本はBackend(canAdminManageReportsAttendance)。
+  function canAdminEditReport(report) {
+    return role === "admin" && adminCanManageReportsAttendance(userProfile, report?.courseId || opsFilter.courseId);
+  }
+  function startAdminEditReport(report) {
+    setAdminReportDraft(draftFromReport(report));
+    setAdminEditingReport(true);
+  }
+  async function saveAdminReportEdit() {
+    if (!detailReport || !adminReportDraft || adminReportSaving) return;
+    setAdminReportSaving(true);
+    setSaveErr("");
+    try {
+      await apiPut(`/reports/${detailReport.traineeId}`, { date: detailReport.rawDate || detailReport.date, ...adminReportDraft });
+      setAdminEditingReport(false);
+      setDetailReport(null);
+      setReportReloadKey(k => k + 1);
+    } catch (e) {
+      setSaveErr("日報の編集に失敗しました：" + (e?.errorMessage || e?.message || e));
+    } finally {
+      setAdminReportSaving(false);
+    }
+  }
+  async function confirmDeleteReport() {
+    if (!deletingReport || deletingReportBusy) return;
+    setDeletingReportBusy(true);
+    setSaveErr("");
+    try {
+      await apiDeleteBase(`/reports/${deletingReport.traineeId}/${deletingReport.rawDate || deletingReport.date}`);
+      setDeletingReport(null);
+      setDetailReport(null);
+      setReportReloadKey(k => k + 1);
+    } catch (e) {
+      setSaveErr("日報の削除に失敗しました：" + (e?.errorMessage || e?.message || e));
+    } finally {
+      setDeletingReportBusy(false);
+    }
+  }
   function blankReportDraft() {
     return { morningGoal: "", goalItems: [], learned: "", question: "", nextday: "", reflection: "", blockers: "", tomorrowGoal: "", customFields: {} };
   }
@@ -4580,6 +4670,21 @@ function Reports({ role }) {
               </div>
             </div>
           ) : (<>
+          {canAdminEditReport(detailReport) && (
+            <div className="mb-4 flex justify-end gap-2">
+              {adminEditingReport ? (
+                <>
+                  <Btn kind="ghost" size="sm" onClick={() => { setAdminEditingReport(false); setAdminReportDraft(null); }} disabled={adminReportSaving}>キャンセル</Btn>
+                  <Btn size="sm" icon={Check} onClick={saveAdminReportEdit} disabled={adminReportSaving}>{adminReportSaving ? "保存中…" : "保存"}</Btn>
+                </>
+              ) : (
+                <>
+                  <Btn kind="ghost" size="sm" icon={Pencil} onClick={() => startAdminEditReport(detailReport)}>日報を編集</Btn>
+                  <Btn kind="ghost" size="sm" icon={Trash2} onClick={() => setDeletingReport(detailReport)}>削除</Btn>
+                </>
+              )}
+            </div>
+          )}
           {Boolean(detailReport.morningGoal || detailReport.goalItems?.length) && (
             <div className="mb-4 rounded-xl p-3.5" style={{ background: T.accentSubtle }}>
               <div className="mb-2 text-xs font-bold" style={{ color: T.accent }}>朝の目標</div>
@@ -4596,7 +4701,17 @@ function Reports({ role }) {
             {reportDetailItems(detailReport, reportFields).map(item => (
               <div key={item.key} className="rounded-xl p-3.5" style={{ background: T.bgBase }}>
                 <div className="mb-1 text-xs font-bold" style={{ color: T.accent }}>{item.title}</div>
-                <div className="whitespace-pre-wrap text-sm leading-relaxed" style={{ color: item.value ? T.textSecondary : T.textMuted }}>{item.value || "未入力"}</div>
+                {adminEditingReport && adminReportDraft ? (
+                  <textarea
+                    value={reportFieldValue(adminReportDraft, item.key)}
+                    onChange={e => setAdminReportDraft(current => REPORT_FIXED_KEYS.has(item.key) ? { ...current, [item.key]: e.target.value } : { ...current, customFields: { ...current.customFields, [item.key]: e.target.value } })}
+                    rows={4}
+                    className="w-full resize-y rounded-lg px-3 py-2.5 text-sm leading-relaxed outline-none"
+                    style={{ border: `1px solid ${T.border}`, color: T.textPrimary, background: T.bgSurface }}
+                  />
+                ) : (
+                  <div className="whitespace-pre-wrap text-sm leading-relaxed" style={{ color: item.value ? T.textSecondary : T.textMuted }}>{item.value || "未入力"}</div>
+                )}
               </div>
             ))}
           </div>
@@ -4620,6 +4735,13 @@ function Reports({ role }) {
             <div>更新日時: {reportUpdatedAt(detailReport) ? fmtTs(reportUpdatedAt(detailReport)) : "記録なし"}</div>
           </div>
           </>)}
+        </Modal>
+      )}
+      {deletingReport && (
+        <Modal title="日報を削除しますか？" danger onClose={() => !deletingReportBusy && setDeletingReport(null)}
+          footer={<><Btn kind="ghost" onClick={() => setDeletingReport(null)} disabled={deletingReportBusy}>キャンセル</Btn><Btn onClick={confirmDeleteReport} disabled={deletingReportBusy}>{deletingReportBusy ? "削除中..." : "削除"}</Btn></>}>
+          <p className="text-sm" style={{ color: T.textPrimary }}>{`${nameMap[deletingReport.traineeId] || deletingReport.name}さんの ${(deletingReport.rawDate || deletingReport.date || "").replace(/-/g, "/")} の日報を削除します。`}</p>
+          <p className="mt-2 text-xs" style={{ color: T.textMuted }}>一覧からは除外されますが、監査目的で記録はシステム上に保持されます（論理削除）。</p>
         </Modal>
       )}
       {settingsOpen && (

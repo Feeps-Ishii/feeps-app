@@ -1251,6 +1251,7 @@ export default function App() {
       goals={goals}
       setGoals={handleSetGoals}
       displayName={displayName}
+      userProfile={userProfile}
     />;
   })();
 
