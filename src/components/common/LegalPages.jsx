@@ -11,22 +11,20 @@ import { T } from "./theme.js";
 
 const OPERATOR = {
   name: "株式会社Feeps",
-  address: "",           // 本店所在地（例: 東京都◯◯区◯◯1-2-3 ◯◯ビル5F）
-  representative: "",    // 代表者の役職・氏名（例: 代表取締役 ◯◯ ◯◯）
-  contact: "",           // 問い合わせ窓口（メールアドレスまたは問い合わせフォームのURL）
-  privacyManager: "",    // 個人情報の管理責任者（部署名・役職。個人名でなくてよい）
-  court: "",             // 専属的合意管轄裁判所（例: 東京地方裁判所）
+  address: "〒150-0002　東京都渋谷区渋谷1-1-3 第35荒井ビル7F",
+  representative: "代表取締役　寺田 正哉",
+  tel: "03-6821-6039",
+  email: "info@feeps.co.jp",
+  privacyManager: "",    // 任意。個人情報の管理責任者（部署名・役職。未設定なら表示しない）
+  court: "",             // 任意。専属的合意管轄裁判所。未設定なら管轄の条文を出さない
 };
 
-const OPERATOR_FIELD_LABELS = {
-  address: "本店所在地",
-  representative: "代表者",
-  contact: "お問い合わせ窓口",
-  privacyManager: "個人情報の管理責任者",
-  court: "管轄裁判所",
-};
+// 社外公開に必須の項目。ここが空のときだけ画面に注意書きを出す
+const REQUIRED_OPERATOR_FIELDS = { address: "本店所在地", representative: "代表者", email: "メールアドレス" };
+const MISSING_OPERATOR_FIELDS = Object.keys(REQUIRED_OPERATOR_FIELDS).filter(key => !OPERATOR[key]);
 
-const MISSING_OPERATOR_FIELDS = Object.keys(OPERATOR_FIELD_LABELS).filter(key => !OPERATOR[key]);
+// 同意の記録に使う版。内容を改定したらこの日付を更新する（利用者へ再同意を求める）
+export const TERMS_VERSION = "2026-07-28";
 
 const REVISION_DATE = "2026年7月28日";
 
@@ -38,7 +36,7 @@ function PendingNotice() {
   if (MISSING_OPERATOR_FIELDS.length === 0) return null;
   return (
     <div className="rounded-xl px-4 py-3 text-xs font-semibold leading-relaxed" style={{ background: T.warningSubtle, color: T.warning }}>
-      次の事業者情報が未設定です: {MISSING_OPERATOR_FIELDS.map(key => OPERATOR_FIELD_LABELS[key]).join("・")}。
+      次の事業者情報が未設定です: {MISSING_OPERATOR_FIELDS.map(key => REQUIRED_OPERATOR_FIELDS[key]).join("・")}。
       社外への公開前に登記情報・窓口を確認して設定してください。
     </div>
   );
@@ -182,9 +180,9 @@ export function TermsOfServiceContent() {
         <p>当社は、本規約を変更する場合、変更後の内容および効力発生日を、本サービス上への掲示または契約企業を通じた通知により、効力発生日の相当期間前に周知します。</p>
       </Section>
 
-      <Section title="第14条（準拠法・管轄裁判所）">
+      <Section title="第14条（準拠法）">
         <p>本規約の解釈にあたっては、日本法を準拠法とします。</p>
-        <p>本サービスに関して紛争が生じた場合には、{value("court")}を第一審の専属的合意管轄裁判所とします。</p>
+        {OPERATOR.court && <p>本サービスに関して紛争が生じた場合には、{OPERATOR.court}を第一審の専属的合意管轄裁判所とします。</p>}
       </Section>
 
       <Section title="第15条（事業者情報・お問い合わせ）">
@@ -192,7 +190,8 @@ export function TermsOfServiceContent() {
           ["事業者名", OPERATOR.name],
           ["本店所在地", value("address")],
           ["代表者", value("representative")],
-          ["お問い合わせ窓口", value("contact")],
+          ["電話番号", value("tel")],
+          ["メールアドレス", value("email")],
         ]} />
       </Section>
     </div>
@@ -293,8 +292,9 @@ export function PrivacyPolicyContent() {
           ["事業者名", OPERATOR.name],
           ["本店所在地", value("address")],
           ["代表者", value("representative")],
-          ["個人情報の管理責任者", value("privacyManager")],
-          ["お問い合わせ窓口", value("contact")],
+          ["電話番号", value("tel")],
+          ["メールアドレス", value("email")],
+          ...(OPERATOR.privacyManager ? [["個人情報の管理責任者", OPERATOR.privacyManager]] : []),
         ]} />
         <p>個人情報の取扱いに関する苦情の申出先として、個人情報保護委員会へ申し出ることもできます。</p>
       </Section>

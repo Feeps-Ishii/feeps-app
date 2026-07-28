@@ -8,6 +8,7 @@ import {
 import { T, NOVA, PRISM, BrandMark } from "../../components/common";
 import { StandaloneLegalPage } from "../../components/common/LegalPages.jsx";
 import { TotpSetupPanel, TotpChallengePanel } from "./MfaSetup.jsx";
+import { TermsCheckbox, recordTermsAgreement } from "../../components/common/TermsConsent.jsx";
 
 // Cognito User Pool (ap-northeast-1_QG4KZb06z) の実設定を確認のうえ表示（Phase7-4b）。
 // ハードコードではなく、実際のPasswordPolicy（MinimumLength:8, RequireUppercase/Lowercase/Numbers/Symbols:true）と一致させている。
@@ -198,6 +199,7 @@ function ForgotPasswordFlow({ onBack }) {
     setErr(""); setNotice("");
     if (!code.trim()) { setErr("確認コードを入力してください。"); return; }
     if (!newPw) { setErr("新しいパスワードを入力してください。"); return; }
+    if (!agreedTerms) { setErr("利用規約とプライバシーポリシーへの同意が必要です。"); return; }
     if (newPw !== newPw2) { setErr("新しいパスワードが一致しません。"); return; }
     setBusy(true);
     try {
@@ -311,6 +313,8 @@ export default function Login({ onLogin }) {
   const [err, setErr] = useState("");
   const [needNewPw, setNeedNewPw] = useState(false);
   const [newPw, setNewPw] = useState("");
+  // 初回パスワード設定のときだけ、規約への同意を必須にする（同意はログイン成立後に記録する）
+  const [agreedTerms, setAgreedTerms] = useState(false);
   // 二要素認証（TOTP）。"" = 不要 / "challenge" = コード入力 / "setup" = 認証アプリの登録から
   const [mfaStep, setMfaStep] = useState("");
   const [totpSetup, setTotpSetup] = useState({ sharedSecret: "", uri: "" });
@@ -322,6 +326,9 @@ export default function Login({ onLogin }) {
       // このデバイスを記憶し、次回以降はコード入力を省略する（14日後に日次ジョブが失効させる）。
       // 記憶に失敗しても毎回コードを求められるだけなので、ログイン自体は止めない。
       try { await rememberDevice(); } catch (e) { /* 記憶できない環境ではMFAを都度要求する */ }
+      // 初回パスワード設定で同意した場合はここで記録する（この時点でトークンが揃っている）。
+      // 失敗してもログインは止めない。記録が無ければログイン後に改めて同意を求める画面が出る。
+      if (agreedTerms) { try { await recordTermsAgreement(); } catch (e) { /* 後続の同意画面で拾う */ } }
       onLogin();
       return;
     }
@@ -466,7 +473,8 @@ export default function Login({ onLogin }) {
                 <ul className="feeps-auth-checks" style={{ background: PRISM.neutralSubtle, color: PRISM.sub }} aria-label="パスワード条件">
                   {PASSWORD_REQUIREMENTS.map(requirement => <li key={requirement}><CheckCircle2 size={14} aria-hidden="true" />{requirement}</li>)}
                 </ul>
-                <button type="button" onClick={handleNewPassword} disabled={busy} aria-busy={busy} className={ctaClass} style={ctaStyle}>
+                <TermsCheckbox checked={agreedTerms} onChange={setAgreedTerms} />
+                <button type="button" onClick={handleNewPassword} disabled={busy || !agreedTerms} aria-busy={busy} className={ctaClass} style={{ ...ctaStyle, opacity: agreedTerms ? 1 : 0.6 }}>
                   <Sparkles size={17} aria-hidden="true" />{busy ? "設定中…" : "パスワードを設定してはじめる"}
                 </button>
               </div>

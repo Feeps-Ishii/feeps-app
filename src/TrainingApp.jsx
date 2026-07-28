@@ -9,6 +9,7 @@ import FeepsOneHome from "./products/home/FeepsOneHome.jsx";
 import TrainingProduct from "./products/training/TrainingProduct.jsx";
 import Login from "./products/auth/Login.jsx";
 import { MfaSuggestionDialog, MfaSettingsCard, useMfaStatus } from "./products/auth/MfaSetup.jsx";
+import { TermsAgreementDialog, needsTermsAgreement, TERMS_VERSION } from "./components/common/TermsConsent.jsx";
 import { LegalPageView } from "./components/common/LegalPages.jsx";
 import { Card, Badge, Btn, Avatar, Stat, SectionHead, T, NOVA, PRISM, PRISM_PRODUCT_GRAD, BrandMark, PRODUCT_ACCENT, ROLE_ACCENT, Z, PageLoading, EmptyState as CommonEmptyState, SkeletonRows } from "./components/common";
 import { GOALS, GOAL_ICON_MAP, NAV, ROLES } from "./products/training/TrainingCatalog.js";
@@ -1249,6 +1250,10 @@ export default function App() {
   if (authBootstrapError) return <div className="grid min-h-screen place-items-center p-5" style={{ background: T.bgBase }}><Card className="w-full max-w-md p-6 text-center"><AlertCircle size={28} className="mx-auto" style={{ color: T.warning }} /><h1 className="mt-3 text-lg font-bold" style={{ color: T.textPrimary }}>ログイン状態を確認できません</h1><p className="mt-2 text-sm" style={{ color: T.textMuted }}>{authBootstrapError}</p><Btn className="mt-5" icon={RefreshCw} onClick={() => setAuthRetryKey(value => value + 1)}>再試行</Btn></Card></div>;
   if (!loggedIn) return <Login onLogin={login} />;
   if (!profileChecked) return null;
+  // 利用規約・プライバシーポリシーへの同意が未記録なら、先に同意してもらう
+  if (needsTermsAgreement(userProfile)) {
+    return <TermsAgreementDialog onAgreed={() => setUserProfile(p => ({ ...(p || {}), termsVersion: TERMS_VERSION, termsAgreedAt: new Date().toISOString() }))} onSignOut={logout} />;
+  }
 
   const screen = (() => {
     if (product === "home") return <FeepsOneHome role={role} displayName={displayName} products={PRODUCTS.filter(p => p.roles.includes(role))} goProduct={goProduct} goTraining={go} goSub={goSub} />;
