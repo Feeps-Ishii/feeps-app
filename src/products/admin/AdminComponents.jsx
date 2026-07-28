@@ -407,7 +407,7 @@ function AdminCompanies() {
         <Card className="p-5">
           <div className="mb-4 flex items-center gap-2">
             <div className="flex h-9 w-9 items-center justify-center rounded-xl" style={{ background: T.accentSubtle, color: T.accent }}><Building2 size={17} /></div>
-            <div className="min-w-0"><h3 className="truncate font-bold" style={{ color: T.textPrimary }}>企業基本情報</h3><p className="text-xs" style={{ color: T.textMuted }}>{selected.companyId}</p></div>
+            <div className="min-w-0"><h3 className="truncate font-bold" style={{ color: T.textPrimary }}>企業基本情報</h3><p className="text-xs" style={{ color: T.textMuted }}>{[selected.address, selected.tel].filter(Boolean).join(" ・ ") || "住所・電話は未登録です"}</p></div>
           </div>
           <div className="grid gap-3 lg:grid-cols-2">
             <Field label="企業名"><input value={edit.name} onChange={e => setEdit({ ...edit, name: e.target.value })} className={fieldCls} style={{ border: `1px solid ${T.border}`, color: T.textPrimary }} /></Field>
@@ -529,6 +529,8 @@ function AdminCourses({ go }) {
   const [traineeSectionOpen, setTraineeSectionOpen] = useState(false);
   const [bulkRange, setBulkRange] = useState({ from: "", to: "" });
   const [showArchivedCourses, setShowArchivedCourses] = useState(false);
+  // 誤操作防止のため、コース詳細は既定で閲覧モード。編集ボタンを押した間だけ入力できる。
+  const [courseEditMode, setCourseEditMode] = useState(false);
   const [calendarMonth, setCalendarMonth] = useState(monthStr());
   const [calendarItems, setCalendarItems] = useState({});
   const [calendarDirty, setCalendarDirty] = useState({});
@@ -597,6 +599,7 @@ function AdminCourses({ go }) {
     setSort(s => s.key === key ? { key, dir: s.dir === "asc" ? "desc" : "asc" } : { key, dir: "asc" });
   }
   async function selectCourse(c) {
+    setCourseEditMode(false);
     setActiveCourseId(c.courseId);
     setSelected(c);
     setEdit(courseEditValue(c));
@@ -604,7 +607,7 @@ function AdminCourses({ go }) {
     setMsg("");
     setDetailLoading(true);
     setTrainees([]);
-    setAddTraineeId("");
+    setAddTraineeIds([]);
     try { setTrainees(await apiGet(`/courses/${c.courseId}/trainees`) || []); }
     catch (e) { setErr("所属受講生の取得に失敗しました：" + (e?.message || e)); }
     finally { setDetailLoading(false); }
@@ -836,9 +839,17 @@ function AdminCourses({ go }) {
   if (selected) return (
     <div>
       <SectionHead title={selected.name || "コース詳細"} desc="基本情報・担当講師・所属受講生・研修カレンダーを管理します"
-        action={<div className="flex flex-wrap items-center justify-end gap-2"><select value={selected.courseId} onChange={e => { const next = rows.find(row => row.courseId === e.target.value); if (next) selectCourse(next); }} className="min-w-52 rounded-xl px-3 py-2 text-sm font-semibold outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary, background: T.bgSurface }}>{rows.map(row => <option key={row.courseId} value={row.courseId}>{row.name || row.courseId}</option>)}</select><Btn kind="ghost" size="sm" icon={ChevronLeft} onClick={() => { setSelected(null); setErr(""); setMsg(""); }}>コース一覧</Btn></div>} />
+        action={<div className="flex flex-wrap items-center justify-end gap-2">
+          {courseEditMode
+            ? <Btn kind="ghost" size="sm" onClick={() => { setCourseEditMode(false); setEdit(courseEditValue(selected)); setMsg("閲覧モードに戻しました。保存していない変更は破棄されます。"); }}>編集をやめる</Btn>
+            : <Btn size="sm" icon={Pencil} onClick={() => setCourseEditMode(true)}>編集する</Btn>}
+          <select value={selected.courseId} onChange={e => { const next = rows.find(row => row.courseId === e.target.value); if (next) selectCourse(next); }} className="min-w-52 rounded-xl px-3 py-2 text-sm font-semibold outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary, background: T.bgSurface }}>{rows.map(row => <option key={row.courseId} value={row.courseId}>{row.name || row.courseId}</option>)}</select><Btn kind="ghost" size="sm" icon={ChevronLeft} onClick={() => { setSelected(null); setErr(""); setMsg(""); }}>コース一覧</Btn></div>} />
       {msg && <div className="mb-4 rounded-lg px-3 py-2 text-xs" style={adminMsgStyle}>{msg}</div>}
       {err && <div className="mb-4 rounded-lg px-3 py-2 text-xs" style={adminErrStyle}>{err}</div>}
+      {!courseEditMode && <div className="mb-4 flex flex-wrap items-center justify-between gap-2 rounded-xl px-3 py-2 text-xs font-semibold" style={{ background: T.bgBase, color: T.textSecondary }}>
+        <span>閲覧モードです。誤操作を防ぐため入力できません。変更するときは右上の「編集する」を押してください。</span>
+        <Btn size="sm" icon={Pencil} onClick={() => setCourseEditMode(true)}>編集する</Btn>
+      </div>}
       <Card className="mb-5 p-4">
         <div className="mb-3"><h3 className="font-bold" style={{ color: T.textPrimary }}>このコースの運用メニュー</h3><p className="text-xs" style={{ color: T.textMuted }}>選択中のコースを引き継いで、各管理画面を開きます。</p></div>
         <div className="flex flex-wrap gap-2"><Btn kind="soft" size="sm" icon={Calendar} onClick={() => go?.("curriculum")}>カリキュラム</Btn><Btn kind="ghost" size="sm" icon={NotebookPen} onClick={() => go?.("reports")}>日報</Btn><Btn kind="ghost" size="sm" icon={Clock} onClick={() => go?.("attendance")}>勤怠</Btn><Btn kind="ghost" size="sm" icon={ClipboardCheck} onClick={() => go?.("tests")}>テスト</Btn><Btn kind="ghost" size="sm" icon={FileSpreadsheet} onClick={() => go?.("materials")}>研修資料</Btn><Btn kind="ghost" size="sm" icon={Users} onClick={() => go?.("trainees")}>受講生</Btn></div>
@@ -846,23 +857,23 @@ function AdminCourses({ go }) {
       <div className="space-y-5">
         <Card className="p-5">
           <div className="mb-4 flex items-center justify-between gap-3">
-            <div className="flex items-center gap-2"><div className="flex h-9 w-9 items-center justify-center rounded-xl" style={{ background: T.accentSubtle, color: T.accent }}><BookOpen size={17} /></div><div><h3 className="font-bold" style={{ color: T.textPrimary }}>コース基本情報</h3><p className="text-xs" style={{ color: T.textMuted }}>{selected.courseId}</p></div></div>
+            <div className="flex items-center gap-2"><div className="flex h-9 w-9 items-center justify-center rounded-xl" style={{ background: T.accentSubtle, color: T.accent }}><BookOpen size={17} /></div><div><h3 className="font-bold" style={{ color: T.textPrimary }}>コース基本情報</h3><p className="text-xs" style={{ color: T.textMuted }}>{[kindLabel(typeOf(selected)), [selected.startDate, selected.endDate].filter(Boolean).join(" 〜 ")].filter(Boolean).join(" ・ ") || "期間は未設定です"}</p></div></div>
             <Btn kind="ghost" icon={Calendar} onClick={() => go && go("curriculum")}>カリキュラムを編集</Btn>
           </div>
           <div className="grid gap-3 lg:grid-cols-2">
-            <Field label="コース名"><input value={edit.name} onChange={e => setEdit({ ...edit, name: e.target.value })} className={fieldCls} style={{ border: `1px solid ${T.border}`, color: T.textPrimary }} /></Field>
-            <Field label="種別"><select value={edit.type} onChange={e => setEdit({ ...edit, type: e.target.value })} className={fieldCls} style={{ border: `1px solid ${T.border}`, color: T.textPrimary }}>{COURSE_KINDS.map(([v, l]) => <option key={v} value={v}>{l}</option>)}</select></Field>
-            <div className="lg:col-span-2"><Field label="メモ"><textarea value={edit.memo} onChange={e => setEdit({ ...edit, memo: e.target.value })} rows={3} className={fieldCls + " resize-none"} style={{ border: `1px solid ${T.border}`, color: T.textPrimary }} /></Field></div>
-            <Field label="研修開始日"><input type="date" value={edit.startDate} onChange={e => setEdit({ ...edit, startDate: e.target.value })} className={fieldCls} style={{ border: `1px solid ${T.border}`, color: T.textPrimary }} /></Field>
-            <Field label="研修終了日"><input type="date" value={edit.endDate} onChange={e => setEdit({ ...edit, endDate: e.target.value })} className={fieldCls} style={{ border: `1px solid ${T.border}`, color: T.textPrimary }} /></Field>
-            <Field label="標準開始時刻"><input type="time" value={edit.standardClockIn} onChange={e => setEdit({ ...edit, standardClockIn: e.target.value })} className={fieldCls} style={{ border: `1px solid ${T.border}`, color: T.textPrimary }} /></Field>
-            <Field label="標準終了時刻"><input type="time" value={edit.standardClockOut} onChange={e => setEdit({ ...edit, standardClockOut: e.target.value })} className={fieldCls} style={{ border: `1px solid ${T.border}`, color: T.textPrimary }} /></Field>
-            <Field label="標準昼休み（開始）"><input type="time" value={edit.lunchBreakStart} onChange={e => setEdit({ ...edit, lunchBreakStart: e.target.value })} className={fieldCls} style={{ border: `1px solid ${T.border}`, color: T.textPrimary }} /></Field>
-            <Field label="標準昼休み（終了）"><input type="time" value={edit.lunchBreakEnd} onChange={e => setEdit({ ...edit, lunchBreakEnd: e.target.value })} className={fieldCls} style={{ border: `1px solid ${T.border}`, color: T.textPrimary }} /></Field>
-            <Field label="標準受講形式"><select value={edit.mode} onChange={e => setEdit({ ...edit, mode: e.target.value })} className={fieldCls} style={{ border: `1px solid ${T.border}`, color: T.textPrimary }}><option value="">未設定</option><option value="online">オンライン</option><option value="onsite">対面</option><option value="hybrid">ハイブリッド</option></select></Field>
-            <Field label="標準会場名"><input value={edit.venueName} onChange={e => setEdit({ ...edit, venueName: e.target.value })} className={fieldCls} style={{ border: `1px solid ${T.border}`, color: T.textPrimary }} /></Field>
-            <Field label="標準会場住所"><input value={edit.venueAddress} onChange={e => setEdit({ ...edit, venueAddress: e.target.value })} className={fieldCls} style={{ border: `1px solid ${T.border}`, color: T.textPrimary }} /></Field>
-            <Field label="標準オンラインURL"><input type="url" value={edit.onlineUrl} onChange={e => setEdit({ ...edit, onlineUrl: e.target.value })} className={fieldCls} style={{ border: `1px solid ${T.border}`, color: T.textPrimary }} /></Field>
+            <Field label="コース名"><input disabled={!courseEditMode} value={edit.name} onChange={e => setEdit({ ...edit, name: e.target.value })} className={fieldCls} style={{ border: `1px solid ${T.border}`, color: T.textPrimary }} /></Field>
+            <Field label="種別"><select disabled={!courseEditMode} value={edit.type} onChange={e => setEdit({ ...edit, type: e.target.value })} className={fieldCls} style={{ border: `1px solid ${T.border}`, color: T.textPrimary }}>{COURSE_KINDS.map(([v, l]) => <option key={v} value={v}>{l}</option>)}</select></Field>
+            <div className="lg:col-span-2"><Field label="メモ"><textarea disabled={!courseEditMode} value={edit.memo} onChange={e => setEdit({ ...edit, memo: e.target.value })} rows={3} className={fieldCls + " resize-none"} style={{ border: `1px solid ${T.border}`, color: T.textPrimary }} /></Field></div>
+            <Field label="研修開始日"><input disabled={!courseEditMode} type="date" value={edit.startDate} onChange={e => setEdit({ ...edit, startDate: e.target.value })} className={fieldCls} style={{ border: `1px solid ${T.border}`, color: T.textPrimary }} /></Field>
+            <Field label="研修終了日"><input disabled={!courseEditMode} type="date" value={edit.endDate} onChange={e => setEdit({ ...edit, endDate: e.target.value })} className={fieldCls} style={{ border: `1px solid ${T.border}`, color: T.textPrimary }} /></Field>
+            <Field label="標準開始時刻"><input disabled={!courseEditMode} type="time" value={edit.standardClockIn} onChange={e => setEdit({ ...edit, standardClockIn: e.target.value })} className={fieldCls} style={{ border: `1px solid ${T.border}`, color: T.textPrimary }} /></Field>
+            <Field label="標準終了時刻"><input disabled={!courseEditMode} type="time" value={edit.standardClockOut} onChange={e => setEdit({ ...edit, standardClockOut: e.target.value })} className={fieldCls} style={{ border: `1px solid ${T.border}`, color: T.textPrimary }} /></Field>
+            <Field label="標準昼休み（開始）"><input disabled={!courseEditMode} type="time" value={edit.lunchBreakStart} onChange={e => setEdit({ ...edit, lunchBreakStart: e.target.value })} className={fieldCls} style={{ border: `1px solid ${T.border}`, color: T.textPrimary }} /></Field>
+            <Field label="標準昼休み（終了）"><input disabled={!courseEditMode} type="time" value={edit.lunchBreakEnd} onChange={e => setEdit({ ...edit, lunchBreakEnd: e.target.value })} className={fieldCls} style={{ border: `1px solid ${T.border}`, color: T.textPrimary }} /></Field>
+            <Field label="標準受講形式"><select disabled={!courseEditMode} value={edit.mode} onChange={e => setEdit({ ...edit, mode: e.target.value })} className={fieldCls} style={{ border: `1px solid ${T.border}`, color: T.textPrimary }}><option value="">未設定</option><option value="online">オンライン</option><option value="onsite">対面</option><option value="hybrid">ハイブリッド</option></select></Field>
+            <Field label="標準会場名"><input disabled={!courseEditMode} value={edit.venueName} onChange={e => setEdit({ ...edit, venueName: e.target.value })} className={fieldCls} style={{ border: `1px solid ${T.border}`, color: T.textPrimary }} /></Field>
+            <Field label="標準会場住所"><input disabled={!courseEditMode} value={edit.venueAddress} onChange={e => setEdit({ ...edit, venueAddress: e.target.value })} className={fieldCls} style={{ border: `1px solid ${T.border}`, color: T.textPrimary }} /></Field>
+            <Field label="標準オンラインURL"><input disabled={!courseEditMode} type="url" value={edit.onlineUrl} onChange={e => setEdit({ ...edit, onlineUrl: e.target.value })} className={fieldCls} style={{ border: `1px solid ${T.border}`, color: T.textPrimary }} /></Field>
           </div>
           {(!edit.startDate || !edit.endDate) && <div className="mt-3 rounded-xl px-3 py-2 text-xs" style={{ background: T.warningSubtle, color: T.textSecondary, border: `1px solid ${T.warning}` }}>開始日・終了日が未設定の間は、日報や勤怠を欠席扱いにせず「日程設定が必要」と表示します。</div>}
           <div className="mt-5">
@@ -884,7 +895,7 @@ function AdminCourses({ go }) {
               setMsg(next === "archived" ? "コースを終了にしました。" : "コースを稼働中に戻しました。");
               await load();
             } catch (e) { setErr("状態の変更に失敗しました：" + (e?.errorMessage || e?.message || e)); }
-          }} disabled={busy}>{edit.status === "archived" ? "稼働中に戻す" : "コースを終了にする"}</Btn><Btn kind="ghost" icon={Trash2} onClick={() => setDeleteOpen(true)} disabled={busy}>削除</Btn><Btn icon={Check} onClick={save}>{busy ? "保存中…" : "保存する"}</Btn></div>
+          }} disabled={busy}>{edit.status === "archived" ? "稼働中に戻す" : "コースを終了にする"}</Btn><Btn kind="ghost" icon={Trash2} onClick={() => setDeleteOpen(true)} disabled={busy || !courseEditMode}>削除</Btn><Btn icon={Check} onClick={save}>{busy ? "保存中…" : "保存する"}</Btn></div>
         </Card>
 
         <Card className="p-5">
@@ -936,7 +947,7 @@ function AdminCourses({ go }) {
             ? <div className="rounded-xl px-4 py-3 text-center text-xs" style={adminPanelStyle}>所属受講生{trainees.length}名。「開く」で一覧を表示します（この下に研修カレンダーがあります）。</div>
             : detailLoading ? <SkeletonCards count={2} />
             : trainees.length === 0 ? <div className="rounded-xl px-4 py-5 text-center text-sm" style={adminPanelStyle}>所属受講生はいません。</div>
-            : <div className="grid gap-2 md:grid-cols-2">{trainees.map(t => <div key={t.userId} className="flex items-center gap-2 rounded-xl p-2" style={{ background: T.bgBase }}><Avatar name={t.name || t.email} size={28} /><div className="min-w-0 flex-1"><div className="truncate text-sm font-semibold" style={{ color: T.textPrimary }}>{t.name || "（氏名未設定）"}</div><div className="truncate text-xs" style={{ color: T.textMuted }}>{t.email || t.userId} / {companyName(t.company)}</div></div><Btn kind="ghost" size="sm" icon={X} onClick={() => removeTrainee(t.userId)}>解除</Btn></div>)}</div>}
+            : <div className="grid gap-2 md:grid-cols-2">{trainees.map(t => <div key={t.userId} className="flex items-center gap-2 rounded-xl p-2" style={{ background: T.bgBase }}><Avatar name={t.name || t.email} size={28} /><div className="min-w-0 flex-1"><div className="truncate text-sm font-semibold" style={{ color: T.textPrimary }}>{t.name || "（氏名未設定）"}</div><div className="truncate text-xs" style={{ color: T.textMuted }}>{t.email || t.userId} / {companyName(t.company)}</div></div><Btn kind="ghost" size="sm" icon={X} disabled={!courseEditMode} onClick={() => removeTrainee(t.userId)}>解除</Btn></div>)}</div>}
         </Card>
 
         <Card className="p-5">
