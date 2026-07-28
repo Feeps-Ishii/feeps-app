@@ -38,7 +38,7 @@ export function CourseForm({ mode, form, onChange, onSubmit, onCancel, canEditVi
     set("targetCompanyIds", next);
   }
 
-  const companyName = (id) => companies.find(c => c.companyId === id)?.name || id;
+  const companyName = (id) => companies.find(c => c.companyId === id)?.name || "（企業情報なし）";
 
   return (
     <div>

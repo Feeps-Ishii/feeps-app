@@ -1,5 +1,5 @@
 import React, { useState, useRef } from "react";
-import { signIn, signOut, confirmSignIn, resetPassword, confirmResetPassword } from "aws-amplify/auth";
+import { signIn, signOut, confirmSignIn, resetPassword, confirmResetPassword, rememberDevice } from "aws-amplify/auth";
 import {
   Mail, Lock, Eye, EyeOff, ArrowLeft, CheckCircle2, ShieldCheck, Cloud,
   CircleHelp, Sparkles, GraduationCap, BookOpenCheck, Radar, BriefcaseBusiness,
@@ -7,6 +7,7 @@ import {
 } from "lucide-react";
 import { T, NOVA, PRISM, BrandMark } from "../../components/common";
 import { StandaloneLegalPage } from "../../components/common/LegalPages.jsx";
+import { TotpSetupPanel, TotpChallengePanel } from "./MfaSetup.jsx";
 
 // Cognito User Pool (ap-northeast-1_QG4KZb06z) の実設定を確認のうえ表示（Phase7-4b）。
 // ハードコードではなく、実際のPasswordPolicy（MinimumLength:8, RequireUppercase/Lowercase/Numbers/Symbols:true）と一致させている。
@@ -310,6 +311,48 @@ export default function Login({ onLogin }) {
   const [err, setErr] = useState("");
   const [needNewPw, setNeedNewPw] = useState(false);
   const [newPw, setNewPw] = useState("");
+  // 二要素認証（TOTP）。"" = 不要 / "challenge" = コード入力 / "setup" = 認証アプリの登録から
+  const [mfaStep, setMfaStep] = useState("");
+  const [totpSetup, setTotpSetup] = useState({ sharedSecret: "", uri: "" });
+
+  // signIn / confirmSignIn の結果を見て次の画面を決める。どちらの呼び出しからも同じ判定を使う。
+  async function applyNextStep(result) {
+    const step = result?.nextStep?.signInStep;
+    if (result?.isSignedIn || step === "DONE") {
+      // このデバイスを記憶し、次回以降はコード入力を省略する（14日後に日次ジョブが失効させる）。
+      // 記憶に失敗しても毎回コードを求められるだけなので、ログイン自体は止めない。
+      try { await rememberDevice(); } catch (e) { /* 記憶できない環境ではMFAを都度要求する */ }
+      onLogin();
+      return;
+    }
+    if (step === "CONFIRM_SIGN_IN_WITH_NEW_PASSWORD_REQUIRED") {
+      setNeedNewPw(true);
+      setErr("初回ログインです。新しいパスワードを設定してください。");
+      return;
+    }
+    if (step === "CONFIRM_SIGN_IN_WITH_TOTP_CODE") {
+      setNeedNewPw(false); setErr(""); setMfaStep("challenge");
+      return;
+    }
+    if (step === "CONTINUE_SIGN_IN_WITH_TOTP_SETUP") {
+      const details = result.nextStep.totpSetupDetails;
+      let uri = "";
+      try { uri = details?.getSetupUri?.("Feeps One", email.trim())?.toString() || ""; } catch (e) { uri = ""; }
+      setTotpSetup({ sharedSecret: details?.sharedSecret || "", uri });
+      setNeedNewPw(false); setErr(""); setMfaStep("setup");
+      return;
+    }
+    if (step === "CONTINUE_SIGN_IN_WITH_MFA_SELECTION") {
+      // 認証方式が複数ある場合。本サービスは認証アプリ（TOTP）のみを使う
+      await applyNextStep(await confirmSignIn({ challengeResponse: "TOTP" }));
+      return;
+    }
+    if (step === "CONFIRM_SIGN_UP") {
+      setErr("メールアドレスの確認が未完了です。確認コードでの認証が必要です。");
+      return;
+    }
+    setErr("追加の認証ステップが必要です：" + (step || "不明"));
+  }
 
   async function handleLogin() {
     if (busy) return;
@@ -318,17 +361,7 @@ export default function Login({ onLogin }) {
     setBusy(true);
     try {
       try { await signOut(); } catch (e) {}
-      const { isSignedIn, nextStep } = await signIn({ username: email.trim(), password });
-      if (isSignedIn || nextStep?.signInStep === "DONE") {
-        onLogin();
-      } else if (nextStep?.signInStep === "CONFIRM_SIGN_IN_WITH_NEW_PASSWORD_REQUIRED") {
-        setNeedNewPw(true);
-        setErr("初回ログインです。新しいパスワードを設定してください。");
-      } else if (nextStep?.signInStep === "CONFIRM_SIGN_UP") {
-        setErr("メールアドレスの確認が未完了です。確認コードでの認証が必要です。");
-      } else {
-        setErr("追加の認証ステップが必要です：" + (nextStep?.signInStep || "不明"));
-      }
+      await applyNextStep(await signIn({ username: email.trim(), password }));
     } catch (e) {
       const n = e?.name || "";
       if (n === "UserNotFoundException" || n === "NotAuthorizedException") setErr("メールアドレスまたはパスワードが正しくありません。");
@@ -346,18 +379,37 @@ export default function Login({ onLogin }) {
     if (!newPw) { setErr("新しいパスワードを入力してください。"); return; }
     setBusy(true);
     try {
-      const { isSignedIn, nextStep } = await confirmSignIn({ challengeResponse: newPw });
-      if (isSignedIn || nextStep?.signInStep === "DONE") {
-        onLogin();
-      } else {
-        setErr("パスワード設定後、追加のステップが必要です：" + (nextStep?.signInStep || "不明"));
-      }
+      await applyNextStep(await confirmSignIn({ challengeResponse: newPw }));
     } catch (e) {
       setErr(e?.message || "パスワード設定に失敗しました（8文字以上・大小英字・数字・記号が必要です）。");
     } finally {
       setBusy(false);
       setNewPw("");
     }
+  }
+
+  // TOTPのコード確認（登録時・ログイン時で共通。Cognitoはどちらも confirmSignIn で受け取る）
+  async function handleTotpCode(code) {
+    if (busy) return;
+    setErr("");
+    if (!code || code.length < 6) { setErr("6桁のコードを入力してください。"); return; }
+    setBusy(true);
+    try {
+      await applyNextStep(await confirmSignIn({ challengeResponse: code }));
+    } catch (e) {
+      const n = e?.name || "";
+      if (n === "CodeMismatchException" || n === "EnableSoftwareTokenMFAException") setErr("コードが一致しません。認証アプリの表示を確認して、もう一度入力してください。");
+      else if (n === "NotAuthorizedException") setErr("認証の有効期限が切れました。最初からログインし直してください。");
+      else setErr(e?.message || "コードの確認に失敗しました。");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  // MFAの途中でやめるとき。中断したセッションを残さないようサインアウトしてから戻る
+  async function cancelMfa() {
+    try { await signOut(); } catch (e) {}
+    setMfaStep(""); setTotpSetup({ sharedSecret: "", uri: "" }); setErr(""); setPassword("");
   }
 
   if (screen === "legal:terms" || screen === "legal:privacy") {
@@ -372,6 +424,26 @@ export default function Login({ onLogin }) {
           <AuthMobileBrand />
           {screen === "forgot" ? (
             <ForgotPasswordFlow onBack={() => setScreen("login")} />
+          ) : mfaStep ? (
+            <div className="feeps-auth-view w-full">
+              <AuthMeta step="AUTH · 03" />
+              <div className="feeps-auth-heading">
+                <h2 style={{ color: PRISM.ink }}>{mfaStep === "setup" ? "二要素認証を設定します" : "二要素認証"}</h2>
+                <p style={{ color: PRISM.sub }}>
+                  {mfaStep === "setup"
+                    ? "パスワードだけで入れないよう、認証アプリを登録してください。設定は最初の1回だけです。"
+                    : "このデバイスからは初回のみ確認します。以降14日間はコードの入力を省略できます。"}
+                </p>
+              </div>
+              <div className="feeps-auth-form">
+                {mfaStep === "setup"
+                  ? <TotpSetupPanel email={email.trim()} sharedSecret={totpSetup.sharedSecret} setupUri={totpSetup.uri} onVerify={handleTotpCode} busy={busy} error={err} submitLabel="設定を完了してログイン" />
+                  : <TotpChallengePanel onVerify={handleTotpCode} busy={busy} error={err} />}
+                <button type="button" onClick={cancelMfa} className="feeps-auth-secondary" style={{ color: PRISM.ink, background: PRISM.surface, borderColor: PRISM.line2 }}>
+                  <ArrowLeft size={15} aria-hidden="true" />ログイン画面へ戻る
+                </button>
+              </div>
+            </div>
           ) : needNewPw ? (
             <div className="feeps-auth-view w-full">
               <AuthMeta step="AUTH · 02" />

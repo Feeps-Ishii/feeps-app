@@ -292,7 +292,7 @@ function TraineeHome({ go, goProduct, goSub, done, taskDataState, onTaskRetry, t
         tomorrowGoal: thReportToday.tomorrowGoal || "",
         customFields: thReportToday.customFields && typeof thReportToday.customFields === "object" ? thReportToday.customFields : {},
       };
-      await apiPut("/reports/me", payload);
+      await apiPut("/reports/me", { ...payload, expectedUpdatedAt: thReportToday.updatedAt || "" });
       emitNotificationRefresh();
       setThHome(h => ({
         ...h,
@@ -450,7 +450,7 @@ function InstructorGoalsDashboard({ go, openKarte }) {
     return () => { alive = false; };
   }, [today]);
 
-  const companyName = id => state.companies.find(c => c.companyId === id)?.name || id || "未登録";
+  const companyName = id => state.companies.find(c => c.companyId === id)?.name || (id ? "（企業情報なし）" : "未登録");
   const reportByTrainee = useMemo(() => Object.fromEntries(state.reports.map(r => [r.traineeId, r])), [state.reports]);
   const rows = state.trainees.map(t => {
     const r = reportByTrainee[t.userId] || {};
@@ -2815,7 +2815,7 @@ function TraineeAttendance() {
         const todayValue = { in: t?.clockIn || "", out: t?.clockOut || "", s: t?.status || "出勤", reason: t?.reason || t?.note || "", courseId: t?.courseId || "" };
         setAtt(todayValue);
         setTodayDraft(todayValue);
-        setHist(rows.map(r => ({ date: r.date, d: fmtAttDate(r.date), in: r.clockIn || "", out: r.clockOut || "", s: r.status || "出勤", reason: r.reason || r.note || "", courseId: r.courseId || "" })));
+        setHist(rows.map(r => ({ date: r.date, d: fmtAttDate(r.date), in: r.clockIn || "", out: r.clockOut || "", s: r.status || "出勤", reason: r.reason || r.note || "", courseId: r.courseId || "", updatedAt: r.updatedAt || "" })));
         const courses = Array.isArray(courseItems) ? courseItems : [];
         setEnrolledCourses(courses);
         const withStandard = courses.filter(c => courseStandardIn(c) || courseStandardOut(c));
@@ -2934,13 +2934,13 @@ function TraineeAttendance() {
     if (["遅刻", "早退", "欠席", "欠勤", "中抜け"].some(value => String(calendarDraft.s || "").includes(value)) && !String(calendarDraft.reason || "").trim()) { setErr("遅刻・早退・欠勤・中抜けの理由を入力してください。"); return; }
     setCalendarSaving(true); setErr("");
     try {
-      await apiPut("/attendance/me", { date: calendarEditDate, courseId: courseForDate(calendarEditDate), clockIn: calendarDraft.in, clockOut: calendarDraft.out, status: calendarDraft.s || "出勤", reason: calendarDraft.reason || "" });
+      await apiPut("/attendance/me", { date: calendarEditDate, courseId: courseForDate(calendarEditDate), clockIn: calendarDraft.in, clockOut: calendarDraft.out, status: calendarDraft.s || "出勤", reason: calendarDraft.reason || "", expectedUpdatedAt: attendanceByDate[calendarEditDate]?.updatedAt || "" });
       const savedDate = calendarEditDate;
       const saved = { in: calendarDraft.in, out: calendarDraft.out, s: calendarDraft.s || "出勤", reason: calendarDraft.reason || "", courseId: courseForDate(calendarEditDate) };
       upsertAttendanceRow(savedDate, saved, saved.s);
       if (savedDate === today) { setAtt(saved); setTodayDraft(saved); }
       emitNotificationRefresh(); setCalendarEditDate("");
-    } catch (e) { setErr("勤怠の保存に失敗しました：" + (e?.message || e)); }
+    } catch (e) { setErr("勤怠の保存に失敗しました：" + (e?.errorMessage || e?.message || e)); }
     finally { setCalendarSaving(false); }
   }
   const visibleHist = hist
@@ -2965,13 +2965,13 @@ function TraineeAttendance() {
     if (["遅刻", "早退", "欠席", "欠勤", "中抜け"].some(value => String(draft.s || "").includes(value)) && !String(draft.reason || "").trim()) { setErr("遅刻・早退・欠勤・中抜けの理由を入力してください。"); return; }
     setHistorySaving(true);
     try {
-      await apiPut("/attendance/me", { date: row.date, courseId: courseForDate(row.date), clockIn: draft.in, clockOut: draft.out, status: draft.s || row.s, reason: draft.reason || "" });
+      await apiPut("/attendance/me", { date: row.date, courseId: courseForDate(row.date), clockIn: draft.in, clockOut: draft.out, status: draft.s || row.s, reason: draft.reason || "", expectedUpdatedAt: row.updatedAt || "" });
       const saved = { in: draft.in, out: draft.out, s: draft.s || row.s || "出勤", reason: draft.reason || "", courseId: courseForDate(row.date) };
       upsertAttendanceRow(row.date, saved, saved.s);
       if (row.date === today) { setAtt(saved); setTodayDraft(saved); }
       emitNotificationRefresh();
       setEIdx(-1);
-    } catch (e) { setErr("保存に失敗しました：" + (e?.message || e)); }
+    } catch (e) { setErr("保存に失敗しました：" + (e?.errorMessage || e?.message || e)); }
     finally { setHistorySaving(false); }
   }
   if (attendanceDataState !== "ready" || workdaysState === "error") {
@@ -3208,6 +3208,7 @@ function AttendanceManage({ role, userProfile }) {
         traineeId: r.traineeId, date: r.date,
         name: "受講生 " + String(r.traineeId).slice(0, 6),
         in: r.clockIn || "", out: r.clockOut || "", s: r.status || "出勤", note: r.reason || r.note || "", courseId: r.courseId || "",
+        updatedAt: r.updatedAt || "",
         deleted: r.deleted === true,
       }))))
       .catch(e => setErr("勤怠の読み込みに失敗しました: " + (e?.errorMessage || e?.message || e)));
@@ -3254,10 +3255,10 @@ function AttendanceManage({ role, userProfile }) {
     if (["遅刻", "早退", "欠席", "欠勤", "中抜け"].some(value => String(draft.s || "").includes(value)) && !String(draft.note || "").trim()) { setErr("遅刻・早退・欠勤・中抜けの理由を入力してください。"); return; }
     setErr("");
     try {
-      await apiPut("/attendance/" + draft.traineeId, { date: draft.date || date, courseId: opsFilter.courseId, clockIn: draft.in, clockOut: draft.out, status: draft.s, reason: draft.note, note: draft.note });
+      await apiPut("/attendance/" + draft.traineeId, { date: draft.date || date, courseId: opsFilter.courseId, clockIn: draft.in, clockOut: draft.out, status: draft.s, reason: draft.note, note: draft.note, expectedUpdatedAt: draft.updatedAt || "" });
       emitNotificationRefresh();
       setEId(null); load();
-    } catch (e) { setErr("保存に失敗しました：" + (e?.message || e)); }
+    } catch (e) { setErr("保存に失敗しました：" + (e?.errorMessage || e?.message || e)); }
   }
   // 未打刻者の一括登録: 選択中コースの定時（未設定なら09:00-18:00）で「正常」出勤として登録する。
   // 個別の遅刻・欠席・早退は登録後にその行だけ修正する運用を想定。
@@ -4302,7 +4303,7 @@ function Reports({ role, userProfile }) {
     setAdminReportSaving(true);
     setSaveErr("");
     try {
-      await apiPut(`/reports/${detailReport.traineeId}`, { date: detailReport.rawDate || detailReport.date, ...adminReportDraft });
+      await apiPut(`/reports/${detailReport.traineeId}`, { date: detailReport.rawDate || detailReport.date, ...adminReportDraft, expectedUpdatedAt: detailReport.updatedAt || "" });
       setAdminEditingReport(false);
       setDetailReport(null);
       setReportReloadKey(k => k + 1);
@@ -4579,7 +4580,7 @@ function Reports({ role, userProfile }) {
     };
     setSaveErr(""); setReportSaveState("saving"); setSaving(true);
     try {
-      await apiPut("/reports/me", payload);
+      await apiPut("/reports/me", { ...payload, expectedUpdatedAt: reports.find(report => report.rawDate === saveDate)?.updatedAt || "" });
       emitNotificationRefresh();
       const previous = reports.find(report => report.rawDate === saveDate);
       const saved = mapReport({ ...(previous?.rawData || {}), ...payload, updatedAt: new Date().toISOString() });
@@ -4676,9 +4677,13 @@ function Reports({ role, userProfile }) {
     return companyNameById(trainee?.company || r.org || "");
   };
   const traineeById = useMemo(() => Object.fromEntries(opsFilter.trainees.map(t => [t.userId, t])), [opsFilter.trainees]);
-  const courseNameOfTrainee = (t) => {
-    const courseId = Array.isArray(t?.courses) ? t.courses[0]?.courseId : t?.course;
-    return opsFilter.courses.find(c => c.courseId === courseId)?.name || t?.courseName || courseId || "未設定";
+  // 日報自体が持つcourseIdを優先する。受講生プロフィールの course は所属を持たないことがあり、
+  // それだけを見ると提出済みの日報でも「未設定」と表示されてしまう。
+  const courseNameOfTrainee = (t, report) => {
+    const courseId = report?.courseId
+      || (Array.isArray(t?.courses) ? t.courses[0]?.courseId : t?.course);
+    return opsFilter.courses.find(c => c.courseId === courseId)?.name
+      || t?.courseName || (courseId ? "（コース情報なし）" : "未設定");
   };
   const reportByTrainee = useMemo(() => {
     const m = new Map();
@@ -4701,7 +4706,7 @@ function Reports({ role, userProfile }) {
     if (!q) return true;
     const t = row.trainee || {};
     const r = row.report || {};
-    return [t.name, t.email, t.userId, companyNameById(t.company || r.org || ""), courseNameOfTrainee(t), r.learned, r.question, r.blockers].some(v => String(v || "").toLowerCase().includes(q));
+    return [t.name, t.email, t.userId, companyNameById(t.company || r.org || ""), courseNameOfTrainee(t, r), r.learned, r.question, r.blockers].some(v => String(v || "").toLowerCase().includes(q));
   };
   const reportRowMatchesStatus = (row) => {
     if (reportStatus === "すべて") return true;
@@ -4873,7 +4878,7 @@ function Reports({ role, userProfile }) {
                     <Badge tone={r ? "green" : "amber"}>{r ? "提出済み" : "未提出"}</Badge>
                   </div>
                   <div className="mt-3 grid grid-cols-2 gap-2 text-xs">
-                    <div className="rounded-xl p-3" style={{ background: T.bgBase }}><div style={{ color: T.textMuted }}>コース</div><div className="mt-1 truncate font-semibold" style={{ color: T.textPrimary }}>{courseNameOfTrainee(t)}</div></div>
+                    <div className="rounded-xl p-3" style={{ background: T.bgBase }}><div style={{ color: T.textMuted }}>コース</div><div className="mt-1 truncate font-semibold" style={{ color: T.textPrimary }}>{courseNameOfTrainee(t, r)}</div></div>
                     <div className="rounded-xl p-3" style={{ background: T.bgBase }}><div style={{ color: T.textMuted }}>コメント</div><div className="mt-1"><Badge tone={row.hasComment ? "cyan" : r ? "amber" : "muted"}>{row.hasComment ? "あり" : r ? "未コメント" : "—"}</Badge></div></div>
                   </div>
                   {r && <div className="mt-3 flex items-center justify-between gap-3"><span className="text-xs" style={{ color: T.textMuted }}>{reportUpdatedAt(r) ? fmtTs(reportUpdatedAt(r)) : "提出済み"}</span><Btn kind="ghost" size="sm" onClick={() => setDetailReport(r)}>詳細を確認</Btn></div>}
@@ -4894,7 +4899,7 @@ function Reports({ role, userProfile }) {
                   <div key={rowId} className="grid grid-cols-12 items-center gap-3 px-4 py-3 text-sm" style={{ borderTop: `1px solid ${T.border}`, color: T.textPrimary }}>
                     <div className="col-span-3 flex min-w-0 items-center gap-2"><Avatar name={t.name || nameMap[rowId] || fallbackName(rowId)} size={28} /><div className="min-w-0"><div className="truncate font-semibold">{t.name || nameMap[rowId] || fallbackName(rowId)}</div><div className="truncate text-xs" style={{ color: T.textMuted }}>{t.email || ""}</div></div></div>
                     <div className="col-span-2 truncate text-xs" style={{ color: T.textMuted }}>{companyNameById(t.company || r?.org || "") || "未設定"}</div>
-                    <div className="col-span-2 truncate text-xs" style={{ color: T.textMuted }}>{courseNameOfTrainee(t)}</div>
+                    <div className="col-span-2 truncate text-xs" style={{ color: T.textMuted }}>{courseNameOfTrainee(t, r)}</div>
                     <div><Badge tone={r?.deleted ? "muted" : r ? "green" : "amber"}>{r?.deleted ? "削除済み" : r ? "保存済み" : "未提出"}</Badge></div>
                     <div><Badge tone={row.hasComment ? "cyan" : r ? "amber" : "muted"}>{row.hasComment ? "あり" : r ? "未コメント" : "-"}</Badge></div>
                     <div className="col-span-2 text-xs" style={{ color: T.textMuted }}>{r ? (reportUpdatedAt(r) ? fmtTs(reportUpdatedAt(r)) : "保存済み") : "-"}</div>
@@ -5266,8 +5271,8 @@ function TraineeList({ role, openKarte, go }) {
     }
     Promise.all(jobs).then(() => setDetail(base)).finally(() => setDetailLoading(false));
   }, [selected, date, role, courses]);
-  const courseName = (id) => courses.find(c => c.courseId === id)?.name || id || "未登録";
-  const companyName = (id) => companies.find(c => c.companyId === id)?.name || id || "未登録";
+  const courseName = (id) => courses.find(c => c.courseId === id)?.name || (id ? "（コース情報なし）" : "未登録");
+  const companyName = (id) => companies.find(c => c.companyId === id)?.name || (id ? "（企業情報なし）" : "未登録");
   const selectedCourseIds = [...traineeCourseIds(selected || {})];
   const selectedCourses = detail.userCourses.length ? detail.userCourses : selectedCourseIds.map(id => courses.find(c => c.courseId === id) || { courseId: id, name: courseName(id) });
   const taskDone = detail.tasks?.done ? Object.values(detail.tasks.done).filter(Boolean).length : 0;

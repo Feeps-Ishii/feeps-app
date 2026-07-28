@@ -88,7 +88,7 @@ function AdminHome({ go, openRisk }) {
   const attendanceMissingCount = Math.max(trainees.length - attendanceRegistered, 0);
   const reportRate = trainees.length ? Math.round((reportSubmitted / trainees.length) * 100) : 0;
   const attendanceRate = trainees.length ? Math.round((attendanceRegistered / trainees.length) * 100) : 0;
-  const companyName = (id) => companies.find(c => c.companyId === id)?.name || id || "未設定";
+  const companyName = (id) => companies.find(c => c.companyId === id)?.name || (id ? "（企業情報なし）" : "未設定");
   const courseSummaries = courses.map(c => {
     const members = courseMap[c.courseId] || [];
     const companyIds = new Set(members.map(t => t.company || "").filter(Boolean));
@@ -797,10 +797,10 @@ function AdminCourses({ go }) {
       await reloadCourseTrainees(selected.courseId);
     } catch (e) { setErr("所属解除に失敗しました：" + (e?.message || e)); } finally { setBusy(false); }
   }
-  const companyName = (id) => companies.find(c => c.companyId === id)?.name || id || "（未選択）";
+  const companyName = (id) => companies.find(c => c.companyId === id)?.name || (id ? "（企業情報なし）" : "（未選択）");
   const traineeName = (id) => {
     const u = users.find(x => x.userId === id);
-    return u?.name || u?.email || id;
+    return u?.name || u?.email || "（不明なユーザー）";
   };
   const traineeOptions = useMemo(() => {
     const enrolled = new Set(trainees.map(t => t.userId));
@@ -817,7 +817,7 @@ function AdminCourses({ go }) {
     return ids.map(id => ({ companyId: id, name: companyName(id), count: traineeOptions.filter(t => t.company === id).length }));
   }, [traineeOptions, companies]);
   const toggleAddTrainee = (id) => setAddTraineeIds(s => s.includes(id) ? s.filter(x => x !== id) : [...s, id]);
-  const instructorName = (id) => instructors.find(x => x.userId === id)?.name || instructors.find(x => x.userId === id)?.email || id;
+  const instructorName = (id) => instructors.find(x => x.userId === id)?.name || instructors.find(x => x.userId === id)?.email || "（不明なユーザー）";
   const instructorNames = (ids = []) => (Array.isArray(ids) ? ids : []).map(instructorName).filter(Boolean).join("、") || "未設定";
   function toggleInstructor(id) {
     setEdit(e => {

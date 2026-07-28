@@ -8,6 +8,7 @@ import { GRANTS_NAV } from "./products/grants/GrantsCatalog.js";
 import FeepsOneHome from "./products/home/FeepsOneHome.jsx";
 import TrainingProduct from "./products/training/TrainingProduct.jsx";
 import Login from "./products/auth/Login.jsx";
+import { MfaSuggestionDialog, MfaSettingsCard, useMfaStatus } from "./products/auth/MfaSetup.jsx";
 import { LegalPageView } from "./components/common/LegalPages.jsx";
 import { Card, Badge, Btn, Avatar, Stat, SectionHead, T, NOVA, PRISM, PRISM_PRODUCT_GRAD, BrandMark, PRODUCT_ACCENT, ROLE_ACCENT, Z, PageLoading, EmptyState as CommonEmptyState, SkeletonRows } from "./components/common";
 import { GOALS, GOAL_ICON_MAP, NAV, ROLES } from "./products/training/TrainingCatalog.js";
@@ -115,6 +116,13 @@ function storageGet(key, fallback) {
 }
 function storageSet(key, value) {
   try { window.localStorage.setItem(key, value); } catch {}
+}
+// タブを閉じるまでの一時的な状態（ログインごとに出し直したいお知らせなど）に使う
+function sessionGet(key, fallback = "") {
+  try { return window.sessionStorage.getItem(key) || fallback; } catch { return fallback; }
+}
+function sessionSet(key, value) {
+  try { window.sessionStorage.setItem(key, value); } catch {}
 }
 function roleFromIdTokenPayload(payload = {}) {
   const claimedRole = String(payload?.["custom:role"] || payload?.role || "").toLowerCase();
@@ -673,7 +681,7 @@ function SideNav({ groups, view, karte, go, badges = {}, collapsed = false, pa =
     </div>
   );
 }
-function UserProfileView({ me, displayName, userProfile, onSaved }) {
+function UserProfileView({ me, displayName, userProfile, onSaved, mfaAvailable = false }) {
   const [name, setName] = useState(userProfile?.name || "");
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState("");
@@ -731,7 +739,7 @@ function UserProfileView({ me, displayName, userProfile, onSaved }) {
           </label>
           {[
             ["メールアドレス", userProfile?.email || "未登録"],
-            ["所属", userProfile?.company || "未登録"],
+            ["所属", userProfile?.companyName || (userProfile?.company ? "確認できません" : "未登録")],
             ["ロール", me.label],
           ].map(([label, value]) => (
             <div key={label} className="flex items-center justify-between py-1">
@@ -742,6 +750,7 @@ function UserProfileView({ me, displayName, userProfile, onSaved }) {
           {message && <div className="text-sm font-semibold" style={{ color: message.includes("失敗") || message.includes("入力してください") ? T.danger : T.success }}>{message}</div>}
         </div>
       </Card>
+      {mfaAvailable && <MfaSettingsCard email={userProfile?.email || ""} />}
     </div>
   );
 }
@@ -820,6 +829,8 @@ export default function App() {
   const [authBootstrapError, setAuthBootstrapError] = useState("");
   const [authRetryKey, setAuthRetryKey] = useState(0);
   const verifiedRoleRef = useRef(null);
+  // 確認済みの実ロール（表示ロール切替の影響を受けない）。二要素認証の出し分けに使う
+  const [verifiedRoleValue, setVerifiedRoleValue] = useState(null);
   const [notifications, setNotifications] = useState([]);
   const notificationRequestVersionRef = useRef(0);
   // Per-menu badges derived from already-fetched notifications (no new API).
@@ -905,6 +916,7 @@ export default function App() {
         }
         if (subject) storageSet("feeps.authUserId", subject);
         verifiedRoleRef.current = verifiedRole;
+        setVerifiedRoleValue(verifiedRole);
         setRole(verifiedRole);
         setLoggedIn(true);
       })
@@ -915,6 +927,7 @@ export default function App() {
         if (unauthenticated) {
           resetNavigationHistorySession();
           verifiedRoleRef.current = null;
+          setVerifiedRoleValue(null);
         }
         setLoggedIn(false);
         if (!unauthenticated) setAuthBootstrapError("ログイン状態を確認できませんでした。通信状況を確認して再試行してください。");
@@ -1015,6 +1028,19 @@ export default function App() {
   }, [view, loggedIn, refreshNotifications]);
   const me = ROLES[role];
   // 管理者のロール切り替え（表示確認用ビュー）
+  const verifiedAdmin = verifiedRoleValue === "admin";
+  const { status: mfaStatus } = useMfaStatus(loggedIn);
+  // 受講生には二要素認証を出さない（2026-07-28ユーザー判断）。端末の機種変更・紛失時に
+  // 本人が解除できず、50名規模では問い合わせ対応が現実的でないため。
+  // ただし既に設定済みの受講生には出す。出さないと本人が解除できなくなるため。
+  const mfaAvailable = Boolean(verifiedRoleValue) && (verifiedRoleValue !== "trainee" || mfaStatus === "enabled");
+  // 二要素認証は任意。未設定のときだけ、プロフィールから設定できることをログイン後に一度知らせる
+  const [mfaNoticeDismissed, setMfaNoticeDismissed] = useState(() => sessionGet("feeps.mfaNoticeDismissed") === "1");
+  function dismissMfaNotice() {
+    setMfaNoticeDismissed(true);
+    sessionSet("feeps.mfaNoticeDismissed", "1");
+  }
+  const showMfaNotice = loggedIn && profileChecked && verifiedAdmin && mfaStatus === "disabled" && !mfaNoticeDismissed;
   const isAdminUser = verifiedRoleRef.current === "admin";
   const isViewingAsOther = isAdminUser && role !== "admin";
   const roleAccent = ROLE_ACCENT[role] || ROLE_ACCENT.default;
@@ -1067,6 +1093,9 @@ export default function App() {
     resetTaskData();
     notificationRequestVersionRef.current += 1;
     verifiedRoleRef.current = null;
+    setVerifiedRoleValue(null);
+    sessionSet("feeps.mfaNoticeDismissed", "");
+    setMfaNoticeDismissed(false);
     setUserProfile(null);
     setProfileChecked(false);
     setNotifications([]);
@@ -1091,6 +1120,9 @@ export default function App() {
     resetTaskData();
     notificationRequestVersionRef.current += 1;
     verifiedRoleRef.current = null;
+    setVerifiedRoleValue(null);
+    sessionSet("feeps.mfaNoticeDismissed", "");
+    setMfaNoticeDismissed(false);
     setLoggedIn(false);
     setUserProfile(null);
     setProfileChecked(false);
@@ -1230,7 +1262,7 @@ export default function App() {
     if (view === "risk") return <RiskBoard />;
     if (view === "awscosts") return <AwsCostDashboard />;
     if (view === "notifications") return <NotificationCenter notifications={notifications} loading={notifLoading} error={notifErr} role={role} go={go} goProduct={goProduct} goSub={goSub} />;
-    if (view === "profile") return <UserProfileView me={me} displayName={displayName} userProfile={userProfile} onSaved={setUserProfile} />;
+    if (view === "profile") return <UserProfileView me={me} displayName={displayName} userProfile={userProfile} onSaved={setUserProfile} mfaAvailable={mfaAvailable} />;
     if (view === "terms") return <LegalPageView doc="terms" />;
     if (view === "privacy") return <LegalPageView doc="privacy" />;
     if (product === "training" && role === "admin" && ["home", "companies", "courses", "users"].includes(view)) return <AdminProduct view={view} go={go} goProduct={goProduct} goSub={goSub} />;
@@ -1528,6 +1560,12 @@ export default function App() {
 
       {/* Product切替はNovaのグローバルレール／モバイルドロワーへ統合。 */}
       <CommandPalette open={paletteOpen} onClose={() => setPaletteOpen(false)} items={paletteItems} />
+      {showMfaNotice && (
+        <MfaSuggestionDialog
+          onOpenProfile={() => { dismissMfaNotice(); goProduct("training"); go("profile"); }}
+          onClose={dismissMfaNotice}
+        />
+      )}
     </div>
   );
 }

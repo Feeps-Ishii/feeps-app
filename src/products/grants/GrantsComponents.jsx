@@ -151,7 +151,7 @@ export function GrantsHome({ goSub, role = "client", themeColor = "#C9A227" }) {
 
   // 期限アラート・次アクションの要約カード用（コース日程はgr_home表示中の申請分のみ軽量取得）。
   const { coursesById, loading: coursesLoading, error: coursesError } = useGrantCoursesMap(activeGrants, isAdmin, !gLoading);
-  const companyName = id => companies.find(c => c.companyId === id)?.name || id;
+  const companyName = id => companies.find(c => c.companyId === id)?.name || "（企業情報なし）";
   const summaries = useMemo(() => {
     if (gLoading || coursesLoading) return [];
     return activeGrants
@@ -783,7 +783,7 @@ function GrantDetail({
   // remarksと同様、admin・client（自社分）どちらも編集可能（実費データの出所は自社の会計・請求書）。
   const [expenseCosts, setExpenseCosts] = useState(() => expenseCostsToForm(grant.expenseActualCosts));
 
-  const traineeNames = (grant.targetTraineeIds || []).map(id => trainees.find(t => t.userId === id)?.name || id);
+  const traineeNames = (grant.targetTraineeIds || []).map(id => trainees.find(t => t.userId === id)?.name || "（不明な受講生）");
   const stages = useMemo(() => computeGrantStages(grant, course), [grant, course]);
   const nextActions = useMemo(
     () => computeNextActions({ grant, stages, course, company: companyProfile, documents: documentsLoading ? undefined : documents }),
@@ -869,7 +869,7 @@ function GrantDetailModal({ grant, role, companies, onClose, onSave, onOpenDocum
   const { trainees } = useCompanyTrainees(isAdmin ? grant.companyId : "", true);
   const { profile: companyProfile } = useCompanyProfile(isAdmin ? grant.companyId : "", true);
   const { items: documents, loading: documentsLoading, reload: reloadDocuments } = useGrantDocuments(grant.grantId, true);
-  const companyName = isAdmin ? (companies.find(c => c.companyId === grant.companyId)?.name || grant.companyId) : (companyProfile?.name || grant.companyId);
+  const companyName = isAdmin ? (companies.find(c => c.companyId === grant.companyId)?.name || "（企業情報なし）") : (companyProfile?.name || "（企業情報なし）");
   const course = courses.find(c => c.courseId === grant.courseId) || null;
   const courseName = course?.name || grant.courseId;
 
@@ -906,7 +906,7 @@ export function GrantsManager({ role, onOpenDocuments }) {
   // 一覧から直接Excel帳票を生成する導線（2026-07-20 UX改善）。詳細を開かずに素早く生成できる。
   const [exportGrant, setExportGrant] = useState(null);
 
-  const companyName = id => companies.find(c => c.companyId === id)?.name || id;
+  const companyName = id => companies.find(c => c.companyId === id)?.name || "（企業情報なし）";
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -1133,7 +1133,7 @@ export function GrantDocuments({ role, initialGrantId, onGrantConsumed }) {
   const { items: documents, loading, error, actionError, clearActionError, reload, uploadDocument, reviewDocument, removeDocument, viewDocument } =
     useGrantDocuments(grantId, !!grantId);
 
-  const companyName = id => companies.find(c => c.companyId === id)?.name || id;
+  const companyName = id => companies.find(c => c.companyId === id)?.name || "（企業情報なし）";
 
   async function handleUpload(args) {
     setUploading(true); setUploadError("");
@@ -1299,7 +1299,7 @@ export function ReservationManager({ role }) {
   const { courses } = useCompanyCourses(isAdmin ? form.companyId : "", isAdmin ? !!form.companyId : true);
   const { trainees } = useCompanyTrainees(isAdmin ? form.companyId : "", isAdmin ? !!form.companyId : true);
 
-  const companyName = id => companies.find(c => c.companyId === id)?.name || id;
+  const companyName = id => companies.find(c => c.companyId === id)?.name || "（企業情報なし）";
   const sorted = useMemo(() => [...items].sort((a, b) => String(a.scheduledAt || "").localeCompare(String(b.scheduledAt || ""))), [items]);
 
   function startNew() { setForm({ ...EMPTY_RESERVATION_FORM }); setCreating(true); clearActionError(); }

@@ -930,7 +930,7 @@ function ClientSkillSheets({ role = "client" }) {
       .finally(() => alive && setLoading(false));
     return () => { alive = false; };
   }, []);
-  const courseName = id => courses.find(c => c.courseId === id)?.name || id || "未登録";
+  const courseName = id => courses.find(c => c.courseId === id)?.name || (id ? "（コース情報なし）" : "未登録");
   const [skillMap, setSkillMap] = useState(null);
   useEffect(() => {
     if (!trainees.length) return;
