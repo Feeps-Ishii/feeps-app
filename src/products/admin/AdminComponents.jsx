@@ -606,14 +606,17 @@ function AdminCourses({ go }) {
     try { setElCourses(await apiGet("/learning/admin/courses") || []); }
     catch { setElCourses([]); }
   }
-  async function saveElearningVisibility(course, scope, companyIds) {
+  async function saveElearningVisibility(course, scope, patch = {}) {
     if (elBusy) return;
     setElBusy(course.courseId);
     setErr(""); setMsg("");
+    const limited = scope !== "all";
     try {
       await apiPut(`/learning/admin/courses/${course.courseId}`, {
         ...course, visibilityScope: scope,
-        targetCompanyIds: scope === "companies" ? companyIds : [],
+        targetCompanyIds: limited ? (patch.companyIds ?? course.targetCompanyIds ?? []) : [],
+        targetCourseIds: limited ? (patch.courseIds ?? course.targetCourseIds ?? []) : [],
+        targetTraineeIds: limited ? (patch.traineeIds ?? course.targetTraineeIds ?? []) : [],
       });
       setMsg(`「${course.title || course.name || "コース"}」の公開範囲を更新しました。`);
       await loadElearningCourses();
@@ -981,28 +984,54 @@ function AdminCourses({ go }) {
           {elCourses === null ? <SkeletonRows rows={3} />
             : elCourses.length === 0 ? <div className="rounded-xl px-4 py-5 text-center text-sm" style={adminPanelStyle}>Eラーニングのコースがまだありません。</div>
             : <div className="space-y-2">{elCourses.map(el => {
-              const scope = el.visibilityScope === "companies" ? "companies" : "all";
+              const scope = el.visibilityScope === "all" || !el.visibilityScope ? "all" : "limited";
               const targets = Array.isArray(el.targetCompanyIds) ? el.targetCompanyIds : [];
+              const targetCourses = Array.isArray(el.targetCourseIds) ? el.targetCourseIds : [];
+              const targetTrainees = Array.isArray(el.targetTraineeIds) ? el.targetTraineeIds : [];
+              const limitedCount = targets.length + targetCourses.length + targetTrainees.length;
               return (
                 <div key={el.courseId} className="rounded-xl p-3" style={adminPanelStyle}>
                   <div className="flex flex-wrap items-center justify-between gap-2">
                     <div className="min-w-0"><div className="truncate text-sm font-semibold" style={{ color: T.textPrimary }}>{el.title || el.name || "（無題）"}</div>
-                      <div className="mt-0.5 text-xs" style={{ color: T.textMuted }}>{scope === "all" ? "全体公開" : targets.length ? `対象企業 ${targets.length}社` : "対象企業が未選択（誰にも表示されません）"}</div></div>
+                      <div className="mt-0.5 text-xs" style={{ color: T.textMuted }}>{scope === "all" ? "全体公開"
+                        : limitedCount ? [targets.length && `企業${targets.length}社`, targetCourses.length && `研修コース${targetCourses.length}件`, targetTrainees.length && `受講生${targetTrainees.length}名`].filter(Boolean).join(" / ")
+                        : "対象が未選択（誰にも表示されません）"}</div></div>
                     <select disabled={!courseEditMode || elBusy === el.courseId} value={scope}
-                      onChange={e => saveElearningVisibility(el, e.target.value, targets)}
+                      onChange={e => saveElearningVisibility(el, e.target.value)}
                       className="rounded-xl px-3 py-2 text-sm outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary, background: T.bgSurface }}>
-                      <option value="all">全体公開</option><option value="companies">対象企業のみ</option>
+                      <option value="all">全体公開</option><option value="limited">対象を指定する</option>
                     </select>
                   </div>
-                  {scope === "companies" && (
-                    <div className="mt-2 flex flex-wrap gap-1.5">
-                      {companies.map(co => (
-                        <label key={co.companyId} className="flex items-center gap-1 rounded-lg px-2 py-1 text-xs" style={{ border: `1px solid ${T.border}`, background: T.bgSurface, color: T.textSecondary }}>
-                          <input type="checkbox" disabled={!courseEditMode || elBusy === el.courseId} checked={targets.includes(co.companyId)}
-                            onChange={() => saveElearningVisibility(el, "companies", targets.includes(co.companyId) ? targets.filter(id => id !== co.companyId) : [...targets, co.companyId])} />
-                          {co.name || co.companyId}
-                        </label>
-                      ))}
+                  {scope !== "all" && (
+                    <div className="mt-2 space-y-2">
+                      <div>
+                        <div className="mb-1 text-xs font-semibold" style={{ color: T.textMuted }}>企業で指定</div>
+                        <div className="flex flex-wrap gap-1.5">{companies.map(co => (
+                          <label key={co.companyId} className="flex items-center gap-1 rounded-lg px-2 py-1 text-xs" style={{ border: `1px solid ${T.border}`, background: T.bgSurface, color: T.textSecondary }}>
+                            <input type="checkbox" disabled={!courseEditMode || elBusy === el.courseId} checked={targets.includes(co.companyId)}
+                              onChange={() => saveElearningVisibility(el, "limited", { companyIds: targets.includes(co.companyId) ? targets.filter(id => id !== co.companyId) : [...targets, co.companyId] })} />
+                            {co.name || co.companyId}
+                          </label>))}</div>
+                      </div>
+                      <div>
+                        <div className="mb-1 text-xs font-semibold" style={{ color: T.textMuted }}>研修コースで指定（そのコースの受講生に表示）</div>
+                        <div className="flex flex-wrap gap-1.5">{rows.map(tc => (
+                          <label key={tc.courseId} className="flex items-center gap-1 rounded-lg px-2 py-1 text-xs" style={{ border: `1px solid ${T.border}`, background: T.bgSurface, color: T.textSecondary }}>
+                            <input type="checkbox" disabled={!courseEditMode || elBusy === el.courseId} checked={targetCourses.includes(tc.courseId)}
+                              onChange={() => saveElearningVisibility(el, "limited", { courseIds: targetCourses.includes(tc.courseId) ? targetCourses.filter(id => id !== tc.courseId) : [...targetCourses, tc.courseId] })} />
+                            {tc.name || "（無題）"}
+                          </label>))}</div>
+                      </div>
+                      <div>
+                        <div className="mb-1 text-xs font-semibold" style={{ color: T.textMuted }}>受講生で指定（このコースの所属受講生から選ぶ）</div>
+                        <div className="flex max-h-32 flex-wrap gap-1.5 overflow-y-auto">{trainees.map(t => (
+                          <label key={t.userId} className="flex items-center gap-1 rounded-lg px-2 py-1 text-xs" style={{ border: `1px solid ${T.border}`, background: T.bgSurface, color: T.textSecondary }}>
+                            <input type="checkbox" disabled={!courseEditMode || elBusy === el.courseId} checked={targetTrainees.includes(t.userId)}
+                              onChange={() => saveElearningVisibility(el, "limited", { traineeIds: targetTrainees.includes(t.userId) ? targetTrainees.filter(id => id !== t.userId) : [...targetTrainees, t.userId] })} />
+                            {t.name || t.email}
+                          </label>))}</div>
+                        {trainees.length === 0 && <div className="text-xs" style={{ color: T.textMuted }}>このコースの所属受講生がいません。</div>}
+                      </div>
                     </div>
                   )}
                 </div>
