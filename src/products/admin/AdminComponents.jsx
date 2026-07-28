@@ -440,9 +440,7 @@ function AdminCompanies() {
   return (
     <div>
       <SectionHead title="企業管理" desc="契約企業の管理" action={<div className="flex flex-wrap items-center gap-2">
-        <label className="flex items-center gap-1.5 text-xs font-semibold" style={{ color: T.textMuted }}>
-          <input type="checkbox" checked={showArchivedCourses} onChange={e => setShowArchivedCourses(e.target.checked)} />終了したコースも表示
-        </label><Btn size="sm" kind="ghost" icon={FileSpreadsheet} onClick={() => exportAdminListExcel(visibleRows, [
+        <Btn size="sm" kind="ghost" icon={FileSpreadsheet} onClick={() => exportAdminListExcel(visibleRows, [
           [r => r.name || "", "企業名"], [r => memoOf(r), "メモ"], [r => r.companyId || "", "企業ID"],
         ], "企業一覧", "企業一覧")}>Excel出力</Btn>
         <Btn size="sm" icon={Plus} onClick={() => { setOpen(true); setErr(""); setMsg(""); }}>企業を追加</Btn>
@@ -997,7 +995,9 @@ function AdminCourses({ go }) {
         <Btn size="sm" kind="ghost" icon={FileSpreadsheet} onClick={() => exportAdminListExcel(visibleRows, [
           [r => r.name || "", "コース名"], [r => kindLabel(typeOf(r)), "種別"], [r => memoOf(r), "メモ"], [r => (r.instructorIds || []).length, "担当講師数"], [r => r.courseId || "", "コースID"],
         ], "コース一覧", "コース一覧")}>Excel出力</Btn>
-        <Btn size="sm" icon={Plus} onClick={() => { setOpen(true); setErr(""); setMsg(""); }}>コースを作成</Btn>
+        <label className="flex items-center gap-1.5 text-xs font-semibold" style={{ color: T.textMuted }}>
+          <input type="checkbox" checked={showArchivedCourses} onChange={e => setShowArchivedCourses(e.target.checked)} />終了したコースも表示
+        </label><Btn size="sm" icon={Plus} onClick={() => { setOpen(true); setErr(""); setMsg(""); }}>コースを作成</Btn>
       </div>} />
       {msg && <div className="mb-4 rounded-lg px-3 py-2 text-xs" style={adminMsgStyle}>{msg}</div>}
       {err && !open && <div className="mb-4 rounded-lg px-3 py-2 text-xs" style={adminErrStyle}>{err}</div>}
