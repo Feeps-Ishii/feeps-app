@@ -531,6 +531,10 @@ function AdminCourses({ go }) {
   const [showArchivedCourses, setShowArchivedCourses] = useState(false);
   // 誤操作防止のため、コース詳細は既定で閲覧モード。編集ボタンを押した間だけ入力できる。
   const [courseEditMode, setCourseEditMode] = useState(false);
+  // Eラーニングの公開範囲（既存の /learning/admin/courses の visibilityScope / targetCompanyIds を
+  // 研修コース管理からも確認・変更できるようにする。新しい制御は増やさない）
+  const [elCourses, setElCourses] = useState(null);
+  const [elBusy, setElBusy] = useState("");
   const [calendarMonth, setCalendarMonth] = useState(monthStr());
   const [calendarItems, setCalendarItems] = useState({});
   const [calendarDirty, setCalendarDirty] = useState({});
@@ -598,8 +602,28 @@ function AdminCourses({ go }) {
   function changeSort(key) {
     setSort(s => s.key === key ? { key, dir: s.dir === "asc" ? "desc" : "asc" } : { key, dir: "asc" });
   }
+  async function loadElearningCourses() {
+    try { setElCourses(await apiGet("/learning/admin/courses") || []); }
+    catch { setElCourses([]); }
+  }
+  async function saveElearningVisibility(course, scope, companyIds) {
+    if (elBusy) return;
+    setElBusy(course.courseId);
+    setErr(""); setMsg("");
+    try {
+      await apiPut(`/learning/admin/courses/${course.courseId}`, {
+        ...course, visibilityScope: scope,
+        targetCompanyIds: scope === "companies" ? companyIds : [],
+      });
+      setMsg(`「${course.title || course.name || "コース"}」の公開範囲を更新しました。`);
+      await loadElearningCourses();
+    } catch (e) {
+      setErr("公開範囲の更新に失敗しました：" + (e?.errorMessage || e?.message || e));
+    } finally { setElBusy(""); }
+  }
   async function selectCourse(c) {
     setCourseEditMode(false);
+    if (elCourses === null) loadElearningCourses();
     setActiveCourseId(c.courseId);
     setSelected(c);
     setEdit(courseEditValue(c));
@@ -948,6 +972,42 @@ function AdminCourses({ go }) {
             : detailLoading ? <SkeletonCards count={2} />
             : trainees.length === 0 ? <div className="rounded-xl px-4 py-5 text-center text-sm" style={adminPanelStyle}>所属受講生はいません。</div>
             : <div className="grid gap-2 md:grid-cols-2">{trainees.map(t => <div key={t.userId} className="flex items-center gap-2 rounded-xl p-2" style={{ background: T.bgBase }}><Avatar name={t.name || t.email} size={28} /><div className="min-w-0 flex-1"><div className="truncate text-sm font-semibold" style={{ color: T.textPrimary }}>{t.name || "（氏名未設定）"}</div><div className="truncate text-xs" style={{ color: T.textMuted }}>{t.email || t.userId} / {companyName(t.company)}</div></div><Btn kind="ghost" size="sm" icon={X} disabled={!courseEditMode} onClick={() => removeTrainee(t.userId)}>解除</Btn></div>)}</div>}
+        </Card>
+        <Card className="mb-5 p-5">
+          <div className="mb-3">
+            <h3 className="flex items-center gap-1.5 font-bold" style={{ color: T.textPrimary }}><BookOpen size={16} />Eラーニングの公開範囲</h3>
+            <p className="mt-1 text-xs" style={{ color: T.textMuted }}>各Eラーニングコースを全体へ公開するか、対象企業だけに公開するかを設定します。受講生には所属企業に応じて表示されます。</p>
+          </div>
+          {elCourses === null ? <SkeletonRows rows={3} />
+            : elCourses.length === 0 ? <div className="rounded-xl px-4 py-5 text-center text-sm" style={adminPanelStyle}>Eラーニングのコースがまだありません。</div>
+            : <div className="space-y-2">{elCourses.map(el => {
+              const scope = el.visibilityScope === "companies" ? "companies" : "all";
+              const targets = Array.isArray(el.targetCompanyIds) ? el.targetCompanyIds : [];
+              return (
+                <div key={el.courseId} className="rounded-xl p-3" style={adminPanelStyle}>
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <div className="min-w-0"><div className="truncate text-sm font-semibold" style={{ color: T.textPrimary }}>{el.title || el.name || "（無題）"}</div>
+                      <div className="mt-0.5 text-xs" style={{ color: T.textMuted }}>{scope === "all" ? "全体公開" : targets.length ? `対象企業 ${targets.length}社` : "対象企業が未選択（誰にも表示されません）"}</div></div>
+                    <select disabled={!courseEditMode || elBusy === el.courseId} value={scope}
+                      onChange={e => saveElearningVisibility(el, e.target.value, targets)}
+                      className="rounded-xl px-3 py-2 text-sm outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary, background: T.bgSurface }}>
+                      <option value="all">全体公開</option><option value="companies">対象企業のみ</option>
+                    </select>
+                  </div>
+                  {scope === "companies" && (
+                    <div className="mt-2 flex flex-wrap gap-1.5">
+                      {companies.map(co => (
+                        <label key={co.companyId} className="flex items-center gap-1 rounded-lg px-2 py-1 text-xs" style={{ border: `1px solid ${T.border}`, background: T.bgSurface, color: T.textSecondary }}>
+                          <input type="checkbox" disabled={!courseEditMode || elBusy === el.courseId} checked={targets.includes(co.companyId)}
+                            onChange={() => saveElearningVisibility(el, "companies", targets.includes(co.companyId) ? targets.filter(id => id !== co.companyId) : [...targets, co.companyId])} />
+                          {co.name || co.companyId}
+                        </label>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              );
+            })}</div>}
         </Card>
 
         <Card className="p-5">
