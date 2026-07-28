@@ -266,6 +266,13 @@ function ProductPortal({ role, displayName, products, dashboard, loading, error,
   const metrics = portalMetrics(role, dashboard, loading, Boolean(error));
   const nextAction = nextPortalAction(role, dashboard);
   const orbitProducts = availableProducts.slice(0, 5);
+  // 件数から列数を決める（4枚→2+2、5枚→3+2、6枚→3+3。広い画面では1行に収める）
+  const productGridStyle = useMemo(() => {
+    const n = availableProducts.length;
+    const lg = n <= 3 ? Math.max(n, 1) : n === 4 ? 2 : 3;
+    const xl = n <= 6 ? Math.max(n, 1) : 4;
+    return { "--cols-lg": String(lg), "--cols-xl": String(xl) };
+  }, [availableProducts.length]);
   const openNext = () => openTargetUrl(nextAction.targetUrl, { goProduct, goTraining, goSub });
 
   return (
@@ -334,7 +341,9 @@ function ProductPortal({ role, displayName, products, dashboard, loading, error,
               <p className="mt-1 text-sm" style={{ color: NOVA.muted }}>現在の権限で利用できる機能だけを表示しています。</p>
             </div>
           </div>
-          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
+          {/* 列数は件数から決める。5列固定だと6枚のとき1枚だけ次の行へ落ちて見た目が崩れるため、
+              「1行に収める」か「均等な2行」になる列数を選ぶ（ロールごとに件数が変わる）。 */}
+          <div className="feeps-product-grid gap-3" style={productGridStyle}>
             {availableProducts.map((product, index) => (
               <PortalProductCard key={product.key} product={product} index={index} onOpen={() => goProduct(product.key)} />
             ))}

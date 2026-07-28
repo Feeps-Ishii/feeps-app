@@ -569,3 +569,10 @@ body.feeps-modal-open .feeps-main-scroll { overflow: hidden !important; }
   .feeps-auth-primary,
   .feeps-auth-secondary { transition: none; }
 }
+
+/* Homeの機能カード。件数に応じた列数をJS側から --cols-lg / --cols-xl で渡す。
+   5列固定だと6枚のとき1枚だけ次行へ落ちるため、1行に収めるか均等な2行になる列数を選ぶ。 */
+.feeps-product-grid { display: grid; grid-template-columns: minmax(0, 1fr); }
+@media (min-width: 640px) { .feeps-product-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (min-width: 1024px) { .feeps-product-grid { grid-template-columns: repeat(var(--cols-lg, 3), minmax(0, 1fr)); } }
+@media (min-width: 1536px) { .feeps-product-grid { grid-template-columns: repeat(var(--cols-xl, var(--cols-lg, 3)), minmax(0, 1fr)); } }

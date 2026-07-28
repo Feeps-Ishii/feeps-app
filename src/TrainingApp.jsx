@@ -1516,7 +1516,7 @@ export default function App() {
             "--canvas-margin": T.canvasMargin,
           }}>
           <div ref={mainScrollRef} onScroll={e => { setScrolled(e.currentTarget.scrollTop > 0); scheduleNavigationScrollSave(); }} className="feeps-main-scroll flex-1 lg:min-h-0 lg:overflow-y-auto" style={{ borderRadius: "inherit" }}>
-          <main className="mx-auto w-full max-w-full p-4 sm:p-6 lg:p-8 xl:p-10" style={{ maxWidth: isHomeProduct ? 1360 : 1280 }}>
+          <main className="mx-auto w-full max-w-full p-4 sm:p-6 lg:p-8 xl:p-10 2xl:px-12" style={{ maxWidth: isHomeProduct ? 1680 : 1520 }}>
             <div key={role + product + activeView + (karte ? karte.id : "")} className="view-anim min-w-0 max-w-full">
               <ScreenErrorBoundary><Suspense fallback={<PageLoading />}>{screen}</Suspense></ScreenErrorBoundary>
             </div>
