@@ -1,4 +1,4 @@
-import { LayoutDashboard, FileText, ClipboardCheck, Clock, NotebookPen, Users, Building2, BookOpen, Settings, GraduationCap, Calendar, Sparkles, Target, Wrench, Compass } from "lucide-react";
+import { LayoutDashboard, FileText, ClipboardCheck, Clock, NotebookPen, Users, Building2, BookOpen, Settings, GraduationCap, Calendar, Sparkles, Target, Wrench, Compass, CalendarClock } from "lucide-react";
 
 
 /* ===== ロール ===== */
@@ -61,25 +61,30 @@ const QBANK = {
   ],
 };
 
+// 2026-07-28 UX精査: 同じ機能はロールが違っても同じ名前にする。
+// 「日報確認」「日報・月次集計」のようにロールごとに呼び名が違うと、マニュアルも
+// 口頭説明も噛み合わない。見えている範囲の違いは画面の中身で伝える。
+// あわせて「予約」（個別面談・成果報告会）を助成金管理から研修管理へ移した。
+// 三者（管理者・企業担当者・講師）で行う業務で、助成金の付随物ではないため。
 const NAV = {
   trainee: [
     { sec: null, items: [["home", "ホーム", LayoutDashboard]] },
-    { sec: "研修中", items: [["courses", "所属コース", BookOpen], ["curriculum", "カリキュラム", Calendar], ["reports", "日報", NotebookPen], ["attendance", "勤怠", Clock], ["tests", "テスト", ClipboardCheck], ["materials", "研修資料", FileText], ["goals", "目標とタスク", Target]] },
+    { sec: "研修中", items: [["courses", "コース", BookOpen], ["curriculum", "カリキュラム", Calendar], ["reports", "日報", NotebookPen], ["attendance", "勤怠", Clock], ["tests", "テスト", ClipboardCheck], ["materials", "研修資料", FileText], ["goals", "目標とタスク", Target]] },
   ],
   instructor: [
     { sec: null, items: [["home", "ホーム", LayoutDashboard]] },
-    { sec: "コース運用", items: [["courses", "担当コース管理", BookOpen], ["trainees", "受講生", Users]] },
-    { sec: "研修中", items: [["curriculum", "カリキュラム", Calendar], ["reports", "日報確認", NotebookPen], ["attendance", "勤怠確認", Clock], ["tests", "テスト", ClipboardCheck], ["materials", "研修資料", FileText], ["goals", "目標ダッシュボード", Target]] },
+    { sec: "コース運用", items: [["courses", "コース", BookOpen], ["trainees", "受講生", Users], ["reservations", "予約", CalendarClock]] },
+    { sec: "研修中", items: [["curriculum", "カリキュラム", Calendar], ["reports", "日報", NotebookPen], ["attendance", "勤怠", Clock], ["tests", "テスト", ClipboardCheck], ["materials", "研修資料", FileText], ["goals", "目標とタスク", Target]] },
   ],
   client: [
     { sec: null, items: [["home", "ホーム", LayoutDashboard]] },
-    { sec: "自社", items: [["courses", "参加コース", BookOpen], ["trainees", "自社受講生", Users], ["companies", "企業情報", Building2]] },
-    { sec: "研修中", items: [["curriculum", "カリキュラム", Calendar], ["attendance", "出席・勤怠状況", Clock], ["reports", "日報確認・コメント", NotebookPen], ["tests", "テスト結果", ClipboardCheck], ["materials", "研修資料", FileText]] },
+    { sec: "自社", items: [["courses", "コース", BookOpen], ["trainees", "受講生", Users], ["companies", "企業情報", Building2], ["reservations", "予約", CalendarClock]] },
+    { sec: "研修中", items: [["curriculum", "カリキュラム", Calendar], ["attendance", "勤怠", Clock], ["reports", "日報", NotebookPen], ["tests", "テスト", ClipboardCheck], ["materials", "研修資料", FileText]] },
   ],
   admin: [
     { sec: null, items: [["home", "ホーム", LayoutDashboard]] },
-    { sec: "全体管理", items: [["courses", "コース管理センター", BookOpen], ["trainees", "受講生", GraduationCap], ["companies", "企業", Building2], ["users", "ユーザー・講師", Users]] },
-    { sec: "研修中", items: [["curriculum", "カリキュラム", Calendar], ["reports", "日報・月次集計", NotebookPen], ["attendance", "勤怠・月次集計", Clock], ["tests", "テスト", ClipboardCheck], ["materials", "研修資料", FileText]] },
+    { sec: "全体管理", items: [["courses", "コース", BookOpen], ["trainees", "受講生", GraduationCap], ["companies", "企業", Building2], ["users", "ユーザー・講師", Users], ["reservations", "予約", CalendarClock]] },
+    { sec: "研修中", items: [["curriculum", "カリキュラム", Calendar], ["reports", "日報", NotebookPen], ["attendance", "勤怠", Clock], ["tests", "テスト", ClipboardCheck], ["materials", "研修資料", FileText], ["goals", "目標とタスク", Target]] },
   ],
 };
 const navViewSet = role => new Set([...(NAV[role] || []).flatMap(g => g.items.map(([k]) => k)), "notifications", "profile"]);

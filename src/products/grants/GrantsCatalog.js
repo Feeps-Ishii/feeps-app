@@ -4,6 +4,8 @@ import {
 
 // 対象ロールはadmin/clientのみ（instructor/traineeはこのProduct自体に到達不可、
 // TrainingApp.jsxのPRODUCTS.rolesで既に除外している。ここはnavの中身のみ）。
+// 2026-07-28: 予約（個別面談・成果報告会）は研修管理へ移した。三者で行う業務で、
+// 助成金の付随物ではないため。データ（grant-reservations）はそのまま。
 export const GRANTS_NAV = {
   admin: [
     { sec: null, items: [["gr_home", "ホーム", LayoutDashboard]] },
@@ -12,7 +14,6 @@ export const GRANTS_NAV = {
       ["gr_trainees",     "受講生の助成金情報",   Users],
       ["gr_list",         "助成金申請",           FileText],
       ["gr_documents",    "提出書類",             Upload],
-      ["gr_reservations", "予約",                 CalendarClock],
       ["gr_rate_master",  "助成金マスタ",         Percent],
     ]},
   ],
@@ -23,7 +24,6 @@ export const GRANTS_NAV = {
       ["gr_trainees",     "受講生の助成金情報",   Users],
       ["gr_list",         "助成金申請",           FileText],
       ["gr_documents",    "提出書類",             Upload],
-      ["gr_reservations", "予約",                 CalendarClock],
     ]},
   ],
 };
@@ -33,7 +33,6 @@ export const GRANTS_HOME_CARDS = [
   { key: "gr_trainees",     icon: Users,         label: "受講生の助成金情報", desc: "雇用形態・新卒既卒・IT経験と、助成金対象フラグを確認・入力します。" },
   { key: "gr_list",         icon: FileText,      label: "助成金申請",         desc: "申請の一覧・3ステージの進捗・期限・次アクションを確認します。" },
   { key: "gr_documents",    icon: Upload,        label: "提出書類",           desc: "提出書類のアップロード・確認・審査、Excel帳票の生成はここから行えます。" },
-  { key: "gr_reservations", icon: CalendarClock, label: "予約",               desc: "個社面談・成果報告会の予約を管理します。" },
   { key: "gr_rate_master",  icon: Percent,       label: "助成金マスタ",       desc: "年度・区分ごとの助成率・単価・上限額を管理します。", adminOnly: true },
 ];
 

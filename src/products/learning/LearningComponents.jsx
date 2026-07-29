@@ -178,7 +178,12 @@ function LearningOverview({ lrn, goSub, goProduct, onOpenDetail, role, themeColo
       {canUseDevLab && (
         <div className="mb-6 grid gap-4 sm:grid-cols-2">
           <ProductNavCard product="learning" icon={BookOpen} title="Eラーニング" desc="コースで学び、演習・総合テストで定着させる" onClick={() => goSub("el_courses")} delay={160} />
-          <ProductNavCard product="devlab" icon={Code2} title="開発演習" desc={isCreator ? "疑似案件を作成・公開し、提出状況を確認する" : "疑似的な開発案件に参加し、実践経験を積む"} onClick={() => goSub(isCreator ? "el_devlab_manage" : "el_devlab")} delay={200} />
+          <ProductNavCard product="devlab" icon={Code2} title="開発演習（プロジェクト体験）"
+            highlight badge="実践"
+            desc={isCreator
+              ? "架空のクライアント案件をつくり、受講生の提出をステップごとに確認する"
+              : "架空のクライアント案件に取り組み、学んだ知識を「使える」に変える。ステップごとに成果物を提出すると、合格基準に照らした具体的な指摘が返ります"}
+            onClick={() => goSub(isCreator ? "el_devlab_manage" : "el_devlab")} delay={200} />
         </div>
       )}
 

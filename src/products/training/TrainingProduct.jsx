@@ -1,4 +1,5 @@
 import React from "react";
+import { ReservationManager } from "../grants/GrantsComponents.jsx";
 import InstructorWorkspace from "../workspace/InstructorWorkspace.jsx";
 import { PrismErrorRetryCard, SkeletonRows } from "../../components/common";
 import {
@@ -43,5 +44,8 @@ export default function TrainingProduct({
   if (view === "attendance") return <Attendance role={role} userProfile={userProfile} />;
   if (view === "reports") return <Reports role={role} userProfile={userProfile} />;
   if (view === "trainees") return <TraineeList role={role} openKarte={setKarte} go={go} />;
+  // 予約（個別面談・成果報告会）。実装は助成金Product側のコンポーネントを再利用する
+  // （データも grant-reservations のまま。画面の置き場所だけ研修管理へ移した）
+  if (view === "reservations") return <ReservationManager role={role} />;
   return null;
 }
