@@ -4315,7 +4315,10 @@ function Reports({ role, userProfile }) {
   }
   // 月次の一括編集: 受講生1名 × その月の研修日をまとめて修正する（勤怠と同じ操作の型）。
   // 保存は変更した日だけを既存の PUT /reports/{traineeId} へ逐次送る。
-  const reportBulkEditable = role === "admin" && !!opsFilter.courseId && periodMode === "月次"
+  // 2026-07-28: 日報は本人の記録であり、他人が中身を書き換える運用はしないと決めた。
+  // 管理者・講師の編集入口（月次まとめて編集・詳細の「日報を編集」）は出さない。
+  // 誤投稿への対応は削除と復元で行う。Backendも PUT /reports/{traineeId} を403にしている。
+  const reportBulkEditable = false && role === "admin" && !!opsFilter.courseId && periodMode === "月次"
     && opsReportMonthScheduleState === "ready" && adminCanManageReportsAttendance(userProfile, opsFilter.courseId);
   function openReportBulkEdit(row) {
     const rows = opsReportTrainingDates.map(d => {
@@ -5049,7 +5052,6 @@ function Reports({ role, userProfile }) {
                 </>
               ) : (
                 <>
-                  <Btn kind="ghost" size="sm" icon={Pencil} onClick={() => startAdminEditReport(detailReport)}>日報を編集</Btn>
                   <Btn kind="ghost" size="sm" icon={Trash2} onClick={() => setDeletingReport(detailReport)}>削除</Btn>
                 </>
               )}
