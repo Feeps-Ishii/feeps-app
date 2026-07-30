@@ -1,5 +1,6 @@
 import React from "react";
 import { ReservationManager } from "../grants/GrantsComponents.jsx";
+import Announcements, { AnnouncementBoard } from "./Announcements.jsx";
 import InstructorWorkspace from "../workspace/InstructorWorkspace.jsx";
 import { PrismErrorRetryCard, SkeletonRows } from "../../components/common";
 import {
@@ -27,9 +28,11 @@ export default function TrainingProduct({
 }) {
   if (karte) return <Karte trainee={karte} back={() => setKarte(null)} role={role} />;
   if (view === "home") {
-    if (role === "trainee") return <TraineeHome go={go} goProduct={goProduct} goSub={goSub} done={taskDone} taskDataState={taskDataState} onTaskRetry={onTaskRetry} taskSaveState={taskSaveState} toggle={toggle} goals={goals} />;
-    if (role === "instructor") return <InstructorWorkspace go={go} displayName={displayName} />;
-    if (role === "client") return <ClientHome openKarte={setKarte} go={go} />;
+    // お知らせ（人が書いた連絡）はホームの最上部に出す。自分宛のものだけAPIが返す。
+    const board = <AnnouncementBoard go={go} />;
+    if (role === "trainee") return <>{board}<TraineeHome go={go} goProduct={goProduct} goSub={goSub} done={taskDone} taskDataState={taskDataState} onTaskRetry={onTaskRetry} taskSaveState={taskSaveState} toggle={toggle} goals={goals} /></>;
+    if (role === "instructor") return <>{board}<InstructorWorkspace go={go} displayName={displayName} /></>;
+    if (role === "client") return <>{board}<ClientHome openKarte={setKarte} go={go} /></>;
     return null;
   }
   if (view === "curriculum") return <Curriculum role={role} go={go} />;
@@ -47,5 +50,6 @@ export default function TrainingProduct({
   // 予約（個別面談・成果報告会）。実装は助成金Product側のコンポーネントを再利用する
   // （データも grant-reservations のまま。画面の置き場所だけ研修管理へ移した）
   if (view === "reservations") return <ReservationManager role={role} />;
+  if (view === "announcements") return <Announcements role={role} userProfile={userProfile} />;
   return null;
 }
