@@ -11,6 +11,15 @@ import { apiGet, apiPost, apiPut, apiDelete } from "../../api.js";
 
 const POSTER_ROLES = ["instructor", "client", "admin"];
 
+// 公開期間から今の状態を出す。ホームの要約と管理一覧のバッジで同じ判定を使う。
+function periodState(a) {
+  const now = new Date().toISOString();
+  if (a.publishedAt && a.publishedAt > now) return "before";
+  if (a.expiresAt && a.expiresAt < now) return "after";
+  return "live";
+}
+const PERIOD_LABEL = { before: "公開前", live: "公開中", after: "終了" };
+
 function fmt(value) {
   if (!value) return "";
   const d = new Date(value);
@@ -184,6 +193,7 @@ export function AnnouncementBoard({ go, role, max = 3 }) {
   const [courses, setCourses] = useState([]);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("");
+  const [posted, setPosted] = useState(null);   // 出した側の要約。null = まだ読めていない
   const canPost = POSTER_ROLES.includes(role);
 
   const load = useCallback(() => {
@@ -191,7 +201,14 @@ export function AnnouncementBoard({ go, role, max = 3 }) {
     apiGet("/announcements/me")
       .then(r => { setItems(Array.isArray(r?.items) ? r.items : []); setState("ready"); })
       .catch(() => setState("error"));
-  }, []);
+    // 出した側は「今どれが出ているか」がホームで分かるようにする。
+    // 取れなかった場合は要約を出さない（0件と混同させないため）。
+    if (POSTER_ROLES.includes(role)) {
+      apiGet("/announcements")
+        .then(r => setPosted(Array.isArray(r?.items) ? r.items : []))
+        .catch(() => setPosted(null));
+    }
+  }, [role]);
   useEffect(() => { load(); }, [load]);
 
   function openCompose() {
@@ -217,6 +234,8 @@ export function AnnouncementBoard({ go, role, max = 3 }) {
   }
 
   const shown = items.slice(0, max);
+  const live = (posted || []).filter(a => periodState(a) === "live");
+  const scheduled = (posted || []).filter(a => periodState(a) === "before");
 
   return (
     <div className="mb-4 flex flex-col gap-2">
@@ -275,6 +294,34 @@ export function AnnouncementBoard({ go, role, max = 3 }) {
           </div>
           <AnnouncementEditor role={role} courses={courses} draft={draft} setDraft={setDraft}
             onSave={submit} onCancel={() => setComposing(false)} busy={busy} message={message} compact />
+        </Card>
+      )}
+
+      {canPost && !composing && posted && (
+        <Card className="p-3">
+          <div className="flex flex-wrap items-center gap-2">
+            <Megaphone size={14} style={{ color: T.textMuted }} />
+            <span className="text-xs font-bold" style={{ color: T.textSecondary }}>
+              {role === "admin" ? "公開中のお知らせ" : "自分が出したお知らせ"}
+            </span>
+            {live.length === 0
+              ? <span className="text-xs" style={{ color: T.textMuted }}>現在公開しているお知らせはありません。</span>
+              : <span className="rounded-full px-2 py-0.5 text-[10.5px] font-bold" style={{ background: T.successSubtle, color: T.success }}>{live.length}件公開中</span>}
+            {scheduled.length > 0 && (
+              <span className="text-xs" style={{ color: T.textMuted }}>公開前 {scheduled.length}件</span>
+            )}
+          </div>
+          {live.length > 0 && (
+            <ul className="mt-2 flex flex-col gap-1">
+              {live.map(a => (
+                <li key={a.announcementId} className="flex items-center gap-2 text-xs" style={{ color: T.textSecondary }}>
+                  <span className="h-1 w-1 shrink-0 rounded-full" style={{ background: T.textMuted }} />
+                  <span className="truncate">{a.title}</span>
+                  {a.expiresAt && <span className="ml-auto shrink-0" style={{ color: T.textMuted }}>{fmt(a.expiresAt)}まで</span>}
+                </li>
+              ))}
+            </ul>
+          )}
         </Card>
       )}
 
@@ -346,11 +393,8 @@ export default function Announcements({ role }) {
   }
 
   function periodLabel(a) {
-    const now = new Date().toISOString();
-    const before = a.publishedAt && a.publishedAt > now;
-    const after = a.expiresAt && a.expiresAt < now;
     const range = `${fmt(a.publishedAt) || "即時"} 〜 ${fmt(a.expiresAt) || "終了日なし"}`;
-    return { range, badge: before ? "公開前" : after ? "終了" : "公開中" };
+    return { range, badge: PERIOD_LABEL[periodState(a)] };
   }
 
   if (state === "error") return <div className="p-4"><PrismErrorRetryCard message="お知らせを取得できませんでした。" onRetry={load} /></div>;
