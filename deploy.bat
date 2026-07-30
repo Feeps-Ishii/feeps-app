@@ -1,6 +1,10 @@
 @echo off
 setlocal EnableExtensions
 
+rem Run from this script's own folder. Without this, npm run build fails when
+rem the caller's current directory is somewhere else.
+cd /d "%~dp0"
+
 set "AWS_REGION=ap-northeast-1"
 set "S3_BUCKET=feeps-app"
 set "CLOUDFRONT_DISTRIBUTION_ID=E2E41GI86GW1JM"

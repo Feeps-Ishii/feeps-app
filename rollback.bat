@@ -1,6 +1,10 @@
 @echo off
 setlocal EnableExtensions
 
+rem Run from this script's own folder. Without this, npm run build fails when
+rem the caller's current directory is somewhere else.
+cd /d "%~dp0"
+
 rem Restore the production frontend to a previous release.
 rem   rollback.bat            - list restorable releases
 rem   rollback.bat <RELEASE_ID> - restore that release (no rebuild needed)
