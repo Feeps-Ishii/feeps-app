@@ -29,7 +29,7 @@ export default function TrainingProduct({
   if (karte) return <Karte trainee={karte} back={() => setKarte(null)} role={role} />;
   if (view === "home") {
     // お知らせ（人が書いた連絡）はホームの最上部に出す。自分宛のものだけAPIが返す。
-    const board = <AnnouncementBoard go={go} />;
+    const board = <AnnouncementBoard go={go} role={role} />;
     if (role === "trainee") return <>{board}<TraineeHome go={go} goProduct={goProduct} goSub={goSub} done={taskDone} taskDataState={taskDataState} onTaskRetry={onTaskRetry} taskSaveState={taskSaveState} toggle={toggle} goals={goals} /></>;
     if (role === "instructor") return <>{board}<InstructorWorkspace go={go} displayName={displayName} /></>;
     if (role === "client") return <>{board}<ClientHome openKarte={setKarte} go={go} /></>;
