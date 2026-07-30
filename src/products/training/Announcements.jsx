@@ -37,6 +37,8 @@ const toDateInput = iso => {
   if (Number.isNaN(d.getTime())) return "";
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
 };
+// 今日の日付（利用者の時間帯）。「その日はじめて開いたか」の判定に使う。
+const localDate = () => new Date().toLocaleDateString("sv-SE");
 const startOfDay = d => (d ? new Date(`${d}T00:00:00`).toISOString() : "");
 const endOfDay = d => (d ? new Date(`${d}T23:59:59.999`).toISOString() : "");
 
@@ -142,6 +144,14 @@ export function AnnouncementEditor({ role, courses, draft, setDraft, onSave, onC
         </label>
       </div>
 
+      {/* 重要と通常で通知の回数が変わる。出す側が選ぶときに分かるよう書いておく。 */}
+      <p className="text-xs leading-relaxed" style={{ color: T.textMuted }}>
+        <span className="font-bold" style={{ color: T.textSecondary }}>重要</span>にすると、公開期間中は
+        <span className="font-bold" style={{ color: T.textSecondary }}>毎日1回</span>、相手がその日はじめて開いたときにお知らせが出ます。
+        <span className="font-bold" style={{ color: T.textSecondary }}>通常</span>は公開期間中でも
+        <span className="font-bold" style={{ color: T.textSecondary }}>最初の1回だけ</span>で、以降はホームの一覧に残ります。
+      </p>
+
       {message && (
         <div className="rounded-xl px-3 py-2 text-sm font-semibold"
           style={{
@@ -194,6 +204,10 @@ export function AnnouncementBoard({ go, role, max = 3 }) {
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("");
   const [posted, setPosted] = useState(null);   // 出した側の要約。null = まだ読めていない
+  const [seen, setSeen] = useState(null);       // 自分がもう見たか。null = まだ読めていない
+  const [popup, setPopup] = useState(null);     // ログイン後に出すお知らせ。null = 出さない
+  const [popupBusy, setPopupBusy] = useState(false);
+  const popupDoneRef = React.useRef(false);     // 1回の滞在で二度出さない
   const canPost = POSTER_ROLES.includes(role);
 
   const load = useCallback(() => {
@@ -201,6 +215,7 @@ export function AnnouncementBoard({ go, role, max = 3 }) {
     apiGet("/announcements/me")
       .then(r => { setItems(Array.isArray(r?.items) ? r.items : []); setState("ready"); })
       .catch(() => setState("error"));
+    apiGet("/announcements/seen").then(setSeen).catch(() => setSeen(null));
     // 出した側は「今どれが出ているか」がホームで分かるようにする。
     // 取れなかった場合は要約を出さない（0件と混同させないため）。
     if (POSTER_ROLES.includes(role)) {
@@ -210,6 +225,31 @@ export function AnnouncementBoard({ go, role, max = 3 }) {
     }
   }, [role]);
   useEffect(() => { load(); }, [load]);
+
+  // ログイン後に1回だけ出す。重要は公開期間中は毎日、通常は新しく出たときだけ（2026-07-28ユーザー決定）。
+  // 利用規約の同意ダイアログとは重ならない（TrainingApp側で同意前はここまで描画されない）。
+  useEffect(() => {
+    if (state !== "ready" || !seen || popupDoneRef.current) return;
+    const today = localDate();
+    const isNew = a => !seen.seenAt || String(a.publishedAt || a.createdAt || "") > seen.seenAt;
+    const daily = seen.seenDate === today ? [] : items.filter(a => a.importance === "important");
+    const ids = new Set();
+    const target = [...items.filter(isNew), ...daily].filter(a => !ids.has(a.announcementId) && ids.add(a.announcementId));
+    if (target.length === 0) return;
+    popupDoneRef.current = true;
+    setPopup(target);
+  }, [state, items, seen]);
+
+  async function confirmPopup() {
+    if (popupBusy) return;
+    setPopupBusy(true);
+    const next = { seenAt: new Date().toISOString(), seenDate: localDate() };
+    // 記録できなくても閉じる（閉じられないと打刻や日報の邪魔になる）。次回また出るだけ。
+    try { await apiPut("/announcements/seen", next); } catch { /* noop */ }
+    setSeen(next);
+    setPopup(null);
+    setPopupBusy(false);
+  }
 
   function openCompose() {
     setMessage("");
@@ -239,6 +279,49 @@ export function AnnouncementBoard({ go, role, max = 3 }) {
 
   return (
     <div className="mb-4 flex flex-col gap-2">
+      {popup && (
+        <div className="fixed inset-0 z-50 grid place-items-center p-4" style={{ background: "rgba(20,24,36,.5)" }}
+          role="dialog" aria-modal="true" aria-labelledby="announcement-popup-title">
+          <div className="max-h-[80vh] w-full max-w-md overflow-y-auto rounded-2xl p-6"
+            style={{ background: T.bgSurface, border: `1px solid ${T.border}`, boxShadow: "0 24px 60px rgba(16,20,32,.28)" }}>
+            <div className="mb-3 flex items-center gap-2">
+              <span className="flex h-9 w-9 items-center justify-center rounded-xl" style={{ background: T.accentSubtle, color: T.accentHover }}>
+                <Megaphone size={18} />
+              </span>
+              <h2 id="announcement-popup-title" className="text-base font-bold" style={{ color: T.textPrimary }}>
+                お知らせが{popup.length}件あります
+              </h2>
+            </div>
+            <ul className="flex flex-col gap-3">
+              {popup.map(a => (
+                <li key={a.announcementId} className="rounded-xl p-3"
+                  style={{ background: T.bgBase, border: `1px solid ${a.importance === "important" ? T.warning : T.border}` }}>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="text-sm font-bold" style={{ color: T.textPrimary }}>{a.title}</span>
+                    {a.importance === "important" && (
+                      <span className="rounded-full px-2 py-0.5 text-[10.5px] font-bold" style={{ background: T.warningSubtle, color: T.warning }}>重要</span>
+                    )}
+                  </div>
+                  {/* 重要は本文まで出す。通常は件名だけにして、詳しくはホームの一覧で読んでもらう */}
+                  {a.importance === "important" && (
+                    <p className="mt-1 whitespace-pre-wrap text-sm leading-relaxed" style={{ color: T.textSecondary }}>{a.body}</p>
+                  )}
+                  <div className="mt-1 text-xs" style={{ color: T.textMuted }}>
+                    {a.authorName || ""}{a.expiresAt ? `・${fmt(a.expiresAt)}まで` : ""}
+                  </div>
+                </li>
+              ))}
+            </ul>
+            <p className="mt-3 text-xs" style={{ color: T.textMuted }}>
+              内容はこのあともホームのいちばん上で確認できます。
+            </p>
+            <div className="mt-4 flex justify-end">
+              <Btn onClick={confirmPopup} disabled={popupBusy}>{popupBusy ? "記録中…" : "確認しました"}</Btn>
+            </div>
+          </div>
+        </div>
+      )}
+
       {state === "error" && (
         <Card className="p-4">
           <div className="flex flex-wrap items-center gap-2 text-sm" style={{ color: T.textSecondary }}>
