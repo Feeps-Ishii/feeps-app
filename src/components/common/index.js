@@ -16,6 +16,7 @@ export { default as SuccessCheck } from "./SuccessCheck.jsx";
 export { default as MonthPicker } from "./MonthPicker.jsx";
 export { default as BrandMark } from "./BrandMark.jsx";
 export { default as TraineeBulkImportPanel } from "./TraineeBulkImportPanel.jsx";
+export { default as HelpGuideModal } from "./HelpGuideModal.jsx";
 export {
   PrismPage, PrismCard, PrismSectionTitle, PrismCapLabel, PrismHomeHeading,
   PrismHero, PrismKpiCard, PrismErrorRetryCard, PrismSeverityChip,

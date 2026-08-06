@@ -5,7 +5,7 @@ import {
   Sparkles, Flame, ChevronRight, ChevronLeft, Check, CheckCircle2,
   Circle, AlertCircle, Lightbulb, Calendar, Clock, RefreshCw, Download, Code2
 } from "lucide-react";
-import { Card, Badge, Btn, EmptyState, SectionHead, PageHeader, ProductNavCard, T, PRODUCT_ACCENT } from "../../components/common";
+import { Card, Badge, Btn, EmptyState, SectionHead, PageHeader, ProductNavCard, T, PRODUCT_ACCENT, PRISM } from "../../components/common";
 import ElSlideLessonView from "./ElSlideLessonView.jsx";
 import LearningExperienceFlow from "./LearningExperienceFlow.jsx";
 
@@ -179,7 +179,7 @@ function LearningOverview({ lrn, goSub, goProduct, onOpenDetail, role, themeColo
         <div className="mb-6 grid gap-4 sm:grid-cols-2">
           <ProductNavCard product="learning" icon={BookOpen} title="Eラーニング" desc="コースで学び、演習・総合テストで定着させる" onClick={() => goSub("el_courses")} delay={160} />
           <ProductNavCard product="devlab" icon={Code2} title="開発演習（プロジェクト体験）"
-            highlight badge="実践"
+            highlight badge="AI・実践"
             desc={isCreator
               ? "架空のクライアント案件をつくり、受講生の提出をステップごとに確認する"
               : "架空のクライアント案件に取り組み、学んだ知識を「使える」に変える。ステップごとに成果物を提出すると、合格基準に照らした具体的な指摘が返ります"}
@@ -221,10 +221,11 @@ function LearningOverview({ lrn, goSub, goProduct, onOpenDetail, role, themeColo
         </Card>
       </div>
 
-      <div className="mb-6 grid gap-4 md:grid-cols-3">
+      <div className="mb-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <ProductNavCard product="learning" icon={BookOpen} title="コース一覧" desc="公開中のコースから学習を始める" onClick={() => goSub("el_courses")} delay={200} />
         <ProductNavCard product="learning" icon={PlayCircle} title="学習中" desc="受講中のコースを続きから再開" onClick={() => goSub("el_inprogress")} highlight badge="よく使う" delay={240} />
         <ProductNavCard product="learning" icon={Sparkles} title="獲得スキル" desc="学習で身についたスキルを確認" onClick={() => goSub("el_skills")} delay={280} />
+        <ProductNavCard product="learning" icon={Award} title="修了済み" desc={`${lrn.completed.length}本修了`} onClick={() => goSub("el_completed")} delay={320} />
       </div>
 
       {todayCompleted.length > 0 && (
@@ -306,26 +307,6 @@ function LearningOverview({ lrn, goSub, goProduct, onOpenDetail, role, themeColo
         </div>
       )}
 
-      {/* クイックアクセス */}
-      <div className="mb-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-        {[
-          { key: "el_courses",   icon: BookOpen,  label: "コース一覧", desc: `全${(lrn.catalog || []).length}コース` },
-          { key: "el_completed", icon: Award,     label: "修了済み",   desc: `${lrn.completed.length}本修了` },
-          { key: "el_skills",    icon: Sparkles,  label: "獲得スキル", desc: `${earnedSkills.length}件` },
-          { key: "el_recommend", icon: Lightbulb, label: "おすすめ",   desc: `${lrn.notStarted.length}本未受講` },
-        ].map(({ key, icon: Icon, label, desc }) => (
-          <Card key={key} className="cursor-pointer p-4 transition hover:shadow-md" onClick={() => goSub(key)}>
-            <div className="mb-1.5 flex items-center gap-2">
-              <div className="flex h-7 w-7 items-center justify-center rounded-lg" style={{ background: `${themeColor}14` }}>
-                <Icon size={14} style={{ color: themeColor }} />
-              </div>
-              <span className="text-sm font-bold" style={{ color: C.ink }}>{label}</span>
-            </div>
-            <p className="text-xs" style={{ color: C.muted }}>{desc}</p>
-          </Card>
-        ))}
-      </div>
-
       {/* スキル・成長への導線 */}
       {earnedSkills.length > 0 && (
         <div className="mb-6 flex flex-wrap items-center justify-between gap-3 rounded-2xl p-4" style={{ background: "#7C3AED0D", border: "1px solid #7C3AED20" }}>
@@ -351,7 +332,10 @@ function LearningOverview({ lrn, goSub, goProduct, onOpenDetail, role, themeColo
               { key: "el_manage",   icon: Settings, label: "コース管理", desc: "コースの作成・編集・レッスン・教材・公開状態を管理できます。" },
               { key: "el_students", icon: Users,     label: "受講状況",     desc: "受講生の進捗と完了状況を確認できます。" },
             ].map(({ key, icon: Icon, label, desc }) => (
-              <Card key={key} className="cursor-pointer p-4 transition hover:shadow-md" onClick={() => goSub(key)}>
+              <Card key={key} className="relative cursor-pointer p-4 transition hover:shadow-md" onClick={() => goSub(key)}>
+                {key === "el_manage" && (
+                  <span className="absolute right-3 top-3 rounded-full px-2.5 py-1 text-[10px] font-bold" style={{ background: PRISM.aiSubtle, color: PRISM.aiDeep, border: `1px solid ${C.line}` }}>AI</span>
+                )}
                 <div className="mb-1.5 flex items-center gap-2"><Icon size={15} style={{ color: themeColor }} />
                   <span className="text-sm font-bold" style={{ color: C.ink }}>{label}</span></div>
                 <p className="text-xs" style={{ color: C.muted }}>{desc}</p>

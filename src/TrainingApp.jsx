@@ -11,7 +11,8 @@ import Login from "./products/auth/Login.jsx";
 import { MfaSuggestionDialog, MfaSettingsCard, useMfaStatus } from "./products/auth/MfaSetup.jsx";
 import { TermsAgreementDialog, needsTermsAgreement, TERMS_VERSION } from "./components/common/TermsConsent.jsx";
 import { LegalPageView } from "./components/common/LegalPages.jsx";
-import { Card, Badge, Btn, Avatar, Stat, SectionHead, T, NOVA, PRISM, PRISM_PRODUCT_GRAD, BrandMark, PRODUCT_ACCENT, ROLE_ACCENT, Z, PageLoading, EmptyState as CommonEmptyState, SkeletonRows } from "./components/common";
+import { Card, Badge, Btn, Avatar, Stat, SectionHead, T, NOVA, PRISM, PRISM_PRODUCT_GRAD, BrandMark, PRODUCT_ACCENT, ROLE_ACCENT, Z, PageLoading, EmptyState as CommonEmptyState, SkeletonRows, HelpGuideModal } from "./components/common";
+import { HELP_GUIDE_CONTENT } from "./products/home/helpGuideContent.js";
 import { GOALS, GOAL_ICON_MAP, NAV, ROLES } from "./products/training/TrainingCatalog.js";
 import { navViewSet, statusKind, testIdOf, todayStr } from "./products/training/useTraining.js";
 import {
@@ -29,7 +30,7 @@ import {
   Sparkles, Flame, X, Eye, Pencil, StickyNote, Megaphone, ArrowUpRight,
   MoreHorizontal, Check, Filter, Target, ListChecks, Lock, Mail, Lightbulb,
   Wrench, Compass, ShieldCheck, FileSpreadsheet, LogIn, Menu, Star, Activity,
-  GitBranch, Briefcase, Gauge, MapPin, User, Printer, RefreshCw, Receipt, Landmark, Code2, ClipboardList, FolderTree
+  GitBranch, Briefcase, Gauge, MapPin, User, Printer, RefreshCw, Receipt, Landmark, Code2, ClipboardList, FolderTree, HelpCircle
 } from "lucide-react";
 
 // Products other than Training (the default landing product) are code-split so the
@@ -788,6 +789,7 @@ export default function App() {
   const [demoOpen, setDemoOpen] = useState(false);
   const [sidebarUserOpen, setSidebarUserOpen] = useState(false);
   const [notifOpen, setNotifOpen] = useState(false);
+  const [helpGuideOpen, setHelpGuideOpen] = useState(false);
   // コマンドパレット（⌘K／UIリデザインR2）。デスクトップ・モバイル双方から開閉できる。
   const [paletteOpen, setPaletteOpen] = useState(false);
   useEffect(() => {
@@ -1429,6 +1431,7 @@ export default function App() {
           </button>
           <div className="ml-auto flex items-center gap-1">
             <button type="button" onClick={() => setPaletteOpen(true)} aria-label="検索・移動・アクションを開く" className="feeps-icon-button"><Search size={18} /></button>
+            <button type="button" onClick={() => setHelpGuideOpen(true)} aria-label="使い方を開く" title="使い方" className="feeps-icon-button"><HelpCircle size={18} /></button>
             {notifBellMobile}
           </div>
         </div>
@@ -1441,7 +1444,11 @@ export default function App() {
           <button type="button" onClick={() => setPaletteOpen(true)} className="feeps-command-button min-w-0 max-w-[500px] flex-1" aria-label="検索・移動・アクションを開く">
             <Search size={16} /><span>検索・移動・アクション</span><kbd>⌘K</kbd>
           </button>
-          <div className="ml-auto flex min-w-0 shrink-0 items-center justify-end gap-1.5">{role === "instructor" && !isHomeProduct && <QuickAdd onPick={go} />}{demoMenu}{notifBellDesktop}{userActionsTail}</div>
+          <div className="ml-auto flex min-w-0 shrink-0 items-center justify-end gap-1.5">
+            {role === "instructor" && !isHomeProduct && <QuickAdd onPick={go} />}
+            <button type="button" onClick={() => setHelpGuideOpen(true)} aria-label="使い方を開く" title="使い方" className="feeps-icon-button"><HelpCircle size={18} /></button>
+            {demoMenu}{notifBellDesktop}{userActionsTail}
+          </div>
         </div>
       </div>
 
@@ -1565,6 +1572,12 @@ export default function App() {
 
       {/* Product切替はNovaのグローバルレール／モバイルドロワーへ統合。 */}
       <CommandPalette open={paletteOpen} onClose={() => setPaletteOpen(false)} items={paletteItems} />
+      {helpGuideOpen && (
+        <HelpGuideModal
+          products={PRODUCTS.filter(p => p.key !== "home" && p.roles.includes(role)).map(p => ({ ...p, desc: HELP_GUIDE_CONTENT[p.key] }))}
+          onClose={() => setHelpGuideOpen(false)}
+        />
+      )}
       {showMfaNotice && (
         <MfaSuggestionDialog
           onOpenProfile={() => { dismissMfaNotice(); goProduct("training"); go("profile"); }}

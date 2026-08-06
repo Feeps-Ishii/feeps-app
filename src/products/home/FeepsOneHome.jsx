@@ -90,6 +90,7 @@ const PRODUCT_COPY = {
   talent: "研修で得たスキルと成長の記録を可視化します。",
   matching: "身につけた力を、次の案件とキャリアにつなげます。",
   analytics: "研修成果・リスク・利用状況を横断して分析します。",
+  grants: "助成金の申請・交付までを一元管理します。",
 };
 
 const ROLE_PORTAL_COPY = {
