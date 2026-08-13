@@ -196,7 +196,10 @@ const EL_NAV = {
     { sec: null, items: [["el_home", "ホーム", LayoutDashboard]] },
     { sec: "Eラーニング", items: [["el_courses", "コース一覧", BookOpen], ["el_completed", "修了済み", Award], ["el_cert", "修了証", CheckCircle2]] },
     { sec: "開発演習", items: [["el_devlab_manage", "案件管理", ClipboardList], ["el_devlab_workspace", "プロジェクト体験", FolderTree]] },
-    { sec: "管理", items: [["el_manage", "コース管理", Settings], ["el_students", "受講状況", Users]] },
+    // プラン・契約管理（ADR0013「学習: 管理（プラン・契約・AI利用量）」、2026-08-13 Phase1-D新設）。
+    // adminはモードにゲートされないが、この画面自体は学習モード固有の管理機能のため
+    // learning product配下に置く（training product配下の既存admin画面とは別系統）。
+    { sec: "管理", items: [["el_manage", "コース管理", Settings], ["el_students", "受講状況", Users], ["el_plans", "プラン・契約", Receipt]] },
   ],
 };
 

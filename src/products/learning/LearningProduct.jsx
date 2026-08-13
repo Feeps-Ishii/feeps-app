@@ -16,6 +16,7 @@ import {
 } from "./LearningComponents.jsx";
 import LearningAdminProduct from "./admin/LearningAdminProduct.jsx";
 import EnrollmentManager from "./admin/EnrollmentManager.jsx";
+import PlansContractsAdmin from "./admin/PlansContractsAdmin.jsx";
 import DevLabProduct from "../devlab/DevLabProduct.jsx";
 import { setProductDetailHistory } from "../../utils/common/navigationHistory.js";
 
@@ -177,6 +178,9 @@ export default function LearningProduct({ subView, goSub, goProduct, role, theme
     el_students:   role === "admin" || role === "instructor"
       ? <EnrollmentManager />
       : <LearningPlaceholder title="受講状況"   desc="受講生の進捗と完了状況を確認できます。" />,
+    el_plans:      role === "admin"
+      ? <PlansContractsAdmin />
+      : <LearningPlaceholder title="プラン・契約" desc="この機能はご利用いただけません。" />,
     el_devlab:        DEVLAB_ALLOWED_ROLES.includes(role)
       ? <DevLabProduct subView="dl_projects" goSub={goSub} role={role} themeColor={themeColor} />
       : <LearningPlaceholder title="開発演習" desc="この機能はご利用いただけません。" />,
