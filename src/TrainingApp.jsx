@@ -1276,7 +1276,7 @@ export default function App() {
 
   const screen = (() => {
     if (product === "home") return <FeepsOneHome role={role} displayName={displayName} products={filterProductsForRoleAndMode(PRODUCTS, { role, viewMode })} goProduct={goProduct} goTraining={go} goSub={goSub} />;
-    if (product === "learning") return <LearningProduct key={`learning-${trainingNavigationVersion}`} subView={subView} goSub={goSub} goProduct={goProduct} role={role} themeColor={themeColor} navigationTarget={productDetail} />;
+    if (product === "learning") return <LearningProduct key={`learning-${trainingNavigationVersion}`} subView={subView} goSub={goSub} goProduct={goProduct} role={role} themeColor={themeColor} navigationTarget={productDetail} learningPlan={userProfile?.learningPlan} />;
     if (product === "talent") return <TalentProduct subView={subView} goSub={goSub} goProduct={goProduct} role={role} themeColor={themeColor} done={taskDone} goals={goals} />;
     if (product === "matching") return <MatchingProduct subView={subView} goSub={goSub} role={role} themeColor={themeColor} />;
     if (product === "analytics") return <AnalyticsProduct subView={subView} goSub={goSub} themeColor={themeColor} />;

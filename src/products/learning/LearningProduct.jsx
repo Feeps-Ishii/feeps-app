@@ -24,7 +24,7 @@ import { setProductDetailHistory } from "../../utils/common/navigationHistory.js
 // role guardも維持しつつLearning側でも二重に制御する）。
 const DEVLAB_ALLOWED_ROLES = ["trainee", "instructor", "admin"];
 
-export default function LearningProduct({ subView, goSub, goProduct, role, themeColor, navigationTarget }) {
+export default function LearningProduct({ subView, goSub, goProduct, role, themeColor, navigationTarget, learningPlan }) {
   const lrn = useLearning(role);
   const [completionCourse, setCompletionCourse] = useState(null);
   const [activeCourse, setActiveCourse] = useState(null);
@@ -162,7 +162,7 @@ export default function LearningProduct({ subView, goSub, goProduct, role, theme
       </>
     );
   }
-  const sp = { lrn, goSub, goProduct, role, themeColor, onStart: handleStart, onComplete: handleComplete, onOpenDetail: handleOpenDetail };
+  const sp = { lrn, goSub, goProduct, role, themeColor, learningPlan, onStart: handleStart, onComplete: handleComplete, onOpenDetail: handleOpenDetail };
   const sub = {
     el_home:       <LearningOverview {...sp} />,
     el_courses:    <ElCourseView     {...sp} />,
