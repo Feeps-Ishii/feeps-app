@@ -11,7 +11,7 @@ export default function LearningPremiumScreen() {
   return (
     <div>
       <MockCaption>
-        学習モードに切り替えた状態。Premium契約なので全機能が使える。案件参画体験を目玉としてHeroに置き、DevLabに「AI・実践」バッジ、AIコース生成にPremiumバッジ（利用可能な状態）を出す。
+        学習モードに切り替えた状態。Premium契約なので全機能が使える。案件参画体験を目玉としてHeroに置き、DevLabに「AI・実践」バッジを出す。<strong>自分のプランで使える機能には制限バッジを出さない</strong>ため、AIコース生成にPremiumバッジは付けない（画面4のBasicでは同じカードに制限バッジが付く＝使えないときだけ出る）。
       </MockCaption>
       <MockApp>
         <MockTopbar modes={MODES} activeMode="learning" planTag="Premium" />
@@ -31,7 +31,7 @@ export default function LearningPremiumScreen() {
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
             <MockNavCard product="learning" icon={Code2} title="開発演習（DevLab）" desc="実際にコードを書いて動かしながら学べます。AIが提出コードを採点します。" badge="AI・実践" badgeTone="ai" />
             <MockNavCard product="learning" icon={BookOpen} title="Eラーニング" desc="コースを受講して、理解度テストで定着を確認します。" />
-            <MockNavCard product="learning" icon={Wand2} title="AIコース生成" desc="学びたいテーマを入力すると、AIがコースと問題を作ります。" badge="Premium" badgeTone="ai" />
+            <MockNavCard product="learning" icon={Wand2} title="AIコース生成" desc="学びたいテーマを入力すると、AIがコースと問題を作ります。" />
             <MockNavCard product="matching" icon={Briefcase} title="案件管理" desc="案件情報を確認し、参画状況や面談の進み具合を追えます。" />
             <MockNavCard product="talent" icon={TrendingUp} title="スキル・成長" desc="身につけたスキルを、案件参画向けのシートに整えます（研修モードと共通）。" />
             <MockNavCard product="admin" icon={Settings} title="管理" desc="プラン・契約・AI利用量を管理します。" />

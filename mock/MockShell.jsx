@@ -61,7 +61,10 @@ export function MockNavCard({ product = "training", icon: Icon, title, desc, bad
     ? { background: T.aiSubtle, color: T.aiAccentDeep }
     : badgeTone === "trial"
       ? { background: T.warningSubtle, color: T.warning }
-      : { background: pa.subtle, color: pa.deep };
+      // "accent"はプラン制限ではない一般の目印（例:よく使う）。プランバッジ（product色）と混同しないよう分ける。
+      : badgeTone === "accent"
+        ? { background: T.accentSubtle, color: T.accent }
+        : { background: pa.subtle, color: pa.deep };
   return (
     <div className="relative flex min-w-0 flex-col items-start gap-3 rounded-[18px] p-4"
       style={{ background: locked ? NOVA.paper : NOVA.card, border: `1px solid ${NOVA.line}` }}>
