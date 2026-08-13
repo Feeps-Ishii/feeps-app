@@ -20,6 +20,7 @@ import {
   clearTrainingTargetContext,
   setActiveCourseId,
 } from "./utils/common/courseContext.js";
+import { filterProductsForRoleAndMode, allowedViewModes, shouldShowModeSwitch } from "./utils/common/accessControl.js";
 import useAppNavigationHistory from "./hooks/common/useAppNavigationHistory.js";
 import useCountUp from "./hooks/common/useCountUp.js";
 import {
@@ -135,20 +136,24 @@ function roleFromIdTokenPayload(payload = {}) {
 }
 
 /* ===== 受講生：ホーム ===== */
+// modes: 研修管理/学習の2モード分離（ADR 0013-0016、2026-08-13 Phase1-B）。
+// 未指定 = モードの概念がない（home/analytics）か両モード共通（talent）で、常に表示対象。
+// 実際のフィルタは utils/common/accessControl.js の filterProductsForRoleAndMode() へ集約。
+// analyticsは今回のスコープ外（分析・レポートの非表示化は別途対応、ADR 0013参照）のため無指定のまま。
 const PRODUCTS = [
   { key: "home",      label: "Home",           icon: Compass,       color: PRODUCT_ACCENT.home.accent, roles: ["trainee","instructor","client","admin"] },
-  { key: "training",  label: "研修管理",       icon: GraduationCap, color: PRODUCT_ACCENT.training.accent, roles: ["trainee","instructor","client","admin"] },
-  { key: "learning",  label: "Eラーニング",    icon: BookOpen,      color: PRODUCT_ACCENT.learning.accent, roles: ["trainee","instructor","client","admin"] },
-  { key: "talent",    label: "スキル・成長",   icon: TrendingUp,    color: PRODUCT_ACCENT.talent.accent, roles: ["trainee","instructor","client","admin"] },
+  { key: "training",  label: "研修管理",       icon: GraduationCap, color: PRODUCT_ACCENT.training.accent, roles: ["trainee","instructor","client","admin"], modes: ["training"] },
+  { key: "learning",  label: "Eラーニング",    icon: BookOpen,      color: PRODUCT_ACCENT.learning.accent, roles: ["trainee","instructor","client","admin"], modes: ["learning"] },
+  { key: "talent",    label: "スキル・成長",   icon: TrendingUp,    color: PRODUCT_ACCENT.talent.accent, roles: ["trainee","instructor","client","admin"], modes: ["training","learning"] },
   // 2026-07-14 Home緊急修正: 講師は案件管理を業務上使わないためHome/上部タブ/サイドバー/
   // Global Rail/モバイルドロワーから除外（PRODUCTSが全Product表示の正本を兼ねる）。
   // Backend(routes/matching.mjs)もGET /projects等の主要操作をinstructorに403で返しており、
   // 唯一「担当受講生の参画状況」のみ限定的にGET許可されている(詳細はHANDOFF参照)。
-  { key: "matching",  label: "案件管理",       icon: Briefcase,     color: PRODUCT_ACCENT.matching.accent, roles: ["trainee","client","admin"] },
+  { key: "matching",  label: "案件管理",       icon: Briefcase,     color: PRODUCT_ACCENT.matching.accent, roles: ["trainee","client","admin"], modes: ["learning"] },
   { key: "analytics", label: "分析・レポート", icon: Activity,      color: PRODUCT_ACCENT.analytics.accent, roles: ["admin"] },
   // 助成金管理: instructor/traineeは業務上利用しないため除外（Backend routes/grants.mjsも
   // isAdmin||isClient以外を全エンドポイントで403にしている、Matching同様の設計）。
-  { key: "grants",    label: "助成金管理",     icon: Landmark,      color: PRODUCT_ACCENT.grants.accent, roles: ["client","admin"] },
+  { key: "grants",    label: "助成金管理",     icon: Landmark,      color: PRODUCT_ACCENT.grants.accent, roles: ["client","admin"], modes: ["training"] },
 ];
 
 const PRODUCT_DEFAULT_SUBVIEW = {
@@ -765,6 +770,9 @@ export default function App() {
   const [view, setView] = useState(() => storageGet("feeps.view", "home"));
   const [product, setProduct] = useState(() => storageGet("feeps.product", "home"));
   const [subView, setSubView] = useState(() => storageGet("feeps.subView", "home"));
+  // 研修管理/学習の2モード分離（ADR 0013-0016、2026-08-13 Phase1-B）。role/product等と同じ
+  // localStorage単純キーパターンで永続化する。有効な値かはuserProfile読み込み後のuseEffectで補正。
+  const [viewMode, setViewMode] = useState(() => storageGet("feeps.viewMode", "training"));
   const [karte, setKarte] = useState(null);
   const [trainingNavigationVersion, setTrainingNavigationVersion] = useState(0);
   const [taskDone, setTaskDone] = useState({});
@@ -951,15 +959,24 @@ export default function App() {
   useEffect(() => { storageSet("feeps.view", view); }, [view]);
   useEffect(() => { storageSet("feeps.product", product); }, [product]);
   useEffect(() => { storageSet("feeps.subView", subView); }, [subView]);
+  useEffect(() => { storageSet("feeps.viewMode", viewMode); }, [viewMode]);
+  // 研修管理/学習の2モード分離。contractModeはuserProfile読み込み後（GET /profile/me）に
+  // 判明する非同期値のため、早期実行のnormalizeAppRoute()ではなくこの補正useEffectへ寄せている
+  // （product/roleの既存の補正パターンと同じ場所に、mode条件を&&で足す増分実装）。
   useEffect(() => {
     const p = PRODUCTS.find(px => px.key === product);
-    if (!p || !p.roles.includes(role)) {
+    const modeOk = !p || role === "instructor" || !p.modes || p.modes.length === 0 || p.modes.includes(viewMode);
+    if (!p || !p.roles.includes(role) || !modeOk) {
       setProduct("home");
       setView("home");
       setSubView("home");
       setKarte(null);
     }
-  }, [product, role]);
+  }, [product, role, viewMode]);
+  useEffect(() => {
+    const allowed = allowedViewModes({ role, contractMode: userProfile?.contractMode });
+    if (!allowed.includes(viewMode)) setViewMode(allowed[0] || "training");
+  }, [role, userProfile?.contractMode]);
 
   useEffect(() => {
     if (!loggedIn) return;
@@ -1165,7 +1182,7 @@ export default function App() {
     setDrawerOpen(false);
   }
   function goProduct(p, options = {}) {
-    const nextProduct = PRODUCTS.some(item => item.key === p && item.roles.includes(role)) ? p : "home";
+    const nextProduct = filterProductsForRoleAndMode(PRODUCTS, { role, viewMode }).some(item => item.key === p) ? p : "home";
     replaceCurrentNavigationEntry();
     if (!options.preserveTarget) setNavigationTrainingTarget(null);
     clearProductDetail();
@@ -1185,7 +1202,7 @@ export default function App() {
   }
   // コマンドパレットの項目（実際にナビゲーションが働くものだけ。ダミー項目は置かない）
   const paletteItems = useMemo(() => {
-    const productItems = PRODUCTS.filter(p => p.roles.includes(role)).map(p => ({
+    const productItems = filterProductsForRoleAndMode(PRODUCTS, { role, viewMode }).map(p => ({
       key: "product:" + p.key,
       label: p.key === "home" ? "Home" : p.label + "を開く",
       icon: p.icon,
@@ -1198,7 +1215,7 @@ export default function App() {
       { key: "profile", label: "プロフィールを開く", icon: User, grad: T.accent, action: () => { goProduct("training"); go("profile"); } },
       { key: "logout", label: "ログアウト", icon: LogOut, grad: T.danger, action: logout },
     ];
-  }, [role]);
+  }, [role, viewMode]);
   function _serializeGoals(gs) { return gs.map(({ icon, ...rest }) => rest); }
   function restoreConfirmedTasks() {
     setTaskDone(confirmedTaskStateRef.current.done);
@@ -1258,7 +1275,7 @@ export default function App() {
   }
 
   const screen = (() => {
-    if (product === "home") return <FeepsOneHome role={role} displayName={displayName} products={PRODUCTS.filter(p => p.roles.includes(role))} goProduct={goProduct} goTraining={go} goSub={goSub} />;
+    if (product === "home") return <FeepsOneHome role={role} displayName={displayName} products={filterProductsForRoleAndMode(PRODUCTS, { role, viewMode })} goProduct={goProduct} goTraining={go} goSub={goSub} />;
     if (product === "learning") return <LearningProduct key={`learning-${trainingNavigationVersion}`} subView={subView} goSub={goSub} goProduct={goProduct} role={role} themeColor={themeColor} navigationTarget={productDetail} />;
     if (product === "talent") return <TalentProduct subView={subView} goSub={goSub} goProduct={goProduct} role={role} themeColor={themeColor} done={taskDone} goals={goals} />;
     if (product === "matching") return <MatchingProduct subView={subView} goSub={goSub} role={role} themeColor={themeColor} />;
@@ -1301,6 +1318,24 @@ export default function App() {
       <BrandMark size={30} withWordmark wordmarkSize={15} />
     </button>
   );
+  // 研修管理/学習の2モード分離（ADR 0013-0016、2026-08-13 Phase1-B）。自社が両方契約の
+  // trainee/clientと、常に両方使えるadminにのみ表示。instructorはゲートしないため出さない。
+  const modeSwitchVisible = shouldShowModeSwitch({ role, contractMode: userProfile?.contractMode });
+  const modeSwitch = modeSwitchVisible ? (
+    <div className="flex shrink-0 gap-0.5 rounded-[11px] p-[3px]" style={{ background: NOVA.soft }} role="tablist" aria-label="モード切替">
+      {[{ key: "training", label: "研修管理" }, { key: "learning", label: "学習" }].map(m => {
+        const active = m.key === viewMode;
+        const pa = PRODUCT_ACCENT[m.key];
+        return (
+          <button key={m.key} type="button" role="tab" aria-selected={active} onClick={() => setViewMode(m.key)}
+            className="rounded-lg px-3 py-1.5 text-[13px] font-semibold transition"
+            style={active ? { background: pa.accent, color: "#fff" } : { color: T.textMuted }}>
+            {m.label}
+          </button>
+        );
+      })}
+    </div>
+  ) : null;
   const demoMenu = (
     <div className="relative ml-2 shrink-0">
       <button onClick={() => setDemoOpen(v => !v)}
@@ -1396,7 +1431,7 @@ export default function App() {
     </>
   );
 
-  const availableProducts = PRODUCTS.filter(p => p.roles.includes(role));
+  const availableProducts = filterProductsForRoleAndMode(PRODUCTS, { role, viewMode });
   const pa = PRODUCT_ACCENT[product] || PRODUCT_ACCENT.training;
   const shellOffset = isHomeProduct ? 72 : 72 + (sidebarCollapsed ? T.sidebarWidthCollapsed : T.sidebarWidth);
 
@@ -1430,6 +1465,7 @@ export default function App() {
             </div>
           </button>
           <div className="ml-auto flex items-center gap-1">
+            {modeSwitch}
             <button type="button" onClick={() => setPaletteOpen(true)} aria-label="検索・移動・アクションを開く" className="feeps-icon-button"><Search size={18} /></button>
             <button type="button" onClick={() => setHelpGuideOpen(true)} aria-label="使い方を開く" title="使い方" className="feeps-icon-button"><HelpCircle size={18} /></button>
             {notifBellMobile}
@@ -1441,6 +1477,7 @@ export default function App() {
             {brandLogo}<span className="h-6 w-px" style={{ background: T.border }} />
             <div className="min-w-0"><div className="truncate text-[11px] font-semibold" style={{ color: T.textMuted }}>{isHomeProduct ? "すべての機能" : currentProduct.label}</div><div className="truncate text-sm font-bold">{isHomeProduct ? "総合ホーム" : viewTitle}</div></div>
           </div>
+          {modeSwitch}
           <button type="button" onClick={() => setPaletteOpen(true)} className="feeps-command-button min-w-0 max-w-[500px] flex-1" aria-label="検索・移動・アクションを開く">
             <Search size={16} /><span>検索・移動・アクション</span><kbd>⌘K</kbd>
           </button>
@@ -1574,7 +1611,7 @@ export default function App() {
       <CommandPalette open={paletteOpen} onClose={() => setPaletteOpen(false)} items={paletteItems} />
       {helpGuideOpen && (
         <HelpGuideModal
-          products={PRODUCTS.filter(p => p.key !== "home" && p.roles.includes(role)).map(p => ({ ...p, desc: HELP_GUIDE_CONTENT[p.key] }))}
+          products={filterProductsForRoleAndMode(PRODUCTS, { role, viewMode }).filter(p => p.key !== "home").map(p => ({ ...p, desc: HELP_GUIDE_CONTENT[p.key] }))}
           onClose={() => setHelpGuideOpen(false)}
         />
       )}
