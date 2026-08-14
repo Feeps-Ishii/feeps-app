@@ -141,7 +141,6 @@ function roleFromIdTokenPayload(payload = {}) {
 // 実際のフィルタは utils/common/accessControl.js の filterProductsForRoleAndMode() へ集約。
 // analyticsは今回のスコープ外（分析・レポートの非表示化は別途対応、ADR 0013参照）のため無指定のまま。
 const PRODUCTS = [
-  { key: "home",      label: "Home",           icon: Compass,       color: PRODUCT_ACCENT.home.accent, roles: ["trainee","instructor","client","admin"] },
   { key: "training",  label: "研修管理",       icon: GraduationCap, color: PRODUCT_ACCENT.training.accent, roles: ["trainee","instructor","client","admin"], modes: ["training"] },
   { key: "learning",  label: "Eラーニング",    icon: BookOpen,      color: PRODUCT_ACCENT.learning.accent, roles: ["trainee","instructor","client","admin"], modes: ["learning"] },
   { key: "talent",    label: "スキル・成長",   icon: TrendingUp,    color: PRODUCT_ACCENT.talent.accent, roles: ["trainee","instructor","client","admin"], modes: ["training","learning"] },
@@ -157,7 +156,6 @@ const PRODUCTS = [
 ];
 
 const PRODUCT_DEFAULT_SUBVIEW = {
-  home: "home",
   training: "home",
   learning: "el_home",
   talent: "tl_home",
@@ -165,6 +163,12 @@ const PRODUCT_DEFAULT_SUBVIEW = {
   analytics: "an_home",
   grants: "gr_home",
 };
+
+// 総合ホーム廃止（モード分離Step1）。モードタブ・各種リセット処理の着地先はこの
+// 主Productへ統一する（研修管理モード→研修管理、学習モード→Eラーニング）。
+function getModeLandingProduct(viewMode) {
+  return viewMode === "learning" ? "learning" : "training";
+}
 
 // 2026-07-22: 開発演習(DevLab)は独立Productを廃止し、「学習」内の2本柱
 // （Eラーニング／開発演習）の一方として統合。ユーザー要望「サイドバーに演習タブが
@@ -923,10 +927,7 @@ export default function App() {
           clearTrainingTargetContext();
           clearTraineeTestDraft();
           setActiveCourseId("");
-          setProduct("home");
-          setSubView("home");
-          setView("home");
-          setKarte(null);
+          resetToModeLanding(viewMode);
         }
         if (subject) storageSet("feeps.authUserId", subject);
         verifiedRoleRef.current = verifiedRole;
@@ -970,15 +971,25 @@ export default function App() {
     const p = PRODUCTS.find(px => px.key === product);
     const modeOk = !p || role === "instructor" || !p.modes || p.modes.length === 0 || p.modes.includes(viewMode);
     if (!p || !p.roles.includes(role) || !modeOk) {
-      setProduct("home");
-      setView("home");
-      setSubView("home");
-      setKarte(null);
+      resetToModeLanding(viewMode);
     }
   }, [product, role, viewMode]);
   useEffect(() => {
     const allowed = allowedViewModes({ role, contractMode: userProfile?.contractMode });
-    if (!allowed.includes(viewMode)) setViewMode(allowed[0] || "training");
+    if (!allowed.includes(viewMode)) {
+      setViewMode(allowed[0] || "training");
+    } else if (role === "instructor") {
+      // instructorはモード切替タブが常に非表示（shouldShowModeSwitch）でself-correctできないため、
+      // 他ロールが直前に使ったviewMode/product（localStorage共有キー）が残っていても研修管理へ
+      // 固定する。instructorはisProductVisibleForModeでモード非依存扱い（常にtrue）のため、
+      // viewModeが既に"training"へ矯正済みでも、product自体は学習専用のまま残り得る
+      // （viewMode単独の一致チェックでは検知できない）。product.modesを直接見て判定する。
+      if (viewMode !== "training") setViewMode("training");
+      const currentProduct = PRODUCTS.find(px => px.key === product);
+      if (currentProduct?.modes?.length && !currentProduct.modes.includes("training")) {
+        resetToModeLanding("training");
+      }
+    }
   }, [role, userProfile?.contractMode]);
 
   useEffect(() => {
@@ -1127,10 +1138,7 @@ export default function App() {
     setNotifLoading(false);
     setLoggedIn(false);
     setAuthChecked(false);
-    setProduct("home");
-    setView("home");
-    setSubView("home");
-    setKarte(null);
+    resetToModeLanding(viewMode);
     setAuthRetryKey(value => value + 1);
   }
   async function logout() {
@@ -1153,10 +1161,7 @@ export default function App() {
     setNotificationsReadAt(null);
     setNotifErr("");
     setNotifLoading(false);
-    setProduct("home");
-    setView("home");
-    setSubView("home");
-    setKarte(null);
+    resetToModeLanding(viewMode);
   }
   function switchRole(r) {
     // 管理者のロール切り替え（表示確認用ビュー）: 実ロール（Cognito検証済み）がadminの
@@ -1169,10 +1174,7 @@ export default function App() {
     clearTrainingTargetContext();
     clearTraineeTestDraft();
     setRole(fixedRole);
-    setProduct("home");
-    setView("home");
-    setSubView("home");
-    setKarte(null);
+    resetToModeLanding(viewMode);
   }
   function go(v, options = {}) {
     const nextView = allowedViews.has(v) ? v : "home";
@@ -1185,7 +1187,7 @@ export default function App() {
     setDrawerOpen(false);
   }
   function goProduct(p, options = {}) {
-    const nextProduct = filterProductsForRoleAndMode(PRODUCTS, { role, viewMode }).some(item => item.key === p) ? p : "home";
+    const nextProduct = filterProductsForRoleAndMode(PRODUCTS, { role, viewMode }).some(item => item.key === p) ? p : getModeLandingProduct(viewMode);
     replaceCurrentNavigationEntry();
     if (!options.preserveTarget) setNavigationTrainingTarget(null);
     clearProductDetail();
@@ -1195,6 +1197,15 @@ export default function App() {
     setView("home");
     setSubView(PRODUCT_DEFAULT_SUBVIEW[nextProduct] || "home");
     setTrainingNavigationVersion(version => version + 1);
+  }
+  // 総合ホーム廃止（モード分離Step1）。ログイン確認/ログアウト/ロール切替/モード不整合の
+  // リセット処理が使う共通着地先。第2引数省略時は現在のviewModeへ着地する。
+  function resetToModeLanding(vm) {
+    const landing = getModeLandingProduct(vm);
+    setProduct(landing);
+    setView("home");
+    setSubView(PRODUCT_DEFAULT_SUBVIEW[landing] || "home");
+    setKarte(null);
   }
   function goSub(v) {
     replaceCurrentNavigationEntry();
@@ -1278,6 +1289,8 @@ export default function App() {
   }
 
   const screen = (() => {
+    // 総合ホーム廃止（モード分離Step1、2026-08-14）。"home"はPRODUCTSから除外済みのため
+    // 到達不能。FeepsOneHome.jsx自体は削除せず、将来復活の入口として残してある。
     if (product === "home") return <FeepsOneHome role={role} displayName={displayName} products={filterProductsForRoleAndMode(PRODUCTS, { role, viewMode })} goProduct={goProduct} goTraining={go} goSub={goSub} />;
     if (product === "learning") return <LearningProduct key={`learning-${trainingNavigationVersion}`} subView={subView} goSub={goSub} goProduct={goProduct} role={role} themeColor={themeColor} navigationTarget={productDetail} learningPlan={userProfile?.learningPlan} />;
     if (product === "talent") return <TalentProduct subView={subView} goSub={goSub} goProduct={goProduct} role={role} themeColor={themeColor} done={taskDone} goals={goals} />;
@@ -1330,7 +1343,7 @@ export default function App() {
         const active = m.key === viewMode;
         const pa = PRODUCT_ACCENT[m.key];
         return (
-          <button key={m.key} type="button" role="tab" aria-selected={active} onClick={() => setViewMode(m.key)}
+          <button key={m.key} type="button" role="tab" aria-selected={active} onClick={() => { setViewMode(m.key); resetToModeLanding(m.key); }}
             className="rounded-lg px-3 py-1.5 text-[13px] font-semibold transition"
             style={active ? { background: pa.accent, color: "#fff" } : { color: T.textMuted }}>
             {m.label}
