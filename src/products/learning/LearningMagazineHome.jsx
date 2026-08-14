@@ -2,6 +2,61 @@ import React from "react";
 import { Btn } from "../../components/common";
 import { NOVA, T, PRODUCT_ACCENT } from "../../components/common/theme.js";
 
+// 学習モードHome上部のヘッダー（2026-08-14刷新、設計チャットのモック
+// feeps-learning-header-mock.html「案5」を実装）。数値の羅列をやめ、状況と次の一手を
+// 文章で出す。既存の共有コンポーネント components/common/PageHeader.jsx は8Product共通
+// のため変更せず、学習モードHomeだけこの専用ヘッダーへ差し替える（呼び出し側の入れ替え）。
+function HeaderArrowIcon() {
+  return (
+    <svg width="34" height="34" viewBox="0 0 34 34" aria-hidden="true">
+      <rect width="34" height="34" rx="9" fill={PRODUCT_ACCENT.learning.accent} opacity=".15" />
+      <path d="M13 11l6 6-6 6" stroke={PRODUCT_ACCENT.learning.deep} strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round" fill="none" />
+    </svg>
+  );
+}
+
+export function LearningStatusHeader({ role, resume, completedCount, inprogressCount, goSub, onOpenDetail }) {
+  const pa = PRODUCT_ACCENT.learning;
+  let heading, desc, ctaLabel, onCta;
+
+  if (role === "client") {
+    // clientは自分が学習しないため別文言体系。自社受講生の集計は現状取得できないため
+    // （GET /dashboard/clientの流用は学習モードHomeのヘッダー1行には不釣り合いなため見送り、
+    // 2026-08-14ユーザー決定）、案内文のみとする。
+    heading = "自社の学習状況を見渡せます";
+    desc = "受講生ごとの進捗はコース一覧から確認できます";
+    ctaLabel = "コース一覧を開く";
+    onCta = () => goSub("el_courses");
+  } else if (resume) {
+    heading = `${resume.course.title} ${resume.lesson.title} の続きから`;
+    desc = "前回の続きから再開できます";
+    ctaLabel = "続きから学習";
+    onCta = () => onOpenDetail && onOpenDetail(resume.course);
+  } else if (completedCount === 0 && inprogressCount === 0) {
+    heading = "まだ学習を始めていません";
+    desc = "まずは開発演習を1問試すか、コース一覧から選んでみてください";
+    ctaLabel = "コース一覧を開く";
+    onCta = () => goSub("el_courses");
+  } else {
+    heading = `コースを${completedCount}本修了しました`;
+    desc = "次のコースを選ぶか、開発演習で力を試してみてください";
+    ctaLabel = "コース一覧を開く";
+    onCta = () => goSub("el_courses");
+  }
+
+  return (
+    <div className="mb-4 flex flex-wrap items-center gap-3 rounded-[14px] px-5 py-3.5"
+      style={{ background: `${pa.accent}0f`, border: `1px solid ${pa.accent}2e` }}>
+      <HeaderArrowIcon />
+      <div className="min-w-0 flex-1">
+        <h3 className="text-sm font-bold" style={{ color: NOVA.ink }}>{heading}</h3>
+        <p className="text-xs" style={{ color: NOVA.muted }}>{desc}</p>
+      </div>
+      <Btn size="sm" onClick={onCta}>{ctaLabel}</Btn>
+    </div>
+  );
+}
+
 // 学習モードHomeのマガジン型レイアウト（2026-08-14新設）。設計チャットのモック
 // （feeps-ui-final-mock.html「学習モード」「学習モード（Basic）」）をそのまま実装する。
 // SVGはモックのものをそのまま流用（属性はJSX用にキャメルケース化のみ）。
@@ -123,7 +178,7 @@ const GREY_TONE = { accent: NOVA.quiet, deep: NOVA.quiet, subtle: NOVA.soft };
 
 // 脇カード。3状態: 通常(クリック可) / comingSoon(機能未実装、プランは足りている) /
 // locked(プラン不足)。comingSoon・lockedはどちらもクリック不可＝onClickを渡さない。
-function SideCard({ icon: Icon, tone, title, desc, badge, badgeTone = "accent", state = "normal", onClick, onPlanClick }) {
+function SideCard({ icon: Icon, tone, title, desc, badge, badgeTone = "accent", state = "normal", onClick, onPlanClick, stats }) {
   const disabled = state !== "normal";
   const cardTone = state === "locked" ? GREY_TONE : tone;
   const clickable = state === "normal" && typeof onClick === "function";
@@ -154,6 +209,9 @@ function SideCard({ icon: Icon, tone, title, desc, badge, badgeTone = "accent", 
           )}
         </div>
         <p className="mt-0.5 text-xs leading-relaxed" style={{ color: NOVA.muted }}>{desc}</p>
+        {/* PageHeaderのチップ(修了/学習中の件数)から移設。ヘッダーからは削除し情報だけ残す
+            （2026-08-14、ADR0014の数値羅列廃止方針に伴う。旧PageHeaderの表示先を差し替えた） */}
+        {stats && <p className="mt-0.5 text-[11px]" style={{ color: NOVA.quiet }}>{stats}</p>}
         {state === "locked" && (
           <button type="button" onClick={onPlanClick}
             className="mt-1.5 text-[11.5px] font-semibold" style={{ color: NOVA.muted }}>
@@ -182,7 +240,7 @@ function HeroCard({ illustration, kicker, kickerTone, title, desc, actions }) {
 }
 
 // role/学習プランから脇カード4枚の状態を組み立てる
-function buildSideCards({ role, isCreator, learningPlan, goSub, goProduct }) {
+function buildSideCards({ role, isCreator, learningPlan, goSub, goProduct, completedCount, inprogressCount, earnedSkillsCount }) {
   const unrestricted = role === "admin" || role === "instructor"; // ADR0013: モードにゲートしない
   const projectExperienceLocked = !unrestricted && learningPlan === "basic";
   const aiCourseLocked = !unrestricted && (learningPlan === "basic" || learningPlan === "standard");
@@ -197,6 +255,7 @@ function buildSideCards({ role, isCreator, learningPlan, goSub, goProduct }) {
   const skill = {
     icon: SkillIcon, tone: PRODUCT_ACCENT.talent,
     title: "スキル・成長", desc: "身につけたスキルを記録し、案件参画向けのシートに整えます。",
+    stats: role === "client" ? undefined : `取得スキル${earnedSkillsCount}件`,
     state: "normal", onClick: () => goProduct && goProduct("talent"),
   };
   const aiCourse = {
@@ -209,6 +268,7 @@ function buildSideCards({ role, isCreator, learningPlan, goSub, goProduct }) {
   const elearning = {
     icon: ElearningIcon, tone: PRODUCT_ACCENT.training,
     title: "Eラーニング", desc: "コースを受講して、理解度テストで定着を確認します。",
+    stats: `修了${completedCount}本 ・ 学習中${inprogressCount}本`,
     state: "normal", onClick: () => goSub("el_courses"),
   };
   const matching = {
@@ -223,12 +283,12 @@ function buildSideCards({ role, isCreator, learningPlan, goSub, goProduct }) {
   return [elearning, projectExperience, skill, aiCourse];
 }
 
-export default function LearningMagazineHome({ role, isCreator, canUseDevLab, learningPlan, goSub, goProduct, onShowPlanNotice }) {
+export default function LearningMagazineHome({ role, isCreator, canUseDevLab, learningPlan, goSub, goProduct, onShowPlanNotice, completedCount = 0, inprogressCount = 0, earnedSkillsCount = 0 }) {
   const heroIsDevLab = canUseDevLab; // trainee/instructor/admin。clientはEラーニングが主役
   const devLabTarget = () => goSub(isCreator ? "el_devlab_manage" : "el_devlab");
   const showTrial = !isCreator && learningPlan === "basic"; // Basic契約のtrainee/clientのみ（DevLab自体は常に体験可）
 
-  const sideCards = buildSideCards({ role, isCreator, learningPlan, goSub, goProduct });
+  const sideCards = buildSideCards({ role, isCreator, learningPlan, goSub, goProduct, completedCount, inprogressCount, earnedSkillsCount });
 
   const hero = heroIsDevLab ? (
     showTrial ? (
@@ -268,7 +328,7 @@ export default function LearningMagazineHome({ role, isCreator, canUseDevLab, le
       {hero}
       <div className="flex flex-col gap-3.5">
         {sideCards.map(c => (
-          <SideCard key={c.title} icon={c.icon} tone={c.tone} title={c.title} desc={c.desc}
+          <SideCard key={c.title} icon={c.icon} tone={c.tone} title={c.title} desc={c.desc} stats={c.stats}
             badge={c.badge} badgeTone={c.badgeTone} state={c.state} onClick={c.onClick}
             onPlanClick={onShowPlanNotice} />
         ))}

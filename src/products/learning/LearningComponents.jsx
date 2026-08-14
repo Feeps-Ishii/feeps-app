@@ -5,9 +5,9 @@ import {
   Sparkles, Flame, ChevronRight, ChevronLeft, Check, CheckCircle2,
   Circle, AlertCircle, Lightbulb, Calendar, Clock, RefreshCw, Download
 } from "lucide-react";
-import { Card, Badge, Btn, EmptyState, SectionHead, PageHeader, ProductNavCard, T, PRODUCT_ACCENT, PRISM } from "../../components/common";
+import { Card, Badge, Btn, EmptyState, SectionHead, ProductNavCard, T, PRODUCT_ACCENT, PRISM } from "../../components/common";
 import ElSlideLessonView from "./ElSlideLessonView.jsx";
-import LearningMagazineHome from "./LearningMagazineHome.jsx";
+import LearningMagazineHome, { LearningStatusHeader } from "./LearningMagazineHome.jsx";
 import LearningExperienceFlow from "./LearningExperienceFlow.jsx";
 
 // Learner-side palette: legacy key names kept, values sourced from tokens.
@@ -166,21 +166,12 @@ function LearningOverview({ lrn, goSub, goProduct, onOpenDetail, role, learningP
   const canUseDevLab = role === "trainee" || role === "instructor" || role === "admin";
   return (
     <div>
-      <PageHeader
-        product="learning"
-        label="Eラーニング"
-        title="理解して、試して、身につける。"
-        description="短い説明と例のあとに自分で操作。すぐにフィードバックを受け、復習と総合テストで定着を確かめます。"
-        chips={[
-          { label: "修了コース", value: lrn.completed.length, unit: "本" },
-          { label: "学習中", value: lrn.inprogress.length, unit: "本" },
-          { label: "取得スキル", value: earnedSkills.length, unit: "件" },
-        ]}
-        cta={{ label: "コース一覧を開く", icon: BookOpen, onClick: () => goSub("el_courses") }}
-      />
+      <LearningStatusHeader role={role} resume={resume} completedCount={lrn.completed.length}
+        inprogressCount={lrn.inprogress.length} goSub={goSub} onOpenDetail={onOpenDetail} />
 
       <LearningMagazineHome role={role} isCreator={isCreator} canUseDevLab={canUseDevLab} learningPlan={learningPlan}
-        goSub={goSub} goProduct={goProduct} onShowPlanNotice={() => setShowPlanNotice(true)} />
+        goSub={goSub} goProduct={goProduct} onShowPlanNotice={() => setShowPlanNotice(true)}
+        completedCount={lrn.completed.length} inprogressCount={lrn.inprogress.length} earnedSkillsCount={earnedSkills.length} />
       {showPlanNotice && (
         <div className="mb-6 flex items-center justify-between gap-3 rounded-2xl p-4" style={{ background: C.amberW, border: `1px solid ${C.amber}30` }}>
           <p className="text-sm" style={{ color: C.ink }}>現在のプランではご利用いただけません。プラン変更のご相談は担当までご連絡ください。</p>
