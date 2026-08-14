@@ -355,8 +355,8 @@ body.feeps-modal-open .feeps-main-scroll { overflow: hidden !important; }
 .feeps-global-link:hover { color: var(--nova-on-dark); transform: translateY(-2px); background: color-mix(in srgb, var(--nova-on-dark) 10%, transparent); }
 .feeps-global-link.is-active {
   color: var(--nova-on-dark);
-  background: var(--global-active);
-  box-shadow: 0 9px 22px color-mix(in srgb, var(--nova-accent) 27%, transparent);
+  background: linear-gradient(135deg, var(--nova-mode-accent-deep), var(--nova-mode-accent));
+  box-shadow: 0 9px 22px color-mix(in srgb, var(--nova-mode-accent) 27%, transparent);
 }
 .feeps-global-link.is-active::before {
   content: "";

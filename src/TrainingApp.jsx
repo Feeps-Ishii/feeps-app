@@ -568,8 +568,7 @@ function GlobalRail({ products, active, onSelect, onOpenPalette }) {
           const short = { home: "Home", training: "研修", learning: "学習", talent: "成長", matching: "案件", analytics: "分析", grants: "助成金" }[p.key] || p.label;
           return (
             <button key={p.key} type="button" onClick={() => onSelect(p.key)} title={p.label} aria-current={isActive ? "page" : undefined}
-              className={"feeps-global-link" + (isActive ? " is-active" : "")}
-              style={{ "--global-active": PRISM_PRODUCT_GRAD[p.key] || PRISM.gradHome }}>
+              className={"feeps-global-link" + (isActive ? " is-active" : "")}>
               <p.icon size={20} />
               <span>{short}</span>
             </button>
@@ -1449,6 +1448,9 @@ export default function App() {
 
   const availableProducts = filterProductsForRoleAndMode(PRODUCTS, { role, viewMode });
   const pa = PRODUCT_ACCENT[product] || PRODUCT_ACCENT.training;
+  // モード別レール配色（モード分離Step1）。研修管理=ブルー/学習=ティール。個々のProductの
+  // アクセント色(pa)とは別に、GlobalRailの選択中アイテムだけこのモード色で統一する。
+  const modePa = PRODUCT_ACCENT[viewMode] || PRODUCT_ACCENT.training;
   const shellOffset = isHomeProduct ? 72 : 72 + (sidebarCollapsed ? T.sidebarWidthCollapsed : T.sidebarWidth);
 
   return (
@@ -1458,6 +1460,7 @@ export default function App() {
       "--nova-paper": NOVA.paper, "--nova-card": NOVA.card, "--nova-muted": NOVA.muted,
       "--nova-quiet": NOVA.quiet, "--nova-line": NOVA.line, "--nova-soft": NOVA.soft,
       "--nova-accent": pa.accent, "--nova-accent-soft": pa.subtle,
+      "--nova-mode-accent": modePa.accent, "--nova-mode-accent-deep": modePa.deep,
       "--nova-on-dark": NOVA.onDark, "--nova-on-dark-muted": NOVA.onDarkMuted,
       "--nova-glass": NOVA.glass, "--nova-shadow-sm": NOVA.shadowSm,
       "--nova-shadow-md": NOVA.shadowMd, "--nova-brand": NOVA.gradBrand,
