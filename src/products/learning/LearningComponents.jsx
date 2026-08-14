@@ -3,10 +3,11 @@ import ReactMarkdown from "react-markdown";
 import {
   BookOpen, FileText, Settings, Users, Search, PlayCircle, Award,
   Sparkles, Flame, ChevronRight, ChevronLeft, Check, CheckCircle2,
-  Circle, AlertCircle, Lightbulb, Calendar, Clock, RefreshCw, Download, Code2, Briefcase
+  Circle, AlertCircle, Lightbulb, Calendar, Clock, RefreshCw, Download
 } from "lucide-react";
 import { Card, Badge, Btn, EmptyState, SectionHead, PageHeader, ProductNavCard, T, PRODUCT_ACCENT, PRISM } from "../../components/common";
 import ElSlideLessonView from "./ElSlideLessonView.jsx";
+import LearningMagazineHome from "./LearningMagazineHome.jsx";
 import LearningExperienceFlow from "./LearningExperienceFlow.jsx";
 
 // Learner-side palette: legacy key names kept, values sourced from tokens.
@@ -143,12 +144,8 @@ function LearningPlaceholder({ title, desc }) {
 }
 function LearningOverview({ lrn, goSub, goProduct, onOpenDetail, role, learningPlan, themeColor = PRODUCT_ACCENT.learning.accent }) {
   const isCreator = role === "instructor" || role === "admin";
-  // プラン制限のUI（ADR0014、2026-08-13 Phase1-C）。instructor/adminはモードにゲートしない
-  // 設計（ADR0013）に合わせ、learningPlanはtrainee/clientにのみ意味を持つ（role分岐は各カード側）。
-  // 案件管理（matching）はStandard以上。学習モードの各画面の中で唯一「実在する機能」かつ
-  // プラン境界が明確な例のため、Phase1-Cではここへロック表示を適用する。
-  const canUseMatching = role === "trainee" || role === "client" || role === "admin";
-  const matchingLocked = canUseMatching && role !== "admin" && learningPlan === "basic";
+  // プラン制限バナー（ADR0014）。マガジンレイアウト内の脇カード「プランを見る」から開く
+  // （2026-08-14、LearningMagazineHome.jsxへ差し替え。matching単独のロックカードは廃止）。
   const [showPlanNotice, setShowPlanNotice] = useState(false);
   const earnedSkills = lrn.getEarnedSkills();
   const todayCompleted = lrn.completed.filter(c => lrn.progress[c.id]?.completedAt?.slice(0, 10) === todayStr());
@@ -182,31 +179,11 @@ function LearningOverview({ lrn, goSub, goProduct, onOpenDetail, role, learningP
         cta={{ label: "コース一覧を開く", icon: BookOpen, onClick: () => goSub("el_courses") }}
       />
 
-      {canUseDevLab && (
-        <div className="mb-6 grid gap-4 sm:grid-cols-2">
-          <ProductNavCard product="learning" icon={BookOpen} title="Eラーニング" desc="コースで学び、演習・総合テストで定着させる" onClick={() => goSub("el_courses")} delay={160} />
-          <ProductNavCard product="devlab" icon={Code2} title="開発演習（プロジェクト体験）"
-            highlight badge="AI・実践"
-            desc={isCreator
-              ? "架空のクライアント案件をつくり、受講生の提出をステップごとに確認する"
-              : "架空のクライアント案件に取り組み、学んだ知識を「使える」に変える。ステップごとに成果物を提出すると、合格基準に照らした具体的な指摘が返ります"}
-            onClick={() => goSub(isCreator ? "el_devlab_manage" : "el_devlab")} delay={200} />
-        </div>
-      )}
-
-      {canUseMatching && (
-        <div className="mb-6 grid gap-4 sm:grid-cols-3">
-          <ProductNavCard product="matching" icon={Briefcase} title="案件管理"
-            desc="身につけた力を、次の案件とキャリアにつなげます。"
-            locked={matchingLocked} badge={matchingLocked ? "Standard" : undefined}
-            onClick={() => goProduct && goProduct("matching")}
-            onPlanClick={() => setShowPlanNotice(true)}
-            delay={240} />
-        </div>
-      )}
+      <LearningMagazineHome role={role} isCreator={isCreator} canUseDevLab={canUseDevLab} learningPlan={learningPlan}
+        goSub={goSub} goProduct={goProduct} onShowPlanNotice={() => setShowPlanNotice(true)} />
       {showPlanNotice && (
         <div className="mb-6 flex items-center justify-between gap-3 rounded-2xl p-4" style={{ background: C.amberW, border: `1px solid ${C.amber}30` }}>
-          <p className="text-sm" style={{ color: C.ink }}>現在のプランでは案件管理をご利用いただけません。プラン変更のご相談は担当までご連絡ください。</p>
+          <p className="text-sm" style={{ color: C.ink }}>現在のプランではご利用いただけません。プラン変更のご相談は担当までご連絡ください。</p>
           <button type="button" onClick={() => setShowPlanNotice(false)} className="text-xs font-semibold shrink-0" style={{ color: C.muted }}>閉じる</button>
         </div>
       )}
