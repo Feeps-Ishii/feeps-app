@@ -32,7 +32,7 @@ export default function TrainingProduct({
     const board = <AnnouncementBoard go={go} role={role} />;
     if (role === "trainee") return <>{board}<TraineeHome go={go} goProduct={goProduct} goSub={goSub} done={taskDone} taskDataState={taskDataState} onTaskRetry={onTaskRetry} taskSaveState={taskSaveState} toggle={toggle} goals={goals} /></>;
     if (role === "instructor") return <>{board}<InstructorWorkspace go={go} displayName={displayName} /></>;
-    if (role === "client") return <>{board}<ClientHome openKarte={setKarte} go={go} /></>;
+    if (role === "client") return <>{board}<ClientHome openKarte={setKarte} go={go} goProduct={goProduct} /></>;
     return null;
   }
   if (view === "curriculum") return <Curriculum role={role} go={go} />;

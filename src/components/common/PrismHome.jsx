@@ -147,3 +147,51 @@ export function PrismProgressRing({ percent, size = 112, stroke = 11, from = PRI
 export function PrismEmptyBlock({ children, className = "" }) {
   return <div className={`rounded-[16px] px-4 py-7 text-center text-sm ${className}`} style={{ background: NOVA.soft, color: NOVA.muted, border: `1px dashed ${NOVA.line}` }}>{children}</div>;
 }
+
+// 研修管理Home刷新（モード分離Step2、2026-08-15）: 「状態1文+補足+CTA2つ+イラスト」の型を
+// 4ロール(trainee/instructor/client/admin)で共通化。文言・データの組み立ては各ロール側に残す。
+export function TrainingHomeHero({ kicker, title, description, gradient, actions, illustration, className = "", style = {} }) {
+  return (
+    <section className={`feeps-hero-in relative overflow-hidden rounded-[18px] p-5 sm:p-6 flex flex-wrap items-center gap-5 ${className}`}
+      style={{ color: NOVA.onDark, background: gradient, ...style }}>
+      <div className="min-w-[230px] flex-1">
+        {kicker && <p className="text-[11.5px] font-semibold" style={{ opacity: .82 }}>{kicker}</p>}
+        <h1 className="mt-1 text-xl font-bold leading-tight sm:text-[22px]" style={{ letterSpacing: "-0.01em" }}>{title}</h1>
+        {description && <p className="mt-1.5 max-w-[54ch] text-sm font-medium leading-6" style={{ opacity: .9 }}>{description}</p>}
+        {actions && <div className="mt-4 flex flex-wrap gap-2">{actions}</div>}
+      </div>
+      {illustration && <div className="hidden shrink-0 md:block" aria-hidden="true">{illustration}</div>}
+    </section>
+  );
+}
+
+// 研修管理Homeの2パネル(mockの.panel/.li相当)。パネル本体はロール別に組み立てるため、
+// ここでは行の見た目だけを共通化する。
+export function TrainingHomePanel({ title, meta, children, className = "" }) {
+  return (
+    <PrismCard className={`p-4 sm:p-5 ${className}`}>
+      <div className="mb-1 flex items-center justify-between gap-2">
+        <h4 className="text-[13.5px] font-bold" style={{ color: NOVA.ink }}>{title}</h4>
+        {meta && <span className="text-[11.5px] font-medium" style={{ color: NOVA.muted }}>{meta}</span>}
+      </div>
+      <div className="divide-y" style={{ borderColor: NOVA.line }}>{children}</div>
+    </PrismCard>
+  );
+}
+
+export function TrainingHomePanelRow({ icon: Icon, tone = "accent", label, sub, badge, actionLabel, onAction, actionKind = "ghost" }) {
+  const c = TONE[tone] || TONE.accent;
+  return (
+    <div className="flex items-center gap-3 py-2.5 first:pt-0 last:pb-0">
+      {Icon && <span className="grid h-8 w-8 shrink-0 place-items-center rounded-[10px]" style={{ background: c.bg, color: c.fg }}><Icon size={15} /></span>}
+      <div className="min-w-0 flex-1">
+        <div className="flex flex-wrap items-center gap-1.5">
+          <span className="truncate text-[13px] font-semibold" style={{ color: NOVA.ink }}>{label}</span>
+          {badge}
+        </div>
+        {sub && <div className="truncate text-[11.5px]" style={{ color: NOVA.muted }}>{sub}</div>}
+      </div>
+      {actionLabel && <Btn size="sm" kind={actionKind} onClick={onAction}>{actionLabel}</Btn>}
+    </div>
+  );
+}

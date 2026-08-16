@@ -21,5 +21,6 @@ export {
   PrismPage, PrismCard, PrismSectionTitle, PrismCapLabel, PrismHomeHeading,
   PrismHero, PrismKpiCard, PrismErrorRetryCard, PrismSeverityChip,
   PrismStatusDot, PrismProgressRing, PrismEmptyBlock,
+  TrainingHomeHero, TrainingHomePanel, TrainingHomePanelRow,
 } from "./PrismHome.jsx";
 export { T, NOVA, GRAD, PRISM, PRISM_PRODUCT_GRAD, PRODUCT_ACCENT, ROLE_ACCENT, Z } from "./theme.js";

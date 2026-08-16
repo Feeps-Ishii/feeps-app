@@ -4,8 +4,9 @@ import { apiGet, apiPut, apiPost } from "../../api.js";
 import {
   Card, Badge, Btn, Avatar, Stat, SectionHead, Field, Modal, T, PageHeader, ProductNavCard, SkeletonRows, SkeletonCards,
   PRISM, PrismPage, PrismCard, PrismHomeHeading, PrismKpiCard, PrismSectionTitle, PrismErrorRetryCard,
-  TraineeBulkImportPanel,
+  TraineeBulkImportPanel, TrainingHomeHero, TrainingHomePanel, TrainingHomePanelRow, PRODUCT_ACCENT,
 } from "../../components/common";
+import { AdminHomeIllustration } from "../../components/common/TrainingHomeIllustrations.jsx";
 import { EmptyState } from "../training/TrainingComponents.jsx";
 import { todayStr } from "../training/useTraining.js";
 import { getActiveCourseId, setActiveCourseId } from "../../utils/common/courseContext.js";
@@ -17,7 +18,7 @@ import {
   Pencil, StickyNote,
   Check, Filter, Mail,
   ShieldCheck, FileSpreadsheet,
-  User
+  User, Briefcase
 } from "lucide-react";
 
 async function exportAdminListExcel(rows, columns, sheetName, fileLabel) {
@@ -40,183 +41,71 @@ const datesInMonth = (ym) => {
   const last = new Date(y, m, 0).getDate();
   return Array.from({ length: last }, (_, i) => ym + "-" + String(i + 1).padStart(2, "0"));
 };
-function AdminHome({ go, openRisk }) {
-  const [date, setDate] = useState(todayStr());
+function AdminHome({ go, goProduct, openRisk }) {
   const [companies, setCompanies] = useState([]);
   const [courses, setCourses] = useState([]);
   const [users, setUsers] = useState([]);
-  const [reports, setReports] = useState([]);
-  const [attendance, setAttendance] = useState([]);
-  const [courseMap, setCourseMap] = useState({});
   const [dash, setDash] = useState(null);
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState("");
-  const labelKind = (k) => (k === "regular" ? "定常" : k === "elearning" ? "Eラーニング" : k === "support" ? "継続支援" : "新人研修");
   useEffect(() => {
     let alive = true;
     setLoading(true); setErr("");
-    Promise.all([apiGet("/companies"), apiGet("/courses"), apiGet("/admin/users")])
-      .then(async ([cs, crs, us]) => {
-        if (!alive) return;
-        const courseList = crs || [];
-        const pairs = await Promise.all(courseList.map(c => apiGet(`/courses/${c.courseId}/trainees`).then(t => [c.courseId, t || []]).catch(() => [c.courseId, []])));
+    // 2026-08-15 研修管理Home刷新（モード分離Step2）: コースごとの受講生取得ループと
+    // 日付基準のreports/attendance raw取得を廃止し、集計済みの/dashboard/adminのみを使う。
+    Promise.all([apiGet("/companies"), apiGet("/courses"), apiGet("/admin/users"), apiGet("/dashboard/admin?date=" + todayStr()).catch(() => null)])
+      .then(([cs, crs, us, dashRes]) => {
         if (!alive) return;
         setCompanies(cs || []);
-        setCourses(courseList);
+        setCourses(crs || []);
         setUsers(us || []);
-        setCourseMap(Object.fromEntries(pairs));
+        setDash(dashRes);
       })
       .catch(e => alive && setErr("運用データの取得に失敗しました：" + (e?.message || e)))
       .finally(() => alive && setLoading(false));
     return () => { alive = false; };
   }, []);
-  useEffect(() => {
-    apiGet("/reports?date=" + date).then(r => setReports(r || [])).catch(e => { console.warn("admin reports failed", e); setErr("日報の取得に失敗しました：" + (e?.message || e)); });
-    apiGet("/attendance?date=" + date).then(r => setAttendance(r || [])).catch(e => { console.warn("admin attendance failed", e); setAttendance([]); });
-    // 2026-07-21 監査対応: 「本日のアラート」「優先して確認する研修」は「今日」基準のraw集計だと
-    // 非研修日に全コースが一律「要確認」化してしまう（オオカミ少年化）ため、直近研修日までの
-    // 未解消異常を累積で数える/dashboard/adminの集計結果を使う（dashboard.mjs参照）。
-    apiGet("/dashboard/admin?date=" + date).then(setDash).catch(e => { console.warn("admin dashboard failed", e); setDash(null); });
-  }, [date]);
-  const trainees = users.filter(u => u.role === "trainee");
-  const reportIds = new Set(reports.map(r => r.traineeId));
-  const attendanceIds = new Set(attendance.map(r => r.traineeId));
-  const traineeIds = new Set(trainees.map(t => t.userId));
-  const reportSubmitted = trainees.filter(t => reportIds.has(t.userId)).length;
-  const attendanceRegistered = trainees.filter(t => attendanceIds.has(t.userId)).length;
-  const reportMissingCount = Math.max(trainees.length - reportSubmitted, 0);
-  const attendanceMissingCount = Math.max(trainees.length - attendanceRegistered, 0);
-  const reportRate = trainees.length ? Math.round((reportSubmitted / trainees.length) * 100) : 0;
-  const attendanceRate = trainees.length ? Math.round((attendanceRegistered / trainees.length) * 100) : 0;
-  const companyName = (id) => companies.find(c => c.companyId === id)?.name || (id ? "（企業情報なし）" : "未設定");
-  const courseSummaries = courses.map(c => {
-    const members = courseMap[c.courseId] || [];
-    const companyIds = new Set(members.map(t => t.company || "").filter(Boolean));
-    const reportCount = members.filter(t => reportIds.has(t.userId)).length;
-    const attendanceCount = members.filter(t => attendanceIds.has(t.userId)).length;
-    return { ...c, members, companyCount: companyIds.size, reportCount, attendanceCount };
-  });
-  // 「要確認研修」「本日のアラート」はdashboard.mjsの累積未解消集計（直近研修日基準）を正とする。
-  // 取得前・失敗時はraw今日集計にフォールバックする（0件偽装はしない）。
-  const dashCourses = dash?.courses || null;
-  const attentionCourses = dashCourses
-    ? courseSummaries.filter(c => dashCourses.find(dc => dc.courseId === c.courseId && (dc.status === "needs_attention" || dc.status === "unassigned")))
-    : courseSummaries.filter(c => c.members.length > 0 && (c.reportCount < c.members.length || c.attendanceCount < c.members.length));
-  const followUpStudents = dash?.summary?.followUpStudents;
-  const alertCount = followUpStudents != null ? followUpStudents : (reportMissingCount + attendanceMissingCount + attentionCourses.length);
   const followUps = dash?.followUps || [];
-  const companySummaries = companies.map(co => {
-    const members = trainees.filter(t => t.company === co.companyId);
-    const memberIds = new Set(members.map(t => t.userId));
-    const joined = courseSummaries.filter(c => c.members.some(t => memberIds.has(t.userId)));
-    return { ...co, members, courses: joined };
-  });
-  function openCourse(courseId) {
-    setActiveCourseId(courseId);
-    go?.("courses");
-  }
+  // 取得失敗時は0名と偽装せずnull（確認できません）のまま表示する（unknown分離）。
+  const alertCount = dash ? (dash?.summary?.followUpStudents ?? followUps.length) : null;
+  const adminHeroTitle = !dash
+    ? "運営状況を確認できません"
+    : courses.length > 0
+      ? `${courses.length}コースが進行中${alertCount ? `、${alertCount}名に対応が必要です` : ""}`
+      : "登録されているコースがありません";
+  const adminHeroDescription = !dash
+    ? "最新の状況を取得できませんでした。時間をおいて再度お試しください。"
+    : alertCount
+      ? "要フォローの受講生が複数コースにまたがっている可能性があります。担当講師と共有してください。"
+      : "現在、特に確認が必要な研修はありません。";
   return (
     <PrismPage>
-      <PrismHomeHeading
-        eyebrow={`研修管理 · ${date.replace(/-/g, "/")}`}
-        title="Feeps One全体を、ここから管理。"
-        description="コース単位・企業単位で、今日の研修運用状況を確認します。"
-        action={<Btn kind="soft" icon={BookOpen} onClick={() => go && go("courses")}>コース管理センター</Btn>}
+      <TrainingHomeHero
+        kicker={`全社 ・ ${todayStr().replace(/-/g, "/")}`}
+        title={adminHeroTitle}
+        description={adminHeroDescription}
+        gradient={`linear-gradient(120deg, ${PRODUCT_ACCENT.training.gradFrom}, ${PRODUCT_ACCENT.training.gradTo})`}
+        illustration={<AdminHomeIllustration />}
+        actions={<>
+          <Btn kind="white" onClick={() => go && go("courses")}>コース一覧を開く</Btn>
+          <Btn onClick={() => go && go("users")} style={{ background: PRISM.heroGlassStrong, color: "#fff", border: `1px solid ${PRISM.heroLine}` }}>受講生を横断で見る</Btn>
+        </>}
       />
-
-      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-        <PrismKpiCard icon={Users} label="全受講生" value={trainees.length} unit="名" detail="登録済み受講生" tone="teal" onClick={() => go && go("users")} />
-        <PrismKpiCard icon={Clock} label="出席登録率" value={`${attendanceRate}%`} detail={`${attendanceRegistered}/${trainees.length}名 登録（本日）`} tone={attendanceMissingCount ? "warn" : "ok"} onClick={() => go && go("attendance")} />
-        <PrismKpiCard icon={NotebookPen} label="日報提出率" value={`${reportRate}%`} detail={`${reportSubmitted}/${trainees.length}名 提出（本日）`} tone={reportMissingCount ? "warn" : "ok"} onClick={() => go && go("reports")} />
-        <PrismKpiCard icon={AlertCircle} label="要フォロー" value={alertCount} unit="名" detail="直近研修日までの未解消異常" tone={alertCount ? "bad" : "ok"} />
-      </div>
-
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="grid flex-1 gap-3 sm:grid-cols-3">
-          <PrismKpiCard icon={BookOpen} label="コース管理" value={courses.length} unit="件" detail="設定と研修運用" onClick={() => go && go("courses")} />
-          <PrismKpiCard icon={Building2} label="企業管理" value={companies.length} unit="社" detail="契約企業の登録・管理" tone="ai" onClick={() => go && go("companies")} />
-          <PrismKpiCard icon={Users} label="ユーザー管理" value={users.length} unit="名" detail="全ロールのアカウント" tone="teal" onClick={() => go && go("users")} />
-        </div>
-        <label className="flex shrink-0 items-center gap-2 text-xs font-semibold" style={{ color: PRISM.mut }}>
-          確認日
-          <input type="date" value={date} onChange={e => setDate(e.target.value)} className="rounded-xl px-3 py-2 text-sm outline-none" style={{ border: `1px solid ${PRISM.line2}`, color: PRISM.ink, background: PRISM.surface }} />
-        </label>
-      </div>
 
       {err && <PrismErrorRetryCard message={err} />}
 
-      <PrismCard className="p-4 sm:p-5">
-        <PrismSectionTitle
-          title="優先して確認する研修"
-          desc="直近研修日までに欠席・遅刻・早退・勤怠未登録・日報未提出などの未解消異常があるコースです（今日が研修日かは問いません）。"
-          action={<div className="flex flex-wrap gap-2"><Badge tone={attentionCourses.length ? "amber" : "green"}>{attentionCourses.length}件</Badge><Btn size="sm" kind="ghost" icon={NotebookPen} onClick={() => go && go("reports")}>日報</Btn><Btn size="sm" kind="soft" icon={Clock} onClick={() => go && go("attendance")}>勤怠</Btn></div>}
-        />
-        <div className="grid gap-2 md:grid-cols-2">
-          {attentionCourses.length ? attentionCourses.slice(0, 6).map(c => (
-            <div key={c.courseId} className="flex items-center gap-3 rounded-2xl p-3" style={{ background: PRISM.warnSubtle, border: `1px solid ${PRISM.warnLine}` }}>
-              <span className="grid h-9 w-9 shrink-0 place-items-center rounded-xl" style={{ background: PRISM.surface, color: PRISM.warn }}><AlertCircle size={17} /></span>
-              <div className="min-w-0 flex-1"><div className="truncate font-semibold" style={{ color: PRISM.ink }}>{c.name}</div><div className="mt-1 text-xs" style={{ color: PRISM.sub }}>所属{c.members.length}名 ・ 本日日報 {c.reportCount}/{c.members.length} ・ 本日出席 {c.attendanceCount}/{c.members.length}</div></div>
-              <Btn size="sm" kind="ghost" icon={ChevronRight} onClick={() => openCourse(c.courseId)}>開く</Btn>
-            </div>
-          )) : <div className="rounded-2xl p-4 text-sm md:col-span-2" style={{ background: PRISM.okSubtle, color: PRISM.ok }}>現在要確認の研修はありません。</div>}
-        </div>
-      </PrismCard>
-
-      <PrismCard className="p-4 sm:p-5">
-        <PrismSectionTitle
-          title="要フォロー受講生"
-          desc="欠席・遅刻・早退・勤怠未登録・日報未提出・テスト未受験を、直近研修日までの累積かつ理由別に表示します。"
-          action={<Badge tone={followUps.length ? "amber" : "green"}>{followUps.length}名</Badge>}
-        />
-        {followUps.length ? (
-          <div className="grid gap-2 md:grid-cols-2">
-            {followUps.slice(0, 8).map(f => (
-              <div key={f.traineeId} className="flex items-center gap-3 rounded-2xl p-3" style={{ background: PRISM.base, border: `1px solid ${PRISM.line}` }}>
-                <span className="grid h-9 w-9 shrink-0 place-items-center rounded-full text-xs font-bold text-white" style={{ background: PRISM.accent }}>{String(f.traineeName || "?").slice(0, 1)}</span>
-                <div className="min-w-0 flex-1">
-                  <div className="truncate text-sm font-semibold" style={{ color: PRISM.ink }}>{f.traineeName}</div>
-                  <div className="truncate text-xs" style={{ color: PRISM.mut }}>{f.companyName || f.courseName}</div>
-                </div>
-                <div className="flex shrink-0 flex-wrap justify-end gap-1">
-                  {(f.reasons || []).slice(0, 2).map((r, i) => (
-                    <Badge key={i} tone={r.severity === "critical" ? "red" : r.severity === "warning" ? "amber" : "cyan"}>{r.label}</Badge>
-                  ))}
-                </div>
-              </div>
-            ))}
-          </div>
-        ) : <div className="rounded-2xl p-4 text-sm" style={{ background: PRISM.okSubtle, color: PRISM.ok }}>現在フォローが必要な受講生はいません。</div>}
-      </PrismCard>
-
-      <div className="grid gap-5 xl:grid-cols-2">
-        <PrismCard className="overflow-hidden">
-          <div className="p-4" style={{ borderBottom: `1px solid ${PRISM.line}` }}><PrismSectionTitle title="コース別" desc="参加企業・受講生・今日の登録状況" action={<Btn kind="soft" size="sm" icon={BookOpen} onClick={() => go && go("courses")}>管理</Btn>} /></div>
-          {loading ? <SkeletonRows /> : courseSummaries.length === 0 ? <EmptyState title="コースがありません" desc="管理からコースを作成できます" /> : (
-            <div className="divide-y" style={{ borderColor: PRISM.line }}>{courseSummaries.map(c => (
-              <div key={c.courseId} className="p-4">
-                <div className="flex flex-wrap items-start justify-between gap-2">
-                  <div className="min-w-0"><div className="flex flex-wrap items-center gap-2"><h4 className="font-bold" style={{ color: PRISM.ink }}>{c.name}</h4><Badge tone={kindTone(c.type || c.kind)}>{labelKind(c.type || c.kind)}</Badge></div><p className="mt-1 text-xs" style={{ color: PRISM.mut }}>{c.companyCount}社参加 / {c.members.length}名所属</p></div>
-                  <div className="flex flex-wrap gap-1.5"><Badge tone={c.reportCount ? "green" : "muted"}>日報 {c.reportCount}</Badge><Badge tone={c.attendanceCount ? "cyan" : "muted"}>勤怠 {c.attendanceCount}</Badge><Btn size="sm" kind="ghost" icon={ChevronRight} onClick={() => openCourse(c.courseId)}>管理</Btn></div>
-                </div>
-                <div className="mt-3 flex flex-wrap gap-1.5">{[...new Set(c.members.map(t => t.company).filter(Boolean))].slice(0, 4).map(id => <span key={id} className="rounded-full px-2 py-1 text-xs" style={{ background: PRISM.base, color: PRISM.sub }}>{companyName(id)}</span>)}{c.companyCount > 4 && <span className="text-xs" style={{ color: PRISM.mut }}>ほか{c.companyCount - 4}社</span>}</div>
-              </div>
-            ))}</div>
-          )}
-        </PrismCard>
-
-        <PrismCard className="overflow-hidden">
-          <div className="p-4" style={{ borderBottom: `1px solid ${PRISM.line}` }}><PrismSectionTitle title="企業別" desc="各社の受講生と所属コース" action={<Btn kind="soft" size="sm" icon={Building2} onClick={() => go && go("companies")}>管理</Btn>} /></div>
-          {loading ? <SkeletonRows /> : companySummaries.length === 0 ? <EmptyState title="企業がありません" desc="管理から企業を追加できます" /> : (
-            <div className="divide-y" style={{ borderColor: PRISM.line }}>{companySummaries.map(co => (
-              <div key={co.companyId} className="p-4">
-                <div className="flex flex-wrap items-start justify-between gap-2"><div className="min-w-0"><h4 className="font-bold" style={{ color: PRISM.ink }}>{co.name}</h4><p className="mt-1 text-xs" style={{ color: PRISM.mut }}>{co.members.length}名 / {co.courses.length}コース所属</p></div><Badge tone={co.members.length ? "cyan" : "muted"}>{co.members.length}名</Badge></div>
-                <div className="mt-3 flex flex-wrap gap-1.5">{co.courses.slice(0, 4).map(c => <span key={c.courseId} className="rounded-full px-2 py-1 text-xs" style={{ background: PRISM.accentSubtle, color: PRISM.accentDeep }}>{c.name}</span>)}{co.courses.length > 4 && <span className="text-xs" style={{ color: PRISM.mut }}>ほか{co.courses.length - 4}件</span>}{co.courses.length === 0 && <span className="text-xs" style={{ color: PRISM.mut }}>所属コースなし</span>}</div>
-              </div>
-            ))}</div>
-          )}
-        </PrismCard>
+      <div className="grid gap-3 sm:grid-cols-2">
+        <TrainingHomePanel title="運営中のコース" meta={`コース${courses.length}件`}>
+          {loading ? <SkeletonRows rows={2} /> : <>
+            <TrainingHomePanelRow icon={AlertCircle} tone={alertCount ? "bad" : "ok"} label="要フォローの受講生" sub="欠席・遅刻・日報未提出などが続く受講生です" actionLabel={alertCount != null ? `${alertCount}名` : "—"} onAction={openRisk || (() => go && go("users"))} />
+            <TrainingHomePanelRow icon={BookOpen} tone="accent" label="コース・カリキュラム" sub="設定と研修運用" actionLabel="開く" onAction={() => go && go("courses")} />
+          </>}
+        </TrainingHomePanel>
+        <TrainingHomePanel title="管理" meta={`受講生${users.filter(u => u.role === "trainee").length}名 / 企業${companies.length}社`}>
+          <TrainingHomePanelRow icon={Users} tone="teal" label="受講生・企業マスタ" sub="アカウント・所属・権限を管理します" actionLabel="開く" onAction={() => go && go("users")} />
+          <TrainingHomePanelRow icon={Briefcase} tone="warn" label="助成金管理" sub="申請書類の状況を確認できます" actionLabel="開く" onAction={() => goProduct && goProduct("grants")} />
+        </TrainingHomePanel>
       </div>
-      {openRisk && <div className="flex justify-end"><Btn kind="soft" size="sm" onClick={openRisk}>リスク分析を見る</Btn></div>}
     </PrismPage>
   );
 }

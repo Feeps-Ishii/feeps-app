@@ -6,8 +6,10 @@ import {
 import { apiGet, apiPut } from "../../api.js";
 import {
   Badge, Btn, SkeletonCards, SkeletonRows, PRISM,
-  PrismPage, PrismCard, PrismHero, PrismKpiCard, PrismErrorRetryCard, PrismEmptyBlock,
+  PrismPage, PrismCard, PrismErrorRetryCard, PrismEmptyBlock,
+  TrainingHomeHero, TrainingHomePanel, TrainingHomePanelRow, PRODUCT_ACCENT,
 } from "../../components/common";
+import { InstructorHomeIllustration } from "../../components/common/TrainingHomeIllustrations.jsx";
 import { setActiveCourseId } from "../../utils/common/courseContext.js";
 
 function textOf(value, fallback = "") {
@@ -271,28 +273,38 @@ export default function InstructorWorkspace({ go, displayName = "講師" }) {
     };
   }), [todayCourses]);
 
+  // 研修管理Home刷新（モード分離Step2）: 対応が必要な件数(日報+勤怠)を1文で示すヒーローに統一。
+  const heroActionCount = todayPendingReportCount + todayAttendanceAlertCount;
+  const heroTitle = !todayCourses.length
+    ? "本日の担当コースはありません"
+    : heroActionCount > 0
+      ? `対応が必要なことが${heroActionCount}件あります`
+      : "今日の対応事項はありません";
+  const heroDescParts = [];
+  if (todayPendingReportCount > 0) heroDescParts.push(`日報の対応${todayPendingReportCount}件`);
+  if (todayAttendanceAlertCount > 0) heroDescParts.push(`勤怠の確認${todayAttendanceAlertCount}件`);
+  const heroDescription = !todayCourses.length
+    ? "担当コースの情報は「担当コース」から確認できます。"
+    : heroDescParts.length
+      ? `${heroDescParts.join("、")}です。上から順に進めましょう。`
+      : "受講生の状況・今日の進行から必要な確認ができます。";
+  const heroGradient = `linear-gradient(120deg, ${PRODUCT_ACCENT.training.gradFrom}, ${PRODUCT_ACCENT.training.gradTo})`;
+  const primaryCourse = courseBlocks[0] || null;
+
   return (
     <PrismPage>
-      <PrismHero
-        eyebrow="INSTRUCTOR WORKSPACE"
-        title="今日の授業を、迷わず始める"
-        description={`${formatDate(date)} ・ ${displayName} ・ 最終更新 ${lastUpdated ? formatDateTime(lastUpdated) : "未取得"}`}
-        icon={GraduationCap}
-        actions={<><Btn kind="white" icon={BookOpen} onClick={() => go("courses")}>担当コース</Btn><Btn kind="white" icon={RefreshCw} onClick={() => load({ silent: true })}>{refreshing ? "更新中" : "更新"}</Btn></>}
-      >
-        <div className="flex flex-wrap items-center gap-2 text-xs font-semibold">
-          <span className="rounded-full px-3 py-1.5" style={{ background: PRISM.heroGlassStrong, border: `1px solid ${PRISM.heroLine}` }}>本日の授業 {todayLessonCount}件</span>
-          <span className="rounded-full px-3 py-1.5" style={{ background: PRISM.heroGlassStrong, border: `1px solid ${PRISM.heroLine}` }}>お知らせ登録 {noticeCount}/{todayCourses.length}件</span>
-          {unassigned && <Badge tone="amber">{textOf(data?.scope?.message, "担当コースがありません")}</Badge>}
-        </div>
-      </PrismHero>
-
-      <div className="feeps-stagger-in grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-        <PrismKpiCard icon={BookOpen} label="担当コース" value={assignedCourseCount} unit="件" detail="担当中の研修" onClick={() => go("courses")} />
-        <PrismKpiCard icon={GraduationCap} label="受講生" value={activeStudentCount} unit="名" detail="担当コースの受講生" tone="teal" onClick={() => go("trainees")} />
-        <PrismKpiCard icon={NotebookPen} label="本日の日報対応" value={todayPendingReportCount} unit="件" detail={todayCourses.length ? "未提出・未コメント" : "本日は研修なし"} tone={todayPendingReportCount ? "warn" : "ok"} onClick={() => go("reports")} />
-        <PrismKpiCard icon={Clock} label="本日の勤怠" value={todayAttendanceAlertCount} unit="件" detail={todayCourses.length ? "欠席・遅刻・未打刻" : "本日は研修なし"} tone={todayAttendanceAlertCount ? "bad" : "ok"} onClick={() => go("attendance")} />
-      </div>
+      <TrainingHomeHero
+        kicker={`${formatDate(date)} ・ ${displayName}`}
+        title={heroTitle}
+        description={heroDescription}
+        gradient={heroGradient}
+        illustration={<InstructorHomeIllustration />}
+        actions={<>
+          <Btn kind="white" onClick={() => go(todayPendingReportCount >= todayAttendanceAlertCount ? "reports" : "attendance")}>対応リストを開く</Btn>
+          <Btn onClick={() => go("trainees")} style={{ background: PRISM.heroGlassStrong, color: "#fff", border: `1px solid ${PRISM.heroLine}` }}>受講生一覧</Btn>
+        </>}
+      />
+      {unassigned && <PrismCard className="p-3"><Badge tone="amber">{textOf(data?.scope?.message, "担当コースがありません")}</Badge></PrismCard>}
 
       {error && <PrismErrorRetryCard message={error} onRetry={() => load()} />}
 
@@ -300,99 +312,19 @@ export default function InstructorWorkspace({ go, displayName = "講師" }) {
         <div className="grid gap-5 lg:grid-cols-2"><PrismCard><SkeletonCards count={3} /></PrismCard><PrismCard><SkeletonRows rows={4} /></PrismCard></div>
       ) : !error && (
         <>
-          <div className="grid gap-4 xl:grid-cols-[1fr_1fr]">
-            <NoticeCard courses={courseBlocks} date={date} onSaved={() => load({ silent: true })} />
-            <PrismCard className="p-4">
-              <SectionTitle icon={ClipboardCheck} title="今日やること" desc="ここだけ見れば授業開始に進めます。" />
-              {todayCourses.length ? (
-                <div className="grid gap-3 sm:grid-cols-2">
-                  <ActionCard icon={Clock} title="勤怠確認" value={`本日 ${todayAttendanceAlertCount}件`} desc="本日の欠席・遅刻・未打刻を確認します。" buttonLabel="確認する" onClick={() => go("attendance")} tone={todayAttendanceAlertCount ? "alert" : "normal"} />
-                  <ActionCard icon={NotebookPen} title="日報確認" value={`本日 ${todayPendingReportCount}件`} desc="本日の提出状況と未コメントを確認します。" buttonLabel="確認する" onClick={() => go("reports")} tone={todayPendingReportCount ? "alert" : "normal"} />
-                  <ActionCard icon={BookOpen} title="授業準備" value={`${todayLessonCount}件`} desc="今日のカリキュラム、教材、テストを開きます。" buttonLabel="開く" onClick={() => go("curriculum")} />
-                  <ActionCard icon={ClipboardCheck} title="テスト" value="結果と採点" desc="受験状況の確認と採点を行います。" buttonLabel="開く" onClick={() => go("tests")} />
-                </div>
-              ) : <EmptyBlock title="本日の研修はありません" desc="勤怠・日報・授業準備の当日対応はありません。" />}
-            </PrismCard>
+          {/* お知らせ登録(NoticeCard)は他に入力手段が無いため、2パネル構成に加えて残す */}
+          <NoticeCard courses={courseBlocks} date={date} onSaved={() => load({ silent: true })} />
+
+          <div className="grid gap-3 sm:grid-cols-2">
+            <TrainingHomePanel title="受講生の状況" meta={`受講生 ${activeStudentCount}名`}>
+              <TrainingHomePanelRow icon={Clock} tone={todayAttendanceAlertCount ? "bad" : "ok"} label="要フォロー" sub="欠席・遅刻・未打刻が続く受講生です" actionLabel={`${todayAttendanceAlertCount}件`} onAction={() => go("attendance")} />
+              <TrainingHomePanelRow icon={NotebookPen} tone={todayPendingReportCount ? "warn" : "ok"} label="日報" sub={todayCourses.length ? "本日の提出状況と未コメントを確認できます" : "本日は研修なし"} actionLabel="確認" onAction={() => go("reports")} />
+            </TrainingHomePanel>
+            <TrainingHomePanel title="今日の進行">
+              <TrainingHomePanelRow icon={BookOpen} tone="accent" label={primaryCourse ? textOf(primaryCourse.courseName, "コース名未設定") : "今日の授業"} sub={primaryCourse?.curriculumText || "今日の授業は未設定です。"} actionLabel="状況" onAction={() => { if (primaryCourse) setActiveCourseId(primaryCourse.courseId); go("courses"); }} />
+              <TrainingHomePanelRow icon={CalendarDays} tone={hasLessonPrep ? "accent" : "warn"} label="授業準備" sub={hasLessonPrep ? "教材・テストの準備状況を確認できます" : "本日は研修実施日ではありません"} actionLabel="開く" onAction={() => go("courses")} />
+            </TrainingHomePanel>
           </div>
-
-          <PrismCard className="p-4">
-            <SectionTitle icon={ClipboardCheck} title="過去の対応待ち" desc="本日より前の研修日に残っている確認事項です。" />
-            {hasBacklog ? (
-              <div className="grid gap-3 sm:grid-cols-2">
-                <ActionCard icon={NotebookPen} title="日報の対応待ち" value={`${backlogPendingReportCount}件`} desc="過去の未提出・未コメント日報を確認します。" buttonLabel="日報を確認" onClick={() => go("reports")} tone={backlogPendingReportCount ? "alert" : "normal"} />
-                <ActionCard icon={Clock} title="勤怠の対応待ち" value={`${backlogAttendanceAlertCount}件`} desc="過去の欠席・遅刻・早退・未打刻を確認します。" buttonLabel="勤怠を確認" onClick={() => go("attendance")} tone={backlogAttendanceAlertCount ? "alert" : "normal"} />
-              </div>
-            ) : <EmptyBlock title="過去の対応待ちはありません" desc="確認が必要な日報・勤怠はありません。" />}
-          </PrismCard>
-
-          <PrismCard className="p-4">
-            <SectionTitle icon={GraduationCap} title="今日の担当コース" desc="必要な情報だけを表示します。" />
-            {courseBlocks.length ? (
-              <div className="grid gap-3 lg:grid-cols-2">
-                {courseBlocks.map((course, index) => (
-                  <div key={course.courseId || index} className="rounded-2xl p-3" style={{ background: PRISM.base, border: `1px solid ${PRISM.line}` }}>
-                    <div className="flex flex-wrap items-start justify-between gap-3">
-                      <div className="min-w-0">
-                        <div className="truncate text-sm font-bold" style={{ color: PRISM.ink }}>{textOf(course.courseName, "コース名未設定")}</div>
-                        <div className="mt-1 truncate text-xs" style={{ color: PRISM.mut }}>{textOf(course.companyName, "企業未設定")} ・ 受講生 {Number(course.studentCount || 0)}名</div>
-                        <div className="mt-2 truncate text-sm" style={{ color: PRISM.sub }}>{course.curriculumText}</div>
-                      </div>
-                      <CourseOpenButton course={course} go={go} />
-                    </div>
-                  </div>
-                ))}
-              </div>
-            ) : <EmptyBlock title="今日の担当コースはありません" desc={`本日は研修実施日ではありません。担当${assignedCourseCount}コースの情報は「担当コース」から確認できます。`} />}
-          </PrismCard>
-
-          <div className="grid gap-4 xl:grid-cols-[.9fr_1.1fr]">
-            <PrismCard className="p-4">
-              <SectionTitle icon={FileText} title="本日の更新" desc="本日更新された最新5件を表示します。" action={<Btn size="sm" kind="ghost" icon={ArrowUpRight} onClick={() => go("reports")}>一覧へ</Btn>} />
-              {recentActivity.length ? (
-                <div className="space-y-1.5">
-                  {recentActivity.map((item, index) => (
-                    <button type="button" key={`${item.type}-${item.traineeId}-${item.occurredAt}-${index}`} onClick={() => item.targetUrl && goFromUrl(item.targetUrl, go)}
-                      className="flex w-full items-center gap-2.5 rounded-xl px-3 py-2 text-left transition hover:bg-black/[.03]">
-                      <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg" style={{ background: PRISM.accentSubtle, color: PRISM.accent }}>
-                        {String(item.type || "").includes("test") ? <ClipboardCheck size={14} /> : String(item.type || "").includes("comment") ? <NotebookPen size={14} /> : <FileText size={14} />}
-                      </span>
-                      <span className="min-w-0 flex-1">
-                        <span className="block truncate text-sm font-semibold" style={{ color: PRISM.ink }}>{textOf(item.label, "新着")}</span>
-                        <span className="block truncate text-xs" style={{ color: PRISM.mut }}>{textOf(item.traineeName, "受講生")} ・ {textOf(item.courseName, "コース")} ・ {formatDateTime(item.occurredAt)}</span>
-                      </span>
-                    </button>
-                  ))}
-                </div>
-              ) : <EmptyBlock title="本日の更新はありません" desc="本日、日報・勤怠・テストの更新はありません。" />}
-            </PrismCard>
-
-            <PrismCard className="p-4">
-              <SectionTitle icon={CalendarDays} title="授業準備" desc="教材とテストの準備状況を確認します。" />
-              {hasLessonPrep ? (
-                <div className="grid gap-3 md:grid-cols-2">
-                  {(lessonPrep.length ? lessonPrep : courseBlocks).map((item, index) => {
-                    const targetUrls = asObject(item.targetUrls || item.links);
-                    return (
-                      <div key={item.courseId || index} className="rounded-2xl p-3" style={{ background: PRISM.base, border: `1px solid ${PRISM.line}` }}>
-                        <div className="truncate text-sm font-bold" style={{ color: PRISM.ink }}>{textOf(item.courseName, "コース名未設定")}</div>
-                        <div className="mt-1 truncate text-sm" style={{ color: PRISM.sub }}>{textOf(item.curriculumTitle ?? item.curriculumText, "今日の授業は未設定です。")}</div>
-                        <div className="mt-2 flex flex-wrap gap-2 text-xs" style={{ color: PRISM.mut }}>
-                          <span>教材 {Number(item.materialCount || 0)}件</span>
-                          <span>テスト {Number(item.testCount || 0)}件</span>
-                        </div>
-                        <div className="mt-2 flex flex-wrap gap-3">
-                          <LinkButton label="教材" targetUrl={targetUrls.materials} go={go} />
-                          <LinkButton label="テスト" targetUrl={targetUrls.tests} go={go} />
-                          <LinkButton label="カリキュラム" targetUrl={targetUrls.curriculum} go={go} />
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              ) : <EmptyBlock title="本日の授業準備はありません" desc="本日は研修実施日ではありません。" />}
-            </PrismCard>
-          </div>
-
         </>
       )}
     </PrismPage>
