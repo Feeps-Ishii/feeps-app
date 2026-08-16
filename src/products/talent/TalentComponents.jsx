@@ -131,6 +131,30 @@ function TalentHomeIllustration() {
   );
 }
 
+// Eラーニング連携バナー(最下部に1箇所のみ)。学習モードcontractMode(company単位、trainee/client
+// はcompanyの契約でゲートされる)の有無で文言・CTAを出し分ける。役割ごとに主語だけ変える。
+function ELearningCrossBanner({ hasLearningMode, title, descOn, descOff, onOpen }) {
+  return hasLearningMode ? (
+    <div className="mt-5 flex flex-wrap items-center justify-between gap-3 rounded-2xl p-4" style={{ background: `${PRODUCT_ACCENT.learning.accent}0f`, border: `1px solid ${PRODUCT_ACCENT.learning.accent}26` }}>
+      <div>
+        <div className="text-[11px] font-semibold" style={{ color: PRODUCT_ACCENT.learning.deep }}>学習モード ・ 契約中</div>
+        <h5 className="mt-1 text-sm font-semibold" style={{ color: T.textPrimary }}>{title}</h5>
+        <p className="mt-0.5 text-xs" style={{ color: T.textMuted }}>{descOn}</p>
+      </div>
+      <Btn style={{ background: PRODUCT_ACCENT.learning.accent, color: "#fff", whiteSpace: "nowrap" }} onClick={onOpen}>Eラーニングを開く</Btn>
+    </div>
+  ) : (
+    <div className="mt-5 flex flex-wrap items-center justify-between gap-3 rounded-2xl p-4" style={{ background: `linear-gradient(120deg, ${PRODUCT_ACCENT.talent.subtle}, ${PRODUCT_ACCENT.learning.subtle})`, border: `1px solid ${PRODUCT_ACCENT.talent.accent}33` }}>
+      <div>
+        <div className="text-[11px] font-semibold" style={{ color: PRODUCT_ACCENT.talent.deep }}>学習モード ・ 未契約</div>
+        <h5 className="mt-1 text-sm font-semibold" style={{ color: T.textPrimary }}>{title}</h5>
+        <p className="mt-0.5 text-xs" style={{ color: T.textMuted }}>{descOff}</p>
+      </div>
+      <Btn style={{ background: PRODUCT_ACCENT.talent.accent, color: "#fff", whiteSpace: "nowrap" }} onClick={onOpen}>学習モードについて見る</Btn>
+    </div>
+  );
+}
+
 function TalentHome({ goSub, goProduct, role = "trainee", themeColor = PRODUCT_ACCENT.talent.accent, contractMode }) {
   const cfgs = {
     trainee: {
@@ -181,6 +205,11 @@ function TalentHome({ goSub, goProduct, role = "trainee", themeColor = PRODUCT_A
   const worksCount = Array.isArray(ownSkills?.works) ? ownSkills.works.length : 0;
   const badgeCount = finalSummary.passedCount || 0;
 
+  // Phase1のcontractMode。未設定(フェイルオープン)/both/learningなら学習モード契約ありとみなす。
+  // instructor/adminはaccessControl.jsのallowedViewModesでモードにゲートされない(常に両モード利用可)
+  // 設計のため、この2ロールには「契約なし」状態が存在しない→連携バナー自体を出さない。
+  const hasLearningMode = !contractMode || contractMode === "both" || contractMode === "learning";
+
   if (role !== "trainee") {
     return (
       <div>
@@ -192,13 +221,20 @@ function TalentHome({ goSub, goProduct, role = "trainee", themeColor = PRODUCT_A
               onClick={() => goSub(key)} highlight={key === "tl_sheet"} badge={key === "tl_sheet" ? "よく使う" : undefined} delay={200 + i * 40} />
           ))}
         </div>
+        {role === "client" && (
+          <ELearningCrossBanner
+            hasLearningMode={hasLearningMode}
+            title="Eラーニングで、自社受講生のスキルをもっと増やせます"
+            descOn="受講生がコースを受講したり開発演習に挑戦すると、身についたスキルが自動でここに記録されます。"
+            descOff="コース受講や開発演習を通じて、研修だけでは身につかない受講生のスキルも記録できるようになります。"
+            onOpen={() => goProduct && goProduct("learning")}
+          />
+        )}
       </div>
     );
   }
 
   const heroTitle = skillsCount > 0 ? `研修スキルが${skillsCount}件、記録されています` : "研修スキルはまだ記録されていません";
-  // Phase1のcontractMode。未設定(フェイルオープン)/both/learningなら学習モード契約ありとみなす。
-  const hasLearningMode = !contractMode || contractMode === "both" || contractMode === "learning";
 
   return (
     <div>
@@ -239,25 +275,13 @@ function TalentHome({ goSub, goProduct, role = "trainee", themeColor = PRODUCT_A
       </div>
 
       {/* Eラーニング連携は最下部にこの1箇所のみ(押しつけがましくならないよう複数箇所に出さない) */}
-      {hasLearningMode ? (
-        <div className="mt-5 flex flex-wrap items-center justify-between gap-3 rounded-2xl p-4" style={{ background: `${PRODUCT_ACCENT.learning.accent}0f`, border: `1px solid ${PRODUCT_ACCENT.learning.accent}26` }}>
-          <div>
-            <div className="text-[11px] font-semibold" style={{ color: PRODUCT_ACCENT.learning.deep }}>学習モード ・ 契約中</div>
-            <h5 className="mt-1 text-sm font-semibold" style={{ color: T.textPrimary }}>Eラーニングで、スキルをもっと増やせます</h5>
-            <p className="mt-0.5 text-xs" style={{ color: T.textMuted }}>コースを受講したり開発演習に挑戦すると、身についたスキルが自動でここに記録されます。</p>
-          </div>
-          <Btn style={{ background: PRODUCT_ACCENT.learning.accent, color: "#fff", whiteSpace: "nowrap" }} onClick={() => goProduct && goProduct("learning")}>Eラーニングを開く</Btn>
-        </div>
-      ) : (
-        <div className="mt-5 flex flex-wrap items-center justify-between gap-3 rounded-2xl p-4" style={{ background: `linear-gradient(120deg, ${PRODUCT_ACCENT.talent.subtle}, ${PRODUCT_ACCENT.learning.subtle})`, border: `1px solid ${PRODUCT_ACCENT.talent.accent}33` }}>
-          <div>
-            <div className="text-[11px] font-semibold" style={{ color: PRODUCT_ACCENT.talent.deep }}>学習モード ・ 未契約</div>
-            <h5 className="mt-1 text-sm font-semibold" style={{ color: T.textPrimary }}>Eラーニングで、スキルをもっと増やせます</h5>
-            <p className="mt-0.5 text-xs" style={{ color: T.textMuted }}>コース受講や開発演習を通じて、研修だけでは身につかないスキルも記録できるようになります。</p>
-          </div>
-          <Btn style={{ background: PRODUCT_ACCENT.talent.accent, color: "#fff", whiteSpace: "nowrap" }} onClick={() => goProduct && goProduct("learning")}>学習モードについて見る</Btn>
-        </div>
-      )}
+      <ELearningCrossBanner
+        hasLearningMode={hasLearningMode}
+        title="Eラーニングで、スキルをもっと増やせます"
+        descOn="コースを受講したり開発演習に挑戦すると、身についたスキルが自動でここに記録されます。"
+        descOff="コース受講や開発演習を通じて、研修だけでは身につかないスキルも記録できるようになります。"
+        onOpen={() => goProduct && goProduct("learning")}
+      />
     </div>
   );
 }
