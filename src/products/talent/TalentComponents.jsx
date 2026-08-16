@@ -97,172 +97,166 @@ function Radar({ data, size = 300 }) {
     </svg>
   );
 }
-function TalentHome({ goSub, goProduct, role = "trainee", themeColor = PRODUCT_ACCENT.talent.accent }) {
+// スキル・成長Home刷新(2026-08-16)のヒーローイラスト。モックのSVGをそのまま流用し
+// 色だけPRODUCT_ACCENTトークンへ差し替え。研修スキル(紫)/資格(ティール)/制作実績(オレンジ)の
+// 小カード3枚が、点線で右の証明シートへ繋がる構図。他ProductのヒーローイラストがviewBox比
+// 220×128前後で描画されるのに合わせ、モックの340×152 viewBoxはそのまま・描画サイズのみ220×98へ縮小。
+function TalentHomeIllustration() {
+  const talentAccent = PRODUCT_ACCENT.talent.accent;
+  const talentDeep = PRODUCT_ACCENT.talent.deep;
+  const learnAccent = PRODUCT_ACCENT.learning.accent;
+  const learnDeep = PRODUCT_ACCENT.learning.deep;
+  const warmAccent = PRODUCT_ACCENT.matching.accent;
+  const warmDeep = PRODUCT_ACCENT.matching.deep;
+  return (
+    <svg width="220" height="98" viewBox="0 0 340 152" role="img" aria-label="積み重なる強みが証明のシートを支えるイラスト">
+      <ellipse cx="170" cy="138" rx="108" ry="7" fill={talentAccent} opacity=".12" />
+      <rect x="40" y="70" width="56" height="48" rx="8" fill="#fff" stroke={talentAccent} strokeWidth="2" />
+      <circle cx="68" cy="94" r="12" fill={talentAccent} opacity=".15" />
+      <path d="M62 94l3.5 3.5L74 89" stroke={talentDeep} strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" fill="none" />
+      <rect x="72" y="46" width="56" height="48" rx="8" fill="#fff" stroke={learnAccent} strokeWidth="2" />
+      <circle cx="100" cy="70" r="12" fill={learnAccent} opacity=".16" />
+      <path d="M100 62l2.6 5.7 6.2.9-4.5 4.4 1.1 6.2-5.4-2.9-5.4 2.9 1.1-6.2-4.5-4.4 6.2-.9L100 62z" fill={learnDeep} opacity=".8" />
+      <rect x="104" y="58" width="56" height="48" rx="8" fill="#fff" stroke={warmAccent} strokeWidth="2" />
+      <circle cx="132" cy="82" r="12" fill={warmAccent} opacity=".16" />
+      <path d="M126 88l2.5-15 3 8 3-5 3 12" stroke={warmDeep} strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" fill="none" />
+      <path d="M172 76h12" stroke={talentAccent} strokeWidth="2.4" strokeDasharray="4 4" strokeLinecap="round" />
+      <rect x="196" y="34" width="100" height="88" rx="9" fill="#fff" stroke={talentAccent} strokeWidth="2" />
+      <rect x="196" y="34" width="100" height="16" rx="9" fill={talentAccent} />
+      <rect x="196" y="43" width="100" height="7" fill={talentAccent} />
+      <circle cx="246" cy="88" r="20" fill={talentAccent} opacity=".14" />
+      <path d="M234 88l8 8 16-18" stroke={talentDeep} strokeWidth="3.6" strokeLinecap="round" strokeLinejoin="round" fill="none" />
+      <path d="M292 40l2.4 5.6 5.6 2.4-5.6 2.4-2.4 5.6-2.4-5.6-5.6-2.4 5.6-2.4z" fill={warmAccent} opacity=".7" />
+    </svg>
+  );
+}
+
+function TalentHome({ goSub, goProduct, role = "trainee", themeColor = PRODUCT_ACCENT.talent.accent, contractMode }) {
   const cfgs = {
     trainee: {
-      desc: "研修・学習・実績から自分の成長を可視化し、案件参画に向けてスキルシートを整備します。",
-      next: "スキルシートを整備して、案件管理プロダクトの案件マッチングに備えましょう。",
+      desc: "研修・学習・実績から身についた力を自動で記録しています。案件用のシートにいつでも整えられます。",
       cards: [
         { key: "tl_growth",  icon: GitBranch,     label: "成長履歴",           desc: "研修からの成長プロセスを可視化します。" },
         { key: "tl_skills",  icon: GraduationCap, label: "研修スキル",         desc: "研修・タスクで習得したスキルを確認します。" },
-        { key: "tl_sheet",   icon: Briefcase,     label: "案件用スキルシート",  desc: "案件参画向けのスキルシートを管理します。" },
+        { key: "tl_sheet",   icon: Briefcase,     label: "案件用スキルシート",  desc: "案件参画向けのシートを整えます。" },
         { key: "tl_works",   icon: FileText,      label: "制作実績",            desc: "成果物・作成物を管理します。" },
         { key: "tl_badge",   icon: Award,         label: "資格・バッジ",        desc: "取得した資格やバッジを管理できます。" },
         { key: "tl_pr",      icon: Star,          label: "自己PR・強み",        desc: "強みと自己PRを整理できます。" },
       ],
-      // 6枚が同格だと優先度が分からないという指摘(2026-07-28)を受け、案件用スキルシートを
-      // 単独の主役カードに、残りを目的別の2グループに分ける。cardsは元のまま(データの単一情報源)、
-      // ここではkeyを束ねるだけ。
-      primaryKey: "tl_sheet",
-      groupA: { title: "案件に活かす", keys: ["tl_badge", "tl_pr"] },
+      groupA: { title: "案件に活かす", keys: ["tl_sheet", "tl_badge", "tl_pr"] },
       groupB: { title: "成長の記録", keys: ["tl_growth", "tl_skills", "tl_works"] },
     },
     instructor: {
       desc: "担当受講生のスキル・成長状況を確認し、次のステップへのアドバイスに活かします。",
-      next: "個別の成長履歴・テスト状況は研修管理の受講生カルテから確認できます。",
       cards: [
         { key: "tl_sheet",   icon: Briefcase,     label: "受講生スキルシート", desc: "担当受講生の保有スキル・強み・自己PRを確認します。" },
       ],
     },
     client: {
       desc: "自社受講生のスキル・成長状況を確認し、案件参画に向けた人材評価に活かします。",
-      next: "個別の日報・勤怠・テスト結果は研修管理から確認できます。",
       cards: [
         { key: "tl_sheet",   icon: Briefcase,     label: "受講生スキルシート", desc: "自社受講生の保有スキル・強み・自己PRを確認します。" },
       ],
     },
     admin: {
       desc: "全受講生のスキル・成長状況を一元管理し、案件マッチングや人材評価に活かします。",
-      next: "個別の成長履歴・テスト状況は研修管理の受講生カルテから確認できます。",
       cards: [
         { key: "tl_sheet",   icon: Briefcase,     label: "受講生スキルシート", desc: "全受講生の保有スキル・強み・自己PRを確認します。" },
       ],
     },
   };
   const cfg = cfgs[role] || cfgs.trainee;
-  const lrn = useLearning(role);
-  const elEarned = lrn.getEarnedSkills();
   const { summary: finalSummary } = useElearningFinalTestEvidence();
-  return (
-    <div>
-      <PageHeader
-        product="talent"
-        label="スキル・成長"
-        title="学びを、スキルとして残す。"
-        description={cfg.desc}
-        chips={role === "client" || role === "instructor" || role === "admin" ? [] : [
-          { label: "取得スキル", value: elEarned.length, unit: "件" },
-          { label: "公式スキル証跡", value: finalSummary.passedCount || 0, unit: "件" },
-        ]}
-        cta={{ label: "スキルシートを開く", icon: Briefcase, onClick: () => goSub("tl_sheet") }}
-      />
-      {cfg.groupA ? (
-        <>
-          {cfg.cards.filter(c => c.key === cfg.primaryKey).map(({ key, icon, label, desc }) => (
-            <div key={key} className="mb-5">
-              <ProductNavCard product="talent" icon={icon} title={label} desc={desc}
-                onClick={() => goSub(key)} highlight badge="よく使う" delay={200} />
-            </div>
-          ))}
-          <div className="mb-5">
-            <PrismSectionTitle title={cfg.groupA.title} />
-            <div className="grid gap-4 md:grid-cols-3">
-              {cfg.cards.filter(c => cfg.groupA.keys.includes(c.key)).map(({ key, icon, label, desc }, i) => (
-                <ProductNavCard key={key} product="talent" icon={icon} title={label} desc={desc} onClick={() => goSub(key)} delay={240 + i * 40} />
-              ))}
-            </div>
-          </div>
-          <div>
-            <PrismSectionTitle title={cfg.groupB.title} />
-            <div className="grid gap-4 md:grid-cols-3">
-              {cfg.cards.filter(c => cfg.groupB.keys.includes(c.key)).map(({ key, icon, label, desc }, i) => (
-                <ProductNavCard key={key} product="talent" icon={icon} title={label} desc={desc} onClick={() => goSub(key)} delay={320 + i * 40} />
-              ))}
-            </div>
-          </div>
-        </>
-      ) : (
+
+  // trainee向けヒーローのチップ3つ(研修スキル/資格・バッジ/制作実績)。研修スキル・制作実績は
+  // /skills/me、資格・バッジはEラーニング公式総合テスト合格数(finalSummary、既存取得済み)を使う。
+  const [ownSkills, setOwnSkills] = useState(null);
+  useEffect(() => {
+    if (role !== "trainee") return;
+    let alive = true;
+    apiGet("/skills/me").then(item => { if (alive) setOwnSkills(item || {}); }).catch(() => { if (alive) setOwnSkills({}); });
+    return () => { alive = false; };
+  }, [role]);
+  const skillsCount = Array.isArray(ownSkills?.skills) ? ownSkills.skills.length : 0;
+  const worksCount = Array.isArray(ownSkills?.works) ? ownSkills.works.length : 0;
+  const badgeCount = finalSummary.passedCount || 0;
+
+  if (role !== "trainee") {
+    return (
+      <div>
+        <PageHeader product="talent" label="スキル・成長" title="スキル・成長" description={cfg.desc} chips={[]}
+          cta={{ label: cfg.cards[0]?.label || "開く", icon: Briefcase, onClick: () => goSub(cfg.cards[0]?.key || "tl_sheet") }} />
         <div className="grid gap-4 md:grid-cols-3">
           {cfg.cards.map(({ key, icon, label, desc }, i) => (
             <ProductNavCard key={key} product="talent" icon={icon} title={label} desc={desc}
               onClick={() => goSub(key)} highlight={key === "tl_sheet"} badge={key === "tl_sheet" ? "よく使う" : undefined} delay={200 + i * 40} />
           ))}
         </div>
-      )}
-      {cfg.next && (
-        <div className="mt-5 flex items-start gap-3 rounded-2xl p-4" style={{ background: `${themeColor}08`, border: `1px solid ${themeColor}20` }}>
-          <TrendingUp size={15} style={{ color: themeColor, marginTop: 2 }} />
-          <p className="text-sm" style={{ color: T.textMuted }}><span className="font-semibold" style={{ color: T.textPrimary }}>次のステップ：</span>{cfg.next}</p>
-        </div>
-      )}
-      {role === "trainee" && (
-        <div className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-2xl p-4" style={{ background: "rgba(20,163,184,.06)", border: "1px solid rgba(20,163,184,.15)" }}>
-          <div className="flex items-start gap-3">
-            <BookOpen size={16} style={{ color: PRODUCT_ACCENT.learning.accent, marginTop: 1 }} />
-            <div>
-              <div className="text-sm font-bold" style={{ color: PRODUCT_ACCENT.learning.accent }}>Eラーニングでスキルをもっと増やしましょう</div>
-              {elEarned.length > 0
-                ? <p className="mt-0.5 text-xs" style={{ color: T.textMuted }}>{lrn.completed.length}本修了 · {elEarned.length}スキル取得済み</p>
-                : <p className="mt-0.5 text-xs" style={{ color: T.textMuted }}>Eラーニングを受講してスキルを習得すると、ここに反映されます。</p>}
-            </div>
+      </div>
+    );
+  }
+
+  const heroTitle = skillsCount > 0 ? `研修スキルが${skillsCount}件、記録されています` : "研修スキルはまだ記録されていません";
+  // Phase1のcontractMode。未設定(フェイルオープン)/both/learningなら学習モード契約ありとみなす。
+  const hasLearningMode = !contractMode || contractMode === "both" || contractMode === "learning";
+
+  return (
+    <div>
+      <div className="mb-5 flex flex-wrap items-center gap-4 rounded-[13px] p-5" style={{ background: "#fff", border: `2px solid ${PRODUCT_ACCENT.talent.accent}` }}>
+        <div className="min-w-[250px] flex-1">
+          <div className="text-[11px] font-semibold" style={{ color: PRODUCT_ACCENT.talent.deep, letterSpacing: ".05em" }}>スキル・成長</div>
+          <h3 className="mt-1 text-lg font-semibold" style={{ color: T.textPrimary }}>{heroTitle}</h3>
+          <p className="mt-1 max-w-[38rem] text-xs" style={{ color: T.textMuted }}>{cfg.desc}</p>
+          <div className="mt-3 flex flex-wrap gap-2.5">
+            {[["研修スキル", skillsCount], ["資格・バッジ", badgeCount], ["制作実績", worksCount]].map(([label, n]) => (
+              <div key={label} className="min-w-[84px] rounded-[9px] px-3.5 py-2" style={{ background: T.bgBase }}>
+                <div className="text-[17px] font-bold leading-tight" style={{ color: T.textPrimary }}>{n}</div>
+                <div className="text-[10.5px]" style={{ color: T.textMuted }}>{label}</div>
+              </div>
+            ))}
           </div>
-          <Btn kind="soft" style={{ background: "rgba(20,163,184,.12)", color: PRODUCT_ACCENT.learning.accent, whiteSpace: "nowrap" }} onClick={() => goProduct && goProduct("learning")}>
-            {lrn.notStarted.length > 0 ? `${lrn.notStarted.length}本おすすめ` : "学習を見る"}
-          </Btn>
+          <Btn className="mt-3" style={{ background: PRODUCT_ACCENT.talent.accent, color: "#fff" }} onClick={() => goSub("tl_sheet")}>スキルシートを見る</Btn>
         </div>
-      )}
-      {role === "trainee" && (
-        <Card className="mt-4 p-5" style={{ border: "1px solid #7C3AED22", background: "#7C3AED08" }}>
-          <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
-            <div>
-              <div className="flex items-center gap-2">
-                <Award size={16} style={{ color: themeColor }} />
-                <h3 className="font-bold" style={{ color: T.textPrimary }}>Eラーニング総合テスト結果</h3>
-              </div>
-              <p className="mt-1 text-xs" style={{ color: T.textMuted }}>最高点の合格結果を公式採用します。同点の場合は最新の合格結果を採用します。</p>
-            </div>
-            <div className="flex flex-wrap gap-2">
-              <Badge tone="green">公式採用</Badge>
-              <Badge tone={finalSummary.passedCount > 0 ? "green" : "muted"}>{finalSummary.passedCount}コース</Badge>
-            </div>
+        <div className="hidden shrink-0 md:block" aria-hidden="true"><TalentHomeIllustration /></div>
+      </div>
+
+      <div className="mb-5">
+        <PrismSectionTitle title={cfg.groupA.title} />
+        <div className="grid gap-4 md:grid-cols-3">
+          {cfg.cards.filter(c => cfg.groupA.keys.includes(c.key)).map(({ key, icon, label, desc }, i) => (
+            <ProductNavCard key={key} product="talent" icon={icon} title={label} desc={desc}
+              onClick={() => goSub(key)} highlight={key === "tl_sheet"} badge={key === "tl_sheet" ? "よく使う" : undefined} delay={200 + i * 40} />
+          ))}
+        </div>
+      </div>
+      <div>
+        <PrismSectionTitle title={cfg.groupB.title} />
+        <div className="grid gap-4 md:grid-cols-3">
+          {cfg.cards.filter(c => cfg.groupB.keys.includes(c.key)).map(({ key, icon, label, desc }, i) => (
+            <ProductNavCard key={key} product="talent" icon={icon} title={label} desc={desc} onClick={() => goSub(key)} delay={320 + i * 40} />
+          ))}
+        </div>
+      </div>
+
+      {/* Eラーニング連携は最下部にこの1箇所のみ(押しつけがましくならないよう複数箇所に出さない) */}
+      {hasLearningMode ? (
+        <div className="mt-5 flex flex-wrap items-center justify-between gap-3 rounded-2xl p-4" style={{ background: `${PRODUCT_ACCENT.learning.accent}0f`, border: `1px solid ${PRODUCT_ACCENT.learning.accent}26` }}>
+          <div>
+            <div className="text-[11px] font-semibold" style={{ color: PRODUCT_ACCENT.learning.deep }}>学習モード ・ 契約中</div>
+            <h5 className="mt-1 text-sm font-semibold" style={{ color: T.textPrimary }}>Eラーニングで、スキルをもっと増やせます</h5>
+            <p className="mt-0.5 text-xs" style={{ color: T.textMuted }}>コースを受講したり開発演習に挑戦すると、身についたスキルが自動でここに記録されます。</p>
           </div>
-          {finalSummary.passedCount === 0 ? (
-            <CommonEmptyState title="総合テスト合格はまだありません" desc="Eラーニングで総合テストに合格すると、成長履歴・取得スキル・スキルシートに反映されます。" />
-          ) : (
-            <div className="grid gap-3 lg:grid-cols-3">
-              <div className="rounded-xl bg-white p-3" style={{ border: `1px solid ${T.border}` }}>
-                <div className="text-xs font-bold" style={{ color: T.textMuted }}>合格済みコース</div>
-                <div className="mt-1 text-2xl font-bold" style={{ color: themeColor }}>{finalSummary.passedCount}</div>
-              </div>
-              <div className="rounded-xl bg-white p-3" style={{ border: `1px solid ${T.border}` }}>
-                <div className="text-xs font-bold" style={{ color: T.textMuted }}>平均点</div>
-                <div className="mt-1 text-2xl font-bold" style={{ color: T.success }}>{finalSummary.avgScore}点</div>
-              </div>
-              <div className="rounded-xl bg-white p-3" style={{ border: `1px solid ${T.border}` }}>
-                <div className="text-xs font-bold" style={{ color: T.textMuted }}>最近合格したコース</div>
-                <div className="mt-1 text-sm font-bold" style={{ color: T.textPrimary }}>{finalSummary.recent?.courseTitle || "-"}</div>
-                {finalSummary.recent && <div className="mt-0.5 text-xs" style={{ color: T.textMuted }}>{finalSummary.recent.score}点 · {finalSummary.recent.createdAt?.slice(0, 10)}</div>}
-              </div>
-            </div>
-          )}
-          {finalSummary.allPassedCount > finalSummary.passedCount && (
-            <div className="mt-3 rounded-xl bg-white p-3 text-xs" style={{ border: `1px solid ${T.border}`, color: T.textMuted }}>
-              複数回受験があるため、スキル反映には各コースの最高点合格結果のみを使っています。
-            </div>
-          )}
-          {finalSummary.weakLessons.length > 0 && (
-            <div className="mt-4 rounded-xl bg-white p-3" style={{ border: `1px solid ${T.border}` }}>
-              <div className="mb-2 text-xs font-bold" style={{ color: T.textPrimary }}>次に復習すべき内容</div>
-              <div className="flex flex-wrap gap-2">
-                {finalSummary.weakLessons.slice(0, 4).map(item => (
-                  <span key={`${item.courseId}_${item.lessonId}`} className="inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-semibold" style={{ background: T.warningSubtle, color: T.warning }}>
-                    <AlertCircle size={11} />{item.courseTitle} / {item.lessonTitle}
-                  </span>
-                ))}
-              </div>
-            </div>
-          )}
-        </Card>
+          <Btn style={{ background: PRODUCT_ACCENT.learning.accent, color: "#fff", whiteSpace: "nowrap" }} onClick={() => goProduct && goProduct("learning")}>Eラーニングを開く</Btn>
+        </div>
+      ) : (
+        <div className="mt-5 flex flex-wrap items-center justify-between gap-3 rounded-2xl p-4" style={{ background: `linear-gradient(120deg, ${PRODUCT_ACCENT.talent.subtle}, ${PRODUCT_ACCENT.learning.subtle})`, border: `1px solid ${PRODUCT_ACCENT.talent.accent}33` }}>
+          <div>
+            <div className="text-[11px] font-semibold" style={{ color: PRODUCT_ACCENT.talent.deep }}>学習モード ・ 未契約</div>
+            <h5 className="mt-1 text-sm font-semibold" style={{ color: T.textPrimary }}>Eラーニングで、スキルをもっと増やせます</h5>
+            <p className="mt-0.5 text-xs" style={{ color: T.textMuted }}>コース受講や開発演習を通じて、研修だけでは身につかないスキルも記録できるようになります。</p>
+          </div>
+          <Btn style={{ background: PRODUCT_ACCENT.talent.accent, color: "#fff", whiteSpace: "nowrap" }} onClick={() => goProduct && goProduct("learning")}>学習モードについて見る</Btn>
+        </div>
       )}
     </div>
   );

@@ -1292,7 +1292,7 @@ export default function App() {
     // 到達不能。FeepsOneHome.jsx自体は削除せず、将来復活の入口として残してある。
     if (product === "home") return <FeepsOneHome role={role} displayName={displayName} products={filterProductsForRoleAndMode(PRODUCTS, { role, viewMode })} goProduct={goProduct} goTraining={go} goSub={goSub} />;
     if (product === "learning") return <LearningProduct key={`learning-${trainingNavigationVersion}`} subView={subView} goSub={goSub} goProduct={goProduct} role={role} themeColor={themeColor} navigationTarget={productDetail} learningPlan={userProfile?.learningPlan} />;
-    if (product === "talent") return <TalentProduct subView={subView} goSub={goSub} goProduct={goProduct} role={role} themeColor={themeColor} done={taskDone} goals={goals} />;
+    if (product === "talent") return <TalentProduct subView={subView} goSub={goSub} goProduct={goProduct} role={role} themeColor={themeColor} done={taskDone} goals={goals} contractMode={userProfile?.contractMode} />;
     if (product === "matching") return <MatchingProduct subView={subView} goSub={goSub} role={role} themeColor={themeColor} />;
     if (product === "analytics") return <AnalyticsProduct subView={subView} goSub={goSub} themeColor={themeColor} />;
     if (product === "grants") return <GrantsProduct subView={subView} goSub={goSub} role={role} themeColor={themeColor} />;
@@ -1454,7 +1454,7 @@ export default function App() {
   const shellOffset = isHomeProduct ? 72 : 72 + (sidebarCollapsed ? T.sidebarWidthCollapsed : T.sidebarWidth);
 
   return (
-    <div className="app-root feeps-nova-shell flex min-h-screen flex-col overflow-x-hidden lg:h-screen lg:overflow-hidden" style={{
+    <div className="app-root feeps-nova-shell flex min-h-screen flex-col lg:h-screen lg:overflow-hidden lg:overflow-x-hidden" style={{
       background: T.shellBase, color: T.textPrimary,
       "--nova-ink": NOVA.ink, "--nova-rail": NOVA.rail, "--nova-rail-elevated": NOVA.railElevated,
       "--nova-paper": NOVA.paper, "--nova-card": NOVA.card, "--nova-muted": NOVA.muted,
@@ -1466,7 +1466,14 @@ export default function App() {
       "--nova-shadow-md": NOVA.shadowMd, "--nova-brand": NOVA.gradBrand,
     }}>
       <GlobalRail products={availableProducts} active={product} onSelect={goProduct} onOpenPalette={() => setPaletteOpen(true)} />
-      <div className="shrink-0">
+      {/* ヘッダー固定表示化(2026-08-16)。sticky top-0だけでは効かなかった原因: ルートdivに
+          overflow-x-hidden（lg未満でも常時適用）があると、CSS仕様上overflow-yがvisibleのまま
+          だと自動的にauto扱いへ格上げされ、ルートdiv自身が「スクロールコンテナ」になる。
+          ルートは高さ制限(min-h-screenのみ)が無いため実際にはページ側がスクロールするが、
+          sticky要素はこの（動かない）ルートdivを基準にしてしまい、画面スクロールに追従しなくなる。
+          対処: overflow-x-hiddenをlg以上限定にし（横スクロール防止はfeeps-shell-body側の
+          overflow-x-hiddenで別途担保済み）、ルートdivがlg未満でスクロールコンテナ化しないようにした。 */}
+      <div className="sticky top-0 z-10 shrink-0">
         {isViewingAsOther && (
           <div className="flex w-full flex-wrap items-center justify-center gap-x-2 gap-y-0.5 px-3 py-1.5 text-center text-xs font-semibold" style={{ background: T.warningSubtle, color: T.warning, borderBottom: `1px solid ${T.warning}40` }}>
             <span>{me.label}ビューで表示確認中です（表示確認用ビュー・データはご自身の管理者アカウントのものです）</span>
@@ -1474,7 +1481,7 @@ export default function App() {
           </div>
         )}
         {/* モバイル: 下部タブを使わず、Productと画面を同じドロワーで切り替える。 */}
-        <div className="feeps-mobile-topbar flex w-full max-w-full items-center gap-2 px-3 lg:hidden">
+        <div className="feeps-mobile-topbar flex w-full max-w-full items-center gap-2 overflow-x-hidden px-3 lg:hidden">
           <button ref={drawerTriggerRef} type="button" onClick={() => setDrawerOpen(true)} aria-label="ナビゲーションを開く" aria-expanded={drawerOpen} className="feeps-icon-button"><Menu size={20} /></button>
           <button type="button" onClick={() => goProduct("home")} aria-label="Feeps One Homeへ戻る" className="flex min-w-0 items-center gap-2 rounded-xl p-1">
             <BrandMark size={32} />

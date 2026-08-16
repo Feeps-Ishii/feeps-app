@@ -157,7 +157,8 @@ export function TrainingHomeHero({ kicker, title, description, gradient, actions
       <div className="min-w-[230px] flex-1">
         {kicker && <p className="text-[11.5px] font-semibold" style={{ opacity: .82 }}>{kicker}</p>}
         <h1 className="mt-1 text-xl font-bold leading-tight sm:text-[22px]" style={{ letterSpacing: "-0.01em" }}>{title}</h1>
-        {description && <p className="mt-1.5 max-w-[54ch] text-sm font-medium leading-6" style={{ opacity: .9 }}>{description}</p>}
+        {/* ch単位は半角基準のため全角(日本語)文には狭すぎ、単語途中で不自然に折り返る。px基準へ変更 */}
+        {description && <p className="mt-1.5 max-w-[44rem] text-sm font-medium leading-6" style={{ opacity: .9 }}>{description}</p>}
         {actions && <div className="mt-4 flex flex-wrap gap-2">{actions}</div>}
       </div>
       {illustration && <div className="hidden shrink-0 md:block" aria-hidden="true">{illustration}</div>}

@@ -515,6 +515,23 @@ function GoalsView({ role, done, taskSaveState, toggle, goals, setGoals, go, goP
     <div>
       <SectionHead title="目標とタスク" desc="長期目標、小目標、今日やることを分けて確認します。Eラーニングとは別に、成長履歴とスキルシートへつなげます。" action={taskSaveState && <span className="text-xs font-semibold" aria-live="polite" style={{ color: taskSaveState === "error" ? T.danger : taskSaveState === "saved" ? T.success : T.textMuted }}>{taskSaveState === "saving" ? "保存中…" : taskSaveState === "saved" ? "保存しました" : "保存に失敗したため元に戻しました"}</span>} />
 
+      <Card className="mb-6 p-5">
+        <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
+          <div><h3 className="font-bold" style={{ color: T.textPrimary }}>今日のタスク</h3><p className="text-xs" style={{ color: T.textMuted }}>日報の今日の目標リストを、今日やる具体的な行動として表示します。</p></div>
+          {reportLoading ? <Badge tone="muted">読み込み中</Badge> : <Badge tone={todayTasks.length ? "cyan" : "muted"}>{todayTasks.length ? completedTodayTasks + "/" + todayTasks.length + " 完了" : "未設定"}</Badge>}
+        </div>
+        {todayTasks.length ? <div className="space-y-2">{todayTasks.map(item => (
+          <div key={item.id || item.text} className="flex items-center gap-3 rounded-xl px-3 py-2.5" style={{ background: item.done ? T.successSubtle : T.bgBase }}>
+            {item.done ? <CheckCircle2 size={18} style={{ color: T.success }} /> : <Circle size={18} style={{ color: T.textMuted }} />}
+            <span className="min-w-0 flex-1 text-sm" style={{ color: item.done ? T.textMuted : T.textPrimary, textDecoration: item.done ? "line-through" : "none" }}>{item.text || "タスク未入力"}</span>
+          </div>
+        ))}</div> : <div className="rounded-xl p-4 text-sm" style={adminPanelStyle}>今日のタスクは未設定です。日報で今日の目標を追加するとここに表示されます。</div>}
+        <div className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-xl p-3" style={{ background: T.accentSubtle }}>
+          <p className="text-xs leading-relaxed" style={{ color: T.textMuted }}>今後、達成した小目標や今日のタスクは成長履歴に反映し、スキルシートで説明できる材料として整理していきます。</p>
+          <div className="flex gap-2"><Btn size="sm" kind="ghost" icon={NotebookPen} onClick={() => go && go("reports")}>日報へ</Btn><Btn size="sm" icon={GitBranch} onClick={() => { goProduct?.("talent"); goSub?.("tl_growth"); }}>成長履歴へ</Btn></div>
+        </div>
+      </Card>
+
       <div className="mb-6 grid gap-4 lg:grid-cols-3">
         <Card className="p-5 lg:col-span-2">
           <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
@@ -611,23 +628,6 @@ function GoalsView({ role, done, taskSaveState, toggle, goals, setGoals, go, goP
             </div>
           );
         })}</div> : <div className="rounded-xl p-4 text-sm" style={adminPanelStyle}>目標データ未設定です。</div>}
-      </Card>
-
-      <Card className="p-5">
-        <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
-          <div><h3 className="font-bold" style={{ color: T.textPrimary }}>今日のタスク</h3><p className="text-xs" style={{ color: T.textMuted }}>日報の今日の目標リストを、今日やる具体的な行動として表示します。</p></div>
-          {reportLoading ? <Badge tone="muted">読み込み中</Badge> : <Badge tone={todayTasks.length ? "cyan" : "muted"}>{todayTasks.length ? completedTodayTasks + "/" + todayTasks.length + " 完了" : "未設定"}</Badge>}
-        </div>
-        {todayTasks.length ? <div className="space-y-2">{todayTasks.map(item => (
-          <div key={item.id || item.text} className="flex items-center gap-3 rounded-xl px-3 py-2.5" style={{ background: item.done ? T.successSubtle : T.bgBase }}>
-            {item.done ? <CheckCircle2 size={18} style={{ color: T.success }} /> : <Circle size={18} style={{ color: T.textMuted }} />}
-            <span className="min-w-0 flex-1 text-sm" style={{ color: item.done ? T.textMuted : T.textPrimary, textDecoration: item.done ? "line-through" : "none" }}>{item.text || "タスク未入力"}</span>
-          </div>
-        ))}</div> : <div className="rounded-xl p-4 text-sm" style={adminPanelStyle}>今日のタスクは未設定です。日報で今日の目標を追加するとここに表示されます。</div>}
-        <div className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-xl p-3" style={{ background: T.accentSubtle }}>
-          <p className="text-xs leading-relaxed" style={{ color: T.textMuted }}>今後、達成した小目標や今日のタスクは成長履歴に反映し、スキルシートで説明できる材料として整理していきます。</p>
-          <div className="flex gap-2"><Btn size="sm" kind="ghost" icon={NotebookPen} onClick={() => go && go("reports")}>日報へ</Btn><Btn size="sm" icon={GitBranch} onClick={() => { goProduct?.("talent"); goSub?.("tl_growth"); }}>成長履歴へ</Btn></div>
-        </div>
       </Card>
     </div>
   );
