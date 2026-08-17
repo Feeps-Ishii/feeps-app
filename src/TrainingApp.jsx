@@ -735,12 +735,14 @@ function PlanComparisonView({ role, learningPlan }) {
             : "研修管理者・管理者はプランによる利用制限の対象外です。"}
         </p>
       </div>
-      <div className="grid gap-3 sm:grid-cols-3">
+      <div className="grid gap-3 pt-3 sm:grid-cols-3">
         {PLAN_ORDER.map(key => {
           const isCurrent = applicable && learningPlan === key;
           return (
-            <Card key={key} className="p-4" style={isCurrent ? { border: `2px solid ${pa.accent}` } : undefined}>
-              {isCurrent && <Badge tone="cyan" className="mb-2">現在のプラン</Badge>}
+            <Card key={key} className="relative p-4" style={isCurrent ? { border: `2px solid ${pa.accent}` } : undefined}>
+              {isCurrent && (
+                <span className="absolute -top-3 left-4 rounded-full px-2.5 py-0.5 text-xs font-bold text-white" style={{ background: pa.accent }}>現在のプラン</span>
+              )}
               <div className="text-base font-bold" style={{ color: T.textPrimary }}>{PLAN_LABEL[key]}</div>
               <div className="mt-3 space-y-0" style={{ borderTop: `1px solid ${T.border}` }}>
                 {PLAN_FEATURE_ROWS.map(row => (
