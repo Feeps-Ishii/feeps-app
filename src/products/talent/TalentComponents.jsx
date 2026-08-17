@@ -211,29 +211,38 @@ function TalentHome({ goSub, goProduct, role = "trainee", themeColor = PRODUCT_A
   const hasLearningMode = !contractMode || contractMode === "both" || contractMode === "learning";
 
   if (role !== "trainee") {
-    // 2026-08-17 他プロダクトと同じPageHeader+均等グリッドだった構成を、trainee向けに
-    // 作った白背景+アクセント枠のヒーロー container(TalentHomeIllustration流用)へ揃える。
-    // instructor/client/adminは自分のスキル実績ではなく受講生を横断して見る側のため、
-    // trainee側のような自分の件数チップ(研修スキル/資格・バッジ/制作実績)は意味を持たない
-    // （新規APIを増やしてまで揃える必要はないと判断）。状態を偽装した数字は出さず、
-    // 何ができる画面かを一文で示すタイトルのみにする。
+    // 2026-08-18 白背景+大きいイラストのヒーローは、チップ無し・説明1行だけの
+    // instructor/client/adminには内容量に対して大きすぎるという指摘を受けて、学習モード
+    // Home(LearningStatusHeader)と同じ「小アイコン+1行見出し+説明+インラインCTA」の
+    // 薄いバナーへ縮小。カードも1枚しかないため3列グリッドで空きを作らず全幅で見せる。
+    const talentPa = PRODUCT_ACCENT.talent;
+    const mainCard = cfg.cards[0];
     return (
       <div>
-        <div className="mb-5 flex flex-wrap items-center gap-4 rounded-[13px] p-5" style={{ background: "#fff", border: `2px solid ${PRODUCT_ACCENT.talent.accent}` }}>
-          <div className="min-w-[250px] flex-1">
-            <div className="text-[11px] font-semibold" style={{ color: PRODUCT_ACCENT.talent.deep, letterSpacing: ".05em" }}>スキル・成長</div>
-            <h3 className="mt-1 text-lg font-semibold" style={{ color: T.textPrimary }}>受講生のスキル・成長を確認できます</h3>
-            <p className="mt-1 max-w-[38rem] text-xs" style={{ color: T.textMuted }}>{cfg.desc}</p>
-            <Btn className="mt-3" style={{ background: PRODUCT_ACCENT.talent.accent, color: "#fff" }} onClick={() => goSub(cfg.cards[0]?.key || "tl_sheet")}>{cfg.cards[0]?.label || "開く"}</Btn>
+        <div className="mb-4 flex flex-wrap items-center gap-3 rounded-[14px] px-5 py-3.5" style={{ background: `${talentPa.accent}0f`, border: `1px solid ${talentPa.accent}2e` }}>
+          <svg width="34" height="34" viewBox="0 0 34 34" aria-hidden="true" className="shrink-0">
+            <rect width="34" height="34" rx="9" fill={talentPa.accent} opacity=".15" />
+            <path d="M17 10v14M10 17h14" stroke={talentPa.deep} strokeWidth="2.4" strokeLinecap="round" />
+          </svg>
+          <div className="min-w-0 flex-1">
+            <h3 className="text-sm font-bold" style={{ color: T.textPrimary }}>受講生のスキル・成長を確認できます</h3>
+            <p className="text-xs" style={{ color: T.textMuted }}>{cfg.desc}</p>
           </div>
-          <div className="hidden shrink-0 md:block" aria-hidden="true"><TalentHomeIllustration /></div>
+          <Btn size="sm" style={{ background: talentPa.accent, color: "#fff" }} onClick={() => goSub(mainCard?.key || "tl_sheet")}>{mainCard?.label || "開く"}</Btn>
         </div>
-        <div className="grid gap-4 md:grid-cols-3">
-          {cfg.cards.map(({ key, icon, label, desc }, i) => (
-            <ProductNavCard key={key} product="talent" icon={icon} title={label} desc={desc}
-              onClick={() => goSub(key)} highlight={key === "tl_sheet"} badge={key === "tl_sheet" ? "よく使う" : undefined} delay={200 + i * 40} />
-          ))}
-        </div>
+        {cfg.cards.length > 1 ? (
+          <div className="grid gap-4 md:grid-cols-3">
+            {cfg.cards.map(({ key, icon, label, desc }, i) => (
+              <ProductNavCard key={key} product="talent" icon={icon} title={label} desc={desc}
+                onClick={() => goSub(key)} highlight={key === "tl_sheet"} badge={key === "tl_sheet" ? "よく使う" : undefined} delay={200 + i * 40} />
+            ))}
+          </div>
+        ) : mainCard && (
+          <div className="max-w-md">
+            <ProductNavCard product="talent" icon={mainCard.icon} title={mainCard.label} desc={mainCard.desc}
+              onClick={() => goSub(mainCard.key)} highlight badge="よく使う" delay={200} />
+          </div>
+        )}
         {role === "client" && (
           <ELearningCrossBanner
             hasLearningMode={hasLearningMode}
