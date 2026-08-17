@@ -45,39 +45,27 @@ function AdminHome({ go, goProduct, openRisk }) {
   const [companies, setCompanies] = useState([]);
   const [courses, setCourses] = useState([]);
   const [users, setUsers] = useState([]);
-  const [dash, setDash] = useState(null);
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState("");
   useEffect(() => {
     let alive = true;
     setLoading(true); setErr("");
-    // 2026-08-15 研修管理Home刷新（モード分離Step2）: コースごとの受講生取得ループと
-    // 日付基準のreports/attendance raw取得を廃止し、集計済みの/dashboard/adminのみを使う。
-    Promise.all([apiGet("/companies"), apiGet("/courses"), apiGet("/admin/users"), apiGet("/dashboard/admin?date=" + todayStr()).catch(() => null)])
-      .then(([cs, crs, us, dashRes]) => {
+    // 2026-08-17 admin Homeの読み込み遅延対応: 全コース×全受講生の未解消異常を集計する
+    // /dashboard/adminは呼ばない（重い）。要フォロー受講生の確認は分析画面（openRisk）へ誘導し、
+    // そちらで/dashboard/adminを個別取得する。Homeはコース・企業・ユーザーの軽い一覧のみで構成する。
+    Promise.all([apiGet("/companies"), apiGet("/courses"), apiGet("/admin/users")])
+      .then(([cs, crs, us]) => {
         if (!alive) return;
         setCompanies(cs || []);
         setCourses(crs || []);
         setUsers(us || []);
-        setDash(dashRes);
       })
       .catch(e => alive && setErr("運用データの取得に失敗しました：" + (e?.message || e)))
       .finally(() => alive && setLoading(false));
     return () => { alive = false; };
   }, []);
-  const followUps = dash?.followUps || [];
-  // 取得失敗時は0名と偽装せずnull（確認できません）のまま表示する（unknown分離）。
-  const alertCount = dash ? (dash?.summary?.followUpStudents ?? followUps.length) : null;
-  const adminHeroTitle = !dash
-    ? "運営状況を確認できません"
-    : courses.length > 0
-      ? `${courses.length}コースが進行中${alertCount ? `、${alertCount}名に対応が必要です` : ""}`
-      : "登録されているコースがありません";
-  const adminHeroDescription = !dash
-    ? "最新の状況を取得できませんでした。時間をおいて再度お試しください。"
-    : alertCount
-      ? "要フォローの受講生が複数コースにまたがっている可能性があります。担当講師と共有してください。"
-      : "現在、特に確認が必要な研修はありません。";
+  const adminHeroTitle = courses.length > 0 ? `${courses.length}コースが運用中です` : "登録されているコースがありません";
+  const adminHeroDescription = courses.length > 0 ? "コースごとの出席・日報状況は分析画面で確認できます。" : "コースを作成すると、ここに運用状況が表示されます。";
   return (
     <PrismPage>
       <TrainingHomeHero
@@ -97,7 +85,7 @@ function AdminHome({ go, goProduct, openRisk }) {
       <div className="grid gap-3 sm:grid-cols-2">
         <TrainingHomePanel title="運営中のコース" meta={`コース${courses.length}件`}>
           {loading ? <SkeletonRows rows={2} /> : <>
-            <TrainingHomePanelRow icon={AlertCircle} tone={alertCount ? "bad" : "ok"} label="要フォローの受講生" sub="欠席・遅刻・日報未提出などが続く受講生です" actionLabel={alertCount != null ? `${alertCount}名` : "—"} onAction={openRisk || (() => go && go("users"))} />
+            <TrainingHomePanelRow icon={AlertCircle} tone="accent" label="要フォロー受講生の確認" sub="欠席・遅刻・日報未提出などが続く受講生をコースごとに確認できます" actionLabel="開く" onAction={openRisk || (() => go && go("users"))} />
             <TrainingHomePanelRow icon={BookOpen} tone="accent" label="コース・カリキュラム" sub="設定と研修運用" actionLabel="開く" onAction={() => go && go("courses")} />
           </>}
         </TrainingHomePanel>

@@ -24,4 +24,4 @@ export function emitNotificationRefresh() {
   try { window.dispatchEvent(new Event("feeps:notifications-refresh")); } catch (e) {}
 }
 
-export const navViewSet = role => new Set([...(NAV[role] || []).flatMap(g => g.items.map(([k]) => k)), "notifications", "profile", "terms", "privacy"]);
+export const navViewSet = role => new Set([...(NAV[role] || []).flatMap(g => g.items.map(([k]) => k)), "notifications", "profile", "plans", "terms", "privacy"]);

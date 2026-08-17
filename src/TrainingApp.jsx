@@ -576,7 +576,7 @@ function GlobalRail({ products, active, onSelect, onOpenPalette }) {
         })}
       </nav>
       <div className="feeps-global-actions">
-        <button type="button" onClick={onOpenPalette} aria-label="検索・移動・アクションを開く" title="検索・移動（⌘K）" className="feeps-global-link">
+        <button type="button" onClick={onOpenPalette} aria-label="検索・移動・アクションを開く" title="検索・移動" className="feeps-global-link">
           <Search size={20} /><span>検索</span>
         </button>
       </div>
@@ -694,7 +694,71 @@ function SideNav({ groups, view, karte, go, badges = {}, collapsed = false, pa =
     </div>
   );
 }
-function UserProfileView({ me, displayName, userProfile, onSaved, mfaAvailable = false }) {
+// プラン表示（ADR0014）。価格・課金単位は未定のため、機能比較のみを見せる（料金は出さない）。
+// instructor/adminは特定企業に属さずプラン概念の対象外のため、呼び出し側でrole=trainee/clientのみに絞る。
+const PLAN_LABEL = { basic: "Basic", standard: "Standard", premium: "Premium" };
+const PLAN_ORDER = ["basic", "standard", "premium"];
+const PLAN_FEATURE_ROWS = [
+  { label: "コース受講・理解度テスト", basic: "yes", standard: "yes", premium: "yes" },
+  { label: "開発演習（DevLab）", basic: "trial", standard: "yes", premium: "yes" },
+  { label: "案件参画体験", basic: "no", standard: "yes", premium: "yes" },
+  { label: "学習履歴・獲得スキル", basic: "yes", standard: "yes", premium: "yes" },
+  { label: "AI採点・フィードバック", basic: "no", standard: "yes", premium: "yes" },
+  { label: "案件管理", basic: "no", standard: "yes", premium: "yes" },
+  { label: "AIコース・問題生成", basic: "no", standard: "no", premium: "yes" },
+];
+function PlanBadge({ learningPlan, onClick }) {
+  const pa = PRODUCT_ACCENT.learning;
+  return (
+    <button type="button" onClick={onClick}
+      className="inline-flex min-w-0 shrink-0 items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-bold transition hover:opacity-80"
+      style={{ background: pa.subtle, color: pa.deep }} aria-label={`現在のプラン: ${PLAN_LABEL[learningPlan] || "—"}。プラン比較を見る`}>
+      <Sparkles size={13} /><span>{PLAN_LABEL[learningPlan] || "プラン"}</span>
+    </button>
+  );
+}
+function PlanComparisonView({ role, learningPlan }) {
+  const applicable = role === "trainee" || role === "client";
+  const pa = PRODUCT_ACCENT.learning;
+  const cellMark = kind => kind === "yes"
+    ? <span style={{ color: pa.accent, fontWeight: 700 }}>✓</span>
+    : kind === "trial"
+      ? <span style={{ color: T.warning, fontWeight: 700 }}>△</span>
+      : <span style={{ color: T.textMuted }}>—</span>;
+  return (
+    <div className="mx-auto max-w-3xl space-y-4">
+      <div>
+        <h2 className="text-lg font-bold" style={{ color: T.textPrimary }}>学習モードのプラン</h2>
+        <p className="mt-1 text-sm" style={{ color: T.textMuted }}>
+          {applicable
+            ? `現在のプランは ${PLAN_LABEL[learningPlan] || "—"} です。価格・お申し込みについては担当までご連絡ください。`
+            : "研修管理者・管理者はプランによる利用制限の対象外です。"}
+        </p>
+      </div>
+      <div className="grid gap-3 sm:grid-cols-3">
+        {PLAN_ORDER.map(key => {
+          const isCurrent = applicable && learningPlan === key;
+          return (
+            <Card key={key} className="p-4" style={isCurrent ? { border: `2px solid ${pa.accent}` } : undefined}>
+              {isCurrent && <Badge tone="cyan" className="mb-2">現在のプラン</Badge>}
+              <div className="text-base font-bold" style={{ color: T.textPrimary }}>{PLAN_LABEL[key]}</div>
+              <div className="mt-3 space-y-0" style={{ borderTop: `1px solid ${T.border}` }}>
+                {PLAN_FEATURE_ROWS.map(row => (
+                  <div key={row.label} className="flex items-center justify-between gap-2 py-2 text-xs" style={{ borderBottom: `1px solid ${T.border}` }}>
+                    <span style={{ color: T.textSecondary }}>{row.label}</span>
+                    {cellMark(row[key])}
+                  </div>
+                ))}
+              </div>
+            </Card>
+          );
+        })}
+      </div>
+      <p className="text-xs" style={{ color: T.textMuted }}>△ 開発演習（DevLab）はBasicでも3問まで体験できます。価格・課金単位は現在検討中です。</p>
+    </div>
+  );
+}
+function UserProfileView({ me, displayName, userProfile, onSaved, mfaAvailable = false, onOpenPlans = null }) {
   const [name, setName] = useState(userProfile?.name || "");
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState("");
@@ -763,6 +827,17 @@ function UserProfileView({ me, displayName, userProfile, onSaved, mfaAvailable =
           {message && <div className="text-sm font-semibold" style={{ color: message.includes("失敗") || message.includes("入力してください") ? T.danger : T.success }}>{message}</div>}
         </div>
       </Card>
+      {userProfile?.learningPlan && (
+        <Card className="p-4">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <div className="text-xs font-bold uppercase tracking-widest" style={{ color: T.textMuted }}>学習モードのプラン</div>
+              <div className="mt-1 text-base font-bold" style={{ color: T.textPrimary }}>{PLAN_LABEL[userProfile.learningPlan] || "—"}</div>
+            </div>
+            <Btn size="sm" kind="ghost" onClick={onOpenPlans}>プラン比較を見る</Btn>
+          </div>
+        </Card>
+      )}
       {mfaAvailable && <MfaSettingsCard email={userProfile?.email || ""} />}
     </div>
   );
@@ -804,15 +879,9 @@ export default function App() {
   const [sidebarUserOpen, setSidebarUserOpen] = useState(false);
   const [notifOpen, setNotifOpen] = useState(false);
   const [helpGuideOpen, setHelpGuideOpen] = useState(false);
-  // コマンドパレット（⌘K／UIリデザインR2）。デスクトップ・モバイル双方から開閉できる。
+  // コマンドパレット（UIリデザインR2）。左レールの検索ボタンから開閉する
+  // （2026-08-17、デスクトップ横長バー・モバイル検索アイコン・⌘Kショートカットは撤去）。
   const [paletteOpen, setPaletteOpen] = useState(false);
-  useEffect(() => {
-    function onKey(e) {
-      if ((e.metaKey || e.ctrlKey) && (e.key === "k" || e.key === "K")) { e.preventDefault(); setPaletteOpen(v => !v); }
-    }
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, []);
   useEffect(() => {
     if (!drawerOpen) return undefined;
     const previousOverflow = document.body.style.overflow;
@@ -1089,6 +1158,7 @@ export default function App() {
   const viewTitle = karte ? "カルテ"
     : view === "notifications" ? "通知センター"
     : view === "profile" ? "プロフィール"
+    : view === "plans" ? "プラン"
     : view === "terms" ? "利用規約"
     : view === "privacy" ? "プライバシーポリシー"
     : (nav.flatMap(g => g.items).find(([k]) => k === activeView)?.[1] || "ホーム");
@@ -1301,7 +1371,8 @@ export default function App() {
     if (view === "risk") return <RiskBoard />;
     if (view === "awscosts") return <AwsCostDashboard />;
     if (view === "notifications") return <NotificationCenter notifications={notifications} loading={notifLoading} error={notifErr} role={role} go={go} goProduct={goProduct} goSub={goSub} />;
-    if (view === "profile") return <UserProfileView me={me} displayName={displayName} userProfile={userProfile} onSaved={setUserProfile} mfaAvailable={mfaAvailable} />;
+    if (view === "profile") return <UserProfileView me={me} displayName={displayName} userProfile={userProfile} onSaved={setUserProfile} mfaAvailable={mfaAvailable} onOpenPlans={() => go("plans")} />;
+    if (view === "plans") return <PlanComparisonView role={role} learningPlan={userProfile?.learningPlan} />;
     if (view === "terms") return <LegalPageView doc="terms" />;
     if (view === "privacy") return <LegalPageView doc="privacy" />;
     if (product === "training" && role === "admin" && ["home", "companies", "courses", "users"].includes(view)) return <AdminProduct view={view} go={go} goProduct={goProduct} goSub={goSub} />;
@@ -1492,7 +1563,6 @@ export default function App() {
           </button>
           <div className="ml-auto flex items-center gap-1">
             {modeSwitch}
-            <button type="button" onClick={() => setPaletteOpen(true)} aria-label="検索・移動・アクションを開く" className="feeps-icon-button"><Search size={18} /></button>
             <button type="button" onClick={() => setHelpGuideOpen(true)} aria-label="使い方を開く" title="使い方" className="feeps-icon-button"><HelpCircle size={18} /></button>
             {notifBellMobile}
           </div>
@@ -1504,9 +1574,9 @@ export default function App() {
             <div className="min-w-0"><div className="truncate text-[11px] font-semibold" style={{ color: T.textMuted }}>{isHomeProduct ? "すべての機能" : currentProduct.label}</div><div className="truncate text-sm font-bold">{isHomeProduct ? "総合ホーム" : viewTitle}</div></div>
           </div>
           {modeSwitch}
-          <button type="button" onClick={() => setPaletteOpen(true)} className="feeps-command-button min-w-0 max-w-[500px] flex-1" aria-label="検索・移動・アクションを開く">
-            <Search size={16} /><span>検索・移動・アクション</span><kbd>⌘K</kbd>
-          </button>
+          {(role === "trainee" || role === "client") && userProfile?.learningPlan && (
+            <PlanBadge learningPlan={userProfile.learningPlan} onClick={() => { goProduct("training"); go("plans"); }} />
+          )}
           <div className="ml-auto flex min-w-0 shrink-0 items-center justify-end gap-1.5">
             {role === "instructor" && !isHomeProduct && <QuickAdd onPick={go} />}
             <button type="button" onClick={() => setHelpGuideOpen(true)} aria-label="使い方を開く" title="使い方" className="feeps-icon-button"><HelpCircle size={18} /></button>
