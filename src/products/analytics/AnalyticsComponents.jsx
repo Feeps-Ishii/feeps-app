@@ -1,14 +1,34 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import {
   Activity, AlertCircle, ChevronRight, Download,
   Receipt, ShieldCheck, Sparkles, Upload
 } from "lucide-react";
 import { ANALYTICS_HOME_CARDS, RISK_SIG_LABEL, AWS_RESOURCE_INVENTORY, AWS_RESOURCE_INVENTORY_DATE } from "./AnalyticsCatalog.js";
 import { useAwsCosts, useMonthlyReport, useRiskAnalysis } from "./useAnalytics.js";
-import { Card, Badge, Btn, Avatar, Stat, SectionHead, PageHeader, ProductNavCard, SkeletonRows, MonthPicker, T, EmptyState as CommonEmptyState } from "../../components/common";
+import { apiGet } from "../../api.js";
+import { Card, Badge, Btn, Avatar, Stat, SectionHead, PageHeader, ProductNavCard, SkeletonRows, MonthPicker, T, PRODUCT_ACCENT, EmptyState as CommonEmptyState } from "../../components/common";
 
 const GRAD = `linear-gradient(135deg, ${T.accent} 0%, #5B8CFF 100%)`;
 const adminPanelStyle = { background: T.bgBase, color: T.textMuted };
+
+// 2026-08-17 他プロダクト(案件管理・助成金管理)との見た目差別化。棒グラフ+トレンド線の
+// イラストで、PageHeaderの既定デコレーション(同心円)を上書きする。
+function AnalyticsHomeIllustration() {
+  const accent = PRODUCT_ACCENT.analytics.accent;
+  const deep = PRODUCT_ACCENT.analytics.deep;
+  return (
+    <svg width="170" height="120" viewBox="0 0 170 120" fill="none" aria-hidden="true">
+      <rect x="20" y="70" width="18" height="30" rx="3" fill={accent} opacity=".25" />
+      <rect x="46" y="54" width="18" height="46" rx="3" fill={accent} opacity=".4" />
+      <rect x="72" y="38" width="18" height="62" rx="3" fill={accent} opacity=".6" />
+      <rect x="98" y="24" width="18" height="76" rx="3" fill={deep} />
+      <path d="M20 66 L55 48 L81 32 L107 18" stroke={deep} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" fill="none" opacity=".7" />
+      <circle cx="107" cy="18" r="4" fill={deep} />
+      <circle cx="140" cy="30" r="18" fill={accent} opacity=".12" />
+      <path d="M132 30l5 5 9-10" stroke={deep} strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" fill="none" />
+    </svg>
+  );
+}
 
 function Bar({ value, tone = "cyan" }) {
   const t = { cyan: T.accent, green: T.success, amber: T.warning };
@@ -49,6 +69,17 @@ const moneyFmt4 = (n) => `$${n.toFixed(4)}`;
 const countFmt = (n) => `${n}`;
 
 export function AnalyticsHome({ goSub, themeColor = T.danger }) {
+  // 2026-08-17 他Homeと同じ「重いdashboard集計は呼ばない」方針を踏襲しつつ、分析らしい
+  // KPI表示にするため、既にAdminHome等でも使っている軽量な/companies・/coursesのみ追加取得。
+  const [companyCount, setCompanyCount] = useState(null);
+  const [courseCount, setCourseCount] = useState(null);
+  useEffect(() => {
+    let alive = true;
+    Promise.all([apiGet("/companies"), apiGet("/courses")])
+      .then(([cs, crs]) => { if (alive) { setCompanyCount((cs || []).length); setCourseCount((crs || []).length); } })
+      .catch(() => { if (alive) { setCompanyCount(null); setCourseCount(null); } });
+    return () => { alive = false; };
+  }, []);
   return (
     <div>
       <PageHeader
@@ -56,6 +87,11 @@ export function AnalyticsHome({ goSub, themeColor = T.danger }) {
         label="分析・レポート"
         title="分析・レポートを確認できます"
         description="AWS利用料金・月次レポート・リスク分析を一元管理します。研修の運用状況を数値で把握できます。"
+        chips={[
+          { label: "運用中の企業", value: companyCount ?? 0, unit: "社" },
+          { label: "運用中のコース", value: courseCount ?? 0, unit: "件" },
+        ]}
+        illustration={<AnalyticsHomeIllustration />}
       />
       <div className="grid gap-4 md:grid-cols-3">
         {ANALYTICS_HOME_CARDS.map(({ key, icon, label, desc }, i) => (

@@ -19,10 +19,29 @@ import {
 import { computeGrantStages, computeNextActions } from "./grantStages.js";
 import {
   Avatar, Badge, Btn, Card, EmptyState, Field, fieldStyle, Modal, PageHeader, PrismErrorRetryCard,
-  ProductNavCard, SectionHead, SkeletonRows, T, TraineeBulkImportPanel,
+  ProductNavCard, SectionHead, SkeletonRows, T, TraineeBulkImportPanel, PRODUCT_ACCENT,
 } from "../../components/common";
 
 const LIST_PAGE_SIZE = 10;
+
+// 2026-08-17 他プロダクト(案件管理・分析)との見た目差別化。計画→実施→支給の3段階を
+// 表すステージトラッカー風イラストで、PageHeaderの既定デコレーション(同心円)を上書きする。
+function GrantsHomeIllustration() {
+  const accent = PRODUCT_ACCENT.grants.accent;
+  const deep = PRODUCT_ACCENT.grants.deep;
+  return (
+    <svg width="170" height="120" viewBox="0 0 170 120" fill="none" aria-hidden="true">
+      <path d="M22 60 H148" stroke={accent} strokeWidth="2" opacity=".3" />
+      <circle cx="22" cy="60" r="15" fill={deep} />
+      <path d="M15 60l4.5 4.5L29 55" stroke="#fff" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" fill="none" />
+      <circle cx="85" cy="60" r="15" fill="#fff" stroke={accent} strokeWidth="2" />
+      <rect x="78" y="53" width="14" height="14" rx="2" fill={accent} opacity=".35" />
+      <circle cx="148" cy="60" r="15" fill="#fff" stroke={accent} strokeWidth="2" />
+      <path d="M141 60h14M148 53v14" stroke={accent} strokeWidth="2" strokeLinecap="round" opacity=".55" />
+      <path d="M138 44l3 6 6 1-4.5 4.5 1 6-5.5-3-5.5 3 1-6-4.5-4.5 6-1z" fill={accent} opacity=".5" />
+    </svg>
+  );
+}
 
 // ---- 一覧共通ヘルパー（既存Product一覧と同じToolbar/ページングパターンをProduct内で複製） ----
 function pageSlice(rows, page, size = LIST_PAGE_SIZE) {
@@ -180,6 +199,7 @@ export function GrantsHome({ goSub, role = "client", themeColor = "#C9A227" }) {
           { label: "進行中の申請", value: gLoading ? 0 : pendingCount, unit: "件" },
           { label: "今後の予約", value: rLoading ? 0 : upcomingCount, unit: "件" },
         ]}
+        illustration={<GrantsHomeIllustration />}
         cta={{ label: "助成金申請を見る", icon: FileText, onClick: () => goSub("gr_list") }}
       />
       {gError && <PrismErrorRetryCard message={gError} onRetry={gReload} />}

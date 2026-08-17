@@ -211,10 +211,23 @@ function TalentHome({ goSub, goProduct, role = "trainee", themeColor = PRODUCT_A
   const hasLearningMode = !contractMode || contractMode === "both" || contractMode === "learning";
 
   if (role !== "trainee") {
+    // 2026-08-17 他プロダクトと同じPageHeader+均等グリッドだった構成を、trainee向けに
+    // 作った白背景+アクセント枠のヒーロー container(TalentHomeIllustration流用)へ揃える。
+    // instructor/client/adminは自分のスキル実績ではなく受講生を横断して見る側のため、
+    // trainee側のような自分の件数チップ(研修スキル/資格・バッジ/制作実績)は意味を持たない
+    // （新規APIを増やしてまで揃える必要はないと判断）。状態を偽装した数字は出さず、
+    // 何ができる画面かを一文で示すタイトルのみにする。
     return (
       <div>
-        <PageHeader product="talent" label="スキル・成長" title="スキル・成長" description={cfg.desc} chips={[]}
-          cta={{ label: cfg.cards[0]?.label || "開く", icon: Briefcase, onClick: () => goSub(cfg.cards[0]?.key || "tl_sheet") }} />
+        <div className="mb-5 flex flex-wrap items-center gap-4 rounded-[13px] p-5" style={{ background: "#fff", border: `2px solid ${PRODUCT_ACCENT.talent.accent}` }}>
+          <div className="min-w-[250px] flex-1">
+            <div className="text-[11px] font-semibold" style={{ color: PRODUCT_ACCENT.talent.deep, letterSpacing: ".05em" }}>スキル・成長</div>
+            <h3 className="mt-1 text-lg font-semibold" style={{ color: T.textPrimary }}>受講生のスキル・成長を確認できます</h3>
+            <p className="mt-1 max-w-[38rem] text-xs" style={{ color: T.textMuted }}>{cfg.desc}</p>
+            <Btn className="mt-3" style={{ background: PRODUCT_ACCENT.talent.accent, color: "#fff" }} onClick={() => goSub(cfg.cards[0]?.key || "tl_sheet")}>{cfg.cards[0]?.label || "開く"}</Btn>
+          </div>
+          <div className="hidden shrink-0 md:block" aria-hidden="true"><TalentHomeIllustration /></div>
+        </div>
         <div className="grid gap-4 md:grid-cols-3">
           {cfg.cards.map(({ key, icon, label, desc }, i) => (
             <ProductNavCard key={key} product="talent" icon={icon} title={label} desc={desc}
