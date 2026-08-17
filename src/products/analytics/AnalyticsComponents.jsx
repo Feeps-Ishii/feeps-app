@@ -54,7 +54,7 @@ export function AnalyticsHome({ goSub, themeColor = T.danger }) {
       <PageHeader
         product="analytics"
         label="分析・レポート"
-        title="育成の成果を、データで見る。"
+        title="分析・レポートを確認できます"
         description="AWS利用料金・月次レポート・リスク分析を一元管理します。研修の運用状況を数値で把握できます。"
       />
       <div className="grid gap-4 md:grid-cols-3">

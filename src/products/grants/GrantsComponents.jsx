@@ -148,6 +148,8 @@ export function GrantsHome({ goSub, role = "client", themeColor = "#C9A227" }) {
   const desc = role === "admin"
     ? "全社の助成金申請・提出書類・予約状況を確認できます。"
     : "自社の助成金申請・提出書類・予約状況を確認・管理します。";
+  // 2026-08-17 固定の名言調タイトルを廃止、進行中の申請件数を語る状態1文へ。
+  const title = gLoading ? "申請状況を確認しています" : pendingCount > 0 ? `${pendingCount}件の申請が進行中です` : "進行中の申請はありません";
 
   // 期限アラート・次アクションの要約カード用（コース日程はgr_home表示中の申請分のみ軽量取得）。
   const { coursesById, loading: coursesLoading, error: coursesError } = useGrantCoursesMap(activeGrants, isAdmin, !gLoading);
@@ -173,7 +175,7 @@ export function GrantsHome({ goSub, role = "client", themeColor = "#C9A227" }) {
 
   return (
     <div>
-      <PageHeader product="grants" label="助成金管理" title="助成金申請を、迷わず前へ。" description={desc}
+      <PageHeader product="grants" label="助成金管理" title={title} description={desc}
         chips={[
           { label: "進行中の申請", value: gLoading ? 0 : pendingCount, unit: "件" },
           { label: "今後の予約", value: rLoading ? 0 : upcomingCount, unit: "件" },

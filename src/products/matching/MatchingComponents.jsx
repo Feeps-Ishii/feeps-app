@@ -95,6 +95,14 @@ export function MatchingHome({ goSub, role = "admin", themeColor = "#D97706" }) 
   const desc = role === "client" ? "自社案件の登録から社員の候補選定、面談・参画までを一つの流れで管理します。"
     : role === "admin" ? "企業が所有する案件運用を、商流・単価・個別メモに立ち入らず監査します。"
     : "所属企業から案内された案件のうち、あなたのスキル・修了コースに合う候補と参画状況を確認します。";
+  // 2026-08-17 固定の名言調タイトルを廃止、現在の件数を語る状態1文へ（読み込み中は0件と混同しない）。
+  const projectCount = projects.filter(p => p.isDeleted !== true).length;
+  const recommendedCount = meData?.recommendedProjects?.length || 0;
+  const title = isAudit
+    ? (pLoading ? "監査対象の案件を確認しています" : projectCount > 0 ? `${projectCount}件の案件を監査中です` : "監査対象の案件がありません")
+    : role === "client"
+    ? (pLoading ? "案件情報を確認しています" : projectCount > 0 ? `${projectCount}件の案件を管理中です` : "登録されている案件がありません")
+    : (mLoading ? "案件候補を確認しています" : recommendedCount > 0 ? `${recommendedCount}件のおすすめ案件があります` : "現在、おすすめの案件はありません");
   const chips = isAudit
     ? [{ label: "監査対象案件", value: pLoading ? 0 : projects.filter(p => p.isDeleted !== true).length, unit: "件" },
        { label: "参画レコード", value: plLoading ? 0 : placements.length, unit: "件" }]
@@ -108,7 +116,7 @@ export function MatchingHome({ goSub, role = "admin", themeColor = "#D97706" }) 
       <PageHeader
         product="matching"
         label="案件管理"
-        title="スキルを、案件へつなげる。"
+        title={title}
         description={desc}
         chips={chips}
         cta={{ label: isAudit ? "案件監査を開く" : isManager ? "自社案件を開く" : "参画状況を見る", icon: Sparkles, onClick: () => goSub(isManager ? "mt_list" : "mt_placement") }}
