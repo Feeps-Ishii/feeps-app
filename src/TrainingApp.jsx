@@ -1037,11 +1037,16 @@ export default function App() {
   // （product/roleの既存の補正パターンと同じ場所に、mode条件を&&で足す増分実装）。
   useEffect(() => {
     const p = PRODUCTS.find(px => px.key === product);
-    const modeOk = !p || role === "instructor" || !p.modes || p.modes.length === 0 || p.modes.includes(viewMode);
+    // プロフィール・プラン比較・通知等のシェル共通画面は、product="training"を経由して表示する
+    // 実装上の都合であり、contractModeによるモード制限の対象ではない。学習モード中にこれらを
+    // 開くと、この直後のmodeOk判定が「training productは学習モードでは使えない」と誤検知して
+    // 即座に学習Homeへ差し戻してしまうため除外する（2026-08-17、プランバッジ導入時に発覚）。
+    const isShellView = product === "training" && ["profile", "plans", "notifications", "terms", "privacy"].includes(view);
+    const modeOk = !p || role === "instructor" || !p.modes || p.modes.length === 0 || p.modes.includes(viewMode) || isShellView;
     if (!p || !p.roles.includes(role) || !modeOk) {
       resetToModeLanding(viewMode);
     }
-  }, [product, role, viewMode]);
+  }, [product, role, viewMode, view]);
   useEffect(() => {
     const allowed = allowedViewModes({ role, contractMode: userProfile?.contractMode });
     if (!allowed.includes(viewMode)) {
@@ -1294,8 +1299,8 @@ export default function App() {
     }));
     return [
       ...productItems,
-      { key: "notif", label: "通知を開く", icon: Bell, grad: T.accent, action: () => { goProduct("training"); go("notifications"); } },
-      { key: "profile", label: "プロフィールを開く", icon: User, grad: T.accent, action: () => { goProduct("training"); go("profile"); } },
+      { key: "notif", label: "通知を開く", icon: Bell, grad: T.accent, action: () => go("notifications") },
+      { key: "profile", label: "プロフィールを開く", icon: User, grad: T.accent, action: () => go("profile") },
       { key: "logout", label: "ログアウト", icon: LogOut, grad: T.danger, action: logout },
     ];
   }, [role, viewMode]);
@@ -1358,6 +1363,16 @@ export default function App() {
   }
 
   const screen = (() => {
+    // シェル共通画面（通知・プロフィール・プラン比較・利用規約・プライバシー）は、
+    // productに関わらずviewだけで判定する。以前はproduct==="learning"等の分岐より後ろに
+    // あったため、学習モード中にこれらを開いても常に学習Homeへ吸われてしまっていた
+    // （2026-08-17、プランバッジ導入時に発覚。プロフィールボタンも同じ理由で従来から
+    // 学習モード中は開けなかった）。
+    if (view === "notifications") return <NotificationCenter notifications={notifications} loading={notifLoading} error={notifErr} role={role} go={go} goProduct={goProduct} goSub={goSub} />;
+    if (view === "profile") return <UserProfileView me={me} displayName={displayName} userProfile={userProfile} onSaved={setUserProfile} mfaAvailable={mfaAvailable} onOpenPlans={() => go("plans")} />;
+    if (view === "plans") return <PlanComparisonView role={role} learningPlan={userProfile?.learningPlan} />;
+    if (view === "terms") return <LegalPageView doc="terms" />;
+    if (view === "privacy") return <LegalPageView doc="privacy" />;
     // 総合ホーム廃止（モード分離Step1、2026-08-14）。"home"はPRODUCTSから除外済みのため
     // 到達不能。FeepsOneHome.jsx自体は削除せず、将来復活の入口として残してある。
     if (product === "home") return <FeepsOneHome role={role} displayName={displayName} products={filterProductsForRoleAndMode(PRODUCTS, { role, viewMode })} goProduct={goProduct} goTraining={go} goSub={goSub} />;
@@ -1370,11 +1385,6 @@ export default function App() {
     if (view === "placement") return <ProjectMatching role={role} mode="placement" />;
     if (view === "risk") return <RiskBoard />;
     if (view === "awscosts") return <AwsCostDashboard />;
-    if (view === "notifications") return <NotificationCenter notifications={notifications} loading={notifLoading} error={notifErr} role={role} go={go} goProduct={goProduct} goSub={goSub} />;
-    if (view === "profile") return <UserProfileView me={me} displayName={displayName} userProfile={userProfile} onSaved={setUserProfile} mfaAvailable={mfaAvailable} onOpenPlans={() => go("plans")} />;
-    if (view === "plans") return <PlanComparisonView role={role} learningPlan={userProfile?.learningPlan} />;
-    if (view === "terms") return <LegalPageView doc="terms" />;
-    if (view === "privacy") return <LegalPageView doc="privacy" />;
     if (product === "training" && role === "admin" && ["home", "companies", "courses", "users"].includes(view)) return <AdminProduct view={view} go={go} goProduct={goProduct} goSub={goSub} />;
     return <TrainingProduct
       key={`training-${trainingNavigationVersion}`}
@@ -1446,7 +1456,7 @@ export default function App() {
   );
   // Mobile navigates directly to the full notification center; desktop keeps the compact glass popover.
   const notifBellMobile = (
-    <button type="button" onClick={() => { goProduct("training"); go("notifications"); }} aria-label={notif > 0 ? `通知 ${notif}件` : "通知"}
+    <button type="button" onClick={() => go("notifications")} aria-label={notif > 0 ? `通知 ${notif}件` : "通知"}
       className="relative rounded-lg p-1.5 transition hover:bg-black/5">
       <Bell size={17} style={{ color: activeView === "notifications" ? T.accent : T.textSecondary }} />
       {notif > 0 && <span className="absolute -right-0.5 -top-0.5 flex h-4 min-w-[16px] items-center justify-center rounded-full px-1 text-[11px] font-bold text-white" style={{ background: T.danger }}>{notif}</span>}
@@ -1487,7 +1497,7 @@ export default function App() {
               );
             })}
           </div>
-          <button type="button" onClick={() => { setNotifOpen(false); goProduct("training"); go("notifications"); }}
+          <button type="button" onClick={() => { setNotifOpen(false); go("notifications"); }}
             className="block w-full px-4 py-2.5 text-center text-xs font-semibold transition hover:bg-black/[.03]"
             style={{ borderTop: `1px solid ${NOVA.line}`, color: T.accent }}>
             すべて表示
@@ -1499,7 +1509,7 @@ export default function App() {
   const userActionsTail = (
     <>
       <div className="hidden h-5 w-px sm:block" style={{ background: T.border }} />
-      <button type="button" onClick={() => { goProduct("training"); go("profile"); }}
+      <button type="button" onClick={() => go("profile")}
         className="flex shrink-0 items-center gap-2 rounded-lg px-2 py-1 transition hover:bg-black/5">
         <Avatar name={displayName} size={26} />
         <div className="hidden min-w-0 text-left sm:block">
@@ -1575,7 +1585,7 @@ export default function App() {
           </div>
           {modeSwitch}
           {(role === "trainee" || role === "client") && userProfile?.learningPlan && (
-            <PlanBadge learningPlan={userProfile.learningPlan} onClick={() => { goProduct("training"); go("plans"); }} />
+            <PlanBadge learningPlan={userProfile.learningPlan} onClick={() => go("plans")} />
           )}
           <div className="ml-auto flex min-w-0 shrink-0 items-center justify-end gap-1.5">
             {role === "instructor" && !isHomeProduct && <QuickAdd onPick={go} />}
@@ -1623,7 +1633,7 @@ export default function App() {
                 {sidebarUserOpen && (<>
                   <div className="fixed inset-0" style={{ zIndex: Z.dropdown - 1 }} onClick={() => setSidebarUserOpen(false)} />
                   <div className="absolute bottom-full left-0 mb-1 w-full min-w-[200px] rounded-xl py-1" style={{ zIndex: Z.dropdown, background: T.bgSurface, border: `1px solid ${T.border}`, boxShadow: NOVA.shadowMd }}>
-                    <button type="button" onClick={() => { setSidebarUserOpen(false); goProduct("training"); go("profile"); }} className="flex w-full items-center gap-2 px-3 py-2 text-xs font-semibold transition hover:bg-black/5" style={{ color: T.textSecondary }}>
+                    <button type="button" onClick={() => { setSidebarUserOpen(false); go("profile"); }} className="flex w-full items-center gap-2 px-3 py-2 text-xs font-semibold transition hover:bg-black/5" style={{ color: T.textSecondary }}>
                       <User size={13} />プロフィールを開く
                     </button>
                     <div className="my-1 h-px" style={{ background: T.border }} />
@@ -1636,10 +1646,10 @@ export default function App() {
                       </button>;
                     })}
                     <div className="my-1 h-px" style={{ background: T.border }} />
-                    <button type="button" onClick={() => { setSidebarUserOpen(false); goProduct("training"); go("terms"); }} className="flex w-full items-center gap-2 px-3 py-2 text-xs font-semibold transition hover:bg-black/5" style={{ color: T.textSecondary }}>
+                    <button type="button" onClick={() => { setSidebarUserOpen(false); go("terms"); }} className="flex w-full items-center gap-2 px-3 py-2 text-xs font-semibold transition hover:bg-black/5" style={{ color: T.textSecondary }}>
                       <FileText size={13} />利用規約
                     </button>
-                    <button type="button" onClick={() => { setSidebarUserOpen(false); goProduct("training"); go("privacy"); }} className="flex w-full items-center gap-2 px-3 py-2 text-xs font-semibold transition hover:bg-black/5" style={{ color: T.textSecondary }}>
+                    <button type="button" onClick={() => { setSidebarUserOpen(false); go("privacy"); }} className="flex w-full items-center gap-2 px-3 py-2 text-xs font-semibold transition hover:bg-black/5" style={{ color: T.textSecondary }}>
                       <Lock size={13} />プライバシーポリシー
                     </button>
                     <div className="my-1 h-px" style={{ background: T.border }} />
@@ -1676,10 +1686,10 @@ export default function App() {
                   {!isHomeProduct && <div className="mt-5"><div className="mb-2 px-2 text-[10px] font-bold uppercase tracking-[.12em]" style={{ color: T.textMuted }}>{currentProduct.label}</div><SideNav groups={nav} view={activeView} karte={karte} go={product === "training" ? go : goSub} badges={navBadges} pa={pa} /></div>}
                 </div>
                 <div className="p-3" style={{ borderTop: `1px solid ${T.border}` }}>
-                  <button type="button" onClick={() => { goProduct("training"); go("profile"); }} className="flex min-h-[50px] w-full items-center gap-3 rounded-xl px-2 text-left hover:bg-black/[.04]"><Avatar name={displayName} size={34} /><span className="min-w-0 flex-1"><span className="block truncate text-sm font-bold">{displayName}</span><span className="block truncate text-xs" style={{ color: T.textMuted }}>{me.label}</span></span><ChevronRight size={16} style={{ color: T.textMuted }} /></button>
+                  <button type="button" onClick={() => go("profile")} className="flex min-h-[50px] w-full items-center gap-3 rounded-xl px-2 text-left hover:bg-black/[.04]"><Avatar name={displayName} size={34} /><span className="min-w-0 flex-1"><span className="block truncate text-sm font-bold">{displayName}</span><span className="block truncate text-xs" style={{ color: T.textMuted }}>{me.label}</span></span><ChevronRight size={16} style={{ color: T.textMuted }} /></button>
                   <div className="mt-2 grid grid-cols-3 gap-2">
-                    <button type="button" onClick={() => { goProduct("training"); go("notifications"); }} className="feeps-mobile-action"><Bell size={17} /><span>通知</span></button>
-                    <button type="button" onClick={() => { goProduct("training"); go("terms"); }} className="feeps-mobile-action"><FileText size={17} /><span>規約</span></button>
+                    <button type="button" onClick={() => go("notifications")} className="feeps-mobile-action"><Bell size={17} /><span>通知</span></button>
+                    <button type="button" onClick={() => go("terms")} className="feeps-mobile-action"><FileText size={17} /><span>規約</span></button>
                     <button type="button" onClick={logout} className="feeps-mobile-action"><LogOut size={17} /><span>ログアウト</span></button>
                   </div>
                 </div>
@@ -1713,7 +1723,7 @@ export default function App() {
       )}
       {showMfaNotice && (
         <MfaSuggestionDialog
-          onOpenProfile={() => { dismissMfaNotice(); goProduct("training"); go("profile"); }}
+          onOpenProfile={() => { dismissMfaNotice(); go("profile"); }}
           onClose={dismissMfaNotice}
         />
       )}
