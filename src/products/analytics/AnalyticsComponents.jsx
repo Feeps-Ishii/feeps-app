@@ -1,32 +1,30 @@
 import React, { useEffect, useState } from "react";
 import {
-  Activity, AlertCircle, ChevronRight, Download,
+  Activity, AlertCircle, Building2, BookOpen, ChevronRight, Download,
   Receipt, ShieldCheck, Sparkles, Upload
 } from "lucide-react";
 import { ANALYTICS_HOME_CARDS, RISK_SIG_LABEL, AWS_RESOURCE_INVENTORY, AWS_RESOURCE_INVENTORY_DATE } from "./AnalyticsCatalog.js";
 import { useAwsCosts, useMonthlyReport, useRiskAnalysis } from "./useAnalytics.js";
 import { apiGet } from "../../api.js";
-import { Card, Badge, Btn, Avatar, Stat, SectionHead, PageHeader, ProductNavCard, SkeletonRows, MonthPicker, T, PRODUCT_ACCENT, EmptyState as CommonEmptyState } from "../../components/common";
+import { Card, Badge, Btn, Avatar, Stat, SectionHead, ProductNavCard, SkeletonRows, MonthPicker, T, PRODUCT_ACCENT, EmptyState as CommonEmptyState } from "../../components/common";
 
 const GRAD = `linear-gradient(135deg, ${T.accent} 0%, #5B8CFF 100%)`;
 const adminPanelStyle = { background: T.bgBase, color: T.textMuted };
 
-// 2026-08-17 他プロダクト(案件管理・助成金管理)との見た目差別化。棒グラフ+トレンド線の
-// イラストで、PageHeaderの既定デコレーション(同心円)を上書きする。
-function AnalyticsHomeIllustration() {
-  const accent = PRODUCT_ACCENT.analytics.accent;
-  const deep = PRODUCT_ACCENT.analytics.deep;
+// 2026-08-18 他プロダクト(学習・成長)と比べ見出し文字が大きすぎる、かつ案件管理・助成金管理と
+// 同じPageHeaderの型で見た目が揃いすぎるという指摘を受けて、PageHeaderをやめ分析専用の
+// 軽量ヒーローへ差し替える。イラストではなくKPIタイル(Stat)を主役にした「ミニダッシュボード」
+// の見た目にし、案件管理(アイコン+チップ)・助成金管理(ステージトラック)とは違う形にする。
+function AnalyticsHomeHero({ title, desc, companyCount, courseCount }) {
   return (
-    <svg width="170" height="120" viewBox="0 0 170 120" fill="none" aria-hidden="true">
-      <rect x="20" y="70" width="18" height="30" rx="3" fill={accent} opacity=".25" />
-      <rect x="46" y="54" width="18" height="46" rx="3" fill={accent} opacity=".4" />
-      <rect x="72" y="38" width="18" height="62" rx="3" fill={accent} opacity=".6" />
-      <rect x="98" y="24" width="18" height="76" rx="3" fill={deep} />
-      <path d="M20 66 L55 48 L81 32 L107 18" stroke={deep} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" fill="none" opacity=".7" />
-      <circle cx="107" cy="18" r="4" fill={deep} />
-      <circle cx="140" cy="30" r="18" fill={accent} opacity=".12" />
-      <path d="M132 30l5 5 9-10" stroke={deep} strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" fill="none" />
-    </svg>
+    <div className="mb-5">
+      <h3 className="text-base font-bold" style={{ color: T.textPrimary }}>{title}</h3>
+      <p className="mt-0.5 text-xs" style={{ color: T.textMuted }}>{desc}</p>
+      <div className="mt-3 grid grid-cols-2 gap-3 sm:max-w-md">
+        <Stat icon={Building2} label="運用中の企業" value={`${companyCount ?? 0}社`} tone="cyan" />
+        <Stat icon={BookOpen} label="運用中のコース" value={`${courseCount ?? 0}件`} tone="cyan" />
+      </div>
+    </div>
   );
 }
 
@@ -82,16 +80,11 @@ export function AnalyticsHome({ goSub, themeColor = T.danger }) {
   }, []);
   return (
     <div>
-      <PageHeader
-        product="analytics"
-        label="分析・レポート"
+      <AnalyticsHomeHero
         title="分析・レポートを確認できます"
-        description="AWS利用料金・月次レポート・リスク分析を一元管理します。研修の運用状況を数値で把握できます。"
-        chips={[
-          { label: "運用中の企業", value: companyCount ?? 0, unit: "社" },
-          { label: "運用中のコース", value: courseCount ?? 0, unit: "件" },
-        ]}
-        illustration={<AnalyticsHomeIllustration />}
+        desc="AWS利用料金・月次レポート・リスク分析を一元管理します。研修の運用状況を数値で把握できます。"
+        companyCount={companyCount}
+        courseCount={courseCount}
       />
       <div className="grid gap-4 md:grid-cols-3">
         {ANALYTICS_HOME_CARDS.map(({ key, icon, label, desc }, i) => (

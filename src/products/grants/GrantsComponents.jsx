@@ -18,28 +18,60 @@ import {
 } from "./useGrants.js";
 import { computeGrantStages, computeNextActions } from "./grantStages.js";
 import {
-  Avatar, Badge, Btn, Card, EmptyState, Field, fieldStyle, Modal, PageHeader, PrismErrorRetryCard,
+  Avatar, Badge, Btn, Card, EmptyState, Field, fieldStyle, Modal, PrismErrorRetryCard,
   ProductNavCard, SectionHead, SkeletonRows, T, TraineeBulkImportPanel, PRODUCT_ACCENT,
 } from "../../components/common";
 
 const LIST_PAGE_SIZE = 10;
 
-// 2026-08-17 他プロダクト(案件管理・分析)との見た目差別化。計画→実施→支給の3段階を
-// 表すステージトラッカー風イラストで、PageHeaderの既定デコレーション(同心円)を上書きする。
-function GrantsHomeIllustration() {
+// 2026-08-18 他プロダクト(学習・成長)と比べ見出し文字が大きすぎる、かつ案件管理・分析と
+// 同じPageHeaderの型で見た目が揃いすぎるという指摘を受けて、PageHeaderをやめ助成金管理
+// 専用の軽量ヒーローへ差し替える。計画→実施→支給の3段階トラッカーを主役にして、他の
+// バナー形式(案件管理=アイコン+チップ、分析=KPIタイル)とは違う「工程」らしい見た目にする。
+function GrantsStageTrack() {
   const accent = PRODUCT_ACCENT.grants.accent;
   const deep = PRODUCT_ACCENT.grants.deep;
+  const stages = [
+    { label: "計画", done: true },
+    { label: "実施", done: false },
+    { label: "支給", done: false },
+  ];
   return (
-    <svg width="170" height="120" viewBox="0 0 170 120" fill="none" aria-hidden="true">
-      <path d="M22 60 H148" stroke={accent} strokeWidth="2" opacity=".3" />
-      <circle cx="22" cy="60" r="15" fill={deep} />
-      <path d="M15 60l4.5 4.5L29 55" stroke="#fff" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" fill="none" />
-      <circle cx="85" cy="60" r="15" fill="#fff" stroke={accent} strokeWidth="2" />
-      <rect x="78" y="53" width="14" height="14" rx="2" fill={accent} opacity=".35" />
-      <circle cx="148" cy="60" r="15" fill="#fff" stroke={accent} strokeWidth="2" />
-      <path d="M141 60h14M148 53v14" stroke={accent} strokeWidth="2" strokeLinecap="round" opacity=".55" />
-      <path d="M138 44l3 6 6 1-4.5 4.5 1 6-5.5-3-5.5 3 1-6-4.5-4.5 6-1z" fill={accent} opacity=".5" />
-    </svg>
+    <div className="mt-3 flex items-center gap-2">
+      {stages.map((s, i) => (
+        <React.Fragment key={s.label}>
+          {i > 0 && <div className="h-px flex-1" style={{ background: `${accent}40` }} aria-hidden="true" />}
+          <div className="flex flex-col items-center gap-1">
+            <div className="flex h-6 w-6 items-center justify-center rounded-full text-[10px] font-bold" style={s.done ? { background: deep, color: "#fff" } : { background: "#fff", border: `1.5px solid ${accent}`, color: deep }}>
+              {s.done ? "✓" : i + 1}
+            </div>
+            <span className="text-[10px] font-semibold" style={{ color: deep }}>{s.label}</span>
+          </div>
+        </React.Fragment>
+      ))}
+    </div>
+  );
+}
+function GrantsHomeHero({ title, desc, chips = [], cta }) {
+  const pa = PRODUCT_ACCENT.grants;
+  return (
+    <div className="mb-5 rounded-[14px] p-4" style={{ background: `${pa.accent}0a`, border: `1px solid ${pa.accent}26` }}>
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="min-w-[220px]">
+          <h3 className="text-base font-bold" style={{ color: T.textPrimary }}>{title}</h3>
+          <p className="mt-0.5 text-xs" style={{ color: T.textMuted }}>{desc}</p>
+          <div className="mt-2 flex flex-wrap gap-2">
+            {chips.map(c => (
+              <span key={c.label} className="rounded-full px-2.5 py-1 text-[11px] font-semibold" style={{ background: "#fff", border: `1px solid ${pa.accent}33`, color: pa.deep }}>
+                {c.label} {c.value}{c.unit}
+              </span>
+            ))}
+          </div>
+        </div>
+        <Btn size="sm" style={{ background: pa.accent, color: "#fff" }} onClick={cta.onClick}>{cta.label}</Btn>
+      </div>
+      <GrantsStageTrack />
+    </div>
   );
 }
 
@@ -194,13 +226,12 @@ export function GrantsHome({ goSub, role = "client", themeColor = "#C9A227" }) {
 
   return (
     <div>
-      <PageHeader product="grants" label="助成金管理" title={title} description={desc}
+      <GrantsHomeHero title={title} desc={desc}
         chips={[
           { label: "進行中の申請", value: gLoading ? 0 : pendingCount, unit: "件" },
           { label: "今後の予約", value: rLoading ? 0 : upcomingCount, unit: "件" },
         ]}
-        illustration={<GrantsHomeIllustration />}
-        cta={{ label: "助成金申請を見る", icon: FileText, onClick: () => goSub("gr_list") }}
+        cta={{ label: "助成金申請を見る", onClick: () => goSub("gr_list") }}
       />
       {gError && <PrismErrorRetryCard message={gError} onRetry={gReload} />}
 

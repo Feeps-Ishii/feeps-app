@@ -13,7 +13,7 @@ import {
   projectToForm, useCompanies, useManagedTrainees, useMatchingMe, useMatchingPlacements,
   useMatchingProjects, useProjectCandidates,
 } from "./useMatching.js";
-import { Card, Badge, Btn, Avatar, Field, fieldStyle, SectionHead, PageHeader, ProductNavCard, Modal, Stat, T, EmptyState as CommonEmptyState, SkeletonRows, PRODUCT_ACCENT } from "../../components/common";
+import { Card, Badge, Btn, Avatar, Field, fieldStyle, SectionHead, ProductNavCard, Modal, Stat, T, EmptyState as CommonEmptyState, SkeletonRows, PRODUCT_ACCENT } from "../../components/common";
 
 const GRAD = `linear-gradient(135deg, ${T.accent} 0%, #5B8CFF 100%)`;
 const FOOTER = "Copyright © 2025 Feeps Inc. All Rights Reserved.";
@@ -84,26 +84,46 @@ function DeleteConfirm({ title, name, warning, busy, onClose, onConfirm }) {
   );
 }
 
-// 2026-08-17 他プロダクト(助成金管理・分析)との見た目差別化。候補者⇄案件のつながりを表す
-// イラストで、PageHeaderの既定デコレーション(同心円)を上書きする。
-function MatchingHomeIllustration() {
+// 2026-08-18 他プロダクト(学習・成長)と比べてPageHeaderの見出し文字が大きすぎる、かつ
+// 案件管理・助成金管理・分析が同じPageHeaderの型で見た目が揃いすぎるという指摘を受けて、
+// PageHeaderをやめ製品ごとに専用の軽量ヒーローへ差し替える。案件管理は「候補者⇄案件」の
+// 小さいアイコン+チップを横並びで見せるコンパクトバナー形式。
+function MatchingHomeIcon() {
   const accent = PRODUCT_ACCENT.matching.accent;
   const deep = PRODUCT_ACCENT.matching.deep;
   return (
-    <svg width="170" height="120" viewBox="0 0 170 120" fill="none" aria-hidden="true">
-      <rect x="8" y="30" width="56" height="60" rx="10" fill="#fff" stroke={accent} strokeWidth="2" />
-      <circle cx="36" cy="52" r="10" fill={accent} opacity=".18" />
-      <circle cx="36" cy="49" r="4.5" fill={deep} opacity=".65" />
-      <path d="M27 66c0-5.5 4-9.5 9-9.5s9 4 9 9.5" stroke={deep} strokeWidth="2" strokeLinecap="round" fill="none" opacity=".65" />
-      <path d="M68 58h34" stroke={accent} strokeWidth="2" strokeDasharray="4 4" strokeLinecap="round" />
-      <path d="M96 52l6 6-6 6" stroke={deep} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" fill="none" />
-      <rect x="106" y="24" width="56" height="66" rx="10" fill="#fff" stroke={accent} strokeWidth="2" />
-      <rect x="118" y="38" width="32" height="8" rx="2" fill={accent} opacity=".3" />
-      <rect x="118" y="52" width="32" height="6" rx="2" fill={accent} opacity=".2" />
-      <rect x="118" y="62" width="20" height="6" rx="2" fill={accent} opacity=".2" />
-      <circle cx="146" cy="78" r="9" fill={deep} opacity=".15" />
-      <path d="M142 78l3 3 5-6" stroke={deep} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" fill="none" />
+    <svg width="56" height="40" viewBox="0 0 56 40" fill="none" aria-hidden="true">
+      <rect x="2" y="6" width="20" height="26" rx="5" fill="#fff" stroke={accent} strokeWidth="1.6" />
+      <circle cx="12" cy="16" r="4" fill={accent} opacity=".2" />
+      <path d="M7.5 25c0-2.5 2-4.5 4.5-4.5s4.5 2 4.5 4.5" stroke={deep} strokeWidth="1.6" strokeLinecap="round" fill="none" opacity=".7" />
+      <path d="M24 18h8" stroke={accent} strokeWidth="1.6" strokeDasharray="3 3" strokeLinecap="round" />
+      <path d="M34 15l3 3-3 3" stroke={deep} strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" fill="none" />
+      <rect x="38" y="4" width="16" height="30" rx="5" fill="#fff" stroke={accent} strokeWidth="1.6" />
+      <rect x="42" y="12" width="8" height="3" rx="1" fill={accent} opacity=".35" />
+      <rect x="42" y="18" width="8" height="2.5" rx="1" fill={accent} opacity=".22" />
+      <circle cx="46" cy="27" r="4.5" fill={deep} opacity=".16" />
+      <path d="M43.8 27l1.5 1.5 2.7-3" stroke={deep} strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" fill="none" />
     </svg>
+  );
+}
+function MatchingHomeHero({ title, desc, chips, cta }) {
+  const pa = PRODUCT_ACCENT.matching;
+  return (
+    <div className="mb-5 flex flex-wrap items-center gap-4 rounded-[14px] p-4" style={{ background: `${pa.accent}0a`, border: `1px solid ${pa.accent}26` }}>
+      <div className="shrink-0" aria-hidden="true"><MatchingHomeIcon /></div>
+      <div className="min-w-[220px] flex-1">
+        <h3 className="text-base font-bold" style={{ color: T.textPrimary }}>{title}</h3>
+        <p className="mt-0.5 text-xs" style={{ color: T.textMuted }}>{desc}</p>
+        <div className="mt-2 flex flex-wrap gap-2">
+          {chips.map(c => (
+            <span key={c.label} className="rounded-full px-2.5 py-1 text-[11px] font-semibold" style={{ background: "#fff", border: `1px solid ${pa.accent}33`, color: pa.deep }}>
+              {c.label} {c.value}{c.unit}
+            </span>
+          ))}
+        </div>
+      </div>
+      <Btn size="sm" style={{ background: pa.accent, color: "#fff" }} onClick={cta.onClick}>{cta.label}</Btn>
+    </div>
   );
 }
 
@@ -136,14 +156,11 @@ export function MatchingHome({ goSub, role = "admin", themeColor = "#D97706" }) 
        { label: "参画中", value: mLoading ? 0 : (meData?.placements?.length || 0), unit: "件" }];
   return (
     <div>
-      <PageHeader
-        product="matching"
-        label="案件管理"
+      <MatchingHomeHero
         title={title}
-        description={desc}
+        desc={desc}
         chips={chips}
-        illustration={<MatchingHomeIllustration />}
-        cta={{ label: isAudit ? "案件監査を開く" : isManager ? "自社案件を開く" : "参画状況を見る", icon: Sparkles, onClick: () => goSub(isManager ? "mt_list" : "mt_placement") }}
+        cta={{ label: isAudit ? "案件監査を開く" : isManager ? "自社案件を開く" : "参画状況を見る", onClick: () => goSub(isManager ? "mt_list" : "mt_placement") }}
       />
       <div className="grid gap-4 md:grid-cols-3">
         {cards.map(({ key, icon, label, desc: d }, i) => (
