@@ -240,6 +240,86 @@ export function useDevLabAdminWorkspaceTemplates() {
   return { templates, loading, error, reload: load, create, update, remove, generate, busy, actionError, clearActionError: () => setActionError("") };
 }
 
+// ---- admin/instructor: チーム開発案件の管理（CRUD＋AI生成2段階） ----
+// docs/specs/dev-team-spec.md §5。生成は「題材＋出発点コード＋役割分担」と
+// 「AIメンバーの予定コミット列」の2回に分ける（1回で出すとLambda 29秒制約に対して危険なため）。
+export function useDevLabAdminTeamProjects() {
+  const [teamProjects, setTeamProjects] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+  const [actionError, setActionError] = useState("");
+  const [busy, setBusy] = useState(false);
+
+  const load = useCallback(() => {
+    setLoading(true); setError("");
+    return apiGet("/devlab/admin/team-projects")
+      .then(res => setTeamProjects(Array.isArray(res?.items) ? res.items : []))
+      .catch(e => setError(apiErrorMessage(e, "チーム開発案件を確認できません。")))
+      .finally(() => setLoading(false));
+  }, []);
+
+  useEffect(() => { load(); }, [load]);
+
+  async function create(payload) {
+    setBusy(true); setActionError("");
+    try {
+      const res = await apiPost("/devlab/admin/team-projects", payload);
+      await load();
+      return res?.teamProject || null;
+    } catch (e) {
+      setActionError(apiErrorMessage(e, "チーム開発案件の作成に失敗しました。"));
+      throw e;
+    } finally { setBusy(false); }
+  }
+
+  async function update(teamProjectId, payload) {
+    setBusy(true); setActionError("");
+    try {
+      const res = await apiPut(`/devlab/admin/team-projects/${encodeURIComponent(teamProjectId)}`, payload);
+      await load();
+      return res?.teamProject || null;
+    } catch (e) {
+      setActionError(apiErrorMessage(e, "チーム開発案件の更新に失敗しました。"));
+      throw e;
+    } finally { setBusy(false); }
+  }
+
+  async function remove(teamProjectId) {
+    setBusy(true); setActionError("");
+    try {
+      await apiDelete(`/devlab/admin/team-projects/${encodeURIComponent(teamProjectId)}`);
+      await load();
+    } catch (e) {
+      setActionError(apiErrorMessage(e, "チーム開発案件の削除に失敗しました。"));
+      throw e;
+    } finally { setBusy(false); }
+  }
+
+  async function generate(payload) {
+    setBusy(true); setActionError("");
+    try {
+      const res = await apiPost("/devlab/admin/team-projects/generate", payload);
+      return res?.draft || null;
+    } catch (e) {
+      setActionError(apiErrorMessage(e, "AI下書き生成に失敗しました。"));
+      throw e;
+    } finally { setBusy(false); }
+  }
+
+  async function generateAiCommits(payload) {
+    setBusy(true); setActionError("");
+    try {
+      const res = await apiPost("/devlab/admin/team-projects/generate-ai-commits", payload);
+      return Array.isArray(res?.aiMembers) ? res.aiMembers : [];
+    } catch (e) {
+      setActionError(apiErrorMessage(e, "AIメンバーの生成に失敗しました。"));
+      throw e;
+    } finally { setBusy(false); }
+  }
+
+  return { teamProjects, loading, error, reload: load, create, update, remove, generate, generateAiCommits, busy, actionError, clearActionError: () => setActionError("") };
+}
+
 // ---- admin/instructor: 提出状況閲覧＋手動上書き ----
 export function useDevLabSubmissions(projectId) {
   const [submissions, setSubmissions] = useState([]);

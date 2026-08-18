@@ -223,6 +223,98 @@ export function workspaceTemplateToForm(template) {
   };
 }
 
+// ===== チーム開発案件（2026-08-18新設、docs/specs/dev-team-spec.md） =====
+export function emptyTeamProjectForm() {
+  return {
+    title: "", clientName: "", description: "",
+    stack: "react", level: "beginner", entryHint: "",
+    baseFiles: [{ path: "", content: "" }],
+    roles: [{ roleId: "role_1", name: "", description: "", ownedPathsText: "" }],
+    aiMembers: [],
+    status: "draft",
+    visibilityScope: "all",
+    targetCompanyIds: [],
+  };
+}
+
+function rolesToForm(roles) {
+  const list = Array.isArray(roles) ? roles : [];
+  if (!list.length) return [{ roleId: "role_1", name: "", description: "", ownedPathsText: "" }];
+  return list.map((r, i) => ({
+    roleId: r.roleId || `role_${i + 1}`,
+    name: r.name || "",
+    description: r.description || "",
+    ownedPathsText: (r.ownedPaths || []).join("\n"),
+  }));
+}
+
+export function teamDraftToForm(draft) {
+  return {
+    title: draft.title || "",
+    clientName: draft.clientName || "",
+    description: draft.description || "",
+    stack: WORKSPACE_STACK_OPTIONS.some(o => o.value === draft.stack) ? draft.stack : "react",
+    level: draft.level || "beginner",
+    entryHint: draft.entryHint || "",
+    baseFiles: filesToList(draft.baseFiles),
+    roles: rolesToForm(draft.roles),
+    aiMembers: [],
+    status: "draft",
+    visibilityScope: "all",
+    targetCompanyIds: [],
+  };
+}
+
+export function teamProjectToForm(project) {
+  return {
+    title: project.title || "",
+    clientName: project.clientName || "",
+    description: project.description || "",
+    stack: WORKSPACE_STACK_OPTIONS.some(o => o.value === project.stack) ? project.stack : "react",
+    level: project.level || "beginner",
+    entryHint: project.entryHint || "",
+    baseFiles: filesToList(project.baseFiles),
+    roles: rolesToForm(project.roles),
+    aiMembers: Array.isArray(project.aiMembers) ? project.aiMembers : [],
+    status: project.status || "draft",
+    visibilityScope: project.visibilityScope || "all",
+    targetCompanyIds: project.targetCompanyIds || [],
+  };
+}
+
+export function teamFormToPayload(form) {
+  const baseFiles = {};
+  (form.baseFiles || []).forEach(f => {
+    const path = (f.path || "").trim();
+    if (path) baseFiles[path] = f.content || "";
+  });
+  return {
+    title: (form.title || "").trim(),
+    clientName: (form.clientName || "").trim(),
+    description: (form.description || "").trim(),
+    stack: form.stack,
+    level: form.level,
+    entryHint: (form.entryHint || "").trim(),
+    baseFiles,
+    roles: (form.roles || []).filter(r => (r.name || "").trim()).map((r, i) => ({
+      roleId: r.roleId || `role_${i + 1}`,
+      name: (r.name || "").trim(),
+      description: (r.description || "").trim(),
+      ownedPaths: (r.ownedPathsText || "").split("\n").map(s => s.trim()).filter(Boolean),
+    })),
+    aiMembers: form.aiMembers || [],
+    status: form.status,
+    visibilityScope: form.visibilityScope,
+    targetCompanyIds: form.targetCompanyIds,
+  };
+}
+
+// AI生成に渡す用（フォームの現在値から、生成APIが必要とする形へ）
+export function teamFormToGenerateInput(form) {
+  const payload = teamFormToPayload(form);
+  return { baseFiles: payload.baseFiles, roles: payload.roles };
+}
+
 export function workspaceFormToPayload(form) {
   const files = {};
   (form.files || []).forEach(f => {

@@ -1,6 +1,6 @@
 import React, { useMemo, useState } from "react";
 import {
-  Award, CheckCircle2, ClipboardList, Clock3, Code2, FolderTree, Link2, Loader2, Paperclip, Pencil, Plus, Sparkles, Trash2, XCircle, X,
+  Award, CheckCircle2, ClipboardList, Clock3, Code2, FolderTree, Link2, Loader2, Paperclip, Pencil, Plus, Sparkles, Trash2, Users, XCircle, X,
 } from "lucide-react";
 import {
   Badge, Btn, Card, EmptyState, Field, PageHeader, SectionHead, SkeletonRows, fieldStyle, T,
@@ -11,10 +11,12 @@ import {
   devLabStatusLabel, devLabStatusTone, devLabMyStatusLabel, devLabMyStatusTone, devLabWorkspaceStackLabel,
   EMPTY_DEVLAB_CHECK, emptyDevLabForm, draftToForm, formToPayload, projectToForm,
   WORKSPACE_STACK_OPTIONS, emptyWorkspaceTemplateForm, workspaceDraftToForm, workspaceTemplateToForm, workspaceFormToPayload,
+  emptyTeamProjectForm, teamDraftToForm, teamProjectToForm, teamFormToPayload, teamFormToGenerateInput,
 } from "./DevLabCatalog.js";
 import {
   useDevLabProjects, useDevLabMe, useDevLabActions, useDevLabAdmin, useDevLabSubmissions, useMySkillSheet,
   useDevLabWorkspaceTemplates, useDevLabLinkedWorkspaceOverlay, useDevLabAdminWorkspaceTemplates,
+  useDevLabAdminTeamProjects,
 } from "./useDevLab.js";
 
 // ===================== ホーム =====================
@@ -1011,6 +1013,321 @@ export function WorkspaceTemplateManager() {
                 <div className="flex shrink-0 gap-2">
                   <Btn kind="ghost" size="sm" icon={Pencil} onClick={() => startEdit(template)}>編集</Btn>
                   <Btn kind="ghost" size="sm" icon={Trash2} onClick={() => handleDelete(template)}>削除</Btn>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </Card>
+    </div>
+  );
+}
+
+// ===================== admin/instructor: チーム開発案件の管理 =====================
+// 2026-08-18新設（docs/specs/dev-team-spec.md）。WorkspaceTemplateManagerと同じ構成に、
+// 役割分担エディタとAIメンバーの生成結果表示を足したもの。AI生成は2段階
+// （①題材＋出発点コード＋役割分担 → ②AIメンバーの予定コミット列）。
+function RolesEditor({ roles, onChange }) {
+  function update(i, key, value) {
+    onChange(roles.map((r, idx) => (idx === i ? { ...r, [key]: value } : r)));
+  }
+  function add() { onChange([...roles, { roleId: `role_${roles.length + 1}`, name: "", description: "", ownedPathsText: "" }]); }
+  function remove(i) { onChange(roles.filter((_, idx) => idx !== i).map((r, idx) => ({ ...r, roleId: `role_${idx + 1}` }))); }
+  return (
+    <div className="space-y-2">
+      {roles.map((r, i) => (
+        <div key={i} className="rounded-xl border p-3" style={{ borderColor: T.border }}>
+          <div className="mb-2 flex items-center justify-between">
+            <span className="text-xs font-bold" style={{ color: T.textMuted }}>{r.roleId}</span>
+            {roles.length > 1 && <button type="button" onClick={() => remove(i)} aria-label="削除"><X size={14} style={{ color: T.textMuted }} /></button>}
+          </div>
+          <div className="space-y-2">
+            <input style={fieldStyle} placeholder="担当名（例: API担当）" value={r.name} onChange={e => update(i, "name", e.target.value)} />
+            <input style={fieldStyle} placeholder="担当の説明（例: バックエンドのAPIを実装します）" value={r.description} onChange={e => update(i, "description", e.target.value)} />
+            <textarea
+              style={{ ...fieldStyle, minHeight: 64, fontFamily: "monospace", fontSize: 12 }}
+              placeholder="担当ファイル（1行1パス）"
+              value={r.ownedPathsText}
+              onChange={e => update(i, "ownedPathsText", e.target.value)}
+            />
+          </div>
+        </div>
+      ))}
+      <Btn kind="ghost" size="sm" icon={Plus} onClick={add}>担当を追加</Btn>
+      <p className="text-xs" style={{ color: T.textMuted }}>
+        担当ファイルはほぼ重ならないように分け、共有ファイル（App等）だけ複数の担当に入れます。そこが自然にぶつかる箇所になります。
+      </p>
+    </div>
+  );
+}
+
+function AiMembersPanel({ aiMembers, generating, onGenerate, onClear }) {
+  return (
+    <div className="rounded-xl border p-3" style={{ borderColor: T.border }}>
+      <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+        <p className="text-xs" style={{ color: T.textMuted }}>
+          空席を埋めるAIメンバーが、担当範囲を順に進めていきます。受講生がpullしたときに1コミットずつ入ります。
+        </p>
+        <div className="flex shrink-0 gap-2">
+          {aiMembers.length > 0 && <Btn kind="ghost" size="sm" onClick={onClear}>クリア</Btn>}
+          <Btn kind="ai" size="sm" icon={generating ? Loader2 : Sparkles} disabled={generating} onClick={onGenerate}>
+            {generating ? "生成中…" : aiMembers.length ? "作り直す" : "AIメンバーを生成"}
+          </Btn>
+        </div>
+      </div>
+      {aiMembers.length === 0 ? (
+        <p className="text-xs" style={{ color: T.textMuted }}>まだ生成されていません。出発点コードと役割分担を先に用意してから生成してください。</p>
+      ) : (
+        <div className="space-y-2">
+          {aiMembers.map(m => (
+            <div key={m.memberId} className="rounded-lg p-2" style={{ background: T.bgBase }}>
+              <div className="text-xs font-bold" style={{ color: T.textPrimary }}>{m.name}<span className="ml-1.5 font-normal" style={{ color: T.textMuted }}>{m.roleId}</span></div>
+              <ul className="mt-1 space-y-0.5">
+                {(m.commits || []).map((c, i) => (
+                  <li key={i} className="text-[11px]" style={{ color: T.textSecondary }}>
+                    {i + 1}. {c.message}
+                    <span className="ml-1" style={{ color: T.textMuted }}>（{Object.keys(c.changes || {}).join(", ") || "変更なし"}）</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function TeamProjectForm({ mode, role, form, onChange, onSave, onCancel, onGenerate, onGenerateAiCommits, busy, actionError, companies, companiesError }) {
+  const [genTheme, setGenTheme] = useState("");
+  const [genStack, setGenStack] = useState("react");
+  const [genLevel, setGenLevel] = useState("beginner");
+  const [genMemberCount, setGenMemberCount] = useState(3);
+  const [generating, setGenerating] = useState(false);
+  const [generatingAi, setGeneratingAi] = useState(false);
+  const [genError, setGenError] = useState("");
+  const isAdmin = role === "admin";
+
+  function set(key, value) { onChange({ ...form, [key]: value }); }
+
+  function toggleTargetCompany(companyId) {
+    const current = Array.isArray(form.targetCompanyIds) ? form.targetCompanyIds : [];
+    const next = current.includes(companyId) ? current.filter(id => id !== companyId) : [...current, companyId];
+    set("targetCompanyIds", next);
+  }
+
+  async function handleGenerate() {
+    if (!genTheme.trim()) { setGenError("テーマを入力してください。"); return; }
+    setGenerating(true); setGenError("");
+    try {
+      const draft = await onGenerate({ theme: genTheme, stack: genStack, level: genLevel, memberCount: genMemberCount });
+      if (draft) onChange(teamDraftToForm(draft));
+    } catch (e) {
+      setGenError(e?.errorMessage || e?.message || "AI下書き生成に失敗しました。");
+    } finally { setGenerating(false); }
+  }
+
+  async function handleGenerateAiCommits() {
+    setGeneratingAi(true); setGenError("");
+    try {
+      const input = teamFormToGenerateInput(form);
+      const aiMembers = await onGenerateAiCommits({ ...input, commitsPerMember: 2 });
+      set("aiMembers", aiMembers || []);
+    } catch (e) {
+      setGenError(e?.errorMessage || e?.message || "AIメンバーの生成に失敗しました。");
+    } finally { setGeneratingAi(false); }
+  }
+
+  return (
+    <div>
+      <div className="mb-4 flex items-center justify-between gap-3">
+        <h3 className="text-base font-bold" style={{ color: T.textPrimary }}>{mode === "edit" ? "チーム開発案件 編集" : "チーム開発案件 新規作成"}</h3>
+        <Btn kind="ghost" size="sm" icon={X} onClick={onCancel}>閉じる</Btn>
+      </div>
+
+      {mode === "create" && (
+        <Card className="mb-4 p-4">
+          <h4 className="mb-2 flex items-center gap-1.5 text-sm font-bold" style={{ color: T.textPrimary }}><Sparkles size={15} />AIで下書き生成</h4>
+          <p className="mb-2 text-xs" style={{ color: T.textMuted }}>複数人が別々の担当を持って同時に触る前提のコードと役割分担を生成します。保存前に必ず内容を確認・編集してください。</p>
+          <div className="grid gap-2 sm:grid-cols-4">
+            <input style={fieldStyle} placeholder="テーマ（例: 社内の勤怠管理ツール）" value={genTheme} onChange={e => setGenTheme(e.target.value)} />
+            <select style={fieldStyle} value={genStack} onChange={e => setGenStack(e.target.value)}>
+              {WORKSPACE_STACK_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+            </select>
+            <select style={fieldStyle} value={genLevel} onChange={e => setGenLevel(e.target.value)}>
+              {DEVLAB_LEVEL_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+            </select>
+            <select style={fieldStyle} value={genMemberCount} onChange={e => setGenMemberCount(Number(e.target.value))}>
+              {[2, 3, 4, 5].map(n => <option key={n} value={n}>{n}人チーム</option>)}
+            </select>
+          </div>
+          {genError && <p className="mt-2 text-xs" style={{ color: T.danger }}>{genError}</p>}
+          <Btn kind="ai" size="sm" className="mt-2" icon={generating ? Loader2 : Sparkles} disabled={generating} onClick={handleGenerate}>
+            {generating ? "生成中…" : "下書きを生成"}
+          </Btn>
+        </Card>
+      )}
+
+      {actionError && <Card className="mb-4 p-4"><p className="text-sm" style={{ color: T.danger }}>{actionError}</p></Card>}
+
+      <Card className="p-4">
+        <div className="space-y-3">
+          <Field label="案件名"><input style={fieldStyle} value={form.title} onChange={e => set("title", e.target.value)} /></Field>
+          <div className="grid gap-3 sm:grid-cols-2">
+            <Field label="架空クライアント名"><input style={fieldStyle} value={form.clientName} onChange={e => set("clientName", e.target.value)} /></Field>
+            <Field label="レベル">
+              <select style={fieldStyle} value={form.level} onChange={e => set("level", e.target.value)}>
+                {DEVLAB_LEVEL_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+              </select>
+            </Field>
+          </div>
+          <Field label="案件概要"><textarea style={{ ...fieldStyle, minHeight: 64 }} value={form.description} onChange={e => set("description", e.target.value)} /></Field>
+          <div className="grid gap-3 sm:grid-cols-2">
+            <Field label="スタック">
+              <select style={fieldStyle} value={form.stack} onChange={e => set("stack", e.target.value)}>
+                {WORKSPACE_STACK_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+              </select>
+            </Field>
+            <Field label="最初に開くファイル（entryHint）">
+              <input style={{ ...fieldStyle, fontFamily: "monospace", fontSize: 12 }} value={form.entryHint} onChange={e => set("entryHint", e.target.value)} />
+            </Field>
+          </div>
+
+          <Field label="役割分担">
+            <RolesEditor roles={form.roles} onChange={roles => set("roles", roles)} />
+          </Field>
+
+          <Field label="AIメンバー（空席を埋めるメンバーの動き）">
+            <AiMembersPanel
+              aiMembers={form.aiMembers || []}
+              generating={generatingAi}
+              onGenerate={handleGenerateAiCommits}
+              onClear={() => set("aiMembers", [])}
+            />
+          </Field>
+
+          <Field label="出発点コード（チームのmain初期状態）">
+            <FilesEditor files={form.baseFiles} onChange={files => set("baseFiles", files)} />
+          </Field>
+
+          <Field label="公開状態">
+            <select style={fieldStyle} value={form.status} onChange={e => set("status", e.target.value)}>
+              <option value="draft">下書き</option>
+              <option value="published">公開中</option>
+            </select>
+          </Field>
+
+          <Field label="公開範囲">
+            {isAdmin ? (
+              <div className="space-y-2">
+                <select style={fieldStyle} value={form.visibilityScope} onChange={e => set("visibilityScope", e.target.value)}>
+                  {DEVLAB_VISIBILITY_SCOPE_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+                </select>
+                {form.visibilityScope === "companies" && (
+                  <div className="rounded-xl border p-3" style={{ borderColor: T.border }}>
+                    {companiesError ? (
+                      <p className="text-xs" style={{ color: T.danger }}>{companiesError}</p>
+                    ) : (
+                      <div className="grid gap-1.5 sm:grid-cols-2">
+                        {companies.map(c => (
+                          <label key={c.companyId} className="flex items-center gap-2 text-xs" style={{ color: T.textPrimary }}>
+                            <input type="checkbox" checked={(form.targetCompanyIds || []).includes(c.companyId)} onChange={() => toggleTargetCompany(c.companyId)} />
+                            {c.name || c.companyId}
+                          </label>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            ) : (
+              <div className="rounded-xl p-3 text-xs" style={{ background: T.bgBase, color: T.textSecondary }}>
+                {form.visibilityScope === "companies" ? "特定企業のみ公開" : "全体公開"}（公開範囲の変更は管理者のみ行えます）
+              </div>
+            )}
+          </Field>
+        </div>
+      </Card>
+
+      <div className="mt-4 flex justify-end gap-2">
+        <Btn kind="ghost" onClick={onCancel}>キャンセル</Btn>
+        <Btn disabled={busy || !form.title.trim()} onClick={onSave}>保存する</Btn>
+      </div>
+    </div>
+  );
+}
+
+export function TeamProjectManager({ role }) {
+  const { teamProjects, loading, error, create, update, remove, generate, generateAiCommits, busy, actionError, clearActionError } = useDevLabAdminTeamProjects();
+  const { companies, companiesError } = useCompanyDirectory();
+  const [editing, setEditing] = useState(null); // null=一覧 / "new" / teamProject
+  const [form, setForm] = useState(emptyTeamProjectForm());
+
+  function startCreate() { clearActionError(); setForm(emptyTeamProjectForm()); setEditing("new"); }
+  function startEdit(teamProject) { clearActionError(); setForm(teamProjectToForm(teamProject)); setEditing(teamProject); }
+  function cancel() { setEditing(null); }
+
+  async function handleSave() {
+    const payload = teamFormToPayload(form);
+    if (editing === "new") await create(payload);
+    else await update(editing.id, payload);
+    setEditing(null);
+  }
+
+  async function handleDelete(teamProject) {
+    if (!window.confirm(`「${teamProject.title}」を削除しますか？`)) return;
+    await remove(teamProject.id);
+  }
+
+  if (editing) {
+    return (
+      <TeamProjectForm
+        mode={editing === "new" ? "create" : "edit"}
+        role={role}
+        form={form}
+        onChange={setForm}
+        onSave={handleSave}
+        onCancel={cancel}
+        onGenerate={generate}
+        onGenerateAiCommits={generateAiCommits}
+        busy={busy}
+        actionError={actionError}
+        companies={companies}
+        companiesError={companiesError}
+      />
+    );
+  }
+
+  return (
+    <div>
+      <SectionHead
+        icon={Users}
+        title="チーム開発案件"
+        desc="複数人で1つのコードベースを触るチーム開発の題材を作成・編集します。空席はAIメンバーが埋めます。"
+        action={<Btn icon={Plus} onClick={startCreate}>新規作成</Btn>}
+      />
+      {error && <Card className="mb-4 p-4"><p className="text-sm" style={{ color: T.danger }}>{error}</p></Card>}
+      <Card>
+        {loading ? <SkeletonRows rows={3} /> : teamProjects.length === 0 ? (
+          <EmptyState icon={Users} title="チーム開発案件がありません" desc="「新規作成」から作成してください。" />
+        ) : (
+          <div className="divide-y" style={{ borderColor: T.border }}>
+            {teamProjects.map(tp => (
+              <div key={tp.id} className="flex flex-wrap items-center justify-between gap-3 p-4">
+                <div className="min-w-0">
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm font-bold" style={{ color: T.textPrimary }}>{tp.title}</span>
+                    <Badge tone={devLabStatusTone(tp.status)}>{devLabStatusLabel(tp.status)}</Badge>
+                    <Badge tone="cyan">{devLabLevelLabel(tp.level)}</Badge>
+                    {tp.visibilityScope === "companies" && <Badge tone="amber">企業限定公開</Badge>}
+                  </div>
+                  <div className="mt-1 text-xs" style={{ color: T.textMuted }}>
+                    {devLabWorkspaceStackLabel(tp.stack)} ・ 担当{(tp.roles || []).length}件 ・ AIメンバー{(tp.aiMembers || []).length}人 ・ ファイル{Object.keys(tp.baseFiles || {}).length}件
+                  </div>
+                </div>
+                <div className="flex shrink-0 gap-2">
+                  <Btn kind="ghost" size="sm" icon={Pencil} onClick={() => startEdit(tp)}>編集</Btn>
+                  <Btn kind="ghost" size="sm" icon={Trash2} onClick={() => handleDelete(tp)}>削除</Btn>
                 </div>
               </div>
             ))}

@@ -190,6 +190,9 @@ export default function LearningProduct({ subView, goSub, goProduct, role, theme
     el_devlab_manage_workspace: (role === "admin" || role === "instructor")
       ? <DevLabProduct subView="dl_manage_workspace" goSub={goSub} role={role} themeColor={themeColor} />
       : <LearningPlaceholder title="プロジェクト体験管理" desc="この機能はご利用いただけません。" />,
+    el_devlab_manage_team: (role === "admin" || role === "instructor")
+      ? <DevLabProduct subView="dl_manage_team" goSub={goSub} role={role} themeColor={themeColor} />
+      : <LearningPlaceholder title="チーム開発案件" desc="この機能はご利用いただけません。" />,
     el_devlab_workspace: DEVLAB_ALLOWED_ROLES.includes(role)
       ? <DevLabProduct subView="dl_workspace" goSub={goSub} role={role} themeColor={themeColor} />
       : <LearningPlaceholder title="プロジェクト体験" desc="この機能はご利用いただけません。" />,
