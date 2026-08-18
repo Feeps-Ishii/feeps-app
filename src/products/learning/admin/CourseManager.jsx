@@ -309,7 +309,8 @@ export default function CourseManager({ onOpenLessons = () => {}, onSelectCourse
               コース情報はBackend APIに保存され、受講生・講師画面にも即時反映されます。
             </p>
           </div>
-          <Btn icon={Plus} onClick={openAddChoice}>＋コース追加</Btn>
+          {/* アイコンが＋なのでラベル側の全角＋は重複。2026-08-19に削除 */}
+          <Btn icon={Plus} onClick={openAddChoice}>コース追加</Btn>
         </div>
       </Card>
 
@@ -360,7 +361,7 @@ export default function CourseManager({ onOpenLessons = () => {}, onSelectCourse
           ) : (
             <EmptyState
               title={courses.length ? "該当するコースがありません" : "コースがまだ登録されていません"}
-              desc={courses.length ? "検索条件を変更するか、新規コースを作成してください。" : "「＋コース追加」からEラーニングコースを作成してください。"}
+              desc={courses.length ? "検索条件を変更するか、新規コースを作成してください。" : "「コース追加」からEラーニングコースを作成してください。"}
             />
           )}
         </div>

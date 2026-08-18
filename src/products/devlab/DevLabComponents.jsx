@@ -1343,12 +1343,22 @@ export function TeamProjectManager({ role }) {
 // ===================== admin/instructor: チーム編成（Step2、2026-08-18新設） =====================
 // 案件を選び、自社受講生をロールへ割り当ててチームを作る。割り当てなかったロールは
 // AIメンバーが自動で埋まる（docs/specs/dev-team-spec.md §1）。
-function TeamComposer({ teamProjects, trainees, onCreate, onCancel, busy, actionError }) {
-  const [teamProjectId, setTeamProjectId] = useState("");
-  const [title, setTitle] = useState("");
-  const [assignments, setAssignments] = useState({}); // roleId -> traineeId
+// 新規編成と、作成済みチームのメンバー編集を兼ねる（editTeamが渡されたら編集モード）。
+// 編集では案件は変えられない（出発点コードとコミット履歴が案件に紐づくため）。
+function TeamComposer({ teamProjects, trainees, onCreate, onSave, onCancel, busy, actionError, editTeam }) {
+  const isEdit = !!editTeam;
+  const [teamProjectId, setTeamProjectId] = useState(editTeam?.teamProjectId || "");
+  const [title, setTitle] = useState(editTeam?.title || "");
+  const [assignments, setAssignments] = useState(() => {
+    const init = {};
+    for (const m of (editTeam?.members || [])) init[m.roleId] = m.traineeId;
+    return init;
+  }); // roleId -> traineeId
   const project = teamProjects.find(p => p.id === teamProjectId) || null;
-  const roles = project?.roles || [];
+  // 編集時は案件が一覧に無いこともある（下書きへ戻された等）ので、チーム自身が持つrolesを使う
+  const roles = (isEdit ? editTeam.roles : project?.roles) || [];
+  const originalTraineeIds = new Set((editTeam?.members || []).map(m => m.traineeId));
+  const removedMembers = (editTeam?.members || []).filter(m => !Object.values(assignments).includes(m.traineeId));
 
   function assign(roleId, traineeId) {
     setAssignments(prev => {
@@ -1366,21 +1376,30 @@ function TeamComposer({ teamProjects, trainees, onCreate, onCancel, busy, action
   return (
     <div>
       <div className="mb-4 flex items-center justify-between gap-3">
-        <h3 className="text-base font-bold" style={{ color: T.textPrimary }}>チームを編成</h3>
+        <h3 className="text-base font-bold" style={{ color: T.textPrimary }}>{isEdit ? "チームを編集" : "チームを編成"}</h3>
         <Btn kind="ghost" size="sm" icon={X} onClick={onCancel}>閉じる</Btn>
       </div>
       {actionError && <Card className="mb-4 p-4"><p className="text-sm" style={{ color: T.danger }}>{actionError}</p></Card>}
       <Card className="p-4">
         <div className="space-y-3">
           <Field label="チーム開発案件">
-            <select style={fieldStyle} value={teamProjectId} onChange={e => { setTeamProjectId(e.target.value); setAssignments({}); }}>
-              <option value="">選択してください</option>
-              {teamProjects.filter(p => p.status === "published").map(p => (
-                <option key={p.id} value={p.id}>{p.title}（{devLabLevelLabel(p.level)} ・ 担当{(p.roles || []).length}件）</option>
-              ))}
-            </select>
-            {teamProjects.filter(p => p.status === "published").length === 0 && (
-              <p className="mt-1 text-xs" style={{ color: T.textMuted }}>公開中のチーム開発案件がありません。先に「チーム開発案件」で作成・公開してください。</p>
+            {isEdit ? (
+              <div>
+                <p className="text-sm font-semibold" style={{ color: T.textPrimary }}>{project?.title || editTeam.title}</p>
+                <p className="mt-0.5 text-xs" style={{ color: T.textMuted }}>案件は変更できません（出発点コードとコミット履歴が案件に紐づくため）。</p>
+              </div>
+            ) : (
+              <>
+                <select style={fieldStyle} value={teamProjectId} onChange={e => { setTeamProjectId(e.target.value); setAssignments({}); }}>
+                  <option value="">選択してください</option>
+                  {teamProjects.filter(p => p.status === "published").map(p => (
+                    <option key={p.id} value={p.id}>{p.title}（{devLabLevelLabel(p.level)} ・ 担当{(p.roles || []).length}件）</option>
+                  ))}
+                </select>
+                {teamProjects.filter(p => p.status === "published").length === 0 && (
+                  <p className="mt-1 text-xs" style={{ color: T.textMuted }}>公開中のチーム開発案件がありません。先に「チーム開発案件」で作成・公開してください。</p>
+                )}
+              </>
             )}
           </Field>
           <Field label="チーム名"><input style={fieldStyle} value={title} onChange={e => setTitle(e.target.value)} placeholder={project?.title || "チーム名"} /></Field>
@@ -1397,7 +1416,9 @@ function TeamComposer({ teamProjects, trainees, onCreate, onCancel, busy, action
                     <select style={fieldStyle} value={assignments[r.roleId] || ""} onChange={e => assign(r.roleId, e.target.value)}>
                       <option value="">AIメンバーが担当</option>
                       {trainees.map(t => (
-                        <option key={t.userId} value={t.userId}>{t.name || t.email || t.userId}</option>
+                        <option key={t.userId} value={t.userId}>
+                          {t.name || t.email || t.userId}{isEdit && originalTraineeIds.has(t.userId) ? "（参加中）" : ""}
+                        </option>
                       ))}
                     </select>
                   </div>
@@ -1407,6 +1428,16 @@ function TeamComposer({ teamProjects, trainees, onCreate, onCancel, busy, action
                     ? "全員AIメンバーになります（1人でチーム開発を体験する形）。"
                     : `受講生${assignedCount}人、AIメンバー${roles.length - assignedCount}人のチームになります。`}
                 </p>
+                {isEdit && removedMembers.length > 0 && (
+                  <div className="rounded-xl p-3" style={{ background: T.warningSubtle }}>
+                    <p className="text-xs font-bold" style={{ color: T.warning }}>
+                      チームから外れます: {removedMembers.map(m => m.traineeName).join("、")}
+                    </p>
+                    <p className="mt-1 text-xs" style={{ color: T.textSecondary }}>
+                      これまでのコミットは履歴に残ります。未コミットの作業も保持されるので、後で戻せば続きから再開できます。
+                    </p>
+                  </div>
+                )}
               </div>
             </Field>
           )}
@@ -1416,13 +1447,20 @@ function TeamComposer({ teamProjects, trainees, onCreate, onCancel, busy, action
         <Btn kind="ghost" onClick={onCancel}>キャンセル</Btn>
         <Btn
           disabled={busy || !teamProjectId}
-          onClick={() => onCreate({
-            teamProjectId,
-            title: title.trim() || project?.title || "",
-            companyId: companyIds.length === 1 ? companyIds[0] : "",
-            members: Object.entries(assignments).map(([roleId, traineeId]) => ({ roleId, traineeId })),
-          })}
-        >チームを作る</Btn>
+          onClick={() => {
+            const members = Object.entries(assignments).map(([roleId, traineeId]) => ({ roleId, traineeId }));
+            if (isEdit) {
+              onSave(editTeam.id, { title: title.trim() || editTeam.title || "", members });
+            } else {
+              onCreate({
+                teamProjectId,
+                title: title.trim() || project?.title || "",
+                companyId: companyIds.length === 1 ? companyIds[0] : "",
+                members,
+              });
+            }
+          }}
+        >{isEdit ? "保存する" : "チームを作る"}</Btn>
       </div>
     </div>
   );
@@ -1513,10 +1551,11 @@ function TeamProgressPanel({ team, onBack }) {
 }
 
 export function TeamManager({ role }) {
-  const { teams, loading, error, create, remove, busy, actionError, clearActionError } = useDevLabAdminTeams();
+  const { teams, loading, error, create, update, remove, busy, actionError, clearActionError } = useDevLabAdminTeams();
   const { teamProjects } = useDevLabAdminTeamProjects();
   const [trainees, setTrainees] = useState([]);
   const [composing, setComposing] = useState(false);
+  const [editingTeam, setEditingTeam] = useState(null);
   const [viewingTeam, setViewingTeam] = useState(null);
   // 企業担当者は /admin/users を呼べない。自社受講生に絞られた /trainees を使う。
   const isClient = role === "client";
@@ -1534,6 +1573,11 @@ export function TeamManager({ role }) {
     setComposing(false);
   }
 
+  async function handleSave(teamId, payload) {
+    await update(teamId, payload);
+    setEditingTeam(null);
+  }
+
   async function handleDelete(team) {
     if (!window.confirm(`「${team.title}」を削除しますか？`)) return;
     await remove(team.id);
@@ -1543,13 +1587,16 @@ export function TeamManager({ role }) {
     return <TeamProgressPanel team={viewingTeam} onBack={() => setViewingTeam(null)} />;
   }
 
-  if (composing) {
+  if (composing || editingTeam) {
     return (
       <TeamComposer
+        key={editingTeam?.id || "new"}
+        editTeam={editingTeam}
         teamProjects={teamProjects}
         trainees={trainees}
         onCreate={handleCreate}
-        onCancel={() => { clearActionError(); setComposing(false); }}
+        onSave={handleSave}
+        onCancel={() => { clearActionError(); setComposing(false); setEditingTeam(null); }}
         busy={busy}
         actionError={actionError}
       />
@@ -1587,6 +1634,7 @@ export function TeamManager({ role }) {
                 </div>
                 <div className="flex shrink-0 gap-2">
                   <Btn kind="ghost" size="sm" icon={ClipboardList} onClick={() => setViewingTeam(team)}>進捗</Btn>
+                  <Btn kind="ghost" size="sm" icon={Pencil} onClick={() => { clearActionError(); setEditingTeam(team); }}>メンバー編集</Btn>
                   <Btn kind="ghost" size="sm" icon={Trash2} onClick={() => handleDelete(team)}>削除</Btn>
                 </div>
               </div>

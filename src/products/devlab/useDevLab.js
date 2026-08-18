@@ -350,6 +350,18 @@ export function useDevLabAdminTeams() {
     } finally { setBusy(false); }
   }
 
+  async function update(teamId, payload) {
+    setBusy(true); setActionError("");
+    try {
+      const res = await apiPut(`/devlab/admin/teams/${encodeURIComponent(teamId)}`, payload);
+      await load();
+      return res?.team || null;
+    } catch (e) {
+      setActionError(apiErrorMessage(e, "チームの更新に失敗しました。"));
+      throw e;
+    } finally { setBusy(false); }
+  }
+
   async function remove(teamId) {
     setBusy(true); setActionError("");
     try {
@@ -361,7 +373,7 @@ export function useDevLabAdminTeams() {
     } finally { setBusy(false); }
   }
 
-  return { teams, loading, error, reload: load, create, remove, busy, actionError, clearActionError: () => setActionError("") };
+  return { teams, loading, error, reload: load, create, update, remove, busy, actionError, clearActionError: () => setActionError("") };
 }
 
 // ---- 受講生: 自分のチーム一覧 ----

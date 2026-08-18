@@ -126,6 +126,43 @@ const ElearningIllustration = () => (
   </svg>
 );
 
+// チーム開発（2026-08-19追加）。ブランチが分かれて合流する形＋コミット履歴で
+// 「複数人で1つのコードベースを進める」ことを示す。トーンは案件系(matching)に合わせ、
+// 主役1（学習=learning）と視覚的に対を作る。
+const TeamDevIllustration = () => {
+  const m = PRODUCT_ACCENT.matching;
+  const l = PRODUCT_ACCENT.learning;
+  return (
+    <svg width="100%" height="152" viewBox="0 0 340 152" role="img" aria-label="チームでブランチを分けて合流するイラスト">
+      <ellipse cx="170" cy="138" rx="108" ry="7" fill={m.accent} opacity=".12" />
+      {/* main と 2本のブランチ */}
+      <path d="M52 78h34" stroke={m.accent} strokeWidth="3" strokeLinecap="round" />
+      <path d="M86 78C104 78 106 46 124 46h34" stroke={m.accent} strokeWidth="3" strokeLinecap="round" fill="none" />
+      <path d="M86 78C104 78 106 110 124 110h34" stroke={l.accent} strokeWidth="3" strokeLinecap="round" fill="none" />
+      <path d="M158 46C176 46 178 78 196 78h30" stroke={m.accent} strokeWidth="3" strokeLinecap="round" fill="none" />
+      <path d="M158 110C176 110 178 78 196 78" stroke={l.accent} strokeWidth="3" strokeLinecap="round" fill="none" />
+      <circle cx="86" cy="78" r="6" fill="#fff" stroke={m.accent} strokeWidth="3" />
+      <circle cx="196" cy="78" r="6" fill="#fff" stroke={m.accent} strokeWidth="3" />
+      <circle cx="124" cy="46" r="5.5" fill={m.accent} />
+      <circle cx="158" cy="46" r="5.5" fill={m.accent} />
+      <circle cx="124" cy="110" r="5.5" fill={l.accent} />
+      <circle cx="158" cy="110" r="5.5" fill={l.accent} />
+      {/* 合流後のコミット履歴カード */}
+      <rect x="226" y="46" width="70" height="64" rx="7" fill="#fff" stroke={m.accent} strokeWidth="2" />
+      <circle cx="238" cy="60" r="3.4" fill={m.accent} />
+      <rect x="246" y="57.5" width="40" height="5" rx="2.5" fill={m.accent} opacity=".4" />
+      <circle cx="238" cy="76" r="3.4" fill={l.accent} />
+      <rect x="246" y="73.5" width="32" height="5" rx="2.5" fill={l.accent} opacity=".4" />
+      <circle cx="238" cy="92" r="3.4" fill={PRODUCT_ACCENT.talent.accent} />
+      <rect x="246" y="89.5" width="36" height="5" rx="2.5" fill={PRODUCT_ACCENT.talent.accent} opacity=".4" />
+      {/* メンバー */}
+      <circle cx="52" cy="52" r="10" fill={m.accent} opacity=".22" />
+      <circle cx="52" cy="104" r="10" fill={l.accent} opacity=".22" />
+      <text x="261" y="126" textAnchor="middle" fontSize="9.5" fill={m.deep} fontWeight="600">コミット履歴</text>
+    </svg>
+  );
+};
+
 function iconChipStyle(tone) {
   return { background: tone.subtle, opacity: 1 };
 }
@@ -136,16 +173,6 @@ function ElearningIcon({ tone }) {
       <rect width="46" height="46" rx="12" fill={tone.accent} opacity=".12" />
       <rect x="14" y="15" width="18" height="16" rx="3" stroke={tone.deep} strokeWidth="2.4" />
       <path d="M18 21h10M18 25h6" stroke={tone.deep} strokeWidth="2.2" strokeLinecap="round" />
-    </svg>
-  );
-}
-function ProjectExperienceIcon({ tone }) {
-  return (
-    <svg width="46" height="46" viewBox="0 0 46 46" aria-hidden="true">
-      <rect width="46" height="46" rx="12" fill={tone.accent} opacity=".14" />
-      <circle cx="19" cy="19" r="4" stroke={tone.deep} strokeWidth="2.4" />
-      <circle cx="28" cy="27" r="4" stroke={tone.deep} strokeWidth="2.4" />
-      <path d="M22 22l3 2" stroke={tone.deep} strokeWidth="2.2" strokeLinecap="round" />
     </svg>
   );
 }
@@ -223,35 +250,40 @@ function SideCard({ icon: Icon, tone, title, desc, badge, badgeTone = "accent", 
   );
 }
 
-function HeroCard({ illustration, kicker, kickerTone, title, desc, actions }) {
+function HeroCard({ illustration, kicker, kickerTone, title, desc, actions, badge }) {
   return (
-    <div className="overflow-hidden rounded-[18px]" style={{ background: NOVA.card, border: `1px solid ${NOVA.line}` }}>
+    <div className="flex flex-col overflow-hidden rounded-[18px]" style={{ background: NOVA.card, border: `1px solid ${NOVA.line}` }}>
       <div className="pt-4" style={{ background: `linear-gradient(140deg, ${kickerTone.subtle}, ${NOVA.paper})` }}>
         {illustration}
       </div>
-      <div className="p-5">
-        <div className="text-[11.5px] font-bold" style={{ letterSpacing: "0.05em", color: kickerTone.deep }}>{kicker}</div>
+      <div className="flex flex-1 flex-col p-5">
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="text-[11.5px] font-bold" style={{ letterSpacing: "0.05em", color: kickerTone.deep }}>{kicker}</span>
+          {badge && (
+            <span className="rounded-full px-2 py-0.5 text-[10.5px] font-bold"
+              style={{ background: kickerTone.subtle, color: kickerTone.deep }}>{badge}</span>
+          )}
+        </div>
         <h3 className="mt-1 mb-1.5 text-lg font-bold leading-snug" style={{ color: NOVA.ink }}>{title}</h3>
         <p className="mb-3.5 text-[13px] leading-relaxed" style={{ color: NOVA.muted }}>{desc}</p>
-        <div className="flex flex-wrap gap-2">{actions}</div>
+        <div className="mt-auto flex flex-wrap gap-2">{actions}</div>
       </div>
     </div>
   );
 }
 
-// role/学習プランから脇カード4枚の状態を組み立てる
+// 「案件参画体験（近日公開）」だったプラン制限の判定。2026-08-19にチーム開発が実装され
+// 主役2へ昇格したため、ここは主役2の出し分けに使う（課金設計はADR0014のまま変えない）。
+export function isTeamDevPlanLocked(role, learningPlan) {
+  const unrestricted = role === "admin" || role === "instructor"; // ADR0013: モードにゲートしない
+  return !unrestricted && learningPlan === "basic";
+}
+
+// role/学習プランから脇カード3枚の状態を組み立てる
 function buildSideCards({ role, isCreator, learningPlan, goSub, goProduct, completedCount, inprogressCount, earnedSkillsCount }) {
   const unrestricted = role === "admin" || role === "instructor"; // ADR0013: モードにゲートしない
-  const projectExperienceLocked = !unrestricted && learningPlan === "basic";
   const aiCourseLocked = !unrestricted && (learningPlan === "basic" || learningPlan === "standard");
 
-  const projectExperience = {
-    icon: ProjectExperienceIcon, tone: PRODUCT_ACCENT.matching,
-    title: "案件参画体験", desc: "チームを組んで、実際の案件と同じ流れを体験します。",
-    state: projectExperienceLocked ? "locked" : "comingSoon",
-    badge: projectExperienceLocked ? "Standard" : "近日公開",
-    badgeTone: projectExperienceLocked ? "accent" : "warning",
-  };
   const skill = {
     icon: SkillIcon, tone: PRODUCT_ACCENT.talent,
     title: "スキル・成長", desc: "身につけたスキルを記録し、案件参画向けのシートに整えます。",
@@ -277,24 +309,34 @@ function buildSideCards({ role, isCreator, learningPlan, goSub, goProduct, compl
     state: "normal", onClick: () => goProduct && goProduct("matching"),
   };
 
-  // client: DevLab対象外のため主役をEラーニングにし、脇へ案件管理を追加する構成
-  // （設計チャットでclientの学習モード体験は未確定。ADR0013の残課題として記録済み）。
-  if (role === "client") return [projectExperience, skill, aiCourse, matching];
-  return [elearning, projectExperience, skill, aiCourse];
+  // 2026-08-19: 主役が2軸（学ぶ／チームで開発する）になり、Eラーニングとチーム開発は
+  // 主役側へ移った。脇はそれ以外の3枚だけにする。
+  if (role === "client") return [skill, aiCourse, matching];
+  return [elearning, skill, aiCourse];
 }
 
+// 2026-08-19: 主役を2軸にした（ユーザー指定「2軸な感じでアピールしてもいいかも」）。
+// チーム開発が実装・本番稼働したため、「案件参画体験（近日公開）」の脇カードを廃止し、
+// 主役2へ昇格させている。2軸は
+//   軸1 ひとりで鍛える  = 開発演習（DevLab）／clientはEラーニング
+//   軸2 チームで開発する = チーム開発
+// 案件参画体験の残りのフェーズ（要件受け取り・設計・レビュー・成果記録）はまだ構想段階なので、
+// 「案件参画体験」ではなく実装済みの「チーム開発」として出す（ROADMAP参照）。
 export default function LearningMagazineHome({ role, isCreator, canUseDevLab, learningPlan, goSub, goProduct, onShowPlanNotice, completedCount = 0, inprogressCount = 0, earnedSkillsCount = 0 }) {
-  const heroIsDevLab = canUseDevLab; // trainee/instructor/admin。clientはEラーニングが主役
+  const heroIsDevLab = canUseDevLab; // trainee/instructor/admin。clientはEラーニングが軸1
   const devLabTarget = () => goSub(isCreator ? "el_devlab_manage" : "el_devlab");
   const showTrial = !isCreator && learningPlan === "basic"; // Basic契約のtrainee/clientのみ（DevLab自体は常に体験可）
+  const teamDevLocked = isTeamDevPlanLocked(role, learningPlan);
+  // trainee=自分のチーム / instructor・admin・client=チームの編成と進捗
+  const teamDevTarget = () => goSub(role === "trainee" ? "el_devlab_myteam" : "el_devlab_teams");
 
   const sideCards = buildSideCards({ role, isCreator, learningPlan, goSub, goProduct, completedCount, inprogressCount, earnedSkillsCount });
 
-  const hero = heroIsDevLab ? (
+  const heroSolo = heroIsDevLab ? (
     showTrial ? (
       <HeroCard
         illustration={<DevLabIllustrationTrial />}
-        kicker="まずは試してみる" kickerTone={PRODUCT_ACCENT.learning}
+        kicker="ひとりで鍛える" kickerTone={PRODUCT_ACCENT.learning}
         title="開発演習（DevLab）"
         desc="ブラウザ上で実際にコードを書いて動かしながら学べます。Basicプランでは3問まで体験できます（残り2問）。"
         actions={<Btn onClick={devLabTarget}>1問やってみる</Btn>}
@@ -302,7 +344,7 @@ export default function LearningMagazineHome({ role, isCreator, canUseDevLab, le
     ) : (
       <HeroCard
         illustration={<DevLabIllustration />}
-        kicker="いちばん人気" kickerTone={PRODUCT_ACCENT.learning}
+        kicker="ひとりで鍛える" kickerTone={PRODUCT_ACCENT.learning}
         title="開発演習（DevLab）"
         desc={isCreator
           ? "架空のクライアント案件をつくり、受講生の提出をステップごとに確認できます。ブラウザ上で完結し、環境構築は不要です。"
@@ -323,16 +365,38 @@ export default function LearningMagazineHome({ role, isCreator, canUseDevLab, le
     />
   );
 
+  const teamDevDesc = role === "client"
+    ? "自社の社員をチームに編成して、ハンズオン形式の研修ができます。誰が何をコミットしたかを進捗として追えます。"
+    : isCreator
+      ? "題材をつくってチームを編成すると、受講生が1つのコードベースを分担して進めます。ブランチ・pull・コンフリクト解決まで、現場と同じ流れです。"
+      : "チームで1つのコードベースを触ります。他のメンバーの変更を取り込み、ぶつかったところを解決しながら進める——現場と同じ流れをそのまま体験できます。";
+
+  const heroTeam = (
+    <HeroCard
+      illustration={<TeamDevIllustration />}
+      kicker="チームで開発する" kickerTone={PRODUCT_ACCENT.matching}
+      badge={teamDevLocked ? "Standard" : undefined}
+      title="チーム開発"
+      desc={teamDevDesc}
+      actions={teamDevLocked
+        ? <Btn kind="ghost" onClick={onShowPlanNotice}>プランを見る</Btn>
+        : <Btn onClick={teamDevTarget}>{role === "trainee" ? "チームを開く" : "チームを見る"}</Btn>}
+    />
+  );
+
   return (
-    <div className="mb-6 grid gap-3.5 lg:grid-cols-[1.55fr_1fr]">
-      {hero}
-      <div className="flex flex-col gap-3.5">
+    <>
+      <div className="mb-3.5 grid gap-3.5 lg:grid-cols-2">
+        {heroSolo}
+        {heroTeam}
+      </div>
+      <div className="mb-6 grid gap-3.5 md:grid-cols-2 lg:grid-cols-3">
         {sideCards.map(c => (
           <SideCard key={c.title} icon={c.icon} tone={c.tone} title={c.title} desc={c.desc} stats={c.stats}
             badge={c.badge} badgeTone={c.badgeTone} state={c.state} onClick={c.onClick}
             onPlanClick={onShowPlanNotice} />
         ))}
       </div>
-    </div>
+    </>
   );
 }
