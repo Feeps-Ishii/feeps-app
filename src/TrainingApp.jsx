@@ -184,7 +184,7 @@ const EL_NAV = {
   trainee: [
     { sec: null, items: [["el_home", "ホーム", LayoutDashboard]] },
     { sec: "Eラーニング", items: [["el_courses", "コース一覧", BookOpen], ["el_recommend", "おすすめ", Lightbulb], ["el_inprogress", "学習中", PlayCircle], ["el_completed", "修了済み", Award], ["el_skills", "獲得スキル", Sparkles], ["el_cert", "修了証", CheckCircle2]] },
-    { sec: "開発演習", items: [["el_devlab", "開発演習", Code2]] },
+    { sec: "開発演習", items: [["el_devlab", "開発演習", Code2], ["el_devlab_myteam", "チーム開発", GitBranch]] },
   ],
   // 2026-08-18 instructor/adminのEラーニングタブに、受講生本人向けの自己学習導線
   // （コース一覧・おすすめ・学習中・修了済み・獲得スキル・修了証・プロジェクト体験）が
@@ -195,7 +195,7 @@ const EL_NAV = {
   instructor: [
     { sec: null, items: [["el_home", "ホーム", LayoutDashboard]] },
     { sec: "管理", items: [["el_manage", "コース管理", Settings], ["el_students", "受講状況", Users]] },
-    { sec: "開発演習", items: [["el_devlab_manage", "案件管理", ClipboardList], ["el_devlab_manage_workspace", "プロジェクト体験管理", FolderTree], ["el_devlab_manage_team", "チーム開発案件", Users]] },
+    { sec: "開発演習", items: [["el_devlab_manage", "案件管理", ClipboardList], ["el_devlab_manage_workspace", "プロジェクト体験管理", FolderTree], ["el_devlab_manage_team", "チーム開発案件", Users], ["el_devlab_teams", "チーム", GitBranch]] },
   ],
   client: [
     { sec: null, items: [["el_home", "ホーム", LayoutDashboard]] },
@@ -209,7 +209,7 @@ const EL_NAV = {
     { sec: "管理", items: [["el_manage", "コース管理", Settings], ["el_students", "受講状況", Users], ["el_plans", "プラン・契約", Receipt]] },
     // 2026-08-18 プロジェクト体験(ワークスペーステンプレート)の管理CRUD+AI生成を新設したため、
     // 「案件管理」と同じ並びに「プロジェクト体験管理」を追加(el_devlab_manage_workspace)。
-    { sec: "開発演習", items: [["el_devlab_manage", "案件管理", ClipboardList], ["el_devlab_manage_workspace", "プロジェクト体験管理", FolderTree], ["el_devlab_manage_team", "チーム開発案件", Users]] },
+    { sec: "開発演習", items: [["el_devlab_manage", "案件管理", ClipboardList], ["el_devlab_manage_workspace", "プロジェクト体験管理", FolderTree], ["el_devlab_manage_team", "チーム開発案件", Users], ["el_devlab_teams", "チーム", GitBranch]] },
   ],
 };
 

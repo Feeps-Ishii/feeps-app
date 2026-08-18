@@ -4,14 +4,16 @@ import {
   SandpackProvider, SandpackLayout, SandpackFileExplorer, SandpackCodeEditor, SandpackPreview, useSandpack,
 } from "@codesandbox/sandpack-react";
 import {
-  ArrowLeft, Code2, FileText, FolderTree, Loader2, Play, RefreshCcw, Save, Terminal,
+  ArrowLeft, Code2, FileText, FolderTree, GitBranch as GitBranchIcon, GitCommitHorizontal, GitPullRequest,
+  Loader2, Play, RefreshCcw, Save, Terminal,
 } from "lucide-react";
 import {
-  Badge, Btn, Card, EmptyState, SectionHead, SkeletonRows, T,
+  Badge, Btn, Card, EmptyState, SectionHead, SkeletonRows, fieldStyle, T,
 } from "../../components/common";
 import { devLabLevelLabel, devLabMyStatusLabel, devLabMyStatusTone, devLabWorkspaceStackLabel } from "./DevLabCatalog.js";
 import {
   useDevLabWorkspaceTemplates, useDevLabWorkspaceDetail, useDevLabWorkspaceActions,
+  useDevLabTeamDetail, useDevLabTeamActions,
 } from "./useDevLab.js";
 
 // Sandpackを直接importする唯一のファイル(docs/decisions/0011参照)。DevLabProduct.jsxから
@@ -386,6 +388,278 @@ export function WorkspaceDetail({ templateId, onBack, backLabel }) {
           </pre>
         </Card>
       )}
+    </div>
+  );
+}
+
+// ===================== チーム開発: 自分のブランチで作業する（Step3、2026-08-18新設） =====================
+// docs/specs/dev-team-spec.md。既存のWorkspaceDetailと同じSandpack構成に、
+// pull（取り込み）／commit（mainへ反映）とコミット履歴を足したもの。
+// 衝突はサーバ側の3-wayマージがGit標準マーカーでファイルへ埋め込むため、受講生は
+// エディタ上でマーカーを消しながら解決する（実際のGitと同じ操作感）。
+function CommitHistory({ commits, myTraineeId }) {
+  if (!commits?.length) {
+    return <p className="text-xs" style={{ color: T.textMuted }}>まだコミットがありません。最初の変更をコミットしてみましょう。</p>;
+  }
+  return (
+    <ol className="space-y-1.5">
+      {[...commits].reverse().map(c => (
+        <li key={c.commitId} className="flex items-start gap-2 text-xs">
+          <span className="mt-1 h-1.5 w-1.5 shrink-0 rounded-full" style={{ background: c.authorType === "ai" ? T.warning : T.accent }} />
+          <span className="min-w-0">
+            <span className="font-semibold" style={{ color: T.textPrimary }}>{c.message}</span>
+            <span className="ml-1.5" style={{ color: T.textMuted }}>
+              {c.authorName}{c.roleName ? `（${c.roleName}）` : ""}
+              {c.authorId === myTraineeId ? " ・ あなた" : ""}
+            </span>
+            {c.changedPaths?.length > 0 && (
+              <span className="ml-1.5" style={{ color: T.textMuted }}>／ {c.changedPaths.join(", ")}</span>
+            )}
+          </span>
+        </li>
+      ))}
+    </ol>
+  );
+}
+
+export function TeamBranchWorkspace({ teamId, onBack }) {
+  const { data, loading, error, reload } = useDevLabTeamDetail(teamId);
+  const { saveBranch, pull, commit, busy, actionError, clearActionError } = useDevLabTeamActions(teamId);
+  const [files, setFiles] = useState(null);       // 現在の作業ファイル（サーバ由来 or pull結果）
+  const [saveState, setSaveState] = useState("idle");
+  const [pullResult, setPullResult] = useState(null);
+  const [commitMessage, setCommitMessage] = useState("");
+  const [needsPull, setNeedsPull] = useState(false);
+  const [notice, setNotice] = useState("");
+  const [editorKey, setEditorKey] = useState(0); // pull後にエディタを作り直すためのkey
+  const autosaveTimer = useRef(null);
+  const latestFiles = useRef(null);
+
+  useEffect(() => () => { if (autosaveTimer.current) clearTimeout(autosaveTimer.current); }, []);
+  useEffect(() => {
+    if (data?.workingFiles) {
+      setFiles(data.workingFiles);
+      latestFiles.current = data.workingFiles;
+    }
+  }, [data]);
+
+  const initialFiles = useMemo(() => {
+    if (!files) return {};
+    const out = {};
+    for (const [path, content] of Object.entries(files)) out[withLeadingSlash(path)] = { code: content };
+    return out;
+  }, [files, editorKey]);
+
+  function handleChange(overlay, deletedPaths) {
+    if (!latestFiles.current) return;
+    if (Object.keys(overlay).length === 0 && deletedPaths.length === 0) return;
+    const next = { ...latestFiles.current, ...overlay };
+    for (const p of deletedPaths) delete next[p];
+    latestFiles.current = next;
+    setSaveState("dirty");
+    if (autosaveTimer.current) clearTimeout(autosaveTimer.current);
+    autosaveTimer.current = setTimeout(async () => {
+      setSaveState("saving");
+      try { await saveBranch(next); setSaveState("saved"); } catch { setSaveState("dirty"); }
+    }, 3000);
+  }
+
+  async function handlePull() {
+    clearSaveTimer();
+    setNotice(""); clearSaveError();
+    try {
+      // 未保存の変更を先に確定させてからpullする（保存前の編集が消えないように）
+      if (latestFiles.current && saveState === "dirty") await saveBranch(latestFiles.current);
+      const res = await pull();
+      setFiles(res.files);
+      latestFiles.current = res.files;
+      setPullResult(res);
+      setNeedsPull(false);
+      setSaveState("saved");
+      setEditorKey(k => k + 1);
+      await reload();
+    } catch { /* actionErrorに出る */ }
+  }
+
+  async function handleCommit() {
+    if (!commitMessage.trim() || !latestFiles.current) return;
+    clearSaveTimer();
+    setNotice(""); clearSaveError();
+    try {
+      const res = await commit(commitMessage.trim(), latestFiles.current);
+      setCommitMessage("");
+      setPullResult(null);
+      setNeedsPull(false);
+      setSaveState("saved");
+      setNotice(`コミットしました: ${res.commit.message}`);
+      await reload();
+    } catch (e) {
+      if (e?.status === 409 || e?.data?.needsPull) setNeedsPull(true);
+    }
+  }
+
+  function clearSaveTimer() { if (autosaveTimer.current) clearTimeout(autosaveTimer.current); }
+  function clearSaveError() { clearActionError(); }
+
+  if (loading) return <Card><SkeletonRows rows={4} /></Card>;
+  if (error || !data?.team) {
+    return (
+      <Card className="p-5">
+        <p className="text-sm" style={{ color: T.danger }}>{error || "チームが見つかりません。"}</p>
+        <Btn kind="ghost" size="sm" className="mt-2" onClick={onBack}>一覧に戻る</Btn>
+      </Card>
+    );
+  }
+
+  const team = data.team;
+  const isSpring = team.stack === "spring_sim";
+  const activeFile = team.entryHint ? withLeadingSlash(team.entryHint) : undefined;
+  const myMember = (team.members || []).find(m => m.traineeId === data.myTraineeId) || null;
+  const myRole = (team.roles || []).find(r => r.roleId === myMember?.roleId) || null;
+  const hasConflicts = (pullResult?.conflictPaths || []).length > 0;
+
+  return (
+    <div className="flex h-full flex-col">
+      <div className="flex flex-wrap items-center justify-between gap-2 pb-3">
+        <button type="button" onClick={onBack} className="text-xs font-semibold" style={{ color: T.textMuted }}>
+          <ArrowLeft size={12} className="mr-1 inline" />チーム一覧へ戻る
+        </button>
+        <div className="flex flex-wrap items-center gap-2">
+          <SaveStatusBadge state={saveState} />
+          <Btn kind="ghost" size="sm" icon={busy ? Loader2 : GitPullRequest} disabled={busy} onClick={handlePull}>
+            取り込む（pull）
+          </Btn>
+        </div>
+      </div>
+
+      <div className="mb-3">
+        <div className="flex flex-wrap items-center gap-2">
+          <h2 className="text-base font-bold" style={{ color: T.textPrimary }}>{team.title}</h2>
+          <Badge tone={isSpring ? "amber" : "cyan"}>{devLabWorkspaceStackLabel(team.stack)}</Badge>
+          {myRole && <Badge tone="green">あなた: {myRole.name}</Badge>}
+        </div>
+        {myRole?.description && <p className="mt-1 text-xs" style={{ color: T.textSecondary }}>{myRole.description}</p>}
+        {myRole?.ownedPaths?.length > 0 && (
+          <p className="mt-0.5 text-xs" style={{ color: T.textMuted }}>担当ファイル: {myRole.ownedPaths.join(", ")}</p>
+        )}
+      </div>
+
+      {actionError && <Card className="mb-3 p-3"><p className="text-xs" style={{ color: T.danger }}>{actionError}</p></Card>}
+      {notice && <Card className="mb-3 p-3"><p className="text-xs" style={{ color: T.success }}>{notice}</p></Card>}
+      {needsPull && (
+        <Card className="mb-3 p-3" style={{ background: T.warningSubtle }}>
+          <p className="text-xs" style={{ color: T.warning }}>
+            他のメンバーの変更が先に入っています。「取り込む（pull）」を実行してから、もう一度コミットしてください。
+          </p>
+        </Card>
+      )}
+
+      {pullResult && (
+        <Card className="mb-3 p-4">
+          <h3 className="mb-2 text-sm font-bold" style={{ color: T.textPrimary }}>取り込み結果</h3>
+          {(pullResult.newCommits || []).length > 0 ? (
+            <ul className="mb-2 space-y-0.5">
+              {pullResult.newCommits.map((c, i) => (
+                <li key={i} className="text-xs" style={{ color: T.textSecondary }}>
+                  ・{c.authorName}{c.roleName ? `（${c.roleName}）` : ""}: {c.message}
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <p className="mb-2 text-xs" style={{ color: T.textMuted }}>新しい変更はありませんでした。</p>
+          )}
+          {hasConflicts ? (
+            <div className="rounded-xl p-3" style={{ background: T.dangerSubtle }}>
+              <p className="text-xs font-bold" style={{ color: T.danger }}>
+                コンフリクト（衝突）が {pullResult.conflictPaths.length} 件あります: {pullResult.conflictPaths.join(", ")}
+              </p>
+              <p className="mt-1 text-xs" style={{ color: T.textSecondary }}>
+                該当ファイルに <code>{"<<<<<<<"}</code> / <code>=======</code> / <code>{">>>>>>>"}</code> のマーカーが入っています。
+                どちらを残すか決めて、マーカーの行ごと消してから保存・コミットしてください。
+              </p>
+            </div>
+          ) : (
+            <p className="text-xs" style={{ color: T.success }}>
+              衝突はありませんでした
+              {(pullResult.mergedPaths || []).length > 0 && `（${pullResult.mergedPaths.length}件は自動で統合されました）`}。
+            </p>
+          )}
+        </Card>
+      )}
+
+      <SandpackProvider
+        key={editorKey}
+        template={isSpring ? "static" : "react"}
+        theme={SANDPACK_THEME}
+        files={initialFiles}
+        options={{
+          visibleFiles: Object.keys(initialFiles),
+          activeFile: activeFile && initialFiles[activeFile] ? activeFile : undefined,
+          autorun: !isSpring,
+          autoReload: !isSpring,
+          recompileMode: "delayed",
+          recompileDelay: 500,
+        }}
+      >
+        <SandpackChangeWatcher onChange={handleChange} />
+        <SandpackLayout style={{ borderRadius: 16, border: `1px solid ${T.border}` }}>
+          <SandpackFileExplorer style={{ height: 520, flex: "0 0 260px", minWidth: 220, maxWidth: 480, width: 260, resize: "horizontal", overflow: "auto" }} />
+          <SandpackCodeEditor style={{ height: 520 }} showTabs showLineNumbers showInlineErrors closableTabs />
+        </SandpackLayout>
+        {!isSpring && (
+          <SandpackLayout style={{ marginTop: 12, borderRadius: 16, border: `1px solid ${T.border}` }}>
+            <SandpackPreview style={{ height: 300, minHeight: 200, resize: "vertical", overflow: "auto" }} showNavigator showRefreshButton />
+          </SandpackLayout>
+        )}
+      </SandpackProvider>
+
+      <Card className="mt-3 p-4">
+        <h3 className="mb-2 text-sm font-bold" style={{ color: T.textPrimary }}>コミットする</h3>
+        <div className="flex flex-wrap items-center gap-2">
+          <input
+            style={{ ...fieldStyle, flex: 1, minWidth: 240 }}
+            placeholder="コミットメッセージ（例: 予約の削除機能を実装）"
+            value={commitMessage}
+            onChange={e => setCommitMessage(e.target.value)}
+          />
+          <Btn icon={busy ? Loader2 : GitCommitHorizontal} disabled={busy || !commitMessage.trim() || hasConflicts} onClick={handleCommit}>
+            コミット
+          </Btn>
+        </div>
+        {hasConflicts && (
+          <p className="mt-1.5 text-xs" style={{ color: T.danger }}>衝突を解決するまでコミットできません。</p>
+        )}
+      </Card>
+
+      <Card className="mt-3 p-4">
+        <div className="mb-2 flex items-center gap-2">
+          <GitBranchIcon size={14} style={{ color: T.textMuted }} />
+          <h3 className="text-sm font-bold" style={{ color: T.textPrimary }}>コミット履歴</h3>
+        </div>
+        <CommitHistory commits={team.commits} myTraineeId={data.myTraineeId} />
+      </Card>
+
+      <Card className="mt-3 p-4">
+        <h3 className="mb-2 text-sm font-bold" style={{ color: T.textPrimary }}>チームメンバー</h3>
+        <div className="flex flex-wrap gap-2">
+          {(team.members || []).map(m => {
+            const r = (team.roles || []).find(x => x.roleId === m.roleId);
+            return (
+              <span key={m.traineeId} className="rounded-full px-2.5 py-1 text-xs font-semibold" style={{ background: T.accentSubtle, color: T.accentHover }}>
+                {m.traineeName}{r ? `（${r.name}）` : ""}
+              </span>
+            );
+          })}
+          {(team.aiSeats || []).map(s => {
+            const r = (team.roles || []).find(x => x.roleId === s.roleId);
+            return (
+              <span key={s.memberId} className="rounded-full px-2.5 py-1 text-xs font-semibold" style={{ background: T.warningSubtle, color: T.warning }}>
+                {s.name}{r ? `（${r.name}）` : ""} ・ AI
+              </span>
+            );
+          })}
+        </div>
+      </Card>
     </div>
   );
 }

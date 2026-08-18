@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import {
   Award, CheckCircle2, ClipboardList, Clock3, Code2, FolderTree, Link2, Loader2, Paperclip, Pencil, Plus, Sparkles, Trash2, Users, XCircle, X,
 } from "lucide-react";
@@ -16,8 +16,9 @@ import {
 import {
   useDevLabProjects, useDevLabMe, useDevLabActions, useDevLabAdmin, useDevLabSubmissions, useMySkillSheet,
   useDevLabWorkspaceTemplates, useDevLabLinkedWorkspaceOverlay, useDevLabAdminWorkspaceTemplates,
-  useDevLabAdminTeamProjects,
+  useDevLabAdminTeamProjects, useDevLabAdminTeams, useMyDevLabTeams,
 } from "./useDevLab.js";
+import { apiGet } from "../../api.js";
 
 // ===================== ホーム =====================
 export function DevLabHome({ role, goSub }) {
@@ -1330,6 +1331,214 @@ export function TeamProjectManager({ role }) {
                   <Btn kind="ghost" size="sm" icon={Trash2} onClick={() => handleDelete(tp)}>削除</Btn>
                 </div>
               </div>
+            ))}
+          </div>
+        )}
+      </Card>
+    </div>
+  );
+}
+
+// ===================== admin/instructor: チーム編成（Step2、2026-08-18新設） =====================
+// 案件を選び、自社受講生をロールへ割り当ててチームを作る。割り当てなかったロールは
+// AIメンバーが自動で埋まる（docs/specs/dev-team-spec.md §1）。
+function TeamComposer({ teamProjects, trainees, onCreate, onCancel, busy, actionError }) {
+  const [teamProjectId, setTeamProjectId] = useState("");
+  const [title, setTitle] = useState("");
+  const [assignments, setAssignments] = useState({}); // roleId -> traineeId
+  const project = teamProjects.find(p => p.id === teamProjectId) || null;
+  const roles = project?.roles || [];
+
+  function assign(roleId, traineeId) {
+    setAssignments(prev => {
+      const next = { ...prev };
+      // 同じ受講生を複数ロールへ入れない
+      for (const [rid, tid] of Object.entries(next)) if (tid === traineeId && rid !== roleId) delete next[rid];
+      if (traineeId) next[roleId] = traineeId; else delete next[roleId];
+      return next;
+    });
+  }
+
+  const assignedCount = Object.keys(assignments).length;
+  const companyIds = [...new Set(Object.values(assignments).map(tid => trainees.find(t => t.userId === tid)?.company).filter(Boolean))];
+
+  return (
+    <div>
+      <div className="mb-4 flex items-center justify-between gap-3">
+        <h3 className="text-base font-bold" style={{ color: T.textPrimary }}>チームを編成</h3>
+        <Btn kind="ghost" size="sm" icon={X} onClick={onCancel}>閉じる</Btn>
+      </div>
+      {actionError && <Card className="mb-4 p-4"><p className="text-sm" style={{ color: T.danger }}>{actionError}</p></Card>}
+      <Card className="p-4">
+        <div className="space-y-3">
+          <Field label="チーム開発案件">
+            <select style={fieldStyle} value={teamProjectId} onChange={e => { setTeamProjectId(e.target.value); setAssignments({}); }}>
+              <option value="">選択してください</option>
+              {teamProjects.filter(p => p.status === "published").map(p => (
+                <option key={p.id} value={p.id}>{p.title}（{devLabLevelLabel(p.level)} ・ 担当{(p.roles || []).length}件）</option>
+              ))}
+            </select>
+            {teamProjects.filter(p => p.status === "published").length === 0 && (
+              <p className="mt-1 text-xs" style={{ color: T.textMuted }}>公開中のチーム開発案件がありません。先に「チーム開発案件」で作成・公開してください。</p>
+            )}
+          </Field>
+          <Field label="チーム名"><input style={fieldStyle} value={title} onChange={e => setTitle(e.target.value)} placeholder={project?.title || "チーム名"} /></Field>
+
+          {roles.length > 0 && (
+            <Field label="役割ごとの担当者（空欄のままにするとAIメンバーが埋めます）">
+              <div className="space-y-2">
+                {roles.map(r => (
+                  <div key={r.roleId} className="rounded-xl border p-3" style={{ borderColor: T.border }}>
+                    <div className="mb-1.5">
+                      <span className="text-sm font-bold" style={{ color: T.textPrimary }}>{r.name}</span>
+                      {r.description && <p className="text-xs" style={{ color: T.textMuted }}>{r.description}</p>}
+                    </div>
+                    <select style={fieldStyle} value={assignments[r.roleId] || ""} onChange={e => assign(r.roleId, e.target.value)}>
+                      <option value="">AIメンバーが担当</option>
+                      {trainees.map(t => (
+                        <option key={t.userId} value={t.userId}>{t.name || t.email || t.userId}</option>
+                      ))}
+                    </select>
+                  </div>
+                ))}
+                <p className="text-xs" style={{ color: T.textMuted }}>
+                  {assignedCount === 0
+                    ? "全員AIメンバーになります（1人でチーム開発を体験する形）。"
+                    : `受講生${assignedCount}人、AIメンバー${roles.length - assignedCount}人のチームになります。`}
+                </p>
+              </div>
+            </Field>
+          )}
+        </div>
+      </Card>
+      <div className="mt-4 flex justify-end gap-2">
+        <Btn kind="ghost" onClick={onCancel}>キャンセル</Btn>
+        <Btn
+          disabled={busy || !teamProjectId}
+          onClick={() => onCreate({
+            teamProjectId,
+            title: title.trim() || project?.title || "",
+            companyId: companyIds.length === 1 ? companyIds[0] : "",
+            members: Object.entries(assignments).map(([roleId, traineeId]) => ({ roleId, traineeId })),
+          })}
+        >チームを作る</Btn>
+      </div>
+    </div>
+  );
+}
+
+export function TeamManager() {
+  const { teams, loading, error, create, remove, busy, actionError, clearActionError } = useDevLabAdminTeams();
+  const { teamProjects } = useDevLabAdminTeamProjects();
+  const [trainees, setTrainees] = useState([]);
+  const [composing, setComposing] = useState(false);
+
+  useEffect(() => {
+    let alive = true;
+    apiGet("/admin/users")
+      .then(list => { if (alive) setTrainees((Array.isArray(list) ? list : []).filter(u => u.role === "trainee")); })
+      .catch(() => { if (alive) setTrainees([]); });
+    return () => { alive = false; };
+  }, []);
+
+  async function handleCreate(payload) {
+    await create(payload);
+    setComposing(false);
+  }
+
+  async function handleDelete(team) {
+    if (!window.confirm(`「${team.title}」を削除しますか？`)) return;
+    await remove(team.id);
+  }
+
+  if (composing) {
+    return (
+      <TeamComposer
+        teamProjects={teamProjects}
+        trainees={trainees}
+        onCreate={handleCreate}
+        onCancel={() => { clearActionError(); setComposing(false); }}
+        busy={busy}
+        actionError={actionError}
+      />
+    );
+  }
+
+  return (
+    <div>
+      <SectionHead
+        icon={Users}
+        title="チーム"
+        desc="チーム開発案件から実際のチームを編成します。割り当てなかった役割はAIメンバーが担当します。"
+        action={<Btn icon={Plus} onClick={() => { clearActionError(); setComposing(true); }}>チームを編成</Btn>}
+      />
+      {error && <Card className="mb-4 p-4"><p className="text-sm" style={{ color: T.danger }}>{error}</p></Card>}
+      <Card>
+        {loading ? <SkeletonRows rows={3} /> : teams.length === 0 ? (
+          <EmptyState icon={Users} title="チームがありません" desc="「チームを編成」から作成してください。" />
+        ) : (
+          <div className="divide-y" style={{ borderColor: T.border }}>
+            {teams.map(team => (
+              <div key={team.id} className="flex flex-wrap items-center justify-between gap-3 p-4">
+                <div className="min-w-0">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="text-sm font-bold" style={{ color: T.textPrimary }}>{team.title}</span>
+                    <Badge tone="cyan">受講生{(team.members || []).length}人</Badge>
+                    <Badge tone="amber">AI{(team.aiSeats || []).length}人</Badge>
+                    <Badge tone="muted">コミット{(team.commits || []).length}件</Badge>
+                  </div>
+                  <div className="mt-1 text-xs" style={{ color: T.textMuted }}>
+                    {(team.members || []).map(m => m.traineeName).join("、") || "受講生の割り当てなし"}
+                  </div>
+                </div>
+                <div className="flex shrink-0 gap-2">
+                  <Btn kind="ghost" size="sm" icon={Trash2} onClick={() => handleDelete(team)}>削除</Btn>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </Card>
+    </div>
+  );
+}
+
+// ===================== 受講生: 自分のチーム一覧（Step2） =====================
+export function MyTeamsCatalog({ onOpenTeam }) {
+  const { teams, loading, error } = useMyDevLabTeams();
+  return (
+    <div>
+      <SectionHead
+        icon={Users}
+        title="チーム開発"
+        desc="チームで1つのコードベースを進めます。他のメンバーの変更を取り込みながら、自分の担当を実装しましょう。"
+      />
+      {error && <Card className="mb-4 p-4"><p className="text-sm" style={{ color: T.danger }}>{error}</p></Card>}
+      <Card>
+        {loading ? <SkeletonRows rows={2} /> : teams.length === 0 ? (
+          <EmptyState icon={Users} title="参加中のチームがありません" desc="チームに割り当てられると、ここに表示されます。" />
+        ) : (
+          <div className="grid gap-3 p-4 sm:grid-cols-2">
+            {teams.map(team => (
+              <button
+                key={team.id}
+                type="button"
+                onClick={() => onOpenTeam(team.id)}
+                className="rounded-2xl p-4 text-left transition hover:-translate-y-0.5 hover:shadow-md"
+                style={{ background: T.bgBase, border: `1px solid ${T.border}` }}
+              >
+                <div className="text-base font-bold" style={{ color: T.textPrimary }}>{team.title}</div>
+                <div className="mt-1.5 flex flex-wrap gap-1.5">
+                  <Badge tone="cyan">{devLabWorkspaceStackLabel(team.stack)}</Badge>
+                  <Badge tone="muted">メンバー{(team.members || []).length + (team.aiSeats || []).length}人</Badge>
+                  <Badge tone="muted">コミット{(team.commits || []).length}件</Badge>
+                </div>
+                {(team.commits || []).length > 0 && (
+                  <p className="mt-2 text-xs" style={{ color: T.textMuted }}>
+                    最新: {team.commits[team.commits.length - 1].authorName} 「{team.commits[team.commits.length - 1].message}」
+                  </p>
+                )}
+              </button>
             ))}
           </div>
         )}

@@ -6,6 +6,8 @@ import {
   ProjectManager,
   WorkspaceTemplateManager,
   TeamProjectManager,
+  TeamManager,
+  MyTeamsCatalog,
 } from "./DevLabComponents.jsx";
 import { PageLoading } from "../../components/common";
 
@@ -16,6 +18,8 @@ import { PageLoading } from "../../components/common";
 // この境界を崩さずに"dl_projects"(統合カタログ)側へ持ち込める。
 const WorkspaceCatalog = lazy(() => import("./DevLabWorkspaceComponents.jsx").then(m => ({ default: m.WorkspaceCatalog })));
 const WorkspaceDetail = lazy(() => import("./DevLabWorkspaceComponents.jsx").then(m => ({ default: m.WorkspaceDetail })));
+// チーム開発の作業画面もSandpackを使うため、同じlazy境界に載せる（2026-08-18）。
+const TeamBranchWorkspace = lazy(() => import("./DevLabWorkspaceComponents.jsx").then(m => ({ default: m.TeamBranchWorkspace })));
 
 // 対象ロールはtrainee/instructor/adminのみ（clientはTrainingApp.jsxのPRODUCTS.rolesで
 // 既に到達不可。ここでも二重に防御する。GrantsProductと同じパターン）。
@@ -38,6 +42,8 @@ export default function DevLabProduct({ subView, goSub, role, themeColor }) {
   // 案件詳細へ戻すためのprojectId(2026-07-22追加、案件×ワークスペース連携)。カタログ経由で
   // ワークスペースを開いた場合はnullのまま(=一覧へ戻る、従来通り)。
   const [workspaceReturnProjectId, setWorkspaceReturnProjectId] = useState("");
+  // チーム開発（2026-08-18）: 一覧⇔作業画面をactiveTeamIdで切り替える（既存のactiveTemplateIdと同じパターン）
+  const [activeTeamId, setActiveTeamId] = useState("");
 
   // カタログ系(dl_projects/dl_workspace)以外へ移動したら選択状態をリセットする（サイドナビを
   // 経由して戻った際に、常にカタログから始まるようにするため）。
@@ -45,6 +51,7 @@ export default function DevLabProduct({ subView, goSub, role, themeColor }) {
     if (subView !== "dl_projects") setActiveProjectId("");
     if (subView !== "dl_projects" && subView !== "dl_workspace") setActiveTemplateId("");
     if (subView !== "dl_projects" && subView !== "dl_workspace") setWorkspaceReturnProjectId("");
+    if (subView !== "dl_team") setActiveTeamId("");
   }, [subView]);
 
   function openWorkspaceFromProject(projectId, templateId) {
@@ -77,6 +84,14 @@ export default function DevLabProduct({ subView, goSub, role, themeColor }) {
     dl_manage: <ProjectManager role={role} />,
     dl_manage_workspace: <WorkspaceTemplateManager />,
     dl_manage_team: <TeamProjectManager role={role} />,
+    dl_manage_teams: <TeamManager />,
+    dl_team: activeTeamId
+      ? (
+        <Suspense fallback={<PageLoading label="チームの作業環境を準備しています…" />}>
+          <TeamBranchWorkspace teamId={activeTeamId} onBack={() => setActiveTeamId("")} />
+        </Suspense>
+      )
+      : <MyTeamsCatalog onOpenTeam={setActiveTeamId} />,
     dl_workspace: (
       <Suspense fallback={<PageLoading label="ワークスペースを準備しています…" />}>
         {activeTemplateId

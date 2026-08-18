@@ -320,6 +320,122 @@ export function useDevLabAdminTeamProjects() {
   return { teamProjects, loading, error, reload: load, create, update, remove, generate, generateAiCommits, busy, actionError, clearActionError: () => setActionError("") };
 }
 
+// ---- admin/instructor: チーム編成（Step2） ----
+export function useDevLabAdminTeams() {
+  const [teams, setTeams] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+  const [actionError, setActionError] = useState("");
+  const [busy, setBusy] = useState(false);
+
+  const load = useCallback(() => {
+    setLoading(true); setError("");
+    return apiGet("/devlab/admin/teams")
+      .then(res => setTeams(Array.isArray(res?.items) ? res.items : []))
+      .catch(e => setError(apiErrorMessage(e, "チーム一覧を確認できません。")))
+      .finally(() => setLoading(false));
+  }, []);
+
+  useEffect(() => { load(); }, [load]);
+
+  async function create(payload) {
+    setBusy(true); setActionError("");
+    try {
+      const res = await apiPost("/devlab/admin/teams", payload);
+      await load();
+      return res?.team || null;
+    } catch (e) {
+      setActionError(apiErrorMessage(e, "チームの作成に失敗しました。"));
+      throw e;
+    } finally { setBusy(false); }
+  }
+
+  async function remove(teamId) {
+    setBusy(true); setActionError("");
+    try {
+      await apiDelete(`/devlab/admin/teams/${encodeURIComponent(teamId)}`);
+      await load();
+    } catch (e) {
+      setActionError(apiErrorMessage(e, "チームの削除に失敗しました。"));
+      throw e;
+    } finally { setBusy(false); }
+  }
+
+  return { teams, loading, error, reload: load, create, remove, busy, actionError, clearActionError: () => setActionError("") };
+}
+
+// ---- 受講生: 自分のチーム一覧 ----
+export function useMyDevLabTeams() {
+  const [teams, setTeams] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+
+  const load = useCallback(() => {
+    setLoading(true); setError("");
+    return apiGet("/devlab/teams/me")
+      .then(res => setTeams(Array.isArray(res?.items) ? res.items : []))
+      .catch(e => setError(apiErrorMessage(e, "チームを確認できません。")))
+      .finally(() => setLoading(false));
+  }, []);
+
+  useEffect(() => { load(); }, [load]);
+  return { teams, loading, error, reload: load };
+}
+
+// ---- 受講生: チーム詳細＋自分のブランチ（Step3） ----
+export function useDevLabTeamDetail(teamId) {
+  const [data, setData] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+
+  const load = useCallback(() => {
+    if (!teamId) return Promise.resolve();
+    setLoading(true); setError("");
+    return apiGet(`/devlab/teams/${encodeURIComponent(teamId)}`)
+      .then(res => setData(res || null))
+      .catch(e => setError(apiErrorMessage(e, "チームを確認できません。")))
+      .finally(() => setLoading(false));
+  }, [teamId]);
+
+  useEffect(() => { load(); }, [load]);
+  return { data, loading, error, reload: load };
+}
+
+// ---- 受講生: ブランチ保存・pull・commit（Step3） ----
+export function useDevLabTeamActions(teamId) {
+  const [busy, setBusy] = useState(false);
+  const [actionError, setActionError] = useState("");
+
+  async function saveBranch(files) {
+    // 自動保存は静かに失敗させたいので、ここではbusyを立てない
+    return apiPut(`/devlab/teams/${encodeURIComponent(teamId)}/branch`, { files });
+  }
+
+  async function pull() {
+    setBusy(true); setActionError("");
+    try {
+      return await apiPost(`/devlab/teams/${encodeURIComponent(teamId)}/pull`, {});
+    } catch (e) {
+      setActionError(apiErrorMessage(e, "取り込みに失敗しました。"));
+      throw e;
+    } finally { setBusy(false); }
+  }
+
+  async function commit(message, files) {
+    setBusy(true); setActionError("");
+    try {
+      return await apiPost(`/devlab/teams/${encodeURIComponent(teamId)}/commit`, { message, files });
+    } catch (e) {
+      // 409(他メンバーの変更が先に入っている)は呼び出し側で「pullを促す」扱いにするため
+      // needsPullを保持したまま投げ直す
+      setActionError(apiErrorMessage(e, "コミットに失敗しました。"));
+      throw e;
+    } finally { setBusy(false); }
+  }
+
+  return { saveBranch, pull, commit, busy, actionError, clearActionError: () => setActionError("") };
+}
+
 // ---- admin/instructor: 提出状況閲覧＋手動上書き ----
 export function useDevLabSubmissions(projectId) {
   const [submissions, setSubmissions] = useState([]);
