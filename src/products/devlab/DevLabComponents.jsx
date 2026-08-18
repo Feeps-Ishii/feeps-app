@@ -113,6 +113,10 @@ export function DevLabCombinedCatalog({ onOpenProject, onOpenTemplate }) {
     return map;
   }, [projects]);
 
+  // 2026-08-18 「案件一覧とプロジェクト体験が同じ一覧に混ざって分かりにくい」という指摘を
+  // 受けて対応。サイドナビは1項目のまま(2026-07-22の統合方針は維持)、画面内を「案件（提出型・
+  // AIレビュー）」「プロジェクト体験（ブラウザ内で自由に編集）」の2セクションへ見出し分けする。
+  // 該当0件のセクションは表示しない（空欄を並べない）。
   return (
     <div>
       <SectionHead
@@ -126,66 +130,86 @@ export function DevLabCombinedCatalog({ onOpenProject, onOpenTemplate }) {
           <Btn kind="ghost" size="sm" className="mt-2" onClick={() => { reloadProjects(); reloadTemplates(); }}>再試行</Btn>
         </Card>
       )}
-      <Card>
-        {loading ? <SkeletonRows rows={3} /> : isEmpty ? (
-          <EmptyState icon={Code2} title="公開中の案件・プロジェクトはありません" desc="新しいコンテンツが公開されるまでお待ちください。" />
-        ) : (
-          <div className="grid gap-3 p-4 sm:grid-cols-2">
-            {projects.map(project => (
-              <button
-                key={`project-${project.id}`}
-                type="button"
-                onClick={() => onOpenProject(project.id)}
-                className="rounded-2xl p-4 text-left transition hover:-translate-y-0.5 hover:shadow-md"
-                style={{ background: T.bgBase, border: `1px solid ${T.border}` }}
-              >
-                <div className="flex items-start justify-between gap-2">
-                  <div className="min-w-0">
-                    <div className="text-xs font-semibold" style={{ color: T.textMuted }}>{project.clientName || "案件"}</div>
-                    <div className="mt-0.5 truncate text-base font-bold" style={{ color: T.textPrimary }}>{project.title}</div>
-                  </div>
-                  <Badge tone={devLabMyStatusTone(project.myStatus)}>{devLabMyStatusLabel(project.myStatus)}</Badge>
+      {loading ? <Card><SkeletonRows rows={3} /></Card> : isEmpty ? (
+        <Card><EmptyState icon={Code2} title="公開中の案件・プロジェクトはありません" desc="新しいコンテンツが公開されるまでお待ちください。" /></Card>
+      ) : (
+        <>
+          {projects.length > 0 && (
+            <div className="mb-5">
+              <div className="mb-2 flex items-baseline gap-2">
+                <h4 className="text-sm font-bold" style={{ color: T.textPrimary }}>案件（提出型）</h4>
+                <span className="text-xs" style={{ color: T.textMuted }}>ステップごとに成果物を提出し、AIレビューを受けます</span>
+              </div>
+              <Card>
+                <div className="grid gap-3 p-4 sm:grid-cols-2">
+                  {projects.map(project => (
+                    <button
+                      key={`project-${project.id}`}
+                      type="button"
+                      onClick={() => onOpenProject(project.id)}
+                      className="rounded-2xl p-4 text-left transition hover:-translate-y-0.5 hover:shadow-md"
+                      style={{ background: T.bgBase, border: `1px solid ${T.border}` }}
+                    >
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="min-w-0">
+                          <div className="text-xs font-semibold" style={{ color: T.textMuted }}>{project.clientName || "案件"}</div>
+                          <div className="mt-0.5 truncate text-base font-bold" style={{ color: T.textPrimary }}>{project.title}</div>
+                        </div>
+                        <Badge tone={devLabMyStatusTone(project.myStatus)}>{devLabMyStatusLabel(project.myStatus)}</Badge>
+                      </div>
+                      <div className="mt-2 flex flex-wrap gap-1.5">
+                        <Badge tone="cyan">{devLabLevelLabel(project.level)}</Badge>
+                        {project.workspaceTemplateId && <Badge tone="green"><Link2 size={11} />プロジェクト連携</Badge>}
+                        {project.estimatedHours > 0 && <Badge tone="muted"><Clock3 size={11} />約{project.estimatedHours}時間</Badge>}
+                        {(project.techStack || []).slice(0, 3).map(tech => <Badge key={tech} tone="muted">{tech}</Badge>)}
+                      </div>
+                    </button>
+                  ))}
                 </div>
-                <div className="mt-2 flex flex-wrap gap-1.5">
-                  <Badge tone="muted">案件（提出型）</Badge>
-                  <Badge tone="cyan">{devLabLevelLabel(project.level)}</Badge>
-                  {project.workspaceTemplateId && <Badge tone="green"><Link2 size={11} />プロジェクト連携</Badge>}
-                  {project.estimatedHours > 0 && <Badge tone="muted"><Clock3 size={11} />約{project.estimatedHours}時間</Badge>}
-                  {(project.techStack || []).slice(0, 3).map(tech => <Badge key={tech} tone="muted">{tech}</Badge>)}
+              </Card>
+            </div>
+          )}
+          {templates.length > 0 && (
+            <div>
+              <div className="mb-2 flex items-baseline gap-2">
+                <h4 className="text-sm font-bold" style={{ color: T.textPrimary }}>プロジェクト体験</h4>
+                <span className="text-xs" style={{ color: T.textMuted }}>ブラウザ内で自由にコードを編集して体験できます</span>
+              </div>
+              <Card>
+                <div className="grid gap-3 p-4 sm:grid-cols-2">
+                  {templates.map(tpl => (
+                    <button
+                      key={`template-${tpl.id}`}
+                      type="button"
+                      onClick={() => onOpenTemplate(tpl.id)}
+                      className="rounded-2xl p-4 text-left transition hover:-translate-y-0.5 hover:shadow-md"
+                      style={{ background: T.bgBase, border: `1px solid ${T.border}` }}
+                    >
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="min-w-0">
+                          <div className="text-xs font-semibold" style={{ color: T.textMuted }}>{devLabWorkspaceStackLabel(tpl.stack)}</div>
+                          <div className="mt-0.5 truncate text-base font-bold" style={{ color: T.textPrimary }}>{tpl.title}</div>
+                        </div>
+                        <Badge tone={devLabMyStatusTone(tpl.myStatus)}>{devLabMyStatusLabel(tpl.myStatus)}</Badge>
+                      </div>
+                      <p className="mt-2 text-xs leading-relaxed" style={{ color: T.textSecondary }}>{tpl.description}</p>
+                      <div className="mt-2 flex flex-wrap gap-1.5">
+                        <Badge tone="muted">{devLabLevelLabel(tpl.level)}</Badge>
+                        <Badge tone="muted">{tpl.stack === "spring_sim" ? "疑似コンソール実行" : "ブラウザ内プレビュー"}</Badge>
+                      </div>
+                      {(linkedProjectsByTemplate.get(tpl.id) || []).length > 0 && (
+                        <p className="mt-1.5 text-[11px]" style={{ color: T.textMuted }}>
+                          対応案件: {linkedProjectsByTemplate.get(tpl.id).map(p => p.title).join("、")}
+                        </p>
+                      )}
+                    </button>
+                  ))}
                 </div>
-              </button>
-            ))}
-            {templates.map(tpl => (
-              <button
-                key={`template-${tpl.id}`}
-                type="button"
-                onClick={() => onOpenTemplate(tpl.id)}
-                className="rounded-2xl p-4 text-left transition hover:-translate-y-0.5 hover:shadow-md"
-                style={{ background: T.bgBase, border: `1px solid ${T.border}` }}
-              >
-                <div className="flex items-start justify-between gap-2">
-                  <div className="min-w-0">
-                    <div className="text-xs font-semibold" style={{ color: T.textMuted }}>{devLabWorkspaceStackLabel(tpl.stack)}</div>
-                    <div className="mt-0.5 truncate text-base font-bold" style={{ color: T.textPrimary }}>{tpl.title}</div>
-                  </div>
-                  <Badge tone={devLabMyStatusTone(tpl.myStatus)}>{devLabMyStatusLabel(tpl.myStatus)}</Badge>
-                </div>
-                <p className="mt-2 text-xs leading-relaxed" style={{ color: T.textSecondary }}>{tpl.description}</p>
-                <div className="mt-2 flex flex-wrap gap-1.5">
-                  <Badge tone="cyan">プロジェクト体験</Badge>
-                  <Badge tone="muted">{devLabLevelLabel(tpl.level)}</Badge>
-                  <Badge tone="muted">{tpl.stack === "spring_sim" ? "疑似コンソール実行" : "ブラウザ内プレビュー"}</Badge>
-                </div>
-                {(linkedProjectsByTemplate.get(tpl.id) || []).length > 0 && (
-                  <p className="mt-1.5 text-[11px]" style={{ color: T.textMuted }}>
-                    対応案件: {linkedProjectsByTemplate.get(tpl.id).map(p => p.title).join("、")}
-                  </p>
-                )}
-              </button>
-            ))}
-          </div>
-        )}
-      </Card>
+              </Card>
+            </div>
+          )}
+        </>
+      )}
     </div>
   );
 }
