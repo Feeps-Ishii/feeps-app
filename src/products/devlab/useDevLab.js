@@ -172,6 +172,74 @@ export function useDevLabAdmin() {
   return { projects, loading, error, reload: load, create, update, remove, generate, busy, actionError, clearActionError: () => setActionError("") };
 }
 
+// ---- admin/instructor: プロジェクト体験(ワークスペーステンプレート)管理（CRUD＋AI下書き生成） ----
+// useDevLabAdminと同じ構成。管理一覧は下書き含む専用エンドポイント(/devlab/admin/workspace-templates)を使う。
+export function useDevLabAdminWorkspaceTemplates() {
+  const [templates, setTemplates] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+  const [actionError, setActionError] = useState("");
+  const [busy, setBusy] = useState(false);
+
+  const load = useCallback(() => {
+    setLoading(true); setError("");
+    return apiGet("/devlab/admin/workspace-templates")
+      .then(res => setTemplates(Array.isArray(res?.items) ? res.items : []))
+      .catch(e => setError(apiErrorMessage(e, "プロジェクト体験一覧を確認できません。")))
+      .finally(() => setLoading(false));
+  }, []);
+
+  useEffect(() => { load(); }, [load]);
+
+  async function create(payload) {
+    setBusy(true); setActionError("");
+    try {
+      const res = await apiPost("/devlab/admin/workspace-templates", payload);
+      await load();
+      return res?.template || null;
+    } catch (e) {
+      setActionError(apiErrorMessage(e, "プロジェクト体験の作成に失敗しました。"));
+      throw e;
+    } finally { setBusy(false); }
+  }
+
+  async function update(templateId, payload) {
+    setBusy(true); setActionError("");
+    try {
+      const res = await apiPut(`/devlab/admin/workspace-templates/${encodeURIComponent(templateId)}`, payload);
+      await load();
+      return res?.template || null;
+    } catch (e) {
+      setActionError(apiErrorMessage(e, "プロジェクト体験の更新に失敗しました。"));
+      throw e;
+    } finally { setBusy(false); }
+  }
+
+  async function remove(templateId) {
+    setBusy(true); setActionError("");
+    try {
+      await apiDelete(`/devlab/admin/workspace-templates/${encodeURIComponent(templateId)}`);
+      await load();
+    } catch (e) {
+      setActionError(apiErrorMessage(e, "プロジェクト体験の削除に失敗しました。"));
+      throw e;
+    } finally { setBusy(false); }
+  }
+
+  async function generate(payload) {
+    setBusy(true); setActionError("");
+    try {
+      const res = await apiPost("/devlab/admin/workspace-templates/generate", payload);
+      return res?.draft || null;
+    } catch (e) {
+      setActionError(apiErrorMessage(e, "AI下書き生成に失敗しました。"));
+      throw e;
+    } finally { setBusy(false); }
+  }
+
+  return { templates, loading, error, reload: load, create, update, remove, generate, busy, actionError, clearActionError: () => setActionError("") };
+}
+
 // ---- admin/instructor: 提出状況閲覧＋手動上書き ----
 export function useDevLabSubmissions(projectId) {
   const [submissions, setSubmissions] = useState([]);

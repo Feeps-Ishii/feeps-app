@@ -1,21 +1,7 @@
-import { LayoutDashboard, Code2, ClipboardList } from "lucide-react";
-
 // DevLab（開発演習）: 疑似的な開発案件をステップ制で進めるProduct。
-// NAV: trainee=ホーム/案件一覧、admin・instructor=ホーム＋案件管理（一覧・作成編集・生成・提出状況閲覧を1画面に集約）。
-export const DEVLAB_NAV = {
-  trainee: [
-    { sec: null, items: [["dl_home", "ホーム", LayoutDashboard]] },
-    { sec: "開発演習", items: [["dl_projects", "案件一覧", Code2]] },
-  ],
-  instructor: [
-    { sec: null, items: [["dl_home", "ホーム", LayoutDashboard]] },
-    { sec: "開発演習", items: [["dl_manage", "案件管理", ClipboardList]] },
-  ],
-  admin: [
-    { sec: null, items: [["dl_home", "ホーム", LayoutDashboard]] },
-    { sec: "開発演習", items: [["dl_manage", "案件管理", ClipboardList]] },
-  ],
-};
+// ナビは2026-07-22にLearning Productへ統合され、TrainingApp.jsxのEL_NAV(el_devlab*キー)が
+// 正本。ここにあった旧DEVLAB_NAV(dl_*キー)はどこからも参照されない死んだコードだったため削除
+// (2026-08-18確認、実際のナビ変更はTrainingApp.jsxのEL_NAV側で行うこと)。
 
 export const DEVLAB_LEVEL_OPTIONS = [
   { value: "beginner", label: "初級" },
@@ -174,5 +160,83 @@ export function projectToForm(project) {
     visibilityScope: project.visibilityScope || "all",
     targetCompanyIds: project.targetCompanyIds || [],
     workspaceTemplateId: project.workspaceTemplateId || "",
+  };
+}
+
+// ===== プロジェクト体験（ワークスペーステンプレート）管理: 案件と同じフォーム変換パターン =====
+export const WORKSPACE_STACK_OPTIONS = [
+  { value: "react", label: "React" },
+  { value: "spring_sim", label: "Java / Spring Boot（疑似コンソール）" },
+  { value: "fullstack_js", label: "React + API（フルスタック）" },
+];
+
+export function emptyWorkspaceTemplateForm() {
+  return {
+    title: "", description: "", stack: "react", level: "beginner", entryHint: "",
+    files: [{ path: "", content: "" }],
+    scenariosText: "",
+    status: "draft",
+  };
+}
+
+function filesToList(files) {
+  const entries = Object.entries(files && typeof files === "object" ? files : {});
+  return entries.length ? entries.map(([path, content]) => ({ path, content })) : [{ path: "", content: "" }];
+}
+
+// simulatedRun.scenariosはフォーム上「ラベル|コマンド|出力」の1行1シナリオテキストで編集する
+// （filesと違い数が少なく構造も単純なため、専用エディタを作らずテキストで十分と判断）。
+function scenariosToText(simulatedRun) {
+  const scenarios = Array.isArray(simulatedRun?.scenarios) ? simulatedRun.scenarios : [];
+  return scenarios.map(s => `${s.label}|${s.command}|${s.output}`).join("\n");
+}
+function textToScenarios(text) {
+  return String(text || "").split("\n").map(line => line.trim()).filter(Boolean).map(line => {
+    const [label = "", command = "", ...rest] = line.split("|");
+    return { label: label.trim(), command: command.trim(), output: rest.join("|").trim() };
+  }).filter(s => s.label && s.command);
+}
+
+export function workspaceDraftToForm(draft) {
+  return {
+    title: draft.title || "",
+    description: draft.description || "",
+    stack: WORKSPACE_STACK_OPTIONS.some(o => o.value === draft.stack) ? draft.stack : "react",
+    level: draft.level || "beginner",
+    entryHint: draft.entryHint || "",
+    files: filesToList(draft.files),
+    scenariosText: scenariosToText(draft.simulatedRun),
+    status: "draft",
+  };
+}
+
+export function workspaceTemplateToForm(template) {
+  return {
+    title: template.title || "",
+    description: template.description || "",
+    stack: WORKSPACE_STACK_OPTIONS.some(o => o.value === template.stack) ? template.stack : "react",
+    level: template.level || "beginner",
+    entryHint: template.entryHint || "",
+    files: filesToList(template.files),
+    scenariosText: scenariosToText(template.simulatedRun),
+    status: template.status || "draft",
+  };
+}
+
+export function workspaceFormToPayload(form) {
+  const files = {};
+  (form.files || []).forEach(f => {
+    const path = (f.path || "").trim();
+    if (path) files[path] = f.content || "";
+  });
+  return {
+    title: (form.title || "").trim(),
+    description: (form.description || "").trim(),
+    stack: form.stack,
+    level: form.level,
+    entryHint: (form.entryHint || "").trim(),
+    files,
+    simulatedRun: form.stack === "spring_sim" ? { scenarios: textToScenarios(form.scenariosText) } : { scenarios: [] },
+    status: form.status,
   };
 }

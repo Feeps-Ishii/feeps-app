@@ -4,6 +4,7 @@ import {
   DevLabCombinedCatalog,
   ProjectDetail,
   ProjectManager,
+  WorkspaceTemplateManager,
 } from "./DevLabComponents.jsx";
 import { PageLoading } from "../../components/common";
 
@@ -73,6 +74,7 @@ export default function DevLabProduct({ subView, goSub, role, themeColor }) {
         )
         : <DevLabCombinedCatalog role={role} onOpenProject={setActiveProjectId} onOpenTemplate={setActiveTemplateId} />,
     dl_manage: <ProjectManager role={role} />,
+    dl_manage_workspace: <WorkspaceTemplateManager />,
     dl_workspace: (
       <Suspense fallback={<PageLoading label="ワークスペースを準備しています…" />}>
         {activeTemplateId

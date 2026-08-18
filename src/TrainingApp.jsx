@@ -31,7 +31,7 @@ import {
   Sparkles, Flame, X, Eye, Pencil, StickyNote, Megaphone, ArrowUpRight,
   MoreHorizontal, Check, Filter, Target, ListChecks, Lock, Mail, Lightbulb,
   Wrench, Compass, ShieldCheck, FileSpreadsheet, LogIn, Menu, Star, Activity,
-  GitBranch, Briefcase, Gauge, MapPin, User, Printer, RefreshCw, Receipt, Landmark, Code2, ClipboardList, HelpCircle
+  GitBranch, Briefcase, Gauge, MapPin, User, Printer, RefreshCw, Receipt, Landmark, Code2, ClipboardList, FolderTree, HelpCircle
 } from "lucide-react";
 
 // Products other than Training (the default landing product) are code-split so the
@@ -195,7 +195,7 @@ const EL_NAV = {
   instructor: [
     { sec: null, items: [["el_home", "ホーム", LayoutDashboard]] },
     { sec: "管理", items: [["el_manage", "コース管理", Settings], ["el_students", "受講状況", Users]] },
-    { sec: "開発演習", items: [["el_devlab_manage", "案件管理", ClipboardList]] },
+    { sec: "開発演習", items: [["el_devlab_manage", "案件管理", ClipboardList], ["el_devlab_manage_workspace", "プロジェクト体験管理", FolderTree]] },
   ],
   client: [
     { sec: null, items: [["el_home", "ホーム", LayoutDashboard]] },
@@ -207,7 +207,9 @@ const EL_NAV = {
     // adminはモードにゲートされないが、この画面自体は学習モード固有の管理機能のため
     // learning product配下に置く（training product配下の既存admin画面とは別系統）。
     { sec: "管理", items: [["el_manage", "コース管理", Settings], ["el_students", "受講状況", Users], ["el_plans", "プラン・契約", Receipt]] },
-    { sec: "開発演習", items: [["el_devlab_manage", "案件管理", ClipboardList]] },
+    // 2026-08-18 プロジェクト体験(ワークスペーステンプレート)の管理CRUD+AI生成を新設したため、
+    // 「案件管理」と同じ並びに「プロジェクト体験管理」を追加(el_devlab_manage_workspace)。
+    { sec: "開発演習", items: [["el_devlab_manage", "案件管理", ClipboardList], ["el_devlab_manage_workspace", "プロジェクト体験管理", FolderTree]] },
   ],
 };
 

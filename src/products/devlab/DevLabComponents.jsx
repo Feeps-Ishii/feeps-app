@@ -10,10 +10,11 @@ import {
   DEVLAB_LEVEL_OPTIONS, DEVLAB_VISIBILITY_SCOPE_OPTIONS, devLabLevelLabel,
   devLabStatusLabel, devLabStatusTone, devLabMyStatusLabel, devLabMyStatusTone, devLabWorkspaceStackLabel,
   EMPTY_DEVLAB_CHECK, emptyDevLabForm, draftToForm, formToPayload, projectToForm,
+  WORKSPACE_STACK_OPTIONS, emptyWorkspaceTemplateForm, workspaceDraftToForm, workspaceTemplateToForm, workspaceFormToPayload,
 } from "./DevLabCatalog.js";
 import {
   useDevLabProjects, useDevLabMe, useDevLabActions, useDevLabAdmin, useDevLabSubmissions, useMySkillSheet,
-  useDevLabWorkspaceTemplates, useDevLabLinkedWorkspaceOverlay,
+  useDevLabWorkspaceTemplates, useDevLabLinkedWorkspaceOverlay, useDevLabAdminWorkspaceTemplates,
 } from "./useDevLab.js";
 
 // ===================== ホーム =====================
@@ -819,6 +820,203 @@ function ProjectForm({ mode, role, form, onChange, onSave, onCancel, onGenerate,
         <Btn kind="ghost" onClick={onCancel}>キャンセル</Btn>
         <Btn disabled={busy || !form.title.trim()} onClick={onSave}>保存する</Btn>
       </div>
+    </div>
+  );
+}
+
+// ===================== admin/instructor: プロジェクト体験（ワークスペーステンプレート）管理 =====================
+// 2026-08-18新設。ProjectManager/ProjectFormと同じ構成。ファイル編集はSandpackを使わず
+// パス＋テキストエリアの一覧編集にする(DevLabWorkspaceComponents.jsxのSandpack lazy-load境界を
+// 崩さないため、docs/decisions/0011参照)。実際の動作確認は既存の「プレビュー」ボタンで行う。
+function FilesEditor({ files, onChange }) {
+  function update(i, key, value) {
+    onChange(files.map((f, idx) => (idx === i ? { ...f, [key]: value } : f)));
+  }
+  function add() { onChange([...files, { path: "", content: "" }]); }
+  function remove(i) { onChange(files.filter((_, idx) => idx !== i)); }
+  return (
+    <div className="space-y-3">
+      {files.map((f, i) => (
+        <div key={i} className="rounded-xl border p-3" style={{ borderColor: T.border }}>
+          <div className="mb-2 flex items-center justify-between gap-2">
+            <input style={{ ...fieldStyle, fontFamily: "monospace", fontSize: 12 }} placeholder="ファイルパス（例: src/App.js）" value={f.path} onChange={e => update(i, "path", e.target.value)} />
+            {files.length > 1 && <button type="button" onClick={() => remove(i)} aria-label="削除" className="shrink-0"><X size={14} style={{ color: T.textMuted }} /></button>}
+          </div>
+          <textarea
+            style={{ ...fieldStyle, minHeight: 140, fontFamily: "monospace", fontSize: 12, whiteSpace: "pre" }}
+            placeholder="ファイル内容"
+            value={f.content}
+            onChange={e => update(i, "content", e.target.value)}
+          />
+        </div>
+      ))}
+      <Btn kind="ghost" size="sm" icon={Plus} onClick={add}>ファイルを追加</Btn>
+    </div>
+  );
+}
+
+function WorkspaceTemplateForm({ mode, form, onChange, onSave, onCancel, onGenerate, busy, actionError }) {
+  const [genTheme, setGenTheme] = useState("");
+  const [genStack, setGenStack] = useState("react");
+  const [genLevel, setGenLevel] = useState("beginner");
+  const [generating, setGenerating] = useState(false);
+  const [genError, setGenError] = useState("");
+
+  function set(key, value) { onChange({ ...form, [key]: value }); }
+
+  async function handleGenerate() {
+    if (!genTheme.trim()) { setGenError("テーマを入力してください。"); return; }
+    setGenerating(true); setGenError("");
+    try {
+      const draft = await onGenerate({ theme: genTheme, stack: genStack, level: genLevel });
+      if (draft) onChange(workspaceDraftToForm(draft));
+    } catch (e) {
+      setGenError(e?.errorMessage || e?.message || "AI下書き生成に失敗しました。");
+    } finally { setGenerating(false); }
+  }
+
+  return (
+    <div>
+      <div className="mb-4 flex items-center justify-between gap-3">
+        <h3 className="text-base font-bold" style={{ color: T.textPrimary }}>{mode === "edit" ? "プロジェクト体験 編集" : "プロジェクト体験 新規作成"}</h3>
+        <Btn kind="ghost" size="sm" icon={X} onClick={onCancel}>閉じる</Btn>
+      </div>
+
+      {mode === "create" && (
+        <Card className="mb-4 p-4">
+          <h4 className="mb-2 flex items-center gap-1.5 text-sm font-bold" style={{ color: T.textPrimary }}><Sparkles size={15} />AIで下書き生成</h4>
+          <p className="mb-2 text-xs" style={{ color: T.textMuted }}>「こういう体験をさせたい」を自由に書くと、動く土台＋未実装の1機能（TODO付き）のコードを生成します。保存前に必ず内容を確認・編集してください。</p>
+          <div className="grid gap-2 sm:grid-cols-3">
+            <input style={fieldStyle} placeholder="テーマ（例: 在庫管理アプリ、削除機能を未実装にしたい）" value={genTheme} onChange={e => setGenTheme(e.target.value)} />
+            <select style={fieldStyle} value={genStack} onChange={e => setGenStack(e.target.value)}>
+              {WORKSPACE_STACK_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+            </select>
+            <select style={fieldStyle} value={genLevel} onChange={e => setGenLevel(e.target.value)}>
+              {DEVLAB_LEVEL_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+            </select>
+          </div>
+          {genError && <p className="mt-2 text-xs" style={{ color: T.danger }}>{genError}</p>}
+          <Btn kind="ai" size="sm" className="mt-2" icon={generating ? Loader2 : Sparkles} disabled={generating} onClick={handleGenerate}>
+            {generating ? "生成中…" : "下書きを生成"}
+          </Btn>
+        </Card>
+      )}
+
+      {actionError && <Card className="mb-4 p-4"><p className="text-sm" style={{ color: T.danger }}>{actionError}</p></Card>}
+
+      <Card className="p-4">
+        <div className="space-y-3">
+          <Field label="タイトル"><input style={fieldStyle} value={form.title} onChange={e => set("title", e.target.value)} /></Field>
+          <Field label="説明"><textarea style={{ ...fieldStyle, minHeight: 64 }} value={form.description} onChange={e => set("description", e.target.value)} /></Field>
+          <div className="grid gap-3 sm:grid-cols-2">
+            <Field label="スタック">
+              <select style={fieldStyle} value={form.stack} onChange={e => set("stack", e.target.value)}>
+                {WORKSPACE_STACK_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+              </select>
+            </Field>
+            <Field label="レベル">
+              <select style={fieldStyle} value={form.level} onChange={e => set("level", e.target.value)}>
+                {DEVLAB_LEVEL_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+              </select>
+            </Field>
+          </div>
+          <Field label="最初に開くファイル（entryHint、下のファイルパスのいずれかと一致させてください）">
+            <input style={{ ...fieldStyle, fontFamily: "monospace", fontSize: 12 }} value={form.entryHint} onChange={e => set("entryHint", e.target.value)} />
+          </Field>
+          <Field label="ファイル">
+            <FilesEditor files={form.files} onChange={files => set("files", files)} />
+          </Field>
+          {form.stack === "spring_sim" && (
+            <Field label="疑似コンソールのシナリオ（1行1件、「ラベル|コマンド|出力」の形式）">
+              <textarea style={{ ...fieldStyle, minHeight: 100, fontFamily: "monospace", fontSize: 12 }} value={form.scenariosText} onChange={e => set("scenariosText", e.target.value)} placeholder="一覧取得|GET /items|[{&quot;id&quot;:1,&quot;name&quot;:&quot;ノートPC&quot;}]" />
+            </Field>
+          )}
+          <Field label="公開状態">
+            <select style={fieldStyle} value={form.status} onChange={e => set("status", e.target.value)}>
+              <option value="draft">下書き</option>
+              <option value="published">公開中</option>
+            </select>
+          </Field>
+        </div>
+      </Card>
+
+      <div className="mt-4 flex justify-end gap-2">
+        <Btn kind="ghost" onClick={onCancel}>キャンセル</Btn>
+        <Btn disabled={busy || !form.title.trim()} onClick={onSave}>保存する</Btn>
+      </div>
+    </div>
+  );
+}
+
+export function WorkspaceTemplateManager() {
+  const { templates, loading, error, create, update, remove, generate, busy, actionError, clearActionError } = useDevLabAdminWorkspaceTemplates();
+  const [editing, setEditing] = useState(null); // null=一覧 / "new" / template
+  const [form, setForm] = useState(emptyWorkspaceTemplateForm());
+
+  function startCreate() { clearActionError(); setForm(emptyWorkspaceTemplateForm()); setEditing("new"); }
+  function startEdit(template) { clearActionError(); setForm(workspaceTemplateToForm(template)); setEditing(template); }
+  function cancel() { setEditing(null); }
+
+  async function handleSave() {
+    const payload = workspaceFormToPayload(form);
+    if (editing === "new") await create(payload);
+    else await update(editing.id, payload);
+    setEditing(null);
+  }
+
+  async function handleDelete(template) {
+    if (!window.confirm(`「${template.title}」を削除しますか？`)) return;
+    await remove(template.id);
+  }
+
+  if (editing) {
+    return (
+      <WorkspaceTemplateForm
+        mode={editing === "new" ? "create" : "edit"}
+        form={form}
+        onChange={setForm}
+        onSave={handleSave}
+        onCancel={cancel}
+        onGenerate={generate}
+        busy={busy}
+        actionError={actionError}
+      />
+    );
+  }
+
+  return (
+    <div>
+      <SectionHead
+        icon={FolderTree}
+        title="プロジェクト体験管理"
+        desc="ブラウザ内で自由に編集できるベースプロジェクト（コード）の作成・編集・AI下書き生成を行います。"
+        action={<Btn icon={Plus} onClick={startCreate}>新規作成</Btn>}
+      />
+      {error && <Card className="mb-4 p-4"><p className="text-sm" style={{ color: T.danger }}>{error}</p></Card>}
+      <Card>
+        {loading ? <SkeletonRows rows={3} /> : templates.length === 0 ? (
+          <EmptyState icon={FolderTree} title="プロジェクト体験がありません" desc="「新規作成」から作成してください。" />
+        ) : (
+          <div className="divide-y" style={{ borderColor: T.border }}>
+            {templates.map(template => (
+              <div key={template.id} className="flex flex-wrap items-center justify-between gap-3 p-4">
+                <div className="min-w-0">
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm font-bold" style={{ color: T.textPrimary }}>{template.title}</span>
+                    <Badge tone={devLabStatusTone(template.status)}>{devLabStatusLabel(template.status)}</Badge>
+                    <Badge tone="cyan">{devLabLevelLabel(template.level)}</Badge>
+                  </div>
+                  <div className="mt-1 text-xs" style={{ color: T.textMuted }}>{devLabWorkspaceStackLabel(template.stack)} ・ ファイル{Object.keys(template.files || {}).length}件</div>
+                </div>
+                <div className="flex shrink-0 gap-2">
+                  <Btn kind="ghost" size="sm" icon={Pencil} onClick={() => startEdit(template)}>編集</Btn>
+                  <Btn kind="ghost" size="sm" icon={Trash2} onClick={() => handleDelete(template)}>削除</Btn>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </Card>
     </div>
   );
 }
