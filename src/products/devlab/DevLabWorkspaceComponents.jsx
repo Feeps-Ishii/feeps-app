@@ -15,6 +15,7 @@ import {
   useDevLabWorkspaceTemplates, useDevLabWorkspaceDetail, useDevLabWorkspaceActions,
   useDevLabTeamDetail, useDevLabTeamActions,
 } from "./useDevLab.js";
+import { CommitDiffPanel } from "./DevLabCommitDiff.jsx";
 
 // Sandpackを直接importする唯一のファイル(docs/decisions/0011参照)。DevLabProduct.jsxから
 // React.lazyで読み込まれ、他画面のchunkにSandpackを含めない境界になっている。
@@ -397,25 +398,45 @@ export function WorkspaceDetail({ templateId, onBack, backLabel }) {
 // pull（取り込み）／commit（mainへ反映）とコミット履歴を足したもの。
 // 衝突はサーバ側の3-wayマージがGit標準マーカーでファイルへ埋め込むため、受講生は
 // エディタ上でマーカーを消しながら解決する（実際のGitと同じ操作感）。
-function CommitHistory({ commits, myTraineeId }) {
+// 未解決の衝突マーカー検出（Backendのfindunresolvedconflictsと同じ判定をFrontendでも行う）
+const CONFLICT_MARKER = /^(<{7}|={7}|>{7})/m;
+function findConflictMarkers(files) {
+  return Object.entries(files || {})
+    .filter(([, content]) => typeof content === "string" && CONFLICT_MARKER.test(content))
+    .map(([path]) => path);
+}
+
+// 行をクリックすると差分（どこが変わったか）を開く（2026-08-19追加）
+function CommitHistory({ commits, myTraineeId, teamId }) {
+  const [openCommit, setOpenCommit] = useState(null);
   if (!commits?.length) {
     return <p className="text-xs" style={{ color: T.textMuted }}>まだコミットがありません。最初の変更をコミットしてみましょう。</p>;
+  }
+  if (openCommit) {
+    return <CommitDiffPanel teamId={teamId} commit={openCommit} onClose={() => setOpenCommit(null)} />;
   }
   return (
     <ol className="space-y-1.5">
       {[...commits].reverse().map(c => (
-        <li key={c.commitId} className="flex items-start gap-2 text-xs">
-          <span className="mt-1 h-1.5 w-1.5 shrink-0 rounded-full" style={{ background: c.authorType === "ai" ? T.warning : T.accent }} />
-          <span className="min-w-0">
-            <span className="font-semibold" style={{ color: T.textPrimary }}>{c.message}</span>
-            <span className="ml-1.5" style={{ color: T.textMuted }}>
-              {c.authorName}{c.roleName ? `（${c.roleName}）` : ""}
-              {c.authorId === myTraineeId ? " ・ あなた" : ""}
+        <li key={c.commitId}>
+          <button
+            type="button"
+            onClick={() => setOpenCommit(c)}
+            className="flex w-full items-start gap-2 rounded-lg px-1.5 py-1 text-left text-xs hover:opacity-80"
+            style={{ background: "transparent" }}
+          >
+            <span className="mt-1 h-1.5 w-1.5 shrink-0 rounded-full" style={{ background: c.authorType === "ai" ? T.warning : T.accent }} />
+            <span className="min-w-0">
+              <span className="font-semibold" style={{ color: T.textPrimary }}>{c.message}</span>
+              <span className="ml-1.5" style={{ color: T.textMuted }}>
+                {c.authorName}{c.roleName ? `（${c.roleName}）` : ""}
+                {c.authorId === myTraineeId ? " ・ あなた" : ""}
+              </span>
+              {c.changedPaths?.length > 0 && (
+                <span className="ml-1.5" style={{ color: T.textMuted }}>／ {c.changedPaths.join(", ")}</span>
+              )}
             </span>
-            {c.changedPaths?.length > 0 && (
-              <span className="ml-1.5" style={{ color: T.textMuted }}>／ {c.changedPaths.join(", ")}</span>
-            )}
-          </span>
+          </button>
         </li>
       ))}
     </ol>
@@ -432,16 +453,27 @@ export function TeamBranchWorkspace({ teamId, onBack }) {
   const [needsPull, setNeedsPull] = useState(false);
   const [notice, setNotice] = useState("");
   const [editorKey, setEditorKey] = useState(0); // pull後にエディタを作り直すためのkey
+  // 衝突が「今この瞬間まだ残っているか」は編集中の中身から判定する（2026-08-19）。
+  // pull結果のconflictPathsで判定していたときは、マーカーを消してもコミットボタンが
+  // 無効のままで行き止まりになっていた。
+  const [unresolvedPaths, setUnresolvedPaths] = useState([]);
   const autosaveTimer = useRef(null);
   const latestFiles = useRef(null);
 
   useEffect(() => () => { if (autosaveTimer.current) clearTimeout(autosaveTimer.current); }, []);
   useEffect(() => {
     if (data?.workingFiles) {
-      setFiles(data.workingFiles);
-      latestFiles.current = data.workingFiles;
+      applyFiles(data.workingFiles, { rebuildEditor: false });
     }
   }, [data]);
+
+  // 作業ファイルの反映を1か所に集約する（state・ref・衝突判定がずれないように）
+  function applyFiles(next, { rebuildEditor = true } = {}) {
+    setFiles(next);
+    latestFiles.current = next;
+    setUnresolvedPaths(findConflictMarkers(next));
+    if (rebuildEditor) setEditorKey(k => k + 1);
+  }
 
   const initialFiles = useMemo(() => {
     if (!files) return {};
@@ -456,6 +488,7 @@ export function TeamBranchWorkspace({ teamId, onBack }) {
     const next = { ...latestFiles.current, ...overlay };
     for (const p of deletedPaths) delete next[p];
     latestFiles.current = next;
+    setUnresolvedPaths(findConflictMarkers(next));
     setSaveState("dirty");
     if (autosaveTimer.current) clearTimeout(autosaveTimer.current);
     autosaveTimer.current = setTimeout(async () => {
@@ -471,30 +504,60 @@ export function TeamBranchWorkspace({ teamId, onBack }) {
       // 未保存の変更を先に確定させてからpullする（保存前の編集が消えないように）
       if (latestFiles.current && saveState === "dirty") await saveBranch(latestFiles.current);
       const res = await pull();
-      setFiles(res.files);
-      latestFiles.current = res.files;
+      applyFiles(res.files);
       setPullResult(res);
       setNeedsPull(false);
       setSaveState("saved");
-      setEditorKey(k => k + 1);
       await reload();
     } catch { /* actionErrorに出る */ }
   }
 
+  // 2026-08-19: mainが進んでいる場合、Backendがコミット時にその場で3-wayマージまで進める。
+  // ・競合なし → 相手の変更を取り込んだ状態でコミットが成立する（res.autoMerge付き）
+  // ・競合あり → 409 conflict。マーカー入りのファイルが返るのでエディタへ流し込み、解決させる
   async function handleCommit() {
     if (!commitMessage.trim() || !latestFiles.current) return;
     clearSaveTimer();
     setNotice(""); clearSaveError();
     try {
+      // 先にブランチを確定させる。ブランチが無いままcommitすると分岐元が分からず
+      // 3-wayマージができない（他メンバーの変更を上書きしてしまう）
+      if (saveState !== "saved") await saveBranch(latestFiles.current);
       const res = await commit(commitMessage.trim(), latestFiles.current);
       setCommitMessage("");
-      setPullResult(null);
       setNeedsPull(false);
       setSaveState("saved");
-      setNotice(`コミットしました: ${res.commit.message}`);
+      if (res.files) applyFiles(res.files);
+      if (res.autoMerge) {
+        setPullResult({
+          conflictPaths: [],
+          mergedPaths: res.autoMerge.mergedPaths || [],
+          incomingPaths: res.autoMerge.incomingPaths || [],
+          newCommits: res.autoMerge.newCommits || [],
+        });
+        setNotice(`他のメンバーの変更を取り込んだうえでコミットしました: ${res.commit.message}`);
+      } else {
+        setPullResult(null);
+        setNotice(`コミットしました: ${res.commit.message}`);
+      }
       await reload();
     } catch (e) {
-      if (e?.status === 409 || e?.data?.needsPull) setNeedsPull(true);
+      const d = e?.data;
+      if (e?.status === 409 && d?.conflict && d?.files) {
+        // 競合発生。マージ済み（マーカー入り）のファイルをエディタへ反映して解決させる
+        applyFiles(d.files);
+        setPullResult({
+          source: "commit",
+          conflictPaths: d.conflictPaths || [],
+          mergedPaths: d.mergedPaths || [],
+          incomingPaths: d.incomingPaths || [],
+          newCommits: d.newCommits || [],
+        });
+        setNeedsPull(false);
+        setSaveState("saved");
+      } else if (e?.status === 409 || d?.needsPull) {
+        setNeedsPull(true);
+      }
     }
   }
 
@@ -516,7 +579,8 @@ export function TeamBranchWorkspace({ teamId, onBack }) {
   const activeFile = team.entryHint ? withLeadingSlash(team.entryHint) : undefined;
   const myMember = (team.members || []).find(m => m.traineeId === data.myTraineeId) || null;
   const myRole = (team.roles || []).find(r => r.roleId === myMember?.roleId) || null;
-  const hasConflicts = (pullResult?.conflictPaths || []).length > 0;
+  // 未解決の衝突マーカーが残っている間だけコミットを止める（解決すればすぐ押せる）
+  const hasConflicts = unresolvedPaths.length > 0;
 
   return (
     <div className="flex h-full flex-col">
@@ -556,7 +620,9 @@ export function TeamBranchWorkspace({ teamId, onBack }) {
 
       {pullResult && (
         <Card className="mb-3 p-4">
-          <h3 className="mb-2 text-sm font-bold" style={{ color: T.textPrimary }}>取り込み結果</h3>
+          <h3 className="mb-2 text-sm font-bold" style={{ color: T.textPrimary }}>
+            {pullResult.source === "commit" ? "コミット時に取り込んだ変更" : "取り込み結果"}
+          </h3>
           {(pullResult.newCommits || []).length > 0 ? (
             <ul className="mb-2 space-y-0.5">
               {pullResult.newCommits.map((c, i) => (
@@ -568,7 +634,7 @@ export function TeamBranchWorkspace({ teamId, onBack }) {
           ) : (
             <p className="mb-2 text-xs" style={{ color: T.textMuted }}>新しい変更はありませんでした。</p>
           )}
-          {hasConflicts ? (
+          {(pullResult.conflictPaths || []).length > 0 ? (
             <div className="rounded-xl p-3" style={{ background: T.dangerSubtle }}>
               <p className="text-xs font-bold" style={{ color: T.danger }}>
                 コンフリクト（衝突）が {pullResult.conflictPaths.length} 件あります: {pullResult.conflictPaths.join(", ")}
@@ -627,7 +693,9 @@ export function TeamBranchWorkspace({ teamId, onBack }) {
           </Btn>
         </div>
         {hasConflicts && (
-          <p className="mt-1.5 text-xs" style={{ color: T.danger }}>衝突を解決するまでコミットできません。</p>
+          <p className="mt-1.5 text-xs" style={{ color: T.danger }}>
+            未解決の衝突があります（{unresolvedPaths.join(", ")}）。マーカーの行ごと消して、どちらを残すか決めるとコミットできます。
+          </p>
         )}
       </Card>
 
@@ -636,7 +704,7 @@ export function TeamBranchWorkspace({ teamId, onBack }) {
           <GitBranchIcon size={14} style={{ color: T.textMuted }} />
           <h3 className="text-sm font-bold" style={{ color: T.textPrimary }}>コミット履歴</h3>
         </div>
-        <CommitHistory commits={team.commits} myTraineeId={data.myTraineeId} />
+        <CommitHistory commits={team.commits} myTraineeId={data.myTraineeId} teamId={teamId} />
       </Card>
 
       <Card className="mt-3 p-4">

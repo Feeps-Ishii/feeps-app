@@ -193,7 +193,8 @@ export default function LearningProduct({ subView, goSub, goProduct, role, theme
     el_devlab_manage_team: (role === "admin" || role === "instructor")
       ? <DevLabProduct subView="dl_manage_team" goSub={goSub} role={role} themeColor={themeColor} />
       : <LearningPlaceholder title="チーム開発案件" desc="この機能はご利用いただけません。" />,
-    el_devlab_teams: (role === "admin" || role === "instructor")
+    // clientは「自社受講生の編成＋進捗閲覧」のみ。題材作成・実装は開放していない（dev-team-spec §1）
+    el_devlab_teams: (role === "admin" || role === "instructor" || role === "client")
       ? <DevLabProduct subView="dl_manage_teams" goSub={goSub} role={role} themeColor={themeColor} />
       : <LearningPlaceholder title="チーム" desc="この機能はご利用いただけません。" />,
     el_devlab_myteam: DEVLAB_ALLOWED_ROLES.includes(role)

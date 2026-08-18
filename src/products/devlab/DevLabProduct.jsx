@@ -21,9 +21,14 @@ const WorkspaceDetail = lazy(() => import("./DevLabWorkspaceComponents.jsx").the
 // チーム開発の作業画面もSandpackを使うため、同じlazy境界に載せる（2026-08-18）。
 const TeamBranchWorkspace = lazy(() => import("./DevLabWorkspaceComponents.jsx").then(m => ({ default: m.TeamBranchWorkspace })));
 
-// 対象ロールはtrainee/instructor/adminのみ（clientはTrainingApp.jsxのPRODUCTS.rolesで
-// 既に到達不可。ここでも二重に防御する。GrantsProductと同じパターン）。
+// 対象ロールはtrainee/instructor/admin。
+// clientは2026-08-19から「チーム編成＋進捗閲覧」だけ到達できる（dl_manage_teams のみ。
+// 他のsubViewはここで弾く。Backendもallowlistで二重に閉じている）。
 export default function DevLabProduct({ subView, goSub, role, themeColor }) {
+  if (role === "client") {
+    if (subView !== "dl_manage_teams") return null;
+    return <TeamManager role={role} />;
+  }
   if (role !== "trainee" && role !== "instructor" && role !== "admin") return null;
 
   // 案件一覧・ワークスペース詳細への遷移は、別のsubViewキーを発行せず"dl_projects"のまま
@@ -84,7 +89,7 @@ export default function DevLabProduct({ subView, goSub, role, themeColor }) {
     dl_manage: <ProjectManager role={role} />,
     dl_manage_workspace: <WorkspaceTemplateManager />,
     dl_manage_team: <TeamProjectManager role={role} />,
-    dl_manage_teams: <TeamManager />,
+    dl_manage_teams: <TeamManager role={role} />,
     dl_team: activeTeamId
       ? (
         <Suspense fallback={<PageLoading label="チームの作業環境を準備しています…" />}>

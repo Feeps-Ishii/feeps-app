@@ -16,9 +16,10 @@ import {
 import {
   useDevLabProjects, useDevLabMe, useDevLabActions, useDevLabAdmin, useDevLabSubmissions, useMySkillSheet,
   useDevLabWorkspaceTemplates, useDevLabLinkedWorkspaceOverlay, useDevLabAdminWorkspaceTemplates,
-  useDevLabAdminTeamProjects, useDevLabAdminTeams, useMyDevLabTeams,
+  useDevLabAdminTeamProjects, useDevLabAdminTeams, useMyDevLabTeams, useDevLabTeamDetail,
 } from "./useDevLab.js";
 import { apiGet } from "../../api.js";
+import { CommitDiffPanel } from "./DevLabCommitDiff.jsx";
 
 // ===================== ホーム =====================
 export function DevLabHome({ role, goSub }) {
@@ -1427,19 +1428,106 @@ function TeamComposer({ teamProjects, trainees, onCreate, onCancel, busy, action
   );
 }
 
-export function TeamManager() {
+// チームの進捗（誰が何をコミットしたか）。企業担当者のハンズオン運営と、管理者・講師の進行確認で共用する。
+// コードは出さない（コミット履歴までが可視範囲。docs/specs/dev-team-spec.md §1）。
+function TeamProgressPanel({ team, onBack }) {
+  const { data, loading, error } = useDevLabTeamDetail(team.id);
+  const [openCommit, setOpenCommit] = useState(null);
+  const detail = data?.team || team;
+  const commits = [...(detail.commits || [])].reverse();
+  const roleName = roleId => (detail.roles || []).find(r => r.roleId === roleId)?.name || "";
+  const commitsByTrainee = new Map();
+  for (const c of detail.commits || []) {
+    if (c.authorType !== "trainee") continue;
+    commitsByTrainee.set(c.authorId, (commitsByTrainee.get(c.authorId) || 0) + 1);
+  }
+
+  return (
+    <div>
+      <div className="mb-4 flex items-center justify-between gap-3">
+        <div className="min-w-0">
+          <h3 className="text-base font-bold" style={{ color: T.textPrimary }}>{detail.title}</h3>
+          <p className="text-xs" style={{ color: T.textMuted }}>受講生{(detail.members || []).length}人 ・ AIメンバー{(detail.aiSeats || []).length}人 ・ コミット{(detail.commits || []).length}件</p>
+        </div>
+        <Btn kind="ghost" size="sm" icon={X} onClick={onBack}>閉じる</Btn>
+      </div>
+      {error && <Card className="mb-4 p-4"><p className="text-sm" style={{ color: T.danger }}>{error}</p></Card>}
+
+      <Card className="mb-4 p-4">
+        <h4 className="mb-3 text-sm font-bold" style={{ color: T.textPrimary }}>メンバーの進み具合</h4>
+        {loading ? <SkeletonRows rows={3} /> : (detail.members || []).length === 0 ? (
+          <p className="text-sm" style={{ color: T.textMuted }}>受講生が割り当てられていません（全員AIメンバー）。</p>
+        ) : (
+          <div className="space-y-2">
+            {(detail.members || []).map(m => {
+              const count = commitsByTrainee.get(m.traineeId) || 0;
+              return (
+                <div key={m.traineeId} className="flex flex-wrap items-center justify-between gap-2 rounded-xl border p-3" style={{ borderColor: T.border }}>
+                  <div className="min-w-0">
+                    <span className="text-sm font-bold" style={{ color: T.textPrimary }}>{m.traineeName}</span>
+                    <span className="ml-2 text-xs" style={{ color: T.textMuted }}>{roleName(m.roleId)}</span>
+                  </div>
+                  {count > 0
+                    ? <Badge tone="cyan">コミット{count}件</Badge>
+                    : <Badge tone="muted">まだコミットなし</Badge>}
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </Card>
+
+      {openCommit ? (
+        <CommitDiffPanel teamId={detail.id || team.id} commit={openCommit} onClose={() => setOpenCommit(null)} />
+      ) : (
+      <Card className="p-4">
+        <h4 className="mb-1 text-sm font-bold" style={{ color: T.textPrimary }}>コミット履歴</h4>
+        <p className="mb-3 text-xs" style={{ color: T.textMuted }}>クリックすると、そのコミットで何が変わったかを確認できます。</p>
+        {loading ? <SkeletonRows rows={4} /> : commits.length === 0 ? (
+          <EmptyState icon={Clock3} title="まだコミットがありません" desc="受講生が作業を始めるとここに履歴が並びます。" />
+        ) : (
+          <div className="space-y-2">
+            {commits.map(c => (
+              <button
+                key={c.commitId}
+                type="button"
+                onClick={() => setOpenCommit(c)}
+                className="w-full rounded-xl border p-3 text-left hover:opacity-80"
+                style={{ borderColor: T.border }}
+              >
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="text-sm font-bold" style={{ color: T.textPrimary }}>{c.message}</span>
+                  {c.authorType === "ai" && <Badge tone="amber">AIメンバー</Badge>}
+                </div>
+                <div className="mt-1 text-xs" style={{ color: T.textMuted }}>
+                  {c.authorName}{c.roleName ? `（${c.roleName}）` : ""} ・ {c.at ? new Date(c.at).toLocaleString("ja-JP") : ""} ・ {(c.changedPaths || []).length}ファイル
+                </div>
+              </button>
+            ))}
+          </div>
+        )}
+      </Card>
+      )}
+    </div>
+  );
+}
+
+export function TeamManager({ role }) {
   const { teams, loading, error, create, remove, busy, actionError, clearActionError } = useDevLabAdminTeams();
   const { teamProjects } = useDevLabAdminTeamProjects();
   const [trainees, setTrainees] = useState([]);
   const [composing, setComposing] = useState(false);
+  const [viewingTeam, setViewingTeam] = useState(null);
+  // 企業担当者は /admin/users を呼べない。自社受講生に絞られた /trainees を使う。
+  const isClient = role === "client";
 
   useEffect(() => {
     let alive = true;
-    apiGet("/admin/users")
+    (isClient ? apiGet("/trainees") : apiGet("/admin/users"))
       .then(list => { if (alive) setTrainees((Array.isArray(list) ? list : []).filter(u => u.role === "trainee")); })
       .catch(() => { if (alive) setTrainees([]); });
     return () => { alive = false; };
-  }, []);
+  }, [isClient]);
 
   async function handleCreate(payload) {
     await create(payload);
@@ -1449,6 +1537,10 @@ export function TeamManager() {
   async function handleDelete(team) {
     if (!window.confirm(`「${team.title}」を削除しますか？`)) return;
     await remove(team.id);
+  }
+
+  if (viewingTeam) {
+    return <TeamProgressPanel team={viewingTeam} onBack={() => setViewingTeam(null)} />;
   }
 
   if (composing) {
@@ -1469,7 +1561,9 @@ export function TeamManager() {
       <SectionHead
         icon={Users}
         title="チーム"
-        desc="チーム開発案件から実際のチームを編成します。割り当てなかった役割はAIメンバーが担当します。"
+        desc={isClient
+          ? "自社の受講生をチームへ編成し、ハンズオン中の進捗（誰が何をコミットしたか）を確認できます。割り当てなかった役割はAIメンバーが担当します。"
+          : "チーム開発案件から実際のチームを編成します。割り当てなかった役割はAIメンバーが担当します。"}
         action={<Btn icon={Plus} onClick={() => { clearActionError(); setComposing(true); }}>チームを編成</Btn>}
       />
       {error && <Card className="mb-4 p-4"><p className="text-sm" style={{ color: T.danger }}>{error}</p></Card>}
@@ -1492,6 +1586,7 @@ export function TeamManager() {
                   </div>
                 </div>
                 <div className="flex shrink-0 gap-2">
+                  <Btn kind="ghost" size="sm" icon={ClipboardList} onClick={() => setViewingTeam(team)}>進捗</Btn>
                   <Btn kind="ghost" size="sm" icon={Trash2} onClick={() => handleDelete(team)}>削除</Btn>
                 </div>
               </div>
