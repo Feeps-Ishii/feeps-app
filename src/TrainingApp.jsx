@@ -31,7 +31,7 @@ import {
   Sparkles, Flame, X, Eye, Pencil, StickyNote, Megaphone, ArrowUpRight,
   MoreHorizontal, Check, Filter, Target, ListChecks, Lock, Mail, Lightbulb,
   Wrench, Compass, ShieldCheck, FileSpreadsheet, LogIn, Menu, Star, Activity,
-  GitBranch, Briefcase, Gauge, MapPin, User, Printer, RefreshCw, Receipt, Landmark, Code2, ClipboardList, FolderTree, HelpCircle
+  GitBranch, Briefcase, Gauge, MapPin, User, Printer, RefreshCw, Receipt, Landmark, Code2, ClipboardList, HelpCircle
 } from "lucide-react";
 
 // Products other than Training (the default landing product) are code-split so the
@@ -186,11 +186,16 @@ const EL_NAV = {
     { sec: "Eラーニング", items: [["el_courses", "コース一覧", BookOpen], ["el_recommend", "おすすめ", Lightbulb], ["el_inprogress", "学習中", PlayCircle], ["el_completed", "修了済み", Award], ["el_skills", "獲得スキル", Sparkles], ["el_cert", "修了証", CheckCircle2]] },
     { sec: "開発演習", items: [["el_devlab", "開発演習", Code2]] },
   ],
+  // 2026-08-18 instructor/adminのEラーニングタブに、受講生本人向けの自己学習導線
+  // （コース一覧・おすすめ・学習中・修了済み・獲得スキル・修了証・プロジェクト体験）が
+  // 「コース管理」等の実務項目とそのまま混在しており、管理しづらいという指摘を受けて整理。
+  // 「受講生からどう見えるか」の確認はコース管理の各コースにある「プレビュー」ボタン
+  // （CourseManager.jsx→CourseWalkthroughPreview.jsx、既存実装）に一本化し、
+  // instructor/adminのタブは管理系のみにする（管理セクションをホームの直後へ優先表示）。
   instructor: [
     { sec: null, items: [["el_home", "ホーム", LayoutDashboard]] },
-    { sec: "Eラーニング", items: [["el_courses", "コース一覧", BookOpen], ["el_recommend", "おすすめ", Lightbulb], ["el_inprogress", "学習中", PlayCircle], ["el_completed", "修了済み", Award], ["el_skills", "獲得スキル", Sparkles], ["el_cert", "修了証", CheckCircle2]] },
-    { sec: "開発演習", items: [["el_devlab_manage", "案件管理", ClipboardList], ["el_devlab_workspace", "プロジェクト体験", FolderTree]] },
     { sec: "管理", items: [["el_manage", "コース管理", Settings], ["el_students", "受講状況", Users]] },
+    { sec: "開発演習", items: [["el_devlab_manage", "案件管理", ClipboardList]] },
   ],
   client: [
     { sec: null, items: [["el_home", "ホーム", LayoutDashboard]] },
@@ -198,12 +203,11 @@ const EL_NAV = {
   ],
   admin: [
     { sec: null, items: [["el_home", "ホーム", LayoutDashboard]] },
-    { sec: "Eラーニング", items: [["el_courses", "コース一覧", BookOpen], ["el_completed", "修了済み", Award], ["el_cert", "修了証", CheckCircle2]] },
-    { sec: "開発演習", items: [["el_devlab_manage", "案件管理", ClipboardList], ["el_devlab_workspace", "プロジェクト体験", FolderTree]] },
     // プラン・契約管理（ADR0013「学習: 管理（プラン・契約・AI利用量）」、2026-08-13 Phase1-D新設）。
     // adminはモードにゲートされないが、この画面自体は学習モード固有の管理機能のため
     // learning product配下に置く（training product配下の既存admin画面とは別系統）。
     { sec: "管理", items: [["el_manage", "コース管理", Settings], ["el_students", "受講状況", Users], ["el_plans", "プラン・契約", Receipt]] },
+    { sec: "開発演習", items: [["el_devlab_manage", "案件管理", ClipboardList]] },
   ],
 };
 
