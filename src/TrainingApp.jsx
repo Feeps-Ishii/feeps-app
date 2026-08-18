@@ -200,6 +200,8 @@ const EL_NAV = {
   client: [
     { sec: null, items: [["el_home", "ホーム", LayoutDashboard]] },
     { sec: "学習", items: [["el_courses", "コース一覧", BookOpen], ["el_completed", "修了済み", Award], ["el_cert", "修了証", CheckCircle2]] },
+    // 2026-08-19 席（スロット）課金。契約した席を自社社員へ割り当てる（ADR 0019）
+    { sec: "契約", items: [["el_seats", "プラン・席の管理", Receipt]] },
     // 2026-08-19 自社社員をアサインしてハンズオン研修する導線。編成と進捗（コミット履歴）の閲覧まで。
     // 題材の作成と自分が実装することは開放していない（docs/specs/dev-team-spec.md §1）。
     { sec: "チーム開発", items: [["el_devlab_teams", "チーム", GitBranch]] },

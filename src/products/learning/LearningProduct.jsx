@@ -17,6 +17,7 @@ import {
 import LearningAdminProduct from "./admin/LearningAdminProduct.jsx";
 import EnrollmentManager from "./admin/EnrollmentManager.jsx";
 import PlansContractsAdmin from "./admin/PlansContractsAdmin.jsx";
+import SeatManager from "./admin/SeatManager.jsx";
 import DevLabProduct from "../devlab/DevLabProduct.jsx";
 import { setProductDetailHistory } from "../../utils/common/navigationHistory.js";
 
@@ -181,6 +182,10 @@ export default function LearningProduct({ subView, goSub, goProduct, role, theme
     el_plans:      role === "admin"
       ? <PlansContractsAdmin />
       : <LearningPlaceholder title="プラン・契約" desc="この機能はご利用いただけません。" />,
+    // 席（スロット）課金の割り当て。企業担当者が自社社員へ席を配る（ADR 0019）
+    el_seats:      role === "client"
+      ? <SeatManager />
+      : <LearningPlaceholder title="プラン・席の管理" desc="この機能はご利用いただけません。" />,
     el_devlab:        DEVLAB_ALLOWED_ROLES.includes(role)
       ? <DevLabProduct subView="dl_projects" goSub={goSub} role={role} themeColor={themeColor} />
       : <LearningPlaceholder title="開発演習" desc="この機能はご利用いただけません。" />,

@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { Receipt, RefreshCw } from "lucide-react";
 import { Card, Btn, Badge, PrismErrorRetryCard, SkeletonRows } from "../../../components/common";
-import { apiGet, apiPut } from "../../../api.js";
+import { apiGet, apiPost, apiPut } from "../../../api.js";
 import { useCompanyDirectory } from "./useCompanyDirectory.js";
 
 // プラン・契約管理（ADR0013-0016、2026-08-13 Phase1-D新設）。学習モード固有の管理機能
@@ -63,6 +63,134 @@ function PlanRow({ company, plan, onSaved }) {
         <Btn size="sm" onClick={save} disabled={busy || !dirty}>{busy ? "保存中…" : "保存"}</Btn>
         {message && <span className="text-xs font-semibold" style={{ color: message.includes("失敗") ? "#C4554D" : "#3D8A63" }}>{message}</span>}
       </div>
+      {contractMode !== "training" && <SeatSettings company={company} plan={plan} onSaved={onSaved} />}
+    </Card>
+  );
+}
+
+// 席（スロット）課金の設定（2026-08-19新設、ADR 0019）。
+// 席制は企業ごとのオプトイン。既存企業は「企業単位」のままなので挙動が変わらない。
+function SeatSettings({ company, plan, onSaved }) {
+  const seatMode = plan?.billingMode === "seat";
+  const [billingMode, setBillingMode] = useState(plan?.billingMode || "company");
+  const [standard, setStandard] = useState(plan?.seats?.standard?.total ?? 0);
+  const [premium, setPremium] = useState(plan?.seats?.premium?.total ?? 0);
+  const [busy, setBusy] = useState(false);
+  const [message, setMessage] = useState("");
+  const used = plan?.seats || {};
+
+  async function save() {
+    if (busy) return;
+    setBusy(true); setMessage("");
+    try {
+      await apiPut("/plans/company/seats", {
+        companyId: company.companyId,
+        billingMode,
+        seats: { standard: Number(standard) || 0, premium: Number(premium) || 0 },
+      });
+      const refreshed = await apiGet(`/plans/company?companyId=${encodeURIComponent(company.companyId)}`);
+      onSaved(company.companyId, refreshed);
+      setMessage("保存しました。");
+    } catch (e) {
+      setMessage(e?.errorMessage || e?.message || "保存に失敗しました。");
+    } finally { setBusy(false); }
+  }
+
+  return (
+    <div className="mt-3 rounded-xl border p-3" style={{ borderColor: "#E0E5EE" }}>
+      <div className="flex flex-wrap items-end gap-3">
+        <label className="block">
+          <div className="mb-1 text-xs font-semibold" style={{ color: "#687286" }}>課金方式</div>
+          <select value={billingMode} onChange={e => setBillingMode(e.target.value)}
+            className="rounded-xl border px-3 py-2 text-sm outline-none" style={{ borderColor: "#E0E5EE" }}>
+            <option value="company">企業単位（従来）</option>
+            <option value="seat">席単位（スロット）</option>
+          </select>
+        </label>
+        {billingMode === "seat" && (
+          <>
+            <label className="block">
+              <div className="mb-1 text-xs font-semibold" style={{ color: "#687286" }}>Standard席数</div>
+              <input type="number" min="0" value={standard} onChange={e => setStandard(e.target.value)}
+                className="w-28 rounded-xl border px-3 py-2 text-sm outline-none" style={{ borderColor: "#E0E5EE" }} />
+            </label>
+            <label className="block">
+              <div className="mb-1 text-xs font-semibold" style={{ color: "#687286" }}>Premium席数</div>
+              <input type="number" min="0" value={premium} onChange={e => setPremium(e.target.value)}
+                className="w-28 rounded-xl border px-3 py-2 text-sm outline-none" style={{ borderColor: "#E0E5EE" }} />
+            </label>
+          </>
+        )}
+        <Btn size="sm" kind="ghost" onClick={save} disabled={busy}>{busy ? "保存中…" : "席設定を保存"}</Btn>
+        {message && <span className="text-xs font-semibold" style={{ color: message.includes("失敗") ? "#C4554D" : "#3D8A63" }}>{message}</span>}
+      </div>
+      {seatMode && (
+        <p className="mt-2 text-xs" style={{ color: "#687286" }}>
+          割り当て済み: Standard {used.standard?.used ?? 0}/{used.standard?.total ?? 0}席 ・
+          Premium {used.premium?.used ?? 0}/{used.premium?.total ?? 0}席
+          （使用中の席数を下回る設定はできません）
+        </p>
+      )}
+    </div>
+  );
+}
+
+// 企業担当者からの席追加申請。承認すると契約席数がその分増える。
+function SeatRequestsPanel({ onApproved }) {
+  const [items, setItems] = useState([]);
+  const [state, setState] = useState("loading");
+  const [busyId, setBusyId] = useState("");
+  const [message, setMessage] = useState("");
+
+  function load() {
+    setState("loading");
+    apiGet("/plans/seats/requests?status=pending")
+      .then(res => { setItems(res?.items || []); setState("ready"); })
+      .catch(() => setState("error"));
+  }
+  useEffect(load, []);
+
+  async function decide(req, action) {
+    setBusyId(req.requestId); setMessage("");
+    try {
+      await apiPost(`/plans/seats/requests/${encodeURIComponent(req.requestId)}/${action}`, { companyId: req.companyId });
+      setMessage(action === "approve" ? "承認しました。席が追加されました。" : "却下しました。");
+      load();
+      if (action === "approve" && onApproved) onApproved(req.companyId);
+    } catch (e) {
+      setMessage(e?.errorMessage || e?.message || "処理に失敗しました。");
+    } finally { setBusyId(""); }
+  }
+
+  if (state === "loading") return <Card className="p-4"><SkeletonRows rows={2} /></Card>;
+  if (state === "error") return null;
+  if (!items.length) return null;
+
+  return (
+    <Card className="p-4">
+      <h4 className="mb-2 text-sm font-bold" style={{ color: "#1A1C1F" }}>席の追加申請（{items.length}件）</h4>
+      {message && <p className="mb-2 text-xs font-semibold" style={{ color: message.includes("失敗") ? "#C4554D" : "#3D8A63" }}>{message}</p>}
+      <div className="divide-y" style={{ borderColor: "#E0E5EE" }}>
+        {items.map(r => (
+          <div key={r.requestId} className="flex flex-wrap items-center justify-between gap-3 py-3">
+            <div className="min-w-0">
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="text-sm font-bold" style={{ color: "#1A1C1F" }}>{r.companyId}</span>
+                <Badge tone={r.plan === "premium" ? "violet" : "cyan"}>{PLAN_LABEL[r.plan]} {r.count}席</Badge>
+              </div>
+              <div className="mt-0.5 text-xs" style={{ color: "#687286" }}>
+                {r.requestedByName}
+                {r.requestedAt ? ` ・ ${new Date(r.requestedAt).toLocaleString("ja-JP")}` : ""}
+                {r.note ? ` ・ ${r.note}` : ""}
+              </div>
+            </div>
+            <div className="flex shrink-0 gap-2">
+              <Btn size="sm" disabled={busyId === r.requestId} onClick={() => decide(r, "approve")}>承認</Btn>
+              <Btn size="sm" kind="ghost" disabled={busyId === r.requestId} onClick={() => decide(r, "reject")}>却下</Btn>
+            </div>
+          </div>
+        ))}
+      </div>
     </Card>
   );
 }
@@ -100,6 +228,8 @@ export default function PlansContractsAdmin() {
         </div>
         <Btn size="sm" kind="ghost" icon={RefreshCw} onClick={load}>更新</Btn>
       </div>
+
+      <SeatRequestsPanel onApproved={load} />
 
       {state === "loading" && <SkeletonRows rows={4} />}
       {state === "ready" && companies.length === 0 && (
