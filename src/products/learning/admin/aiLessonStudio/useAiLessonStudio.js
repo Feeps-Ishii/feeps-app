@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { apiPost } from "../../../../api.js";
+import { runAiJob, AI_JOB_STATUS_LABEL } from "../aiJobPolling.js";
 
 // AI Lesson Studio Phase1(既存Lessonへの「AIでスライド作成」)用のHook。
 // docs/specs/ai-lesson-studio-spec.md / docs/decisions/0006-ai-lesson-studio-kind-taxonomy.md
@@ -70,7 +71,8 @@ export function useAiLessonStudio() {
     setGenState("loading");
     setNotice("");
     try {
-      const data = await apiPost(`/learning/admin/ai-lesson-studio/lessons/${lesson.id}/generate`, {
+      // 非同期ジョブ化（2026-08-19）。POSTは202+jobIdを返すので完了までポーリングする。
+      const data = await runAiJob(`/learning/admin/ai-lesson-studio/lessons/${lesson.id}/generate`, {
         level: settings.level,
         customLevelText: settings.level === "custom" ? settings.customLevelText.trim() : "",
         style: settings.style,
@@ -78,7 +80,7 @@ export function useAiLessonStudio() {
         diagramEnabled: settings.diagramEnabled,
         aiImageEnabled: settings.aiImageEnabled,
         simulatedEnvEnabled: settings.simulatedEnvEnabled,
-      });
+      }, status => setNotice(AI_JOB_STATUS_LABEL[status] || ""));
       const generated = Array.isArray(data?.slides) ? data.slides.map((s, i) => ({
         id: nextId("slide-studio"),
         order: i,

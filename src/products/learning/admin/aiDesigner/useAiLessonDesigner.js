@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { apiPost } from "../../../../api.js";
 import { PRODUCT_ACCENT } from "../../../../components/common";
+import { runAiJob, AI_JOB_STATUS_LABEL } from "../aiJobPolling.js";
 
 // AI Lesson Designer STEP1(コース設計)+STEP2(Lesson単位のslides生成)用の軽量Hook。
 // 既存のuseAiCurriculumDesigner.jsとは異なり、生成結果の確認・下書き保存のみが目的で、
@@ -140,7 +141,8 @@ export function useAiLessonDesigner() {
     if (!lesson) return { ok: false, error: "lesson not found" };
     setSlideGenByLessonId(prev => ({ ...prev, [lessonId]: { status: "loading", notice: "" } }));
     try {
-      const data = await apiPost("/learning/admin/ai-lesson-designer/lessons/generate", {
+      // 非同期ジョブ化（2026-08-19）。POSTは202+jobIdを返すので完了までポーリングする。
+      const data = await runAiJob("/learning/admin/ai-lesson-designer/lessons/generate", {
         courseTitle: result.course.title || "",
         lessonTitle: lesson.title || "",
         lessonSummary: lesson.summary || "",
@@ -151,6 +153,8 @@ export function useAiLessonDesigner() {
         // 2026-07-21 Phase3: 演習系kind(terminal/selection_task/ordering_puzzle/fill_blank)を
         // このLessonの生成に含めるかどうか。brief.exercisesEnabledで一括ON/OFFする。
         simulatedEnvEnabled: brief.exercisesEnabled !== false,
+      }, status => {
+        setSlideGenByLessonId(prev => ({ ...prev, [lessonId]: { status: "loading", notice: AI_JOB_STATUS_LABEL[status] || "" } }));
       });
       const slides = Array.isArray(data?.slides) ? data.slides.map((s, i) => ({ id: nextId("slide"), order: i, ...s })) : [];
       if (!slides.length) throw new Error("スライド候補が返りませんでした。");
