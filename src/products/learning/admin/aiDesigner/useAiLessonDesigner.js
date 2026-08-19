@@ -59,14 +59,15 @@ export function useAiLessonDesigner() {
     setFinalTestNotice("");
     setFinalTestQuestions([]);
     try {
-      const data = await apiPost("/learning/admin/ai-lesson-designer/generate", {
+      // 非同期ジョブ化（2026-08-19）。POSTは202+jobIdを返すので完了までポーリングする。
+      const data = await runAiJob("/learning/admin/ai-lesson-designer/generate", {
         targetAudience: brief.audience.trim(),
         duration: brief.duration.trim(),
         difficulty: brief.difficulty,
         goals: brief.goals.trim(),
         techs: brief.techs.trim(),
         lessonCountHint: DEFAULT_LESSON_COUNT_HINT,
-      });
+      }, status => setNotice(AI_JOB_STATUS_LABEL[status] || ""));
       const lessons = Array.isArray(data?.lessons) ? data.lessons.map(l => ({
         id: nextId("lesson"),
         title: l.title || "",
@@ -77,6 +78,7 @@ export function useAiLessonDesigner() {
         estimatedMinutes: Number(l.estimatedMinutes) || 30,
       })) : [];
       if (!lessons.length) throw new Error("Lesson候補が返りませんでした。");
+      setNotice("");
       setResult({
         course: {
           title: data?.course?.title || "生成されたコース",
@@ -115,13 +117,15 @@ export function useAiLessonDesigner() {
     setFinalTestState("loading");
     setFinalTestNotice("");
     try {
-      const data = await apiPost("/learning/admin/ai-lesson-designer/final-test/generate", {
+      // 非同期ジョブ化（2026-08-19）。
+      const data = await runAiJob("/learning/admin/ai-lesson-designer/final-test/generate", {
         courseTitle: result.course.title || "",
         lessons: result.lessons.map(l => ({ lessonRef: l.id, title: l.title || "", summary: l.summary || "", goal: l.goal || "" })),
         questionCountHint: Math.min(8, Math.max(4, result.lessons.length)),
-      });
+      }, status => setFinalTestNotice(AI_JOB_STATUS_LABEL[status] || ""));
       const questions = Array.isArray(data?.questions) ? data.questions : [];
       if (!questions.length) throw new Error("総合テスト問題が返りませんでした。");
+      setFinalTestNotice("");
       setFinalTestQuestions(questions);
       setFinalTestState("done");
       return { ok: true, count: questions.length };
