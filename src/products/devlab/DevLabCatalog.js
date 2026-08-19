@@ -49,7 +49,8 @@ export function devLabWorkspaceStackLabel(stack) {
 
 // 2026-07-21 チェックリスト充足方式確定: rubric(自由記述)を廃止し、checklist[{text,criteria,required,reqIds}]へ。
 export const EMPTY_DEVLAB_CHECK = { text: "", criteria: "", required: true, reqIds: [] };
-export const EMPTY_DEVLAB_STEP = { title: "", goal: "", deliverableGuide: "", checklist: [{ ...EMPTY_DEVLAB_CHECK }, { ...EMPTY_DEVLAB_CHECK }, { ...EMPTY_DEVLAB_CHECK }] };
+// artifactType(2026-08-19): アプリ内で作らせる成果物。"none"＝従来のテキスト/URL提出。
+export const EMPTY_DEVLAB_STEP = { title: "", goal: "", deliverableGuide: "", artifactType: "none", checklist: [{ ...EMPTY_DEVLAB_CHECK }, { ...EMPTY_DEVLAB_CHECK }, { ...EMPTY_DEVLAB_CHECK }] };
 
 export function emptyDevLabForm() {
   return {
@@ -97,6 +98,7 @@ export function draftToForm(draft) {
     estimatedHours: "",
     steps: (draft.steps || []).map(s => ({
       title: s.title || "", goal: s.goal || "", deliverableGuide: s.deliverableGuide || "",
+      artifactType: s.artifactType || "none",
       checklist: normalizeChecklistForForm(s.checklist),
     })),
     status: "draft",
@@ -126,6 +128,7 @@ export function formToPayload(form) {
       title: s.title.trim(),
       goal: s.goal.trim(),
       deliverableGuide: s.deliverableGuide.trim(),
+      artifactType: s.artifactType || "none",
       checklist: (s.checklist || []).filter(c => c.text.trim()).map(c => ({
         checkId: c.checkId,
         text: c.text.trim(),
