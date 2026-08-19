@@ -20,8 +20,7 @@ import {
 } from "./useDevLab.js";
 import { apiGet } from "../../api.js";
 import { CommitDiffPanel } from "./DevLabCommitDiff.jsx";
-import ErDiagramEditor from "./artifacts/ErDiagramEditor.jsx";
-import { emptyErModel, sanitizeErModel, erModelToText } from "./artifacts/erModel.js";
+import { artifactDef, ARTIFACT_OPTIONS } from "./artifacts/index.js";
 
 // ===================== ホーム =====================
 export function DevLabHome({ role, goSub }) {
@@ -269,8 +268,8 @@ export function ProjectDetail({ projectId, onBack, onOpenWorkspace }) {
   const { sheet, reload: reloadSheet } = useMySkillSheet();
   const { start, submitStep, complete, addToSkillSheet, busy, actionError, clearActionError } = useDevLabActions([reloadProjects, reloadMe, reloadSheet]);
   const [draft, setDraft] = useState({ submittedText: "", submittedUrl: "" });
-  // ER図ステップの編集中モデル（2026-08-19）。提出済みなら続きから編集できるよう復元する。
-  const [erDraft, setErDraft] = useState(null);
+  // 成果物エディタの編集中モデル（2026-08-19）。提出済みなら続きから編集できるよう復元する。
+  const [artifactDraft, setArtifactDraft] = useState(null);
   const [attachWorkspaceFiles, setAttachWorkspaceFiles] = useState(true);
   const [completeError, setCompleteError] = useState(null);
   const [worksDraftPreview, setWorksDraftPreview] = useState(null);
@@ -283,16 +282,18 @@ export function ProjectDetail({ projectId, onBack, onOpenWorkspace }) {
   // 提出フォームの「ワークスペースのコードを添付」チェックON時にsubmittedFilesとして同送する。
   const { overlay: workspaceOverlay } = useDevLabLinkedWorkspaceOverlay(project?.workspaceTemplateId);
 
-  // 現在のステップがER図なら、提出済みの成果物を編集中モデルへ引き継ぐ（未着手なら空から）。
+  // 現在のステップに成果物エディタが設定されていれば、提出済みの内容を編集中モデルへ
+  // 引き継ぐ（未着手なら空から）。種別ごとの分岐はレジストリ側に寄せている。
   const currentStepId = useMemo(() => {
     const steps = project?.steps || [];
     return steps.find(s => byStep.get(s.stepId)?.passed !== true)?.stepId || "";
   }, [project, byStep]);
   useEffect(() => {
     const step = (project?.steps || []).find(s => s.stepId === currentStepId);
-    if (step?.artifactType !== "er_diagram") { setErDraft(null); return; }
+    const def = artifactDef(step?.artifactType);
+    if (!def) { setArtifactDraft(null); return; }
     const saved = byStep.get(currentStepId)?.submittedArtifact;
-    setErDraft(saved?.type === "er_diagram" ? sanitizeErModel(saved.data) : emptyErModel());
+    setArtifactDraft(saved?.type === step.artifactType ? def.sanitize(saved.data) : def.empty());
   }, [currentStepId, project, byStep]);
 
   if (loading) return <Card><SkeletonRows rows={4} /></Card>;
@@ -317,23 +318,27 @@ export function ProjectDetail({ projectId, onBack, onOpenWorkspace }) {
 
   async function handleSubmit(step) {
     clearActionError();
-    const isEr = step.artifactType === "er_diagram";
-    // ER図ステップは、構造(submittedArtifact)と人が読めるテキスト(submittedText)の両方を送る。
-    // 既存のAI採点はsubmittedTextを読むだけなので、採点側は変えずに済む（2026-08-19）。
-    const erText = isEr ? erModelToText(sanitizeErModel(erDraft || emptyErModel())) : "";
-    if (isEr) {
-      if (!(erDraft?.tables || []).length) return;
-    } else if (!draft.submittedText.trim() && !draft.submittedUrl.trim()) {
-      return;
+    const def = artifactDef(step.artifactType);
+    // 成果物エディタのステップは、構造(submittedArtifact)と人が読めるテキスト(submittedText)の
+    // 両方を送る。既存のAI採点はsubmittedTextを読むだけなので採点側は変えずに済む（2026-08-19）。
+    let payload;
+    if (def) {
+      const model = def.sanitize(artifactDraft || def.empty());
+      if (def.isEmpty(model)) return;
+      payload = {
+        submittedText: def.toText(model),
+        submittedUrl: draft.submittedUrl,
+        submittedArtifact: { type: step.artifactType, data: model },
+      };
+    } else {
+      if (!draft.submittedText.trim() && !draft.submittedUrl.trim()) return;
+      payload = { ...draft };
     }
-    const payload = isEr
-      ? { submittedText: erText, submittedUrl: draft.submittedUrl, submittedArtifact: { type: "er_diagram", data: sanitizeErModel(erDraft) } }
-      : { ...draft };
     if (project.workspaceTemplateId && attachWorkspaceFiles && workspaceOverlay && Object.keys(workspaceOverlay).length > 0) {
       payload.submittedFiles = workspaceOverlay;
     }
     await submitStep(projectId, step.stepId, payload);
-    if (!isEr) setDraft({ submittedText: "", submittedUrl: "" });
+    if (!def) setDraft({ submittedText: "", submittedUrl: "" });
   }
 
   async function handleComplete() {
@@ -441,16 +446,23 @@ export function ProjectDetail({ projectId, onBack, onOpenWorkspace }) {
                   {isCurrent && (
                     <div className="mt-3 ml-9 space-y-2">
                       {/* 2026-08-19: ステップにartifactTypeが設定されていれば、外部提出ではなく
-                          アプリ内のエディタで成果物を作る。まずER図（テーブル設計）から。 */}
-                      {step.artifactType === "er_diagram" ? (
-                        <Field label="テーブル設計（この画面で作成します）">
-                          <ErDiagramEditor value={erDraft} onChange={setErDraft} />
-                        </Field>
-                      ) : (
-                        <Field label="成果物（テキスト）">
-                          <textarea style={{ ...fieldStyle, minHeight: 88 }} value={draft.submittedText} onChange={e => setDraft({ ...draft, submittedText: e.target.value })} placeholder="実施内容・工夫点などを記入してください" />
-                        </Field>
-                      )}
+                          アプリ内のエディタで成果物を作る（ER図・表計算・設計書・ワイヤー）。 */}
+                      {(() => {
+                        const def = artifactDef(step.artifactType);
+                        if (!def) {
+                          return (
+                            <Field label="成果物（テキスト）">
+                              <textarea style={{ ...fieldStyle, minHeight: 88 }} value={draft.submittedText} onChange={e => setDraft({ ...draft, submittedText: e.target.value })} placeholder="実施内容・工夫点などを記入してください" />
+                            </Field>
+                          );
+                        }
+                        const Editor = def.Editor;
+                        return (
+                          <Field label={def.fieldLabel}>
+                            <Editor value={artifactDraft} onChange={setArtifactDraft} />
+                          </Field>
+                        );
+                      })()}
                       <Field label="URL（任意。GitHub等）">
                         <input style={fieldStyle} value={draft.submittedUrl} onChange={e => setDraft({ ...draft, submittedUrl: e.target.value })} placeholder="https://github.com/..." />
                       </Field>
@@ -461,9 +473,11 @@ export function ProjectDetail({ projectId, onBack, onOpenWorkspace }) {
                         </label>
                       )}
                       <Btn size="sm" icon={Link2}
-                        disabled={busy || (step.artifactType === "er_diagram"
-                          ? !(erDraft?.tables || []).length
-                          : (!draft.submittedText.trim() && !draft.submittedUrl.trim()))}
+                        disabled={busy || (() => {
+                          const def = artifactDef(step.artifactType);
+                          if (def) return def.isEmpty(def.sanitize(artifactDraft || def.empty()));
+                          return !draft.submittedText.trim() && !draft.submittedUrl.trim();
+                        })()}
                         onClick={() => handleSubmit(step)}>{submission ? "再提出する" : "提出する"}</Btn>
                     </div>
                   )}
@@ -722,8 +736,7 @@ function StepEditor({ steps, functionalRequirements, onChange }) {
             <label className="block">
               <div className="mb-1 text-xs font-semibold" style={{ color: T.textMuted }}>アプリ内で作らせる成果物</div>
               <select style={fieldStyle} value={step.artifactType || "none"} onChange={e => updateStep(i, "artifactType", e.target.value)}>
-                <option value="none">なし（テキスト・URLで提出）</option>
-                <option value="er_diagram">テーブル設計（ER図）</option>
+                {ARTIFACT_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
               </select>
             </label>
             <div>
