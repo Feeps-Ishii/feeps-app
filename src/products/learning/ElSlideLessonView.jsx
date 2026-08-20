@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import {
   ChevronLeft, ChevronRight, ChevronUp, ChevronDown, Lightbulb, FileText, Download, Check, X,
   Play, PlayCircle, Circle, CheckCircle2, Loader2, Sparkles, PanelRightClose, PanelRightOpen,
@@ -6,7 +6,7 @@ import {
 } from "lucide-react";
 import { Btn, T, PRODUCT_ACCENT } from "../../components/common";
 import { LessonBodyText } from "./LearningComponents.jsx";
-import SlideIllustration, { hasIllustration } from "./SlideIllustrations.jsx";
+import SlideIllustration from "./SlideIllustrations.jsx";
 import LearningExperienceFlow, { learningStageForSlide } from "./LearningExperienceFlow.jsx";
 
 // slidesを持つLesson専用の「メインスライド中心」表示。lesson.slides?.length > 0 の場合のみ
@@ -45,9 +45,6 @@ const SLIDE_KIND_TONE = {
   fill_blank: { label: "演習", fg: T.aiAccentDeep },
   interactive_form: { label: "演習", fg: T.aiAccentDeep },
 };
-
-// 本文の行長。1行が長すぎると目が戻る位置を見失う（実画面で50字近くまで伸びていた）。
-const BODY_MEASURE = "42em";
 
 function SlideEyebrow({ kind, index, total }) {
   const tone = SLIDE_KIND_TONE[kind] || SLIDE_KIND_TONE.concept;
@@ -91,26 +88,156 @@ function Callouts({ items }) {
   );
 }
 
-// 挿絵つきの2カラム。挿絵が無いスライドは本文だけを返すので、既存教材でも崩れない。
+// 2026-08-20(v2): **本文スライドの横には挿絵を置かない。**
+// 長い本文やコードブロックの隣に絵があると必ずバランスが崩れる（実機で指摘を受けた）。
+// 挿絵は表紙(SlideCover)と中扉(SlideDivider)へ集約し、本文は文字と図表だけにする。
 //
-// 2026-08-20: 当初 lg:(1024px)未満で挿絵を hidden にしていたが、Windowsの表示スケーリング125%だと
-// 1240pxのウィンドウでもCSS上は992pxになり、**挿絵が丸ごと消えていた**。
-// 狭いときは「隠す」のではなく本文の上へ積む（挿絵は装飾ではなく理解の助けなので消さない）。
-function IllustratedLayout({ illustration, children, side = "right" }) {
-  if (!hasIllustration(illustration)) return <div>{children}</div>;
-  const panel = (
-    <div
-      className="flex shrink-0 items-center justify-center rounded-2xl p-4 sm:p-5"
-      style={{ background: `linear-gradient(160deg, ${T.accentSubtle}, ${T.aiSubtle})` }}
-    >
-      <SlideIllustration name={illustration} width={196} height={139} />
+// 本文の幅は段落・コード・表で揃える。段落だけに行長制限をかけると右端がギザギザになり、
+// 「余白が中途半端」に見える。列全体を1つの幅に収めれば、余白は意図的な余白として読める。
+const CONTENT_COLUMN = 720;
+
+function ContentColumn({ children }) {
+  return <div style={{ maxWidth: CONTENT_COLUMN }}>{children}</div>;
+}
+
+// ---- 表紙と中扉（2026-08-20 v2新設。承認モック: mock/slide-design の 提案v2） ----
+//
+// どちらも**保存されたスライドではなく、表示時に組み立てる合成スライド**。
+// レッスンのtitle/goalと既存の学習ステージ判定(learningStageForSlide)から作れるので、
+// AI生成も、既存教材のデータ移行も要らない。
+const STAGE_VISUAL = {
+  explanation: { label: "短い説明", lead: "まずは要点をつかみます。", fg: T.accent, tint: T.accentSubtle, illustration: "document" },
+  example: { label: "例で見る", lead: "図や比較で具体的に確かめます。", fg: "#176B67", tint: "#E7F7F5", illustration: "compare" },
+  practice: { label: "やってみる", lead: "ここからは手を動かします。間違えても大丈夫です。", fg: T.aiAccentDeep, tint: T.aiSubtle, illustration: "checklist" },
+  feedback: { label: "確かめる", lead: "その場で理解を修正します。", fg: T.aiAccentDeep, tint: T.aiSubtle, illustration: "checklist" },
+  review: { label: "ふりかえり", lead: "学んだことを整理します。", fg: T.success, tint: T.successSubtle, illustration: "checklist" },
+  final: { label: "総合テスト", lead: "最後に通しで確認します。", fg: T.success, tint: T.successSubtle, illustration: "checklist" },
+};
+
+// 中扉・目次のためのステージ判定。LearningExperienceFlowのlearningStageForSlideは
+// 「index===0だけexplanation、あとは全部example」なので、説明スライドが3枚続いても
+// 2枚目の手前で「例で見る」の中扉が出てしまう。ここでは**kindだけ**で判定する。
+const PRACTICE_SLIDE_KINDS = new Set(["quiz", "terminal", "selection_task", "ordering_puzzle", "fill_blank", "interactive_form"]);
+function displayStage(slide) {
+  const kind = String(slide?.kind || "").toLowerCase();
+  if (kind === "summary") return "review";
+  if (PRACTICE_SLIDE_KINDS.has(kind)) return "practice";
+  if (kind === "concept") return "explanation";
+  return "example";
+}
+
+export function buildDisplaySlides(lesson, slides) {
+  const out = [{ id: "__cover", kind: "_cover", stage: "explanation", lesson, allSlides: slides }];
+  // 中扉は**そのステージが初めて出てくるところにだけ**挟む。concept→diagram→conceptのように
+  // 行き来する構成でも、中扉が何枚も挟まってテンポが悪くならないようにするため。
+  const seen = new Set(["explanation"]);
+  slides.forEach((slide, i) => {
+    const stage = displayStage(slide);
+    if (i > 0 && !seen.has(stage) && STAGE_VISUAL[stage]) {
+      out.push({ id: `__divider_${stage}_${i}`, kind: "_divider", stage });
+    }
+    seen.add(stage);
+    // 通し番号は元の並び順で固定する（中扉が増えても番号がずれないように）
+    out.push({ ...slide, _index: i });
+  });
+  return out;
+}
+
+function SlideCover({ lesson, slides, accent }) {
+  // 目次は中扉と同じ4区分でまとめる（初出順）。同じステージが離れて出てきても1つにまとめる。
+  const groups = [];
+  slides.forEach(slide => {
+    const stage = displayStage(slide);
+    if (!STAGE_VISUAL[stage]) return;
+    const found = groups.find(g => g.stage === stage);
+    if (found) found.labels.push(slide.navLabel || slide.title);
+    else groups.push({ stage, labels: [slide.navLabel || slide.title] });
+  });
+  const exercises = slides.filter(slideNeedsSubmission).length;
+
+  return (
+    <div className="-m-8 sm:-m-10">
+      <div className="flex flex-col md:flex-row md:items-stretch">
+        <div className="min-w-0 flex-1 p-8 sm:p-10">
+          <span className="mb-4 inline-flex items-center rounded-full px-3 py-1.5 text-[11.5px] font-bold" style={{ background: T.accentSubtle, color: accent, letterSpacing: "0.06em" }}>
+            このレッスン
+          </span>
+          <h2 className="mb-3.5 text-[30px] font-bold leading-[1.3]" style={{ color: C.ink, letterSpacing: "-0.03em" }}>{lesson.title}</h2>
+          {lesson.goal && (
+            <p className="mb-6 text-[15.5px] leading-[1.85]" style={{ color: C.body, maxWidth: "34ch" }}>{lesson.goal}</p>
+          )}
+          <div className="flex flex-wrap gap-2">
+            {lesson.duration && (
+              <span className="flex items-center gap-1.5 rounded-full px-3 py-1.5 text-[12.5px]" style={{ background: T.bgBase, border: `1px solid ${C.line}`, color: C.body }}>
+                <Clock size={13} />{lesson.duration}
+              </span>
+            )}
+            <span className="rounded-full px-3 py-1.5 text-[12.5px]" style={{ background: T.bgBase, border: `1px solid ${C.line}`, color: C.body }}>{slides.length}ページ</span>
+            {exercises > 0 && (
+              <span className="rounded-full px-3 py-1.5 text-[12.5px] font-semibold" style={{ background: T.aiSubtle, color: T.aiAccentDeep }}>演習 {exercises}</span>
+            )}
+          </div>
+        </div>
+        <div
+          className="flex items-center justify-center p-7 md:w-[300px] md:shrink-0"
+          style={{ background: `linear-gradient(165deg, ${T.accentSubtle} 0%, ${T.aiSubtle} 100%)` }}
+        >
+          <SlideIllustration name="document" width={240} height={170} />
+        </div>
+      </div>
+
+      {groups.length > 0 && (
+        <div className="border-t p-8 pt-6 sm:px-10" style={{ borderColor: C.line }}>
+          <div className="mb-3.5 text-[12px] font-bold" style={{ color: C.muted, letterSpacing: "0.06em" }}>このレッスンの流れ</div>
+          <div className="grid gap-2.5 sm:grid-cols-2 xl:grid-cols-4">
+            {groups.map((g, i) => {
+              const v = STAGE_VISUAL[g.stage];
+              return (
+                <div key={`${g.stage}-${i}`} className="rounded-2xl p-3.5" style={{ background: T.bgBase }}>
+                  <div className="mb-1.5 flex items-center gap-2">
+                    <span className="flex h-5 w-5 items-center justify-center rounded-full text-[11px] font-bold" style={{ background: v.fg, color: "#fff" }}>{i + 1}</span>
+                    <span className="text-[12.5px] font-bold" style={{ color: C.ink }}>{v.label}</span>
+                  </div>
+                  <div className="text-[11.5px] leading-[1.7]" style={{ color: C.muted }}>{g.labels.join(" ・ ")}</div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
     </div>
   );
+}
+
+function SlideDivider({ stage }) {
+  const v = STAGE_VISUAL[stage] || STAGE_VISUAL.example;
   return (
-    <div className={`flex flex-col gap-5 md:flex-row md:items-center md:gap-7 ${side === "left" ? "md:flex-row" : "md:flex-row-reverse"}`}>
-      {/* 縦積みのときは常に挿絵が先。横並びのときはside指定で左右を決める */}
-      <div className="md:w-[260px] md:shrink-0">{panel}</div>
-      <div className="min-w-0 flex-1">{children}</div>
+    <div className="-m-8 flex flex-col items-center gap-6 rounded-2xl p-10 sm:-m-10 sm:flex-row sm:justify-between sm:p-12"
+      style={{ background: `linear-gradient(150deg, ${v.tint} 0%, ${T.bgBase} 64%)` }}>
+      <div className="min-w-0">
+        <div className="mb-3.5 flex items-center gap-2 text-[12px] font-bold" style={{ color: v.fg, letterSpacing: "0.08em" }}>
+          つぎのパート
+        </div>
+        <h2 className="mb-3 text-[32px] font-bold leading-[1.25]" style={{ color: C.ink, letterSpacing: "-0.03em" }}>{v.label}</h2>
+        <p className="text-[15.5px] leading-[1.85]" style={{ color: C.body, maxWidth: "30ch" }}>{v.lead}</p>
+      </div>
+      <div className="shrink-0">
+        <SlideIllustration name={v.illustration} width={226} height={160} />
+      </div>
+    </div>
+  );
+}
+
+// スライド下の「解説」。caption はもともと保存も描画もされていたが、AIが埋めていなかった。
+function SlideNarration({ text }) {
+  if (!text) return null;
+  return (
+    <div className="mt-4 rounded-2xl p-4 sm:p-[18px]" style={{ background: T.bgBase, border: `1px solid rgba(26,28,31,.07)` }}>
+      <div className="mb-2 flex items-center gap-1.5">
+        <Sparkles size={13} style={{ color: C.muted }} />
+        <span className="text-[12px] font-bold" style={{ color: C.muted, letterSpacing: "0.04em" }}>解説</span>
+      </div>
+      <p className="text-sm leading-[1.9]" style={{ color: C.body, maxWidth: "68ch" }}>{text}</p>
     </div>
   );
 }
@@ -166,21 +293,36 @@ function LeftSlideNav({ slides, current, onSelect, accent, pendingIds }) {
         {slides.map((slide, i) => {
           const active = i === current;
           const pending = pendingIds?.has(slide.id);
+          // 表紙・中扉は本文ページではないので、番号を振らず一段小さく出す。
+          // 中扉はそのままセクション見出しとして機能する。
+          const cover = slide.kind === "_cover";
+          const divider = slide.kind === "_divider";
+          const stageVisual = divider ? STAGE_VISUAL[slide.stage] : null;
+          const label = cover ? "はじめに" : divider ? stageVisual?.label || "" : slide.navLabel || slide.title;
           return (
             <button
               key={slide.id || i}
               type="button"
               onClick={() => onSelect(i)}
               className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-left text-sm transition"
-              style={{ background: active ? accent : "transparent", color: active ? "#fff" : C.body, fontWeight: active ? 700 : 500 }}
+              style={{
+                background: active ? accent : "transparent",
+                color: active ? "#fff" : divider || cover ? C.muted : C.body,
+                fontWeight: active ? 700 : divider ? 700 : 500,
+                fontSize: divider || cover ? 12.5 : undefined,
+                marginTop: divider ? 8 : undefined,
+              }}
             >
               <span
                 className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-[11px] font-bold"
-                style={{ background: active ? "rgba(255,255,255,.25)" : T.bgBase, color: active ? "#fff" : C.muted }}
+                style={{
+                  background: active ? "rgba(255,255,255,.25)" : divider ? stageVisual?.tint || T.bgBase : T.bgBase,
+                  color: active ? "#fff" : divider ? stageVisual?.fg || C.muted : C.muted,
+                }}
               >
-                {i + 1}
+                {cover ? "0" : divider ? "" : (slide._index ?? i) + 1}
               </span>
-              <span className="min-w-0 flex-1 truncate">{slide.navLabel || slide.title}</span>
+              <span className="min-w-0 flex-1 truncate">{label}</span>
               {pending && (
                 <span
                   className="h-1.5 w-1.5 shrink-0 rounded-full"
@@ -977,16 +1119,18 @@ export function SlideRenderer({ slide, accent, lrn, courseId, lessonId, index, t
   if (!slide) return null;
   const content = slide.content || {};
   switch (slide.kind) {
+    case "_cover":
+      return <SlideCover lesson={slide.lesson} slides={slide.allSlides} accent={accent} />;
+    case "_divider":
+      return <SlideDivider stage={slide.stage} />;
     case "concept":
       return (
-        <IllustratedLayout illustration={slide.illustration}>
+        <ContentColumn>
           <SlideEyebrow kind="concept" index={index} total={total} />
           <SlideTitle>{slide.title}</SlideTitle>
-          <div style={{ maxWidth: BODY_MEASURE }}>
-            <LessonBodyText body={content.body} />
-          </div>
+          <LessonBodyText body={content.body} />
           <Callouts items={content.callouts} />
-        </IllustratedLayout>
+        </ContentColumn>
       );
     case "image":
       return <ImageSlideBody key={slide.id} slide={slide} content={content} lrn={lrn} />;
@@ -1087,7 +1231,7 @@ export function SlideRenderer({ slide, accent, lrn, courseId, lessonId, index, t
       // まとめは「順番のある要点」に見せる（従来は全部チェックマークで比較と同じ顔だった）。
       // 挿絵は左に置いて、説明スライドとリズムを変える。
       return (
-        <IllustratedLayout illustration={slide.illustration || "checklist"} side="left">
+        <ContentColumn>
           <SlideEyebrow kind="summary" index={index} total={total} />
           <SlideTitle>{slide.title}</SlideTitle>
           <ol className="space-y-3">
@@ -1107,18 +1251,23 @@ export function SlideRenderer({ slide, accent, lrn, courseId, lessonId, index, t
               <span className="text-[13.5px]" style={{ color: C.body }}>{content.nextLessonPreview}</span>
             </div>
           )}
-        </IllustratedLayout>
+        </ContentColumn>
       );
   }
 }
 
-function MainSlidePanel({ slides, index, setIndex, accent, lrn, courseId, lessonId }) {
+function MainSlidePanel({ slides, index, setIndex, accent, lrn, courseId, lessonId, contentCount }) {
   const slide = slides[index];
   const slideCaption = slide?.caption || "";
-  const captionShownInBody = slide?.kind === "image";
+  // imageは本文側でcaptionを出すので二重に出さない。表紙・中扉には解説を付けない。
+  const synthetic = slide?.kind === "_cover" || slide?.kind === "_divider";
+  const captionShownInBody = slide?.kind === "image" || synthetic;
   return (
     <div className="min-w-0 flex-1">
-      <div className="rounded-2xl p-8 sm:p-10" style={{ background: "#fff", border: `1px solid ${C.line}` }}>
+      <div
+        className="overflow-hidden rounded-2xl p-8 sm:p-10"
+        style={{ background: "#fff", border: `1px solid ${C.line}` }}
+      >
         <div className="flex min-h-[300px] flex-col justify-center">
           <SlideRenderer
             slide={slide}
@@ -1126,12 +1275,15 @@ function MainSlidePanel({ slides, index, setIndex, accent, lrn, courseId, lesson
             lrn={lrn}
             courseId={courseId}
             lessonId={lessonId}
-            index={index}
-            total={slides.length}
+            index={slide?._index}
+            total={contentCount}
             key={slide?.id}
           />
         </div>
       </div>
+
+      {/* スライドの下に置く解説（caption）。要点はスライド、補足はここ、という役割分担 */}
+      {!captionShownInBody && <SlideNarration text={slideCaption} />}
 
       <div className="mt-4 flex items-center justify-center gap-4">
         <button
@@ -1160,12 +1312,6 @@ function MainSlidePanel({ slides, index, setIndex, accent, lrn, courseId, lesson
         </button>
       </div>
 
-      {slideCaption && !captionShownInBody && (
-        <div className="mt-4 rounded-xl p-4" style={{ background: T.bgBase }}>
-          <div className="mb-1 text-xs font-bold" style={{ color: C.muted }}>このページの説明</div>
-          <p className="text-sm leading-relaxed" style={{ color: C.body }}>{slideCaption}</p>
-        </div>
-      )}
     </div>
   );
 }
@@ -1306,7 +1452,9 @@ function ReactionBar({ course, lesson, lrn, accent }) {
 }
 
 export default function ElSlideLessonView({ course, lesson, lrn, onBack, onNavigate, onComplete, lessons, initialSlideId }) {
-  const slides = orderedSlides(lesson);
+  const contentSlides = orderedSlides(lesson);
+  // 表示用の並び（表紙＋中扉を挟んだもの）。以降のindexはすべてこの配列に対するもの。
+  const slides = useMemo(() => buildDisplaySlides(lesson, contentSlides), [lesson, contentSlides.length]);
   // 2026-07-21 監査P1(T-4)対応: 「復習が必要な演習」から該当スライドへ直接ジャンプできるよう、
   // initialSlideIdが渡された場合はそのスライドから開始する（見つからなければ従来通り先頭から）
   const [slideIndex, setSlideIndex] = useState(() => {
@@ -1326,7 +1474,7 @@ export default function ElSlideLessonView({ course, lesson, lrn, onBack, onNavig
   // スライドごとの個別リクエストを増やさない。
   const exerciseSubmissions = lrn?.getExerciseSubmissionsForLesson ? lrn.getExerciseSubmissionsForLesson(course.id, lesson.id) : [];
   const submittedSlideIds = new Set(exerciseSubmissions.map(s => s.slideId));
-  const pendingSlides = slides.filter(s => slideNeedsSubmission(s) && !submittedSlideIds.has(s.id));
+  const pendingSlides = contentSlides.filter(s => slideNeedsSubmission(s) && !submittedSlideIds.has(s.id));
   const pendingIds = new Set(pendingSlides.map(s => s.id));
 
   function handleComplete() {
@@ -1342,7 +1490,7 @@ export default function ElSlideLessonView({ course, lesson, lrn, onBack, onNavig
       </button>
 
       <LearningExperienceFlow
-        activeKey={learningStageForSlide(slides[slideIndex], slideIndex)}
+        activeKey={slides[slideIndex]?.stage || displayStage(slides[slideIndex])}
         compact
         className="mb-5"
       />
@@ -1365,7 +1513,7 @@ export default function ElSlideLessonView({ course, lesson, lrn, onBack, onNavig
 
       <div className="flex flex-col gap-8 lg:flex-row lg:items-start">
         <LeftSlideNav slides={slides} current={slideIndex} onSelect={setSlideIndex} accent={accent} pendingIds={pendingIds} />
-        <MainSlidePanel slides={slides} index={slideIndex} setIndex={setSlideIndex} accent={accent} lrn={lrn} courseId={course.id} lessonId={lesson.id} />
+        <MainSlidePanel slides={slides} index={slideIndex} setIndex={setSlideIndex} accent={accent} lrn={lrn} courseId={course.id} lessonId={lesson.id} contentCount={contentSlides.length} />
         <RightSidebar course={course} lesson={lesson} lrn={lrn} idx={idx} lessons={lessons} accent={accent} compact={rightCompact} onToggle={() => setRightCompact(v => !v)} />
       </div>
 
