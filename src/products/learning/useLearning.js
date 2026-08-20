@@ -351,15 +351,24 @@ export function useLearning(role = "trainee") {
     const allDone = allLessons.length > 0 && doneCnt >= allLessons.length;
     const cur = progress[courseId];
     const reviewRecommended = getCourseReviewItems(courseId).length > 0;
-    const nextStatus = allDone
-      ? (reviewRecommended ? "review_recommended" : "lessons_completed")
-      : "inprogress";
+    // 2026-08-21: 総合テストを行わないコースは、最後のレッスンを終えた時点で修了。
+    // ここで修了にしないと completedAt が入らず、修了証の取得日が「-」になり、
+    // 成長の履歴(el_completedイベント)にも残らない。
+    const course = courseById(courseId);
+    const completedNow = allDone && course?.finalTestEnabled === false;
+    const nextStatus = completedNow
+      ? "completed"
+      : allDone
+        ? (reviewRecommended ? "review_recommended" : "lessons_completed")
+        : "inprogress";
     const nextEntry = {
       ...cur,
       status: cur?.status === "completed" && hasPassedFinalTest(courseId) ? "completed" : nextStatus,
-      progress: pct,
+      progress: completedNow ? 100 : pct,
       startedAt: cur?.startedAt || now,
-      completedAt: cur?.status === "completed" && hasPassedFinalTest(courseId) ? cur.completedAt : null,
+      completedAt: completedNow
+        ? (cur?.completedAt || now)
+        : cur?.status === "completed" && hasPassedFinalTest(courseId) ? cur.completedAt : null,
       lessonsCompletedAt: allDone ? (cur?.lessonsCompletedAt || now) : cur?.lessonsCompletedAt || null,
       readyForFinalTest: allDone,
       lastLessonId: lessonId,
@@ -367,6 +376,16 @@ export function useLearning(role = "trainee") {
     };
     _save({ ...progress, [courseId]: nextEntry });
     _pushProgressToServer(courseId, { courseProgress: nextEntry, courseLessons: nextCourseData });
+    // 修了イベント（成長の履歴・通知が拾う）。同じコースで二重に積まない。
+    if (completedNow && cur?.status !== "completed") {
+      const events = _loadEvents().filter(e => !(e.type === "el_completed" && e.courseId === courseId));
+      events.unshift({
+        id: "ela-" + Date.now(), type: "el_completed", courseId,
+        courseTitle: course?.title || courseId, earnedSkills: course?.skills || [], completedAt: now,
+      });
+      localStorage.setItem(EVENTS_KEY, JSON.stringify(events));
+      window.dispatchEvent(new Event("feeps:notifications-refresh"));
+    }
     return allDone;
   }
   function getLessonsDone(courseId) { return lessonProgress[courseId] || {}; }

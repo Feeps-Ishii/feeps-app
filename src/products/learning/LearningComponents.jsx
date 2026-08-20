@@ -1149,19 +1149,33 @@ function ElCourseDetail({ course, lrn, onBack, onOpenLesson, onStartFinalTest, o
         </div>
         <div className="mt-3"><Bar value={pct} tone={isCompleted ? "green" : "cyan"} /></div>
       </Card>
+      {/* 2026-08-21: ここは「クラウドスキル +20」などの固定文言を並べていた。コースの内容と
+          無関係な嘘になるので、**そのコースに登録されている取得スキルだけ**を出す。
+          スキルが未設定のコースでは、その事実をそのまま書く（架空の効果を約束しない）。 */}
       <Card className="mb-5 p-5" style={{ background: "#7C3AED0D", border: "1px solid #7C3AED20" }}>
         <div className="mb-3 flex items-center gap-2">
           <Award size={16} style={{ color: PRODUCT_ACCENT.talent.accent }} />
           <h3 className="text-base font-bold" style={{ color: PRODUCT_ACCENT.talent.accent, letterSpacing: "-0.02em" }}>このコースを修了すると</h3>
         </div>
-        <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-5">
-          {[course.skills[0] || "基礎スキル", "クラウドスキル +20", "スキルシート更新", "成長履歴へ反映", "案件マッチングへ活用"].map(t => (
-            <div key={t} className="flex items-center gap-2 rounded-xl bg-white px-3 py-2 text-sm" style={{ color: C.body, border: `1px solid ${C.line}` }}>
-              <CheckCircle2 size={14} style={{ color: PRODUCT_ACCENT.talent.accent }} />
-              <span className="font-semibold">{t}</span>
+        {course.skills?.length ? (
+          <>
+            <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+              {course.skills.map(skill => (
+                <div key={skill} className="flex items-center gap-2 rounded-xl bg-white px-3 py-2 text-sm" style={{ color: C.body, border: `1px solid ${C.line}` }}>
+                  <CheckCircle2 size={14} style={{ color: PRODUCT_ACCENT.talent.accent }} />
+                  <span className="font-semibold">{skill}</span>
+                </div>
+              ))}
             </div>
-          ))}
-        </div>
+            <p className="mt-3 text-xs" style={{ color: C.muted }}>
+              修了すると「獲得スキル」と「修了証」に追加され、成長の記録にも残ります。
+            </p>
+          </>
+        ) : (
+          <p className="text-xs leading-relaxed" style={{ color: C.body }}>
+            このコースには取得スキルが設定されていません。修了すると「修了済み」と「修了証」には残りますが、獲得スキルには追加されません。
+          </p>
+        )}
       </Card>
       {finalTestEnabled && (
       <FinalTestPlanCard
