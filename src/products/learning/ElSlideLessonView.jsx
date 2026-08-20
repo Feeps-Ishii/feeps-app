@@ -6,6 +6,7 @@ import {
 } from "lucide-react";
 import { Btn, T, PRODUCT_ACCENT } from "../../components/common";
 import { LessonBodyText } from "./LearningComponents.jsx";
+import SlideIllustration, { hasIllustration } from "./SlideIllustrations.jsx";
 import LearningExperienceFlow, { learningStageForSlide } from "./LearningExperienceFlow.jsx";
 
 // slidesを持つLesson専用の「メインスライド中心」表示。lesson.slides?.length > 0 の場合のみ
@@ -21,6 +22,94 @@ import LearningExperienceFlow, { learningStageForSlide } from "./LearningExperie
 const C = {
   ink: T.textPrimary, body: T.textSecondary, muted: T.textMuted, line: T.border, canvas: T.bgBase,
 };
+
+// ---- スライドの見せ方（2026-08-20刷新。承認モック: mock/slide-design） ----
+// 旧UIは全kindが「白い箱・黒い見出し・グレー本文」で、種別の違いが見た目に出ず質素だった。
+// またAIが生成しているcalloutsを一切描画していなかった。ここで:
+//   ・種別ごとの色と小さなラベル＋通し番号を出す
+//   ・見出しと本文のサイズ差を広げ、行長を制限する（旧: 1行50字近くまで伸びていた）
+//   ・calloutsを描画する
+//   ・conceptとsummaryに抽象SVGの図版帯を添える（AIは8種から選ぶだけ。画像生成はしない）
+const SLIDE_KIND_TONE = {
+  concept: { label: "説明", fg: T.accent },
+  diagram: { label: "図解", fg: "#176B67" },
+  table: { label: "くらべる", fg: "#176B67" },
+  compare: { label: "くらべる", fg: "#176B67" },
+  quiz: { label: "確認", fg: T.aiAccentDeep },
+  summary: { label: "まとめ", fg: T.success },
+  image: { label: "図版", fg: T.accent },
+  video: { label: "動画", fg: T.accent },
+  terminal: { label: "演習", fg: T.aiAccentDeep },
+  selection_task: { label: "演習", fg: T.aiAccentDeep },
+  ordering_puzzle: { label: "演習", fg: T.aiAccentDeep },
+  fill_blank: { label: "演習", fg: T.aiAccentDeep },
+  interactive_form: { label: "演習", fg: T.aiAccentDeep },
+};
+
+// 本文の行長。1行が長すぎると目が戻る位置を見失う（実画面で50字近くまで伸びていた）。
+const BODY_MEASURE = "42em";
+
+function SlideEyebrow({ kind, index, total }) {
+  const tone = SLIDE_KIND_TONE[kind] || SLIDE_KIND_TONE.concept;
+  return (
+    <div className="mb-2.5 flex items-center gap-2 text-[11.5px] font-bold" style={{ color: tone.fg, letterSpacing: "0.08em" }}>
+      <span>{tone.label}</span>
+      {Number.isInteger(index) && Number.isInteger(total) && (
+        <span style={{ color: C.muted, fontWeight: 600 }}>・{String(index + 1).padStart(2, "0")}</span>
+      )}
+    </div>
+  );
+}
+
+function SlideTitle({ children }) {
+  return (
+    <h3 className="mb-4 text-[26px] font-bold leading-[1.4]" style={{ color: C.ink, letterSpacing: "-0.025em" }}>{children}</h3>
+  );
+}
+
+// AIが生成しているのに従来は捨てていた強調。左ボーダー1本ではなく淡い面で出す。
+function Callouts({ items }) {
+  if (!items?.length) return null;
+  return (
+    <div className="mt-4 space-y-2">
+      {items.map((c, i) => {
+        const warn = c.type === "warning";
+        const fg = warn ? T.warning : T.accent;
+        const bg = warn ? T.warningSubtle : T.accentSubtle;
+        const Icon = warn ? AlertCircle : Lightbulb;
+        return (
+          <div key={i} className="flex items-start gap-2.5 rounded-2xl p-3.5" style={{ background: bg }}>
+            <Icon size={17} className="mt-0.5 shrink-0" style={{ color: fg }} />
+            <div>
+              <div className="mb-0.5 text-[12px] font-bold" style={{ color: fg }}>{warn ? "注意" : "ポイント"}</div>
+              <div className="text-sm leading-[1.75]" style={{ color: C.ink }}>{c.text}</div>
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+// 挿絵つきの2カラム。挿絵が無いスライドは本文だけを返すので、既存教材でも崩れない。
+function IllustratedLayout({ illustration, children, side = "right" }) {
+  if (!hasIllustration(illustration)) return <div>{children}</div>;
+  const panel = (
+    <div
+      className="hidden shrink-0 items-center justify-center rounded-2xl p-5 lg:flex"
+      style={{ width: 260, background: `linear-gradient(160deg, ${T.accentSubtle}, ${T.aiSubtle})` }}
+    >
+      <SlideIllustration name={illustration} width={196} height={139} />
+    </div>
+  );
+  return (
+    <div className="flex items-center gap-7">
+      {side === "left" && panel}
+      <div className="min-w-0 flex-1">{children}</div>
+      {side === "right" && panel}
+    </div>
+  );
+}
 
 // 2026-07-14 AI Lesson Studio Phase2: 絵文字を廃止しアイコン+ラベルのボタンUIへ変更。
 // uncertain(旧・少し不安)は選択肢から外し、need_help(質問したい)に置き換え。過去データの
@@ -880,16 +969,20 @@ function DiagramBody({ slide, accent }) {
 
 // CMS(admin/slideEditor/LessonSlideStudio.jsx)のプレビューパネルから「受講者画面と全く同じ表示」を
 // 再現するために再利用する。ここでexportしても受講画面側の挙動・呼び出し方は一切変えない。
-export function SlideRenderer({ slide, accent, lrn, courseId, lessonId }) {
+export function SlideRenderer({ slide, accent, lrn, courseId, lessonId, index, total }) {
   if (!slide) return null;
   const content = slide.content || {};
   switch (slide.kind) {
     case "concept":
       return (
-        <div>
-          <h3 className="mb-3 text-xl font-bold" style={{ color: C.ink, letterSpacing: "-0.02em" }}>{slide.title}</h3>
-          <LessonBodyText body={content.body} />
-        </div>
+        <IllustratedLayout illustration={slide.illustration}>
+          <SlideEyebrow kind="concept" index={index} total={total} />
+          <SlideTitle>{slide.title}</SlideTitle>
+          <div style={{ maxWidth: BODY_MEASURE }}>
+            <LessonBodyText body={content.body} />
+          </div>
+          <Callouts items={content.callouts} />
+        </IllustratedLayout>
       );
     case "image":
       return <ImageSlideBody key={slide.id} slide={slide} content={content} lrn={lrn} />;
@@ -898,23 +991,24 @@ export function SlideRenderer({ slide, accent, lrn, courseId, lessonId }) {
     case "table":
       return (
         <div>
-          <h3 className="mb-4 text-xl font-bold" style={{ color: C.ink, letterSpacing: "-0.02em" }}>{slide.title}</h3>
+          <SlideEyebrow kind="table" index={index} total={total} />
+          <SlideTitle>{slide.title}</SlideTitle>
           {/* モバイル390px等、列数の多い表は横幅が入りきらないことがあるため、テーブルだけを
               overflow-x-autoでスクロール可能にし、ページ全体の横スクロールを防ぐ。 */}
-          <div className="overflow-x-auto rounded-xl" style={{ border: `1px solid ${C.line}` }}>
-            <table className="w-full min-w-[480px] border-collapse text-sm">
+          <div className="overflow-x-auto rounded-2xl" style={{ border: `1px solid ${C.line}` }}>
+            <table className="w-full min-w-[480px] border-collapse text-[14.5px]">
               <thead>
                 <tr>
                   {(content.columns || []).map(col => (
-                    <th key={col} className="px-3 py-2 text-left text-xs font-bold" style={{ background: T.bgBase, color: C.muted, borderBottom: `1px solid ${C.line}` }}>{col}</th>
+                    <th key={col} className="px-[18px] py-3.5 text-left text-xs font-bold" style={{ background: T.bgBase, color: C.muted, letterSpacing: "0.04em", borderBottom: `1px solid ${C.line}` }}>{col}</th>
                   ))}
                 </tr>
               </thead>
               <tbody>
                 {(content.rows || []).map((row, ri) => (
-                  <tr key={ri}>
+                  <tr key={ri} style={{ background: ri % 2 === 1 ? "#FCFDFE" : "transparent" }}>
                     {row.map((cell, i) => (
-                      <td key={i} className="px-3 py-2.5" style={{ color: i === 0 ? C.ink : C.body, fontWeight: i === 0 ? 700 : 400, borderBottom: `1px solid ${C.line}` }}>{cell}</td>
+                      <td key={i} className="px-[18px] py-4 leading-[1.7]" style={{ color: i === 0 ? C.ink : C.body, fontWeight: i === 0 ? 700 : 400, borderBottom: `1px solid ${T.bgBase}` }}>{cell}</td>
                     ))}
                   </tr>
                 ))}
@@ -934,13 +1028,23 @@ export function SlideRenderer({ slide, accent, lrn, courseId, lessonId }) {
       // (docs/specs/ai-lesson-studio-spec.md §4.3)。既存kindと同じくcontentが空でもクラッシュしない。
       const left = content.left || {};
       const right = content.right || {};
-      const Column = ({ side }) => (
-        <div className="min-w-0 flex-1 rounded-xl p-4" style={{ background: T.bgBase, border: `1px solid ${C.line}` }}>
-          <div className="mb-2.5 text-sm font-bold" style={{ color: C.ink }}>{side.label}</div>
-          <ul className="space-y-2">
+      // 2026-08-20: 見出し帯に色を持たせて左右を区別する。
+      // **色は位置ではなく内容で決める。** 実機で「良い対応」が青、「よくある失敗例」が緑（成功色）
+      // になり、意味と色が逆転していた。side.tone(positive/negative)があればそれに従い、
+      // 無ければ善し悪しを含意しない中立色（青／teal）を左右に振る。
+      const COMPARE_TONE = {
+        positive: { bg: T.successSubtle, fg: T.success },
+        negative: { bg: T.dangerSubtle, fg: T.danger },
+      };
+      const NEUTRAL = [{ bg: T.accentSubtle, fg: T.accentHover }, { bg: "#E7F7F5", fg: "#176B67" }];
+      const toneFor = (side, i) => COMPARE_TONE[side?.tone] || NEUTRAL[i];
+      const Column = ({ side, tone }) => (
+        <div className="min-w-0 flex-1 overflow-hidden rounded-2xl" style={{ border: `1px solid ${C.line}` }}>
+          <div className="px-4 py-3 text-[13px] font-bold" style={{ background: tone.bg, color: tone.fg }}>{side.label}</div>
+          <ul className="space-y-2.5 p-4">
             {(side.items || []).map((item, i) => (
-              <li key={i} className="flex items-start gap-2 text-sm" style={{ color: C.body }}>
-                <Check size={14} className="mt-0.5 shrink-0" style={{ color: accent }} />{item}
+              <li key={i} className="flex items-start gap-2.5 text-[14.5px] leading-[1.75]" style={{ color: C.body }}>
+                <Check size={15} className="mt-1 shrink-0" style={{ color: tone.fg }} />{item}
               </li>
             ))}
           </ul>
@@ -948,10 +1052,11 @@ export function SlideRenderer({ slide, accent, lrn, courseId, lessonId }) {
       );
       return (
         <div>
-          <h3 className="mb-4 text-xl font-bold" style={{ color: C.ink, letterSpacing: "-0.02em" }}>{slide.title}</h3>
-          <div className="flex flex-col gap-3 sm:flex-row">
-            <Column side={left} />
-            <Column side={right} />
+          <SlideEyebrow kind="compare" index={index} total={total} />
+          <SlideTitle>{slide.title}</SlideTitle>
+          <div className="flex flex-col gap-3.5 sm:flex-row">
+            <Column side={left} tone={toneFor(left, 0)} />
+            <Column side={right} tone={toneFor(right, 1)} />
           </div>
         </div>
       );
@@ -966,17 +1071,30 @@ export function SlideRenderer({ slide, accent, lrn, courseId, lessonId }) {
       return <InteractiveFormBody slide={slide} accent={accent} lrn={lrn} courseId={courseId} lessonId={lessonId} />;
     case "summary":
     default:
+      // まとめは「順番のある要点」に見せる（従来は全部チェックマークで比較と同じ顔だった）。
+      // 挿絵は左に置いて、説明スライドとリズムを変える。
       return (
-        <div>
-          <h3 className="mb-4 text-xl font-bold" style={{ color: C.ink, letterSpacing: "-0.02em" }}>{slide.title}</h3>
-          <ul className="space-y-2.5">
+        <IllustratedLayout illustration={slide.illustration || "checklist"} side="left">
+          <SlideEyebrow kind="summary" index={index} total={total} />
+          <SlideTitle>{slide.title}</SlideTitle>
+          <ol className="space-y-3">
             {(content.points || []).map((p, i) => (
-              <li key={i} className="flex items-start gap-2.5 text-[16px]" style={{ color: C.body }}>
-                <Check size={16} className="mt-0.5 shrink-0" style={{ color: accent }} />{p}
+              <li key={i} className="flex items-start gap-3.5">
+                <span
+                  className="mt-0.5 flex h-[25px] w-[25px] shrink-0 items-center justify-center rounded-full text-[12.5px] font-bold"
+                  style={{ background: T.successSubtle, color: T.success }}
+                >{i + 1}</span>
+                <span className="text-[15.5px] leading-[1.75]" style={{ color: C.ink }}>{p}</span>
               </li>
             ))}
-          </ul>
-        </div>
+          </ol>
+          {content.nextLessonPreview && (
+            <div className="mt-6 flex items-center gap-2.5 border-t pt-4" style={{ borderColor: C.line }}>
+              <ChevronRight size={15} style={{ color: accent }} />
+              <span className="text-[13.5px]" style={{ color: C.body }}>{content.nextLessonPreview}</span>
+            </div>
+          )}
+        </IllustratedLayout>
       );
   }
 }
@@ -987,9 +1105,18 @@ function MainSlidePanel({ slides, index, setIndex, accent, lrn, courseId, lesson
   const captionShownInBody = slide?.kind === "image";
   return (
     <div className="min-w-0 flex-1">
-      <div className="rounded-2xl p-8" style={{ background: "#fff", border: `1px solid ${C.line}` }}>
+      <div className="rounded-2xl p-8 sm:p-10" style={{ background: "#fff", border: `1px solid ${C.line}` }}>
         <div className="flex min-h-[300px] flex-col justify-center">
-          <SlideRenderer slide={slide} accent={accent} lrn={lrn} courseId={courseId} lessonId={lessonId} key={slide?.id} />
+          <SlideRenderer
+            slide={slide}
+            accent={accent}
+            lrn={lrn}
+            courseId={courseId}
+            lessonId={lessonId}
+            index={index}
+            total={slides.length}
+            key={slide?.id}
+          />
         </div>
       </div>
 

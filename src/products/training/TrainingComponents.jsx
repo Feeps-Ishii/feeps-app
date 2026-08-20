@@ -3462,7 +3462,7 @@ function AttendanceManage({ role, userProfile }) {
                       {a.deleted && <button onClick={() => restoreAttendance(a)} disabled={deleteBusy} className="rounded-lg px-2 py-1 text-xs font-semibold" style={{ color: T.accentHover }}>元に戻す</button>}
                       {!a.deleted && canEdit && <button onClick={() => startEdit(a)} className="rounded-lg p-1 hover:bg-gray-50"><Pencil size={15} style={{ color: T.textMuted }} /></button>}
                       {!a.deleted && canDeleteRow(a) && <button onClick={() => setDeletingRow(a)} className="rounded-lg p-1 hover:bg-gray-50"><Trash2 size={15} style={{ color: T.danger }} /></button>}
-                    </div>}
+                    </div>
                   </>
                 )}
               </div>
