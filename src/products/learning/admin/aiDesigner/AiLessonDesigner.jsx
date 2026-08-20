@@ -1,445 +1,87 @@
 // ==========================================================================
-// AI Lesson Designer（Learning管理画面「Learning Studio」タブの本体）
+// AIコーススタジオ（Learning管理画面「Learning Studio」タブの本体）
 // 目的: 「AIが教材を完成させる」のではなく「AIが講師の設計アシスタントとして
 // コース設計・Lesson構成・演習・総合テスト・講師メモまでを提案する」体験。
-// 2026-07-21 Phase3(AIコーススタジオ強化)で分割生成を3段階へ再設計:
-//   STEP1 コース設計(構成案) → STEP2 Lesson単位のslides生成(演習系kind込み) →
-//   STEP3 総合テスト問題の生成。各段階を個別のBedrock呼び出しに保つことで29秒の同期上限に
-//   収める(旧「AI研修デザイナー」がcourse+lessons+finalTestを1回で生成しようとして
-//   出力量過多になっていた反省、docs/specs/elearning-improvement-roadmap-2026-07.md フェーズ③)。
-// STEP1では、コース情報を入力→AI生成（Bedrock実接続）→Lesson一覧表示（タイトル・
-// 概要・学習目標・講師メモ・想定時間・難易度）→「このコースを保存する」で下書きコースとして
-// 保存、まで動作する。保存は既存のcreateCourseAwaitingApi/createLessonAwaitingApi
-// （useLearningAdmin.js）をそのまま呼ぶだけで、新しい保存の仕組み・本格編集UIは作らない。
-// 保存後もpublished:falseの下書きのままで、公開はコース管理の「公開する」（版固定公開、
-// フェーズ③新設）で行う運用。各Lessonカードの「このLessonを生成」ボタン（STEP2）は、
-// concept/diagram/table/compare/quiz(選択式/自由記述)/summaryに加え、演習トグルがONの場合は
-// terminal/selection_task/ordering_puzzle/fill_blank/interactive_formもBedrockで生成する
-// (旧AI Lesson Studio Phase1のgenerateLessonStudioSlidesWithBedrockへ統合、ADR0005/0006の
-// 対象kindを合算)。生成結果はコース保存前のresult.lessons[i].slidesに保持され、まだDBには
-// 保存されない。「このコースを保存する」を押した時に、STEP1の他フィールド・STEP3の総合テスト
-// 問題と一緒にまとめて保存される（useAiLessonDesigner.js参照）。
-// image/video/pdf_page(将来)はAIが実素材を生成できないため対象外、管理画面での手動追加のみ。
+//
+// 2026-08-19 UI再設計（承認モック: mock/course-studio）:
+//   旧UIは5ステップのチップ（設計条件→AI構成案→Lesson生成→人が確認→公開準備）を常時
+//   出していたが、実際には画面が切り替わらないため表示と操作が対応していなかった。
+//   またLessonを1件ずつ手動ボタンで生成させており、4本なら4回押す必要があった。
+//   新UIは「作っているコースそのものが画面」になる構成へ変更:
+//     ・ステップ表示を廃止し、残りの仕事は左レールの「公開までにやること」で示す
+//     ・構成案ができたら全Lessonを自動で順に生成し、進捗を各行に出す
+//     ・条件は左レールに常設（案Aの粒度）し、「変更」でフォームを開く
+//     ・入口で「つくり方」を選ぶ。将来のAI相談モードもここへ足す（切替はヘッダー）
+//
+// 生成の内訳（変更なし）: STEP1 コース構成 → STEP2 Lessonごとのスライド → STEP3 総合テスト。
+// いずれも非同期ジョブ経由（ADR 0018）。保存は既存の
+// createCourseAwaitingApi/createLessonAwaitingApi をそのまま呼ぶだけで、
+// 保存後もpublished:falseの下書き。公開はコース管理の「公開する」で行う運用。
 // 到達経路: LearningAdminProduct.jsx の「Learning Studio」タブ。
 // ==========================================================================
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import {
-  Sparkles, Loader2, AlertCircle, Save, CheckCircle2, Lightbulb, Clock, Wand2, Eye, Layers3, ArrowRight, ListChecks, PlayCircle,
+  AlertCircle, Eye, FileText, Loader2, PlayCircle, Save, Sparkles,
 } from "lucide-react";
-import { T, NOVA, PRODUCT_ACCENT, Field, fieldStyle, Seg, EmptyState } from "../../../../components/common";
+import { T, NOVA, Field, fieldStyle, Seg, Btn } from "../../../../components/common";
 import { useAiLessonDesigner } from "./useAiLessonDesigner.js";
 import { useLearningAdmin } from "../useLearningAdmin.js";
 import CourseWalkthroughPreview from "../CourseWalkthroughPreview.jsx";
+import {
+  ACCENT, C, StartChooser, ConditionCard, TodoCard, SummaryCard,
+  LessonRow, FinalTestSection, SavedPanel, courseTotals,
+} from "./studioParts.jsx";
 
-const ACCENT = PRODUCT_ACCENT.learning.accent;
-const C = {
-  ink: T.textPrimary, body: T.textSecondary, muted: T.textMuted, line: T.border,
-};
+// AI相談モードは次のデプロイで追加する（会話→条件抽出のAPIが要るため）。
+// フラグだけ先に置き、入口とヘッダーの切替はこの1箇所で有効化できるようにしておく。
+const CHAT_MODE_ENABLED = false;
 
-const STUDIO_STEPS = ["設計条件", "AI構成案", "Lesson生成", "人が確認", "公開準備"];
-
-function StudioWorkflow({ activeStep }) {
-  return (
-    <ol className="mb-5 grid grid-cols-2 gap-2 sm:grid-cols-3 xl:grid-cols-5" aria-label="Learning Studioの制作フロー">
-      {STUDIO_STEPS.map((label, index) => {
-        const step = index + 1;
-        const active = step === activeStep;
-        const passed = step < activeStep;
-        return (
-          <li
-            key={label}
-            aria-current={active ? "step" : undefined}
-            className="flex min-w-0 items-center gap-2 rounded-xl px-3 py-2.5"
-            style={{
-              background: active ? PRODUCT_ACCENT.learning.subtle : passed ? NOVA.soft : NOVA.card,
-              border: `1px solid ${active ? ACCENT : NOVA.line}`,
-            }}
-          >
-            <span
-              className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-[11px] font-bold"
-              style={{ background: active ? ACCENT : passed ? PRODUCT_ACCENT.learning.deep : T.bgBase, color: active || passed ? NOVA.onDark : C.muted }}
-            >
-              {passed ? "✓" : step}
-            </span>
-            <span className="truncate text-xs font-bold" style={{ color: active ? PRODUCT_ACCENT.learning.deep : C.ink }}>{label}</span>
-          </li>
-        );
-      })}
-    </ol>
-  );
-}
-
-function Banner() {
-  return (
-    <div className="mx-auto mb-4 max-w-[1200px] text-xs" style={{ color: C.muted }}>
-      AIは構成案とLessonを下書きします。講師が生成内容を確認して保存し、コース管理で公開します。
-    </div>
-  );
-}
-
-function SectionLabel({ children }) {
-  return <div className="mb-2.5 text-xs font-bold uppercase" style={{ color: C.muted, letterSpacing: "0.08em" }}>{children}</div>;
-}
-
-// ---- 左: コース情報フォーム。この内容がAIに渡す設計条件 ----
-function LeftForm({ brief, setBriefField }) {
+// ---- 条件フォーム（「変更」で開く。初回は最初から開いている） ----
+function BriefForm({ brief, setBriefField, onGenerate, genState, canGenerate, onCancel }) {
   const set = key => e => setBriefField(key, e.target.value);
   return (
-    <div className="w-full space-y-4 rounded-2xl p-6 lg:w-[320px] lg:shrink-0" style={{ background: NOVA.card, border: `1px solid ${C.line}` }}>
-      <div>
-        <div className="text-xs font-bold uppercase" style={{ color: ACCENT, letterSpacing: "0.08em" }}>1. 設計条件</div>
-        <p className="mt-1 text-xs leading-relaxed" style={{ color: C.muted }}>目的・対象・時間・素材をAIへ渡す設計ブリーフです。</p>
+    <div className="rounded-2xl" style={{ background: NOVA.card, border: `1px solid ${C.line}`, boxShadow: NOVA.shadowSm, padding: 22 }}>
+      <div className="mb-4">
+        <h3 className="text-[15px] font-bold" style={{ color: C.ink }}>つくる条件</h3>
+        <p className="mt-1 text-xs leading-relaxed" style={{ color: C.muted }}>目的・対象・時間・素材をAIへ渡します。</p>
       </div>
-      <Field label="目的・到達点">
-        <textarea style={{ ...fieldStyle, resize: "none" }} rows={3} value={brief.goals} onChange={set("goals")} placeholder="例: AWSの基本サービスを理解し、自分で触って試せるようになる" />
-      </Field>
-      <Field label="対象者">
-        <input style={fieldStyle} value={brief.audience} onChange={set("audience")} placeholder="例: AWSを学び始める新卒エンジニア" />
-      </Field>
-      <Field label="学習時間">
-        <input style={fieldStyle} value={brief.duration} onChange={set("duration")} placeholder="例: 1回30分 × 全4回" />
-      </Field>
-      <Field label="難易度">
-        <Seg value={brief.difficulty} onChange={v => setBriefField("difficulty", v)} options={["初級", "中級", "上級"]} activeFg={ACCENT} />
-      </Field>
-      <Field label="素材・扱う技術">
-        <input style={fieldStyle} value={brief.techs} onChange={set("techs")} placeholder="例: EC2, S3, IAM" />
-      </Field>
-      <label className="flex items-start gap-2 rounded-xl p-3 text-xs" style={{ background: T.bgBase, color: C.body }}>
-        <input
-          type="checkbox"
-          className="mt-0.5"
-          checked={brief.exercisesEnabled !== false}
-          onChange={e => setBriefField("exercisesEnabled", e.target.checked)}
-        />
-        <span>
-          <span className="font-bold" style={{ color: C.ink }}>演習・実技を含めて生成する</span>
-          <br />疑似端末・選択課題・並び替え・穴埋めなどの演習をLessonごとに一緒に生成します。
-        </span>
-      </label>
-    </div>
-  );
-}
-
-// Lesson一覧の1枚。「このLessonを生成」(STEP2)はconcept/diagram/table/summary/quiz(選択式)
-// の5kindのみをBedrockで生成する(ADR 0005)。生成結果はlesson.slidesに保持され、まだDBには
-// 保存されない(「このコースを保存する」を押した時に一緒に保存される)。
-function slideOutline(slide = {}) {
-  const content = slide.content || {};
-  const text = slide.caption
-    || content.body
-    || slide.interaction?.question
-    || content.question
-    || (Array.isArray(content.points) ? content.points.join(" / ") : "");
-  return String(text || "内容は保存後のLesson Studioで確認できます。").slice(0, 140);
-}
-
-function LessonCard({ index, lesson, slideGen, onGenerateSlides, reviewed, onToggleReview }) {
-  const status = slideGen?.status || "idle";
-  const slideCount = (lesson.slides || []).length;
-  return (
-    <div className="rounded-2xl p-4" style={{ background: NOVA.card, border: `1px solid ${reviewed ? ACCENT : C.line}` }}>
-      <div className="flex items-start justify-between gap-3">
-        <div className="min-w-0">
-          <div className="flex items-center gap-2">
-            <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-[11px] font-bold" style={{ background: ACCENT, color: NOVA.onDark }}>{index + 1}</span>
-            <span className="text-sm font-bold" style={{ color: C.ink }}>{lesson.title}</span>
-          </div>
-          {lesson.summary && <p className="mt-1 text-xs leading-relaxed" style={{ color: C.muted }}>{lesson.summary}</p>}
-        </div>
-        <div className="flex shrink-0 flex-wrap items-center justify-end gap-1.5">
-          {lesson.difficulty && (
-            <span className="rounded-full px-2 py-0.5 text-[10px] font-semibold" style={{ background: T.bgBase, color: C.muted }}>{lesson.difficulty}</span>
-          )}
-          {lesson.estimatedMinutes > 0 && (
-            <span className="flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold" style={{ background: T.bgBase, color: C.muted }}>
-              <Clock size={10} />{lesson.estimatedMinutes}分
-            </span>
-          )}
-        </div>
-      </div>
-
-      {lesson.goal && (
-        <div className="mt-3 rounded-xl p-3" style={{ background: T.bgBase }}>
-          <div className="mb-1 text-[11px] font-bold" style={{ color: C.muted }}>学習目標</div>
-          <p className="text-xs leading-relaxed" style={{ color: C.body }}>{lesson.goal}</p>
-        </div>
-      )}
-
-      {lesson.teacherMemo && (
-        <div className="mt-2 rounded-xl p-3" style={{ background: T.aiSubtle, border: `1px solid ${T.aiAccent}30` }}>
-          <div className="mb-1 flex items-center gap-1.5 text-[11px] font-bold" style={{ color: T.aiAccentDeep }}>
-            <Lightbulb size={12} />講師メモ
-          </div>
-          <p className="whitespace-pre-wrap text-xs leading-relaxed" style={{ color: C.body }}>{lesson.teacherMemo}</p>
-        </div>
-      )}
-
-      {status === "error" && (
-        <div className="mt-3 rounded-xl p-3" style={{ background: T.dangerSubtle, border: `1px solid ${T.danger}30` }}>
-          <div className="mb-1 flex items-center gap-1.5 text-[11px] font-bold" style={{ color: T.danger }}>
-            <AlertCircle size={12} />スライド生成に失敗しました
-          </div>
-          <p className="whitespace-pre-wrap text-xs leading-relaxed" style={{ color: C.body }}>{slideGen.notice}</p>
-        </div>
-      )}
-
-      {slideCount > 0 && (
-        <details className="mt-3 rounded-xl p-3" style={{ background: T.bgBase, border: `1px solid ${C.line}` }}>
-          <summary className="flex cursor-pointer list-none items-center gap-2 text-xs font-bold" style={{ color: C.ink }}>
-            <Eye size={13} style={{ color: ACCENT }} />生成した{slideCount}ページを確認
-          </summary>
-          <div className="mt-3 space-y-2">
-            {lesson.slides.map((slide, slideIndex) => (
-              <div key={slide.id || slideIndex} className="rounded-lg p-2.5" style={{ background: NOVA.card, border: `1px solid ${NOVA.line}` }}>
-                <div className="flex items-center gap-2">
-                  <span className="text-[10px] font-bold" style={{ color: ACCENT }}>{slideIndex + 1}. {slide.kind || "concept"}</span>
-                  <span className="truncate text-xs font-bold" style={{ color: C.ink }}>{slide.title || slide.navLabel || "無題のページ"}</span>
-                </div>
-                <p className="mt-1 text-[11px] leading-relaxed" style={{ color: C.muted }}>{slideOutline(slide)}</p>
-              </div>
-            ))}
-          </div>
-        </details>
-      )}
-
-      <div className="mt-3 flex flex-wrap items-center justify-end gap-2">
-        {slideCount > 0 && (
-          <span className="rounded-full px-2 py-0.5 text-[10px] font-bold" style={{ background: PRODUCT_ACCENT.learning.subtle, color: PRODUCT_ACCENT.learning.accent }}>
-            {slideCount}枚のスライドを生成済み
-          </span>
-        )}
-        <button
-          type="button"
-          onClick={() => onGenerateSlides(lesson.id)}
-          disabled={status === "loading"}
-          className="flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-semibold transition hover:opacity-80 disabled:opacity-60"
-          style={{ border: `1px solid ${C.line}`, color: C.muted }}
-        >
-          {status === "loading" ? <Loader2 size={12} className="animate-spin" /> : <Wand2 size={12} />}
-          {status === "loading" ? "生成しています..." : slideCount > 0 ? "このLessonを再生成" : "このLessonを生成"}
-        </button>
-        <button
-          type="button"
-          onClick={() => onToggleReview(lesson.id)}
-          disabled={slideCount === 0 || status === "loading"}
-          className="flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-semibold transition hover:opacity-80 disabled:opacity-40"
-          style={{ background: reviewed ? ACCENT : NOVA.card, border: `1px solid ${reviewed ? ACCENT : C.line}`, color: reviewed ? NOVA.onDark : C.body }}
-        >
-          <CheckCircle2 size={12} />{reviewed ? "確認済み" : "内容を確認した"}
-        </button>
-      </div>
-    </div>
-  );
-}
-
-// ---- STEP3: 総合テスト問題の生成・確認パネル ----
-function FinalTestPanel({ finalTestState, finalTestNotice, finalTestQuestions, onGenerate }) {
-  return (
-    <div className="rounded-2xl p-5" style={{ background: NOVA.card, border: `1px solid ${C.line}` }}>
-      <div className="mb-2.5 flex flex-wrap items-center justify-between gap-2">
-        <SectionLabel>総合テスト問題の生成（STEP3）</SectionLabel>
-        <button
-          type="button"
-          onClick={onGenerate}
-          disabled={finalTestState === "loading"}
-          className="flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-bold transition hover:opacity-80 disabled:opacity-50"
-          style={{ background: T.aiSubtle, border: `1px solid ${T.aiAccent}30`, color: T.aiAccentDeep }}
-        >
-          {finalTestState === "loading" ? <Loader2 size={12} className="animate-spin" /> : <ListChecks size={12} />}
-          {finalTestState === "loading" ? "生成中..." : finalTestQuestions.length ? "再生成" : "総合テストを生成"}
-        </button>
-      </div>
-      <p className="text-xs leading-relaxed" style={{ color: C.muted }}>
-        コース全体を横断する多肢選択式の問題を生成し、公開時にレッスンへ振り分けて保存します（受講者の総合テストは既存の出題プールからランダムに出題されます）。
-      </p>
-      {finalTestState === "error" && (
-        <p className="mt-2 whitespace-pre-wrap text-xs font-semibold" style={{ color: T.danger }}>{finalTestNotice}</p>
-      )}
-      {finalTestQuestions.length > 0 && (
-        <div className="mt-3 space-y-2">
-          {finalTestQuestions.map((q, i) => (
-            <div key={i} className="rounded-lg p-2.5" style={{ background: T.bgBase, border: `1px solid ${C.line}` }}>
-              <div className="text-xs font-bold" style={{ color: C.ink }}>{i + 1}. {q.question}</div>
-            </div>
-          ))}
-        </div>
-      )}
-    </div>
-  );
-}
-
-// ---- 右: 生成ボタン＋結果。idle→loading→done/errorの4状態 ----
-function RightGenerationPanel({
-  genState, onGenerate, generatedFor, notice, result, saveState, saveNotice, onSave,
-  slideGenByLessonId, onGenerateSlides, onGenerateAll, generatingAll,
-  reviewedLessonIds, onToggleReview, canSave, onOpenCourseManager,
-  finalTestState, finalTestNotice, finalTestQuestions, onGenerateFinalTest, onOpenPreview,
-  allGenerated, allReviewed, onToggleReviewAll,
-}) {
-  return (
-    <div className="min-w-0 flex-1 space-y-5">
-      <div className="rounded-2xl p-6" style={{ background: T.aiSubtle, border: `1px solid ${T.aiAccent}30` }}>
-        <div className="flex items-center gap-2.5">
-          <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full" style={{ background: T.aiAccentDeep }}>
-            <Sparkles size={18} color={NOVA.onDark} />
-          </span>
-          <div>
-            <div className="text-sm font-bold" style={{ color: T.textPrimary }}>AI生成プレビュー</div>
-            <div className="text-xs" style={{ color: T.textSecondary }}>AIがコース構成とLessonを設計します</div>
-          </div>
-        </div>
-        <button
-          type="button"
-          onClick={onGenerate}
-          disabled={genState === "loading"}
-          className="mt-4 flex w-full items-center justify-center gap-2 rounded-full py-2.5 text-sm font-bold text-white transition hover:opacity-90 disabled:opacity-60"
-          style={{ background: T.aiAccentDeep }}
-        >
-          {genState === "loading" ? <Loader2 size={15} className="animate-spin" /> : <Sparkles size={15} />}
-          {genState === "loading" ? "設計中..." : "コースを設計する"}
-        </button>
-      </div>
-
-      {genState === "idle" && (
-        <div className="rounded-2xl" style={{ background: NOVA.card, border: `1px solid ${C.line}` }}>
-          <EmptyState icon={Sparkles} title="まだコースは設計されていません" desc="左の情報を入力し、「コースを設計する」を押してください。" />
-        </div>
-      )}
-
-      {genState === "loading" && (
-        <div className="flex flex-col items-center justify-center gap-3 rounded-2xl py-14" style={{ background: NOVA.card, border: `1px solid ${C.line}` }}>
-          <Loader2 size={28} className="animate-spin" style={{ color: T.aiAccentDeep }} />
-          <div className="text-sm font-semibold" style={{ color: C.body }}>AIがコース構成を設計しています...</div>
-        </div>
-      )}
-
-      {genState === "error" && (
-        <div className="rounded-2xl p-5" style={{ background: T.dangerSubtle, border: `1px solid ${T.danger}30` }}>
-          <div className="mb-1 flex items-center gap-2 text-sm font-bold" style={{ color: T.danger }}>
-            <AlertCircle size={15} />生成に失敗しました
-          </div>
-          <p className="whitespace-pre-wrap text-xs leading-relaxed" style={{ color: C.body }}>{notice}</p>
-        </div>
-      )}
-
-      {genState === "done" && result && (
-        <div className="space-y-4">
-          {generatedFor && (
-            <div className="rounded-xl p-3 text-xs leading-relaxed" style={{ background: T.bgBase, color: C.muted }}>
-              <span className="font-bold" style={{ color: C.body }}>この条件で設計しました：</span>
-              {" "}対象者「{generatedFor.audience || "未指定"}」・学習時間「{generatedFor.duration || "未指定"}」・難易度「{generatedFor.difficulty}」・技術「{generatedFor.techs || "未指定"}」
-            </div>
-          )}
-          <div className="rounded-2xl p-6" style={{ background: NOVA.card, border: `1px solid ${C.line}` }}>
-            <div className="mb-1 flex items-center gap-2">
-              <h2 className="text-lg font-bold" style={{ color: C.ink, letterSpacing: "-0.02em" }}>{result.course.title}</h2>
-              <span className="rounded-full px-2 py-0.5 text-[10px] font-bold" style={{ background: T.aiSubtle, color: T.aiAccentDeep }}>AIが設計</span>
-            </div>
-            <p className="text-xs" style={{ color: C.muted }}>全{result.lessons.length}Lesson構成</p>
-          </div>
-          <div>
-            <div className="mb-2.5 flex flex-wrap items-center justify-between gap-2">
-              <SectionLabel>Lesson生成と確認</SectionLabel>
-              <div className="flex flex-wrap items-center gap-2">
-                <button
-                  type="button"
-                  onClick={onGenerateAll}
-                  disabled={generatingAll}
-                  className="flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-bold transition hover:opacity-80 disabled:opacity-50"
-                  style={{ background: T.aiSubtle, border: `1px solid ${T.aiAccent}30`, color: T.aiAccentDeep }}
-                >
-                  {generatingAll ? <Loader2 size={12} className="animate-spin" /> : <Layers3 size={12} />}
-                  {generatingAll ? "Lessonを順に生成中..." : "全Lessonを生成"}
-                </button>
-                {/* フェーズ4(見た目・操作性): デモコース作成時に「確認トグルを1つずつ押す」手間が
-                    体感されたため一括確認導線を追加。中身は各カードのonToggleReviewと同じ状態を
-                    まとめて更新するだけで、確認自体を省略する機能ではない(実際に生成結果は表示済み)。 */}
-                <button
-                  type="button"
-                  onClick={onToggleReviewAll}
-                  disabled={!allGenerated}
-                  className="flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-bold transition hover:opacity-80 disabled:opacity-40"
-                  style={{ background: allReviewed ? PRODUCT_ACCENT.learning.accent : NOVA.card, border: `1px solid ${allReviewed ? PRODUCT_ACCENT.learning.accent : C.line}`, color: allReviewed ? NOVA.onDark : C.body }}
-                >
-                  <CheckCircle2 size={12} />{allReviewed ? "全て確認済み（解除する）" : "全Lessonを確認済みにする"}
-                </button>
-              </div>
-            </div>
-            <div className="space-y-3">
-              {result.lessons.map((lesson, i) => (
-                <LessonCard
-                  key={lesson.id}
-                  index={i}
-                  lesson={lesson}
-                  slideGen={slideGenByLessonId[lesson.id]}
-                  onGenerateSlides={onGenerateSlides}
-                  reviewed={reviewedLessonIds.includes(lesson.id)}
-                  onToggleReview={onToggleReview}
-                />
-              ))}
-            </div>
-          </div>
-
-          <FinalTestPanel
-            finalTestState={finalTestState}
-            finalTestNotice={finalTestNotice}
-            finalTestQuestions={finalTestQuestions}
-            onGenerate={onGenerateFinalTest}
+      <div className="space-y-3.5">
+        <Field label="目的・到達点">
+          <textarea style={{ ...fieldStyle, resize: "none" }} rows={3} value={brief.goals} onChange={set("goals")} placeholder="例: AWSの基本サービスを理解し、自分で触って試せるようになる" />
+        </Field>
+        <Field label="対象者">
+          <input style={fieldStyle} value={brief.audience} onChange={set("audience")} placeholder="例: AWSを学び始める新卒エンジニア" />
+        </Field>
+        <Field label="学習時間">
+          <input style={fieldStyle} value={brief.duration} onChange={set("duration")} placeholder="例: 1回30分 × 全4回" />
+        </Field>
+        <Field label="難易度">
+          <Seg value={brief.difficulty} onChange={v => setBriefField("difficulty", v)} options={["初級", "中級", "上級"]} activeFg={T.accent} />
+        </Field>
+        <Field label="素材・扱う技術">
+          <input style={fieldStyle} value={brief.techs} onChange={set("techs")} placeholder="例: EC2, S3, IAM" />
+        </Field>
+        <label className="flex items-start gap-2 rounded-xl p-3 text-xs" style={{ background: T.bgBase, color: C.body }}>
+          <input
+            type="checkbox"
+            className="mt-0.5"
+            checked={brief.exercisesEnabled !== false}
+            onChange={e => setBriefField("exercisesEnabled", e.target.checked)}
           />
-
-          <button
-            type="button"
-            onClick={onOpenPreview}
-            className="flex w-full items-center justify-center gap-2 rounded-full py-2.5 text-sm font-bold transition hover:opacity-80"
-            style={{ border: `1px solid ${ACCENT}`, color: ACCENT, background: "#fff" }}
-          >
-            <PlayCircle size={15} />受講生プレビューで通しで確認する
-          </button>
-
-          {saveState === "done" ? (
-            <div className="rounded-2xl p-4" style={{ background: PRODUCT_ACCENT.learning.subtle, border: `1px solid ${PRODUCT_ACCENT.learning.accent}30` }}>
-              <div className="mb-1 flex items-center gap-2 text-sm font-bold" style={{ color: PRODUCT_ACCENT.learning.accent }}>
-                <CheckCircle2 size={15} />保存しました
-              </div>
-              <p className="text-xs leading-relaxed" style={{ color: C.body }}>{saveNotice}</p>
-              <button
-                type="button"
-                onClick={onOpenCourseManager}
-                className="mt-3 flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-bold transition hover:opacity-80"
-                style={{ background: ACCENT, color: NOVA.onDark }}
-              >
-                コース管理で公開準備へ<ArrowRight size={12} />
-              </button>
-            </div>
-          ) : (
-            <div>
-              <button
-                type="button"
-                onClick={onSave}
-                disabled={saveState === "saving" || !canSave}
-                className="flex w-full items-center justify-center gap-2 rounded-full py-2.5 text-sm font-bold text-white transition hover:opacity-90 disabled:opacity-40"
-                style={{ background: ACCENT }}
-              >
-                {saveState === "saving" ? <Loader2 size={15} className="animate-spin" /> : <Save size={15} />}
-                {saveState === "saving" ? "保存しています..." : "確認済みの内容を下書き保存"}
-              </button>
-              {!canSave && (
-                <p className="mt-2 text-center text-[11px]" style={{ color: C.muted }}>
-                  全Lessonを生成し、各カードの「内容を確認した」を押すと保存できます。
-                </p>
-              )}
-            </div>
-          )}
-          {saveState === "error" && (
-            <div className="rounded-2xl p-4" style={{ background: T.dangerSubtle, border: `1px solid ${T.danger}30` }}>
-              <div className="mb-1 flex items-center gap-2 text-sm font-bold" style={{ color: T.danger }}>
-                <AlertCircle size={15} />保存に失敗しました
-              </div>
-              <p className="text-xs leading-relaxed" style={{ color: C.body }}>{saveNotice}</p>
-            </div>
-          )}
-        </div>
+          <span>
+            <span className="font-bold" style={{ color: C.ink }}>演習・実技を含めて生成する</span>
+            <br />疑似端末・選択課題・並び替え・穴埋めなどの演習をLessonごとに一緒に生成します。
+          </span>
+        </label>
+      </div>
+      <div className="mt-5 flex flex-wrap items-center justify-end gap-2">
+        {onCancel && <Btn kind="ghost" size="sm" onClick={onCancel}>キャンセル</Btn>}
+        <Btn kind="ai" icon={genState === "loading" ? Loader2 : Sparkles} disabled={genState === "loading" || !canGenerate} onClick={onGenerate}>
+          {genState === "loading" ? "設計中…" : "コースを設計する"}
+        </Btn>
+      </div>
+      {!canGenerate && (
+        <p className="mt-2 text-right text-[11px]" style={{ color: C.muted }}>目的・到達点を入力すると設計できます。</p>
       )}
     </div>
   );
@@ -452,89 +94,254 @@ export default function AiLessonDesigner({ onOpenCourseManager }) {
     finalTestState, finalTestNotice, finalTestQuestions, generateFinalTest,
   } = useAiLessonDesigner();
   const learningAdmin = useLearningAdmin();
+
+  // null = まだ「つくり方」を選んでいない（入口の選択を出す）
+  const [mode, setMode] = useState(null);
+  const [briefOpen, setBriefOpen] = useState(true);
   const [reviewedLessonIds, setReviewedLessonIds] = useState([]);
-  const [generatingAll, setGeneratingAll] = useState(false);
   const [previewOpen, setPreviewOpen] = useState(false);
-  const allGenerated = !!result?.lessons?.length && result.lessons.every(lesson => (lesson.slides || []).length > 0);
-  const allReviewed = allGenerated && result.lessons.every(lesson => reviewedLessonIds.includes(lesson.id));
-  const activeStep = saveState === "done" || allReviewed ? 5 : allGenerated ? 4 : result ? 3 : genState === "loading" ? 2 : 1;
+  const [detailLessonId, setDetailLessonId] = useState("");
+  // 構成案ができたら全Lessonを1回だけ自動生成する。同じ結果に対して二重に走らせないため
+  // generatedForをキーにして記録する（旧UIは1件ずつ手動でボタンを押す必要があった）。
+  const autoRunRef = useRef(null);
+  // 自動生成ループは依存を最小にしたいので、最新のresultはrefから読む
+  const resultRef = useRef(null);
+
+  const lessons = result?.lessons || [];
+  resultRef.current = result;
+  const allGenerated = lessons.length > 0 && lessons.every(l => (l.slides || []).length > 0);
+  const reviewedCount = lessons.filter(l => reviewedLessonIds.includes(l.id)).length;
+  const allReviewed = lessons.length > 0 && reviewedCount === lessons.length;
+  const totals = courseTotals(lessons);
+  const anyGenerating = Object.values(slideGenByLessonId || {}).some(s => s?.status === "loading");
 
   useEffect(() => {
     setReviewedLessonIds([]);
-    setGeneratingAll(false);
+    setDetailLessonId("");
+    if (generatedFor) setBriefOpen(false);
   }, [generatedFor]);
 
-  async function handleGenerateSlides(lessonId) {
+  // 構成案ができた直後に、全Lessonを順に生成する。
+  //
+  // 依存の選び方に2つ罠がある（どちらも実機で踏んだ）:
+  //  1. generatedForは「生成を開始した時点」で設定される（resultより先）。generatedForだけを
+  //     依存にすると、resultがまだ無い状態で空振りして二度と走らない
+  //  2. resultを依存に入れると、Lessonを1件生成するたびにresultが変わってcleanupが走り、
+  //     ループが中断される（実際に2件目で止まった）
+  // そこで「Lessonの本数」という、スライド生成中は変化しない値をキーにする。
+  const lessonCount = lessons.length;
+  useEffect(() => {
+    if (!generatedFor || lessonCount === 0) return;
+    if (autoRunRef.current === generatedFor) return;
+    autoRunRef.current = generatedFor;
+    let cancelled = false;
+    const targets = (resultRef.current?.lessons || []).filter(l => !(l.slides || []).length).map(l => l.id);
+    (async () => {
+      for (const lessonId of targets) {
+        if (cancelled) return;
+        await generateLessonSlides(lessonId);
+      }
+    })();
+    return () => { cancelled = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [generatedFor, lessonCount]);
+
+  async function handleRegenerate(lessonId) {
     setReviewedLessonIds(prev => prev.filter(id => id !== lessonId));
     return generateLessonSlides(lessonId);
   }
 
-  async function handleGenerateAll() {
-    if (!result?.lessons?.length || generatingAll) return;
-    setGeneratingAll(true);
-    try {
-      for (const lesson of result.lessons) {
-        await handleGenerateSlides(lesson.id);
-      }
-    } finally {
-      setGeneratingAll(false);
-    }
-  }
-
   function toggleReviewed(lessonId) {
-    const lesson = result?.lessons?.find(item => item.id === lessonId);
+    const lesson = lessons.find(item => item.id === lessonId);
     if (!(lesson?.slides || []).length) return;
     setReviewedLessonIds(prev => prev.includes(lessonId) ? prev.filter(id => id !== lessonId) : [...prev, lessonId]);
   }
 
-  function toggleReviewAll() {
-    if (!allGenerated) return;
-    setReviewedLessonIds(allReviewed ? [] : result.lessons.map(lesson => lesson.id));
+  // ---- 入口: つくり方を選ぶ ----
+  if (mode === null && !result) {
+    return (
+      <div className="py-6">
+        <StartChooser
+          chatEnabled={CHAT_MODE_ENABLED}
+          onPickForm={() => { setMode("form"); setBriefOpen(true); }}
+          onPickChat={() => { setMode("chat"); setBriefOpen(true); }}
+          onSelfBuild={onOpenCourseManager}
+        />
+      </div>
+    );
   }
+
+  const detailLesson = lessons.find(l => l.id === detailLessonId) || null;
 
   return (
     <div>
-      <div className="mb-4 flex items-center gap-2.5">
-        <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl" style={{ background: T.aiAccentDeep }}>
-          <Sparkles size={17} color={NOVA.onDark} />
-        </span>
-        <div>
-          <h3 className="text-base font-bold" style={{ color: C.ink }}>Learning Studio</h3>
-          <p className="text-xs" style={{ color: C.muted }}>目的からAI構成案を作り、Lesson生成、人の確認、公開準備までを一つの流れで進めます。</p>
+      {/* ---- ヘッダー: 作っているコースが主役 ---- */}
+      <div className="mb-5 flex flex-wrap items-start justify-between gap-4">
+        <div className="min-w-0">
+          <div className="mb-1.5 flex flex-wrap items-center gap-2">
+            <span className="rounded-full px-2.5 py-[3px] text-[11px] font-bold" style={{ background: T.aiSubtle, color: T.aiAccentDeep }}>下書き</span>
+            {saveState === "done" && <span className="text-[11.5px]" style={{ color: C.muted }}>保存済み</span>}
+          </div>
+          <h2 className="text-[22px] font-bold leading-tight" style={{ color: C.ink, letterSpacing: "-0.02em" }}>
+            {result?.course?.title || "新しいコース"}
+          </h2>
+          {!result && <p className="mt-1 text-xs" style={{ color: C.muted }}>条件を入れると、AIが構成案とLessonを下書きします。</p>}
         </div>
+        {result && (
+          <div className="flex flex-wrap items-center gap-2">
+            <Btn kind="ghost" size="sm" icon={Eye} onClick={() => setPreviewOpen(true)}>受講生の見え方</Btn>
+            {saveState !== "done" && (
+              <Btn
+                size="sm"
+                icon={saveState === "saving" ? Loader2 : Save}
+                disabled={saveState === "saving" || !allReviewed}
+                onClick={() => saveGenerated(learningAdmin)}
+              >
+                {saveState === "saving" ? "保存しています…" : "下書きを保存"}
+              </Btn>
+            )}
+          </div>
+        )}
       </div>
-      <Banner />
-      <StudioWorkflow activeStep={activeStep} />
 
-      <div className="flex flex-col gap-6 lg:flex-row lg:items-start">
-        <LeftForm brief={brief} setBriefField={setBriefField} />
-        <RightGenerationPanel
-          genState={genState}
-          onGenerate={generate}
-          generatedFor={generatedFor}
-          notice={notice}
-          result={result}
-          saveState={saveState}
-          saveNotice={saveNotice}
-          onSave={() => saveGenerated(learningAdmin)}
-          slideGenByLessonId={slideGenByLessonId}
-          onGenerateSlides={handleGenerateSlides}
-          onGenerateAll={handleGenerateAll}
-          generatingAll={generatingAll}
-          reviewedLessonIds={reviewedLessonIds}
-          onToggleReview={toggleReviewed}
-          canSave={allReviewed}
-          allGenerated={allGenerated}
-          allReviewed={allReviewed}
-          onToggleReviewAll={toggleReviewAll}
-          onOpenCourseManager={onOpenCourseManager}
-          finalTestState={finalTestState}
-          finalTestNotice={finalTestNotice}
-          finalTestQuestions={finalTestQuestions}
-          onGenerateFinalTest={generateFinalTest}
-          onOpenPreview={() => setPreviewOpen(true)}
-        />
-      </div>
+      {genState === "error" && (
+        <div className="mb-4 rounded-2xl p-4" style={{ background: T.dangerSubtle, border: `1px solid ${T.danger}30` }}>
+          <div className="mb-1 flex items-center gap-2 text-sm font-bold" style={{ color: T.danger }}>
+            <AlertCircle size={15} />生成に失敗しました
+          </div>
+          <p className="whitespace-pre-wrap text-xs leading-relaxed" style={{ color: C.body }}>{notice}</p>
+        </div>
+      )}
+      {genState === "loading" && notice && (
+        <div className="mb-4 flex items-center gap-2.5 rounded-2xl p-4" style={{ background: T.aiSubtle, border: `1px solid ${T.aiAccent}30` }}>
+          <Loader2 size={15} className="animate-spin" style={{ color: T.aiAccentDeep }} />
+          <span className="text-xs font-semibold" style={{ color: T.aiAccentDeep }}>{notice}</span>
+        </div>
+      )}
+      {saveState === "error" && (
+        <div className="mb-4 rounded-2xl p-4" style={{ background: T.dangerSubtle, border: `1px solid ${T.danger}30` }}>
+          <div className="mb-1 flex items-center gap-2 text-sm font-bold" style={{ color: T.danger }}>
+            <AlertCircle size={15} />保存に失敗しました
+          </div>
+          <p className="text-xs leading-relaxed" style={{ color: C.body }}>{saveNotice}</p>
+        </div>
+      )}
+
+      {/* 条件フォームは、まだ生成していないか「変更」を押したときだけ開く */}
+      {briefOpen ? (
+        <div className="mx-auto max-w-[620px]">
+          <BriefForm
+            brief={brief}
+            setBriefField={setBriefField}
+            onGenerate={generate}
+            genState={genState}
+            canGenerate={!!brief.goals.trim()}
+            onCancel={result ? () => setBriefOpen(false) : null}
+          />
+        </div>
+      ) : (
+        <div className="flex flex-col gap-6 lg:flex-row lg:items-start">
+          {/* ---- 左レール ---- */}
+          <div className="flex w-full flex-col gap-3 lg:w-[300px] lg:shrink-0">
+            <ConditionCard brief={brief} onEdit={() => setBriefOpen(true)} />
+            <TodoCard
+              hasBrief={!!generatedFor}
+              lessonsTotal={lessons.length}
+              lessonsReviewed={reviewedCount}
+              hasFinalTest={finalTestQuestions.length > 0}
+              saved={saveState === "done"}
+            />
+            <SummaryCard totals={totals} />
+          </div>
+
+          {/* ---- 本体: できあがっていくコース ---- */}
+          <div className="min-w-0 flex-1 space-y-3.5">
+            <div className="flex items-center gap-2.5">
+              <h2 className="text-[15px] font-bold" style={{ color: C.ink }}>{lessons.length}つのLesson</h2>
+              <span className="h-px flex-1" style={{ background: C.line }} />
+              <span className="text-xs" style={{ color: C.muted }}>
+                {anyGenerating ? "作成中…" : `${reviewedCount}件を確認しました`}
+              </span>
+            </div>
+
+            <div className="overflow-hidden rounded-2xl" style={{ background: NOVA.card, border: `1px solid ${C.line}`, boxShadow: NOVA.shadowSm }}>
+              {lessons.map((lesson, i) => (
+                <LessonRow
+                  key={lesson.id}
+                  index={i}
+                  lesson={lesson}
+                  slideGen={slideGenByLessonId[lesson.id]}
+                  reviewed={reviewedLessonIds.includes(lesson.id)}
+                  onToggleReview={toggleReviewed}
+                  onRegenerate={handleRegenerate}
+                  onOpenDetail={setDetailLessonId}
+                  last={i === lessons.length - 1}
+                />
+              ))}
+            </div>
+
+            {!allReviewed && allGenerated && (
+              <p className="text-center text-[11.5px]" style={{ color: C.muted }}>
+                各Lessonの「開く」で中身を確かめ、チェックを付けると保存できます。
+              </p>
+            )}
+
+            <FinalTestSection
+              state={finalTestState}
+              notice={finalTestNotice}
+              questions={finalTestQuestions}
+              canGenerate={allGenerated}
+              onGenerate={generateFinalTest}
+            />
+
+            {saveState === "done" && <SavedPanel saveNotice={saveNotice} onOpenCourseManager={onOpenCourseManager} />}
+          </div>
+        </div>
+      )}
+
+      {/* ---- Lessonの中身（「開く」） ---- */}
+      {detailLesson && (
+        <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto p-4 sm:p-8" style={{ background: "rgba(21,26,44,.42)" }} onClick={() => setDetailLessonId("")}>
+          <div className="w-full max-w-[720px] rounded-2xl" style={{ background: NOVA.card, boxShadow: NOVA.shadowMd }} onClick={e => e.stopPropagation()}>
+            <div className="flex items-start justify-between gap-3 border-b p-5" style={{ borderColor: C.line }}>
+              <div className="min-w-0">
+                <h3 className="text-base font-bold" style={{ color: C.ink }}>{detailLesson.title}</h3>
+                {detailLesson.goal && <p className="mt-1 text-xs leading-relaxed" style={{ color: C.body }}>{detailLesson.goal}</p>}
+              </div>
+              <Btn kind="ghost" size="sm" onClick={() => setDetailLessonId("")}>閉じる</Btn>
+            </div>
+            <div className="max-h-[62vh] space-y-2 overflow-y-auto p-5">
+              {detailLesson.teacherMemo && (
+                <div className="mb-3 rounded-xl p-3" style={{ background: T.aiSubtle, border: `1px solid ${T.aiAccent}30` }}>
+                  <div className="mb-1 text-[11px] font-bold" style={{ color: T.aiAccentDeep }}>講師メモ</div>
+                  <p className="whitespace-pre-wrap text-xs leading-relaxed" style={{ color: C.body }}>{detailLesson.teacherMemo}</p>
+                </div>
+              )}
+              {(detailLesson.slides || []).map((slide, i) => (
+                <div key={slide.id || i} className="rounded-xl p-3" style={{ background: T.bgBase, border: `1px solid ${C.line}` }}>
+                  <div className="flex items-center gap-2">
+                    <span className="text-[10px] font-bold" style={{ color: T.accent }}>{i + 1}. {slide.kind || "concept"}</span>
+                    <span className="truncate text-xs font-bold" style={{ color: C.ink }}>{slide.title || slide.navLabel || "無題のページ"}</span>
+                  </div>
+                  <p className="mt-1 whitespace-pre-wrap text-[11px] leading-relaxed" style={{ color: C.body }}>
+                    {slide.content?.body || slide.interaction?.question || slide.content?.question
+                      || (Array.isArray(slide.content?.points) ? slide.content.points.join(" / ") : "")}
+                  </p>
+                </div>
+              ))}
+            </div>
+            <div className="flex items-center justify-between gap-3 border-t p-4" style={{ borderColor: C.line }}>
+              <Btn kind="ghost" size="sm" icon={PlayCircle} onClick={() => { setDetailLessonId(""); setPreviewOpen(true); }}>受講生の見え方で確認</Btn>
+              <Btn
+                size="sm"
+                onClick={() => { toggleReviewed(detailLesson.id); setDetailLessonId(""); }}
+              >
+                {reviewedLessonIds.includes(detailLesson.id) ? "確認済みを解除" : "確認した"}
+              </Btn>
+            </div>
+          </div>
+        </div>
+      )}
 
       {result && (
         <CourseWalkthroughPreview
@@ -548,3 +355,5 @@ export default function AiLessonDesigner({ onOpenCourseManager }) {
     </div>
   );
 }
+
+export { FileText };
