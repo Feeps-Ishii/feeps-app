@@ -92,21 +92,25 @@ function Callouts({ items }) {
 }
 
 // 挿絵つきの2カラム。挿絵が無いスライドは本文だけを返すので、既存教材でも崩れない。
+//
+// 2026-08-20: 当初 lg:(1024px)未満で挿絵を hidden にしていたが、Windowsの表示スケーリング125%だと
+// 1240pxのウィンドウでもCSS上は992pxになり、**挿絵が丸ごと消えていた**。
+// 狭いときは「隠す」のではなく本文の上へ積む（挿絵は装飾ではなく理解の助けなので消さない）。
 function IllustratedLayout({ illustration, children, side = "right" }) {
   if (!hasIllustration(illustration)) return <div>{children}</div>;
   const panel = (
     <div
-      className="hidden shrink-0 items-center justify-center rounded-2xl p-5 lg:flex"
-      style={{ width: 260, background: `linear-gradient(160deg, ${T.accentSubtle}, ${T.aiSubtle})` }}
+      className="flex shrink-0 items-center justify-center rounded-2xl p-4 sm:p-5"
+      style={{ background: `linear-gradient(160deg, ${T.accentSubtle}, ${T.aiSubtle})` }}
     >
       <SlideIllustration name={illustration} width={196} height={139} />
     </div>
   );
   return (
-    <div className="flex items-center gap-7">
-      {side === "left" && panel}
+    <div className={`flex flex-col gap-5 md:flex-row md:items-center md:gap-7 ${side === "left" ? "md:flex-row" : "md:flex-row-reverse"}`}>
+      {/* 縦積みのときは常に挿絵が先。横並びのときはside指定で左右を決める */}
+      <div className="md:w-[260px] md:shrink-0">{panel}</div>
       <div className="min-w-0 flex-1">{children}</div>
-      {side === "right" && panel}
     </div>
   );
 }
@@ -1038,9 +1042,18 @@ export function SlideRenderer({ slide, accent, lrn, courseId, lessonId, index, t
       };
       const NEUTRAL = [{ bg: T.accentSubtle, fg: T.accentHover }, { bg: "#E7F7F5", fg: "#176B67" }];
       const toneFor = (side, i) => COMPARE_TONE[side?.tone] || NEUTRAL[i];
+      // 見出しにアイコンを添えて、望ましい/避けたいが色だけに頼らず伝わるようにする
+      // （色覚特性で緑と赤が判別しづらい場合の担保も兼ねる）。
+      const ToneIcon = ({ tone }) => {
+        if (tone === "positive") return <Check size={15} className="shrink-0" />;
+        if (tone === "negative") return <X size={15} className="shrink-0" />;
+        return null;
+      };
       const Column = ({ side, tone }) => (
         <div className="min-w-0 flex-1 overflow-hidden rounded-2xl" style={{ border: `1px solid ${C.line}` }}>
-          <div className="px-4 py-3 text-[13px] font-bold" style={{ background: tone.bg, color: tone.fg }}>{side.label}</div>
+          <div className="flex items-center gap-2 px-4 py-3 text-[13px] font-bold" style={{ background: tone.bg, color: tone.fg }}>
+            <ToneIcon tone={side?.tone} />{side.label}
+          </div>
           <ul className="space-y-2.5 p-4">
             {(side.items || []).map((item, i) => (
               <li key={i} className="flex items-start gap-2.5 text-[14.5px] leading-[1.75]" style={{ color: C.body }}>
