@@ -241,8 +241,8 @@ function CourseRow({ course, onEdit, onOpenLessons, onSelectCourse, onTogglePubl
 export default function CourseManager({ onOpenLessons = () => {}, onSelectCourse = () => {}, onOpenStudio = () => {}, role }) {
   const {
     courses, coursesLoading, coursesError, stats,
-    createCourse, createCourseAwaitingApi, updateCourse, togglePublish, publishCourse, getCourseVersions, deleteCourse,
-    createLessonAwaitingApi, updateLessonAwaitingApi, createMaterialAwaitingApi,
+    createCourse, createCourseAwaitingApi, togglePublish, publishCourse, getCourseVersions, deleteCourse,
+    createMaterialAwaitingApi,
     lessonsForCourse, quizQuestions,
     actionError, clearActionError,
   } = useLearningAdmin();
@@ -442,9 +442,6 @@ export default function CourseManager({ onOpenLessons = () => {}, onSelectCourse
         open={pdfImportOpen}
         canMarkOfficial={canEditVisibility}
         createCourseAwaitingApi={createCourseAwaitingApi}
-        createLessonAwaitingApi={createLessonAwaitingApi}
-        updateLessonAwaitingApi={updateLessonAwaitingApi}
-        updateCourse={updateCourse}
         createMaterialAwaitingApi={createMaterialAwaitingApi}
         onCreated={course => onSelectCourse(course)}
         onClose={() => setPdfImportOpen(false)}

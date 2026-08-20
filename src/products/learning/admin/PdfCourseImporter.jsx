@@ -1,11 +1,11 @@
-import React, { useRef, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import pdfjsWorkerUrl from "pdfjs-dist/build/pdf.worker.min.mjs?url";
 import { AlertCircle, BadgeCheck, CheckCircle2, FileUp, Loader2, Sparkles, Upload, X } from "lucide-react";
 import { Btn, Field, fieldStyle, T } from "../../../components/common";
 import AdminModal from "./AdminModal.jsx";
 import { requestMaterialUploadUrl, uploadMaterialFile } from "./useLearningAdmin.js";
-import { EMPTY_COURSE_FORM, EMPTY_LESSON_FORM, EMPTY_MATERIAL_FORM } from "./LearningAdminCatalog.js";
-import { runAiJob } from "./aiJobPolling.js";
+import { EMPTY_COURSE_FORM, EMPTY_MATERIAL_FORM } from "./LearningAdminCatalog.js";
+import { apiGet, apiPost } from "../../../api.js";
 
 const C = { ink: T.textPrimary, body: T.textSecondary, muted: T.textMuted, line: T.border, canvas: T.bgBase };
 
@@ -15,30 +15,21 @@ const C = { ink: T.textPrimary, body: T.textSecondary, muted: T.textMuted, line:
 // (平均66文字/ページ、10ページは1文字も取れない)、情報の大半が図の中にある。
 // そこで各ページを画像にしてS3へ上げ、Claudeに読ませる。
 //
-// 既存の SlideDeckImporter と同じ経路(署名URL→S3→教材→imageスライド)を使い、
-// 新しい保存の仕組みは作らない。違いは「レッスン単位」ではなく「コース単位」であることと、
-// AIがレッスン分割・解説・演習を作るところ。
+// この画面の仕事は「ページ画像を作って上げる」まで。**そこから先はサーバー側で走る**ので、
+// 取り込み開始後はタブを閉じてよい（進み具合は GET /pdf-import/{id} で追える）。
+// ページ画像化だけはブラウザでしかできないため、その間だけ開いたままにしてもらう。
 //
-// 手順:
-//   1. ページをPNG化 + テキスト抽出（ブラウザ内、pdf.js）
-//   2. 受け皿のコースを1つ作り、ページ画像をその教材としてアップロード
-//   3. ジョブ「plan」: 全ページの要点 → レッスン分割
-//   4. レッスンごとにジョブ「lesson-slides」: ページの解説 + 演習 + まとめ
-// 3と4を分けているのは、1本にまとめると72ページでワーカーの300秒を超えるため。
+// 既存の SlideDeckImporter と同じ経路(署名URL→S3→教材→imageスライド)を使い、
+// 新しい保存の仕組みは作らない。
 const PAGE_SCALE = 1.6;          // 1024px前後。読ませるのに十分で、アップロードが重くなりすぎない
 const UPLOAD_CONCURRENCY = 3;
 const MAX_PAGES = 120;
+const POLL_MS = 5000;
 
 function canvasToPngBlob(canvas) {
   return new Promise((resolve, reject) => {
     canvas.toBlob(blob => (blob ? resolve(blob) : reject(new Error("PNG変換に失敗しました。"))), "image/png");
   });
-}
-
-let slideSeq = 0;
-function nextSlideId(prefix = "slide-pdfc") {
-  slideSeq += 1;
-  return `${prefix}-${Date.now()}-${slideSeq}`;
 }
 
 function StepRow({ done, active, label, detail }) {
@@ -59,27 +50,48 @@ function StepRow({ done, active, label, detail }) {
 
 export default function PdfCourseImporter({
   open, onClose, onCreated, canMarkOfficial,
-  createCourseAwaitingApi, createLessonAwaitingApi, updateLessonAwaitingApi, updateCourse, createMaterialAwaitingApi,
+  createCourseAwaitingApi, createMaterialAwaitingApi,
 }) {
   const [file, setFile] = useState(null);
   const [courseHint, setCourseHint] = useState("");
   const [note, setNote] = useState("");
   const [official, setOfficial] = useState(Boolean(canMarkOfficial));
   const [exerciseCount, setExerciseCount] = useState(3);
-  const [phase, setPhase] = useState("idle"); // idle | render | upload | plan | lessons | done | error
+  // idle | render | upload | running | done | error
+  // ブラウザが要るのは render / upload まで。running から先はサーバー側。
+  const [phase, setPhase] = useState("idle");
   const [progress, setProgress] = useState({ current: 0, total: 0 });
-  const [planned, setPlanned] = useState(null);
-  const [lessonProgress, setLessonProgress] = useState({ current: 0, total: 0, title: "" });
+  const [importId, setImportId] = useState("");
+  const [importState, setImportState] = useState(null);
   const [errorMsg, setErrorMsg] = useState("");
   const [createdCourse, setCreatedCourse] = useState(null);
   const inputRef = useRef(null);
-  const busy = !["idle", "done", "error"].includes(phase);
+  // 閉じられないのはブラウザが要る間だけ。
+  const blocking = phase === "render" || phase === "upload";
+
+  // 開いている間は進み具合を見に行く。閉じても取り込み自体は続く。
+  useEffect(() => {
+    if (!importId || !open) return undefined;
+    if (["done", "error"].includes(importState?.status)) return undefined;
+    let alive = true;
+    const timer = setInterval(async () => {
+      try {
+        const state = await apiGet(`/learning/admin/pdf-import/${encodeURIComponent(importId)}`);
+        if (!alive) return;
+        setImportState(state);
+        if (state.status === "done") setPhase("done");
+        if (state.status === "error") { setPhase("error"); setErrorMsg(state.error || "取り込みに失敗しました。"); }
+      } catch (e) {
+        // 一時的な失敗で進行表示を壊さない。次の周期で取り直す。
+      }
+    }, POLL_MS);
+    return () => { alive = false; clearInterval(timer); };
+  }, [importId, open, importState?.status]);
 
   function handleClose() {
-    if (busy) return;
+    if (blocking) return;
     setFile(null); setCourseHint(""); setNote(""); setPhase("idle"); setErrorMsg("");
-    setProgress({ current: 0, total: 0 }); setPlanned(null); setCreatedCourse(null);
-    setLessonProgress({ current: 0, total: 0, title: "" });
+    setProgress({ current: 0, total: 0 }); setImportId(""); setImportState(null); setCreatedCourse(null);
     onClose();
   }
 
@@ -142,57 +154,14 @@ export default function PdfCourseImporter({
     return uploaded.filter(Boolean);
   }
 
-  // AIの結果を、受講画面がそのまま描けるスライド配列へ組み立てる。
-  // ページ画像は content.materialId で持つ（署名URLは期限付きなので保存しない）。
-  function buildSlides(result, pageByNumber) {
-    const slides = [];
-    (result.pageSlides || []).forEach(p => {
-      const source = pageByNumber.get(p.sourcePage);
-      if (!source) return;
-      slides.push({
-        id: nextSlideId(),
-        kind: "image",
-        title: p.title || `p.${p.sourcePage}`,
-        navLabel: p.navLabel || "",
-        caption: p.caption || "",
-        content: { materialId: source.materialId, alt: p.title || "", caption: p.caption || "" },
-        status: "published",
-      });
-    });
-    (result.exercises || []).forEach(e => {
-      slides.push({
-        id: nextSlideId("slide-pdfex"),
-        kind: e.kind,
-        title: e.title || "演習",
-        navLabel: e.navLabel || "演習",
-        caption: e.caption || "",
-        content: e.content || {},
-        interaction: e.interaction || {},
-        status: "published",
-      });
-    });
-    if (result.summary) {
-      slides.push({
-        id: nextSlideId("slide-pdfsum"),
-        kind: "summary",
-        title: result.summary.title || "まとめ",
-        navLabel: result.summary.navLabel || "まとめ",
-        caption: "",
-        content: { points: result.summary.points || [] },
-        status: "published",
-      });
-    }
-    return slides.map((s, i) => ({ ...s, order: i, updatedAt: new Date().toISOString() }));
-  }
-
   async function handleImport() {
-    if (!file || busy) return;
+    if (!file || blocking) return;
     setErrorMsg("");
     setPhase("render");
     let course = null;
     try {
       // 受け皿のコースを先に作る。教材はコースにぶら下がるため、順序を逆にできない。
-      // タイトルはAIの結果が出たあとで上書きする。
+      // タイトル・説明はサーバー側がAIの結果で上書きする。
       course = await createCourseAwaitingApi({
         ...EMPTY_COURSE_FORM,
         title: courseHint.trim() || file.name.replace(/\.pdf$/i, ""),
@@ -204,61 +173,19 @@ export default function PdfCourseImporter({
 
       const pages = await renderAndUpload(course.id, file);
       if (!pages.length) throw new Error("ページを1枚も取り込めませんでした。");
-      const pageByNumber = new Map(pages.map(p => [p.page, p]));
 
-      setPhase("plan");
-      const plan = await runAiJob("/learning/admin/pdf-import/plan", {
+      // ここから先はサーバー側で走る。**この画面を閉じてよい。**
+      const started = await apiPost("/learning/admin/pdf-import/start", {
+        courseId: course.id,
         pages: pages.map(p => ({ page: p.page, materialId: p.materialId, text: p.text })),
         filename: file.name,
         courseHint: courseHint.trim(),
         note: note.trim(),
+        exerciseCount,
       });
-      setPlanned(plan);
-
-      updateCourse(course.id, {
-        ...EMPTY_COURSE_FORM,
-        title: plan.course?.title || course.title,
-        desc: plan.course?.desc || "",
-        level: plan.course?.level || "入門",
-        duration: plan.course?.estimatedMinutes ? String(Math.max(1, Math.round(plan.course.estimatedMinutes / 60))) : "",
-        published: false,
-        official: Boolean(official && canMarkOfficial),
-      });
-
-      setPhase("lessons");
-      const lessons = plan.lessons || [];
-      for (let i = 0; i < lessons.length; i += 1) {
-        const l = lessons[i];
-        setLessonProgress({ current: i + 1, total: lessons.length, title: l.title });
-        const savedLesson = await createLessonAwaitingApi(course.id, {
-          ...EMPTY_LESSON_FORM,
-          title: l.title,
-          type: "text",
-          summary: l.summary || "",
-          goal: l.goal || "",
-          published: true,
-        });
-        const lessonPages = l.pages.map(n => pageByNumber.get(n)).filter(Boolean);
-        if (!lessonPages.length) continue;
-        const generated = await runAiJob("/learning/admin/pdf-import/lesson-slides", {
-          pages: lessonPages.map(p => ({ page: p.page, materialId: p.materialId, text: p.text })),
-          courseTitle: plan.course?.title || course.title,
-          lessonTitle: l.title,
-          lessonGoal: l.goal || "",
-          exerciseCount,
-        });
-        await updateLessonAwaitingApi(course.id, savedLesson.id, {
-          ...EMPTY_LESSON_FORM,
-          title: l.title,
-          type: "text",
-          summary: l.summary || "",
-          goal: l.goal || "",
-          published: true,
-          slides: buildSlides(generated, pageByNumber),
-        });
-      }
-
-      setPhase("done");
+      setImportId(started.importId);
+      setImportState({ status: "queued", lessonsTotal: 0, lessonsDone: 0 });
+      setPhase("running");
     } catch (e) {
       setErrorMsg(
         (e?.message || "取り込みに失敗しました。") +
@@ -268,10 +195,12 @@ export default function PdfCourseImporter({
     }
   }
 
+  const st = importState || {};
+  const serverStarted = ["running", "done"].includes(phase);
   const stepDone = {
-    render: ["upload", "plan", "lessons", "done"].includes(phase),
-    upload: ["plan", "lessons", "done"].includes(phase),
-    plan: ["lessons", "done"].includes(phase),
+    render: ["upload", "running", "done"].includes(phase),
+    upload: serverStarted,
+    plan: serverStarted && ["generating", "done"].includes(st.status),
     lessons: phase === "done",
   };
 
@@ -284,7 +213,7 @@ export default function PdfCourseImporter({
       width={640}
     >
       <div className="space-y-4">
-        {phase === "idle" || phase === "error" ? (
+        {phase === "idle" || (phase === "error" && !importId) ? (
           <>
             <div
               role="button"
@@ -337,19 +266,30 @@ export default function PdfCourseImporter({
             )}
             <p className="rounded-xl p-3 text-[11px] leading-relaxed" style={{ background: C.canvas, color: C.muted }}>
               資料のページはそのままスライドとして残り、その下にAIが書いた解説が付きます。レッスンの最後には演習とまとめが入ります。
-              72ページで5〜8分ほどかかります。<b style={{ color: C.body }}>この画面を閉じずにお待ちください。</b>
+              <b style={{ color: C.body }}>ページの読み込みが終わるまで（72ページで2〜3分）はこの画面を開いたままにしてください。</b>
+              そのあとの生成はサーバー側で進むので、閉じても大丈夫です。
             </p>
           </>
         ) : (
           <div className="space-y-3 rounded-2xl p-4" style={{ background: C.canvas }}>
-            <StepRow done={stepDone.render} active={phase === "render"} label="ページを画像にしています"
+            <StepRow done={stepDone.render} active={phase === "render"} label="ページを画像にしています（この画面を開いたまま）"
               detail={phase === "render" ? `${progress.current} / ${progress.total}ページ` : stepDone.render ? `${progress.total}ページ` : ""} />
-            <StepRow done={stepDone.upload} active={phase === "upload"} label="ページを保存しています"
+            <StepRow done={stepDone.upload} active={phase === "upload"} label="ページを保存しています（この画面を開いたまま）"
               detail={phase === "upload" ? `${progress.current} / ${progress.total}ページ` : ""} />
-            <StepRow done={stepDone.plan} active={phase === "plan"} label="AIが資料を読んでレッスンに分けています"
-              detail={planned ? `${planned.lessons?.length || 0}レッスンに分割しました` : "1〜3分ほどかかります"} />
-            <StepRow done={stepDone.lessons} active={phase === "lessons"} label="レッスンごとに解説と演習を作っています"
-              detail={lessonProgress.total ? `${lessonProgress.current} / ${lessonProgress.total}：${lessonProgress.title}` : ""} />
+            <StepRow done={stepDone.plan} active={serverStarted && ["queued", "planning"].includes(st.status)} label="AIが資料を読んでレッスンに分けています"
+              detail={st.lessonsTotal ? `${st.lessonsTotal}レッスンに分割しました` : "1〜3分ほどかかります"} />
+            <StepRow done={stepDone.lessons} active={st.status === "generating"} label="レッスンごとに解説と演習を作っています"
+              detail={st.lessonsTotal ? `${st.lessonsDone} / ${st.lessonsTotal}レッスン` : ""} />
+          </div>
+        )}
+
+        {phase === "running" && (
+          <div className="flex items-start gap-2 rounded-xl p-3 text-xs leading-relaxed" style={{ background: T.accentSubtle, color: T.accentHover }}>
+            <CheckCircle2 size={15} className="mt-0.5 shrink-0" />
+            <span>
+              <b>ここから先はサーバー側で進みます。この画面を閉じても大丈夫です。</b>
+              できあがるとコース管理の一覧に反映されます（数分かかります）。
+            </span>
           </div>
         )}
 
@@ -357,7 +297,7 @@ export default function PdfCourseImporter({
           <div className="flex items-start gap-2 rounded-xl p-3 text-xs leading-relaxed" style={{ background: T.successSubtle, color: T.success }}>
             <CheckCircle2 size={15} className="mt-0.5 shrink-0" />
             <span>
-              「{planned?.course?.title || createdCourse?.title}」を作成しました（{planned?.lessons?.length || 0}レッスン）。
+              「{st.courseTitle || createdCourse?.title}」を作成しました（{st.lessonsTotal || 0}レッスン）。
               <b>下書きのままなので、内容を確認してから公開してください。</b>
             </span>
           </div>
@@ -374,10 +314,14 @@ export default function PdfCourseImporter({
             <Btn icon={CheckCircle2} onClick={() => { const c = createdCourse; handleClose(); if (c && onCreated) onCreated(c); }}>コースを開く</Btn>
           ) : (
             <>
-              <Btn kind="ghost" icon={X} onClick={handleClose} disabled={busy}>{busy ? "処理中は閉じられません" : "キャンセル"}</Btn>
-              <Btn kind="ai" icon={busy ? Loader2 : Sparkles} onClick={handleImport} disabled={!file || busy}>
-                {busy ? "取り込み中…" : "取り込みを始める"}
+              <Btn kind="ghost" icon={X} onClick={handleClose} disabled={blocking}>
+                {blocking ? "ページの読み込み中は閉じられません" : phase === "running" ? "閉じる（作成は続きます）" : "キャンセル"}
               </Btn>
+              {phase !== "running" && (
+                <Btn kind="ai" icon={blocking ? Loader2 : Sparkles} onClick={handleImport} disabled={!file || blocking}>
+                  {blocking ? "取り込み中…" : "取り込みを始める"}
+                </Btn>
+              )}
             </>
           )}
         </div>
