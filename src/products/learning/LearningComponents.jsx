@@ -1,7 +1,7 @@
 ﻿import React, { useState, useEffect } from "react";
 import ReactMarkdown from "react-markdown";
 import {
-  BookOpen, FileText, Settings, Users, Search, PlayCircle, Award,
+  BadgeCheck, BookOpen, FileText, Settings, Users, Search, PlayCircle, Award,
   Sparkles, Flame, ChevronRight, ChevronLeft, Check, CheckCircle2,
   Circle, AlertCircle, Lightbulb, Calendar, Clock, RefreshCw, Download
 } from "lucide-react";
@@ -354,6 +354,8 @@ function ElCourseCard({ course, prog, courseState, onStart, onComplete, onOpenDe
           <div className="min-w-0 flex-1">
             <div className="flex flex-wrap items-center gap-2">
               <span className="text-sm font-bold" style={{ color: C.ink }}>{course.title}</span>
+              {/* Feeps公式コース(2026-08-21): 自社で作ったコースと出所を見分けられるようにする */}
+              {course.official && <Badge tone="cyan"><span className="inline-flex items-center gap-1"><BadgeCheck size={11} />Feeps公式</span></Badge>}
               {status === "completed" && <Badge tone="green">修了</Badge>}
               {status === "inprogress" && <Badge tone="cyan">学習中</Badge>}
               {status === "lessons_completed" && <Badge tone="amber">総合テスト待ち</Badge>}
@@ -401,10 +403,14 @@ function ElCourseCard({ course, prog, courseState, onStart, onComplete, onOpenDe
 function ElCourseView({ lrn, onStart, onComplete, onOpenDetail, themeColor }) {
   const [query, setQuery] = useState("");
   const [catFilter, setCatFilter] = useState("すべて");
+  const [originFilter, setOriginFilter] = useState("all"); // all | official | inhouse
   const catalog = lrn.catalog || [];
   const cats = ["すべて", ...new Set(catalog.map(c => c.category))];
+  // 公式コースが1つも無い会社ではタブ自体を出さない（意味のない選択肢を並べない）
+  const hasOfficial = catalog.some(c => c.official);
   const filtered = catalog.filter(c =>
     (catFilter === "すべて" || c.category === catFilter) &&
+    (originFilter === "all" || (originFilter === "official" ? c.official : !c.official)) &&
     (!query || c.title.includes(query) || c.category.includes(query) || c.skills.some(s => s.includes(query)))
   );
   return (
@@ -417,6 +423,26 @@ function ElCourseView({ lrn, onStart, onComplete, onOpenDetail, themeColor }) {
             className="ff-input w-full rounded-xl py-2 pl-8 pr-3 text-sm outline-none" style={{ border: `1px solid ${C.line2}`, color: C.ink }} />
         </div>
       </div>
+      {hasOfficial && (
+        <div className="mb-3 flex flex-wrap gap-2">
+          {[
+            { key: "all", label: "すべて" },
+            { key: "official", label: "Feeps公式コース" },
+            { key: "inhouse", label: "自社のコース" },
+          ].map(tab => (
+            <button
+              key={tab.key}
+              onClick={() => setOriginFilter(tab.key)}
+              className="rounded-full px-3 py-1.5 text-xs font-bold transition"
+              style={originFilter === tab.key
+                ? { background: C.ink, color: "#fff", border: `1px solid ${C.ink}` }
+                : { background: "#fff", color: C.body, border: `1px solid ${C.line2}` }}
+            >
+              {tab.label}
+            </button>
+          ))}
+        </div>
+      )}
       <div className="mb-4 flex flex-wrap gap-2">
         {cats.map(c => (
           <button key={c} onClick={() => setCatFilter(c)} className="rounded-full px-3 py-1 text-xs font-semibold transition"

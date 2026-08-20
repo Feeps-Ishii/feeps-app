@@ -35,6 +35,8 @@ function normalizeCourse(course) {
     // 可視範囲制御（企業単位、2026-07-21追加）: 未設定・不正値は"all"扱い。
     visibilityScope: course.visibilityScope === "companies" ? "companies" : "all",
     targetCompanyIds: Array.isArray(course.targetCompanyIds) ? course.targetCompanyIds : [],
+    // Feeps公式コース(2026-08-21): Feepsが用意して各社へ展開する教材かどうか。設定はadminのみ。
+    official: course.official === true,
     updatedAt: course.updatedAt || null,
   };
 }
@@ -97,6 +99,8 @@ function toCoursePayload(form) {
     // 可視範囲制御（企業単位、2026-07-21追加）: Backend側でadmin以外は無視して既存値を維持する。
     visibilityScope: form.visibilityScope === "companies" ? "companies" : "all",
     targetCompanyIds: Array.isArray(form.targetCompanyIds) ? form.targetCompanyIds : [],
+    // Feeps公式コース: Backend側でadmin以外は無視して既存値を維持する。
+    official: Boolean(form.official),
     updatedAt: new Date().toISOString(),
   };
 }
@@ -118,6 +122,7 @@ function toCourseApiPayload(course) {
     deleted: course.deleted === true,
     visibilityScope: course.visibilityScope === "companies" ? "companies" : "all",
     targetCompanyIds: Array.isArray(course.targetCompanyIds) ? course.targetCompanyIds : [],
+    official: course.official === true,
   };
 }
 
@@ -135,6 +140,7 @@ export function courseToForm(course) {
     lessons: Number(course.lessons || 0),
     visibilityScope: course.visibilityScope === "companies" ? "companies" : "all",
     targetCompanyIds: Array.isArray(course.targetCompanyIds) ? course.targetCompanyIds : [],
+    official: course.official === true,
   };
 }
 
@@ -997,6 +1003,20 @@ export function useLearningAdmin() {
     return saved;
   }
 
+  // 2026-08-21 PDF取り込み: 保存完了を待ってから次のレッスンへ進みたい場面用。
+  // updateLessonはfire-and-forgetなので、順に何本も保存する処理では取りこぼしが分からない。
+  async function updateLessonAwaitingApi(courseId, lessonId, form) {
+    const current = lessonsForCourse(courseId);
+    let updated = null;
+    const nextLessons = current.map(lesson => (
+      lesson.id === lessonId ? (updated = normalizeLesson({ ...lesson, ...toLessonPayload(form) }, lesson.order)) : lesson
+    ));
+    commitLessons({ ...lessonsByCourse, [courseId]: nextLessons });
+    if (!updated) return null;
+    const res = await apiPut(`/learning/admin/courses/${encodeURIComponent(courseId)}/lessons/${encodeURIComponent(lessonId)}`, toLessonApiPayload(updated));
+    return res?.lesson ? normalizeLesson(res.lesson) : updated;
+  }
+
   function updateLesson(courseId, lessonId, form) {
     const current = lessonsForCourse(courseId);
     let updated = null;
@@ -1346,6 +1366,7 @@ export function useLearningAdmin() {
     createLesson,
     createLessonAwaitingApi,
     updateLesson,
+    updateLessonAwaitingApi,
     deleteLesson,
     toggleLessonPublish,
     moveLesson,

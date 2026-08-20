@@ -42,6 +42,8 @@ export function useLearning(role = "trainee") {
       lessons: Number(course.lessons || 0),
       published,
       deleted: course.deleted === true,
+      // Feeps公式コース(2026-08-21): 受講者のコース一覧でバッジ・絞り込みに使う。
+      official: course.official === true,
     };
   }
   function getLearnerCatalog() {

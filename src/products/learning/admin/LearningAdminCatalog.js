@@ -37,6 +37,8 @@ export const EMPTY_COURSE_FORM = {
   // 可視範囲制御（企業単位、2026-07-21追加）: "all"=全体公開 / "companies"=targetCompanyIdsのみ。
   visibilityScope: "all",
   targetCompanyIds: [],
+  // Feeps公式コース(2026-08-21): Feepsが用意して各社へ展開する教材。設定はadminのみ。
+  official: false,
 };
 
 export const COURSE_VISIBILITY_SCOPE_OPTIONS = [

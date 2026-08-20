@@ -1,10 +1,11 @@
 import React, { useMemo, useState } from "react";
-import { BookOpen, Clock, Eye, EyeOff, History, ListChecks, Loader2, Pencil, Plus, PlayCircle, Save, Search, Sparkles, Tag, Trash2, X } from "lucide-react";
+import { BadgeCheck, BookOpen, Clock, Eye, EyeOff, FileUp, History, ListChecks, Loader2, Pencil, Plus, PlayCircle, Save, Search, Sparkles, Tag, Trash2, X } from "lucide-react";
 import { Badge, Btn, Card, EmptyState, Field, SectionHead, SkeletonRows, Stat, fieldStyle, T, PRODUCT_ACCENT } from "../../../components/common";
 import { COURSE_CATEGORY_OPTIONS, COURSE_COLOR_OPTIONS, COURSE_LEVEL_OPTIONS, COURSE_VISIBILITY_SCOPE_OPTIONS, EMPTY_COURSE_FORM } from "./LearningAdminCatalog.js";
 import { useLearningAdmin } from "./useLearningAdmin.js";
 import AdminModal from "./AdminModal.jsx";
 import CourseWalkthroughPreview from "./CourseWalkthroughPreview.jsx";
+import PdfCourseImporter from "./PdfCourseImporter.jsx";
 import { useCompanyDirectory, companyNameResolver } from "./useCompanyDirectory.js";
 
 const C = { ink: T.textPrimary, body: T.textSecondary, muted: T.textMuted, line: T.border, canvas: T.bgBase, green: PRODUCT_ACCENT.learning.accent, greenW: PRODUCT_ACCENT.learning.subtle, red: T.danger };
@@ -138,6 +139,17 @@ export function CourseForm({ mode, form, onChange, onSubmit, onCancel, canEditVi
             </div>
           )}
         </Field>
+        {canEditVisibility && (
+          <label className="flex items-start gap-2 rounded-xl p-3 text-sm font-semibold" style={{ background: T.accentSubtle, color: C.ink }}>
+            <input type="checkbox" className="mt-0.5" checked={Boolean(form.official)} onChange={e => set("official", e.target.checked)} />
+            <span>
+              <span className="inline-flex items-center gap-1.5"><BadgeCheck size={14} style={{ color: T.accent }} />Feeps公式コース</span>
+              <span className="mt-0.5 block text-[11px] font-normal" style={{ color: C.muted }}>
+                Feepsが用意して各社へ展開する教材です。受講者のコース一覧でも公式として表示されます。
+              </span>
+            </span>
+          </label>
+        )}
         <label className="flex items-center gap-2 rounded-xl p-3 text-sm font-semibold" style={{ background: C.canvas, color: C.ink }}>
           <input type="checkbox" checked={form.published} onChange={e => set("published", e.target.checked)} />
           公開する
@@ -191,6 +203,9 @@ function CourseRow({ course, onEdit, onOpenLessons, onSelectCourse, onTogglePubl
           <div className="min-w-0">
             <div className="flex flex-wrap items-center gap-2">
               <h3 className="truncate text-sm font-bold" style={{ color: C.ink }}>{course.title}</h3>
+              {course.official && (
+                <Badge tone="cyan"><span className="inline-flex items-center gap-1"><BadgeCheck size={11} />Feeps公式</span></Badge>
+              )}
               <Badge tone={published ? "green" : "amber"}>{published ? "公開中" : "非公開"}</Badge>
               {versioned && <Badge tone="cyan">v{course.publishedVersion}</Badge>}
               <VisibilityBadges course={course} companies={companies} companiesError={companiesError} />
@@ -226,7 +241,8 @@ function CourseRow({ course, onEdit, onOpenLessons, onSelectCourse, onTogglePubl
 export default function CourseManager({ onOpenLessons = () => {}, onSelectCourse = () => {}, onOpenStudio = () => {}, role }) {
   const {
     courses, coursesLoading, coursesError, stats,
-    createCourse, togglePublish, publishCourse, getCourseVersions, deleteCourse,
+    createCourse, createCourseAwaitingApi, updateCourse, togglePublish, publishCourse, getCourseVersions, deleteCourse,
+    createLessonAwaitingApi, updateLessonAwaitingApi, createMaterialAwaitingApi,
     lessonsForCourse, quizQuestions,
     actionError, clearActionError,
   } = useLearningAdmin();
@@ -240,6 +256,8 @@ export default function CourseManager({ onOpenLessons = () => {}, onSelectCourse
   const [formOpen, setFormOpen] = useState(false);
   // 「＋コース追加」の入口選択（自分で作る／AIに任せる、2026-07-21コース中心構造再編）。
   const [addChoiceOpen, setAddChoiceOpen] = useState(false);
+  const [originFilter, setOriginFilter] = useState("all"); // all | official | inhouse
+  const [pdfImportOpen, setPdfImportOpen] = useState(false);
   const [publishingId, setPublishingId] = useState(null);
   const [previewCourse, setPreviewCourse] = useState(null);
   const [versionsCourse, setVersionsCourse] = useState(null);
@@ -263,17 +281,23 @@ export default function CourseManager({ onOpenLessons = () => {}, onSelectCourse
     setVersionsList(versions);
   }
 
+  // 2026-08-21: Feeps公式コースと自社作成コースの絞り込み。数が増えると「どれが公式か」を
+  // バッジだけで探すのが辛くなるため、検索欄の隣に置く。
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
-    if (!q) return courses;
-    return courses.filter(course => [
-      course.title,
-      course.category,
-      course.level,
-      course.desc,
-      ...(course.skills || []),
-    ].some(value => String(value || "").toLowerCase().includes(q)));
-  }, [courses, query]);
+    return courses.filter(course => {
+      if (originFilter === "official" && !course.official) return false;
+      if (originFilter === "inhouse" && course.official) return false;
+      if (!q) return true;
+      return [
+        course.title,
+        course.category,
+        course.level,
+        course.desc,
+        ...(course.skills || []),
+      ].some(value => String(value || "").toLowerCase().includes(q));
+    });
+  }, [courses, query, originFilter]);
 
   function openAddChoice() {
     setAddChoiceOpen(true);
@@ -289,6 +313,11 @@ export default function CourseManager({ onOpenLessons = () => {}, onSelectCourse
   function startStudio() {
     setAddChoiceOpen(false);
     onOpenStudio();
+  }
+
+  function startPdfImport() {
+    setAddChoiceOpen(false);
+    setPdfImportOpen(true);
   }
 
   function closeForm() {
@@ -344,15 +373,36 @@ export default function CourseManager({ onOpenLessons = () => {}, onSelectCourse
       <div className="grid gap-5">
         <div className="space-y-3">
           <Card className="p-4">
-            <div className="flex items-center gap-2 rounded-xl border px-3 py-2" style={{ borderColor: C.line, background: "#fff" }}>
-              <Search size={16} style={{ color: C.muted }} />
-              <input
-                className="w-full bg-transparent text-sm outline-none"
-                value={query}
-                onChange={e => setQuery(e.target.value)}
-                placeholder="コース名・カテゴリ・スキルで検索"
-                style={{ color: C.ink }}
-              />
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+              <div className="flex min-w-0 flex-1 items-center gap-2 rounded-xl border px-3 py-2" style={{ borderColor: C.line, background: "#fff" }}>
+                <Search size={16} style={{ color: C.muted }} />
+                <input
+                  className="w-full bg-transparent text-sm outline-none"
+                  value={query}
+                  onChange={e => setQuery(e.target.value)}
+                  placeholder="コース名・カテゴリ・スキルで検索"
+                  style={{ color: C.ink }}
+                />
+              </div>
+              <div className="flex shrink-0 gap-1 rounded-xl p-1" style={{ background: C.canvas }}>
+                {[
+                  { key: "all", label: "すべて" },
+                  { key: "official", label: "Feeps公式" },
+                  { key: "inhouse", label: "自社作成" },
+                ].map(tab => (
+                  <button
+                    key={tab.key}
+                    type="button"
+                    onClick={() => setOriginFilter(tab.key)}
+                    className="rounded-lg px-3 py-1.5 text-xs font-bold transition"
+                    style={originFilter === tab.key
+                      ? { background: "#fff", color: C.ink, boxShadow: "0 1px 3px rgba(16,20,28,.10)" }
+                      : { background: "transparent", color: C.muted }}
+                  >
+                    {tab.label}
+                  </button>
+                ))}
+              </div>
             </div>
           </Card>
 
@@ -388,6 +438,18 @@ export default function CourseManager({ onOpenLessons = () => {}, onSelectCourse
 
       </div>
 
+      <PdfCourseImporter
+        open={pdfImportOpen}
+        canMarkOfficial={canEditVisibility}
+        createCourseAwaitingApi={createCourseAwaitingApi}
+        createLessonAwaitingApi={createLessonAwaitingApi}
+        updateLessonAwaitingApi={updateLessonAwaitingApi}
+        updateCourse={updateCourse}
+        createMaterialAwaitingApi={createMaterialAwaitingApi}
+        onCreated={course => onSelectCourse(course)}
+        onClose={() => setPdfImportOpen(false)}
+      />
+
       <AdminModal
         open={addChoiceOpen}
         title="コースを追加"
@@ -419,6 +481,18 @@ export default function CourseManager({ onOpenLessons = () => {}, onSelectCourse
             </div>
             <div className="text-sm font-bold" style={{ color: C.ink }}>AIに任せる</div>
             <p className="mt-1 text-xs" style={{ color: C.body }}>Learning Studioで目的からAI構成案・Lesson・総合テストを作成します。</p>
+          </button>
+          <button
+            type="button"
+            onClick={startPdfImport}
+            className="rounded-2xl border p-4 text-left transition hover:shadow-md"
+            style={{ borderColor: C.line }}
+          >
+            <div className="mb-2 flex h-9 w-9 items-center justify-center rounded-xl text-white" style={{ background: T.accent }}>
+              <FileUp size={16} />
+            </div>
+            <div className="text-sm font-bold" style={{ color: C.ink }}>PDFから作る</div>
+            <p className="mt-1 text-xs" style={{ color: C.body }}>既にある研修資料のPDFを読み込み、ページ・解説・演習つきのコースに変換します。</p>
           </button>
         </div>
       </AdminModal>
