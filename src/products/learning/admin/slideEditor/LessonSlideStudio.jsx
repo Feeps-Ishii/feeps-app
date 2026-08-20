@@ -9,6 +9,7 @@ import { apiGet } from "../../../../api.js";
 import AdminModal from "../AdminModal.jsx";
 import { lessonToForm } from "../useLearningAdmin.js";
 import SlideDeckImporter from "./SlideDeckImporter.jsx";
+import SlideImageAdder from "./SlideImageAdder.jsx";
 import AiLessonStudioModal from "../aiLessonStudio/AiLessonStudioModal.jsx";
 import { REVISABLE_KINDS, useAiSlideReview } from "../slideReview/useAiSlideReview.js";
 import { SlideRenderer } from "../../ElSlideLessonView.jsx";
@@ -44,6 +45,9 @@ const KIND_META = {
   interactive_form: { label: "Interactive", icon: Settings2 },
 };
 const BASIC_KINDS = ["concept", "image", "video"];
+// 追加ボタンに出す種別。imageは「画像を追加」(SlideImageAdder)が入口なので、
+// URLだけを入力する古い追加フォームはボタンから外す（編集フォームには残っている）。
+const ADD_KINDS = ["concept", "video"];
 // 2026-07-16 Phase5: AIが返すintent(自然文の依頼種別)を差分プレビューで日本語表示するための辞書。
 const INTENT_LABEL = {
   revise_current: "表現・難易度の書き換え",
@@ -566,9 +570,17 @@ function EditPanel({ slide, onChangeCommon, onChangeContent, onDuplicate, onDele
           )}
           {slide.kind === "image" && (
             <>
-              <Field label="画像URL">
-                <input style={fieldStyle} value={content.url || ""} onChange={e => onChangeContent({ url: e.target.value })} placeholder="https://..." />
-              </Field>
+              {/* アップロード済みの画像はURLではなくmaterialIdで持っている（署名URLは期限付きなので
+                  保存しない）。URL欄を空のまま見せると「画像が消えた」と誤解されるため状態を書く。 */}
+              {content.materialId ? (
+                <div className="rounded-xl p-3 text-xs leading-relaxed" style={{ background: C.canvas, color: C.body }}>
+                  アップロード済みの画像を表示しています。差し替えるときは、このスライドを削除して「画像を追加」からやり直してください。
+                </div>
+              ) : (
+                <Field label="画像URL">
+                  <input style={fieldStyle} value={content.url || ""} onChange={e => onChangeContent({ url: e.target.value })} placeholder="https://..." />
+                </Field>
+              )}
               <Field label="代替テキスト（任意）">
                 <input style={fieldStyle} value={content.alt || ""} onChange={e => onChangeContent({ alt: e.target.value })} />
               </Field>
@@ -606,6 +618,7 @@ export default function LessonSlideStudio({ open, course, lesson, updateLesson, 
   const [statusFilter, setStatusFilter] = useState("all");
   const [importerOpen, setImporterOpen] = useState(false);
   const [aiStudioOpen, setAiStudioOpen] = useState(false);
+  const [imageAdderOpen, setImageAdderOpen] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState(null);
   const [bulkDeleteConfirm, setBulkDeleteConfirm] = useState(false);
   const ai = useAiSlideReview();
@@ -742,6 +755,21 @@ export default function LessonSlideStudio({ open, course, lesson, updateLesson, 
     });
   }
 
+  // 画像スライドは**選択中のスライドの直後**へ入れる（AIのスライド追加と同じ流儀）。
+  // 末尾に積むと、説明の途中に図を挟みたいときに毎回並び替える手間が出る。
+  function handleImageAdded(newSlide) {
+    const now = new Date().toISOString();
+    const slide = { ...newSlide, status: "draft", updatedAt: now };
+    setSlides(prev => {
+      const ordered = orderedOf(prev);
+      const insertAt = activeId ? ordered.findIndex(s => s.id === activeId) + 1 : ordered.length;
+      ordered.splice(insertAt <= 0 ? ordered.length : insertAt, 0, slide);
+      return ordered.map((s, i) => ({ ...s, order: i }));
+    });
+    setAddingKind(null);
+    setActiveId(slide.id);
+  }
+
   function handleAiRevise() {
     ai.reviseCurrent({ course, lesson, currentSlide: activeSlide });
   }
@@ -854,9 +882,10 @@ export default function LessonSlideStudio({ open, course, lesson, updateLesson, 
             </div>
 
             <div className="flex flex-wrap items-center gap-1.5">
-              {BASIC_KINDS.map(kind => (
+              {ADD_KINDS.map(kind => (
                 <Btn key={kind} kind="ghost" size="sm" icon={Plus} onClick={() => startAdd(kind)}>{KIND_META[kind].label}</Btn>
               ))}
+              <Btn kind="ghost" size="sm" icon={ImageIcon} onClick={() => setImageAdderOpen(true)}>画像を追加</Btn>
               <Btn kind="ghost" size="sm" icon={FileUp} onClick={() => setImporterOpen(true)}>資料をインポート</Btn>
               <Btn kind="ai" size="sm" icon={Sparkles} onClick={() => setAiStudioOpen(true)}>AIでスライド作成</Btn>
             </div>
@@ -917,6 +946,15 @@ export default function LessonSlideStudio({ open, course, lesson, updateLesson, 
         existingSlideCount={slides.length}
         onImported={handlePdfImported}
         onClose={() => setImporterOpen(false)}
+      />
+
+      <SlideImageAdder
+        open={imageAdderOpen}
+        course={course}
+        lesson={lesson}
+        createMaterialAwaitingApi={createMaterialAwaitingApi}
+        onAdded={handleImageAdded}
+        onClose={() => setImageAdderOpen(false)}
       />
 
       <AiLessonStudioModal

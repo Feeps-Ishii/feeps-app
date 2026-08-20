@@ -371,6 +371,13 @@ export async function requestMaterialUploadUrl({ courseId, filename, contentType
   return apiPost("/learning/admin/materials/upload-url", { courseId, filename, contentType });
 }
 
+// 2026-08-21: S3へ上げた画像をAIに見せて、スライドのタイトル・alt・説明の下書きをもらう。
+// 画像そのものはリクエストに載せない（Backendがs3keyから読む）。失敗しても画像の差し込み
+// 自体は成立するので、呼び出し側では例外を握りつぶして空の下書きとして扱ってよい。
+export async function describeSlideImage({ materialId, courseTitle, lessonTitle, lessonGoal, instruction }) {
+  return apiPost("/learning/admin/ai-lesson-studio/describe-image", { materialId, courseTitle, lessonTitle, lessonGoal, instruction });
+}
+
 // 発行された署名付きURLへ実ファイルを直接PUTする。S3への直PUTのため認証ヘッダ・JSON化を
 // 行う api.js の apiPut は使わず、素の fetch で実装する。
 export async function uploadMaterialFile(uploadUrl, file) {
