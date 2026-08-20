@@ -156,8 +156,28 @@ function CourseRow({ course, onEdit, onOpenLessons, onSelectCourse, onTogglePubl
   const published = course.published !== false;
   const versioned = Number(course.publishedVersion || 0) > 0;
   return (
-    <Card className="p-4">
-      <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+    <Card className="overflow-hidden p-0">
+      {/* 2026-08-21: 非公開はバッジだけだと見落とす。カード全体を下書きの見た目にし、
+          「受講者には表示されていません」と、次にやること（公開する）を上に出す。 */}
+      {!published && (
+        <div className="flex flex-wrap items-center justify-between gap-2 px-4 py-2.5" style={{ background: T.warningSubtle, borderBottom: `1px solid ${T.warning}33` }}>
+          <span className="flex items-center gap-2 text-xs font-bold" style={{ color: T.warning }}>
+            <EyeOff size={14} />下書き — 受講者には表示されていません
+          </span>
+          <Btn
+            size="sm"
+            icon={publishing ? Loader2 : Eye}
+            disabled={publishing}
+            onClick={() => onPublish(course.id)}
+          >
+            {publishing ? "公開中..." : "このコースを公開する"}
+          </Btn>
+        </div>
+      )}
+      <div
+        className="flex flex-col gap-4 p-4 lg:flex-row lg:items-center lg:justify-between"
+        style={published ? undefined : { background: "#FCFCFD" }}
+      >
         <div
           className="flex min-w-0 cursor-pointer gap-3"
           role="button"
@@ -171,7 +191,7 @@ function CourseRow({ course, onEdit, onOpenLessons, onSelectCourse, onTogglePubl
           <div className="min-w-0">
             <div className="flex flex-wrap items-center gap-2">
               <h3 className="truncate text-sm font-bold" style={{ color: C.ink }}>{course.title}</h3>
-              <Badge tone={published ? "green" : "muted"}>{published ? "公開中" : "非公開"}</Badge>
+              <Badge tone={published ? "green" : "amber"}>{published ? "公開中" : "非公開"}</Badge>
               {versioned && <Badge tone="cyan">v{course.publishedVersion}</Badge>}
               <VisibilityBadges course={course} companies={companies} companiesError={companiesError} />
             </div>
@@ -192,15 +212,10 @@ function CourseRow({ course, onEdit, onOpenLessons, onSelectCourse, onTogglePubl
           <Btn kind="ghost" size="sm" icon={ListChecks} onClick={() => onOpenLessons(course)}>レッスン管理</Btn>
           <Btn kind="ghost" size="sm" icon={Pencil} onClick={() => onEdit(course)}>編集</Btn>
           {versioned && <Btn kind="ghost" size="sm" icon={History} onClick={() => onShowVersions(course)}>版履歴</Btn>}
-          <Btn
-            kind="ghost"
-            size="sm"
-            icon={publishing ? Loader2 : published ? EyeOff : Eye}
-            disabled={publishing}
-            onClick={() => (published ? onTogglePublish(course.id) : onPublish(course.id))}
-          >
-            {publishing ? "公開中..." : published ? "非公開にする" : "公開する"}
-          </Btn>
+          {/* 非公開のときの「公開する」はカード上部の帯に出しているので、ここには出さない */}
+          {published && (
+            <Btn kind="ghost" size="sm" icon={EyeOff} onClick={() => onTogglePublish(course.id)}>非公開にする</Btn>
+          )}
           <Btn kind="ghost" size="sm" icon={Trash2} onClick={() => onDeleteRequest(course)}>削除</Btn>
         </div>
       </div>
@@ -230,10 +245,15 @@ export default function CourseManager({ onOpenLessons = () => {}, onSelectCourse
   const [versionsCourse, setVersionsCourse] = useState(null);
   const [versionsList, setVersionsList] = useState(null); // null=未取得 | []=取得済み0件 | [...]
 
+  // finallyで必ず解除する。例外が出るとスピナーが「公開中...」のまま戻らず、
+  // 画面上は「ボタンが効かない」ように見えるため（2026-08-21の実バグ）。
   async function handlePublish(courseId) {
     setPublishingId(courseId);
-    await publishCourse(courseId);
-    setPublishingId(null);
+    try {
+      await publishCourse(courseId);
+    } finally {
+      setPublishingId(null);
+    }
   }
 
   async function handleShowVersions(course) {

@@ -222,7 +222,9 @@ export function useAiLessonDesigner() {
           goal: lesson.goal || "",
           teacherMemo: lesson.teacherMemo || "",
           slides: lesson.slides || [],
-          published: false,
+          // 2026-08-21: レッスンは既定で公開。公開/非公開はコース単位で決める運用にしたので、
+          // レッスン側をdraftにしておくと「コースを公開したのに中身が空」になる。
+          published: true,
         });
         lessonIdByRef[lesson.id] = savedLesson?.id || null;
       }

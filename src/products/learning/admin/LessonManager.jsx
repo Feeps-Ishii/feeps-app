@@ -81,9 +81,16 @@ function LessonForm({ mode, form, onChange, onSubmit, onCancel }) {
             />
           </Field>
         )}
-        <label className="flex items-center gap-2 rounded-xl p-3 text-sm font-semibold" style={{ background: C.canvas, color: C.ink }}>
-          <input type="checkbox" checked={form.published} onChange={e => set("published", e.target.checked)} />
-          公開する
+        {/* 2026-08-21: 公開/非公開はコース単位で決める運用にしたため、レッスンは既定でオン。
+            ここは「このレッスンだけ一時的に隠したい」ときに外す例外操作。 */}
+        <label className="flex items-start gap-2 rounded-xl p-3 text-sm font-semibold" style={{ background: C.canvas, color: C.ink }}>
+          <input type="checkbox" className="mt-0.5" checked={form.published} onChange={e => set("published", e.target.checked)} />
+          <span>
+            このレッスンを含める
+            <span className="mt-0.5 block text-[11px] font-normal" style={{ color: C.muted }}>
+              受講者への公開はコース単位です。外すとこのレッスンだけ受講者に表示されません。
+            </span>
+          </span>
         </label>
         <div className="flex flex-wrap gap-2 pt-1">
           <Btn icon={Save} onClick={onSubmit} disabled={!form.title.trim()}>{mode === "edit" ? "保存" : "作成"}</Btn>

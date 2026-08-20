@@ -58,7 +58,9 @@ export const EMPTY_LESSON_FORM = {
   pointsText: "",
   body: "",
   questionsText: "",
-  published: false,
+  // 2026-08-21: レッスンは既定で公開。受講者への出し分けはコースの公開状態で行い、
+  // レッスン単位の非公開は「一部だけ隠したいとき」の例外操作にする。
+  published: true,
 };
 
 export const LEARNING_ADMIN_MATERIALS_STORAGE_KEY = "feeps.el.admin.materials";

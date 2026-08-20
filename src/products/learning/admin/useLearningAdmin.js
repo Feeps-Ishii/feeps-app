@@ -1328,6 +1328,11 @@ export function useLearningAdmin() {
     createCourseAwaitingApi,
     updateCourse,
     togglePublish,
+    // 2026-08-21: publishCourse/getCourseVersionsを**返し忘れていた**ため、CourseManager側では
+    // undefinedになり「公開する」を押すとTypeErrorで落ちていた。呼び出し側はawaitの後に
+    // スピナーを解除する作りなので、例外で止まると「公開中...」のまま永久に戻らなかった。
+    publishCourse,
+    getCourseVersions,
     deleteCourse,
     lessonsByCourse,
     lessonsForCourse,
