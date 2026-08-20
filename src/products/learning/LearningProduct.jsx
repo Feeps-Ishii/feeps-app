@@ -79,8 +79,18 @@ export default function LearningProduct({ subView, goSub, goProduct, role, theme
     setActiveSlideId(slideId || null);
     setActiveFinalTestMode(null);
   }
-  function handleBackToDetail() { window.history.back(); }
-  function handleBackToList() { window.history.back(); }
+  // 2026-08-21 実バグ: window.history.back()だと「1つ前の画面」へ戻るだけなので、
+  // レッスンを次々に進んだあとで「〇〇へ戻る」を押すと**1つ前のレッスンに戻ってしまい、
+  // コースのTOPに行かなかった**。戻り先は履歴の深さではなく画面の構造で決める。
+  function handleBackToDetail() {
+    if (!activeCourse) { window.history.back(); return; }
+    setProductDetailHistory({ kind: "learning", courseId: activeCourse.id });
+    setActiveLesson(null); setActiveSlideId(null); setActiveFinalTestMode(null);
+  }
+  function handleBackToList() {
+    setProductDetailHistory(null);
+    setActiveCourse(null); setActiveLesson(null); setActiveSlideId(null); setActiveFinalTestMode(null);
+  }
   function handleStartFinalTest() {
     if (activeCourse) setProductDetailHistory({ kind: "learning", courseId: activeCourse.id, mode: "test" });
     setActiveLesson(null); setActiveFinalTestMode("test");
