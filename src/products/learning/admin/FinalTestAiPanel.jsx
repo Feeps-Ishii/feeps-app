@@ -62,8 +62,10 @@ export default function FinalTestAiPanel({ course, lessons, existingFinalCount, 
       }
       setPreview(questions);
       setState(saved ? "done" : "error");
+      // 公開済みコースは、再公開しないと受講者に届かない（受講画面は公開時の版を見るため）。
+      const needsRepublish = course.published !== false && Number(course.publishedVersion || 0) > 0;
       setNotice(saved
-        ? `${saved}問を保存しました。内容は「理解度・問題」から編集できます。`
+        ? `${saved}問を保存しました。${needsRepublish ? "受講者に出すには、コース一覧の「変更を受講者へ反映する」を押してください。" : "内容は下の一覧から編集できます。"}`
         : "生成はできましたが、保存に失敗しました。時間をおいてもう一度お試しください。");
       if (saved && onSaved) onSaved();
     } catch (e) {

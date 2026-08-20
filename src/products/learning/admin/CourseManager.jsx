@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from "react";
-import { BadgeCheck, BookOpen, Clock, Eye, EyeOff, FileUp, History, ListChecks, Loader2, Pencil, Plus, PlayCircle, Save, Search, Sparkles, Tag, Trash2, X } from "lucide-react";
+import { AlertCircle, BadgeCheck, BookOpen, Clock, Eye, EyeOff, FileUp, RefreshCw, History, ListChecks, Loader2, Pencil, Plus, PlayCircle, Save, Search, Sparkles, Tag, Trash2, X } from "lucide-react";
 import { Badge, Btn, Card, EmptyState, Field, SectionHead, SkeletonRows, Stat, fieldStyle, T, PRODUCT_ACCENT } from "../../../components/common";
 import { COURSE_CATEGORY_OPTIONS, COURSE_COLOR_OPTIONS, COURSE_LEVEL_OPTIONS, COURSE_VISIBILITY_SCOPE_OPTIONS, EMPTY_COURSE_FORM } from "./LearningAdminCatalog.js";
 import { useLearningAdmin } from "./useLearningAdmin.js";
@@ -178,10 +178,31 @@ export function CourseForm({ mode, form, onChange, onSubmit, onCancel, canEditVi
 function CourseRow({ course, onEdit, onOpenLessons, onSelectCourse, onTogglePublish, onPublish, onDeleteRequest, onPreview, onShowVersions, publishing, companies, companiesError }) {
   const published = course.published !== false;
   const versioned = Number(course.publishedVersion || 0) > 0;
+  // 2026-08-21 実バグ: 公開済みコースへ総合問題を追加しても受講生に出なかった。
+  // 受講画面は「公開時に固定した版」を見るので、公開後の追加・変更は再公開するまで届かない。
+  // 気づけるように、未反映の変更があることをカード上で知らせる。
+  const hasUnpublishedChanges = published && versioned
+    && Boolean(course.contentUpdatedAt)
+    && String(course.contentUpdatedAt) > String(course.publishedAt || "");
   return (
     <Card className="overflow-hidden p-0">
       {/* 2026-08-21: 非公開はバッジだけだと見落とす。カード全体を下書きの見た目にし、
           「受講者には表示されていません」と、次にやること（公開する）を上に出す。 */}
+      {hasUnpublishedChanges && (
+        <div className="flex flex-wrap items-center justify-between gap-2 px-4 py-2.5" style={{ background: T.accentSubtle, borderBottom: `1px solid ${T.accent}33` }}>
+          <span className="flex items-center gap-2 text-xs font-bold" style={{ color: T.accentHover }}>
+            <AlertCircle size={14} />受講者にはまだ古い内容が出ています（公開後にレッスンや問題を変更しました）
+          </span>
+          <Btn
+            size="sm"
+            icon={publishing ? Loader2 : RefreshCw}
+            disabled={publishing}
+            onClick={() => onPublish(course.id)}
+          >
+            {publishing ? "公開中..." : "変更を受講者へ反映する"}
+          </Btn>
+        </div>
+      )}
       {!published && (
         <div className="flex flex-wrap items-center justify-between gap-2 px-4 py-2.5" style={{ background: T.warningSubtle, borderBottom: `1px solid ${T.warning}33` }}>
           <span className="flex items-center gap-2 text-xs font-bold" style={{ color: T.warning }}>

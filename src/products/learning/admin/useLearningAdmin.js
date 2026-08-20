@@ -38,6 +38,9 @@ function normalizeCourse(course) {
     // Feeps公式コース(2026-08-21): Feepsが用意して各社へ展開する教材かどうか。設定はadminのみ。
     official: course.official === true,
     finalTestEnabled: course.finalTestEnabled !== false,
+    // 公開後にレッスン・問題をいじった時刻と、最後に公開した時刻（未反映の変更の判定に使う）
+    contentUpdatedAt: course.contentUpdatedAt || null,
+    publishedAt: course.publishedAt || null,
     updatedAt: course.updatedAt || null,
   };
 }
