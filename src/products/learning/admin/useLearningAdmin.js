@@ -37,6 +37,7 @@ function normalizeCourse(course) {
     targetCompanyIds: Array.isArray(course.targetCompanyIds) ? course.targetCompanyIds : [],
     // Feeps公式コース(2026-08-21): Feepsが用意して各社へ展開する教材かどうか。設定はadminのみ。
     official: course.official === true,
+    finalTestEnabled: course.finalTestEnabled !== false,
     updatedAt: course.updatedAt || null,
   };
 }
@@ -101,6 +102,7 @@ function toCoursePayload(form) {
     targetCompanyIds: Array.isArray(form.targetCompanyIds) ? form.targetCompanyIds : [],
     // Feeps公式コース: Backend側でadmin以外は無視して既存値を維持する。
     official: Boolean(form.official),
+    finalTestEnabled: form.finalTestEnabled !== false,
     updatedAt: new Date().toISOString(),
   };
 }
@@ -123,6 +125,7 @@ function toCourseApiPayload(course) {
     visibilityScope: course.visibilityScope === "companies" ? "companies" : "all",
     targetCompanyIds: Array.isArray(course.targetCompanyIds) ? course.targetCompanyIds : [],
     official: course.official === true,
+    finalTestEnabled: course.finalTestEnabled !== false,
   };
 }
 
@@ -141,6 +144,7 @@ export function courseToForm(course) {
     visibilityScope: course.visibilityScope === "companies" ? "companies" : "all",
     targetCompanyIds: Array.isArray(course.targetCompanyIds) ? course.targetCompanyIds : [],
     official: course.official === true,
+    finalTestEnabled: course.finalTestEnabled !== false,
   };
 }
 

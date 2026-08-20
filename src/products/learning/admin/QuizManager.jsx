@@ -9,6 +9,7 @@ import {
 } from "./LearningAdminCatalog.js";
 import { quizToForm, reviewToForm, useLearningAdmin } from "./useLearningAdmin.js";
 import AdminModal from "./AdminModal.jsx";
+import FinalTestAiPanel from "./FinalTestAiPanel.jsx";
 
 const C = { ink: T.textPrimary, body: T.textSecondary, muted: T.textMuted, line: T.border, canvas: T.bgBase, green: PRODUCT_ACCENT.learning.accent, red: T.danger };
 
@@ -295,6 +296,7 @@ export default function QuizManager({ fixedCourseId }) {
     clearActionError,
   } = useLearningAdmin();
   const initialCourseId = fixedCourseId || courses[0]?.id || "";
+  const fixedCourse = fixedCourseId ? courses.find(c => c.id === fixedCourseId) || null : null;
   const [query, setQuery] = useState("");
   const [courseFilter, setCourseFilter] = useState("");
   const [typeFilter, setTypeFilter] = useState("");
@@ -491,6 +493,18 @@ export default function QuizManager({ fixedCourseId }) {
           </div>
         </div>
       </AdminModal>
+
+      {/* 2026-08-21: 既存コースの総合テストをAIで作る。コースを固定して開いているとき
+          （コース詳細の「理解度・問題」タブ）だけ出す。 */}
+      {fixedCourse && (
+        <div className="mb-5">
+          <FinalTestAiPanel
+            course={fixedCourse}
+            lessons={lessonsForCourse(fixedCourse.id)}
+            existingFinalCount={quizQuestions.filter(q => q.courseId === fixedCourse.id && (q.type === "final" || q.type === "ai_final")).length}
+          />
+        </div>
+      )}
 
       <div className="grid gap-5 xl:grid-cols-2">
         <ReviewPanel lessons={reviewLessons} reviewFlags={reviewFlagsForPanel} onSave={upsertReviewFlag} onDelete={deleteReviewFlag} />

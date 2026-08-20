@@ -44,6 +44,8 @@ export function useLearning(role = "trainee") {
       deleted: course.deleted === true,
       // Feeps公式コース(2026-08-21): 受講者のコース一覧でバッジ・絞り込みに使う。
       official: course.official === true,
+      // 総合テストの有無(2026-08-21)。未設定の既存コースは「あり」。
+      finalTestEnabled: course.finalTestEnabled !== false,
     };
   }
   function getLearnerCatalog() {
@@ -675,8 +677,18 @@ export function useLearning(role = "trainee") {
   function hasPassedFinalTest(courseId) {
     return Boolean(getOfficialFinalTestResult(courseId));
   }
+  // 2026-08-21: 「修了したか」は総合テストの有無で条件が変わる。
+  // テストありは合格が正本、テスト無しは全Lesson完了。判定を1か所にまとめる。
+  function isCourseCompleted(courseId) {
+    if (hasPassedFinalTest(courseId)) return true;
+    if (courseById(courseId)?.finalTestEnabled !== false) return false;
+    const lessons = lessonsForCourse(courseId);
+    if (!lessons.length) return false;
+    const done = getLessonsDone(courseId);
+    return lessons.every(lesson => done[lesson.id]?.completed);
+  }
   function getCourseProgress(courseId) {
-    if (hasPassedFinalTest(courseId)) return 100;
+    if (isCourseCompleted(courseId)) return 100;
     const lessons = lessonsForCourse(courseId);
     if (!lessons.length) return Math.min(90, Number(progress[courseId]?.progress || 0));
     const done = getLessonsDone(courseId);
@@ -688,6 +700,25 @@ export function useLearning(role = "trainee") {
     const done = getLessonsDone(courseId);
     const doneCnt = lessons.filter(lesson => done[lesson.id]?.completed).length;
     const allLessonsDone = lessons.length > 0 && doneCnt >= lessons.length;
+    // 2026-08-21: 総合テストを持たないコースは全Lesson完了で修了。テストが無いのに
+    // 「総合テスト待ち」で止まり、修了できない状態になっていた（実バグ）。
+    const finalTestRequired = courseById(courseId)?.finalTestEnabled !== false;
+    if (!finalTestRequired) {
+      const reviewItemsNoTest = getCourseReviewItems(courseId);
+      const progressNoTest = allLessonsDone ? 100 : getCourseProgress(courseId);
+      return {
+        status: allLessonsDone ? "completed" : (progress[courseId]?.status === "completed" ? "inprogress" : (progress[courseId]?.status || "not_started")),
+        progress: progressNoTest,
+        readyForFinalTest: false,
+        finalTestRequired: false,
+        allLessonsDone,
+        doneCnt,
+        total: lessons.length,
+        latestResult: null,
+        officialResult: null,
+        reviewItems: reviewItemsNoTest,
+      };
+    }
     const latestResult = getLatestFinalTestResult(courseId);
     const officialResult = getOfficialFinalTestResult(courseId);
     const reviewItems = getCourseReviewItems(courseId);
@@ -743,19 +774,19 @@ export function useLearning(role = "trainee") {
     }));
     return saveFinalTestResult(attemptId, selectedAnswers);
   }
-  function getAchievements() { return _loadEvents().filter(e => e.type === "el_completed" && hasPassedFinalTest(e.courseId)); }
+  function getAchievements() { return _loadEvents().filter(e => e.type === "el_completed" && isCourseCompleted(e.courseId)); }
   function getEarnedSkills() {
-    const done = getLearnerCatalog().filter(c => hasPassedFinalTest(c.id));
+    const done = getLearnerCatalog().filter(c => isCourseCompleted(c.id));
     return [...new Set(done.flatMap(c => c.skills))];
   }
   const catalog = getLearnerCatalog();
-  const completed  = catalog.filter(c => hasPassedFinalTest(c.id));
+  const completed  = catalog.filter(c => isCourseCompleted(c.id));
   const inprogress = catalog.filter(c => {
-    if (hasPassedFinalTest(c.id)) return false;
+    if (isCourseCompleted(c.id)) return false;
     const state = getCourseState(c.id).status;
     return ["inprogress", "lessons_completed", "review_recommended", "final_test_failed"].includes(state);
   });
-  const notStarted = catalog.filter(c => !progress[c.id]?.status && !hasPassedFinalTest(c.id));
+  const notStarted = catalog.filter(c => !progress[c.id]?.status && !isCourseCompleted(c.id));
   return {
     progress,
     lessonProgress,

@@ -1031,6 +1031,9 @@ function ElCourseDetail({ course, lrn, onBack, onOpenLesson, onStartFinalTest, o
   const isCompleted = courseState.status === "completed";
   const isInprogress = courseState.status === "inprogress";
   const isFinalWaiting = ["lessons_completed", "review_recommended", "final_test_failed"].includes(courseState.status);
+  // 2026-08-21: 総合テストを行わないコースでは、テストの導線もカードも出さない。
+  // 出しっぱなしにすると「開始できませんでした」で詰まる（実バグ）。
+  const finalTestEnabled = course.finalTestEnabled !== false;
   const nextLesson = lessons.find(l => !lessonsDone[l.id]?.completed);
   const reviewItems = lrn.getCourseReviewItems(course.id);
   const finalPlan = lrn.getFinalTestPlan(course.id);
@@ -1160,6 +1163,7 @@ function ElCourseDetail({ course, lrn, onBack, onOpenLesson, onStartFinalTest, o
           ))}
         </div>
       </Card>
+      {finalTestEnabled && (
       <FinalTestPlanCard
         course={course}
         plan={finalPlan}
@@ -1170,7 +1174,8 @@ function ElCourseDetail({ course, lrn, onBack, onOpenLesson, onStartFinalTest, o
         onStartTest={onStartFinalTest}
         onShowResult={onShowFinalResult}
       />
-      <FinalTestLatestResultCard result={latestFinalResult} lessons={lessons} onOpenLesson={openLesson} />
+      )}
+      {finalTestEnabled && <FinalTestLatestResultCard result={latestFinalResult} lessons={lessons} onOpenLesson={openLesson} />}
       <WeakExercisesCard items={lrn.getCourseWeakItems ? lrn.getCourseWeakItems(course.id) : []} lessons={lessons} onOpenLesson={openLesson} />
       <div className="mb-5">
         <ReviewLessonList
@@ -1938,12 +1943,16 @@ function ElLessonView({ course, lesson, lrn, onBack, onNavigate, onComplete, les
               </div>
               <div>
                 <div className="text-sm font-bold" style={{ color: C.ink }}>レッスン完了</div>
-                <div className="text-xs" style={{ color: C.muted }}>{next ? "次のレッスンへ進みましょう。" : "全Lesson完了。総合テストに合格するとコース修了です。"}</div>
+                <div className="text-xs" style={{ color: C.muted }}>
+                  {next ? "次のレッスンへ進みましょう。"
+                    : course.finalTestEnabled === false ? "全Lesson完了。これでコース修了です。"
+                      : "全Lesson完了。総合テストに合格するとコース修了です。"}
+                </div>
               </div>
             </div>
             {next
               ? <Btn icon={ChevronRight} onClick={() => onNavigate(next)}>次のレッスンへ</Btn>
-              : <Btn icon={Award} onClick={onBack}>総合テストへ進む</Btn>}
+              : <Btn icon={Award} onClick={onBack}>{course.finalTestEnabled === false ? "コースへ戻る" : "総合テストへ進む"}</Btn>}
           </div>
         </div>
       )}

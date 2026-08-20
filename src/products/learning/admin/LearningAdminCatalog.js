@@ -39,6 +39,8 @@ export const EMPTY_COURSE_FORM = {
   targetCompanyIds: [],
   // Feeps公式コース(2026-08-21): Feepsが用意して各社へ展開する教材。設定はadminのみ。
   official: false,
+  // 総合テストの有無(2026-08-21)。既定は「行う」。
+  finalTestEnabled: true,
 };
 
 export const COURSE_VISIBILITY_SCOPE_OPTIONS = [

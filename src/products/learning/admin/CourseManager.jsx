@@ -150,6 +150,17 @@ export function CourseForm({ mode, form, onChange, onSubmit, onCancel, canEditVi
             </span>
           </label>
         )}
+        {/* 2026-08-21: 総合テストを持たないコースへの対応。オフにすると受講画面から総合テストが
+            消え、全レッスンを終えた時点で修了になる（テストが無いのに修了できない状態を防ぐ）。 */}
+        <label className="flex items-start gap-2 rounded-xl p-3 text-sm font-semibold" style={{ background: C.canvas, color: C.ink }}>
+          <input type="checkbox" className="mt-0.5" checked={form.finalTestEnabled !== false} onChange={e => set("finalTestEnabled", e.target.checked)} />
+          <span>
+            総合テストを行う
+            <span className="mt-0.5 block text-[11px] font-normal" style={{ color: C.muted }}>
+              オフにすると、全レッスンを終えた時点で修了になります。問題を用意していないコースはオフにしてください。
+            </span>
+          </span>
+        </label>
         <label className="flex items-center gap-2 rounded-xl p-3 text-sm font-semibold" style={{ background: C.canvas, color: C.ink }}>
           <input type="checkbox" checked={form.published} onChange={e => set("published", e.target.checked)} />
           公開する
@@ -207,6 +218,7 @@ function CourseRow({ course, onEdit, onOpenLessons, onSelectCourse, onTogglePubl
                 <Badge tone="cyan"><span className="inline-flex items-center gap-1"><BadgeCheck size={11} />Feeps公式</span></Badge>
               )}
               <Badge tone={published ? "green" : "amber"}>{published ? "公開中" : "非公開"}</Badge>
+              {course.finalTestEnabled === false && <Badge tone="muted">総合テストなし</Badge>}
               {versioned && <Badge tone="cyan">v{course.publishedVersion}</Badge>}
               <VisibilityBadges course={course} companies={companies} companiesError={companiesError} />
             </div>
