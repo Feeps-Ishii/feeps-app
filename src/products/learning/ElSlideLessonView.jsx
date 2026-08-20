@@ -1463,6 +1463,18 @@ export default function ElSlideLessonView({ course, lesson, lrn, onBack, onNavig
     return found >= 0 ? found : 0;
   });
   const [rightCompact, setRightCompact] = useState(true);
+
+  // 2026-08-21 実バグ: 「次のLessonへ」で移動してもこのコンポーネントは作り直されないため、
+  // slideIndexが前のLessonの位置のまま残り、**新しいLessonの途中（クイズやまとめ）から
+  // 始まっていた。** Lessonが変わったら必ず先頭（表紙）へ戻す。
+  // initialSlideIdが指すスライドがあるときだけそこへ飛ぶ（復習導線からのジャンプ）。
+  useEffect(() => {
+    const found = initialSlideId ? slides.findIndex(s => s.id === initialSlideId) : -1;
+    setSlideIndex(found >= 0 ? found : 0);
+    // slidesは毎回新しい配列なので依存に入れない（入れると毎レンダー先頭へ戻る）。
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [lesson.id, initialSlideId]);
+
   const accent = course.color || PRODUCT_ACCENT.learning.accent;
   const lessonsDone = lrn.getLessonsDone(course.id);
   const completed = !!lessonsDone[lesson.id]?.completed;
