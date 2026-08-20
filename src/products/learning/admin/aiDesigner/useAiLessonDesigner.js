@@ -140,18 +140,22 @@ export function useAiLessonDesigner() {
 
   // STEP2: 1Lesson分のslidesをBedrockで生成し、result.lessons内の該当Lessonへ反映する。
   // まだDBには保存しない(コース自体が未保存のため)。失敗時は黙殺せずstatus="error"にする。
-  async function generateLessonSlides(lessonId) {
+  // extraInstruction: AIと相談モードで「2をもっとやさしく」のように直しを指示されたとき、
+  // その回の生成にだけ効かせる追加指示。講師メモに足して渡す（Lesson自体は書き換えない）。
+  async function generateLessonSlides(lessonId, extraInstruction) {
     const lesson = result?.lessons.find(l => l.id === lessonId);
     if (!lesson) return { ok: false, error: "lesson not found" };
     setSlideGenByLessonId(prev => ({ ...prev, [lessonId]: { status: "loading", notice: "" } }));
     try {
+      const memo = [lesson.teacherMemo || "", String(extraInstruction || "").trim() ? `【今回の指示】${extraInstruction}` : ""]
+        .filter(Boolean).join("\n");
       // 非同期ジョブ化（2026-08-19）。POSTは202+jobIdを返すので完了までポーリングする。
       const data = await runAiJob("/learning/admin/ai-lesson-designer/lessons/generate", {
         courseTitle: result.course.title || "",
         lessonTitle: lesson.title || "",
         lessonSummary: lesson.summary || "",
         lessonGoal: lesson.goal || "",
-        teacherMemo: lesson.teacherMemo || "",
+        teacherMemo: memo,
         difficulty: lesson.difficulty || "",
         estimatedMinutes: lesson.estimatedMinutes,
         // 2026-07-21 Phase3: 演習系kind(terminal/selection_task/ordering_puzzle/fill_blank)を

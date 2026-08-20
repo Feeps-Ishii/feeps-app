@@ -19,22 +19,52 @@
 // 保存後もpublished:falseの下書き。公開はコース管理の「公開する」で行う運用。
 // 到達経路: LearningAdminProduct.jsx の「Learning Studio」タブ。
 // ==========================================================================
-import React, { useEffect, useRef, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
-  AlertCircle, Eye, FileText, Loader2, PlayCircle, Save, Sparkles,
+  AlertCircle, Eye, FileText, Loader2, MessageSquare, PlayCircle, Save, Sparkles,
 } from "lucide-react";
 import { T, NOVA, Field, fieldStyle, Seg, Btn } from "../../../../components/common";
 import { useAiLessonDesigner } from "./useAiLessonDesigner.js";
+import { useCourseChat } from "./useCourseChat.js";
 import { useLearningAdmin } from "../useLearningAdmin.js";
 import CourseWalkthroughPreview from "../CourseWalkthroughPreview.jsx";
+import ChatRail from "./ChatRail.jsx";
 import {
   ACCENT, C, StartChooser, ConditionCard, TodoCard, SummaryCard,
   LessonRow, FinalTestSection, SavedPanel, courseTotals,
 } from "./studioParts.jsx";
 
-// AI相談モードは次のデプロイで追加する（会話→条件抽出のAPIが要るため）。
-// フラグだけ先に置き、入口とヘッダーの切替はこの1箇所で有効化できるようにしておく。
-const CHAT_MODE_ENABLED = false;
+// AI相談モード（2026-08-20実装済み）。入口とヘッダーの切替をここで一括して止められる。
+const CHAT_MODE_ENABLED = true;
+
+// ---- ヘッダーのモード切替（フォーム ⇄ AIと相談） ----
+// 切り替わるのは左レールだけで、右のコース本体は共通（承認モックの設計）。
+function ModeToggle({ mode, onChange }) {
+  const items = [
+    { key: "form", label: "フォーム", Icon: FileText, fg: T.accent },
+    { key: "chat", label: "AIと相談", Icon: MessageSquare, fg: T.aiAccentDeep },
+  ];
+  return (
+    <div className="inline-flex gap-[3px] rounded-[13px] p-[3px]" style={{ background: NOVA.soft }}>
+      {items.map(({ key, label, Icon, fg }) => {
+        const active = mode === key;
+        return (
+          <button
+            key={key}
+            type="button"
+            onClick={() => onChange(key)}
+            className="flex items-center gap-1.5 rounded-[10px] px-3.5 py-[7px] text-[12.5px] transition"
+            style={active
+              ? { background: NOVA.card, color: fg, fontWeight: 700, boxShadow: "0 1px 2px rgba(23,30,50,.06)" }
+              : { color: C.muted, fontWeight: 600 }}
+          >
+            <Icon size={13} />{label}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
 
 // ---- 条件フォーム（「変更」で開く。初回は最初から開いている） ----
 function BriefForm({ brief, setBriefField, onGenerate, genState, canGenerate, onCancel }) {
@@ -109,6 +139,13 @@ export default function AiLessonDesigner({ onOpenCourseManager }) {
 
   const lessons = result?.lessons || [];
   resultRef.current = result;
+
+  // AIと相談モード。会話で条件が固まったら、フォームと同じgenerate()を呼ぶ
+  const applyBrief = useCallback(next => {
+    for (const [key, value] of Object.entries(next || {})) setBriefField(key, value);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  const chat = useCourseChat({ brief, applyBrief, lessons });
   const allGenerated = lessons.length > 0 && lessons.every(l => (l.slides || []).length > 0);
   const reviewedCount = lessons.filter(l => reviewedLessonIds.includes(l.id)).length;
   const allReviewed = lessons.length > 0 && reviewedCount === lessons.length;
@@ -146,9 +183,27 @@ export default function AiLessonDesigner({ onOpenCourseManager }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [generatedFor, lessonCount]);
 
-  async function handleRegenerate(lessonId) {
+  async function handleRegenerate(lessonId, extraInstruction) {
     setReviewedLessonIds(prev => prev.filter(id => id !== lessonId));
-    return generateLessonSlides(lessonId);
+    return generateLessonSlides(lessonId, extraInstruction);
+  }
+
+  // チャットの返答に含まれる指示を実行する（生成の開始／特定Lessonの作り直し）
+  async function handleChatSend(text) {
+    const action = await chat.send(text);
+    if (!action) return;
+    if (action.type === "generate") {
+      chat.note("コースを設計しています。できたところから右に出ます。");
+      generate();
+      return;
+    }
+    if (action.type === "regenerate_lesson") {
+      const target = resultRef.current?.lessons?.[action.lessonIndex - 1];
+      if (!target) return;
+      chat.note(`「${target.title}」を作り直しています。`);
+      await handleRegenerate(target.id, action.instruction);
+      chat.note(`「${target.title}」を作り直しました。右で確認してください。`);
+    }
   }
 
   function toggleReviewed(lessonId) {
@@ -164,7 +219,7 @@ export default function AiLessonDesigner({ onOpenCourseManager }) {
         <StartChooser
           chatEnabled={CHAT_MODE_ENABLED}
           onPickForm={() => { setMode("form"); setBriefOpen(true); }}
-          onPickChat={() => { setMode("chat"); setBriefOpen(true); }}
+          onPickChat={() => { setMode("chat"); setBriefOpen(false); }}
           onSelfBuild={onOpenCourseManager}
         />
       </div>
@@ -187,8 +242,10 @@ export default function AiLessonDesigner({ onOpenCourseManager }) {
           </h2>
           {!result && <p className="mt-1 text-xs" style={{ color: C.muted }}>条件を入れると、AIが構成案とLessonを下書きします。</p>}
         </div>
-        {result && (
-          <div className="flex flex-wrap items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
+          {CHAT_MODE_ENABLED && <ModeToggle mode={mode} onChange={setMode} />}
+          {result && (
+            <>
             <Btn kind="ghost" size="sm" icon={Eye} onClick={() => setPreviewOpen(true)}>受講生の見え方</Btn>
             {saveState !== "done" && (
               <Btn
@@ -200,8 +257,9 @@ export default function AiLessonDesigner({ onOpenCourseManager }) {
                 {saveState === "saving" ? "保存しています…" : "下書きを保存"}
               </Btn>
             )}
-          </div>
-        )}
+            </>
+          )}
+        </div>
       </div>
 
       {genState === "error" && (
@@ -241,18 +299,31 @@ export default function AiLessonDesigner({ onOpenCourseManager }) {
         </div>
       ) : (
         <div className="flex flex-col gap-6 lg:flex-row lg:items-start">
-          {/* ---- 左レール ---- */}
-          <div className="flex w-full flex-col gap-3 lg:w-[300px] lg:shrink-0">
-            <ConditionCard brief={brief} onEdit={() => setBriefOpen(true)} />
-            <TodoCard
-              hasBrief={!!generatedFor}
-              lessonsTotal={lessons.length}
-              lessonsReviewed={reviewedCount}
-              hasFinalTest={finalTestQuestions.length > 0}
-              saved={saveState === "done"}
+          {/* ---- 左レール: モードで入れ替わる。右のコース本体は共通 ---- */}
+          {mode === "chat" ? (
+            <ChatRail
+              messages={chat.messages}
+              onSend={handleChatSend}
+              busy={chat.busy}
+              error={chat.error}
+              readyToGenerate={chat.readyToGenerate}
+              generating={genState === "loading" || anyGenerating}
+              onGenerate={() => { chat.note("コースを設計しています。できたところから右に出ます。"); generate(); }}
+              onShowBrief={() => setBriefOpen(true)}
             />
-            <SummaryCard totals={totals} />
-          </div>
+          ) : (
+            <div className="flex w-full flex-col gap-3 lg:w-[300px] lg:shrink-0">
+              <ConditionCard brief={brief} onEdit={() => setBriefOpen(true)} />
+              <TodoCard
+                hasBrief={!!generatedFor}
+                lessonsTotal={lessons.length}
+                lessonsReviewed={reviewedCount}
+                hasFinalTest={finalTestQuestions.length > 0}
+                saved={saveState === "done"}
+              />
+              <SummaryCard totals={totals} />
+            </div>
+          )}
 
           {/* ---- 本体: できあがっていくコース ---- */}
           <div className="min-w-0 flex-1 space-y-3.5">
@@ -293,6 +364,17 @@ export default function AiLessonDesigner({ onOpenCourseManager }) {
               canGenerate={allGenerated}
               onGenerate={generateFinalTest}
             />
+
+            {/* チャットモードでは左レールが会話に置き換わるので、進捗はここへ出す */}
+            {mode === "chat" && lessons.length > 0 && (
+              <TodoCard
+                hasBrief={!!generatedFor}
+                lessonsTotal={lessons.length}
+                lessonsReviewed={reviewedCount}
+                hasFinalTest={finalTestQuestions.length > 0}
+                saved={saveState === "done"}
+              />
+            )}
 
             {saveState === "done" && <SavedPanel saveNotice={saveNotice} onOpenCourseManager={onOpenCourseManager} />}
           </div>
