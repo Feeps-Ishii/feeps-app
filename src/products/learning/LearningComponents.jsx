@@ -898,6 +898,13 @@ function ElCourseDetail({ course, lrn, onBack, onOpenLesson, onStartFinalTest, o
   function handleStartCourse() { lrn.startCourse(course.id); onOpenLesson(nextLesson || lessons[0]); }
   function handleReviewed(lessonId) { lrn.markLessonReviewed(course.id, lessonId); }
 
+  // コース詳細を開いたら、そのコースのレッスンを取り直す。
+  // 管理画面で教材（ノート・スライド）を直した直後でも最新が見えるようにするため。
+  useEffect(() => {
+    if (lrn.refreshCourseLessons) lrn.refreshCourseLessons(course.id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [course.id]);
+
   const courseDeep = darkenHex(course.color);
   const exerciseCount = lessons.reduce((sum, ls) => sum + countLessonExercises(ls), 0);
 

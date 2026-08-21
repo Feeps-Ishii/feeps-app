@@ -63,6 +63,21 @@ export function useLearning(role = "trainee") {
     _loadDeletedCourseIds().forEach(courseId => byId.delete(courseId));
     return [...byId.values()];
   }
+  // 2026-08-21: レッスンは apiCourses の変化時に1回しか取っていないため、**管理画面で教材を
+  // 直しても、同じセッションで受講画面へ切り替えると古いまま**だった（ノートを保存したのに
+  // 出ない、という形で発覚）。コース詳細を開いたときに、そのコースだけ取り直す。
+  async function refreshCourseLessons(courseId) {
+    if (!courseId) return;
+    try {
+      const items = await apiGet(`/learning/courses/${encodeURIComponent(courseId)}/lessons`);
+      if (Array.isArray(items) && items.length > 0) {
+        setApiLessonsByCourse(prev => ({ ...prev, [courseId]: items }));
+        setLessonCatalogStates(prev => ({ ...prev, [courseId]: "ready" }));
+      }
+    } catch (e) {
+      // 取り直しに失敗しても、既に持っているデータで表示は続ける（画面を壊さない）。
+    }
+  }
   function lessonsForCourse(courseId) {
     const apiLessons = apiLessonsByCourse[courseId];
     if (Array.isArray(apiLessons)) {
@@ -846,6 +861,7 @@ export function useLearning(role = "trainee") {
     getCourseState,
     saveFinalTestResult,
     lessonsForCourse,
+    refreshCourseLessons,
     courseById,
     courseCatalogState,
     lessonCatalogState: courseId => lessonCatalogStates[courseId] || "loading",
