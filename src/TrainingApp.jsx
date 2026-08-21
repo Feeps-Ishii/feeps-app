@@ -45,6 +45,8 @@ const ProjectMatching = lazy(() => import("./products/matching/MatchingProduct.j
 const TalentProduct = lazy(() => import("./products/talent/TalentProduct.jsx"));
 const AdminProduct = lazy(() => import("./products/admin/AdminProduct.jsx"));
 const GrantsProduct = lazy(() => import("./products/grants/GrantsProduct.jsx"));
+// 企業管理モード（2026-08-21新設）。契約・プラン・席・企業マスタを1か所へ。
+const CompanyProduct = lazy(() => import("./products/company/CompanyProduct.jsx"));
 
 // Catches render/chunk-load failures in a lazily loaded Product so one broken chunk
 // (e.g. a deploy while the tab was open) degrades to a reload prompt, not a white screen.
@@ -153,6 +155,9 @@ const PRODUCTS = [
   // 助成金管理: instructor/traineeは業務上利用しないため除外（Backend routes/grants.mjsも
   // isAdmin||isClient以外を全エンドポイントで403にしている、Matching同様の設計）。
   { key: "grants",    label: "助成金管理",     icon: Landmark,      color: PRODUCT_ACCENT.grants.accent, roles: ["client","admin"], modes: ["training"] },
+  // 企業管理（2026-08-21新設）: 契約・プラン・席・企業マスタ。Feeps側の運営機能なので
+  // super adminだけ（モードの出し分けは allowedViewModes / canUseCompanyMode）。
+  { key: "company",   label: "企業管理",       icon: Building2,     color: PRODUCT_ACCENT.admin.accent, roles: ["admin"], modes: ["company"] },
 ];
 
 const PRODUCT_DEFAULT_SUBVIEW = {
@@ -162,11 +167,22 @@ const PRODUCT_DEFAULT_SUBVIEW = {
   matching: "mt_home",
   analytics: "an_home",
   grants: "gr_home",
+  company: "cm_companies",
 };
 
 // 総合ホーム廃止（モード分離Step1）。モードタブ・各種リセット処理の着地先はこの
 // 主Productへ統一する（研修管理モード→研修管理、学習モード→Eラーニング）。
+// モードタブの表示名と配色。モードは「研修管理／学習」に加えて、
+// 2026-08-21から super admin 限定で「企業管理」の3つ。
+const MODE_LABEL = { training: "研修管理", learning: "学習", company: "企業管理" };
+const MODE_ACCENT = {
+  training: PRODUCT_ACCENT.training,
+  learning: PRODUCT_ACCENT.learning,
+  company: PRODUCT_ACCENT.admin,
+};
+
 function getModeLandingProduct(viewMode) {
+  if (viewMode === "company") return "company";
   return viewMode === "learning" ? "learning" : "training";
 }
 
@@ -208,15 +224,21 @@ const EL_NAV = {
   ],
   admin: [
     { sec: null, items: [["el_home", "ホーム", LayoutDashboard]] },
-    // プラン・契約管理（ADR0013「学習: 管理（プラン・契約・AI利用量）」、2026-08-13 Phase1-D新設）。
-    // adminはモードにゲートされないが、この画面自体は学習モード固有の管理機能のため
-    // learning product配下に置く（training product配下の既存admin画面とは別系統）。
-    { sec: "管理", items: [["el_manage", "コース管理", Settings], ["el_students", "受講状況", Users], ["el_plans", "プラン・契約", Receipt]] },
+    // 2026-08-21: プラン・契約は「企業管理」モードへ移設した（ADR0013の置き場所を見直し）。
+    // 「研修のみ契約」の企業の契約を変えるのに学習モードへ入る、というねじれが起きていたため。
+    // 画面(PlansContractsAdmin)自体はlearning/admin配下のまま参照している。
+    { sec: "管理", items: [["el_manage", "コース管理", Settings], ["el_students", "受講状況", Users]] },
     // 2026-08-18 プロジェクト体験(ワークスペーステンプレート)の管理CRUD+AI生成を新設したため、
     // 「案件管理」と同じ並びに「プロジェクト体験管理」を追加(el_devlab_manage_workspace)。
     { sec: "開発演習", items: [["el_devlab_manage", "案件管理", ClipboardList], ["el_devlab_manage_workspace", "プロジェクト体験管理", FolderTree], ["el_devlab_manage_team", "チーム開発案件", Users], ["el_devlab_teams", "チーム", GitBranch]] },
   ],
 };
+
+// 企業管理モードのサイドバー。企業に紐づくものだけを置く（研修/学習の中身は入れない）。
+const COMPANY_NAV = [
+  { sec: null, items: [["cm_companies", "企業マスタ", Building2]] },
+  { sec: "契約", items: [["cm_plans", "契約・プラン・席", Receipt]] },
+];
 
 function productNavigation(product, role) {
   if (product === "home") return [{ sec: null, items: [["home", "Home", Compass]] }];
@@ -226,6 +248,7 @@ function productNavigation(product, role) {
   if (product === "matching") return MATCHING_NAV[role] || MATCHING_NAV.trainee;
   if (product === "analytics") return ANALYTICS_NAV;
   if (product === "grants") return GRANTS_NAV[role] || GRANTS_NAV.client;
+  if (product === "company") return COMPANY_NAV;
   return NAV[role] || NAV.trainee;
 }
 
@@ -1061,7 +1084,7 @@ export default function App() {
     }
   }, [product, role, viewMode, view]);
   useEffect(() => {
-    const allowed = allowedViewModes({ role, contractMode: userProfile?.contractMode });
+    const allowed = allowedViewModes({ role, contractMode: userProfile?.contractMode, adminTier: userProfile?.adminTier });
     if (!allowed.includes(viewMode)) {
       setViewMode(allowed[0] || "training");
     } else if (role === "instructor") {
@@ -1076,7 +1099,7 @@ export default function App() {
         resetToModeLanding("training");
       }
     }
-  }, [role, userProfile?.contractMode]);
+  }, [role, userProfile?.contractMode, userProfile?.adminTier]);
 
   useEffect(() => {
     if (!loggedIn) return;
@@ -1398,6 +1421,7 @@ export default function App() {
     if (view === "placement") return <ProjectMatching role={role} mode="placement" />;
     if (view === "risk") return <RiskBoard />;
     if (view === "awscosts") return <AwsCostDashboard />;
+    if (product === "company") return <CompanyProduct subView={subView} />;
     if (product === "training" && role === "admin" && ["home", "companies", "courses", "users"].includes(view)) return <AdminProduct view={view} go={go} goProduct={goProduct} goSub={goSub} />;
     return <TrainingProduct
       key={`training-${trainingNavigationVersion}`}
@@ -1429,12 +1453,15 @@ export default function App() {
   );
   // 研修管理/学習の2モード分離（ADR 0013-0016、2026-08-13 Phase1-B）。自社が両方契約の
   // trainee/clientと、常に両方使えるadminにのみ表示。instructorはゲートしないため出さない。
-  const modeSwitchVisible = shouldShowModeSwitch({ role, contractMode: userProfile?.contractMode });
+  const modeSwitchVisible = shouldShowModeSwitch({ role, contractMode: userProfile?.contractMode, adminTier: userProfile?.adminTier });
+  const modeTabs = allowedViewModes({ role, contractMode: userProfile?.contractMode, adminTier: userProfile?.adminTier })
+    .map(key => ({ key, label: MODE_LABEL[key] }))
+    .filter(m => m.label);
   const modeSwitch = modeSwitchVisible ? (
     <div className="flex shrink-0 gap-0.5 rounded-[11px] p-[3px]" style={{ background: NOVA.soft }} role="tablist" aria-label="モード切替">
-      {[{ key: "training", label: "研修管理" }, { key: "learning", label: "学習" }].map(m => {
+      {modeTabs.map(m => {
         const active = m.key === viewMode;
-        const pa = PRODUCT_ACCENT[m.key];
+        const pa = MODE_ACCENT[m.key] || PRODUCT_ACCENT.training;
         return (
           <button key={m.key} type="button" role="tab" aria-selected={active} onClick={() => { setViewMode(m.key); resetToModeLanding(m.key); }}
             className="rounded-lg px-3 py-1.5 text-[13px] font-semibold transition"
