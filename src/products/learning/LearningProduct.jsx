@@ -8,7 +8,6 @@ import {
   ElCompletedView,
   ElRecommendView,
   ElSkillsView,
-  ElCertificateView,
   ElCompletionModal,
   ElCourseDetail,
   ElFinalTestView,
@@ -182,7 +181,9 @@ export default function LearningProduct({ subView, goSub, goProduct, role, theme
     el_inprogress: <ElInProgressView {...sp} />,
     el_completed:  <ElCompletedView  {...sp} />,
     el_skills:     <ElSkillsView     {...sp} />,
-    el_cert:       <ElCertificateView {...sp} />,
+    // 2026-08-21: 「修了証」タブは「修了済み」へ統合した。古いURL・履歴から来たときは
+    // 同じ内容が見られるよう修了済みへ寄せる（画面が消えたように見せない）。
+    el_cert:       <ElCompletedView {...sp} />,
     el_manage:     role === "admin" || role === "instructor"
       ? <LearningAdminProduct role={role} />
       : <LearningPlaceholder title="コース管理"  desc="Eラーニングコースを作成・編集・公開できます。" />,

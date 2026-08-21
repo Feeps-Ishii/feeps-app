@@ -473,17 +473,20 @@ function ElInProgressView({ lrn, onStart, onComplete, onOpenDetail }) {
   );
 }
 function ElCompletedView({ lrn, goSub, onOpenDetail }) {
+  // 2026-08-21: 「修了証」タブを廃止してここへ統合した（同じコースの一覧を2タブに分けていた）。
+  // 修了したコースを**バッジとして並べ**、そのカードから修了証をダウンロードできる。
+  const totalHours = lrn.completed.reduce((s, c) => s + courseHours(c.duration), 0);
   return (
     <div>
-      <SectionHead title="修了済み" desc={`${lrn.completed.length}本のコースを修了しました。`} />
+      <SectionHead title="修了済み" desc={`${lrn.completed.length}本のコースを修了しました。修了証はこの画面からダウンロードできます。`} />
       {lrn.completed.length === 0
-        ? <LearningEmptyAction title="修了済みのコースがありません" desc="最初のコースを修了すると、獲得スキルと成長履歴に反映されます。" cta="学習を始める" icon={Award} onClick={() => goSub("el_courses")} themeColor={PRODUCT_ACCENT.learning.accent} />
+        ? <LearningEmptyAction title="修了済みのコースがありません" desc="最初のコースを修了すると、修了証と獲得スキルがここに並びます。" cta="学習を始める" icon={Award} onClick={() => goSub("el_courses")} themeColor={PRODUCT_ACCENT.learning.accent} />
         : (<>
             <div className="mb-4 grid gap-3 sm:grid-cols-3">
               {[
                 { label: "修了コース", value: `${lrn.completed.length}本`, color: C.green },
                 { label: "取得スキル", value: `${lrn.getEarnedSkills().length}件`, color: C.cyan },
-                { label: "推定学習時間", value: `${lrn.completed.reduce((s, c) => s + courseHours(c.duration), 0)}時間`, color: PRODUCT_ACCENT.talent.accent },
+                { label: "推定学習時間", value: `${totalHours}時間`, color: PRODUCT_ACCENT.talent.accent },
               ].map(({ label, value, color }) => (
                 <div key={label} className="rounded-2xl p-4" style={{ background: C.canvas }}>
                   <div className="text-xs font-bold" style={{ color: C.muted }}>{label}</div>
@@ -491,30 +494,49 @@ function ElCompletedView({ lrn, goSub, onOpenDetail }) {
                 </div>
               ))}
             </div>
-            <div className="space-y-3">{lrn.completed.map(c => {
-              const prog = lrn.progress[c.id];
-              const officialResult = lrn.getOfficialFinalTestResult(c.id);
-              return (
-                <Card key={c.id} className="cursor-pointer p-4 transition hover:shadow-md" onClick={() => onOpenDetail && onOpenDetail(c)}>
-                  <div className="flex items-start gap-3">
-                    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl text-sm font-bold text-white" style={{ background: c.color }}>{c.title.slice(0, 2)}</div>
-                    <div className="flex-1 min-w-0">
-                      <div className="flex flex-wrap items-center gap-2">
-                        <span className="text-sm font-bold" style={{ color: C.ink }}>{c.title}</span>
-                        <Badge tone="green">修了</Badge>
-                        <Badge tone="cyan">総合テスト合格</Badge>
+
+            <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+              {lrn.completed.map(course => {
+                const result = lrn.getOfficialFinalTestResult(course.id);
+                const issuedAt = result?.createdAt?.slice(0, 10) || lrn.progress[course.id]?.completedAt?.slice(0, 10) || "";
+                return (
+                  <Card key={course.id} className="flex flex-col overflow-hidden p-0">
+                    {/* 修了バッジ。コースの色で塗り分けるので、並ぶと実績の一覧に見える。 */}
+                    <div className="flex items-center gap-3 p-4" style={{ background: `linear-gradient(140deg, ${course.color}1F, ${course.color}0A)` }}>
+                      <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full text-white" style={{ background: course.color }}>
+                        <Award size={22} />
                       </div>
-                      <div className="mt-0.5 text-xs" style={{ color: C.muted }}>
-                        {officialResult?.createdAt ? `修了日: ${officialResult.createdAt.slice(0, 10)} / ${officialResult.score}点` : (prog?.completedAt ? `修了日: ${prog.completedAt.slice(0, 10)}` : "")}
-                      </div>
-                      <div className="mt-2 flex flex-wrap gap-1">
-                        {c.skills.map(s => <span key={s} className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold" style={{ background: C.greenW, color: C.green }}><Check size={9} />{s}</span>)}
+                      <div className="min-w-0">
+                        <div className="text-sm font-bold leading-snug" style={{ color: C.ink }}>{course.title}</div>
+                        <div className="mt-0.5 flex flex-wrap items-center gap-1.5">
+                          <Badge tone="green">修了</Badge>
+                          {result?.score != null && <Badge tone="cyan">{result.score}点</Badge>}
+                          {course.official && <Badge tone="muted">Feeps公式</Badge>}
+                        </div>
                       </div>
                     </div>
-                  </div>
-                </Card>
-              );
-            })}</div>
+
+                    <div className="flex flex-1 flex-col gap-3 p-4 pt-3">
+                      {issuedAt && <div className="text-xs" style={{ color: C.muted }}>修了日: {issuedAt}</div>}
+                      {course.skills?.length > 0 && (
+                        <div className="flex flex-wrap gap-1">
+                          {course.skills.map(s => (
+                            <span key={s} className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold" style={{ background: C.greenW, color: C.green }}>
+                              <Check size={9} />{s}
+                            </span>
+                          ))}
+                        </div>
+                      )}
+                      <div className="mt-auto flex flex-wrap gap-2">
+                        <Btn size="sm" icon={Download} onClick={() => downloadCertificate(course, result)}>修了証</Btn>
+                        <Btn kind="ghost" size="sm" icon={BookOpen} onClick={() => onOpenDetail && onOpenDetail(course)}>コースを開く</Btn>
+                      </div>
+                    </div>
+                  </Card>
+                );
+              })}
+            </div>
+
             <div className="mt-4 flex justify-center">
               <Btn kind="soft" icon={Sparkles} onClick={() => goSub("el_skills")}>獲得スキルを見る</Btn>
             </div>
@@ -627,79 +649,6 @@ function ElSkillsView({ lrn, goProduct, themeColor }) {
               <Btn style={{ background: PRODUCT_ACCENT.talent.accent, color: "#fff" }} onClick={() => goProduct && goProduct("talent")}>スキル・成長を見る</Btn>
             </div>
           </>)}
-    </div>
-  );
-}
-
-function pdfEscape(text) {
-  return String(text || "").replace(/[^\x20-\x7E]/g, "?").replace(/[\\()]/g, "\\$&");
-}
-function buildSimplePdf(lines) {
-  const content = lines.map((line, index) => `72 ${760 - index * 28} Td (${pdfEscape(line)}) Tj`).join("\n");
-  const stream = `BT\n/F1 18 Tf\n${content}\nET`;
-  const objects = [
-    "1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n",
-    "2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n",
-    "3 0 obj\n<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Resources << /Font << /F1 4 0 R >> >> /Contents 5 0 R >>\nendobj\n",
-    "4 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>\nendobj\n",
-    `5 0 obj\n<< /Length ${stream.length} >>\nstream\n${stream}\nendstream\nendobj\n`,
-  ];
-  let pdf = "%PDF-1.4\n";
-  const offsets = [0];
-  objects.forEach(obj => { offsets.push(pdf.length); pdf += obj; });
-  const xref = pdf.length;
-  pdf += `xref\n0 ${objects.length + 1}\n0000000000 65535 f \n`;
-  offsets.slice(1).forEach(offset => { pdf += `${String(offset).padStart(10, "0")} 00000 n \n`; });
-  pdf += `trailer\n<< /Size ${objects.length + 1} /Root 1 0 R >>\nstartxref\n${xref}\n%%EOF`;
-  return pdf;
-}
-function downloadCertificate(course, result) {
-  const issuedAt = result?.createdAt?.slice(0, 10) || course?.completedAt?.slice?.(0, 10) || new Date().toISOString().slice(0, 10);
-  const pdf = buildSimplePdf([
-    "Feeps One Certificate",
-    `Course: ${course?.title || course?.id}`,
-    `Issued: ${issuedAt}`,
-    result?.score != null ? `Score: ${result.score}` : "Score: -",
-    "This certificate is generated from completed learning records.",
-  ]);
-  const blob = new Blob([pdf], { type: "application/pdf" });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = `feeps-certificate-${course?.id || "course"}.pdf`;
-  document.body.appendChild(a);
-  a.click();
-  a.remove();
-  URL.revokeObjectURL(url);
-}
-function ElCertificateView({ lrn, goSub }) {
-  return (
-    <div>
-      <SectionHead title="修了証" desc="Eラーニングの修了済みコースから修了証を確認できます。" />
-      {lrn.completed.length === 0 ? (
-        <LearningEmptyAction title="修了証はまだありません" desc="コースを修了すると、取得日と対象コースがここに表示されます。" cta="学習を始める" icon={Award} onClick={() => goSub("el_courses")} themeColor={PRODUCT_ACCENT.learning.accent} />
-      ) : (
-        <div className="space-y-3">
-          {lrn.completed.map(course => {
-            const result = lrn.getOfficialFinalTestResult(course.id);
-            const issuedAt = result?.createdAt?.slice(0, 10) || lrn.progress[course.id]?.completedAt?.slice(0, 10) || "-";
-            return (
-              <Card key={course.id} className="p-4">
-                <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                  <div className="min-w-0">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <Badge tone="green">取得済み</Badge>
-                      <h3 className="text-base font-bold" style={{ color: C.ink, letterSpacing: "-0.02em" }}>{course.title}</h3>
-                    </div>
-                    <div className="mt-1 text-xs" style={{ color: C.muted }}>取得日: {issuedAt}{result?.score != null ? ` / ${result.score}点` : ""}</div>
-                  </div>
-                  <Btn icon={Download} onClick={() => downloadCertificate(course, result)}>PDFダウンロード</Btn>
-                </div>
-              </Card>
-            );
-          })}
-        </div>
-      )}
     </div>
   );
 }
@@ -1861,7 +1810,6 @@ export {
   ElCompletedView,
   ElRecommendView,
   ElSkillsView,
-  ElCertificateView,
   ElCompletionModal,
   ElCourseDetail,
   ElFinalTestView,

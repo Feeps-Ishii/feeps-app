@@ -199,7 +199,7 @@ function getModeLandingProduct(viewMode) {
 const EL_NAV = {
   trainee: [
     { sec: null, items: [["el_home", "ホーム", LayoutDashboard]] },
-    { sec: "Eラーニング", items: [["el_courses", "コース一覧", BookOpen], ["el_recommend", "おすすめ", Lightbulb], ["el_inprogress", "学習中", PlayCircle], ["el_completed", "修了済み", Award], ["el_skills", "獲得スキル", Sparkles], ["el_cert", "修了証", CheckCircle2]] },
+    { sec: "Eラーニング", items: [["el_courses", "コース一覧", BookOpen], ["el_recommend", "おすすめ", Lightbulb], ["el_inprogress", "学習中", PlayCircle], ["el_completed", "修了済み", Award], ["el_skills", "獲得スキル", Sparkles]] },
     { sec: "開発演習", items: [["el_devlab", "開発演習", Code2], ["el_devlab_myteam", "チーム開発", GitBranch]] },
   ],
   // 2026-08-18 instructor/adminのEラーニングタブに、受講生本人向けの自己学習導線
@@ -215,7 +215,7 @@ const EL_NAV = {
   ],
   client: [
     { sec: null, items: [["el_home", "ホーム", LayoutDashboard]] },
-    { sec: "学習", items: [["el_courses", "コース一覧", BookOpen], ["el_completed", "修了済み", Award], ["el_cert", "修了証", CheckCircle2]] },
+    { sec: "学習", items: [["el_courses", "コース一覧", BookOpen], ["el_completed", "修了済み", Award]] },
     // 2026-08-19 席（スロット）課金。契約した席を自社社員へ割り当てる（ADR 0019）
     { sec: "契約", items: [["el_seats", "プラン・席の管理", Receipt]] },
     // 2026-08-19 自社社員をアサインしてハンズオン研修する導線。編成と進捗（コミット履歴）の閲覧まで。

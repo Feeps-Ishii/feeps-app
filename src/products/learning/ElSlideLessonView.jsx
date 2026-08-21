@@ -156,7 +156,7 @@ function SlideCover({ lesson, slides, accent }) {
   const exercises = slides.filter(slideNeedsSubmission).length;
 
   return (
-    <div className="-m-8 sm:-m-10">
+    <div className="-m-5 sm:-m-8 lg:-m-10">
       <div className="flex flex-col md:flex-row md:items-stretch">
         <div className="min-w-0 flex-1 p-8 sm:p-10">
           <span className="mb-4 inline-flex items-center rounded-full px-3 py-1.5 text-[11.5px] font-bold" style={{ background: T.accentSubtle, color: accent, letterSpacing: "0.06em" }}>
@@ -212,7 +212,7 @@ function SlideCover({ lesson, slides, accent }) {
 function SlideDivider({ stage }) {
   const v = STAGE_VISUAL[stage] || STAGE_VISUAL.example;
   return (
-    <div className="-m-8 flex flex-col items-center gap-6 rounded-2xl p-10 sm:-m-10 sm:flex-row sm:justify-between sm:p-12"
+    <div className="-m-5 flex flex-col items-center gap-6 rounded-2xl p-7 sm:-m-8 sm:flex-row sm:justify-between sm:p-10 lg:-m-10 lg:p-12"
       style={{ background: `linear-gradient(150deg, ${v.tint} 0%, ${T.bgBase} 64%)` }}>
       <div className="min-w-0">
         <div className="mb-3.5 flex items-center gap-2 text-[12px] font-bold" style={{ color: v.fg, letterSpacing: "0.08em" }}>
@@ -286,9 +286,32 @@ function SectionLabel({ children }) {
 }
 
 function LeftSlideNav({ slides, current, onSelect, accent, pendingIds }) {
+  // スマホでは既定で閉じておく。開いてページを選んだらそのまま閉じる。
+  const [open, setOpen] = useState(false);
+  const currentSlide = slides[current];
+  const currentLabel = currentSlide?.kind === "_cover" ? "はじめに"
+    : currentSlide?.kind === "_divider" ? (STAGE_VISUAL[currentSlide.stage]?.label || "")
+      : currentSlide?.navLabel || currentSlide?.title || "";
   return (
-    <div className="lg:sticky lg:top-6 lg:w-[190px] lg:shrink-0">
-      <SectionLabel>このLessonのページ</SectionLabel>
+    <div className="order-2 lg:order-none lg:sticky lg:top-6 lg:w-[190px] lg:shrink-0">
+      <button
+        type="button"
+        onClick={() => setOpen(v => !v)}
+        aria-expanded={open}
+        className="flex w-full items-center justify-between gap-2 rounded-xl px-3 py-2.5 text-left text-sm font-semibold lg:hidden"
+        style={{ background: "#fff", border: `1px solid ${C.line}`, color: C.ink }}
+      >
+        <span className="min-w-0 truncate">
+          ページ一覧
+          <span className="ml-2 text-xs font-normal" style={{ color: C.muted }}>{currentLabel}</span>
+        </span>
+        <span className="flex shrink-0 items-center gap-1 text-xs" style={{ color: C.muted }}>
+          {slides.length}ページ
+          {open ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+        </span>
+      </button>
+      <div className={`${open ? "mt-2 block" : "hidden"} lg:mt-0 lg:block`}>
+      <div className="hidden lg:block"><SectionLabel>このLessonのページ</SectionLabel></div>
       <div className="space-y-1">
         {slides.map((slide, i) => {
           const active = i === current;
@@ -303,7 +326,7 @@ function LeftSlideNav({ slides, current, onSelect, accent, pendingIds }) {
             <button
               key={slide.id || i}
               type="button"
-              onClick={() => onSelect(i)}
+              onClick={() => { onSelect(i); setOpen(false); }}
               className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-left text-sm transition"
               style={{
                 background: active ? accent : "transparent",
@@ -333,6 +356,7 @@ function LeftSlideNav({ slides, current, onSelect, accent, pendingIds }) {
             </button>
           );
         })}
+      </div>
       </div>
     </div>
   );
@@ -1263,9 +1287,9 @@ function MainSlidePanel({ slides, index, setIndex, accent, lrn, courseId, lesson
   const synthetic = slide?.kind === "_cover" || slide?.kind === "_divider";
   const captionShownInBody = slide?.kind === "image" || synthetic;
   return (
-    <div className="min-w-0 flex-1">
+    <div className="order-1 min-w-0 flex-1 lg:order-none">
       <div
-        className="overflow-hidden rounded-2xl p-8 sm:p-10"
+        className="overflow-hidden rounded-2xl p-5 sm:p-8 lg:p-10"
         style={{ background: "#fff", border: `1px solid ${C.line}` }}
       >
         <div className="flex min-h-[300px] flex-col justify-center">
@@ -1523,7 +1547,10 @@ export default function ElSlideLessonView({ course, lesson, lrn, onBack, onNavig
         </div>
       )}
 
-      <div className="flex flex-col gap-8 lg:flex-row lg:items-start">
+      {/* 2026-08-21 スマホ対応: 縦積みのままだと、スライド本文に着くまでに全ページの一覧を
+          スクロールすることになっていた。スマホでは**本文を最初**に出し、ページ一覧は
+          その下（折りたたみ）へ回す。lg以上は従来どおり左ナビ・本文・右情報の3カラム。 */}
+      <div className="flex flex-col gap-6 lg:flex-row lg:items-start lg:gap-8">
         <LeftSlideNav slides={slides} current={slideIndex} onSelect={setSlideIndex} accent={accent} pendingIds={pendingIds} />
         <MainSlidePanel slides={slides} index={slideIndex} setIndex={setSlideIndex} accent={accent} lrn={lrn} courseId={course.id} lessonId={lesson.id} contentCount={contentSlides.length} />
         <RightSidebar course={course} lesson={lesson} lrn={lrn} idx={idx} lessons={lessons} accent={accent} compact={rightCompact} onToggle={() => setRightCompact(v => !v)} />
