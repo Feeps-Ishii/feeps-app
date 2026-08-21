@@ -842,102 +842,6 @@ function LessonReviewCheck({ course, lesson, lrn }) {
   );
 }
 
-function FinalTestPlanCard({ course, plan, onBuild, onUpdate, onStartTest, onShowResult, latestResult, canStart }) {
-  const [showJson, setShowJson] = useState(false);
-  const targetLessons = plan?.targetLessons || [];
-  const overallLessons = plan?.overallLessons || [];
-  return (
-    <Card className="mb-5 p-5" style={{ background: "rgba(20,163,184,.06)", border: "1px solid rgba(20,163,184,.18)" }}>
-      <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <div className="flex items-center gap-2">
-            <Award size={16} style={{ color: C.green }} />
-            <h3 className="text-base font-bold" style={{ color: C.ink, letterSpacing: "-0.02em" }}>総合テスト出題計画</h3>
-          </div>
-          <p className="mt-1 text-xs" style={{ color: C.muted }}>理解度チェックと復習フラグをもとに、AI呼び出し前の出題プランを作成します。</p>
-        </div>
-        <div className="flex flex-wrap gap-2">
-          <Btn size="sm" icon={RefreshCw} onClick={plan ? onUpdate : onBuild}>{plan ? "計画を更新" : "出題計画を作成"}</Btn>
-          {canStart && <Btn size="sm" icon={Award} onClick={onStartTest}>総合テストを開始</Btn>}
-          {latestResult && <Btn size="sm" kind="ghost" icon={CheckCircle2} onClick={onShowResult}>前回の結果を見る</Btn>}
-        </div>
-      </div>
-      {!plan ? (
-        <div className="rounded-xl bg-white p-4 text-sm" style={{ border: `1px solid ${C.line}`, color: C.muted }}>
-          まだ出題計画はありません。コース終盤で「少し不安」「後で復習したい」を記録してから作成すると、苦手中心の計画になります。
-        </div>
-      ) : (
-        <>
-          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
-            {[
-              ["出題数", `${plan.questionCount}問`, C.green],
-              ["苦手重視率", `${plan.weaknessRatio}%`, C.amber],
-              ["全体確認率", `${plan.overallRatio}%`, C.cyanDeep],
-              ["苦手Lesson", `${targetLessons.length}件`, C.red],
-              ["全体確認Lesson", `${overallLessons.length}件`, C.ink],
-            ].map(([label, value, color]) => (
-              <div key={label} className="rounded-xl bg-white p-3" style={{ border: `1px solid ${C.line}` }}>
-                <div className="text-[11px] font-bold" style={{ color: C.muted }}>{label}</div>
-                <div className="mt-1 text-lg font-bold" style={{ color }}>{value}</div>
-              </div>
-            ))}
-          </div>
-          <div className="mt-4 grid gap-3 md:grid-cols-2">
-            <div className="rounded-xl bg-white p-4" style={{ border: `1px solid ${C.line}` }}>
-              <div className="mb-2 flex items-center justify-between">
-                <span className="text-xs font-bold" style={{ color: C.ink }}>優先復習Lesson</span>
-                <Badge tone="amber">{plan.weaknessQuestions}問</Badge>
-              </div>
-              {targetLessons.length === 0 ? (
-                <p className="text-xs" style={{ color: C.muted }}>復習フラグはありません。全体確認中心で出題します。</p>
-              ) : (
-                <div className="space-y-2">
-                  {targetLessons.slice(0, 4).map(item => (
-                    <div key={item.lessonId} className="flex items-center justify-between gap-2 text-xs">
-                      <span className="min-w-0 truncate font-semibold" style={{ color: C.body }}>{item.lessonTitle}</span>
-                      <div className="flex shrink-0 items-center gap-1">
-                        <Badge tone={item.priority === "high" ? "red" : "amber"}>{item.reason}</Badge>
-                        <span style={{ color: C.muted }}>{item.questionCount}問</span>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-            <div className="rounded-xl bg-white p-4" style={{ border: `1px solid ${C.line}` }}>
-              <div className="mb-2 flex items-center justify-between">
-                <span className="text-xs font-bold" style={{ color: C.ink }}>注意事項</span>
-                <Badge tone={plan.warnings?.length ? "amber" : "green"}>{plan.warnings?.length || 0}件</Badge>
-              </div>
-              {plan.warnings?.length ? (
-                <div className="space-y-1">
-                  {plan.warnings.map(w => <div key={w} className="text-xs" style={{ color: C.amber }}>{w}</div>)}
-                </div>
-              ) : (
-                <p className="text-xs" style={{ color: C.muted }}>総合テスト前の大きな注意事項はありません。</p>
-              )}
-              <div className="mt-3">
-                <div className="mb-1 flex justify-between text-[11px]" style={{ color: C.muted }}>
-                  <span>苦手中心</span><span>{plan.weaknessQuestions}/{plan.questionCount}問</span>
-                </div>
-                <Bar value={plan.questionCount ? Math.round((plan.weaknessQuestions / plan.questionCount) * 100) : 0} tone="amber" />
-              </div>
-            </div>
-          </div>
-          <button onClick={() => setShowJson(v => !v)} className="mt-4 text-xs font-bold" style={{ color: C.green }}>
-            {showJson ? "AIへ渡す予定のデータを閉じる" : "AIへ渡す予定のデータを見る"}
-          </button>
-          {showJson && (
-            <pre className="mt-2 max-h-72 overflow-auto rounded-xl bg-white p-4 text-xs" style={{ border: `1px solid ${C.line}`, color: C.body }}>
-              {JSON.stringify(plan, null, 2)}
-            </pre>
-          )}
-        </>
-      )}
-    </Card>
-  );
-}
-
 function FinalTestLatestResultCard({ result, lessons, onOpenLesson }) {
   if (!result) return null;
   return (
@@ -976,49 +880,50 @@ function FinalTestLatestResultCard({ result, lessons, onOpenLesson }) {
   );
 }
 
-function FinalPreparationCard({ plan, reviewItems, lessons, onOpenLesson, onReviewed }) {
-  if (!plan && reviewItems.length === 0) return null;
-  const targets = plan?.targetLessons?.length ? plan.targetLessons : reviewItems;
+// コース詳細の大きな枠で使う小物（2026-08-21リデザイン）。
+function HeroTag({ children, tone = "plain" }) {
+  const style = tone === "on"
+    ? { background: "rgba(255,255,255,.94)", color: "#1A1C1F", border: "1px solid transparent" }
+    : tone === "off"
+      ? { background: "transparent", color: "rgba(255,255,255,.78)", border: "1px dashed rgba(255,255,255,.45)" }
+      : { background: "rgba(255,255,255,.17)", color: "#fff", border: "1px solid rgba(255,255,255,.26)" };
+  return <span className="rounded-full px-2.5 py-1 text-[11.5px] font-bold" style={style}>{children}</span>;
+}
+
+function HeroFact({ label, children }) {
   return (
-    <Card className="p-5" style={{ background: "#F0FDF4", border: "1px solid #BBF7D0" }}>
-      <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <h3 className="text-base font-bold" style={{ color: C.ink, letterSpacing: "-0.02em" }}>総合テスト前の準備</h3>
-          <p className="mt-1 text-xs" style={{ color: C.muted }}>まず振り返るべきLessonを確認してから、次フェーズのAI総合テストへ進みます。</p>
-        </div>
-        <Badge tone="green">AI総合テストは次フェーズ予定</Badge>
-      </div>
-      <div className="space-y-2">
-        {targets.slice(0, 5).map(item => {
-          const lesson = lessons.find(ls => ls.id === item.lessonId);
-          if (!lesson) return null;
-          return (
-            <div key={item.lessonId} className="flex flex-col gap-3 rounded-xl bg-white p-3 sm:flex-row sm:items-center sm:justify-between" style={{ border: `1px solid ${C.line}` }}>
-              <div className="min-w-0">
-                <div className="flex flex-wrap items-center gap-2">
-                  <span className="text-sm font-bold" style={{ color: C.ink }}>{lesson.title}</span>
-                  <Badge tone={item.priority === "high" || item.reviewLater ? "red" : "amber"}>{item.reason || reviewStatusLabel(item)}</Badge>
-                  {item.reviewed && <Badge tone="green">復習済み</Badge>}
-                </div>
-                <div className="mt-1 text-xs" style={{ color: C.muted }}>
-                  {plan ? `${item.questionCount || 0}問予定` : (item.pageId && item.pageId !== "lesson" ? `対象: ${item.pageId}` : "Lesson全体")}
-                </div>
-              </div>
-              <div className="flex shrink-0 flex-wrap gap-2">
-                <Btn size="sm" kind="ghost" icon={PlayCircle} onClick={() => onOpenLesson(lesson)}>レッスンへ戻る</Btn>
-                {!item.reviewed && <Btn size="sm" kind="soft" icon={CheckCircle2} onClick={() => onReviewed(lesson.id)}>復習済みにする</Btn>}
-              </div>
-            </div>
-          );
-        })}
-      </div>
-      {plan && (
-        <div className="mt-4 rounded-xl bg-white p-3 text-xs" style={{ border: `1px solid ${C.line}`, color: C.body }}>
-          出題計画: 全{plan.questionCount}問 / 苦手中心 {plan.weaknessQuestions}問 / 全体確認 {plan.overallQuestions}問
-        </div>
-      )}
-    </Card>
+    <span className="inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs"
+      style={{ background: "rgba(255,255,255,.13)", border: "1px solid rgba(255,255,255,.22)", color: "rgba(255,255,255,.85)" }}>
+      {label}<b className="font-bold text-white">{children}</b>
+    </span>
   );
+}
+
+// 色を暗くする。ヘッダーのグラデーションと、白パネル上の文字・ボタンに使う。
+// コースの色(course.color)は明るめなので、そのままだと白背景に載せたとき読めない。
+function darkenHex(hex, ratio = 0.42) {
+  const m = /^#?([0-9a-f]{6})$/i.exec(String(hex || ""));
+  if (!m) return "#176B67";
+  const n = parseInt(m[1], 16);
+  const mix = v => Math.max(0, Math.round(v * (1 - ratio)));
+  return `#${[(n >> 16) & 255, (n >> 8) & 255, n & 255].map(mix).map(v => v.toString(16).padStart(2, "0")).join("")}`;
+}
+
+// 演習として数えるスライド種別。正典は ElSlideLessonView.jsx の EXERCISE_KINDS。
+// 4択の確認クイズ(quiz)も受講者から見れば「演習」なのでここでは数える。
+const COURSE_EXERCISE_KINDS = new Set(["quiz", "terminal", "selection_task", "ordering_puzzle", "fill_blank", "interactive_form"]);
+function countLessonExercises(lesson) {
+  return (Array.isArray(lesson?.slides) ? lesson.slides : []).filter(s => COURSE_EXERCISE_KINDS.has(s?.kind)).length;
+}
+function lessonMetaLabel(lesson) {
+  const slides = Array.isArray(lesson?.slides) ? lesson.slides.length : 0;
+  const ex = countLessonExercises(lesson);
+  const parts = [];
+  if (slides) parts.push(`${slides}ページ`);
+  else if (lesson?.duration) parts.push(lesson.duration);
+  if (ex) parts.push(`演習${ex}問`);
+  if (!parts.length && lesson?.summary) return lesson.summary;
+  return parts.join(" ・ ");
 }
 
 function ElCourseDetail({ course, lrn, onBack, onOpenLesson, onStartFinalTest, onShowFinalResult, themeColor = PRODUCT_ACCENT.learning.accent }) {
@@ -1036,268 +941,229 @@ function ElCourseDetail({ course, lrn, onBack, onOpenLesson, onStartFinalTest, o
   const finalTestEnabled = course.finalTestEnabled !== false;
   const nextLesson = lessons.find(l => !lessonsDone[l.id]?.completed);
   const reviewItems = lrn.getCourseReviewItems(course.id);
-  const finalPlan = lrn.getFinalTestPlan(course.id);
   const latestFinalResult = lrn.getLatestFinalTestResult(course.id);
   const TYPE_LABEL = { video: "動画", text: "テキスト", quiz: "テスト" };
   const TYPE_TONE  = { video: "cyan",  text: "muted",   quiz: "amber" };
   function openLesson(ls, slideId) { lrn.startCourse(course.id); lrn.touchLesson(course.id, ls.id); onOpenLesson(ls, slideId); }
   function handleStartCourse() { lrn.startCourse(course.id); onOpenLesson(nextLesson || lessons[0]); }
   function handleReviewed(lessonId) { lrn.markLessonReviewed(course.id, lessonId); }
-  function handleBuildFinalPlan() { lrn.buildFinalTestPlan(course.id); }
+
+  const courseDeep = darkenHex(course.color);
+  const exerciseCount = lessons.reduce((sum, ls) => sum + countLessonExercises(ls), 0);
+
+  // 総合テストの有無は course.finalTestEnabled だけでは決まらない。
+  // **問題が0問なら受験できない**（実際にIT基礎がその状態だった）ので、Backendへ問い合わせる。
+  const [finalSummary, setFinalSummary] = useState(null);
+  useEffect(() => {
+    if (!finalTestEnabled) { setFinalSummary({ enabled: false, available: false, questionCount: 0, passLine: 70 }); return undefined; }
+    let alive = true;
+    setFinalSummary(null);
+    lrn.fetchFinalTestSummary(course.id)
+      .then(res => { if (alive) setFinalSummary(res); })
+      // 取れないときはバッジを出さない（「あり」とも「なし」とも言わない）。
+      .catch(() => { if (alive) setFinalSummary(null); });
+    return () => { alive = false; };
+  }, [course.id, finalTestEnabled]);
+
+  // 残りの目安。学習時間はコース全体の値しか無いので、レッスン数で按分した概算にとどめる。
+  const remainingCount = Math.max(0, lessons.length - doneCnt);
+  const totalMinutes = Math.round((Number(String(course.duration).replace(/[^0-9.]/g, "")) || 0) * 60);
+  const remainingMinutes = lessons.length && totalMinutes ? Math.round((totalMinutes / lessons.length) * remainingCount) : 0;
+  const remainingLabel = isCompleted
+    ? "すべて完了しました"
+    : remainingCount
+      ? `残り${remainingCount}本${remainingMinutes ? ` ・ 約${remainingMinutes}分` : ""}`
+      : "";
+
+  // 進捗パネルのボタン。状態ごとに「次にやること」を1つだけ出す。
+  const canTakeFinalTest = finalTestEnabled && finalSummary?.available && courseState.readyForFinalTest;
+  let primaryAction = null;
+  let secondaryAction = null;
+  let primaryHint = "";
+  if (lessons.length === 0) {
+    primaryAction = null;
+  } else if (isCompleted) {
+    primaryAction = { label: "もう一度見る", onClick: () => openLesson(lessons[0]) };
+  } else if (canTakeFinalTest) {
+    primaryAction = { label: courseState.status === "final_test_failed" ? "総合テストに再挑戦" : "総合テストを受ける", onClick: onStartFinalTest };
+    if (nextLesson) secondaryAction = { label: "レッスンを見直す", onClick: () => openLesson(nextLesson) };
+    primaryHint = finalSummary ? `${finalSummary.questionCount}問 ・ ${finalSummary.passLine}点で合格` : "";
+  } else if (nextLesson) {
+    primaryAction = { label: prog?.status ? "続きから学習する" : "受講を開始する", onClick: handleStartCourse };
+    primaryHint = `次は ${nextLesson.title}`;
+  }
   return (
     <div>
       <button onClick={onBack} className="mb-4 flex items-center gap-1.5 text-sm font-semibold transition hover:opacity-70" style={{ color: C.muted }}>
         <ChevronLeft size={16} />コース一覧へ戻る
       </button>
-      <div className="mb-6 overflow-hidden rounded-2xl" style={{ background: `linear-gradient(135deg, ${course.color} 0%, ${course.color}bb 100%)` }}>
-        <div className="p-6" style={{ background: "rgba(0,0,0,.1)" }}>
-          <div className="flex items-start gap-4">
-            <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl text-xl font-bold text-white" style={{ background: "rgba(255,255,255,.2)" }}>
-              {course.title.slice(0, 2)}
+
+      {/* 2026-08-21 リデザイン（承認モック: mock/course-detail）。
+          受講前に要るもの（概要・コース情報・身につくスキル・進捗）を**ひとつの大きな枠**へ集約する。
+          以前は同じ情報がヘッダー・進捗カード・右3カードに散っていて、縦に長く読む順序も定まらなかった。
+          「このコースの進み方」(6ステップ)と「総合テスト出題計画」はこの画面から外した。 */}
+      <div className="mb-5 overflow-hidden rounded-[20px]" style={{ background: `linear-gradient(140deg, ${courseDeep} 0%, ${course.color} 100%)` }}>
+        <div className="grid gap-6 p-6 sm:p-7 lg:grid-cols-[1fr_262px]">
+          <div className="min-w-0">
+            <div className="flex flex-wrap gap-1.5">
+              <HeroTag>{course.category}</HeroTag>
+              <HeroTag>{course.level}</HeroTag>
+              {course.official && <HeroTag>Feeps公式</HeroTag>}
+              {/* 演習・総合テストの有無をバッジで示す。**無いことも隠さない**（受ける前に分かるように）。 */}
+              <HeroTag tone={exerciseCount > 0 ? "on" : "off"}>{exerciseCount > 0 ? "演習あり" : "演習なし"}</HeroTag>
+              {finalSummary && (
+                <HeroTag tone={finalSummary.available ? "on" : "off"}>
+                  {finalSummary.available ? "総合テストあり" : "総合テストなし"}
+                </HeroTag>
+              )}
+              {isCompleted && <HeroTag tone="on">修了済み</HeroTag>}
             </div>
-            <div className="min-w-0 flex-1">
-              <div className="text-xs font-bold uppercase tracking-widest" style={{ color: "rgba(255,255,255,.7)" }}>{course.category}</div>
-              <h2 className="mt-1 text-2xl font-bold text-white">{course.title}</h2>
-              <div className="mt-1 flex flex-wrap items-center gap-2 text-sm" style={{ color: "rgba(255,255,255,.8)" }}>
-                <span>{course.level}</span><span style={{ color: "rgba(255,255,255,.35)" }}>·</span>
-                <span>{formatCourseHours(course.duration, "約")}</span><span style={{ color: "rgba(255,255,255,.35)" }}>·</span>
-                <span>{lessons.length || course.lessons}レッスン</span>
-              </div>
+
+            <h2 className="mt-3.5 text-[28px] font-bold leading-[1.25] text-white" style={{ letterSpacing: "-0.035em" }}>{course.title}</h2>
+            {course.desc && (
+              <p className="mt-3 text-[13.5px] leading-[1.95]" style={{ color: "rgba(255,255,255,.86)", maxWidth: "56ch" }}>{course.desc}</p>
+            )}
+
+            <div className="mt-4 flex flex-wrap gap-1.5">
+              <HeroFact label="学習時間">{formatCourseHours(course.duration, "約")}</HeroFact>
+              <HeroFact label="レッスン">{`${lessons.length || course.lessons}本`}</HeroFact>
+              {exerciseCount > 0 && <HeroFact label="演習">{`${exerciseCount}問`}</HeroFact>}
+              {finalSummary?.available && (
+                <HeroFact label="総合テスト">{`${finalSummary.questionCount}問 / ${finalSummary.passLine}点で合格`}</HeroFact>
+              )}
             </div>
-            {isCompleted && <div className="shrink-0 rounded-full px-3 py-1 text-xs font-bold" style={{ background: "rgba(255,255,255,.2)", color: "#fff" }}>修了済み ✓</div>}
-            {courseState.status === "lessons_completed" && <div className="shrink-0 rounded-full px-3 py-1 text-xs font-bold" style={{ background: "rgba(255,255,255,.2)", color: "#fff" }}>総合テスト待ち</div>}
-            {courseState.status === "review_recommended" && <div className="shrink-0 rounded-full px-3 py-1 text-xs font-bold" style={{ background: "rgba(255,255,255,.2)", color: "#fff" }}>復習推奨</div>}
-            {courseState.status === "final_test_failed" && <div className="shrink-0 rounded-full px-3 py-1 text-xs font-bold" style={{ background: "rgba(255,255,255,.2)", color: "#fff" }}>再挑戦</div>}
+
+            <div className="mt-5 border-t pt-4" style={{ borderColor: "rgba(255,255,255,.2)" }}>
+              <div className="text-[11.5px] font-bold" style={{ color: "rgba(255,255,255,.72)", letterSpacing: "0.05em" }}>修了すると身につくスキル</div>
+              {course.skills?.length ? (
+                <>
+                  <div className="mt-2 flex flex-wrap gap-1.5">
+                    {course.skills.map(skill => (
+                      <span key={skill} className="inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-bold text-white"
+                        style={{ background: "rgba(255,255,255,.16)", border: "1px solid rgba(255,255,255,.24)" }}>
+                        <Sparkles size={11} />{skill}
+                      </span>
+                    ))}
+                  </div>
+                  <p className="mt-2.5 text-[11.5px]" style={{ color: "rgba(255,255,255,.7)" }}>
+                    修了すると「獲得スキル」と「修了証」に追加され、成長の記録にも残ります。
+                  </p>
+                </>
+              ) : (
+                <p className="mt-2 text-[11.5px] leading-relaxed" style={{ color: "rgba(255,255,255,.72)" }}>
+                  このコースには取得スキルが設定されていません。修了すると「修了済み」と「修了証」には残りますが、獲得スキルには追加されません。
+                </p>
+              )}
+            </div>
           </div>
-          {(isInprogress || isCompleted || isFinalWaiting) && (
-            <div className="mt-4">
-              <div className="mb-1.5 flex justify-between text-sm" style={{ color: "rgba(255,255,255,.8)" }}>
-                <span>進捗</span><span className="font-bold">{pct}%（{doneCnt}/{lessons.length} レッスン）</span>
+
+          {/* 進捗はバーをやめて数字で見せる。残り何本かはレッスン単位の目盛りで示す。 */}
+          <div className="self-start rounded-2xl p-5 text-center" style={{ background: "rgba(255,255,255,.97)", boxShadow: "0 12px 30px rgba(9,32,30,.22)" }}>
+            <div className="text-[46px] font-bold leading-none tabular-nums" style={{ color: courseDeep, letterSpacing: "-0.045em" }}>{pct}%</div>
+            <div className="mt-1.5 text-[13px] font-bold" style={{ color: C.ink }}>{doneCnt} / {lessons.length} レッスン完了</div>
+            {remainingLabel && <div className="mt-0.5 text-[11.5px]" style={{ color: C.muted }}>{remainingLabel}</div>}
+            {lessons.length > 0 && lessons.length <= 24 && (
+              <div className="mt-3.5 flex flex-wrap justify-center gap-1">
+                {lessons.map((ls, i) => (
+                  <span key={ls.id || i} className="h-1.5 w-6 rounded-full"
+                    style={{ background: lessonsDone[ls.id]?.completed ? course.color : C.line2 }} />
+                ))}
               </div>
-              <div className="h-2 rounded-full" style={{ background: "rgba(255,255,255,.25)" }}>
-                <div className="h-full rounded-full transition-all" style={{ width: `${pct}%`, background: "#fff" }} />
-              </div>
+            )}
+            <div className="mt-4 space-y-2">
+              {primaryAction && (
+                <button onClick={primaryAction.onClick}
+                  className="w-full rounded-xl px-4 py-2.5 text-[13px] font-bold text-white transition hover:opacity-90"
+                  style={{ background: courseDeep }}>
+                  {primaryAction.label}
+                </button>
+              )}
+              {secondaryAction && (
+                <button onClick={secondaryAction.onClick}
+                  className="w-full rounded-xl px-4 py-2 text-xs font-bold transition hover:bg-black/[.04]"
+                  style={{ border: `1px solid ${C.line2}`, color: C.body }}>
+                  {secondaryAction.label}
+                </button>
+              )}
             </div>
-          )}
-          <div className="mt-4">
-            {!prog?.status && lessons.length > 0 && (
-              <button onClick={handleStartCourse} className="rounded-xl px-5 py-2.5 text-sm font-bold text-white transition hover:opacity-90"
-                style={{ background: "rgba(255,255,255,.22)", border: "1.5px solid rgba(255,255,255,.45)" }}>
-                <PlayCircle size={15} className="mr-1.5 inline" />受講を開始する
-              </button>
-            )}
-            {isInprogress && nextLesson && (
-              <button onClick={handleStartCourse} className="rounded-xl px-5 py-2.5 text-sm font-bold text-white transition hover:opacity-90"
-                style={{ background: "rgba(255,255,255,.22)", border: "1.5px solid rgba(255,255,255,.45)" }}>
-                <PlayCircle size={15} className="mr-1.5 inline" />続きから学習する
-              </button>
-            )}
-            {isCompleted && lessons.length > 0 && (
-              <button onClick={() => openLesson(lessons[0])} className="rounded-xl px-5 py-2.5 text-sm font-bold text-white transition hover:opacity-90"
-                style={{ background: "rgba(255,255,255,.22)", border: "1.5px solid rgba(255,255,255,.45)" }}>
-                <BookOpen size={15} className="mr-1.5 inline" />復習する
-              </button>
-            )}
-            {courseState.status === "lessons_completed" && (
-              <button onClick={onStartFinalTest} className="rounded-xl px-5 py-2.5 text-sm font-bold text-white transition hover:opacity-90"
-                style={{ background: "rgba(255,255,255,.22)", border: "1.5px solid rgba(255,255,255,.45)" }}>
-                <Award size={15} className="mr-1.5 inline" />総合テストへ進む
-              </button>
-            )}
-            {courseState.status === "review_recommended" && (
-              <button onClick={onStartFinalTest} className="rounded-xl px-5 py-2.5 text-sm font-bold text-white transition hover:opacity-90"
-                style={{ background: "rgba(255,255,255,.22)", border: "1.5px solid rgba(255,255,255,.45)" }}>
-                <RefreshCw size={15} className="mr-1.5 inline" />復習して総合テストへ
-              </button>
-            )}
-            {courseState.status === "final_test_failed" && (
-              <button onClick={onStartFinalTest} className="rounded-xl px-5 py-2.5 text-sm font-bold text-white transition hover:opacity-90"
-                style={{ background: "rgba(255,255,255,.22)", border: "1.5px solid rgba(255,255,255,.45)" }}>
-                <RefreshCw size={15} className="mr-1.5 inline" />総合テストに再挑戦
-              </button>
-            )}
+            {primaryHint && <div className="mt-2 text-[11.5px]" style={{ color: C.muted }}>{primaryHint}</div>}
           </div>
         </div>
       </div>
-      <LearningExperienceFlow
-        compact
-        className="mb-5"
-        activeKey={isCompleted || ["lessons_completed", "final_test_failed"].includes(courseState.status)
-          ? "final"
-          : courseState.status === "review_recommended" ? "review" : "explanation"}
-      />
-      {isFinalWaiting && (
-        <Card className="mb-5 p-4" style={{ background: courseState.status === "final_test_failed" ? C.redW : C.amberW, borderColor: courseState.status === "final_test_failed" ? "#FCA5A5" : "#FCD34D" }}>
+
+      {/* 総合テストで伝えることがあるときだけ帯を出す（問題が未登録・不合格） */}
+      {finalTestEnabled && finalSummary && !finalSummary.available && courseState.allLessonsDone && (
+        <Card className="mb-5 p-4" style={{ background: C.amberW, borderColor: "#FCD34D" }}>
           <div className="flex items-start gap-3">
-            <AlertCircle size={18} style={{ color: courseState.status === "final_test_failed" ? C.red : C.amber }} />
+            <AlertCircle size={18} style={{ color: C.amber }} />
             <div>
-              <div className="text-sm font-bold" style={{ color: C.ink }}>
-                {courseState.status === "final_test_failed" ? "総合テストは不合格です。復習して再挑戦してください。" : courseState.status === "review_recommended" ? "総合テスト前に復習した方がいいLessonがあります。" : "全Lesson完了。総合テストに合格するとコース修了です。"}
-              </div>
-              <p className="mt-1 text-xs" style={{ color: C.body }}>復習対象があっても総合テストは受験できます。</p>
+              <div className="text-sm font-bold" style={{ color: C.ink }}>総合テストの問題がまだ登録されていません。</div>
+              <p className="mt-1 text-xs" style={{ color: C.body }}>管理者が問題を登録すると受験できるようになります。</p>
             </div>
           </div>
         </Card>
       )}
-      <Card className="mb-5 p-5">
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <div>
-            <div className="text-sm font-bold" style={{ color: C.ink }}>コース進捗</div>
-            <div className="mt-1 text-xs" style={{ color: C.muted }}>{doneCnt} / {lessons.length} Lessons</div>
-          </div>
-          <div className="text-2xl font-bold" style={{ color: course.color }}>{pct}%</div>
-        </div>
-        <div className="mt-3"><Bar value={pct} tone={isCompleted ? "green" : "cyan"} /></div>
-      </Card>
-      {/* 2026-08-21: ここは「クラウドスキル +20」などの固定文言を並べていた。コースの内容と
-          無関係な嘘になるので、**そのコースに登録されている取得スキルだけ**を出す。
-          スキルが未設定のコースでは、その事実をそのまま書く（架空の効果を約束しない）。 */}
-      <Card className="mb-5 p-5" style={{ background: "#7C3AED0D", border: "1px solid #7C3AED20" }}>
-        <div className="mb-3 flex items-center gap-2">
-          <Award size={16} style={{ color: PRODUCT_ACCENT.talent.accent }} />
-          <h3 className="text-base font-bold" style={{ color: PRODUCT_ACCENT.talent.accent, letterSpacing: "-0.02em" }}>このコースを修了すると</h3>
-        </div>
-        {course.skills?.length ? (
-          <>
-            <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
-              {course.skills.map(skill => (
-                <div key={skill} className="flex items-center gap-2 rounded-xl bg-white px-3 py-2 text-sm" style={{ color: C.body, border: `1px solid ${C.line}` }}>
-                  <CheckCircle2 size={14} style={{ color: PRODUCT_ACCENT.talent.accent }} />
-                  <span className="font-semibold">{skill}</span>
-                </div>
-              ))}
+      {finalTestEnabled && courseState.status === "final_test_failed" && (
+        <Card className="mb-5 p-4" style={{ background: C.redW, borderColor: "#FCA5A5" }}>
+          <div className="flex items-start gap-3">
+            <AlertCircle size={18} style={{ color: C.red }} />
+            <div>
+              <div className="text-sm font-bold" style={{ color: C.ink }}>総合テストは不合格です。復習して再挑戦してください。</div>
+              <p className="mt-1 text-xs" style={{ color: C.body }}>下の「復習した方がいいレッスン」から戻れます。</p>
             </div>
-            <p className="mt-3 text-xs" style={{ color: C.muted }}>
-              修了すると「獲得スキル」と「修了証」に追加され、成長の記録にも残ります。
-            </p>
-          </>
-        ) : (
-          <p className="text-xs leading-relaxed" style={{ color: C.body }}>
-            このコースには取得スキルが設定されていません。修了すると「修了済み」と「修了証」には残りますが、獲得スキルには追加されません。
-          </p>
-        )}
-      </Card>
-      {finalTestEnabled && (
-      <FinalTestPlanCard
-        course={course}
-        plan={finalPlan}
-        latestResult={latestFinalResult}
-        canStart={courseState.readyForFinalTest || !!finalPlan}
-        onBuild={handleBuildFinalPlan}
-        onUpdate={handleBuildFinalPlan}
-        onStartTest={onStartFinalTest}
-        onShowResult={onShowFinalResult}
-      />
+          </div>
+        </Card>
       )}
-      {finalTestEnabled && <FinalTestLatestResultCard result={latestFinalResult} lessons={lessons} onOpenLesson={openLesson} />}
-      <WeakExercisesCard items={lrn.getCourseWeakItems ? lrn.getCourseWeakItems(course.id) : []} lessons={lessons} onOpenLesson={openLesson} />
+
+      <Card className="mb-5 p-5">
+        <h3 className="mb-4 font-bold" style={{ color: C.ink }}>レッスン一覧</h3>
+        {lessons.length === 0
+          ? <div className="py-4 text-center text-sm" style={{ color: C.muted }}>レッスンはまだ登録されていません。</div>
+          : <div className="space-y-2">
+              {lessons.map((ls, idx) => {
+                const done = !!lessonsDone[ls.id]?.completed;
+                const current = !done && nextLesson?.id === ls.id && !isCompleted;
+                const review = lrn.getLessonReview(course.id, ls.id);
+                const stateTone = done ? "green" : current ? "cyan" : "muted";
+                const stateLabel = done ? "完了" : current ? "学習中" : "未受講";
+                const meta = lessonMetaLabel(ls);
+                return (
+                  <button key={ls.id} onClick={() => openLesson(ls)}
+                    className="flex w-full items-center gap-3 rounded-xl p-3 text-left transition hover:bg-gray-50"
+                    style={{ border: `1px solid ${done ? C.green + "30" : current ? C.cyan + "35" : C.line2}`, background: done ? `${C.green}07` : current ? `${C.cyan}08` : "#fff" }}>
+                    <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-xs font-bold"
+                      style={{ background: done ? C.greenW : current ? C.wash : C.canvas, color: done ? C.green : current ? C.cyanDeep : C.muted }}>
+                      {done ? <Check size={14} /> : current ? <PlayCircle size={14} /> : idx + 1}
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className="text-sm font-semibold" style={{ color: done ? C.muted : C.ink }}>{ls.title}</span>
+                        <Badge tone={stateTone}>{stateLabel}</Badge>
+                        {review && <Badge tone={reviewStatusTone(review)}>{reviewStatusLabel(review)}</Badge>}
+                        {review?.reviewed && <Badge tone="green">復習済み</Badge>}
+                      </div>
+                      {meta && <div className="mt-0.5 text-xs" style={{ color: C.muted }}>{meta}</div>}
+                    </div>
+                    {done ? <CheckCircle2 size={18} style={{ color: C.green }} /> : <ChevronRight size={16} style={{ color: C.faint }} />}
+                  </button>
+                );
+              })}
+            </div>}
+      </Card>
+
+      {/* ここから下は「やったあとに見るもの」。実績が無いときは各カードが自分で消える。 */}
       <div className="mb-5">
         <ReviewLessonList
-          title="復習した方がいいLesson"
-          desc="「少し不安」「後で復習したい」を付けたLessonです。総合テスト前に見直しましょう。"
+          title="復習した方がいいレッスン"
+          desc="「少し不安」「後で復習したい」を付けたレッスンです。まとめて見直せます。"
           lessons={lessons}
           items={reviewItems}
           onOpenLesson={openLesson}
           onReviewed={handleReviewed}
         />
       </div>
-      <div className="grid gap-5 lg:grid-cols-3">
-        <div className="space-y-5 lg:col-span-2">
-          <Card className="p-5">
-            <h3 className="mb-2 font-bold" style={{ color: C.ink }}>コース概要</h3>
-            <p className="text-sm leading-relaxed" style={{ color: C.body }}>{course.desc}</p>
-          </Card>
-          <Card className="p-5">
-            <h3 className="mb-4 font-bold" style={{ color: C.ink }}>レッスン一覧</h3>
-            {lessons.length === 0
-              ? <div className="py-4 text-center text-sm" style={{ color: C.muted }}>レッスンはまだ登録されていません。</div>
-              : <div className="space-y-2">
-                  {lessons.map((ls, idx) => {
-                    const done = !!lessonsDone[ls.id]?.completed;
-                    const current = !done && nextLesson?.id === ls.id && !isCompleted;
-                    const review = lrn.getLessonReview(course.id, ls.id);
-                    const stateTone = done ? "green" : current ? "cyan" : "muted";
-                    const stateLabel = done ? "完了" : current ? "学習中" : "未受講";
-                    return (
-                      <button key={ls.id} onClick={() => openLesson(ls)}
-                        className="flex w-full items-center gap-3 rounded-xl p-3 text-left transition hover:bg-gray-50"
-                        style={{ border: `1px solid ${done ? C.green + "30" : current ? C.cyan + "35" : C.line2}`, background: done ? `${C.green}07` : current ? `${C.cyan}08` : "#fff" }}>
-                        <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-xs font-bold"
-                          style={{ background: done ? C.greenW : current ? C.wash : C.canvas, color: done ? C.green : current ? C.cyanDeep : C.muted }}>
-                          {done ? <Check size={14} /> : current ? <PlayCircle size={14} /> : idx + 1}
-                        </div>
-                        <div className="min-w-0 flex-1">
-                          <div className="flex flex-wrap items-center gap-2">
-                            <span className="text-sm font-semibold" style={{ color: done ? C.muted : C.ink }}>{ls.title}</span>
-                            <Badge tone={TYPE_TONE[ls.type]}>{TYPE_LABEL[ls.type]}</Badge>
-                            <Badge tone={stateTone}>{stateLabel}</Badge>
-                            {review && <Badge tone={reviewStatusTone(review)}>{reviewStatusLabel(review)}</Badge>}
-                            {review?.reviewed && <Badge tone="green">復習済み</Badge>}
-                          </div>
-                          <div className="mt-0.5 text-xs" style={{ color: C.muted }}>{ls.duration} · {ls.summary}</div>
-                        </div>
-                        {done ? <CheckCircle2 size={18} style={{ color: C.green }} /> : <ChevronRight size={16} style={{ color: C.faint }} />}
-                      </button>
-                    );
-                  })}
-                </div>}
-          </Card>
-          {(pct >= 80 || doneCnt >= Math.max(0, lessons.length - 1)) && (
-            <ReviewLessonList
-              title="総合テスト前に振り返る内容"
-              desc="コース終盤で見直しておきたいLessonです。復習済みにするとこの一覧から外れます。"
-              lessons={lessons}
-              items={reviewItems}
-              onOpenLesson={openLesson}
-              onReviewed={handleReviewed}
-            />
-          )}
-          {(pct >= 80 || doneCnt >= Math.max(0, lessons.length - 1)) && (
-            <FinalPreparationCard
-              plan={finalPlan}
-              reviewItems={reviewItems}
-              lessons={lessons}
-              onOpenLesson={openLesson}
-              onReviewed={handleReviewed}
-            />
-          )}
-        </div>
-        <div className="space-y-5">
-          <Card className="p-5">
-            <h3 className="mb-3 font-bold" style={{ color: C.ink }}>習得できるスキル</h3>
-            <div className="flex flex-wrap gap-1.5">
-              {course.skills.map(s => (
-                <span key={s} className="inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-semibold"
-                  style={{ background: `${course.color}14`, color: course.color }}>
-                  <Sparkles size={10} />{s}
-                </span>
-              ))}
-            </div>
-          </Card>
-          <Card className="p-5" style={{ background: "#7C3AED0D", border: "1px solid #7C3AED20" }}>
-            <h3 className="mb-3 text-sm font-bold" style={{ color: PRODUCT_ACCENT.talent.accent }}>このコースを修了すると</h3>
-            <div className="space-y-2">
-              {["スキル・成長に自動反映", "成長履歴へ記録", "案件用スキルシートに反映", "将来の案件マッチングに活用"].map(t => (
-                <div key={t} className="flex items-center gap-2 text-sm">
-                  <Check size={13} style={{ color: PRODUCT_ACCENT.talent.accent }} />
-                  <span style={{ color: C.body }}>{t}</span>
-                </div>
-              ))}
-            </div>
-          </Card>
-          <Card className="p-5">
-            <h3 className="mb-3 font-bold" style={{ color: C.ink }}>コース情報</h3>
-            <div className="space-y-2">
-              {[["カテゴリ", course.category], ["難易度", course.level], ["学習時間", formatCourseHours(course.duration, "約")], ["レッスン数", `${lessons.length || course.lessons}本`]].map(([l, v]) => (
-                <div key={l} className="flex items-center justify-between text-sm">
-                  <span style={{ color: C.muted }}>{l}</span>
-                  <span className="font-semibold" style={{ color: C.ink }}>{v}</span>
-                </div>
-              ))}
-            </div>
-          </Card>
-        </div>
-      </div>
+      <WeakExercisesCard items={lrn.getCourseWeakItems ? lrn.getCourseWeakItems(course.id) : []} lessons={lessons} onOpenLesson={openLesson} />
+      {finalTestEnabled && <FinalTestLatestResultCard result={latestFinalResult} lessons={lessons} onOpenLesson={openLesson} />}
     </div>
   );
 }

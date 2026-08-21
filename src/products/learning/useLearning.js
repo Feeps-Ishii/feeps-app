@@ -581,6 +581,12 @@ export function useLearning(role = "trainee") {
   function getFinalTestPlan(courseId) {
     return finalTestPlans[courseId] || null;
   }
+  // 2026-08-21: コース詳細で「総合テストあり/なし」を正しく出すために、受験前に問題数と
+  // 合格ラインを取る。**finalTestEnabledがtrueでも問題が0問なら受験できない**ので、
+  // 「あり」と言い切る前にBackendへ確認する（実際にIT基礎で0問のまま「あり」になっていた）。
+  async function fetchFinalTestSummary(courseId) {
+    return apiGet(`/learning/courses/${encodeURIComponent(courseId)}/final-test/summary`);
+  }
   function saveFinalTestPlan(courseId, plan) {
     const now = new Date().toISOString();
     const next = {
@@ -825,6 +831,7 @@ export function useLearning(role = "trainee") {
     markLessonReviewed,
     buildFinalTestPlan,
     getFinalTestPlan,
+    fetchFinalTestSummary,
     saveFinalTestPlan,
     clearFinalTestPlan,
     buildFinalTestQuestions,
