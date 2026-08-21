@@ -7,7 +7,7 @@ import {
 } from "lucide-react";
 import { Card, Badge, Btn, EmptyState, SectionHead, ProductNavCard, T, PRODUCT_ACCENT, PRISM } from "../../components/common";
 import ElSlideLessonView from "./ElSlideLessonView.jsx";
-import LearningMagazineHome, { LearningStatusHeader } from "./LearningMagazineHome.jsx";
+import LearningMagazineHome from "./LearningMagazineHome.jsx";
 import LearningExperienceFlow from "./LearningExperienceFlow.jsx";
 
 // Learner-side palette: legacy key names kept, values sourced from tokens.
@@ -54,7 +54,15 @@ function getLearningResume(lrn) {
       const m = getLearningCourseMetrics(lrn, course);
       const saved = lrn.progress[course.id]?.lastLessonId;
       const last = m.lessons.find(l => l.id === saved);
-      return { course, lesson: last || m.nextLesson, pct: m.pct, at: lrn.progress[course.id]?.lastAccessedAt || lrn.progress[course.id]?.startedAt || "" };
+      // 2026-08-21: Homeの「前回の続き」1行で残りを伝えるため、残レッスン数と概算時間も返す。
+      // 学習時間はコース全体の値しか無いので、レッスン数で按分した目安にとどめる。
+      const remainingCount = Math.max(0, m.lessons.length - m.doneCnt);
+      const totalMinutes = Math.round((Number(String(course.duration).replace(/[^0-9.]/g, "")) || 0) * 60);
+      const remainingMinutes = m.lessons.length && totalMinutes ? Math.round((totalMinutes / m.lessons.length) * remainingCount) : 0;
+      const remainingLabel = remainingCount
+        ? `残り${remainingCount}本${remainingMinutes ? `・約${remainingMinutes}分` : ""}`
+        : "";
+      return { course, lesson: last || m.nextLesson, pct: m.pct, remainingLabel, at: lrn.progress[course.id]?.lastAccessedAt || lrn.progress[course.id]?.startedAt || "" };
     })
     .filter(x => x.lesson);
   candidates.sort((a, b) => String(b.at).localeCompare(String(a.at)));
@@ -142,6 +150,41 @@ function LearningPlaceholder({ title, desc }) {
     </div>
   );
 }
+// 2026-08-21: Homeの一番上に置く「前回の続き」1行（承認モック: mock/learning-home）。
+// 以前は大きなヘッダー・大きな進捗カード・ナビカード4枚が並んでいて、
+// 学習を再開するまでにスクロールが要った。1行に集約して最初のクリックまでを短くする。
+function ResumeBar({ resume, onOpenDetail, goSub, themeColor }) {
+  const hasResume = Boolean(resume);
+  return (
+    <div className="mb-3.5 flex flex-wrap items-center gap-3.5 rounded-2xl p-4" style={{ background: "#fff", border: `1px solid ${C.line}` }}>
+      <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl" style={{ background: `${themeColor}1A`, color: themeColor }}>
+        <PlayCircle size={20} />
+      </div>
+      <div className="min-w-[200px] flex-1">
+        <div className="text-[11px] font-bold" style={{ color: C.muted, letterSpacing: "0.08em" }}>前回の続き</div>
+        {hasResume ? (
+          <>
+            <div className="mt-0.5 text-[14.5px] font-bold" style={{ color: C.ink }}>
+              {resume.course.title} ・ {resume.lesson.title}
+            </div>
+            <div className="mt-0.5 text-xs" style={{ color: C.muted }}>
+              進捗 {resume.pct}%{resume.remainingLabel ? ` ・ ${resume.remainingLabel}` : ""}
+            </div>
+          </>
+        ) : (
+          <>
+            <div className="mt-0.5 text-[14.5px] font-bold" style={{ color: C.ink }}>最初の1レッスンを始めましょう</div>
+            <div className="mt-0.5 text-xs" style={{ color: C.muted }}>コースを開くと、次回からここに続きが出ます。</div>
+          </>
+        )}
+      </div>
+      <Btn icon={PlayCircle} onClick={() => (hasResume ? onOpenDetail(resume.course) : goSub("el_courses"))}>
+        {hasResume ? "続きから学習する" : "コースを選ぶ"}
+      </Btn>
+    </div>
+  );
+}
+
 function LearningOverview({ lrn, goSub, goProduct, onOpenDetail, role, learningPlan, themeColor = PRODUCT_ACCENT.learning.accent }) {
   const isCreator = role === "instructor" || role === "admin";
   // プラン制限バナー（ADR0014）。マガジンレイアウト内の脇カード「プランを見る」から開く
@@ -166,8 +209,7 @@ function LearningOverview({ lrn, goSub, goProduct, onOpenDetail, role, learningP
   const canUseDevLab = role === "trainee" || role === "instructor" || role === "admin";
   return (
     <div>
-      <LearningStatusHeader role={role} resume={resume} completedCount={lrn.completed.length}
-        inprogressCount={lrn.inprogress.length} goSub={goSub} onOpenDetail={onOpenDetail} />
+      <ResumeBar resume={resume} onOpenDetail={onOpenDetail} goSub={goSub} themeColor={themeColor} />
 
       <LearningMagazineHome role={role} isCreator={isCreator} canUseDevLab={canUseDevLab} learningPlan={learningPlan}
         goSub={goSub} goProduct={goProduct} onShowPlanNotice={() => setShowPlanNotice(true)}
@@ -178,47 +220,6 @@ function LearningOverview({ lrn, goSub, goProduct, onOpenDetail, role, learningP
           <button type="button" onClick={() => setShowPlanNotice(false)} className="text-xs font-semibold shrink-0" style={{ color: C.muted }}>閉じる</button>
         </div>
       )}
-
-      <LearningExperienceFlow className="mb-6" />
-
-      {/* 今日の学習 */}
-      <div className="mb-6">
-        <Card className="p-5">
-          <div className="flex flex-wrap items-start justify-between gap-3">
-            <div className="min-w-0 flex-1">
-              <div className="flex items-center gap-2">
-                <PlayCircle size={16} style={{ color: themeColor }} />
-                <h3 className="text-base font-bold" style={{ color: C.ink, letterSpacing: "-0.02em" }}>前回の続き</h3>
-              </div>
-              {resume ? (
-                <>
-                  <div className="mt-3 text-lg font-bold" style={{ color: C.ink }}>{resume.course.title}</div>
-                  <p className="mt-1 text-sm" style={{ color: C.muted }}>{resume.lesson.title}</p>
-                  <div className="mt-4">
-                    <div className="mb-1 flex justify-between text-xs" style={{ color: C.muted }}>
-                      <span>進捗</span><span className="font-bold" style={{ color: themeColor }}>{resume.pct}%</span>
-                    </div>
-                    <Bar value={resume.pct} tone="green" />
-                  </div>
-                </>
-              ) : (
-                <>
-                  <div className="mt-3 text-lg font-bold" style={{ color: C.ink }}>最初の1レッスンを始めましょう</div>
-                  <p className="mt-1 text-sm" style={{ color: C.muted }}>コースを開くと、次回からここに続きが表示されます。</p>
-                </>
-              )}
-            </div>
-            <Btn icon={PlayCircle} onClick={() => resume ? onOpenDetail(resume.course) : goSub("el_courses")}>続きから学習</Btn>
-          </div>
-        </Card>
-      </div>
-
-      <div className="mb-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <ProductNavCard product="learning" icon={BookOpen} title="コース一覧" desc="公開中のコースから学習を始める" onClick={() => goSub("el_courses")} delay={200} />
-        <ProductNavCard product="learning" icon={PlayCircle} title="学習中" desc="受講中のコースを続きから再開" onClick={() => goSub("el_inprogress")} highlight badge="よく使う" delay={240} />
-        <ProductNavCard product="learning" icon={Sparkles} title="獲得スキル" desc="学習で身についたスキルを確認" onClick={() => goSub("el_skills")} delay={280} />
-        <ProductNavCard product="learning" icon={Award} title="修了済み" desc={`${lrn.completed.length}本修了`} onClick={() => goSub("el_completed")} delay={320} />
-      </div>
 
       {todayCompleted.length > 0 && (
         <div className="mb-5 flex items-center gap-3 rounded-2xl p-4" style={{ background: C.greenW, border: `1px solid ${C.green}30` }}>

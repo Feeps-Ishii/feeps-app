@@ -1,6 +1,8 @@
 import React from "react";
 import { Btn } from "../../components/common";
 import { NOVA, T, PRODUCT_ACCENT } from "../../components/common/theme.js";
+import { UserRound, UsersRound } from "lucide-react";
+import LearningRoadmap from "./LearningRoadmap.jsx";
 
 // 学習モードHome上部のヘッダー（2026-08-14刷新、設計チャットのモック
 // feeps-learning-header-mock.html「案5」を実装）。数値の羅列をやめ、状況と次の一手を
@@ -250,6 +252,60 @@ function SideCard({ icon: Icon, tone, title, desc, badge, badgeTone = "accent", 
   );
 }
 
+// 開発演習の中の「ひとりで／チームで」。どちらの形式があるかをHomeで分かるようにする
+// （2026-08-21、承認モック mock/learning-home）。
+function DevLabMode({ tone, icon, tag, title, desc, linkLabel, locked, onClick, onPlanClick }) {
+  const Icon = icon;
+  return (
+    <button
+      type="button"
+      onClick={locked ? onPlanClick : onClick}
+      className="flex-1 p-4 text-left transition hover:bg-black/[.02]"
+    >
+      <span className="inline-flex items-center gap-1.5 rounded-md px-2 py-1 text-[10.5px] font-bold"
+        style={{ background: tone.subtle, color: tone.deep }}>
+        <Icon size={11} />{tag}
+      </span>
+      <div className="mt-2 flex flex-wrap items-center gap-1.5">
+        <span className="text-[13.5px] font-bold" style={{ color: NOVA.ink }}>{title}</span>
+        {locked && (
+          <span className="rounded-full px-2 py-0.5 text-[10px] font-bold" style={{ background: NOVA.soft, color: NOVA.muted }}>Standard</span>
+        )}
+      </div>
+      <p className="mt-1 text-[11.5px] leading-relaxed" style={{ color: NOVA.muted }}>{desc}</p>
+      <span className="mt-2 inline-block text-[11.5px] font-bold" style={{ color: PRODUCT_ACCENT.learning.deep }}>
+        {locked ? "プランを見る ›" : `${linkLabel} ›`}
+      </span>
+    </button>
+  );
+}
+
+// 2つの柱（Eラーニング／開発演習）。Eラーニングを表に出し、開発演習は中で
+// 「ひとりで／チームで」に分けて見せる（2026-08-21、承認モック mock/learning-home）。
+function PillarCard({ tone, kicker, title, desc, illustration, stats, actions, children }) {
+  return (
+    <div className="flex flex-col overflow-hidden rounded-[18px]" style={{ background: NOVA.card, border: `1px solid ${NOVA.line}` }}>
+      <div className="grid gap-3 p-5 pb-4" style={{ gridTemplateColumns: "1fr 116px" }}>
+        <div className="min-w-0">
+          <span className="text-[11px] font-bold" style={{ letterSpacing: "0.1em", color: tone.deep }}>{kicker}</span>
+          <h3 className="mt-1.5 text-xl font-bold leading-tight" style={{ color: NOVA.ink, letterSpacing: "-0.03em" }}>{title}</h3>
+          <p className="mt-2 text-[12.5px] leading-relaxed" style={{ color: NOVA.muted }}>{desc}</p>
+        </div>
+        <div className="flex items-center justify-center">{illustration}</div>
+      </div>
+      {stats?.length > 0 && (
+        <div className="flex flex-wrap gap-1.5 px-5 pb-3.5">
+          {stats.map(s => (
+            <span key={s} className="rounded-full px-2.5 py-1 text-[11.5px] font-bold" style={{ background: NOVA.soft, color: NOVA.muted }}>{s}</span>
+          ))}
+        </div>
+      )}
+      {actions && <div className="mt-auto flex flex-wrap gap-2 px-5 pb-4">{actions}</div>}
+      {children}
+    </div>
+  );
+}
+
 function HeroCard({ illustration, kicker, kickerTone, title, desc, actions, badge }) {
   return (
     <div className="flex flex-col overflow-hidden rounded-[18px]" style={{ background: NOVA.card, border: `1px solid ${NOVA.line}` }}>
@@ -332,64 +388,96 @@ export default function LearningMagazineHome({ role, isCreator, canUseDevLab, le
 
   const sideCards = buildSideCards({ role, isCreator, learningPlan, goSub, goProduct, completedCount, inprogressCount, earnedSkillsCount });
 
-  const heroSolo = heroIsDevLab ? (
-    showTrial ? (
-      <HeroCard
-        illustration={<DevLabIllustrationTrial />}
-        kicker="ひとりで鍛える" kickerTone={PRODUCT_ACCENT.learning}
-        title="開発演習（DevLab）"
-        desc="ブラウザ上で実際にコードを書いて動かしながら学べます。Basicプランでは3問まで体験できます（残り2問）。"
-        actions={<Btn onClick={devLabTarget}>1問やってみる</Btn>}
-      />
-    ) : (
-      <HeroCard
-        illustration={<DevLabIllustration />}
-        kicker="ひとりで鍛える" kickerTone={PRODUCT_ACCENT.learning}
-        title="開発演習（DevLab）"
-        desc={isCreator
-          ? "架空のクライアント案件をつくり、受講生の提出をステップごとに確認できます。ブラウザ上で完結し、環境構築は不要です。"
-          : "ブラウザ上で実際にコードを書いて動かしながら学べます。提出するとAIがすぐに採点し、どこを直せばいいかを教えてくれます。環境構築は不要です。"}
-        actions={<>
-          <Btn onClick={devLabTarget}>{isCreator ? "案件を確認する" : "演習をはじめる"}</Btn>
-          <Btn kind="ghost" onClick={devLabTarget}>課題一覧</Btn>
-        </>}
-      />
-    )
-  ) : (
-    <HeroCard
-      illustration={<ElearningIllustration />}
-      kicker="自社の学習状況" kickerTone={PRODUCT_ACCENT.training}
+  // 2026-08-21 リデザイン（承認モック: mock/learning-home）。
+  // Eラーニングを表に出し、開発演習と2枚の柱にする。開発演習の中は「ひとりで／チームで」。
+  const elearningPillar = (
+    <PillarCard
+      tone={PRODUCT_ACCENT.learning}
+      kicker="読んで理解する"
       title="Eラーニング"
-      desc="自社の受講生が学べるコースを確認できます。受講状況や理解度も、ここからまとめて把握できます。"
-      actions={<Btn onClick={() => goSub("el_courses")}>コース一覧を開く</Btn>}
+      desc={role === "client"
+        ? "自社の受講生が学べるコースです。受講状況や理解度もここから把握できます。"
+        : "スライドで学び、その場で演習して、総合テストで確かめます。修了するとスキルと修了証が残ります。"}
+      illustration={<ElearningIllustration />}
+      stats={role === "client" ? [] : [`受講中 ${inprogressCount}本`, `修了 ${completedCount}本`, `取得スキル ${earnedSkillsCount}件`]}
+      actions={<>
+        <Btn onClick={() => goSub("el_courses")}>コース一覧</Btn>
+        {role !== "client" && <Btn kind="ghost" onClick={() => goSub("el_completed")}>修了済み</Btn>}
+      </>}
     />
   );
 
-  const teamDevDesc = role === "client"
-    ? "自社の社員をチームに編成して、ハンズオン形式の研修ができます。誰が何をコミットしたかを進捗として追えます。"
-    : isCreator
-      ? "題材をつくってチームを編成すると、受講生が1つのコードベースを分担して進めます。ブランチ・pull・コンフリクト解決まで、現場と同じ流れです。"
-      : "チームで1つのコードベースを触ります。他のメンバーの変更を取り込み、ぶつかったところを解決しながら進める——現場と同じ流れをそのまま体験できます。";
-
-  const heroTeam = (
-    <HeroCard
-      illustration={<TeamDevIllustration />}
-      kicker="チームで開発する" kickerTone={PRODUCT_ACCENT.matching}
-      badge={teamDevLocked ? "Standard" : undefined}
+  const devlabPillar = canUseDevLab ? (
+    <PillarCard
+      tone={PRODUCT_ACCENT.talent}
+      kicker="手を動かす"
+      title="開発演習"
+      desc={isCreator
+        ? "架空のクライアント案件をつくって、受講生の提出をステップごとに確認できます。環境構築は不要です。"
+        : "ブラウザ上でコードを書いて動かします。ひとりで解く課題と、チームで1つのコードベースを触る開発の2種類。"}
+      illustration={<DevLabIllustration />}
+    >
+      <div className="mt-auto grid border-t sm:grid-cols-2" style={{ borderColor: NOVA.line }}>
+        <DevLabMode
+          tone={PRODUCT_ACCENT.talent}
+          icon={UserRound}
+          tag="ひとりで"
+          title={isCreator ? "課題・プロジェクト体験の管理" : "課題・プロジェクト体験"}
+          desc={showTrial
+            ? "Basicプランでは3問まで体験できます。"
+            : "AIがすぐ採点して、どこを直せばいいか教えてくれます。"}
+          linkLabel={isCreator ? "案件を確認する" : "課題を見る"}
+          onClick={devLabTarget}
+        />
+        <div className="border-t sm:border-l sm:border-t-0" style={{ borderColor: NOVA.line }}>
+          <DevLabMode
+            tone={PRODUCT_ACCENT.matching}
+            icon={UsersRound}
+            tag="チームで"
+            title="チーム開発"
+            desc="ブランチ・取り込み・衝突の解消まで、現場と同じ流れ。"
+            linkLabel={role === "trainee" ? "チームを開く" : "チームを見る"}
+            locked={teamDevLocked}
+            onClick={teamDevTarget}
+            onPlanClick={onShowPlanNotice}
+          />
+        </div>
+      </div>
+    </PillarCard>
+  ) : (
+    // clientは開発演習の対象外。代わりにチーム開発（自社社員のハンズオン）だけを出す。
+    <PillarCard
+      tone={PRODUCT_ACCENT.matching}
+      kicker="チームで開発する"
       title="チーム開発"
-      desc={teamDevDesc}
+      desc="自社の社員をチームに編成して、ハンズオン形式の研修ができます。誰が何をコミットしたかを進捗として追えます。"
+      illustration={<TeamDevIllustration />}
       actions={teamDevLocked
         ? <Btn kind="ghost" onClick={onShowPlanNotice}>プランを見る</Btn>
-        : <Btn onClick={teamDevTarget}>{role === "trainee" ? "チームを開く" : "チームを見る"}</Btn>}
+        : <Btn onClick={teamDevTarget}>チームを見る</Btn>}
     />
   );
 
   return (
     <>
       <div className="mb-3.5 grid gap-3.5 lg:grid-cols-2">
-        {heroSolo}
-        {heroTeam}
+        {elearningPillar}
+        {devlabPillar}
       </div>
+
+      {/* 学んだ先に何があるかを絵で見せる。実績から「いまここ」だけを動かす。 */}
+      <LearningRoadmap
+        completedCount={completedCount}
+        inprogressCount={inprogressCount}
+        canUseDevLab={canUseDevLab}
+        onStepClick={key => {
+          if (key === "learn" || key === "practice") goSub("el_courses");
+          else if (key === "solo") devLabTarget();
+          else if (key === "team") { if (teamDevLocked) onShowPlanNotice(); else teamDevTarget(); }
+          else if (key === "project") goProduct && goProduct("talent");
+        }}
+      />
+
       <div className="mb-6 grid gap-3.5 md:grid-cols-2 lg:grid-cols-3">
         {sideCards.map(c => (
           <SideCard key={c.title} icon={c.icon} tone={c.tone} title={c.title} desc={c.desc} stats={c.stats}
