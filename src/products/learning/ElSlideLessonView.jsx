@@ -8,6 +8,9 @@ import { Btn, T, PRODUCT_ACCENT } from "../../components/common";
 import { LessonBodyText } from "./LearningComponents.jsx";
 import SlideIllustration from "./SlideIllustrations.jsx";
 import LearningExperienceFlow, { learningStageForSlide } from "./LearningExperienceFlow.jsx";
+// スライド下の読み物（要約とノート）と読み上げ。2026-08-21に別ファイルへ切り出した。
+import { SlideNarration, SlideNote } from "./SlideNarrationBlocks.jsx";
+import SlideQuestionBox from "./SlideQuestionBox.jsx";
 
 // slidesを持つLesson専用の「メインスライド中心」表示。lesson.slides?.length > 0 の場合のみ
 // ElLessonView.jsx からこのコンポーネントへ分岐する（既存のvideo/text/quiz Lessonはこのファイルを
@@ -228,19 +231,6 @@ function SlideDivider({ stage }) {
   );
 }
 
-// スライド下の「解説」。caption はもともと保存も描画もされていたが、AIが埋めていなかった。
-function SlideNarration({ text }) {
-  if (!text) return null;
-  return (
-    <div className="mt-4 rounded-2xl p-4 sm:p-[18px]" style={{ background: T.bgBase, border: `1px solid rgba(26,28,31,.07)` }}>
-      <div className="mb-2 flex items-center gap-1.5">
-        <Sparkles size={13} style={{ color: C.muted }} />
-        <span className="text-[12px] font-bold" style={{ color: C.muted, letterSpacing: "0.04em" }}>解説</span>
-      </div>
-      <p className="text-sm leading-[1.9]" style={{ color: C.body, maxWidth: "68ch" }}>{text}</p>
-    </div>
-  );
-}
 
 // 2026-07-14 AI Lesson Studio Phase2: 絵文字を廃止しアイコン+ラベルのボタンUIへ変更。
 // uncertain(旧・少し不安)は選択肢から外し、need_help(質問したい)に置き換え。過去データの
@@ -658,7 +648,6 @@ function VideoSlideBody({ slide }) {
 function ImageSlideBody({ slide, content, lrn }) {
   const [resolvedUrl, setResolvedUrl] = useState(content.url || "");
   const [resolveError, setResolveError] = useState(false);
-  const imageCaption = content.caption || slide.caption || "";
 
   useEffect(() => {
     if (!content.materialId || !lrn?.getMaterialViewUrl) return;
@@ -677,12 +666,7 @@ function ImageSlideBody({ slide, content, lrn }) {
         <img src={resolvedUrl} alt={content.alt || slide.title} className="max-h-[68vh] min-h-[360px] w-full rounded-xl object-contain" style={{ background: T.bgBase }} />
       )}
       {resolveError && <p className="text-xs" style={{ color: "#ef4444" }}>画像を読み込めませんでした。</p>}
-      {imageCaption && (
-        <div className="mt-4 rounded-xl p-4" style={{ background: T.bgBase, border: `1px solid ${C.line}` }}>
-          <div className="mb-1 text-xs font-bold" style={{ color: C.muted }}>このページの説明</div>
-          <p className="text-sm leading-relaxed" style={{ color: C.body }}>{imageCaption}</p>
-        </div>
-      )}
+      {/* 説明(caption)はスライドの外で出す（読み上げボタンを付けるため、他のkindと同じ場所に寄せた） */}
     </div>
   );
 }
@@ -1282,10 +1266,11 @@ export function SlideRenderer({ slide, accent, lrn, courseId, lessonId, index, t
 
 function MainSlidePanel({ slides, index, setIndex, accent, lrn, courseId, lessonId, contentCount }) {
   const slide = slides[index];
-  const slideCaption = slide?.caption || "";
-  // imageは本文側でcaptionを出すので二重に出さない。表紙・中扉には解説を付けない。
+  // 古いimageスライドは content.caption 側にだけ説明を持っていることがある。
+  const slideCaption = slide?.caption || slide?.content?.caption || "";
+  // 表紙・中扉には解説を付けない。それ以外はkindによらずスライドの外に出す。
   const synthetic = slide?.kind === "_cover" || slide?.kind === "_divider";
-  const captionShownInBody = slide?.kind === "image" || synthetic;
+  const captionShownInBody = synthetic;
   return (
     <div className="order-1 min-w-0 flex-1 lg:order-none">
       <div
@@ -1306,8 +1291,14 @@ function MainSlidePanel({ slides, index, setIndex, accent, lrn, courseId, lesson
         </div>
       </div>
 
-      {/* スライドの下に置く解説（caption）。要点はスライド、補足はここ、という役割分担 */}
+      {/* スライドの下に置く読み物。要点はスライド、補足は解説、詳しい説明はノート。
+          解説(caption)はAIが書き、ノート(note)は管理者が書く。どちらも読み上げできる。 */}
       {!captionShownInBody && <SlideNarration text={slideCaption} />}
+      {!synthetic && <SlideNote note={slide?.note} />}
+      {/* 表紙・中扉は教材の中身ではないので質問欄を出さない */}
+      {!synthetic && slide?.id && (
+        <SlideQuestionBox courseId={courseId} lessonId={lessonId} slideId={slide.id} slideTitle={slide.title} />
+      )}
 
       <div className="mt-4 flex items-center justify-center gap-4">
         <button

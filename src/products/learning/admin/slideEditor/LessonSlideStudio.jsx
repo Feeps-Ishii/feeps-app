@@ -600,9 +600,23 @@ function EditPanel({ slide, onChangeCommon, onChangeContent, onDuplicate, onDele
         </div>
       )}
 
-      <Field label="このページの説明（任意）">
-        <textarea style={{ ...fieldStyle, minHeight: 64 }} value={slide.caption || ""} onChange={e => onChangeCommon({ caption: e.target.value })} />
+      {/* 2026-08-21: 要約とノートを分ける。
+          caption = 受講画面のスライド直下に出る**短い要約**（AIが書く。ここでも直せる）
+          note    = 管理者が書く**詳しい説明**。長さの制限をかけず、Markdownで書ける */}
+      <Field label="AI要約（スライドのすぐ下に出る短い説明）">
+        <textarea style={{ ...fieldStyle, minHeight: 64 }} value={slide.caption || ""} onChange={e => onChangeCommon({ caption: e.target.value })} placeholder="1〜3文。AIが生成しますが、ここで直せます" />
       </Field>
+      <Field label="ノート（詳しい説明・Markdown対応）">
+        <textarea
+          style={{ ...fieldStyle, minHeight: 180 }}
+          value={slide.note || ""}
+          onChange={e => onChangeCommon({ note: e.target.value })}
+          placeholder="受講者に読ませたい説明を書きます。見出し・箇条書き・太字などのMarkdownが使えます。空のままなら受講画面には出ません。"
+        />
+      </Field>
+      <p className="-mt-2 text-[11px] leading-relaxed" style={{ color: C.muted }}>
+        ノートは受講画面でスライドの下に「ノート」として表示されます。要約だけで足りるページは空のままで構いません。
+      </p>
     </div>
   );
 }
