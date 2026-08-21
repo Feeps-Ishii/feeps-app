@@ -67,7 +67,7 @@ export default function SlideQuestionBox({ courseId, lessonId, slideId, slideTit
 
       {messages.length === 0 && (
         <p className="mb-3 text-xs leading-relaxed" style={{ color: C.muted }}>
-          「{slideTitle || "このページ"}」の内容について答えます。教材に書かれていないことは「書かれていない」と答えます。
+          「{slideTitle || "このページ"}」を見ながら質問できます。ページに書かれていないことでも、関連することなら答えます。
         </p>
       )}
 
@@ -112,7 +112,7 @@ export default function SlideQuestionBox({ courseId, lessonId, slideId, slideTit
           value={question}
           onChange={e => setQuestion(e.target.value)}
           onKeyDown={e => { if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) ask(question); }}
-          placeholder="例: なぜこの手順が必要なのですか？"
+          placeholder="例: ITとICTの違いは？ / なぜこの手順が必要？"
           rows={2}
           maxLength={500}
           className="min-w-0 flex-1 resize-none rounded-xl px-3 py-2 text-sm outline-none"

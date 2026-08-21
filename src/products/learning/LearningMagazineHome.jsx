@@ -435,7 +435,7 @@ export default function LearningMagazineHome({ role, isCreator, canUseDevLab, le
             icon={UsersRound}
             tag="チームで"
             title="チーム開発"
-            desc="ブランチ・取り込み・衝突の解消まで、現場と同じ流れ。"
+            desc="ブランチ・取り込み・衝突の解消まで、現場と同じ流れを体験できます。"
             linkLabel={role === "trainee" ? "チームを開く" : "チームを見る"}
             locked={teamDevLocked}
             onClick={teamDevTarget}

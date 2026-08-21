@@ -13,11 +13,11 @@ const STEPS = [
   { key: "practice", label: "演習で確かめる", sub: "クイズ・操作演習", x: 250, y: 96 },
   { key: "solo", label: "ひとりで作る", sub: "開発演習", x: 440, y: 108 },
   { key: "team", label: "チームで作る", sub: "チーム開発", x: 680, y: 84 },
-  { key: "project", label: "案件へ", sub: "スキルシート・マッチング", x: 940, y: 104 },
+  { key: "project", label: "案件へ", sub: "スキルシート・マッチング", x: 918, y: 104 },
 ];
 
 // 進んだところまでを塗る道。曲がっているのは「一本道ではない」という気分を出すため。
-const PATH_FULL = "M60 118 C 200 60, 300 170, 440 108 S 700 60, 940 104";
+const PATH_FULL = "M60 118 C 200 60, 300 170, 440 108 S 700 60, 918 104";
 const PATH_TO = {
   learn: "M60 118",
   practice: "M60 118 C 140 89, 190 105, 250 96",
@@ -46,9 +46,10 @@ export default function LearningRoadmap({ completedCount = 0, inprogressCount = 
         <h3 className="text-[15px] font-bold" style={{ color: C.ink, letterSpacing: "-0.02em" }}>あなたの道のり</h3>
         <span className="text-[11.5px]" style={{ color: C.muted }}>学んで、作って、案件へ</span>
       </div>
-      {/* 横に長い図なので、狭い画面ではこの中だけを横スクロールさせる（ページ全体は横に動かさない） */}
+      {/* 幅は枠いっぱいに伸ばす（固定1000pxだと広い画面で右側が余っていた）。
+          狭い画面ではこの中だけを横スクロールさせる（ページ全体は横に動かさない）。 */}
       <div className="overflow-x-auto py-1.5">
-        <svg width="1000" height="188" viewBox="0 0 1000 188" role="img" aria-label={`学習の道のり。現在は「${STEPS[currentIndex]?.label}」の段階です。`}>
+        <svg className="block h-auto w-full min-w-[880px]" viewBox="0 0 1000 188" preserveAspectRatio="xMidYMid meet" role="img" aria-label={`学習の道のり。現在は「${STEPS[currentIndex]?.label}」の段階です。`}>
           <path d={PATH_FULL} fill="none" stroke={C.line} strokeWidth="10" strokeLinecap="round" />
           <path d={PATH_TO[current] || PATH_TO.learn} fill="none" stroke={teal} strokeWidth="10" strokeLinecap="round" />
 
