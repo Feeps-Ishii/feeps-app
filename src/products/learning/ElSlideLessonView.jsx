@@ -11,6 +11,7 @@ import LearningExperienceFlow, { learningStageForSlide } from "./LearningExperie
 // スライド下の読み物（要約とノート）と読み上げ。2026-08-21に別ファイルへ切り出した。
 import { SlideNarration, SlideNote } from "./SlideNarrationBlocks.jsx";
 import SlideQuestionBox from "./SlideQuestionBox.jsx";
+import LecturePlayer from "./LecturePlayer.jsx";
 
 // slidesを持つLesson専用の「メインスライド中心」表示。lesson.slides?.length > 0 の場合のみ
 // ElLessonView.jsx からこのコンポーネントへ分岐する（既存のvideo/text/quiz Lessonはこのファイルを
@@ -1264,10 +1265,12 @@ export function SlideRenderer({ slide, accent, lrn, courseId, lessonId, index, t
   }
 }
 
-function MainSlidePanel({ slides, index, setIndex, accent, lrn, courseId, lessonId, contentCount }) {
+function MainSlidePanel({ slides, index, setIndex, accent, lrn, courseId, lessonId, contentCount, lesson }) {
   const slide = slides[index];
   // 古いimageスライドは content.caption 側にだけ説明を持っていることがある。
   const slideCaption = slide?.caption || slide?.content?.caption || "";
+  // 質問を開いている間は講義の読み上げを止める
+  const [askOpen, setAskOpen] = useState(false);
   // 表紙・中扉には解説を付けない。それ以外はkindによらずスライドの外に出す。
   const synthetic = slide?.kind === "_cover" || slide?.kind === "_divider";
   const captionShownInBody = synthetic;
@@ -1295,10 +1298,27 @@ function MainSlidePanel({ slides, index, setIndex, accent, lrn, courseId, lesson
           解説(caption)はAIが書き、ノート(note)は管理者が書く。どちらも読み上げできる。 */}
       {!captionShownInBody && <SlideNarration text={slideCaption} />}
       {!synthetic && <SlideNote note={slide?.note} />}
-      {/* 表紙・中扉は教材の中身ではないので質問欄を出さない */}
+      {/* 表紙・中扉は教材の中身ではないので質問欄を出さない。
+          質問を開いている間は講義の読み上げを止める（重なって聞こえないように）。 */}
       {!synthetic && slide?.id && (
-        <SlideQuestionBox courseId={courseId} lessonId={lessonId} slideId={slide.id} slideTitle={slide.title} />
+        <SlideQuestionBox
+          courseId={courseId}
+          lessonId={lessonId}
+          slideId={slide.id}
+          slideTitle={slide.title}
+          onOpenChange={setAskOpen}
+        />
       )}
+
+      {/* 2026-08-24: 講義プレイヤー。カンペ（ノート・解説）を読み上げながら自動で送る。 */}
+      <LecturePlayer
+        slides={slides}
+        index={index}
+        setIndex={setIndex}
+        lesson={lesson}
+        paused={askOpen}
+        onPausedChange={next => { if (!next) setAskOpen(false); }}
+      />
 
       <div className="mt-4 flex items-center justify-center gap-4">
         <button
@@ -1543,7 +1563,7 @@ export default function ElSlideLessonView({ course, lesson, lrn, onBack, onNavig
           その下（折りたたみ）へ回す。lg以上は従来どおり左ナビ・本文・右情報の3カラム。 */}
       <div className="flex flex-col gap-6 lg:flex-row lg:items-start lg:gap-8">
         <LeftSlideNav slides={slides} current={slideIndex} onSelect={setSlideIndex} accent={accent} pendingIds={pendingIds} />
-        <MainSlidePanel slides={slides} index={slideIndex} setIndex={setSlideIndex} accent={accent} lrn={lrn} courseId={course.id} lessonId={lesson.id} contentCount={contentSlides.length} />
+        <MainSlidePanel slides={slides} index={slideIndex} setIndex={setSlideIndex} accent={accent} lrn={lrn} courseId={course.id} lessonId={lesson.id} contentCount={contentSlides.length} lesson={lesson} />
         <RightSidebar course={course} lesson={lesson} lrn={lrn} idx={idx} lessons={lessons} accent={accent} compact={rightCompact} onToggle={() => setRightCompact(v => !v)} />
       </div>
 

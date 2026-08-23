@@ -10,7 +10,7 @@ const C = { ink: T.textPrimary, body: T.textSecondary, muted: T.textMuted, line:
 // **スライドの中身はクライアントから送らない。** courseId/lessonId/slideId だけを送り、
 // Backendが保存済みの教材を引き直して答える（内容を差し替えて答えさせられないように）。
 // 軽いモデル(Haiku)で1往復あたり0.4円ほど。履歴は直近だけ送る（長くすると毎回の費用が増える）。
-export default function SlideQuestionBox({ courseId, lessonId, slideId, slideTitle }) {
+export default function SlideQuestionBox({ courseId, lessonId, slideId, slideTitle, onOpenChange }) {
   const [open, setOpen] = useState(false);
   const [question, setQuestion] = useState("");
   const [messages, setMessages] = useState([]); // { role: "user" | "assistant", text }
@@ -22,6 +22,8 @@ export default function SlideQuestionBox({ courseId, lessonId, slideId, slideTit
   useEffect(() => { aliveRef.current = true; return () => { aliveRef.current = false; }; }, []);
   // ページが変わったら会話をリセットする（別のページの話が混ざらないように）。
   useEffect(() => { setMessages([]); setFollowUps([]); setQuestion(""); setErrorMsg(""); setOpen(false); }, [slideId]);
+  // 開いている間は講義の読み上げを止めてもらう（重なって聞こえないように）
+  useEffect(() => { if (onOpenChange) onOpenChange(open); }, [open]);
 
   async function ask(text) {
     const q = String(text || "").trim();

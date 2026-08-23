@@ -2,7 +2,7 @@ import React, { useEffect, useRef, useState } from "react";
 import { Loader2, Pause, Play, Sparkles, StickyNote } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import { T } from "../../components/common";
-import { apiPost } from "../../api.js";
+import { fetchSpeechUrls, playUrls, stopSpeech } from "./lectureAudio.js";
 
 const C = { ink: T.textPrimary, body: T.textSecondary, muted: T.textMuted, line: T.border, canvas: T.bgBase };
 
@@ -12,49 +12,30 @@ const C = { ink: T.textPrimary, body: T.textSecondary, muted: T.textMuted, line:
 // どちらにも読み上げボタンを付ける。音声はBackendでS3にキャッシュされるので、
 // 同じ教材を何度読ませても費用がかかるのは最初の1回だけ。
 
-// 読み上げは1つの画面で同時に鳴らない方がよいので、再生中のaudioを1つだけ持つ。
-let currentAudio = null;
-function stopCurrent() {
-  if (currentAudio) {
-    currentAudio.pause();
-    currentAudio = null;
-  }
-}
+// 再生中の音声は画面で1つだけ（講義プレイヤーとも共有する）。管理は lectureAudio.js。
 
 function SpeakButton({ text }) {
   const [state, setState] = useState("idle"); // idle | loading | playing
-  const urlsRef = useRef(null);
   const aliveRef = useRef(true);
 
   useEffect(() => {
     aliveRef.current = true;
-    return () => { aliveRef.current = false; stopCurrent(); };
+    return () => { aliveRef.current = false; stopSpeech(); };
   }, []);
-  // テキストが変わったら（＝別のページへ移ったら）音声を作り直す
-  useEffect(() => { urlsRef.current = null; setState("idle"); stopCurrent(); }, [text]);
-
-  // 長いノートは複数の音声に分かれて返るので、順番に再生する。
-  function playFrom(urls, index) {
-    if (index >= urls.length) { setState("idle"); return; }
-    const audio = new Audio(urls[index]);
-    currentAudio = audio;
-    audio.onended = () => { if (aliveRef.current) playFrom(urls, index + 1); };
-    audio.onerror = () => { if (aliveRef.current) setState("idle"); };
-    audio.play().catch(() => { if (aliveRef.current) setState("idle"); });
-  }
+  // 別のページへ移ったら状態を戻す（音声は lectureAudio 側で止まる）
+  useEffect(() => { setState("idle"); }, [text]);
 
   async function handleClick() {
-    if (state === "playing") { stopCurrent(); setState("idle"); return; }
-    stopCurrent();
-    if (urlsRef.current) { setState("playing"); playFrom(urlsRef.current, 0); return; }
+    if (state === "playing" || state === "loading") { stopSpeech(); setState("idle"); return; }
     setState("loading");
     try {
-      const res = await apiPost("/learning/tts", { text });
+      const urls = await fetchSpeechUrls(text);
       if (!aliveRef.current) return;
-      urlsRef.current = res.urls || [];
-      if (!urlsRef.current.length) { setState("idle"); return; }
+      if (!urls.length) { setState("idle"); return; }
       setState("playing");
-      playFrom(urlsRef.current, 0);
+      const finished = await playUrls(urls);
+      if (aliveRef.current && finished) setState("idle");
+      else if (aliveRef.current) setState("idle");
     } catch (e) {
       if (aliveRef.current) setState("idle");
     }
