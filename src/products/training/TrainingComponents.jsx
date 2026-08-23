@@ -70,6 +70,66 @@ function overallProgress(goals, done) {
 /* ===== ログイン画面 ===== */
 function emitNotificationRefresh() { try { window.dispatchEvent(new Event("feeps:notifications-refresh")); } catch (e) {} }
 
+// 2026-08-24: 受講者ホームの「状況ボード」（承認モック: mock/training-home の案A）。
+//
+// 以前は画面の3割をヒーローが使って伝えているのは1行、その下は同じ形のリンク4本で、
+// 数字が1つも無かった。受講者が知りたいのは「今日どうすればいいか」と
+// 「自分が何を残しているか」の2つなので、それを最初の1枚へ入れる。
+// 研修日／研修がない日で**同じ骨格**を使い、中身だけ入れ替える。
+function StatusBoardStat({ tone = "neutral", value, unit, label }) {
+  const c = {
+    warn: { bg: PRISM.warnSubtle, fg: PRISM.warn },
+    accent: { bg: PRISM.surface, fg: PRISM.accent },
+    ok: { bg: PRISM.surface, fg: PRISM.ok },
+    neutral: { bg: PRISM.surface, fg: PRISM.ink },
+  }[tone] || { bg: PRISM.surface, fg: PRISM.ink };
+  return (
+    <div className="rounded-[14px] px-[15px] py-3.5" style={{ background: c.bg }}>
+      <div className="text-[24px] font-extrabold leading-none tabular-nums" style={{ color: c.fg, letterSpacing: "-0.03em" }}>
+        {value}{unit && <span className="text-[13px] font-bold" style={{ color: PRISM.mut }}>{unit}</span>}
+      </div>
+      <div className="mt-1 text-[11.5px] leading-snug" style={{ color: PRISM.sub }}>{label}</div>
+    </div>
+  );
+}
+
+function StatusBoardLink({ icon: Icon, tone = "neutral", title, sub, badge, onClick }) {
+  const c = {
+    warn: { bg: PRISM.warnSubtle, fg: PRISM.warn },
+    accent: { bg: PRISM.accentSubtle, fg: PRISM.accent },
+    ai: { bg: PRISM.aiSubtle, fg: PRISM.aiDeep },
+    neutral: { bg: PRISM.neutralSubtle, fg: PRISM.sub },
+  }[tone] || { bg: PRISM.neutralSubtle, fg: PRISM.sub };
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className="flex w-full items-center gap-3 rounded-[13px] px-3 py-2.5 text-left transition hover:bg-black/[.02]"
+      style={{ border: `1px solid ${PRISM.line}`, background: PRISM.surface }}
+    >
+      {Icon && <span className="grid h-8 w-8 shrink-0 place-items-center rounded-[10px]" style={{ background: c.bg, color: c.fg }}><Icon size={15} /></span>}
+      <span className="min-w-0 flex-1">
+        <span className="flex flex-wrap items-center gap-1.5">
+          <span className="text-[13px] font-semibold" style={{ color: PRISM.ink }}>{title}</span>
+          {badge}
+        </span>
+        {sub && <span className="mt-0.5 block truncate text-[11.5px]" style={{ color: PRISM.sub }}>{sub}</span>}
+      </span>
+      <ChevronRight size={15} style={{ color: PRISM.mut }} />
+    </button>
+  );
+}
+
+// 「2026-08-26」→「8月26日（火）」。曜日まで出さないと、次がいつなのか直感で分からない。
+const TH_WEEKDAY = ["日", "月", "火", "水", "木", "金", "土"];
+function formatTrainingDate(iso) {
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(iso || ""));
+  if (!m) return "";
+  const d = new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]));
+  if (Number.isNaN(d.getTime())) return "";
+  return `${d.getMonth() + 1}月${d.getDate()}日（${TH_WEEKDAY[d.getDay()]}）`;
+}
+
 function TraineeHome({ go, goProduct, goSub, done, taskDataState, onTaskRetry, taskSaveState, toggle, goals }) {
   const [thHome, setThHome] = useState({
     dashboard: null,
@@ -264,6 +324,77 @@ function TraineeHome({ go, goProduct, goSub, done, taskDataState, onTaskRetry, t
   const thHeroGradient = thNoTrainingToday ? PRISM.gradHero : `linear-gradient(120deg, ${PRODUCT_ACCENT.training.deep}, ${PRODUCT_ACCENT.training.accent})`;
   const thHeroIllustration = thNoTrainingToday ? <TraineeOffDayIllustration /> : <TraineeTrainingDayIllustration />;
 
+  // --- 状況ボード（2026-08-24 案A）で使う値 ---
+  const thNextTrainingDay = thHome.dashboard?.nextTrainingDay || null;
+  const thNextTrainingDayAvailable = thHome.dashboard?.availability?.nextTrainingDay !== false;
+  const thUnsubmittedTestCount = Number(thTrainingTests?.unsubmitted || 0);
+  const thSubmittedReportCount = thHome.reports.filter(r => r && r.date).length;
+  // 研修がない日は「今日の日報」が存在しないので、**直近の日報**のコメントを見る。
+  // 今日だけを見ていると、研修がない日には講師コメントが一生出てこない。
+  const thLatestReport = [...thHome.reports].filter(r => r && r.date).sort((a, b) => String(b.date).localeCompare(String(a.date)))[0] || null;
+  const thLatestReportHasComment = !!thLatestReport?.comment || (Array.isArray(thLatestReport?.comments) && thLatestReport.comments.length > 0);
+
+  // 研修日の「今日の必須」。判定は既存の thTaskCards をそのまま使う
+  // （勤怠・日報の done / unavailable は上でダッシュボードのタスク状態から作られている）。
+  // **取れないものを完了にも未完了にもしない**（unavailableはそのまま出す）。
+  const thRequiredToday = thTaskCards.map(card => ({
+    key: card.key,
+    label: card.key === "attendance" ? "勤怠" : "日報",
+    done: card.done && !card.unavailable,
+    unknown: Boolean(card.unavailable),
+    detail: card.unavailable
+      ? "確認できません"
+      : card.done
+        ? (card.key === "attendance" ? (thAttendanceToday?.clockIn ? `${thAttendanceToday.clockIn} 出勤` : "記録済み") : "提出済み")
+        : (card.key === "attendance" ? "未登録" : "未提出"),
+  }));
+
+  // 研修がない日の「いま抱えているもの」。**0件のものは並べない**（無いものの説明に場所を使わない）。
+  const thOpenItems = [];
+  if (thUnsubmittedTestCount > 0) thOpenItems.push({ key: "tests", tone: "warn", value: thUnsubmittedTestCount, unit: "件", label: "未提出の研修テスト" });
+  if (thLatestReportHasComment) thOpenItems.push({ key: "comment", tone: "accent", value: 1, unit: "件", label: "講師コメントが届いています" });
+  if (thSubmittedReportCount > 0) thOpenItems.push({ key: "reports", tone: "ok", value: thSubmittedReportCount, unit: "件", label: "これまでに提出した日報" });
+
+  // 下段のリンク。研修日は「今日の流れ」、研修がない日は「できること」。
+  const thBoardLinks = [];
+  if (thNoTrainingToday) {
+    if (thUnsubmittedTestCount > 0) {
+      thBoardLinks.push({
+        key: "tests", icon: ClipboardCheck, tone: "warn", title: "研修テストを受ける",
+        badge: <Badge tone="amber">未提出 {thUnsubmittedTestCount}</Badge>,
+        sub: thTrainingTestDetail, onClick: () => go("tests"),
+      });
+    }
+    if (thLatestReportHasComment) {
+      thBoardLinks.push({
+        key: "comment", icon: NotebookPen, tone: "accent", title: "講師コメントを読む",
+        sub: thLatestReport?.date ? `${formatTrainingDate(thLatestReport.date) || thLatestReport.date}の日報に返信がついています` : "日報に返信がついています",
+        onClick: () => go("reports"),
+      });
+    }
+    thBoardLinks.push({ key: "materials", icon: FileText, tone: "neutral", title: "研修資料を見返す", sub: "配布された資料を確認できます", onClick: () => go("materials") });
+    thBoardLinks.push({ key: "reports", icon: NotebookPen, tone: "neutral", title: "これまでの日報", sub: thSubmittedReportCount ? `${thSubmittedReportCount}件 提出済み` : "自分の記録を読み返せます", onClick: () => go("reports") });
+  } else {
+    thRequiredToday.forEach(item => {
+      thBoardLinks.push({
+        key: item.key,
+        icon: item.key === "attendance" ? Clock : NotebookPen,
+        tone: item.done ? "neutral" : item.unknown ? "neutral" : "warn",
+        title: item.key === "attendance" ? "勤怠を登録する" : "日報を書く",
+        sub: item.detail,
+        onClick: () => go(item.key === "attendance" ? "attendance" : "reports"),
+      });
+    });
+    if (thUnsubmittedTestCount > 0) {
+      thBoardLinks.push({
+        key: "tests", icon: ClipboardCheck, tone: "ai", title: "研修テストを受ける",
+        badge: <Badge tone="amber">未提出 {thUnsubmittedTestCount}</Badge>,
+        sub: thTrainingTestDetail, onClick: () => go("tests"),
+      });
+    }
+    thBoardLinks.push({ key: "materials", icon: FileText, tone: "neutral", title: "研修資料", sub: "今日の資料・配布物を確認できます", onClick: () => go("materials") });
+  }
+
   // パネル1「今日やること」/「これまでの振り返り」の行。研修テストは/dashboard/traineeの
   // summary.trainingTests（既存取得済みデータ）から未受験時のみ追加する。
   const thTodoRows = [];
@@ -279,57 +410,153 @@ function TraineeHome({ go, goProduct, goSub, done, taskDataState, onTaskRetry, t
 
   return (
     <PrismPage className="max-w-full overflow-x-hidden">
-      <TrainingHomeHero
-        kicker={thHeroKicker}
-        title={thHeroTitle}
-        description={thHeroDescription}
-        gradient={thHeroGradient}
-        illustration={thHeroIllustration}
-        actions={thLoading ? null : (
-          <>
-            <Btn kind="white" onClick={thHeroPrimaryOnClick}>{thHeroPrimaryLabel}</Btn>
-            <Btn onClick={() => go("curriculum")} style={{ background: PRISM.heroGlassStrong, color: NOVA.onDark, border: `1px solid ${PRISM.heroLine}` }}>{thHeroSecondaryLabel}</Btn>
-          </>
-        )}
-      />
+      {/* 2026-08-24 リデザイン（承認モック: mock/training-home 案A「状況ボード」）。
+          左＝今日の状態と次の一手、右＝いま抱えているもの。研修日／研修がない日で
+          同じ骨格を使い、中身だけ入れ替える。 */}
+      <PrismCard className="overflow-hidden p-0">
+        <div className="grid lg:grid-cols-[1fr_330px]">
+          <div className="min-w-0 p-6 sm:px-7">
+            <div className="flex flex-wrap items-center gap-2">
+              <span
+                className="inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-[11.5px] font-bold"
+                style={thNoTrainingToday
+                  ? { background: PRISM.neutralSubtle, color: PRISM.sub }
+                  : { background: PRISM.accentSubtle, color: PRISM.accent }}
+              >
+                <Clock size={12} />
+                {thNoTrainingToday ? formatTrainingDate(thToday) || thToday : "研修日"}
+              </span>
+              <span className="text-[11.5px]" style={{ color: PRISM.mut }}>
+                {[!thNoTrainingToday ? formatTrainingDate(thToday) || thToday : "", thPrimaryCourse?.name].filter(Boolean).join(" ・ ")}
+              </span>
+            </div>
+
+            <h1 className="mt-3.5 text-[26px] font-extrabold leading-[1.28] sm:text-[27px]" style={{ color: PRISM.ink, letterSpacing: "-0.035em" }}>
+              {thHeroTitle}
+            </h1>
+            <p className="mt-2.5 max-w-[40ch] text-[13.5px] leading-[1.9]" style={{ color: PRISM.sub }}>
+              {thHeroDescription}
+            </p>
+
+            {!thLoading && (
+              <div className="mt-5 flex flex-wrap gap-2">
+                <Btn onClick={thHeroPrimaryOnClick}>{thHeroPrimaryLabel}</Btn>
+                <Btn kind="ghost" onClick={() => go("curriculum")}>{thHeroSecondaryLabel}</Btn>
+              </div>
+            )}
+          </div>
+
+          {/* 右：今日の必須（研修日）／いま抱えているもの（研修がない日） */}
+          <div
+            className="border-t p-6 sm:px-7 lg:border-l lg:border-t-0"
+            style={{ borderColor: PRISM.line, background: `linear-gradient(160deg, ${PRISM.accentSubtle} 0%, ${PRISM.surface} 62%)` }}
+          >
+            {thLoading ? <SkeletonRows rows={3} /> : thNoTrainingToday ? (
+              <>
+                <div className="text-[11.5px] font-extrabold" style={{ color: PRISM.mut, letterSpacing: "0.04em" }}>いま抱えているもの</div>
+                <div className="mt-3 grid gap-2">
+                  {thOpenItems.length ? thOpenItems.map(item => (
+                    <StatusBoardStat key={item.key} tone={item.tone} value={item.value} unit={item.unit} label={item.label} />
+                  )) : (
+                    <div className="rounded-[14px] px-[15px] py-4 text-[12.5px] leading-relaxed" style={{ background: PRISM.surface, color: PRISM.sub }}>
+                      残っているものはありません。
+                    </div>
+                  )}
+                </div>
+              </>
+            ) : (
+              <>
+                <div className="text-[11.5px] font-extrabold" style={{ color: PRISM.mut, letterSpacing: "0.04em" }}>今日の必須</div>
+                <div className="mt-3.5 flex items-baseline gap-2">
+                  <span className="text-[40px] font-extrabold leading-none tabular-nums" style={{ color: PRISM.accent, letterSpacing: "-0.04em" }}>
+                    {thTodayProgressAvailable ? thTodayCompletedCount : "—"}
+                  </span>
+                  <span className="text-[15px] font-bold" style={{ color: PRISM.mut }}>
+                    / {thTodayProgressAvailable ? thTodayRequiredCount : 2} 完了
+                  </span>
+                </div>
+                <div className="mt-3.5 grid gap-2.5">
+                  {thRequiredToday.map(item => (
+                    <div key={item.key} className="flex items-center gap-2.5">
+                      {item.done ? (
+                        <span className="grid h-5 w-5 shrink-0 place-items-center rounded-full" style={{ background: PRISM.ok, color: "#fff" }}>
+                          <Check size={11} strokeWidth={3.4} />
+                        </span>
+                      ) : (
+                        <span className="h-5 w-5 shrink-0 rounded-full" style={{ border: `2px dashed ${item.unknown ? PRISM.mut : PRISM.warn}` }} />
+                      )}
+                      <span className="text-[12.5px]" style={{ color: item.done ? PRISM.sub : PRISM.ink, fontWeight: item.done ? 600 : 700 }}>
+                        {item.label}
+                        {item.detail && <span className="ml-1 font-normal" style={{ color: item.done ? PRISM.sub : PRISM.warn }}>{item.detail}</span>}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+                {thUnsubmittedTestCount > 0 && (
+                  <div className="mt-4 border-t pt-3.5 text-[11.5px] leading-relaxed" style={{ borderColor: PRISM.line, color: PRISM.sub }}>
+                    未提出の研修テストが<strong style={{ color: PRISM.warn }}>{thUnsubmittedTestCount}件</strong>あります
+                  </div>
+                )}
+              </>
+            )}
+          </div>
+        </div>
+      </PrismCard>
 
       {thErr && <PrismErrorRetryCard message={thErr} onRetry={() => setThReloadKey(value => value + 1)} />}
 
       {thHasDailyAnnouncement && <PrismCard className="flex items-start gap-3 p-4" style={{ background: PRISM.warnSubtle, borderColor: PRISM.warnLine }}><span className="grid h-9 w-9 shrink-0 place-items-center rounded-xl" style={{ background: PRISM.surface, color: PRISM.warn }}><Megaphone size={16} /></span><div className="min-w-0 flex-1"><div className="text-xs font-bold" style={{ color: PRISM.warn }}>本日のお知らせ</div><div className="mt-1 break-words text-sm leading-relaxed" style={{ color: PRISM.ink }}>{thDailyNote.announcement}</div>{thHome.courses.length > 1 && <div className="mt-1 text-xs" style={{ color: PRISM.mut }}>{thDailyNoteCourse?.name || "メインコース"} の連絡です。</div>}</div></PrismCard>}
 
-      <div className="grid gap-3 sm:grid-cols-2">
-        {thNoTrainingToday ? (
-          <>
-            <TrainingHomePanel title="これまでの振り返り" meta="研修がない日に">
-              <TrainingHomePanelRow icon={FileText} tone="accent" label="研修資料" sub="配布された資料を見返せます" actionLabel="開く" onAction={() => go("materials")} />
-              <TrainingHomePanelRow icon={NotebookPen} tone="warn" label="これまでの日報" sub="自分の記録と講師コメントを読み返せます" actionLabel="開く" onAction={() => go("reports")} />
-            </TrainingHomePanel>
-            <TrainingHomePanel title="次回の準備">
-              <TrainingHomePanelRow icon={Calendar} tone="ai" label="次回のカリキュラム" sub="内容はカリキュラムから確認できます" actionLabel="確認" onAction={() => go("curriculum")} />
-              <TrainingHomePanelRow icon={ClipboardCheck} tone={thTrainingTests?.status === "incomplete" ? "warn" : "neutral"} label="研修テスト" sub={thTrainingTestDetail} actionLabel="一覧" onAction={() => go("tests")} />
-            </TrainingHomePanel>
-          </>
-        ) : (
-          <>
-            <TrainingHomePanel title="今日やること" meta={thTodoRows.length ? `${thTodoRows.length}件` : undefined}>
-              {thLoading ? <SkeletonRows rows={2} /> : thTodoRows.length ? thTodoRows.map(row => (
-                <TrainingHomePanelRow key={row.key} icon={row.icon} tone={row.tone} label={row.label} sub={row.sub} actionLabel={row.actionLabel} onAction={row.onAction} />
-              )) : thUnavailableTasks.length > 0 ? (
-                <TrainingHomePanelRow icon={AlertCircle} tone="warn" label="今日の研修状態を確認できません" sub="完了・未完了のどちらにも数えていません" actionLabel="再読み込み" onAction={() => setThReloadKey(value => value + 1)} />
+      <div className="grid gap-3 lg:grid-cols-[1.35fr_1fr]">
+        <PrismCard className="p-5">
+          <div className="mb-2.5 text-[13.5px] font-bold" style={{ color: PRISM.ink }}>
+            {thNoTrainingToday ? "研修がない日にできること" : "今日の流れ"}
+          </div>
+          {thLoading ? <SkeletonRows rows={3} /> : (
+            <div className="grid gap-2">
+              {thBoardLinks.map(link => (
+                <StatusBoardLink key={link.key} icon={link.icon} tone={link.tone} title={link.title} sub={link.sub} badge={link.badge} onClick={link.onClick} />
+              ))}
+            </div>
+          )}
+        </PrismCard>
+
+        <PrismCard className="p-5">
+          {thNoTrainingToday ? (
+            <>
+              <div className="mb-2.5 text-[13.5px] font-bold" style={{ color: PRISM.ink }}>次回の研修</div>
+              {thNextTrainingDay ? (
+                <>
+                  <div className="text-xs" style={{ color: PRISM.mut }}>
+                    {formatTrainingDate(thNextTrainingDay.date) || thNextTrainingDay.date}
+                    {thNextTrainingDay.courseName ? ` ・ ${thNextTrainingDay.courseName}` : ""}
+                  </div>
+                  <div className="mt-1.5 text-[15px] font-bold" style={{ color: PRISM.ink }}>
+                    {thNextTrainingDay.lessonTitle || "内容はカリキュラムで確認できます"}
+                  </div>
+                </>
               ) : (
-                <TrainingHomePanelRow icon={CheckCircle2} tone="ok" label="今日の必須項目はすべて完了です" sub="お疲れさまでした" actionLabel="確認" onAction={() => go("curriculum")} />
+                <p className="text-xs leading-relaxed" style={{ color: PRISM.sub }}>
+                  {thNextTrainingDayAvailable
+                    ? "次回の日程はまだ登録されていません。運営担当者へご確認ください。"
+                    : "次回の日程を確認できませんでした。再読み込みで最新状態を確認できます。"}
+                </p>
               )}
-            </TrainingHomePanel>
-            <TrainingHomePanel title="今日の内容">
+              <button type="button" onClick={() => go("curriculum")} className="mt-3 text-[11.5px] font-bold" style={{ color: PRISM.accent }}>カリキュラムを開く ›</button>
+            </>
+          ) : (
+            <>
+              <div className="mb-2.5 text-[13.5px] font-bold" style={{ color: PRISM.ink }}>今日の単元</div>
               {thDailyLessonState === "loading" ? <SkeletonRows rows={2} /> : (
                 <>
-                  <TrainingHomePanelRow icon={BookOpen} tone="accent" label={thLessonTitle || "今日の単元は未設定です"} sub={thHasDailyLesson ? "カリキュラムで詳しく確認できます" : (thPrimaryCourse ? "カリキュラムから学習内容を確認できます" : "所属コースが未設定です")} actionLabel="開く" onAction={() => go("curriculum")} />
-                  <TrainingHomePanelRow icon={FileText} tone="ai" label="研修資料" sub="資料・配布物を確認できます" actionLabel="開く" onAction={() => go("materials")} />
+                  <div className="text-[15px] font-bold" style={{ color: PRISM.ink }}>{thLessonTitle || "今日の単元は未設定です"}</div>
+                  {thLessonContent && <p className="mt-2 text-xs leading-[1.85]" style={{ color: PRISM.sub }}>{thLessonContent}</p>}
+                  <button type="button" onClick={() => go("curriculum")} className="mt-3 text-[11.5px] font-bold" style={{ color: PRISM.accent }}>カリキュラムを開く ›</button>
                 </>
               )}
-            </TrainingHomePanel>
-          </>
-        )}
+            </>
+          )}
+        </PrismCard>
       </div>
     </PrismPage>
   );
