@@ -391,6 +391,12 @@ export async function describeSlideImage({ materialId, courseTitle, lessonTitle,
   return apiPost("/learning/admin/ai-lesson-studio/describe-image", { materialId, courseTitle, lessonTitle, lessonGoal, instruction });
 }
 
+// 講義の指し示し(2026-08-24)。読み上げのどの文でスライドのどこを指すかをAIに作らせる。
+// 返るのは下書きで、保存はスライド管理画面の「保存する」で行う。
+export async function planSlideFocus(lessonId) {
+  return apiPost(`/learning/admin/ai-lesson-studio/lessons/${encodeURIComponent(lessonId)}/focus`, {});
+}
+
 // 発行された署名付きURLへ実ファイルを直接PUTする。S3への直PUTのため認証ヘッダ・JSON化を
 // 行う api.js の apiPut は使わず、素の fetch で実装する。
 export async function uploadMaterialFile(uploadUrl, file) {

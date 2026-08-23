@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
   ChevronLeft, ChevronRight, ChevronUp, ChevronDown, Lightbulb, FileText, Download, Check, X,
   Play, PlayCircle, Circle, CheckCircle2, Loader2, Sparkles, PanelRightClose, PanelRightOpen,
@@ -12,6 +12,7 @@ import LearningExperienceFlow, { learningStageForSlide } from "./LearningExperie
 import { SlideNarration, SlideNote } from "./SlideNarrationBlocks.jsx";
 import SlideQuestionBox from "./SlideQuestionBox.jsx";
 import LecturePlayer from "./LecturePlayer.jsx";
+import SlideFocusLayer from "./SlideFocusLayer.jsx";
 
 // slidesを持つLesson専用の「メインスライド中心」表示。lesson.slides?.length > 0 の場合のみ
 // ElLessonView.jsx からこのコンポーネントへ分岐する（既存のvideo/text/quiz Lessonはこのファイルを
@@ -79,7 +80,7 @@ function Callouts({ items }) {
         const bg = warn ? T.warningSubtle : T.accentSubtle;
         const Icon = warn ? AlertCircle : Lightbulb;
         return (
-          <div key={i} className="flex items-start gap-2.5 rounded-2xl p-3.5" style={{ background: bg }}>
+          <div key={i} data-focus={`callout-${i}`} className="flex items-start gap-2.5 rounded-2xl p-3.5" style={{ background: bg }}>
             <Icon size={17} className="mt-0.5 shrink-0" style={{ color: fg }} />
             <div>
               <div className="mb-0.5 text-[12px] font-bold" style={{ color: fg }}>{warn ? "注意" : "ポイント"}</div>
@@ -1156,14 +1157,14 @@ export function SlideRenderer({ slide, accent, lrn, courseId, lessonId, index, t
             <table className="w-full min-w-[480px] border-collapse text-[14.5px]">
               <thead>
                 <tr>
-                  {(content.columns || []).map(col => (
-                    <th key={col} className="px-[18px] py-3.5 text-left text-xs font-bold" style={{ background: T.bgBase, color: C.muted, letterSpacing: "0.04em", borderBottom: `1px solid ${C.line}` }}>{col}</th>
+                  {(content.columns || []).map((col, i) => (
+                    <th key={col} data-focus={`col-${i}`} className="px-[18px] py-3.5 text-left text-xs font-bold" style={{ background: T.bgBase, color: C.muted, letterSpacing: "0.04em", borderBottom: `1px solid ${C.line}` }}>{col}</th>
                   ))}
                 </tr>
               </thead>
               <tbody>
                 {(content.rows || []).map((row, ri) => (
-                  <tr key={ri} style={{ background: ri % 2 === 1 ? "#FCFDFE" : "transparent" }}>
+                  <tr key={ri} data-focus={`row-${ri}`} style={{ background: ri % 2 === 1 ? "#FCFDFE" : "transparent" }}>
                     {row.map((cell, i) => (
                       <td key={i} className="px-[18px] py-4 leading-[1.7]" style={{ color: i === 0 ? C.ink : C.body, fontWeight: i === 0 ? 700 : 400, borderBottom: `1px solid ${T.bgBase}` }}>{cell}</td>
                     ))}
@@ -1202,14 +1203,14 @@ export function SlideRenderer({ slide, accent, lrn, courseId, lessonId, index, t
         if (tone === "negative") return <X size={15} className="shrink-0" />;
         return null;
       };
-      const Column = ({ side, tone }) => (
+      const Column = ({ side, tone, at }) => (
         <div className="min-w-0 flex-1 overflow-hidden rounded-2xl" style={{ border: `1px solid ${C.line}` }}>
-          <div className="flex items-center gap-2 px-4 py-3 text-[13px] font-bold" style={{ background: tone.bg, color: tone.fg }}>
+          <div data-focus={`${at}-head`} className="flex items-center gap-2 px-4 py-3 text-[13px] font-bold" style={{ background: tone.bg, color: tone.fg }}>
             <ToneIcon tone={side?.tone} />{side.label}
           </div>
           <ul className="space-y-2.5 p-4">
             {(side.items || []).map((item, i) => (
-              <li key={i} className="flex items-start gap-2.5 text-[14.5px] leading-[1.75]" style={{ color: C.body }}>
+              <li key={i} data-focus={`${at}-${i}`} className="flex items-start gap-2.5 text-[14.5px] leading-[1.75]" style={{ color: C.body }}>
                 <Check size={15} className="mt-1 shrink-0" style={{ color: tone.fg }} />{item}
               </li>
             ))}
@@ -1221,8 +1222,8 @@ export function SlideRenderer({ slide, accent, lrn, courseId, lessonId, index, t
           <SlideEyebrow kind="compare" index={index} total={total} />
           <SlideTitle>{slide.title}</SlideTitle>
           <div className="flex flex-col gap-3.5 sm:flex-row">
-            <Column side={left} tone={toneFor(left, 0)} />
-            <Column side={right} tone={toneFor(right, 1)} />
+            <Column side={left} tone={toneFor(left, 0)} at="left" />
+            <Column side={right} tone={toneFor(right, 1)} at="right" />
           </div>
         </div>
       );
@@ -1245,7 +1246,7 @@ export function SlideRenderer({ slide, accent, lrn, courseId, lessonId, index, t
           <SlideTitle>{slide.title}</SlideTitle>
           <ol className="space-y-3">
             {(content.points || []).map((p, i) => (
-              <li key={i} className="flex items-start gap-3.5">
+              <li key={i} data-focus={`point-${i}`} className="flex items-start gap-3.5">
                 <span
                   className="mt-0.5 flex h-[25px] w-[25px] shrink-0 items-center justify-center rounded-full text-[12.5px] font-bold"
                   style={{ background: T.successSubtle, color: T.success }}
@@ -1271,13 +1272,16 @@ function MainSlidePanel({ slides, index, setIndex, accent, lrn, courseId, lesson
   const slideCaption = slide?.caption || slide?.content?.caption || "";
   // 質問を開いている間は講義の読み上げを止める
   const [askOpen, setAskOpen] = useState(false);
+  // 指し示しの位置を測る基準（このパネルの内側を0-100%とみなす）
+  const stageRef = useRef(null);
   // 表紙・中扉には解説を付けない。それ以外はkindによらずスライドの外に出す。
   const synthetic = slide?.kind === "_cover" || slide?.kind === "_divider";
   const captionShownInBody = synthetic;
   return (
     <div className="order-1 min-w-0 flex-1 lg:order-none">
       <div
-        className="overflow-hidden rounded-2xl p-5 sm:p-8 lg:p-10"
+        ref={stageRef}
+        className="relative overflow-hidden rounded-2xl p-5 sm:p-8 lg:p-10"
         style={{ background: "#fff", border: `1px solid ${C.line}` }}
       >
         <div className="flex min-h-[300px] flex-col justify-center">
@@ -1292,6 +1296,11 @@ function MainSlidePanel({ slides, index, setIndex, accent, lrn, courseId, lesson
             key={slide?.id}
           />
         </div>
+        {/* 2026-08-24: 読み上げに合わせてスライドの該当箇所を指す。
+            指す場所が無いスライドでは何も描かない。 */}
+        {!synthetic && slide?.focus?.length > 0 && (
+          <SlideFocusLayer focus={slide.focus} stageRef={stageRef} slideId={slide.id} />
+        )}
       </div>
 
       {/* スライドの下に置く読み物。要点はスライド、補足は解説、詳しい説明はノート。

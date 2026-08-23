@@ -7,7 +7,7 @@ import {
 import { Badge, Btn, Field, fieldStyle, T, PRODUCT_ACCENT } from "../../../../components/common";
 import { apiGet } from "../../../../api.js";
 import AdminModal from "../AdminModal.jsx";
-import { lessonToForm } from "../useLearningAdmin.js";
+import { lessonToForm, planSlideFocus } from "../useLearningAdmin.js";
 import SlideDeckImporter from "./SlideDeckImporter.jsx";
 import SlideImageAdder from "./SlideImageAdder.jsx";
 import AiLessonStudioModal from "../aiLessonStudio/AiLessonStudioModal.jsx";
@@ -635,6 +635,8 @@ export default function LessonSlideStudio({ open, course, lesson, updateLesson, 
   const [imageAdderOpen, setImageAdderOpen] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState(null);
   const [bulkDeleteConfirm, setBulkDeleteConfirm] = useState(false);
+  // 講義の指し示し(2026-08-24)。AIが作った下書きをslidesへ載せるだけで、保存は「保存する」で行う。
+  const [focusState, setFocusState] = useState({ busy: false, message: "", tone: "info" });
   const ai = useAiSlideReview();
 
   useEffect(() => {
@@ -652,6 +654,7 @@ export default function LessonSlideStudio({ open, course, lesson, updateLesson, 
       setAiStudioOpen(false);
       setDeleteTarget(null);
       setBulkDeleteConfirm(false);
+      setFocusState({ busy: false, message: "", tone: "info" });
       ai.reset();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -812,6 +815,31 @@ export default function LessonSlideStudio({ open, course, lesson, updateLesson, 
     }
   }
 
+  // 読み上げに合わせてスライドのどこを指すかをAIに作らせ、下書きとしてslidesへ載せる。
+  // 座標はAIに出させていない（画面側の要素を表示時に測る）ので、レイアウトが変わってもずれない。
+  async function handlePlanFocus() {
+    setFocusState({ busy: true, message: "", tone: "info" });
+    try {
+      const res = await planSlideFocus(lesson.id);
+      const byId = res?.focus || {};
+      const marked = Object.keys(byId).length;
+      setSlides(prev => prev.map(s => (byId[s.id] ? { ...s, focus: byId[s.id] } : s)));
+      const failed = Array.isArray(res?.failedSlideIds) ? res.failedSlideIds.length : 0;
+      // 0件と失敗は区別して伝える。「作れなかった」を「指すところが無かった」に丸めない。
+      const parts = [];
+      if (marked) parts.push(`${marked}枚に指し示しを付けました`);
+      else parts.push("指し示しの付くスライドはありませんでした");
+      if (res?.skipped) parts.push(`対象外${res.skipped}枚（指せる場所か読み上げ原稿がない）`);
+      if (failed) parts.push(`${failed}枚は作成に失敗（もう一度お試しください）`);
+      parts.push("保存するまで反映されません");
+      setFocusState({ busy: false, message: parts.join(" / "), tone: failed ? "warn" : "info" });
+    } catch (e) {
+      setFocusState({ busy: false, message: e?.errorMessage || "指し示しを作れませんでした。", tone: "warn" });
+    }
+  }
+
+  const focusSlideCount = slides.filter(s => s.focus?.length).length;
+
   function handleSave() {
     updateLesson(course.id, lesson.id, { ...lessonToForm(lesson), slides });
     onClose();
@@ -823,10 +851,25 @@ export default function LessonSlideStudio({ open, course, lesson, updateLesson, 
         <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl p-2.5" style={{ background: C.canvas }}>
           <span className="text-xs font-semibold" style={{ color: C.ink }}>{slides.length}枚のスライド</span>
           <div className="flex flex-wrap gap-2">
+            <Btn kind="ghost" size="sm" icon={focusState.busy ? Loader2 : MousePointerClick} onClick={handlePlanFocus} disabled={focusState.busy}>
+              {focusState.busy ? "作成中..." : "指し示しをAIで作る"}
+            </Btn>
             <Btn kind="ghost" size="sm" icon={X} onClick={onClose}>キャンセル</Btn>
             <Btn size="sm" icon={Save} onClick={handleSave}>保存する</Btn>
           </div>
         </div>
+
+        {/* 指し示し = 講義の読み上げ中に、その文に対応する場所を枠で示す機能。 */}
+        {(focusState.message || focusSlideCount > 0) && (
+          <div
+            className="rounded-xl px-3 py-2.5 text-[11.5px] leading-relaxed"
+            style={focusState.tone === "warn"
+              ? { background: T.warningSubtle, color: T.warning }
+              : { background: C.canvas, color: C.muted }}
+          >
+            {focusState.message || `${focusSlideCount}枚のスライドに指し示しが設定されています。`}
+          </div>
+        )}
 
         {slides.length === 0 && !addingKind ? (
           <div className="rounded-xl p-4 text-center text-xs" style={{ background: C.canvas, color: C.muted }}>
