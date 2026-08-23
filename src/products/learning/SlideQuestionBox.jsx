@@ -1,9 +1,66 @@
 import React, { useEffect, useRef, useState } from "react";
-import { Loader2, MessageCircleQuestion, Send, Sparkles } from "lucide-react";
+import { Loader2, MessageCircleQuestion, Pause, Play, Send, Sparkles } from "lucide-react";
 import { T } from "../../components/common";
 import { apiPost } from "../../api.js";
+import { fetchSpeech, playSpeech, stopSpeech } from "./lectureAudio.js";
+import { SpeechMarked, useSpeechCue } from "./speechHighlight.jsx";
 
 const C = { ink: T.textPrimary, body: T.textSecondary, muted: T.textMuted, line: T.border, canvas: T.bgBase };
+
+// AIの答えも講義と同じ声で読み上げる。読んでいる文にはマーカーを引く。
+// 音声はBackendでS3にキャッシュされるが、答えは毎回違う文章なので基本は都度合成になる
+// （200文字で0.5円ほど）。自動読み上げは切れるようにしておく。
+function AnswerBubble({ text, autoPlayKey }) {
+  const [state, setState] = useState("idle"); // idle | loading | playing
+  const cue = useSpeechCue(text);
+  const aliveRef = useRef(true);
+
+  useEffect(() => { aliveRef.current = true; return () => { aliveRef.current = false; }; }, []);
+
+  async function play() {
+    setState("loading");
+    try {
+      const speech = await fetchSpeech(text);
+      if (!aliveRef.current) return;
+      if (!speech.chunks.length) { setState("idle"); return; }
+      setState("playing");
+      await playSpeech(speech, { sourceText: text });
+    } catch (e) { /* 読み上げに失敗しても答えは画面に出ている */ }
+    if (aliveRef.current) setState("idle");
+  }
+
+  // 自動読み上げ。autoPlayKey が入っている答えだけ、表示された直後に1度だけ鳴らす。
+  useEffect(() => {
+    if (!autoPlayKey) return;
+    play();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [autoPlayKey]);
+
+  function toggle() {
+    if (state === "playing" || state === "loading") { stopSpeech(); setState("idle"); return; }
+    play();
+  }
+
+  return (
+    <div className="flex justify-start">
+      <div
+        className="max-w-[85%] rounded-2xl px-3.5 py-2.5 text-[13.5px] leading-[1.85]"
+        style={{ background: "#fff", border: `1px solid ${T.aiAccentDeep}22`, color: C.body }}
+      >
+        <p className="whitespace-pre-wrap"><SpeechMarked sentence={cue?.sentence}>{text}</SpeechMarked></p>
+        <button
+          type="button"
+          onClick={toggle}
+          className="mt-2 flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-bold transition hover:bg-black/[.04]"
+          style={{ border: `1px solid ${C.line}`, color: C.muted }}
+        >
+          {state === "loading" ? <Loader2 size={11} className="animate-spin" /> : state === "playing" ? <Pause size={11} /> : <Play size={11} />}
+          {state === "loading" ? "準備中" : state === "playing" ? "停止" : "読み上げ"}
+        </button>
+      </div>
+    </div>
+  );
+}
 
 // 2026-08-21: 「今見ているページ」について質問できる欄。
 //
@@ -17,11 +74,13 @@ export default function SlideQuestionBox({ courseId, lessonId, slideId, slideTit
   const [followUps, setFollowUps] = useState([]);
   const [busy, setBusy] = useState(false);
   const [errorMsg, setErrorMsg] = useState("");
+  // 答えを自動で読み上げるか。講義の続きとして聞けるように既定はON。
+  const [autoSpeak, setAutoSpeak] = useState(true);
   const aliveRef = useRef(true);
 
-  useEffect(() => { aliveRef.current = true; return () => { aliveRef.current = false; }; }, []);
+  useEffect(() => { aliveRef.current = true; return () => { aliveRef.current = false; stopSpeech(); }; }, []);
   // ページが変わったら会話をリセットする（別のページの話が混ざらないように）。
-  useEffect(() => { setMessages([]); setFollowUps([]); setQuestion(""); setErrorMsg(""); setOpen(false); }, [slideId]);
+  useEffect(() => { setMessages([]); setFollowUps([]); setQuestion(""); setErrorMsg(""); setOpen(false); stopSpeech(); }, [slideId]);
   // 開いている間は講義の読み上げを止めてもらう（重なって聞こえないように）
   useEffect(() => { if (onOpenChange) onOpenChange(open); }, [open]);
 
@@ -37,7 +96,12 @@ export default function SlideQuestionBox({ courseId, lessonId, slideId, slideTit
     try {
       const res = await apiPost("/learning/slides/ask", { courseId, lessonId, slideId, question: q, history });
       if (!aliveRef.current) return;
-      setMessages(prev => [...prev, { role: "assistant", text: res.answer || "うまく答えられませんでした。聞き方を変えてみてください。" }]);
+      setMessages(prev => [...prev, {
+        role: "assistant",
+        text: res.answer || "うまく答えられませんでした。聞き方を変えてみてください。",
+        // 自動読み上げの目印。ONのときだけ入れて、その答えを1度だけ鳴らす。
+        autoKey: autoSpeak ? `${slideId}-${prev.length}-${Date.now()}` : "",
+      }]);
       setFollowUps(Array.isArray(res.followUps) ? res.followUps : []);
     } catch (e) {
       if (!aliveRef.current) return;
@@ -76,16 +140,18 @@ export default function SlideQuestionBox({ courseId, lessonId, slideId, slideTit
       {messages.length > 0 && (
         <div className="mb-3 space-y-2">
           {messages.map((m, i) => (
-            <div key={i} className={m.role === "user" ? "flex justify-end" : "flex justify-start"}>
-              <div
-                className="max-w-[85%] rounded-2xl px-3.5 py-2.5 text-[13.5px] leading-[1.85] whitespace-pre-wrap"
-                style={m.role === "user"
-                  ? { background: "#fff", border: `1px solid ${C.line}`, color: C.ink }
-                  : { background: "#fff", border: `1px solid ${T.aiAccentDeep}22`, color: C.body }}
-              >
-                {m.text}
-              </div>
-            </div>
+            m.role === "assistant"
+              ? <AnswerBubble key={i} text={m.text} autoPlayKey={m.autoKey} />
+              : (
+                <div key={i} className="flex justify-end">
+                  <div
+                    className="max-w-[85%] whitespace-pre-wrap rounded-2xl px-3.5 py-2.5 text-[13.5px] leading-[1.85]"
+                    style={{ background: "#fff", border: `1px solid ${C.line}`, color: C.ink }}
+                  >
+                    {m.text}
+                  </div>
+                </div>
+              )
           ))}
           {busy && (
             <div className="flex items-center gap-1.5 text-xs" style={{ color: C.muted }}>
@@ -131,6 +197,17 @@ export default function SlideQuestionBox({ courseId, lessonId, slideId, slideTit
           {busy ? <Loader2 size={16} className="animate-spin" /> : <Send size={16} />}
         </button>
       </div>
+
+      <label className="mt-2 flex items-center gap-1.5 text-[11.5px]" style={{ color: C.muted }}>
+        <input
+          type="checkbox"
+          checked={autoSpeak}
+          onChange={e => { setAutoSpeak(e.target.checked); if (!e.target.checked) stopSpeech(); }}
+          className="h-3.5 w-3.5"
+          style={{ accentColor: T.aiAccentDeep }}
+        />
+        答えを自動で読み上げる
+      </label>
     </div>
   );
 }

@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState } from "react";
-import { Loader2, Pause, Play, SkipForward } from "lucide-react";
+import { Loader2, Pause, Play, Radio, SkipForward } from "lucide-react";
 import { T } from "../../components/common";
-import { fetchSpeechUrls, playUrls, stopSpeech } from "./lectureAudio.js";
+import { fetchSpeech, playSpeech, stopSpeech, subscribeSpeech } from "./lectureAudio.js";
 
 const C = { ink: T.textPrimary, body: T.textSecondary, muted: T.textMuted, line: T.border };
 
@@ -33,8 +33,14 @@ export function lectureScriptFor(slide, lesson) {
 export default function LecturePlayer({ slides, index, setIndex, lesson, paused, onPausedChange }) {
   const [state, setState] = useState("idle"); // idle | loading | playing | stopped_exercise | done
   const [rate, setRate] = useState(1);
+  // いま読み上げている文（字幕）。本文のマーカーと同じ情報。
+  const [caption, setCaption] = useState("");
   const aliveRef = useRef(true);
   const runIdRef = useRef(0);
+
+  useEffect(() => subscribeSpeech(next => {
+    setCaption(next.speaking ? (next.sentence || "") : "");
+  }), []);
 
   useEffect(() => {
     aliveRef.current = true;
@@ -76,18 +82,20 @@ export default function LecturePlayer({ slides, index, setIndex, lesson, paused,
       const script = lectureScriptFor(target, lesson);
       if (script) {
         setState("loading");
-        let urls = [];
+        let speech = { urls: [], chunks: [] };
         try {
-          urls = await fetchSpeechUrls(script);
+          speech = await fetchSpeech(script);
         } catch (e) {
           // 音声が作れなくても講義は続ける（読むものは画面に出ている）。
-          urls = [];
+          speech = { urls: [], chunks: [] };
         }
         if (runId !== runIdRef.current || !aliveRef.current) return;
         setState("playing");
-        const finished = await playUrls(urls, { rate });
+        // sourceText を渡すと、解説・ノート側が「自分が読まれている」と分かり、
+        // その文にマーカーが引かれる。
+        const finished = await playSpeech(speech, { rate, sourceText: script });
         if (runId !== runIdRef.current || !aliveRef.current) return;
-        if (!finished && urls.length) return; // 手動で止められた
+        if (!finished && speech.chunks.length) return; // 手動で止められた
       }
 
       // 演習ページは読み上げたところで止める。解いてから自分で再開してもらう。
@@ -101,10 +109,8 @@ export default function LecturePlayer({ slides, index, setIndex, lesson, paused,
   const playing = state === "playing" || state === "loading";
 
   return (
-    <div
-      className="mt-3 flex flex-wrap items-center gap-2.5 rounded-2xl px-4 py-3"
-      style={{ background: "#fff", border: `1px solid ${C.line}` }}
-    >
+    <div className="mt-3 rounded-2xl" style={{ background: "#fff", border: `1px solid ${C.line}` }}>
+      <div className="flex flex-wrap items-center gap-2.5 px-4 py-3">
       <button
         type="button"
         onClick={() => (playing ? stop() : playFrom(index))}
@@ -152,6 +158,18 @@ export default function LecturePlayer({ slides, index, setIndex, lesson, paused,
           <option value={1.5}>1.5x</option>
         </select>
       </label>
+      </div>
+
+      {/* 字幕。読み上げている文をそのまま出す。本文側の同じ文にもマーカーが引かれる。 */}
+      {caption && (
+        <div
+          className="flex items-start gap-2 rounded-b-2xl px-4 py-3"
+          style={{ background: T.accentSubtle, borderTop: `1px solid ${C.line}` }}
+        >
+          <Radio size={14} className="mt-0.5 shrink-0" style={{ color: T.accent }} />
+          <p className="text-[13.5px] font-semibold leading-[1.75]" style={{ color: C.ink }}>{caption}</p>
+        </div>
+      )}
     </div>
   );
 }
