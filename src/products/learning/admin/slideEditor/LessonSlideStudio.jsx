@@ -10,6 +10,7 @@ import AdminModal from "../AdminModal.jsx";
 import { lessonToForm, planSlideFocus } from "../useLearningAdmin.js";
 import SlideDeckImporter from "./SlideDeckImporter.jsx";
 import SlideImageAdder from "./SlideImageAdder.jsx";
+import SlideFocusPdfMatcher from "./SlideFocusPdfMatcher.jsx";
 import AiLessonStudioModal from "../aiLessonStudio/AiLessonStudioModal.jsx";
 import { REVISABLE_KINDS, useAiSlideReview } from "../slideReview/useAiSlideReview.js";
 import { SlideRenderer } from "../../ElSlideLessonView.jsx";
@@ -637,6 +638,7 @@ export default function LessonSlideStudio({ open, course, lesson, updateLesson, 
   const [bulkDeleteConfirm, setBulkDeleteConfirm] = useState(false);
   // 講義の指し示し(2026-08-24)。AIが作った下書きをslidesへ載せるだけで、保存は「保存する」で行う。
   const [focusState, setFocusState] = useState({ busy: false, message: "", tone: "info" });
+  const [focusPdfOpen, setFocusPdfOpen] = useState(false);
   const ai = useAiSlideReview();
 
   useEffect(() => {
@@ -655,6 +657,7 @@ export default function LessonSlideStudio({ open, course, lesson, updateLesson, 
       setDeleteTarget(null);
       setBulkDeleteConfirm(false);
       setFocusState({ busy: false, message: "", tone: "info" });
+      setFocusPdfOpen(false);
       ai.reset();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -839,6 +842,15 @@ export default function LessonSlideStudio({ open, course, lesson, updateLesson, 
   }
 
   const focusSlideCount = slides.filter(s => s.focus?.length).length;
+  // ページ画像のスライドは画面に指せる要素が無いので、PDFを読み直す導線を別に出す。
+  const hasPdfPageSlides = slides.some(s => s.kind === "image" && s.content?.materialId);
+
+  // PDFから作った指し示しをスライドへ載せる（保存は「保存する」で行う）。
+  function applyPdfFocus(focusBySlide) {
+    setSlides(prev => prev.map(s => (focusBySlide[s.id] ? { ...s, focus: focusBySlide[s.id] } : s)));
+    const count = Object.keys(focusBySlide).length;
+    setFocusState({ busy: false, message: `PDFから${count}枚に指し示しを付けました / 保存するまで反映されません`, tone: "info" });
+  }
 
   function handleSave() {
     updateLesson(course.id, lesson.id, { ...lessonToForm(lesson), slides });
@@ -854,6 +866,11 @@ export default function LessonSlideStudio({ open, course, lesson, updateLesson, 
             <Btn kind="ghost" size="sm" icon={focusState.busy ? Loader2 : MousePointerClick} onClick={handlePlanFocus} disabled={focusState.busy}>
               {focusState.busy ? "作成中..." : "指し示しをAIで作る"}
             </Btn>
+            {hasPdfPageSlides && (
+              <Btn kind="ghost" size="sm" icon={FileUp} onClick={() => setFocusPdfOpen(true)} disabled={focusState.busy}>
+                PDFから指し示しを作る
+              </Btn>
+            )}
             <Btn kind="ghost" size="sm" icon={X} onClick={onClose}>キャンセル</Btn>
             <Btn size="sm" icon={Save} onClick={handleSave}>保存する</Btn>
           </div>
@@ -1003,6 +1020,14 @@ export default function LessonSlideStudio({ open, course, lesson, updateLesson, 
         existingSlideCount={slides.length}
         onImported={handlePdfImported}
         onClose={() => setImporterOpen(false)}
+      />
+
+      <SlideFocusPdfMatcher
+        open={focusPdfOpen}
+        lesson={lesson}
+        slides={slides}
+        onClose={() => setFocusPdfOpen(false)}
+        onApply={applyPdfFocus}
       />
 
       <SlideImageAdder

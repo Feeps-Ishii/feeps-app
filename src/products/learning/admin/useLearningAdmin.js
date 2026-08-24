@@ -393,8 +393,13 @@ export async function describeSlideImage({ materialId, courseTitle, lessonTitle,
 
 // 講義の指し示し(2026-08-24)。読み上げのどの文でスライドのどこを指すかをAIに作らせる。
 // 返るのは下書きで、保存はスライド管理画面の「保存する」で行う。
-export async function planSlideFocus(lessonId) {
-  return apiPost(`/learning/admin/ai-lesson-studio/lessons/${encodeURIComponent(lessonId)}/focus`, {});
+// slideTargets を渡すと、そのスライドは画面の要素ではなく渡した候補から選ばせる
+// （PDFページ画像用。位置はPDFの文字位置しかクライアントが知らないため）。
+export async function planSlideFocus(lessonId, { slideTargets } = {}) {
+  return apiPost(
+    `/learning/admin/ai-lesson-studio/lessons/${encodeURIComponent(lessonId)}/focus`,
+    slideTargets ? { slideTargets } : {},
+  );
 }
 
 // 発行された署名付きURLへ実ファイルを直接PUTする。S3への直PUTのため認証ヘッダ・JSON化を
