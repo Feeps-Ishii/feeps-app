@@ -44,6 +44,16 @@ const KIND_META = {
   ordering_puzzle: { label: "Ordering", icon: ListOrdered },
   fill_blank: { label: "Fill Blank", icon: PenLine },
   interactive_form: { label: "Interactive", icon: Settings2 },
+  // 2026-08-24 追加の版面（docs/design/slide-layouts.md）。
+  // 一覧・プレビューで名前が出るようにするためのもので、編集フォームは未対応
+  // （現状はAPI経由で流し込む前提。フォーム対応は必要になった時点で足す）。
+  chapter: { label: "章中扉", icon: FileText },
+  agenda: { label: "目次", icon: ListOrdered },
+  hook: { label: "問いかけ", icon: HelpCircle },
+  steps: { label: "ステップ", icon: LayoutGrid },
+  columns: { label: "2列", icon: Scale },
+  figure: { label: "図", icon: LayoutGrid },
+  work: { label: "ワーク", icon: MousePointerClick },
 };
 const BASIC_KINDS = ["concept", "image", "video"];
 // 追加ボタンに出す種別。imageは「画像を追加」(SlideImageAdder)が入口なので、

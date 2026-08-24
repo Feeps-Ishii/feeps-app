@@ -34,6 +34,43 @@ export function slideFocusTargets(slide) {
       (content.columns || []).forEach((col, i) => push(`col-${i}`, col));
       (content.rows || []).forEach((row, ri) => push(`row-${ri}`, Array.isArray(row) ? row.join(" / ") : row));
       break;
+    case "steps":
+      (content.items || []).forEach((item, i) => push(`step-${i}`, [item?.name, item?.desc].filter(Boolean).join(" / ")));
+      (content.callouts || []).forEach((c, i) => push(`callout-${i}`, c?.text));
+      break;
+    case "columns":
+      (content.columns || []).forEach((col, ci) => {
+        push(`col-${ci}`, [col?.label, col?.sub].filter(Boolean).join(" "));
+        (col?.items || []).forEach((item, i) => push(`col-${ci}-${i}`, [item?.k, item?.v].filter(Boolean).join(" / ")));
+      });
+      (content.callouts || []).forEach((c, i) => push(`callout-${i}`, c?.text));
+      break;
+    case "agenda":
+      (content.items || []).forEach((item, i) => push(`ag-${i}`, [item?.title, item?.desc].filter(Boolean).join(" / ")));
+      break;
+    case "hook":
+      push("hook-q", content.question);
+      push("hook-turn", content.turn);
+      break;
+    case "work":
+      push("work-task", content.task);
+      break;
+    case "figure":
+      // 図は中の要素そのものを指す。refは図の種類ごとにデータが持っているidを使う。
+      if (content.figure === "vmodel") {
+        (content.pairs || []).forEach((pair, i) => {
+          push(pair?.id || `v-left-${i}`, [pair?.left, pair?.leftDesc].filter(Boolean).join(" / "));
+          push(pair?.rightId || `v-right-${i}`, [pair?.right, pair?.rightDesc].filter(Boolean).join(" / "));
+        });
+        if (content.bottom) push(content.bottom.id || "v-bottom", content.bottom.label);
+      } else if (content.figure === "phaseflow") {
+        (content.items || []).forEach((item, i) => push(item?.id || `p-${i}`, [item?.label, item?.meta].filter(Boolean).join(" / ")));
+      } else if (content.figure === "contrast_loop") {
+        (content.left?.steps || []).forEach((step, i) => push(`wf-${i}`, step));
+        (content.right?.steps || []).slice(0, 4).forEach((step, i) => push(`ag-${i}`, step));
+      }
+      (content.callouts || []).forEach((c, i) => push(`callout-${i}`, c?.text));
+      break;
     default:
       break;
   }

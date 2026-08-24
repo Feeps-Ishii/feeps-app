@@ -576,3 +576,51 @@ body.feeps-modal-open .feeps-main-scroll { overflow: hidden !important; }
 @media (min-width: 640px) { .feeps-product-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 @media (min-width: 1024px) { .feeps-product-grid { grid-template-columns: repeat(var(--cols-lg, 3), minmax(0, 1fr)); } }
 @media (min-width: 1536px) { .feeps-product-grid { grid-template-columns: repeat(var(--cols-xl, var(--cols-lg, 3)), minmax(0, 1fr)); } }
+
+/* ---- 講義スライドの図（2026-08-24）----
+   仕様: docs/design/slide-layouts.md / 承認モック: mock/slide-layouts/index.html
+   色は既存トークンに寄せる。図の中でhexを増やさない。 */
+:root {
+  --fig-surface: #ffffff;
+  --fig-surface-2: #f7f9fc;
+  --fig-line: #e0e5ee;
+  --fig-hairline: rgba(26, 28, 31, .09);
+  --fig-ink: #1a1c1f;
+  --fig-ink-2: #535d6e;
+  --fig-ink-3: #687286;
+  --fig-accent: #1267b5;
+  --fig-accent-deep: #0b5799;
+  --fig-accent-soft: #e7f3ff;
+  --fig-teal: #176b67;
+  --fig-teal-soft: #e7f7f5;
+}
+.feeps-fig-frame { background: var(--fig-surface-2); border: 1px solid var(--fig-line); }
+.feeps-fig figcaption { color: var(--fig-ink-3); }
+.feeps-fig-node rect { fill: var(--fig-surface); stroke: var(--fig-line); stroke-width: 1.5; }
+.feeps-fig-node.up rect { stroke: var(--fig-accent); fill: var(--fig-accent-soft); }
+.feeps-fig-node.down rect { stroke: var(--fig-teal); fill: var(--fig-teal-soft); }
+.feeps-fig-node.mid rect { stroke: var(--fig-ink-3); fill: var(--fig-surface); }
+.feeps-fig-node text { text-anchor: middle; font-size: 15px; font-weight: 700; fill: var(--fig-ink); }
+.feeps-fig-node text.sub { font-size: 11px; font-weight: 500; fill: var(--fig-ink-3); }
+.feeps-fig-v { fill: none; stroke: var(--fig-hairline); stroke-width: 14; stroke-linejoin: round; stroke-linecap: round; }
+.feeps-fig-link { stroke: var(--fig-ink-3); stroke-width: 1.5; stroke-dasharray: 5 5; opacity: .7; }
+.feeps-fig-linklabel rect { fill: var(--fig-surface-2); }
+.feeps-fig-linklabel text { text-anchor: middle; font-size: 12px; font-weight: 700; fill: var(--fig-ink-2); }
+.feeps-fig-axis { font-size: 12px; font-weight: 700; fill: var(--fig-ink-3); letter-spacing: .04em; }
+.feeps-fig-end { text-anchor: end; }
+.feeps-fig-band rect { fill: none; stroke-width: 1.5; stroke-dasharray: 6 5; }
+.feeps-fig-band.up rect { stroke: var(--fig-accent); }
+.feeps-fig-band.down rect { stroke: var(--fig-teal); }
+.feeps-fig-band text { text-anchor: middle; font-size: 12px; font-weight: 800; }
+.feeps-fig-band.up text { fill: var(--fig-accent-deep); }
+.feeps-fig-band.down text { fill: var(--fig-teal); }
+.feeps-fig-chev path { stroke-width: 1.5; }
+.feeps-fig-chev.up path { fill: var(--fig-accent-soft); stroke: var(--fig-accent); }
+.feeps-fig-chev.down path { fill: var(--fig-teal-soft); stroke: var(--fig-teal); }
+.feeps-fig-chev text { text-anchor: middle; font-size: 14px; font-weight: 700; fill: var(--fig-ink); }
+.feeps-fig-chev text.sub { font-size: 10.5px; font-weight: 500; fill: var(--fig-ink-3); }
+.feeps-fig-fall { stroke: var(--fig-ink-3); stroke-width: 2; stroke-linecap: round; }
+.feeps-fig-note { font-size: 12.5px; font-weight: 600; fill: var(--fig-ink-2); }
+.feeps-fig-divider { stroke: var(--fig-line); stroke-width: 1.5; }
+.feeps-fig-loop { fill: none; stroke: var(--fig-teal); stroke-width: 2; stroke-dasharray: 7 6; opacity: .8; }
+.feeps-fig-arrow { fill: none; stroke: var(--fig-teal); stroke-width: 2.5; stroke-linecap: round; stroke-linejoin: round; }

@@ -13,6 +13,8 @@ import { SlideNarration, SlideNote } from "./SlideNarrationBlocks.jsx";
 import SlideQuestionBox from "./SlideQuestionBox.jsx";
 import LecturePlayer from "./LecturePlayer.jsx";
 import SlideFocusLayer from "./SlideFocusLayer.jsx";
+import SlideFigure from "./SlideFigures.jsx";
+import { AgendaSlide, ChapterSlide, ColumnsSlide, HookSlide, RoleCallouts, SlideEyebrowText, StepsSlide, WorkSlide } from "./SlideLayouts.jsx";
 
 // slidesを持つLesson専用の「メインスライド中心」表示。lesson.slides?.length > 0 の場合のみ
 // ElLessonView.jsx からこのコンポーネントへ分岐する（既存のvideo/text/quiz Lessonはこのファイルを
@@ -1136,11 +1138,41 @@ export function SlideRenderer({ slide, accent, lrn, courseId, lessonId, index, t
     case "concept":
       return (
         <ContentColumn>
-          <SlideEyebrow kind="concept" index={index} total={total} />
+          {content.chapter || content.chapterTitle
+            ? <SlideEyebrowText chapter={content.chapter} chapterTitle={content.chapterTitle} />
+            : <SlideEyebrow kind="concept" index={index} total={total} />}
           <SlideTitle>{slide.title}</SlideTitle>
           <LessonBodyText body={content.body} />
-          <Callouts items={content.callouts} />
+          {/* 囲みは役割で分ける（ポイント/誤解しやすい/現場感覚）。roleが無い旧データは
+              従来どおりの見た目になるよう RoleCallouts 側で type を見ている。 */}
+          <RoleCallouts items={content.callouts} />
         </ContentColumn>
+      );
+
+    // ---- 2026-08-24 追加の版面。仕様: docs/design/slide-layouts.md ----
+    case "chapter":
+      return <ChapterSlide content={content} />;
+    case "agenda":
+      return <AgendaSlide slide={slide} content={content} />;
+    case "hook":
+      return <HookSlide slide={slide} content={content} />;
+    case "steps":
+      return <StepsSlide slide={slide} content={content} />;
+    case "columns":
+      return <ColumnsSlide slide={slide} content={content} />;
+    case "work":
+      return <WorkSlide slide={slide} content={content} />;
+    case "figure":
+      return (
+        <div>
+          <SlideEyebrowText chapter={content.chapter} chapterTitle={content.chapterTitle} />
+          <SlideTitle>{slide.title}</SlideTitle>
+          {content.intro && (
+            <p className="mb-5 text-[14.5px] leading-[1.95]" style={{ color: C.body, maxWidth: "64ch" }}>{content.intro}</p>
+          )}
+          <SlideFigure content={content} />
+          <RoleCallouts items={content.callouts} />
+        </div>
       );
     case "image":
       return <ImageSlideBody key={slide.id} slide={slide} content={content} lrn={lrn} />;
