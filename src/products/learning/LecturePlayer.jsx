@@ -15,7 +15,7 @@ const C = { ink: T.textPrimary, body: T.textSecondary, muted: T.textMuted, line:
 //   1. 演習ページに来たとき（解いてから自分で再開する）
 //   2. 質問を開いたとき（onPauseRequestで外から止める）
 //   3. 最後のページを読み終わったとき
-const EXERCISE_KINDS = new Set(["quiz", "terminal", "selection_task", "ordering_puzzle", "fill_blank", "interactive_form"]);
+const EXERCISE_KINDS = new Set(["quiz", "terminal", "selection_task", "ordering_puzzle", "fill_blank", "interactive_form", "code_run"]);
 
 // 読み上げる原稿。**ノートがあればノート、無ければ解説**。
 // 表紙と中扉はそのページの言葉をそのまま読む（無音で飛ばすと、進んだことが分からない）。

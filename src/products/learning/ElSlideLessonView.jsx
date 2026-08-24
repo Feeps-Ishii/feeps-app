@@ -14,6 +14,7 @@ import SlideQuestionBox from "./SlideQuestionBox.jsx";
 import LecturePlayer from "./LecturePlayer.jsx";
 import SlideFocusLayer from "./SlideFocusLayer.jsx";
 import SlideFigure from "./SlideFigures.jsx";
+import CodeRunSlide from "./CodeRunSlide.jsx";
 import { AgendaSlide, ChapterSlide, ColumnsSlide, HookSlide, RoleCallouts, SlideEyebrowText, StepsSlide, WorkSlide } from "./SlideLayouts.jsx";
 
 // slidesを持つLesson専用の「メインスライド中心」表示。lesson.slides?.length > 0 の場合のみ
@@ -124,7 +125,7 @@ const STAGE_VISUAL = {
 // 中扉・目次のためのステージ判定。LearningExperienceFlowのlearningStageForSlideは
 // 「index===0だけexplanation、あとは全部example」なので、説明スライドが3枚続いても
 // 2枚目の手前で「例で見る」の中扉が出てしまう。ここでは**kindだけ**で判定する。
-const PRACTICE_SLIDE_KINDS = new Set(["quiz", "terminal", "selection_task", "ordering_puzzle", "fill_blank", "interactive_form"]);
+const PRACTICE_SLIDE_KINDS = new Set(["quiz", "terminal", "selection_task", "ordering_puzzle", "fill_blank", "interactive_form", "code_run"]);
 function displayStage(slide) {
   const kind = String(slide?.kind || "").toLowerCase();
   if (kind === "summary") return "review";
@@ -252,7 +253,7 @@ function orderedSlides(lesson) {
 
 // 提出(POST /learning/exercises/submit)が必要な演習系kind。ChoiceQuizBody(4択の確認問題)は
 // 従来どおりクライアント内完結の自己チェックのままなので対象外(2026-07-21フェーズ2の設計を踏襲)。
-const EXERCISE_KINDS = new Set(["terminal", "selection_task", "ordering_puzzle", "fill_blank", "interactive_form"]);
+const EXERCISE_KINDS = new Set(["terminal", "selection_task", "ordering_puzzle", "fill_blank", "interactive_form", "code_run"]);
 function slideNeedsSubmission(slide) {
   if (!slide) return false;
   if (EXERCISE_KINDS.has(slide.kind)) return true;
@@ -1162,6 +1163,8 @@ export function SlideRenderer({ slide, accent, lrn, courseId, lessonId, index, t
       return <ColumnsSlide slide={slide} content={content} />;
     case "work":
       return <WorkSlide slide={slide} content={content} />;
+    case "code_run":
+      return <CodeRunSlide slide={slide} content={content} lrn={lrn} courseId={courseId} lessonId={lessonId} />;
     case "figure":
       return (
         <div>

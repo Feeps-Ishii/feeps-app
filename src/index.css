@@ -624,3 +624,10 @@ body.feeps-modal-open .feeps-main-scroll { overflow: hidden !important; }
 .feeps-fig-divider { stroke: var(--fig-line); stroke-width: 1.5; }
 .feeps-fig-loop { fill: none; stroke: var(--fig-teal); stroke-width: 2; stroke-dasharray: 7 6; opacity: .8; }
 .feeps-fig-arrow { fill: none; stroke: var(--fig-teal); stroke-width: 2.5; stroke-linecap: round; stroke-linejoin: round; }
+
+/* ステップカード（2026-08-25）。列数は枚数から決める（--cols）。
+   狭い画面では1列。最後の行に1枚だけ残さないための調整は stepColumns()。 */
+.feeps-steps { display: grid; gap: 10px; grid-template-columns: minmax(0, 1fr); }
+@media (min-width: 640px) {
+  .feeps-steps { grid-template-columns: repeat(var(--cols, 3), minmax(0, 1fr)); }
+}

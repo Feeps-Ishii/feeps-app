@@ -52,6 +52,9 @@ export function slideFocusTargets(slide) {
       push("hook-q", content.question);
       push("hook-turn", content.turn);
       break;
+    case "code_run":
+      push("run-task", content.task);
+      break;
     case "work":
       push("work-task", content.task);
       break;

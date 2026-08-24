@@ -146,6 +146,16 @@ export function RoleCallouts({ items }) {
 }
 
 // ---- 番号付きカード ----
+// 最後の行に1枚だけ残さない列数を選ぶ。
+export function stepColumns(n) {
+  if (n <= 2) return n || 1;
+  if (n === 4) return 2;      // 3+1 を避けて 2+2
+  if (n === 5) return 3;      // 3+2
+  if (n === 7) return 4;      // 4+3（3列だと 3+3+1 になる）
+  if (n === 8) return 4;      // 4+4
+  return 3;                   // 3/6/9 はそのまま3列で割り切れる
+}
+
 export function StepsSlide({ slide, content = {} }) {
   const items = content.items || [];
   return (
@@ -153,7 +163,9 @@ export function StepsSlide({ slide, content = {} }) {
       <SlideEyebrowText chapter={content.chapter} chapterTitle={content.chapterTitle} />
       <Title>{slide.title}</Title>
       <Lead>{content.intro}</Lead>
-      <div className="grid gap-2.5" style={{ gridTemplateColumns: "repeat(auto-fill, minmax(206px, 1fr))" }}>
+      {/* 列数は枚数から決める。auto-fillに任せると4枚のとき3+1になり、
+          最後の1枚だけが下に取り残されて落ち着かない（2026-08-25の指摘）。 */}
+      <div className="feeps-steps" style={{ "--cols": stepColumns(items.length) }}>
         {items.map((item, i) => (
           <div key={i} data-focus={`step-${i}`} className="rounded-2xl p-4" style={{ background: "#fff", border: `1px solid ${C.line}` }}>
             <div className="text-[11px] font-extrabold" style={{ color: T.accent, fontVariantNumeric: "tabular-nums", letterSpacing: "0.06em" }}>
