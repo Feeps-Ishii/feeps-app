@@ -1309,6 +1309,23 @@ function MainSlidePanel({ slides, index, setIndex, accent, lrn, courseId, lesson
   const [askOpen, setAskOpen] = useState(false);
   // 指し示しの位置を測る基準（このパネルの内側を0-100%とみなす）
   const stageRef = useRef(null);
+
+  // ページを送ったらスライドの先頭へ戻す（2026-08-25の指摘）。
+  // 長いページの下で「次へ」を押すと、次のページの途中から始まってしまい、
+  // 毎回自分でスクロールを上げる必要があった。講義プレイヤーの自動送りでも同じ。
+  //
+  // lg+ではwindowではなく .feeps-main-scroll がスクロールするので、
+  // 祖先のスクロール領域も辿ってくれる scrollIntoView を使う（日報フォームと同じ手）。
+  //
+  // behavior は "auto"（即座）。スライドのページ送りは紙をめくる操作なので、
+  // 途中の動きを見せる必要がない。講義プレイヤーが自動で送るときも、
+  // なめらかな移動だと次のページの読み上げに間に合わないことがある。
+  const firstRenderRef = useRef(true);
+  useEffect(() => {
+    if (firstRenderRef.current) { firstRenderRef.current = false; return; }
+    stageRef.current?.scrollIntoView?.({ behavior: "auto", block: "start" });
+  }, [index]);
+
   // 表紙・中扉には解説を付けない。それ以外はkindによらずスライドの外に出す。
   const synthetic = slide?.kind === "_cover" || slide?.kind === "_divider";
   const captionShownInBody = synthetic;
