@@ -79,7 +79,10 @@ export function SlideNarration({ text }) {
         </span>
         <SpeakButton text={text} />
       </div>
-      <p className="text-sm leading-[1.9]" style={{ color: C.body, maxWidth: "68ch" }}>
+      {/* 幅はカードいっぱいに使う。読みやすさのために68chで止めていたが、
+          カードの方がずっと広いため、右側が大きく空いて左に寄って見えた
+          （2026-08-25の指摘）。囲みの幅＝行の幅の方が落ち着く。 */}
+      <p className="text-sm leading-[1.9]" style={{ color: C.body }}>
         <SpeechMarked sentence={cue?.sentence}>{text}</SpeechMarked>
       </p>
     </div>
@@ -112,7 +115,8 @@ export function SlideNote({ note }) {
         </span>
         <SpeakButton text={note} />
       </div>
-      <div className="feeps-lesson-md text-[14.5px] leading-[1.9]" style={{ color: C.body, maxWidth: "68ch" }}>
+      {/* 解説と同じ理由で幅の制限を外す（カードいっぱいに使う）。 */}
+      <div className="feeps-lesson-md text-[14.5px] leading-[1.9]" style={{ color: C.body }}>
         <ReactMarkdown components={components}>{note}</ReactMarkdown>
       </div>
     </div>
