@@ -116,7 +116,7 @@ export function SlideNote({ note }) {
         <SpeakButton text={note} />
       </div>
       {/* 解説と同じ理由で幅の制限を外す（カードいっぱいに使う）。 */}
-      <div className="feeps-lesson-md text-[14.5px] leading-[1.9]" style={{ color: C.body }}>
+      <div className="feeps-lesson-md feeps-note-md text-[14.5px] leading-[1.9]" style={{ color: C.body }}>
         <ReactMarkdown components={components}>{note}</ReactMarkdown>
       </div>
     </div>

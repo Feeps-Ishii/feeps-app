@@ -631,3 +631,36 @@ body.feeps-modal-open .feeps-main-scroll { overflow: hidden !important; }
 @media (min-width: 640px) {
   .feeps-steps { grid-template-columns: repeat(var(--cols, 3), minmax(0, 1fr)); }
 }
+
+/* ノート本文の番号つきリスト（2026-08-25、承認モック note-layout の案E）。
+   「3つあります」のように数を数えるページで、言葉と見た目をそろえる。
+   数字は丸いチップにして、本文の段落と区別がつくようにする。 */
+.feeps-note-md ol {
+  list-style: none;
+  padding-left: 0;
+  margin: 0.3em 0 0.9em;
+  display: flex;
+  flex-direction: column;
+  gap: 11px;
+  counter-reset: feeps-note-item;
+}
+.feeps-note-md ol > li {
+  display: flex;
+  gap: 11px;
+  margin: 0;
+  counter-increment: feeps-note-item;
+}
+.feeps-note-md ol > li::before {
+  content: counter(feeps-note-item);
+  flex: none;
+  width: 22px;
+  height: 22px;
+  margin-top: 3px;
+  border-radius: 999px;
+  background: var(--fig-accent-soft);
+  color: var(--fig-accent-deep);
+  font-size: 11.5px;
+  font-weight: 800;
+  display: grid;
+  place-items: center;
+}
