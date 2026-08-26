@@ -6,6 +6,7 @@ import { SlideEyebrowText } from "./SlideLayouts.jsx";
 import { stopSpeech } from "./lectureAudio.js";
 import JavaEditor from "./JavaEditor.jsx";
 import { parseJavacError } from "./javaEditorSupport.js";
+import CodeQuestionBox from "./CodeQuestionBox.jsx";
 
 // 2026-08-25: 受講者がコードを書いて、**本当にコンパイル・実行する**演習。
 // 承認モック: mock/lecture-devenv, mock/code-editor
@@ -269,6 +270,18 @@ export default function CodeRunSlide({ slide, content = {}, lrn, courseId, lesso
       </div>
 
       {errorMsg && <div className="mt-2 text-xs font-semibold" style={{ color: T.danger }}>{errorMsg}</div>}
+
+      {/* いま書いているコードと実行結果について質問できる。
+          答えのコードは返さない（Backendのプロンプト側で担保）。 */}
+      <CodeQuestionBox
+        courseId={courseId}
+        lessonId={lessonId}
+        slideId={slide.id}
+        source={source}
+        output={result ? (result.compiled ? [result.stdout, result.stderr].filter(Boolean).join("\n") : result.compileError) : ""}
+        compiled={Boolean(result?.compiled)}
+        hasResult={Boolean(result)}
+      />
 
       {/* 結果に応じた解説。教材が用意した文言を出す（AIには投げない）。 */}
       {result && (
