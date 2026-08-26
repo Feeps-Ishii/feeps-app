@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from "react";
+import React, { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { T } from "../../components/common";
 import {
   addMissingImports, closingBraceEdit, completionsFor, indentEdit,
@@ -79,15 +79,26 @@ export default function JavaEditor({ value, onChange, diagnostic, level = 1, onR
     return () => clearTimeout(id);
   }, [toast]);
 
+  // 書き換えたあとのカーソル位置。
+  // requestAnimationFrame で戻すと、Reactが値を差し替えた拍子にカーソルが
+  // 行末へ飛ぶことがある（2026-08-26。改行の直後に打った文字が最終行へ入った）。
+  // DOMの更新直後に必ず走る useLayoutEffect で当てる。
+  const pendingCaret = useRef(null);
+
   function apply({ value: next, caret, caretEnd }) {
+    pendingCaret.current = [caret, caretEnd === undefined ? caret : caretEnd];
     onChange(next);
-    requestAnimationFrame(() => {
-      const ta = taRef.current;
-      if (!ta) return;
-      ta.focus();
-      ta.setSelectionRange(caret, caretEnd === undefined ? caret : caretEnd);
-    });
   }
+
+  useLayoutEffect(() => {
+    if (!pendingCaret.current) return;
+    const ta = taRef.current;
+    if (ta) {
+      ta.focus();
+      ta.setSelectionRange(pendingCaret.current[0], pendingCaret.current[1]);
+    }
+    pendingCaret.current = null;
+  });
 
   function charWidth() {
     const ta = taRef.current;
@@ -110,11 +121,13 @@ export default function JavaEditor({ value, onChange, diagnostic, level = 1, onR
     const upto = ta.value.slice(0, pos);
     const lineNo = upto.split("\n").length;
     const col = upto.length - upto.lastIndexOf("\n") - 1;
+    // 候補の位置は、スクロールする枠の中の座標で持つ（枠と一緒に動くので
+    // 縦スクロール量を引かない）。横だけは入力欄の中でスクロールするので引く。
     setMenu({
       items,
       sel: 0,
       start,
-      top: Math.max(6, PAD_TOP + lineNo * LINE_H - ta.scrollTop),
+      top: PAD_TOP + lineNo * LINE_H,
       left: Math.max(4, 4 + col * charWidth() - ta.scrollLeft),
     });
   }
@@ -166,17 +179,22 @@ export default function JavaEditor({ value, onChange, diagnostic, level = 1, onR
     if (e.key === "}") { e.preventDefault(); apply(closingBraceEdit(ta.value, ta.selectionStart)); return; }
   }
 
+  // 横に長い行だけは入力欄の中でスクロールするので、色付けの層も同じだけ動かす。
+  // **縦は入力欄をスクロールさせない**（下の bodyHeight を参照）。
   function syncScroll(e) {
-    if (gutterRef.current) gutterRef.current.scrollTop = e.target.scrollTop;
-    if (boxRef.current) {
-      boxRef.current.scrollTop = e.target.scrollTop;
-      boxRef.current.scrollLeft = e.target.scrollLeft;
-    }
+    if (boxRef.current) boxRef.current.scrollLeft = e.target.scrollLeft;
   }
 
+  // 入力欄の高さを中身ちょうどにして、縦のスクロールは外側の枠に任せる。
+  //
+  // 入力欄の中で縦スクロールさせると、下に敷いた色付けの層が付いてこられず、
+  // 行がずれる（2026-08-26に実機で発生。入力欄196px・層844pxで層が動けなかった）。
+  // 高さを合わせてしまえば、ずれる余地そのものが無くなる。
+  const bodyHeight = lines.length * LINE_H + PAD_TOP * 2;
+
   return (
-    <div className="relative grid" style={{ gridTemplateColumns: "46px minmax(0,1fr)", background: CODE_BG }}>
-      <div ref={gutterRef} className="overflow-hidden py-[14px] text-right" aria-hidden="true">
+    <div className="relative grid overflow-y-auto" style={{ gridTemplateColumns: "46px minmax(0,1fr)", background: CODE_BG, maxHeight: 460, resize: "vertical" }}>
+      <div ref={gutterRef} className="py-[14px] text-right" aria-hidden="true" style={{ height: bodyHeight }}>
         {lines.map((_, i) => {
           const bad = diagnostic && diagnostic.line === i + 1;
           return (
@@ -193,8 +211,8 @@ export default function JavaEditor({ value, onChange, diagnostic, level = 1, onR
         })}
       </div>
 
-      <div className="relative overflow-hidden">
-        <div ref={boxRef} className="pointer-events-none absolute inset-0 overflow-auto" aria-hidden="true" style={{ ...EDITOR_TEXT, color: "#DCE3EE" }}>
+      <div className="relative overflow-hidden" style={{ height: bodyHeight }}>
+        <div ref={boxRef} className="pointer-events-none absolute inset-0 overflow-hidden" aria-hidden="true" style={{ ...EDITOR_TEXT, color: "#DCE3EE" }}>
           {lines.map((line, i) => (
             <div key={i} style={{ height: LINE_H }}>
               <HighlightedLine line={line} diagnostic={diagnostic && diagnostic.line === i + 1 ? diagnostic : null} />
@@ -212,8 +230,11 @@ export default function JavaEditor({ value, onChange, diagnostic, level = 1, onR
           onKeyDown={handleKeyDown}
           spellCheck={false}
           aria-label="Javaのコード"
-          className="relative block w-full resize-y border-0 bg-transparent outline-none"
-          style={{ ...EDITOR_TEXT, color: "transparent", caretColor: "#DCE3EE", minHeight: 196, overflowX: "auto" }}
+          className="relative block w-full border-0 bg-transparent outline-none"
+          style={{
+            ...EDITOR_TEXT, color: "transparent", caretColor: "#DCE3EE",
+            height: bodyHeight, resize: "none", overflowX: "auto", overflowY: "hidden",
+          }}
         />
       </div>
 

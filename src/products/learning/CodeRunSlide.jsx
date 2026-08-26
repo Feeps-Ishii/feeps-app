@@ -139,7 +139,7 @@ export default function CodeRunSlide({ slide, content = {}, lrn, courseId, lesso
     <div>
       <SlideEyebrowText chapter={content.chapter} chapterTitle={content.chapterTitle} />
       <h3 className="mb-4 text-[24px] font-extrabold leading-[1.4]" style={{ color: C.ink, letterSpacing: "-0.025em" }}>{slide.title}</h3>
-      {content.intro && <p className="mb-4 text-[14.5px] leading-[1.95]" style={{ color: C.body, maxWidth: "64ch" }}>{content.intro}</p>}
+      {content.intro && <p className="mb-4 text-[14.5px] leading-[1.95]" style={{ color: C.body }}>{content.intro}</p>}
 
       {content.task && (
         <div data-focus="run-task" className="mb-4 rounded-xl p-4" style={{ background: C.canvas, border: `1px solid ${C.line}`, borderLeft: `3px solid ${T.accent}` }}>

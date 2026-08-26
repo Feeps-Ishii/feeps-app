@@ -102,10 +102,11 @@ function Callouts({ items }) {
 //
 // 本文の幅は段落・コード・表で揃える。段落だけに行長制限をかけると右端がギザギザになり、
 // 「余白が中途半端」に見える。列全体を1つの幅に収めれば、余白は意図的な余白として読める。
-const CONTENT_COLUMN = 720;
-
+// 2026-08-26: 本文はスライドの幅いっぱいに使う。
+// 読みやすさのために720pxで止めていたが、スライドの方がずっと広いため
+// 右側が大きく空いて見えた（ノートで同じ指摘を受けたのと同じ理由）。
 function ContentColumn({ children }) {
-  return <div style={{ maxWidth: CONTENT_COLUMN }}>{children}</div>;
+  return <div>{children}</div>;
 }
 
 // ---- 表紙と中扉（2026-08-20 v2新設。承認モック: mock/slide-design の 提案v2） ----
@@ -1171,7 +1172,7 @@ export function SlideRenderer({ slide, accent, lrn, courseId, lessonId, index, t
           <SlideEyebrowText chapter={content.chapter} chapterTitle={content.chapterTitle} />
           <SlideTitle>{slide.title}</SlideTitle>
           {content.intro && (
-            <p className="mb-5 text-[14.5px] leading-[1.95]" style={{ color: C.body, maxWidth: "64ch" }}>{content.intro}</p>
+            <p className="mb-5 text-[14.5px] leading-[1.95]" style={{ color: C.body }}>{content.intro}</p>
           )}
           <SlideFigure content={content} />
           <RoleCallouts items={content.callouts} />
@@ -1309,6 +1310,8 @@ function MainSlidePanel({ slides, index, setIndex, accent, lrn, courseId, lesson
   const [askOpen, setAskOpen] = useState(false);
   // 指し示しの位置を測る基準（このパネルの内側を0-100%とみなす）
   const stageRef = useRef(null);
+  // カードの端まで色が広がる版面（負のマージンで余白を打ち消しているもの）
+  const bleedSlide = ["_cover", "_divider", "chapter", "work"].includes(slide?.kind);
 
   // ページを送ったらスライドの先頭へ戻す（2026-08-25の指摘）。
   // 長いページの下で「次へ」を押すと、次のページの途中から始まってしまい、
@@ -1336,7 +1339,9 @@ function MainSlidePanel({ slides, index, setIndex, accent, lrn, courseId, lesson
         className="relative overflow-hidden rounded-2xl p-5 sm:p-8 lg:p-10"
         style={{ background: "#fff", border: `1px solid ${C.line}` }}
       >
-        <div className="flex min-h-[300px] flex-col justify-center">
+        {/* 章扉・中扉・ワークはカードいっぱいに広がる版面なので、最低高さで
+            上下に白い帯が出ないようにする（2026-08-26の指摘）。 */}
+        <div className={`flex flex-col justify-center${bleedSlide ? "" : " min-h-[300px]"}`}>
           <SlideRenderer
             slide={slide}
             accent={accent}

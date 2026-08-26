@@ -33,7 +33,8 @@ function Title({ children }) {
 
 function Lead({ children }) {
   if (!children) return null;
-  return <p className="mb-5 text-[14.5px] leading-[1.95]" style={{ color: C.body, maxWidth: "64ch" }}>{children}</p>;
+  // 幅はスライドいっぱいに使う（2026-08-26の指摘。右側が大きく空いて見えた）。
+  return <p className="mb-5 text-[14.5px] leading-[1.95]" style={{ color: C.body }}>{children}</p>;
 }
 
 // ---- 章中扉 ----
@@ -85,7 +86,7 @@ export function AgendaSlide({ slide, content = {} }) {
 // 用語の前に体験へつなぐ。新しい概念を出す章の最初に使う。
 export function HookSlide({ slide, content = {} }) {
   return (
-    <div style={{ maxWidth: 720 }}>
+    <div>
       <SlideEyebrowText chapter={content.chapter} chapterTitle={content.chapterTitle} />
       <Title>{slide.title}</Title>
       <div
