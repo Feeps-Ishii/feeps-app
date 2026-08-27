@@ -1,7 +1,10 @@
 import React, { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { T } from "../../components/common";
 import { indentEdit } from "./javaEditorSupport.js";
-import { tokenizeWeb, webCompletionsFor, webDedentEdit, webNewlineEdit, webTokenBefore } from "./webEditorSupport.js";
+import {
+  closeSlashEdit, closeTagEdit, tokenizeWeb,
+  webCompletionsFor, webDedentEdit, webNewlineEdit, webTokenBefore,
+} from "./webEditorSupport.js";
 
 // 2026-08-27: HTML/CSS演習で使うエディタ。承認モック: mock/html-editor/index.html
 //
@@ -72,7 +75,9 @@ export default function WebEditor({ value, onChange, mode = "html", level = 1, o
     if (!ta || readOnly) return;
     const pos = ta.selectionStart;
     const { word, start } = webTokenBefore(mode, ta.value, pos);
-    if (!force && word.length < 2) { setMenu(null); return; }
+    // `<` を打った直後は1文字目から候補を出す。タグ名は2文字待つと遅い。
+    const afterAngle = mode !== "css" && ta.value[start - 1] === "<";
+    if (!force && word.length < (afterAngle ? 1 : 2)) { setMenu(null); return; }
     const items = webCompletionsFor(mode, word, level);
     if (!items.length) { setMenu(null); return; }
     const upto = ta.value.slice(0, pos);
@@ -92,7 +97,9 @@ export default function WebEditor({ value, onChange, mode = "html", level = 1, o
     const item = menu?.items?.[index];
     if (!ta || !item) return;
     const pos = ta.selectionStart;
-    const before = ta.value.slice(0, menu.start);
+    // すでに `<` を打っている場合、候補も `<` から始まるので二重にしない
+    const cut = (ta.value[menu.start - 1] === "<" && item.insert.startsWith("<")) ? menu.start - 1 : menu.start;
+    const before = ta.value.slice(0, cut);
     const after = ta.value.slice(pos);
     // 貼り付ける定型は、いまの行の深さに合わせて字下げし直す
     const indent = (before.slice(before.lastIndexOf("\n") + 1).match(/^[ \t]*/) || [""])[0];
@@ -121,6 +128,16 @@ export default function WebEditor({ value, onChange, mode = "html", level = 1, o
 
     if (e.key === "Tab") { e.preventDefault(); apply(indentEdit(ta.value, ta.selectionStart, ta.selectionEnd, e.shiftKey)); return; }
     if (e.key === "Enter") { e.preventDefault(); apply(webNewlineEdit(mode, ta.value, ta.selectionStart)); return; }
+    // `>` で閉じタグを補い、`</` でいま開いているタグ名を補う。
+    // 閉じタグの書き忘れはこの講座でいちばん多い詰まり方なので、道具の側で減らす。
+    if (mode !== "css" && e.key === ">") {
+      const edit = closeTagEdit(ta.value, ta.selectionStart);
+      if (edit) { e.preventDefault(); setMenu(null); apply(edit); return; }
+    }
+    if (mode !== "css" && e.key === "/") {
+      const edit = closeSlashEdit(ta.value, ta.selectionStart);
+      if (edit) { e.preventDefault(); setMenu(null); apply(edit); return; }
+    }
     if (e.key === "}" || e.key === "/") {
       const edit = webDedentEdit(mode, ta.value, ta.selectionStart, e.key);
       if (edit) { e.preventDefault(); apply(edit); }

@@ -176,6 +176,68 @@ export function webNewlineEdit(mode, value, pos) {
   return { value: value.slice(0, pos) + insert + value.slice(pos), caret: pos + 1 + inner.length };
 }
 
+// ---- 閉じタグ ----
+//
+// カーソルより前で「まだ閉じていないタグ」を、外側から順に返す。
+// 各要素は { name, at }。at は開始タグの `<` の位置で、閉じタグの字下げを
+// 開いた行に合わせるために使う。
+// 文字列やコメントの中は見ない（教材の範囲では実害が出ないので簡単に済ませる）。
+export function openTagsAt(value, pos) {
+  const stack = [];
+  const re = /<(\/?)([A-Za-z][\w:-]*)((?:"[^"]*"|'[^']*'|[^<>])*)>/g;
+  const text = value.slice(0, pos);
+  let m;
+  while ((m = re.exec(text))) {
+    const [, slash, name, attrs] = m;
+    const lower = name.toLowerCase();
+    if (slash) {
+      const at = stack.map(x => x.name).lastIndexOf(lower);
+      if (at >= 0) stack.length = at;
+      continue;
+    }
+    if (VOID_TAGS.has(lower) || attrs.trimEnd().endsWith("/")) continue;
+    stack.push({ name: lower, at: m.index });
+  }
+  return stack;
+}
+
+// `>` を打った瞬間に閉じタグを補う（VS Codeと同じ）。
+// **これが無いと、閉じ忘れが「打ち間違い」として量産される。** 閉じタグの / を
+// 忘れる、はこの単元でいちばん多い詰まり方なので、道具の側で減らす。
+export function closeTagEdit(value, pos) {
+  const before = value.slice(0, pos);
+  const m = before.match(/<([A-Za-z][\w:-]*)((?:"[^"]*"|'[^']*'|[^<>])*)$/);
+  if (!m) return null;
+  const [, name, attrs] = m;
+  if (VOID_TAGS.has(name.toLowerCase()) || attrs.trimEnd().endsWith("/")) return null;
+  // すぐ後ろに同じ閉じタグがもうあるなら足さない
+  if (new RegExp(`^\\s*</${name}\\s*>`, "i").test(value.slice(pos))) return null;
+  const insert = `></${name}>`;
+  return { value: before + insert + value.slice(pos), caret: pos + 1 };
+}
+
+// `</` まで打ったら、いま開いているいちばん内側のタグ名を補って閉じる。
+// 行に `<` しか無ければ、**開始タグを書いた行と同じ字下げ**にそろえる
+// （1段戻すのではなく、開いた行に合わせる。入れ子が深いときにずれないため）。
+export function closeSlashEdit(value, pos) {
+  if (!value.slice(0, pos).endsWith("<")) return null;
+  const open = openTagsAt(value, pos - 1).pop();
+  if (!open) return null;
+
+  const start = lineStartAt(value, pos);
+  const only = value.slice(start, pos).match(/^([ \t]*)<$/);
+  let cut = pos - 1;                           // 打った `<` から置き換える
+  let indent = "";
+  if (only) {
+    const openLine = lineStartAt(value, open.at);
+    indent = (value.slice(openLine, open.at).match(/^[ \t]*/) || [""])[0];
+    if (value.slice(openLine, open.at) === indent) cut = start;   // 開始タグが行頭のときだけ合わせる
+  }
+
+  const insert = `${indent}</${open.name}>`;
+  return { value: value.slice(0, cut) + insert + value.slice(pos), caret: cut + insert.length };
+}
+
 // 打った文字で行の頭を戻す。CSSの } と、HTMLの </ が対象。
 // 「その行がまだ空白だけ」のときだけ動かす（書いた文字を勝手に動かさない）。
 export function webDedentEdit(mode, value, pos, typed) {
@@ -200,7 +262,17 @@ const HTML_COMPLETIONS = [
   { label: "link:css", kind: "定型", detail: "style.css を読み込む", level: 1, insert: '<link rel="stylesheet" href="style.css">' },
   { label: "meta:charset", kind: "定型", detail: "文字の種類を宣言", level: 1, insert: '<meta charset="UTF-8">' },
   { label: "meta:viewport", kind: "定型", detail: "スマホの表示幅", level: 7, insert: '<meta name="viewport" content="width=device-width, initial-scale=1">' },
+  // 骨組みのタグ。単元1で最初に書かせるので level 1 に置く。
+  { label: "title", kind: "タグ", detail: "タブに出る名前（head の中）", level: 1, insert: "<title>$</title>" },
+  { label: "head", kind: "タグ", detail: "設定を書く場所（画面に出ない）", level: 1, insert: "<head>\n  $\n</head>" },
+  { label: "body", kind: "タグ", detail: "人が見るもの", level: 1, insert: "<body>\n  $\n</body>" },
+  { label: "html", kind: "タグ", detail: "文書全体を包む", level: 1, insert: '<html lang="ja">\n$\n</html>' },
+  { label: "meta", kind: "タグ", detail: "設定（閉じタグなし）", level: 1, insert: '<meta charset="UTF-8">' },
+  { label: "link", kind: "タグ", detail: "CSSの読み込み（閉じタグなし）", level: 1, insert: '<link rel="stylesheet" href="style.css">' },
   { label: "h1", kind: "タグ", detail: "見出し（1ページに1つ）", level: 1, insert: "<h1>$</h1>" },
+  { label: "h3", kind: "タグ", detail: "見出し", level: 1, insert: "<h3>$</h3>" },
+  { label: "br", kind: "タグ", detail: "改行（閉じタグなし）", level: 1, insert: "<br>" },
+  { label: "strong", kind: "タグ", detail: "強調", level: 2, insert: "<strong>$</strong>" },
   { label: "h2", kind: "タグ", detail: "見出し", level: 1, insert: "<h2>$</h2>" },
   { label: "p", kind: "タグ", detail: "段落", level: 1, insert: "<p>$</p>" },
   { label: "a", kind: "タグ", detail: "リンク", level: 1, insert: '<a href="$"></a>' },

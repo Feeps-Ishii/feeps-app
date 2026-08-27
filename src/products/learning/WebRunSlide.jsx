@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
-import { CheckCircle2, FileCode2, RotateCcw, Smartphone, Sparkles } from "lucide-react";
+import { CheckCircle2, FileCode2, Globe, RotateCcw, Smartphone, Sparkles } from "lucide-react";
 import { T } from "../../components/common";
 import { SlideEyebrowText } from "./SlideLayouts.jsx";
 import WebEditor from "./WebEditor.jsx";
@@ -24,9 +24,10 @@ const MONO = '"JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, m
 const NARROW_W = 390;
 
 const KEYS = [
-  ["Ctrl + Space", "候補を出す"],
+  ["<", "打つとタグの候補が出ます"],
+  [">", "閉じタグを自動で足します"],
+  ["</", "開いているタグを閉じます"],
   ["Tab / Enter", "候補を確定"],
-  ["Tab", "字下げ（候補が出ていないとき）"],
   ["Esc", "候補を閉じる"],
 ];
 const HELP_SEEN_KEY = "feeps.webRun.helpSeen";
@@ -42,6 +43,9 @@ export default function WebRunSlide({ slide, content = {}, lrn, courseId, lesson
   const [results, setResults] = useState([]);
   const [helpDismissed, setHelpDismissed] = useState(true);
   const [touched, setTouched] = useState(false);
+  // <title> は画面のどこにも出ないので、書いても効いたか分からない。
+  // 偽のブラウザタブを1本出して、そこに映す（2026-08-27にユーザー指摘）。
+  const [docTitle, setDocTitle] = useState("");
 
   const frameRef = useRef(null);
   const narrowRef = useRef(null);
@@ -76,6 +80,7 @@ export default function WebRunSlide({ slide, content = {}, lrn, courseId, lesson
     const doc = frameRef.current?.contentDocument || null;
     const narrowDoc = needsNarrow ? (narrowRef.current?.contentDocument || null) : doc;
     if (!doc) return;
+    setDocTitle(String(doc.title || ""));
     const next = runWebChecks(checks, { doc, narrowDoc, files });
     setResults(next);
 
@@ -188,6 +193,25 @@ export default function WebRunSlide({ slide, content = {}, lrn, courseId, lesson
           <div className="min-w-0">
             <div className="px-3.5 py-2 text-[10.5px] font-extrabold" style={{ background: C.canvas, borderBottom: `1px solid ${C.line}`, color: C.muted, letterSpacing: "0.08em" }}>
               ブラウザでの見え方
+            </div>
+
+            {/* 偽のブラウザタブ。<title> の中身がここに出る。
+                本物のタブは見せられないので、書いた結果が見える場所を作る。 */}
+            <div className="flex items-end gap-2 px-3 pt-2.5" style={{ background: C.canvas }}>
+              <div
+                className="flex min-w-0 max-w-[240px] items-center gap-1.5 rounded-t-lg px-3 py-1.5"
+                style={{ background: "#fff", border: `1px solid ${C.line}`, borderBottom: "none" }}
+              >
+                <Globe size={11} className="shrink-0" style={{ color: C.muted }} />
+                <span className="truncate text-[11.5px] font-semibold" style={{ color: docTitle ? C.ink : C.muted }}>
+                  {docTitle || "（タイトルなし）"}
+                </span>
+              </div>
+              {!docTitle && (
+                <span className="pb-1 text-[10.5px]" style={{ color: C.muted }}>
+                  ← &lt;title&gt; を書くとここに出ます
+                </span>
+              )}
             </div>
             <iframe
               ref={frameRef}
