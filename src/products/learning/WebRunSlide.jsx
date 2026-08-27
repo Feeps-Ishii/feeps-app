@@ -257,7 +257,10 @@ export default function WebRunSlide({ slide, content = {}, lrn, courseId, lesson
           { name: "index.html", content: files["index.html"] },
           { name: "style.css", content: files["style.css"] },
         ]}
-        output={results.filter(r => !r.ok).map(r => `未達: ${r.label}（${r.why}）`).join("\n")}
+        // 未達の確認は**先頭の1つだけ**渡す。全部渡すと、AIがそれを
+        // やることリストとして書き下してしまい、考える余地が残らない
+        // （2026-08-27に本番で実測。4つ全部の値を並べた回答が返った）。
+        output={results.filter(r => !r.ok).slice(0, 1).map(r => `未達: ${r.label}`).join("\n")}
         compiled={done}
         hasResult={touched && results.length > 0}
       />
