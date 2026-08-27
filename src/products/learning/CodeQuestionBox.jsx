@@ -17,8 +17,12 @@ const C = { ink: T.textPrimary, body: T.textSecondary, muted: T.textMuted, line:
 // 押すだけで聞ける定型。エラーが出た直後は、何を聞けばいいか自体が分からない。
 const QUICK_ERROR = ["このエラーはどういう意味？", "どこが原因？", "ヒントだけください"];
 const QUICK_OK = ["この書き方で合っている？", "もっと良い書き方はある？"];
+// HTML/CSSは「エラー」ではなく「思ったとおりに見えない」で詰まる。聞き方も変える。
+const QUICK_WEB = ["なぜ思ったとおりに見えないの？", "どこを見ればいい？", "ヒントだけください"];
 
-export default function CodeQuestionBox({ courseId, lessonId, slideId, source, output, compiled, hasResult }) {
+// files: HTML/CSSのように複数ファイルあるときに渡す。行番号をファイルごとに
+// 振り直すために必要（1本につなぐとエディタの行番号と合わなくなる）。
+export default function CodeQuestionBox({ courseId, lessonId, slideId, source, files, output, compiled, hasResult, language = "java" }) {
   const [open, setOpen] = useState(false);
   const [question, setQuestion] = useState("");
   const [messages, setMessages] = useState([]); // { role, text }
@@ -41,9 +45,10 @@ export default function CodeQuestionBox({ courseId, lessonId, slideId, source, o
     const history = messages.slice(-4);
     setMessages(prev => [...prev, { role: "user", text: q }]);
     try {
-      const res = await apiPost("/learning/exercises/java/ask", {
+      // 言語はパスで決まる（サーバー側もパスを見る）
+      const res = await apiPost(`/learning/exercises/${language === "web" ? "web" : "java"}/ask`, {
         courseId, lessonId, slideId,
-        source, output, compiled,
+        source, files, output, compiled,
         question: q, history,
       });
       if (!aliveRef.current) return;
@@ -57,7 +62,8 @@ export default function CodeQuestionBox({ courseId, lessonId, slideId, source, o
     }
   }
 
-  const quick = hasResult && !compiled ? QUICK_ERROR : QUICK_OK;
+  const web = language === "web";
+  const quick = web ? (hasResult && !compiled ? QUICK_WEB : QUICK_OK) : (hasResult && !compiled ? QUICK_ERROR : QUICK_OK);
 
   if (!open) {
     return (
@@ -68,7 +74,7 @@ export default function CodeQuestionBox({ courseId, lessonId, slideId, source, o
         style={{ border: `1px dashed ${C.line}`, color: C.muted, background: "#fff" }}
       >
         <MessageCircleQuestion size={15} />
-        {hasResult && !compiled ? "このエラーについて質問する" : "このコードについて質問する"}
+        {hasResult && !compiled ? (web ? "うまく表示されないことを質問する" : "このエラーについて質問する") : "このコードについて質問する"}
       </button>
     );
   }
@@ -84,7 +90,7 @@ export default function CodeQuestionBox({ courseId, lessonId, slideId, source, o
 
       {messages.length === 0 && (
         <p className="mb-3 text-xs leading-relaxed" style={{ color: C.muted }}>
-          書いたコードと実行結果を見たうえで答えます。<b>直した答えのコードは出しません。</b>どこを見ればいいか、どう考えればいいかまでをお伝えします。
+          書いたコードと{web ? "表示の結果" : "実行結果"}を見たうえで答えます。<b>直した答えのコードは出しません。</b>どこを見ればいいか、どう考えればいいかまでをお伝えします。
         </p>
       )}
 
@@ -129,7 +135,7 @@ export default function CodeQuestionBox({ courseId, lessonId, slideId, source, o
           value={question}
           onChange={e => setQuestion(e.target.value)}
           onKeyDown={e => { if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) ask(question); }}
-          placeholder="例: 3行目の何が違うの？ / セミコロンは付けたつもりです"
+          placeholder={web ? "例: なぜ横に並ばないの？ / gap は書いたつもりです" : "例: 3行目の何が違うの？ / セミコロンは付けたつもりです"}
           rows={2}
           maxLength={500}
           className="min-w-0 flex-1 resize-none rounded-xl px-3 py-2 text-sm outline-none"
