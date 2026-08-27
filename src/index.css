@@ -625,6 +625,22 @@ body.feeps-modal-open .feeps-main-scroll { overflow: hidden !important; }
 .feeps-fig-loop { fill: none; stroke: var(--fig-teal); stroke-width: 2; stroke-dasharray: 7 6; opacity: .8; }
 .feeps-fig-arrow { fill: none; stroke: var(--fig-teal); stroke-width: 2.5; stroke-linecap: round; stroke-linejoin: round; }
 
+/* ボックスモデル図。入れ子の4層を色の濃さで区別する（色数は増やさない）。 */
+.feeps-fig-box rect { stroke-width: 1.5; }
+.feeps-fig-box.margin rect { fill: var(--fig-surface); stroke: var(--fig-line); stroke-dasharray: 6 5; }
+.feeps-fig-box.border rect { fill: var(--fig-surface-2); stroke: var(--fig-ink-3); }
+.feeps-fig-box.padding rect { fill: var(--fig-accent-soft); stroke: var(--fig-accent); }
+.feeps-fig-box.content rect { fill: var(--fig-teal-soft); stroke: var(--fig-teal); }
+.feeps-fig-box text.tag { font-size: 12px; font-weight: 800; fill: var(--fig-ink-2); letter-spacing: .03em; }
+.feeps-fig-box text.meta { font-size: 11px; font-weight: 500; fill: var(--fig-ink-3); }
+.feeps-fig-box text.mid { text-anchor: middle; font-size: 14px; font-weight: 700; fill: var(--fig-ink); }
+.feeps-fig-span path { fill: none; stroke-width: 1.5; }
+.feeps-fig-span text { text-anchor: middle; font-size: 12px; font-weight: 800; }
+.feeps-fig-span.in path { stroke: var(--fig-teal); }
+.feeps-fig-span.in text { fill: var(--fig-teal); }
+.feeps-fig-span.out path { stroke: var(--fig-ink-3); }
+.feeps-fig-span.out text { fill: var(--fig-ink-2); }
+
 /* ステップカード（2026-08-25）。列数は枚数から決める（--cols）。
    狭い画面では1列。最後の行に1枚だけ残さないための調整は stepColumns()。 */
 .feeps-steps { display: grid; gap: 10px; grid-template-columns: minmax(0, 1fr); }

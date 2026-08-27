@@ -47,6 +47,12 @@ export default function WebRunSlide({ slide, content = {}, lrn, courseId, lesson
   const narrowRef = useRef(null);
   const submittedRef = useRef(false);
 
+  // CSSをまだ扱わない単元では index.html だけを見せる。使わないタブを出すと
+  // 「そこにも書かないといけないのか」と迷わせる。
+  const fileNames = useMemo(
+    () => (content.showCss === false ? ["index.html"] : ["index.html", "style.css"]),
+    [content.showCss],
+  );
   const checks = useMemo(() => (Array.isArray(content.checks) ? content.checks : []), [content.checks]);
   const needsNarrow = useMemo(() => checks.some(c => c.at === "narrow"), [checks]);
 
@@ -142,7 +148,7 @@ export default function WebRunSlide({ slide, content = {}, lrn, courseId, lesson
 
         <div className="flex flex-wrap items-center gap-2 px-3.5 py-2.5" style={{ background: C.canvas, borderBottom: `1px solid ${C.line}` }}>
           <div className="flex items-center gap-1">
-            {["index.html", "style.css"].map(name => (
+            {fileNames.map(name => (
               <button key={name} type="button" onClick={() => setOpenFile(name)} aria-current={openFile === name}
                 className="flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-[11.5px] transition hover:bg-black/[.04]"
                 style={{
@@ -158,7 +164,9 @@ export default function WebRunSlide({ slide, content = {}, lrn, courseId, lesson
           <span className="text-[10.5px] font-bold" style={{ color: C.muted, letterSpacing: "0.06em" }}>
             {mode === "css" ? "CSS" : "HTML"}
           </span>
-          <span className="ml-auto text-[10.5px]" style={{ color: C.muted }}>書いたそばから右に反映されます</span>
+          <span className="ml-auto text-[10.5px]" style={{ color: C.muted }}>
+            {fileNames.length > 1 ? "書いたそばから右に反映されます" : "書いたそばから右に反映されます（CSSはこの単元では使いません）"}
+          </span>
           <button type="button" onClick={reset}
             className="flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-[11.5px] font-bold transition hover:bg-black/[.04]"
             style={{ border: `1px solid ${C.line}`, color: C.muted }}>

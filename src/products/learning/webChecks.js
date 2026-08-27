@@ -71,6 +71,19 @@ const RUNNERS = {
     if (check.equals !== undefined) return v === check.equals;
     return v !== "";
   },
+  // 画面上での実際の大きさ（枠線と内側の余白を含む）。
+  // ボックスモデルの単元で使う。getComputedStyle の width は中身の幅しか返さないので、
+  // 「見た目の幅」を測るにはこちらでないと確かめられない。
+  boxWidth(check, ctx) {
+    const node = el(ctx.doc, check.selector);
+    if (!node) return false;
+    const w = node.getBoundingClientRect().width;
+    const tol = check.tolerance === undefined ? 1 : check.tolerance;
+    if (check.equals !== undefined) return Math.abs(w - check.equals) <= tol;
+    if (check.max !== undefined && w > check.max) return false;
+    if (check.min !== undefined && w < check.min) return false;
+    return check.max !== undefined || check.min !== undefined;
+  },
   // 1つ目と2つ目が横に並んでいるか。display の値ではなく実際の位置で見る。
   sameRow(check, ctx) {
     const [a, b] = all(ctx.doc, check.selector);

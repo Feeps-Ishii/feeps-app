@@ -197,10 +197,68 @@ export function ContrastLoopFigure({ left, right, alt, caption }) {
   );
 }
 
+// ---- ボックスモデル ----
+//
+// 入れ子そのものが意味なので、並べた図では伝わらない。**4層を実際に入れ子で描く。**
+// width が届く範囲を、内側2層の下に矢印で示す。ここが図の本体。
+export function BoxModelFigure({ layers = [], widthLabel, outerLabel, alt, caption }) {
+  const W = 780;
+  const H = 330;
+  const L = [
+    { key: "margin", ...(layers[0] || {}) },
+    { key: "border", ...(layers[1] || {}) },
+    { key: "padding", ...(layers[2] || {}) },
+    { key: "content", ...(layers[3] || {}) },
+  ];
+  // 1層ぶんの厚み。縦は3層ぶんが上下から削られる（合計6倍）ので、横より薄くする。
+  // 同じ値にすると、いちばん内側の content が高さマイナスになって消える（2026-08-27に実測）。
+  const PAD_X = 38;
+  const PAD_Y = 26;
+  const x0 = 30;
+  const y0 = 18;
+  const w0 = W - x0 * 2;
+  const h0 = 210;
+  const box = i => ({ x: x0 + PAD_X * i, y: y0 + PAD_Y * i, w: w0 - PAD_X * 2 * i, h: h0 - PAD_Y * 2 * i });
+  const content = box(3);
+  const border = box(1);
+
+  return (
+    <FigSvg viewBox={`0 0 ${W} ${H}`} minWidth={560} label={alt || caption || "ボックスモデルの図"}>
+      {L.map((layer, i) => {
+        const b = box(i);
+        return (
+          <g className={`feeps-fig-box ${layer.key}`} key={layer.key} data-focus={layer.id || `bm-${layer.key}`}>
+            <rect x={b.x} y={b.y} width={b.w} height={b.h} rx={i === 3 ? 4 : 8} />
+            {i < 3
+              ? <text x={b.x + 10} y={b.y + 22} className="tag">{layer.label || layer.key}</text>
+              : <text x={b.x + b.w / 2} y={b.y + b.h / 2 + 6} className="mid">{layer.label || "content"}</text>}
+            {layer.meta && i < 3 && <text x={b.x + 10} y={b.y + 22} className="meta" dx={(String(layer.label || layer.key).length + 1) * 8.4}>{layer.meta}</text>}
+          </g>
+        );
+      })}
+
+      {/* width が届く範囲。内側だけを指す矢印がこの図の言いたいこと。 */}
+      <g className="feeps-fig-span in">
+        <path d={`M${content.x} ${y0 + h0 + 22} H${content.x + content.w}`} />
+        <path d={`M${content.x} ${y0 + h0 + 16} V${y0 + h0 + 28}`} />
+        <path d={`M${content.x + content.w} ${y0 + h0 + 16} V${y0 + h0 + 28}`} />
+        <text x={content.x + content.w / 2} y={y0 + h0 + 42}>{widthLabel || "width が指すのはここだけ"}</text>
+      </g>
+      <g className="feeps-fig-span out">
+        <path d={`M${border.x} ${y0 + h0 + 62} H${border.x + border.w}`} />
+        <path d={`M${border.x} ${y0 + h0 + 56} V${y0 + h0 + 68}`} />
+        <path d={`M${border.x + border.w} ${y0 + h0 + 56} V${y0 + h0 + 68}`} />
+        <text x={border.x + border.w / 2} y={y0 + h0 + 82}>{outerLabel || "画面上の見た目の幅"}</text>
+      </g>
+    </FigSvg>
+  );
+}
+
 const FIGURES = {
   vmodel: VModelFigure,
   phaseflow: PhaseFlowFigure,
   contrast_loop: ContrastLoopFigure,
+  boxmodel: BoxModelFigure,
 };
 
 // content.figure で種類を選ぶ。知らない種類は**何も描かない**（崩れた図を出すより無い方がよい）。

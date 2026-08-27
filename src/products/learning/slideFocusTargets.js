@@ -69,6 +69,11 @@ export function slideFocusTargets(slide) {
         if (content.bottom) push(content.bottom.id || "v-bottom", content.bottom.label);
       } else if (content.figure === "phaseflow") {
         (content.items || []).forEach((item, i) => push(item?.id || `p-${i}`, [item?.label, item?.meta].filter(Boolean).join(" / ")));
+      } else if (content.figure === "boxmodel") {
+        const KEYS = ["margin", "border", "padding", "content"];
+        (content.layers || []).forEach((layer, i) => {
+          push(layer?.id || `bm-${KEYS[i] || i}`, [layer?.label, layer?.meta].filter(Boolean).join(" / "));
+        });
       } else if (content.figure === "contrast_loop") {
         (content.left?.steps || []).forEach((step, i) => push(`wf-${i}`, step));
         (content.right?.steps || []).slice(0, 4).forEach((step, i) => push(`ag-${i}`, step));
