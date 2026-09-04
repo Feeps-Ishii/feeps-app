@@ -17,14 +17,33 @@ const STEPS = [
 ];
 
 // 進んだところまでを塗る道。曲がっているのは「一本道ではない」という気分を出すため。
-const PATH_FULL = "M60 118 C 200 60, 300 170, 440 108 S 700 60, 918 104";
-const PATH_TO = {
-  learn: "M60 118",
-  practice: "M60 118 C 140 89, 190 105, 250 96",
-  solo: "M60 118 C 200 60, 300 170, 440 108",
-  team: "M60 118 C 200 60, 300 170, 440 108 S 620 70, 680 84",
-  project: PATH_FULL,
-};
+//
+// **曲線は STEPS の座標から作る。手で書かない。**
+// 以前は手書きのベジェ（M60 118 C 200 60, 300 170, 440 108 S 700 60, 918 104）で、
+// 1・3・5番目しか通っていなかった。2番目と4番目のノードが線から外れ、
+// ラベルに曲線が重なっていた（2026-09-04にユーザー指摘）。
+// 座標から作れば、**どのノードも必ず線の上に乗る**。
+// 区間を**一度だけ**作り、塗る側はその先頭から必要な本数を取る。
+// 部分だけを作り直すと端の制御点が変わり、塗った線が下の線からずれる。
+function curveSegments(points) {
+  const at = i => points[Math.max(0, Math.min(points.length - 1, i))];
+  return points.slice(0, -1).map((_, i) => {
+    const p0 = at(i - 1), p1 = at(i), p2 = at(i + 1), p3 = at(i + 2);
+    // Catmull-Rom を3次ベジェへ。制御点を1/6にするのが標準の変換。
+    const c1x = p1.x + (p2.x - p0.x) / 6;
+    const c1y = p1.y + (p2.y - p0.y) / 6;
+    const c2x = p2.x - (p3.x - p1.x) / 6;
+    const c2y = p2.y - (p3.y - p1.y) / 6;
+    return ` C${c1x} ${c1y}, ${c2x} ${c2y}, ${p2.x} ${p2.y}`;
+  });
+}
+
+const SEGMENTS = curveSegments(STEPS);
+const START = `M${STEPS[0].x} ${STEPS[0].y}`;
+const PATH_FULL = START + SEGMENTS.join("");
+const PATH_TO = Object.fromEntries(
+  STEPS.map((s, i) => [s.key, START + SEGMENTS.slice(0, i).join("")]),
+);
 
 // いまどこかを、取れている実績だけで決める。**取れないものを「済み」にしない**。
 // 開発演習・チーム開発の実績はこの画面では取っていないので、そこから先は常に「これから」。
