@@ -8,6 +8,7 @@ import JavaEditor from "./JavaEditor.jsx";
 import { parseJavacError } from "./javaEditorSupport.js";
 import CodeQuestionBox from "./CodeQuestionBox.jsx";
 import useExerciseWindow from "./useExerciseWindow.js";
+import { Breadcrumb, StatusBar } from "./ExerciseChrome.jsx";
 import DetachBar, { DetachButton, DetachError } from "./DetachBar.jsx";
 
 // 2026-08-25: 受講者がコードを書いて、**本当にコンパイル・実行する**演習。
@@ -47,6 +48,7 @@ export default function CodeRunSlide({ slide, content = {}, lrn, courseId, lesso
   const [errorMsg, setErrorMsg] = useState("");
   const [showHelp, setShowHelp] = useState(false);
   const [helpDismissed, setHelpDismissed] = useState(true);
+  const [caret, setCaret] = useState({ line: 1, col: 1 });
   const aliveRef = useRef(true);
 
   useEffect(() => { aliveRef.current = true; return () => { aliveRef.current = false; }; }, []);
@@ -227,6 +229,9 @@ export default function CodeRunSlide({ slide, content = {}, lrn, courseId, lesso
         {exWin.detached ? (
           <DetachBar onReattach={exWin.reattach} note="コードはあちらの窓で書いてください。実行の結果はこちらにも出ます。" />
         ) : (
+        <>
+        <Breadcrumb parts={[content.projectName || "java-basics", "src", openFile]} />
+
         <div className="grid" style={{ gridTemplateColumns: allFiles.length > 1 ? "184px minmax(0,1fr)" : "minmax(0,1fr)" }}>
           {allFiles.length > 1 && (
             <aside className="p-2.5" style={{ background: C.canvas, borderRight: `1px solid ${C.line}` }}>
@@ -264,8 +269,10 @@ export default function CodeRunSlide({ slide, content = {}, lrn, courseId, lesso
             diagnostic={diagnostic && diagnostic.file === openFile ? diagnostic : null}
             level={content.completionLevel || 1}
             onRun={run}
+            onCaret={setCaret}
           />
         </div>
+        </>
         )}
 
         <div style={{ borderTop: `1px solid ${C.line}` }}>
@@ -310,6 +317,22 @@ export default function CodeRunSlide({ slide, content = {}, lrn, courseId, lesso
             </tbody>
           </table>
         </details>
+
+        {/* ここに出すのは**すべて本当の値**。branch などそれっぽい表示は入れない。 */}
+        <StatusBar
+          left={[
+            { text: "Java 21" },
+            diagnostic
+              ? { text: `⊗ ${diagnostic.line}行目`, tone: "warn" }
+              : (result ? { text: passed ? "実行できました" : "出力を確認してください", tone: passed ? "ok" : "warn" } : null),
+          ]}
+          right={[
+            { text: `行 ${caret.line}、列 ${caret.col}` },
+            { text: "スペース: 2", minor: true },
+            { text: "UTF-8", minor: true },
+            { text: "LF", minor: true },
+          ]}
+        />
       </div>
 
       {errorMsg && <div className="mt-2 text-xs font-semibold" style={{ color: T.danger }}>{errorMsg}</div>}

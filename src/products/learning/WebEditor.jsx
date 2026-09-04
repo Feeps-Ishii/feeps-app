@@ -5,6 +5,7 @@ import {
   closeSlashEdit, closeTagEdit, tokenizeWeb,
   webCompletionsFor, webDedentEdit, webNewlineEdit, webTokenBefore,
 } from "./webEditorSupport.js";
+import { Minimap, caretAt } from "./ExerciseChrome.jsx";
 
 // 2026-08-27: HTML/CSS演習で使うエディタ。承認モック: mock/html-editor/index.html
 //
@@ -29,7 +30,7 @@ const LINE_H = 24;
 const PAD_TOP = 14;
 const TOKEN_COLOR = { kw: "#7FB2F5", attr: "#E9C46A", str: "#8FD69A", cmt: "#6B7B90", cls: "#79D3C8", num: "#E9C46A" };
 
-export default function WebEditor({ value, onChange, mode = "html", level = 1, onRun, readOnly = false, maxHeight = 460 }) {
+export default function WebEditor({ value, onChange, mode = "html", level = 1, onRun, readOnly = false, maxHeight = 460, onCaret, minimap = false }) {
   const taRef = useRef(null);
   const boxRef = useRef(null);
   const [menu, setMenu] = useState(null); // { items, sel, start, top, left }
@@ -59,6 +60,11 @@ export default function WebEditor({ value, onChange, mode = "html", level = 1, o
   });
 
   useEffect(() => { setMenu(null); }, [mode]);
+
+  function reportCaret() {
+    const ta = taRef.current;
+    if (ta && onCaret) onCaret(caretAt(ta.value, ta.selectionStart));
+  }
 
   function charWidth() {
     const ta = taRef.current;
@@ -155,7 +161,7 @@ export default function WebEditor({ value, onChange, mode = "html", level = 1, o
   const bodyHeight = lines.length * LINE_H + PAD_TOP * 2;
 
   return (
-    <div className="relative grid overflow-y-auto" style={{ gridTemplateColumns: "46px minmax(0,1fr)", background: CODE_BG, maxHeight, resize: "vertical" }}>
+    <div className="relative grid overflow-y-auto" style={{ gridTemplateColumns: minimap ? "46px minmax(0,1fr) 58px" : "46px minmax(0,1fr)", background: CODE_BG, maxHeight, resize: "vertical" }}>
       <div className="py-[14px] text-right" aria-hidden="true" style={{ height: bodyHeight }}>
         {lines.map((_, i) => (
           <span key={i} className="block pr-2.5"
@@ -182,7 +188,9 @@ export default function WebEditor({ value, onChange, mode = "html", level = 1, o
           value={text}
           readOnly={readOnly}
           onChange={e => onChange(e.target.value)}
-          onKeyUp={e => { if (!["Escape", "Enter", "Tab"].includes(e.key)) openMenu(false); }}
+          onKeyUp={e => { reportCaret(); if (!["Escape", "Enter", "Tab"].includes(e.key)) openMenu(false); }}
+          onClick={reportCaret}
+          onSelect={reportCaret}
           onScroll={syncScroll}
           onBlur={() => setTimeout(() => setMenu(null), 140)}
           onKeyDown={handleKeyDown}
@@ -195,6 +203,8 @@ export default function WebEditor({ value, onChange, mode = "html", level = 1, o
           }}
         />
       </div>
+
+      {minimap && <Minimap lines={lines} current={0} errorLine={0} />}
 
       {menu && (
         <div className="absolute z-20 overflow-hidden rounded-xl" role="listbox"

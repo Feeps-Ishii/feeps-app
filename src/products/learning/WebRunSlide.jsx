@@ -5,6 +5,7 @@ import { SlideEyebrowText } from "./SlideLayouts.jsx";
 import WebEditor from "./WebEditor.jsx";
 import CodeQuestionBox from "./CodeQuestionBox.jsx";
 import { previewDocument, runWebChecks } from "./webChecks.js";
+import { Breadcrumb, StatusBar } from "./ExerciseChrome.jsx";
 import useExerciseWindow from "./useExerciseWindow.js";
 import DetachBar, { DetachButton, DetachError } from "./DetachBar.jsx";
 
@@ -48,6 +49,7 @@ export default function WebRunSlide({ slide, content = {}, lrn, courseId, lesson
   // <title> は画面のどこにも出ないので、書いても効いたか分からない。
   // 偽のブラウザタブを1本出して、そこに映す（2026-08-27にユーザー指摘）。
   const [docTitle, setDocTitle] = useState("");
+  const [caret, setCaret] = useState({ line: 1, col: 1 });
 
   const frameRef = useRef(null);
   const narrowRef = useRef(null);
@@ -226,6 +228,9 @@ export default function WebRunSlide({ slide, content = {}, lrn, courseId, lesson
         {exWin.detached ? (
           <DetachBar onReattach={exWin.reattach} note="コードとプレビューは、あちらの窓に出しています。" />
         ) : (
+        <>
+        <Breadcrumb parts={[content.projectName || "web-basics", openFile]} />
+
         <div className="grid lg:grid-cols-2">
           <div style={{ borderRight: `1px solid ${C.line}` }}>
             <WebEditor
@@ -234,6 +239,7 @@ export default function WebRunSlide({ slide, content = {}, lrn, courseId, lesson
               value={files[openFile]}
               onChange={v => update(openFile, v)}
               level={content.completionLevel || 1}
+              onCaret={setCaret}
             />
           </div>
 
@@ -289,6 +295,7 @@ export default function WebRunSlide({ slide, content = {}, lrn, courseId, lesson
             )}
           </div>
         </div>
+        </>
         )}
 
         <div style={{ borderTop: `1px solid ${C.line}` }}>
@@ -316,6 +323,20 @@ export default function WebRunSlide({ slide, content = {}, lrn, courseId, lesson
             )}
           </ul>
         </div>
+
+        {/* ここに出すのは**すべて本当の値**。それっぽい表示は入れない。 */}
+        <StatusBar
+          left={[
+            { text: mode === "css" ? "CSS" : "HTML" },
+            shown.length ? { text: `確認 ${passedCount} / ${shown.length}`, tone: done ? "ok" : "warn" } : null,
+          ]}
+          right={[
+            { text: `行 ${caret.line}、列 ${caret.col}` },
+            { text: "スペース: 2", minor: true },
+            { text: "UTF-8", minor: true },
+            { text: "LF", minor: true },
+          ]}
+        />
       </div>
 
       {/* いま書いているコードについて質問できる。答えのコードは返さない

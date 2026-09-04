@@ -6,6 +6,7 @@ import WebEditor from "./WebEditor.jsx";
 import { parseJavacError } from "./javaEditorSupport.js";
 import { previewDocument, runWebChecks } from "./webChecks.js";
 import { MSG, openChannel, send } from "./exerciseChannel.js";
+import { Breadcrumb, StatusBar } from "./ExerciseChrome.jsx";
 
 // 2026-09-04: 従（演習ウィンドウ）側。**認証も合否の記録も持たない。**
 // 課題は主から受け取り、書いたものは主へ返す。実行も主に頼む（ADR 0021）。
@@ -23,6 +24,7 @@ export default function ExerciseWindowApp() {
   const frameRef = useRef(null);
   const narrowRef = useRef(null);
   const [checks, setChecks] = useState([]);
+  const [caret, setCaret] = useState({ line: 1, col: 1 });
 
   const id = useMemo(() => new URLSearchParams(location.search).get("ch") || "", []);
 
@@ -155,6 +157,8 @@ export default function ExerciseWindowApp() {
             </span>
           </div>
 
+          <Breadcrumb parts={[state.projectName || (isWeb ? "web-basics" : "java-basics"), activeFile]} />
+
           <div className={isWeb ? "grid lg:grid-cols-2" : ""}>
             <div style={isWeb ? { borderRight: `1px solid ${C.line}` } : undefined}>
               {isWeb ? (
@@ -165,6 +169,8 @@ export default function ExerciseWindowApp() {
                   onChange={v => edit({ [activeFile]: v })}
                   level={state.completionLevel || 1}
                   maxHeight={560}
+                  onCaret={setCaret}
+                  minimap
                 />
               ) : (
                 <JavaEditor
@@ -175,6 +181,8 @@ export default function ExerciseWindowApp() {
                   diagnostic={diagnostic && diagnostic.file === activeFile ? diagnostic : null}
                   level={state.completionLevel || 1}
                   onRun={() => send(chRef.current, MSG.RUN)}
+                  onCaret={setCaret}
+                  minimap
                 />
               )}
             </div>
@@ -241,6 +249,21 @@ export default function ExerciseWindowApp() {
               </>
             )}
           </div>
+
+          <StatusBar
+            left={[
+              { text: isWeb ? (activeFile === "style.css" ? "CSS" : "HTML") : "Java 21" },
+              isWeb
+                ? (checks.length ? { text: `確認 ${checks.filter(c => c.ok).length} / ${checks.length}`, tone: done ? "ok" : "warn" } : null)
+                : (diagnostic ? { text: `⊗ ${diagnostic.line}行目`, tone: "warn" } : null),
+            ]}
+            right={[
+              { text: `行 ${caret.line}、列 ${caret.col}` },
+              { text: "スペース: 2", minor: true },
+              { text: "UTF-8", minor: true },
+              { text: "LF", minor: true },
+            ]}
+          />
         </div>
 
         {/* 質問はこちらでは受けない。**認証を従に持たせない**ため（ADR 0021）。 */}

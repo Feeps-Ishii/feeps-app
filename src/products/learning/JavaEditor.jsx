@@ -4,6 +4,7 @@ import {
   addMissingImports, closingBraceEdit, completionsFor, indentEdit,
   newlineEdit, tokenBefore, tokenizeLine,
 } from "./javaEditorSupport.js";
+import { Minimap, caretAt } from "./ExerciseChrome.jsx";
 
 // 2026-08-25: 演習で使うJavaエディタ。承認モック: mock/code-editor/index.html
 //
@@ -64,7 +65,7 @@ function HighlightedLine({ line, diagnostic }) {
   );
 }
 
-export default function JavaEditor({ value, onChange, diagnostic, level = 1, onRun, readOnly = false }) {
+export default function JavaEditor({ value, onChange, diagnostic, level = 1, onRun, readOnly = false, onCaret, minimap = false }) {
   const taRef = useRef(null);
   const gutterRef = useRef(null);
   const boxRef = useRef(null);
@@ -99,6 +100,11 @@ export default function JavaEditor({ value, onChange, diagnostic, level = 1, onR
     }
     pendingCaret.current = null;
   });
+
+  function reportCaret() {
+    const ta = taRef.current;
+    if (ta && onCaret) onCaret(caretAt(ta.value, ta.selectionStart));
+  }
 
   function charWidth() {
     const ta = taRef.current;
@@ -193,7 +199,7 @@ export default function JavaEditor({ value, onChange, diagnostic, level = 1, onR
   const bodyHeight = lines.length * LINE_H + PAD_TOP * 2;
 
   return (
-    <div className="relative grid overflow-y-auto" style={{ gridTemplateColumns: "46px minmax(0,1fr)", background: CODE_BG, maxHeight: 460, resize: "vertical" }}>
+    <div className="relative grid overflow-y-auto" style={{ gridTemplateColumns: minimap ? "46px minmax(0,1fr) 58px" : "46px minmax(0,1fr)", background: CODE_BG, maxHeight: 460, resize: "vertical" }}>
       <div ref={gutterRef} className="py-[14px] text-right" aria-hidden="true" style={{ height: bodyHeight }}>
         {lines.map((_, i) => {
           const bad = diagnostic && diagnostic.line === i + 1;
@@ -224,7 +230,9 @@ export default function JavaEditor({ value, onChange, diagnostic, level = 1, onR
           value={value}
           readOnly={readOnly}
           onChange={e => onChange(e.target.value)}
-          onKeyUp={e => { if (!["Escape", "Enter", "Tab"].includes(e.key)) openMenu(false); }}
+          onKeyUp={e => { reportCaret(); if (!["Escape", "Enter", "Tab"].includes(e.key)) openMenu(false); }}
+          onClick={reportCaret}
+          onSelect={reportCaret}
           onScroll={syncScroll}
           onBlur={() => setTimeout(() => setMenu(null), 140)}
           onKeyDown={handleKeyDown}
@@ -237,6 +245,8 @@ export default function JavaEditor({ value, onChange, diagnostic, level = 1, onR
           }}
         />
       </div>
+
+      {minimap && <Minimap lines={lines} current={diagnostic ? diagnostic.line : 0} errorLine={diagnostic?.line || 0} />}
 
       {menu && (
         <div
