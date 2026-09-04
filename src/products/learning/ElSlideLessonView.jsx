@@ -1,8 +1,9 @@
-import React, { useEffect, useMemo, useRef, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ChevronLeft, ChevronRight, ChevronUp, ChevronDown, Lightbulb, FileText, Download, Check, X,
   Play, PlayCircle, Circle, CheckCircle2, Loader2, Sparkles, PanelRightClose, PanelRightOpen,
   Clock, HelpCircle, AlertCircle,
+  Maximize2,
 } from "lucide-react";
 import { Btn, T, PRODUCT_ACCENT } from "../../components/common";
 import { LessonBodyText } from "./LearningComponents.jsx";
@@ -15,6 +16,7 @@ import LecturePlayer from "./LecturePlayer.jsx";
 import SlideFocusLayer from "./SlideFocusLayer.jsx";
 import SlideFigure from "./SlideFigures.jsx";
 import CodeRunSlide from "./CodeRunSlide.jsx";
+import FocusModeBar, { FONT_STEPS, TocDrawer, useFocusKeys, useRememberedFocus } from "./FocusModeBar.jsx";
 import WebRunSlide from "./WebRunSlide.jsx";
 import { AgendaSlide, ChapterSlide, ColumnsSlide, HookSlide, RoleCallouts, SlideEyebrowText, StepsSlide, WorkSlide } from "./SlideLayouts.jsx";
 
@@ -1567,6 +1569,11 @@ export default function ElSlideLessonView({ course, lesson, lrn, onBack, onNavig
     return found >= 0 ? found : 0;
   });
   const [rightCompact, setRightCompact] = useState(true);
+  // 集中モード。実測で本文が570pxしかなく、図やエディタに足りない（mock/focus-mode）。
+  const [focus, setFocus] = useRememberedFocus();
+  const [tocOpen, setTocOpen] = useState(false);
+  const [fontStep, setFontStep] = useState(0);
+  const [fullscreen, setFullscreen] = useState(false);
 
   // 2026-08-21 実バグ: 「次のLessonへ」で移動してもこのコンポーネントは作り直されないため、
   // slideIndexが前のLessonの位置のまま残り、**新しいLessonの途中（クイズやまとめ）から
@@ -1599,11 +1606,86 @@ export default function ElSlideLessonView({ course, lesson, lrn, onBack, onNavig
     else onBack();
   }
 
+  const total = slides.length;
+  const goPrev = useCallback(() => setSlideIndex(i => Math.max(0, i - 1)), []);
+  const goNext = useCallback(() => setSlideIndex(i => Math.min(total - 1, i + 1)), [total]);
+
+  const toggleFullscreen = useCallback(() => {
+    const el = document.documentElement;
+    if (document.fullscreenElement) { document.exitFullscreen?.().catch(() => {}); return; }
+    el.requestFullscreen?.().catch(() => {});
+  }, []);
+  useEffect(() => {
+    const onFs = () => setFullscreen(Boolean(document.fullscreenElement));
+    document.addEventListener("fullscreenchange", onFs);
+    return () => document.removeEventListener("fullscreenchange", onFs);
+  }, []);
+  // 集中モードを抜けたら全画面も抜ける（全画面のまま元の画面に戻ると迷子になる）
+  useEffect(() => {
+    if (!focus && document.fullscreenElement) document.exitFullscreen?.().catch(() => {});
+  }, [focus]);
+
+  useFocusKeys({
+    active: focus,
+    onToggle: () => setFocus(v => !v),
+    onExit: () => (document.fullscreenElement ? toggleFullscreen() : setFocus(false)),
+    onPrev: goPrev,
+    onNext: goNext,
+    onToc: () => setTocOpen(v => !v),
+  });
+
+  const tocLabel = (s, i) => (s?.kind === "_cover" ? "はじめに"
+    : s?.kind === "_divider" ? (STAGE_VISUAL[s.stage]?.label || `セクション ${i + 1}`)
+      : s?.navLabel || s?.title || `ページ ${i + 1}`);
+
+  if (focus) {
+    return (
+      <div style={{ fontSize: `${FONT_STEPS[fontStep].scale}rem` }}>
+        <FocusModeBar
+          title={`${course.title} ／ ${lesson.title}`}
+          index={slideIndex}
+          total={total}
+          onPrev={goPrev}
+          onNext={goNext}
+          onExit={() => setFocus(false)}
+          onToc={() => setTocOpen(true)}
+          fontStep={fontStep}
+          onFont={() => setFontStep(v => (v + 1) % FONT_STEPS.length)}
+          fullscreen={fullscreen}
+          onFullscreen={toggleFullscreen}
+        />
+        {/* 本文の入れ物にも上限（1520px）が掛かっていて、1920pxの画面では
+            集中モードにしてもほとんど広がらなかった。ここで外す。 */}
+        <div className="mx-auto px-4 py-5 sm:px-6" style={{ maxWidth: 1180 }}>
+          <MainSlidePanel slides={slides} index={slideIndex} setIndex={setSlideIndex} accent={accent} lrn={lrn} courseId={course.id} lessonId={lesson.id} contentCount={contentSlides.length} lesson={lesson} />
+          <div className="mt-6 flex flex-wrap items-center justify-between gap-3 rounded-2xl p-4" style={{ background: C.canvas }}>
+            <ReactionBar course={course} lesson={lesson} lrn={lrn} accent={accent} />
+            <Btn icon={completed ? CheckCircle2 : Check} onClick={handleComplete}>
+              {completed ? "次へ進む" : next ? "完了して次のLessonへ" : "完了する"}
+            </Btn>
+          </div>
+        </div>
+        <TocDrawer open={tocOpen} onClose={() => setTocOpen(false)} slides={slides} current={slideIndex} onSelect={setSlideIndex} labelOf={tocLabel} />
+      </div>
+    );
+  }
+
   return (
     <div>
-      <button onClick={onBack} className="mb-4 flex items-center gap-1.5 text-sm font-semibold transition hover:opacity-70" style={{ color: C.muted }}>
-        <ChevronLeft size={16} />{course.title}へ戻る
-      </button>
+      <div className="mb-4 flex flex-wrap items-center gap-3">
+        <button onClick={onBack} className="flex items-center gap-1.5 text-sm font-semibold transition hover:opacity-70" style={{ color: C.muted }}>
+          <ChevronLeft size={16} />{course.title}へ戻る
+        </button>
+        <button
+          type="button"
+          onClick={() => setFocus(true)}
+          title="周りの案内を隠して、本文を広げます（F）"
+          className="ml-auto flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-[12px] font-bold transition hover:bg-black/[.04]"
+          style={{ border: `1px solid ${C.line}`, color: C.body }}
+        >
+          <Maximize2 size={13} />集中モード
+        </button>
+      </div>
 
       <LearningExperienceFlow
         activeKey={slides[slideIndex]?.stage || displayStage(slides[slideIndex])}
