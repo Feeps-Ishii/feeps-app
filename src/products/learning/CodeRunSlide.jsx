@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
-import { CheckCircle2, ExternalLink, FileCode2, Loader2, Play, RotateCcw, Sparkles } from "lucide-react";
+import { CheckCircle2, ExternalLink, FileCode2, Loader2, Monitor, Play, RotateCcw, Sparkles } from "lucide-react";
 import { T } from "../../components/common";
 import { apiPost } from "../../api.js";
 import { SlideEyebrowText } from "./SlideLayouts.jsx";
@@ -7,6 +7,8 @@ import { stopSpeech } from "./lectureAudio.js";
 import JavaEditor from "./JavaEditor.jsx";
 import { parseJavacError } from "./javaEditorSupport.js";
 import CodeQuestionBox from "./CodeQuestionBox.jsx";
+import useExerciseWindow from "./useExerciseWindow.js";
+import DetachBar, { DetachButton, DetachError } from "./DetachBar.jsx";
 
 // 2026-08-25: 受講者がコードを書いて、**本当にコンパイル・実行する**演習。
 // 承認モック: mock/lecture-devenv, mock/code-editor
@@ -119,6 +121,40 @@ export default function CodeRunSlide({ slide, content = {}, lrn, courseId, lesso
     }
   }
 
+  // ---- 別ウィンドウ（ADR 0021）----
+  // 実行APIは**主が代行する**。従はトークンを持たない。
+  const winFiles = useMemo(() => {
+    const out = { [mainName]: source };
+    for (const f of extraFiles) out[f.name] = f.content;
+    return out;
+  }, [mainName, source, extraFiles]);
+
+  const winState = useMemo(() => ({
+    kind: "code_run",
+    title: slide.title,
+    task: content.task || "",
+    files: winFiles,
+    fileNames: [mainName, ...extraFiles.map(f => f.name)],
+    activeFile: openFile,
+    mainName,
+    completionLevel: content.completionLevel || 1,
+    canReset: true,
+    running: state === "running",
+    result,
+  }), [slide.title, content.task, content.completionLevel, winFiles, mainName, extraFiles, openFile, state, result]);
+
+  const exWin = useExerciseWindow({
+    state: winState,
+    onEdit: (p) => {
+      if (!p) return;
+      if (p.reset) { reset(); return; }
+      if (p.activeFile) setOpenFile(p.activeFile);
+      // 編集できるのは main のファイルだけ。参考ファイルは読むだけ。
+      if (p.files && p.files[mainName] !== undefined) setSource(p.files[mainName]);
+    },
+    onRun: () => run(),
+  });
+
   function reset() {
     setSource(content.source || "");
     setOpenFile(mainName);
@@ -176,6 +212,7 @@ export default function CodeRunSlide({ slide, content = {}, lrn, courseId, lesso
               style={{ border: `1px solid ${C.line}`, color: C.muted }}>
               <RotateCcw size={12} />最初に戻す
             </button>
+            {!exWin.detached && <DetachButton onClick={exWin.detach} />}
             <button type="button" onClick={run} disabled={state === "running"}
               className="flex items-center gap-1.5 rounded-xl px-4 py-2 text-[12.5px] font-bold text-white transition hover:opacity-90 disabled:opacity-50"
               style={{ background: T.accent }}>
@@ -185,6 +222,11 @@ export default function CodeRunSlide({ slide, content = {}, lrn, courseId, lesso
           </span>
         </div>
 
+        <DetachError message={exWin.error} onDismiss={exWin.clearError} />
+
+        {exWin.detached ? (
+          <DetachBar onReattach={exWin.reattach} note="コードはあちらの窓で書いてください。実行の結果はこちらにも出ます。" />
+        ) : (
         <div className="grid" style={{ gridTemplateColumns: allFiles.length > 1 ? "184px minmax(0,1fr)" : "minmax(0,1fr)" }}>
           {allFiles.length > 1 && (
             <aside className="p-2.5" style={{ background: C.canvas, borderRight: `1px solid ${C.line}` }}>
@@ -224,6 +266,7 @@ export default function CodeRunSlide({ slide, content = {}, lrn, courseId, lesso
             onRun={run}
           />
         </div>
+        )}
 
         <div style={{ borderTop: `1px solid ${C.line}` }}>
           <div className="flex items-center gap-2.5 px-3.5 py-2.5 text-[11.5px] font-extrabold"

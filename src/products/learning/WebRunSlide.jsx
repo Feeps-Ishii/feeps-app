@@ -1,10 +1,12 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
-import { CheckCircle2, FileCode2, Globe, RotateCcw, Smartphone, Sparkles } from "lucide-react";
+import { CheckCircle2, ExternalLink, FileCode2, Globe, Monitor, RotateCcw, Smartphone, Sparkles } from "lucide-react";
 import { T } from "../../components/common";
 import { SlideEyebrowText } from "./SlideLayouts.jsx";
 import WebEditor from "./WebEditor.jsx";
 import CodeQuestionBox from "./CodeQuestionBox.jsx";
 import { previewDocument, runWebChecks } from "./webChecks.js";
+import useExerciseWindow from "./useExerciseWindow.js";
+import DetachBar, { DetachButton, DetachError } from "./DetachBar.jsx";
 
 // 2026-08-27: HTML/CSSを書いて、その場で表示を確かめる演習。
 // 承認モック: mock/html-editor/index.html
@@ -50,6 +52,8 @@ export default function WebRunSlide({ slide, content = {}, lrn, courseId, lesson
   const frameRef = useRef(null);
   const narrowRef = useRef(null);
   const submittedRef = useRef(false);
+  // 別ウィンドウ側で測った確認の結果。切り離している間はこちらに iframe が無い。
+  const [remoteChecks, setRemoteChecks] = useState(null);
 
   // CSSをまだ扱わない単元では index.html だけを見せる。使わないタブを出すと
   // 「そこにも書かないといけないのか」と迷わせる。
@@ -107,6 +111,43 @@ export default function WebRunSlide({ slide, content = {}, lrn, courseId, lesson
     setFiles(prev => ({ ...prev, [name]: value }));
   }
 
+  // ---- 別ウィンドウ（ADR 0021）----
+  // 状態はここが持ち続ける。閉じても書きかけは残る。
+  const winState = useMemo(() => ({
+    kind: "web_run",
+    title: slide.title,
+    task: content.task || "",
+    files,
+    fileNames,
+    activeFile: openFile,
+    checks,
+    completionLevel: content.completionLevel || 1,
+    canReset: true,
+  }), [slide.title, content.task, content.completionLevel, files, fileNames, openFile, checks]);
+
+  const exWin = useExerciseWindow({
+    state: winState,
+    onEdit: (p) => {
+      if (!p) return;
+      if (p.reset) { reset(); return; }
+      if (p.activeFile) setOpenFile(p.activeFile);
+      if (p.files) { setTouched(true); setFiles(prev => ({ ...prev, ...p.files })); }
+      // 合否の記録は**主が持つ**。別窓は測った結果を渡すだけ。
+      if (p.checks) { setRemoteChecks(p.checks); recordIfPassed(p.checks); }
+    },
+  });
+
+  function recordIfPassed(list) {
+    const ok = list.length > 0 && list.every(r => r.ok);
+    if (!ok || submittedRef.current || !lrn?.submitExercise || !courseId || !lessonId) return;
+    submittedRef.current = true;
+    lrn.submitExercise({
+      courseId, lessonId, slideId: slide.id, kind: "web_run",
+      submittedAnswer: `${files["index.html"]}\n\n/* style.css */\n${files["style.css"]}`,
+      isCorrect: true,
+    }).catch(() => {});
+  }
+
   function reset() {
     setFiles(startFiles);
     setOpenFile("index.html");
@@ -118,8 +159,9 @@ export default function WebRunSlide({ slide, content = {}, lrn, courseId, lesson
     try { localStorage.setItem(HELP_SEEN_KEY, "1"); } catch (e) { /* 保存できなくても動作は変わらない */ }
   }
 
-  const passedCount = results.filter(r => r.ok).length;
-  const done = results.length > 0 && passedCount === results.length;
+  const shown = exWin.detached && remoteChecks ? remoteChecks : results;
+  const passedCount = shown.filter(r => r.ok).length;
+  const done = shown.length > 0 && passedCount === shown.length;
   const mode = openFile === "style.css" ? "css" : "html";
 
   return (
@@ -177,8 +219,13 @@ export default function WebRunSlide({ slide, content = {}, lrn, courseId, lesson
             style={{ border: `1px solid ${C.line}`, color: C.muted }}>
             <RotateCcw size={12} />最初に戻す
           </button>
+          {!exWin.detached && <DetachButton onClick={exWin.detach} />}
         </div>
+        <DetachError message={exWin.error} onDismiss={exWin.clearError} />
 
+        {exWin.detached ? (
+          <DetachBar onReattach={exWin.reattach} note="コードとプレビューは、あちらの窓に出しています。" />
+        ) : (
         <div className="grid lg:grid-cols-2">
           <div style={{ borderRight: `1px solid ${C.line}` }}>
             <WebEditor
@@ -242,16 +289,17 @@ export default function WebRunSlide({ slide, content = {}, lrn, courseId, lesson
             )}
           </div>
         </div>
+        )}
 
         <div style={{ borderTop: `1px solid ${C.line}` }}>
           <div className="flex items-center gap-2.5 px-3.5 py-2.5 text-[11.5px] font-extrabold"
             style={{ background: C.canvas, borderBottom: `1px solid ${C.line}`, color: done ? T.success : C.body, letterSpacing: "0.05em" }}>
             <span className="h-2 w-2 rounded-full" style={{ background: done ? T.success : C.muted }} />
-            {done ? `できました（${passedCount} / ${results.length}）` : `表示の確認（${passedCount} / ${results.length}）`}
+            {done ? `できました（${passedCount} / ${shown.length}）` : `表示の確認（${passedCount} / ${shown.length}）`}
             {done && <CheckCircle2 size={14} />}
           </div>
           <ul className="m-0 list-none p-3.5">
-            {results.map((r, i) => (
+            {shown.map((r, i) => (
               <li key={i} className="flex items-start gap-2.5 py-1.5">
                 <span className="mt-[3px] flex h-4 w-4 shrink-0 items-center justify-center rounded-full text-[10px] font-extrabold"
                   style={{ background: r.ok ? T.successSubtle : "transparent", border: r.ok ? "none" : `1px solid ${C.line}`, color: T.success }}>
@@ -263,7 +311,7 @@ export default function WebRunSlide({ slide, content = {}, lrn, courseId, lesson
                 </span>
               </li>
             ))}
-            {results.length === 0 && (
+            {shown.length === 0 && (
               <li className="text-[12.5px]" style={{ color: C.muted }}>この演習には自動の確認がありません。見た目を確かめてから次へ進んでください。</li>
             )}
           </ul>
@@ -286,7 +334,7 @@ export default function WebRunSlide({ slide, content = {}, lrn, courseId, lesson
         // （2026-08-27に本番で実測。4つ全部の値を並べた回答が返った）。
         output={results.filter(r => !r.ok).slice(0, 1).map(r => `未達: ${r.label}`).join("\n")}
         compiled={done}
-        hasResult={touched && results.length > 0}
+        hasResult={touched && shown.length > 0}
       />
 
       {done && (
@@ -300,7 +348,7 @@ export default function WebRunSlide({ slide, content = {}, lrn, courseId, lesson
           </div>
         </div>
       )}
-      {!done && touched && results.length > 0 && content.hintNote && (
+      {!done && touched && shown.length > 0 && content.hintNote && (
         <div className="mt-3 flex items-start gap-3 rounded-2xl p-4" style={{ background: T.aiSubtle }}>
           <Sparkles size={15} className="mt-0.5 shrink-0" style={{ color: T.aiAccentDeep }} />
           <p className="m-0 whitespace-pre-wrap text-[13.5px] leading-[1.85]" style={{ color: C.ink }}>{content.hintNote}</p>
