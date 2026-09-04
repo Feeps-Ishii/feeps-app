@@ -734,12 +734,16 @@ const PLAN_LABEL = { basic: "Basic", standard: "Standard", premium: "Premium" };
 const PLAN_ORDER = ["basic", "standard", "premium"];
 const PLAN_FEATURE_ROWS = [
   { label: "コース受講・理解度テスト", basic: "yes", standard: "yes", premium: "yes" },
+  // コード演習は1回0.005円。絞る意味がないので全プランで開ける（ADR 0021）。
+  { label: "コード演習（Java・HTML/CSS）", basic: "yes", standard: "yes", premium: "yes" },
   { label: "開発演習（DevLab）", basic: "trial", standard: "yes", premium: "yes" },
   { label: "案件参画体験", basic: "no", standard: "yes", premium: "yes" },
   { label: "学習履歴・獲得スキル", basic: "yes", standard: "yes", premium: "yes" },
   { label: "AI採点・フィードバック", basic: "no", standard: "yes", premium: "yes" },
   { label: "案件管理", basic: "no", standard: "yes", premium: "yes" },
   { label: "AIコース・問題生成", basic: "no", standard: "no", premium: "yes" },
+  // 常駐サンドボックス。**まだ作っていないので ○ にしない**（出すと嘘になる）。
+  { label: "本物の開発環境（ターミナル・git）", basic: "no", standard: "no", premium: "soon" },
 ];
 function PlanBadge({ learningPlan, onClick }) {
   const pa = PRODUCT_ACCENT.learning;
@@ -754,11 +758,14 @@ function PlanBadge({ learningPlan, onClick }) {
 function PlanComparisonView({ role, learningPlan }) {
   const applicable = role === "trainee" || role === "client";
   const pa = PRODUCT_ACCENT.learning;
+  // soon は「準備中」。記号にすると △（体験できる）と区別が付かないので文字で出す。
   const cellMark = kind => kind === "yes"
     ? <span style={{ color: pa.accent, fontWeight: 700 }}>✓</span>
     : kind === "trial"
       ? <span style={{ color: T.warning, fontWeight: 700 }}>△</span>
-      : <span style={{ color: T.textMuted }}>—</span>;
+      : kind === "soon"
+        ? <span className="whitespace-nowrap rounded-full px-2 py-0.5 text-[10px] font-bold" style={{ background: T.warningSubtle, color: T.warning }}>準備中</span>
+        : <span style={{ color: T.textMuted }}>—</span>;
   return (
     <div className="mx-auto max-w-3xl space-y-4">
       <div>
@@ -790,7 +797,17 @@ function PlanComparisonView({ role, learningPlan }) {
           );
         })}
       </div>
-      <p className="text-xs" style={{ color: T.textMuted }}>△ 開発演習（DevLab）はBasicでも3問まで体験できます。価格・課金単位は現在検討中です。</p>
+      <div className="space-y-1.5 text-xs" style={{ color: T.textMuted }}>
+        <p>△ 開発演習（DevLab）はBasicでも3問まで体験できます。価格は現在検討中です。</p>
+        <p>
+          コード演習は<b style={{ color: T.textSecondary }}>どのプランでも回数の制限なく</b>使えます。
+          Spring などのサーバーを使う演習も、Standard までは<b style={{ color: T.textSecondary }}>テストで確かめる形</b>で最後まで進められます。
+        </p>
+        <p>
+          「本物の開発環境」は、演習ページで実行環境を選べるようにする機能です（ターミナル・git・サーバーの起動）。
+          <b style={{ color: T.textSecondary }}>Premiumで提供予定・準備中です。</b>
+        </p>
+      </div>
     </div>
   );
 }
