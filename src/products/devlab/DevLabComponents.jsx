@@ -21,6 +21,9 @@ import {
 import { apiGet } from "../../api.js";
 import { CommitDiffPanel } from "./DevLabCommitDiff.jsx";
 import { artifactDef, ARTIFACT_OPTIONS } from "./artifacts/index.js";
+import { RoleSelect, RoleSummary } from "./roles/RoleSelect.jsx";
+import { hasRoleSetup, findRoleSlot, stepsForRole } from "./roles/phases.js";
+import { getRole, setRole } from "./roles/roleStore.js";
 
 // ===================== ホーム =====================
 export function DevLabHome({ role, goSub }) {
@@ -263,6 +266,8 @@ function ChecklistResult({ checklist, checkResults }) {
 
 // ===================== 受講生: 案件詳細/進行画面 =====================
 export function ProjectDetail({ projectId, onBack, onOpenWorkspace }) {
+  // 担当工程（2026-09-05）。案件が roleSlots も phase も持たなければ今までどおり全ステップを出す。
+  // 正典: docs/specs/dev-lab-role-spec.md
   const { projects, loading, error, reload: reloadProjects } = useDevLabProjects();
   const { assignments, submissions, reload: reloadMe } = useDevLabMe();
   const { sheet, reload: reloadSheet } = useMySkillSheet();
@@ -273,8 +278,28 @@ export function ProjectDetail({ projectId, onBack, onOpenWorkspace }) {
   const [attachWorkspaceFiles, setAttachWorkspaceFiles] = useState(true);
   const [completeError, setCompleteError] = useState(null);
   const [worksDraftPreview, setWorksDraftPreview] = useState(null);
+  const [roleSlotId, setRoleSlotId] = useState("");
+  const [pickingRole, setPickingRole] = useState(false);
 
   const project = useMemo(() => projects.find(p => p.id === projectId), [projects, projectId]);
+  const roleReady = hasRoleSetup(project);
+  // 案件を開くたびに、前に選んだ担当を戻す
+  useEffect(() => { setRoleSlotId(getRole(projectId)); setPickingRole(false); }, [projectId]);
+
+  const roleSlot = useMemo(
+    () => (roleReady ? findRoleSlot(project, roleSlotId) : null),
+    [roleReady, project, roleSlotId],
+  );
+  // 担当が決まるまでは全ステップを見せる（決めたら絞る）
+  const visibleSteps = useMemo(
+    () => (roleSlot ? stepsForRole(project?.steps, roleSlot) : (project?.steps || [])),
+    [project, roleSlot],
+  );
+
+  function chooseRole(id) {
+    setRoleSlotId(id);
+    setRole(projectId, id);
+  }
   const assignment = useMemo(() => assignments.find(a => a.projectId === projectId), [assignments, projectId]);
   const mySubmissions = useMemo(() => submissions.filter(s => s.projectId === projectId), [submissions, projectId]);
   const byStep = useMemo(() => new Map(mySubmissions.map(s => [s.stepId, s])), [mySubmissions]);
@@ -284,10 +309,10 @@ export function ProjectDetail({ projectId, onBack, onOpenWorkspace }) {
 
   // 現在のステップに成果物エディタが設定されていれば、提出済みの内容を編集中モデルへ
   // 引き継ぐ（未着手なら空から）。種別ごとの分岐はレジストリ側に寄せている。
-  const currentStepId = useMemo(() => {
-    const steps = project?.steps || [];
-    return steps.find(s => byStep.get(s.stepId)?.passed !== true)?.stepId || "";
-  }, [project, byStep]);
+  const currentStepId = useMemo(
+    () => visibleSteps.find(s => byStep.get(s.stepId)?.passed !== true)?.stepId || "",
+    [visibleSteps, byStep],
+  );
   useEffect(() => {
     const step = (project?.steps || []).find(s => s.stepId === currentStepId);
     const def = artifactDef(step?.artifactType);
@@ -306,7 +331,10 @@ export function ProjectDetail({ projectId, onBack, onOpenWorkspace }) {
     );
   }
 
-  const steps = project.steps || [];
+  const allSteps = project.steps || [];
+  const steps = visibleSteps;
+  // 担当外のタスクは隠れているだけ。**件数は必ず伝える**（消えたと思わせない）
+  const hiddenCount = allSteps.length - steps.length;
   const currentStep = steps.find(s => byStep.get(s.stepId)?.passed !== true);
   const allPassed = steps.length > 0 && !currentStep;
   const isCompleted = assignment?.status === "completed";
@@ -368,7 +396,7 @@ export function ProjectDetail({ projectId, onBack, onOpenWorkspace }) {
         chips={[
           { label: "レベル", value: devLabLevelLabel(project.level) },
           { label: "想定時間", value: project.estimatedHours ? `約${project.estimatedHours}時間` : "-" },
-          { label: "ステップ", value: `${steps.length}` },
+          { label: "タスク", value: hiddenCount > 0 ? `${steps.length} / ${allSteps.length}` : `${steps.length}` },
         ]}
       />
 
@@ -404,12 +432,42 @@ export function ProjectDetail({ projectId, onBack, onOpenWorkspace }) {
       {actionError && <Card className="mb-4 p-4"><p className="text-sm" style={{ color: T.danger }}>{actionError}</p></Card>}
 
       {!assignment ? (
-        <Card className="p-5 text-center">
-          <p className="text-sm" style={{ color: T.textSecondary }}>この案件に参加してステップを進めましょう。</p>
-          <Btn className="mt-3" icon={Code2} disabled={busy} onClick={handleStart}>この案件に参加する</Btn>
-        </Card>
+        roleReady ? (
+          <RoleSelect
+            project={project}
+            value={roleSlotId}
+            onChange={chooseRole}
+            onConfirm={handleStart}
+            confirmLabel="この担当で参加する"
+            busy={busy}
+          />
+        ) : (
+          <Card className="p-5 text-center">
+            <p className="text-sm" style={{ color: T.textSecondary }}>この案件に参加してステップを進めましょう。</p>
+            <Btn className="mt-3" icon={Code2} disabled={busy} onClick={handleStart}>この案件に参加する</Btn>
+          </Card>
+        )
       ) : (
         <>
+          {roleReady && (pickingRole || !roleSlot ? (
+            <div className="mb-4">
+              <RoleSelect
+                project={project}
+                value={roleSlotId}
+                onChange={chooseRole}
+                onConfirm={() => setPickingRole(false)}
+                confirmLabel="この担当にする"
+              />
+            </div>
+          ) : (
+            <RoleSummary
+              project={project}
+              roleSlotId={roleSlotId}
+              hiddenCount={hiddenCount}
+              onChangeRole={() => setPickingRole(true)}
+            />
+          ))}
+
           <h3 className="mb-3 text-sm font-bold" style={{ color: T.textPrimary }}>ステップ</h3>
           <div className="space-y-3">
             {steps.map((step, i) => {
@@ -486,7 +544,17 @@ export function ProjectDetail({ projectId, onBack, onOpenWorkspace }) {
             })}
           </div>
 
-          {allPassed && !isCompleted && (
+          {/* 案件の完了は**全工程**が終わったときだけ（Backendが全ステップ合格を見る）。
+              担当分だけ終わった状態で完了ボタンを出すと、押しても400が返って戸惑わせる */}
+          {allPassed && !isCompleted && hiddenCount > 0 && (
+            <Card className="mt-4 p-5 text-center">
+              <p className="text-sm" style={{ color: T.textSecondary }}>
+                担当分のタスクは全部合格しました。案件の完了は、他の工程{hiddenCount}件も終わってからです。
+              </p>
+            </Card>
+          )}
+
+          {allPassed && !isCompleted && hiddenCount === 0 && (
             <Card className="mt-4 p-5 text-center">
               <p className="text-sm" style={{ color: T.textSecondary }}>全ステップ合格しました。完了して実績下書きを作成しましょう。</p>
               <Btn className="mt-3" icon={Award} disabled={busy} onClick={handleComplete}>完了する</Btn>
