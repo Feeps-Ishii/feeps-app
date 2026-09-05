@@ -680,3 +680,7 @@ body.feeps-modal-open .feeps-main-scroll { overflow: hidden !important; }
   display: grid;
   place-items: center;
 }
+
+/* 横に送るカードの並び（2026-09-06）。スクロールバーは出さず、矢印と指で操作する */
+.feeps-rail{ scrollbar-width:none; -ms-overflow-style:none; }
+.feeps-rail::-webkit-scrollbar{ display:none; }

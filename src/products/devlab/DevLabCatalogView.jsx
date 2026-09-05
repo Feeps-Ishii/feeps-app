@@ -2,6 +2,7 @@ import React, { useMemo, useState } from "react";
 import { Card, Badge, Btn, T } from "../../components/common";
 import { methodOf, roleSlotsFor, stepsForRole, findRoleSlot, hasRoleSetup } from "./roles/phases.js";
 import { sortDevLabProjects, devLabWorkspaceStackLabel, devLabLevelLabel } from "./DevLabCatalog.js";
+import CardRail from "./CardRail.jsx";
 
 // 開発演習の一覧（2026-09-05）。承認モック: mock/devlab-catalog
 //
@@ -127,7 +128,7 @@ function ProjectCard({ project, prog, onOpen }) {
   return (
     <button
       type="button" onClick={() => onOpen(project.id)}
-      className="flex flex-col overflow-hidden rounded-2xl border text-left transition hover:-translate-y-0.5 hover:shadow-lg"
+      className="flex h-full w-full flex-col overflow-hidden rounded-2xl border text-left transition hover:-translate-y-0.5 hover:shadow-lg"
       style={{ borderColor: T.border, background: T.bgSurface }}
     >
       <span className="h-1 w-full"
@@ -271,14 +272,16 @@ export default function DevLabCatalogView({ projects, templates, submissions, on
             {filtered.length < sorted.length && `（全 ${sorted.length} 件から絞り込み）`}
           </p>
 
-          <div className="mt-2 grid gap-3.5 sm:grid-cols-2 xl:grid-cols-3">
-            {filtered.map(p => (
-              <ProjectCard
-                key={p.id} project={p}
-                prog={p.myStatus === "in_progress" ? progressOf(p, passedByProject) : null}
-                onOpen={onOpenProject}
-              />
-            ))}
+          <div className="mt-2">
+            <CardRail ariaLabel="案件の一覧">
+              {filtered.map(p => (
+                <ProjectCard
+                  key={p.id} project={p}
+                  prog={p.myStatus === "in_progress" ? progressOf(p, passedByProject) : null}
+                  onOpen={onOpenProject}
+                />
+              ))}
+            </CardRail>
           </div>
 
           {!filtered.length && (
