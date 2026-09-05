@@ -39,6 +39,8 @@ export default function DevLabProduct({ subView, goSub, role, themeColor }) {
   // instructor/adminは従来通り"dl_workspace"を専用ナビ項目として維持しているため、
   // そちらの状態遷移も両立させる必要がある。
   const [activeProjectId, setActiveProjectId] = useState("");
+  // 入口の質問から「この担当で始める」で来たときの担当（2026-09-05）
+  const [initialRoleSlotId, setInitialRoleSlotId] = useState("");
   const [activeTemplateId, setActiveTemplateId] = useState("");
   // 案件詳細の「ワークスペースで作業する」から遷移した場合、ワークスペース画面からの「戻る」で
   // 案件詳細へ戻すためのprojectId(2026-07-22追加、案件×ワークスペース連携)。カタログ経由で
@@ -50,7 +52,7 @@ export default function DevLabProduct({ subView, goSub, role, themeColor }) {
   // カタログ系(dl_projects/dl_workspace)以外へ移動したら選択状態をリセットする（サイドナビを
   // 経由して戻った際に、常にカタログから始まるようにするため）。
   useEffect(() => {
-    if (subView !== "dl_projects") setActiveProjectId("");
+    if (subView !== "dl_projects") { setActiveProjectId(""); setInitialRoleSlotId(""); }
     if (subView !== "dl_projects" && subView !== "dl_workspace") setActiveTemplateId("");
     if (subView !== "dl_projects" && subView !== "dl_workspace") setWorkspaceReturnProjectId("");
     if (subView !== "dl_team") setActiveTeamId("");
@@ -75,14 +77,18 @@ export default function DevLabProduct({ subView, goSub, role, themeColor }) {
   const screens = {
     dl_home: <DevLabHome role={role} themeColor={themeColor} goSub={goSub} />,
     dl_projects: activeProjectId
-      ? <ProjectDetail role={role} projectId={activeProjectId} onBack={() => setActiveProjectId("")} onOpenWorkspace={templateId => openWorkspaceFromProject(activeProjectId, templateId)} />
+      ? <ProjectDetail role={role} projectId={activeProjectId} initialRoleSlotId={initialRoleSlotId} onBack={() => { setActiveProjectId(""); setInitialRoleSlotId(""); }} onOpenWorkspace={templateId => openWorkspaceFromProject(activeProjectId, templateId)} />
       : activeTemplateId
         ? (
           <Suspense fallback={<PageLoading label="ワークスペースを準備しています…" />}>
             <WorkspaceDetail templateId={activeTemplateId} onBack={backFromWorkspace} backLabel={workspaceReturnProjectId ? "案件に戻る" : undefined} />
           </Suspense>
         )
-        : <DevLabCombinedCatalog role={role} onOpenProject={setActiveProjectId} onOpenTemplate={setActiveTemplateId} />,
+        : <DevLabCombinedCatalog
+          role={role}
+          onOpenProject={(projectId, roleSlotId) => { setActiveProjectId(projectId); setInitialRoleSlotId(roleSlotId || ""); }}
+          onOpenTemplate={setActiveTemplateId}
+        />,
     // 2026-09-05: 管理系の4画面を1つのタブへ統合した。旧キーは残してあり、
     // 対応するタブを開いた状態でハブを出す（Homeなどからの遷移を壊さないため）。
     dl_manage: <DevLabManageHub role={role} initialTab="projects" />,

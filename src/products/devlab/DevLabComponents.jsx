@@ -22,6 +22,7 @@ import { apiGet } from "../../api.js";
 import { CommitDiffPanel } from "./DevLabCommitDiff.jsx";
 import { artifactDef, ARTIFACT_OPTIONS } from "./artifacts/index.js";
 import { RoleSelect, RoleSummary } from "./roles/RoleSelect.jsx";
+import StartWizard from "./roles/StartWizard.jsx";
 import CounterpartPanel from "./roles/CounterpartPanel.jsx";
 import { MethodSelect, PhaseSelect, RoleSlotEditor, HearingEditor } from "./roles/AdminRoleEditors.jsx";
 import { hasRoleSetup, findRoleSlot, stepsForRole, phaseLabel } from "./roles/phases.js";
@@ -104,6 +105,9 @@ export function ProjectCatalog({ onOpenProject }) {
 // 従来のまま変更しない。useDevLabWorkspaceTemplatesはSandpackに依存しないAPI hookのため、
 // Sandpackを直接importする唯一のファイル(DevLabWorkspaceComponents.jsx、docs/decisions/0011)の
 // lazy分割境界を崩さずにここへ持ち込める。
+// 入口の質問を一度でも通ったか。**2回目からは一覧が既定**（毎回聞かれると邪魔になる）
+const START_SEEN_KEY = "feeps.devlab.startSeen";
+
 export function DevLabCombinedCatalog({ onOpenProject, onOpenTemplate }) {
   const { projects, loading: loadingProjects, error: errorProjects, reload: reloadProjects } = useDevLabProjects();
   const { templates, loading: loadingTemplates, error: errorTemplates, reload: reloadTemplates } = useDevLabWorkspaceTemplates();
@@ -126,6 +130,32 @@ export function DevLabCombinedCatalog({ onOpenProject, onOpenTemplate }) {
   // 2026-08-18 「案件一覧とプロジェクト体験が同じ一覧に混ざって分かりにくい」という指摘を
   // 受けて対応。サイドナビは1項目のまま(2026-07-22の統合方針は維持)、画面内を「案件（提出型・
   // AIレビュー）」「プロジェクト体験（ブラウザ内で自由に編集）」の2セクションへ見出し分けする。
+  // ── 入口の質問（2026-09-05。承認モック: mock/devlab-start）──
+  // 出すのは「担当を選べる案件があり、まだ1件も参加していない人」の初回だけ。
+  // すでに参加している人・割り当てられている人には出さない。
+  const [startSeen, setStartSeen] = useState(true);
+  useEffect(() => {
+    try { setStartSeen(localStorage.getItem(START_SEEN_KEY) === "1"); } catch (e) { setStartSeen(false); }
+  }, []);
+  const [showWizard, setShowWizard] = useState(false);
+  const wizardProjects = useMemo(
+    () => projects.filter(p => (p.roleSlots || []).length > 0 && (p.steps || []).length > 0),
+    [projects],
+  );
+  const joinedAny = useMemo(() => projects.some(p => p.myStatus && p.myStatus !== "not_started"), [projects]);
+  const canWizard = wizardProjects.length > 0;
+  const wizardOpen = canWizard && (showWizard || (!startSeen && !joinedAny));
+
+  function closeWizard() {
+    setShowWizard(false);
+    setStartSeen(true);
+    try { localStorage.setItem(START_SEEN_KEY, "1"); } catch (e) { /* 保存できなくても閉じられる */ }
+  }
+  function startFromWizard(projectId, roleSlotId) {
+    closeWizard();
+    onOpenProject(projectId, roleSlotId);
+  }
+
   // 該当0件のセクションは表示しない（空欄を並べない）。
   return (
     <div>
@@ -134,6 +164,21 @@ export function DevLabCombinedCatalog({ onOpenProject, onOpenTemplate }) {
         title="開発演習"
         desc="疑似的な開発案件（提出・AIレビュー）とベースプロジェクト（ブラウザ内で編集・体験）から選んで参加できます。"
       />
+
+      {wizardOpen && (
+        <div className="mb-5">
+          <StartWizard projects={wizardProjects} onStart={startFromWizard} onSkip={closeWizard} />
+        </div>
+      )}
+      {!wizardOpen && canWizard && (
+        <div className="mb-4 flex flex-wrap items-center gap-3 rounded-xl border px-4 py-2.5"
+          style={{ borderColor: T.border, background: T.bgBase }}>
+          <span className="min-w-0 flex-1 text-xs" style={{ color: T.textSecondary }}>
+            どれをやるか迷ったら、3つの質問で案件と担当を決められます。
+          </span>
+          <Btn kind="ghost" size="sm" onClick={() => setShowWizard(true)}>おすすめを出す</Btn>
+        </div>
+      )}
       {error && (
         <Card className="mb-4 p-4">
           <p className="text-sm" style={{ color: T.danger }}>{error}</p>
@@ -266,7 +311,7 @@ function ChecklistResult({ checklist, checkResults }) {
 }
 
 // ===================== 受講生: 案件詳細/進行画面 =====================
-export function ProjectDetail({ projectId, onBack, onOpenWorkspace }) {
+export function ProjectDetail({ projectId, onBack, onOpenWorkspace, initialRoleSlotId = "" }) {
   // 担当工程（2026-09-05）。案件が roleSlots も phase も持たなければ今までどおり全ステップを出す。
   // 正典: docs/specs/dev-lab-role-spec.md
   const { projects, loading, error, reload: reloadProjects } = useDevLabProjects();
@@ -290,7 +335,8 @@ export function ProjectDetail({ projectId, onBack, onOpenWorkspace }) {
   // **担当の正本は assignment（サーバー）**。画面の選択状態はそれに合わせる。
   // この塊は assignment より後ろに置くこと（前に置くと定義前参照で実行時に落ちる）
   useEffect(() => { setPickingRole(false); }, [projectId]);
-  useEffect(() => { setRoleSlotId(assignment?.roleSlotId || ""); }, [assignment?.roleSlotId]);
+  // 参加前は入口で選んだ担当を初期値にする（参加すると assignment 側が正本になる）
+  useEffect(() => { setRoleSlotId(assignment?.roleSlotId || initialRoleSlotId || ""); }, [assignment?.roleSlotId, initialRoleSlotId]);
 
   const roleSlot = useMemo(
     () => (roleReady ? findRoleSlot(project, assignment?.roleSlotId || "") : null),
