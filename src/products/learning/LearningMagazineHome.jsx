@@ -384,7 +384,12 @@ export default function LearningMagazineHome({ role, isCreator, canUseDevLab, le
   const showTrial = !isCreator && learningPlan === "basic"; // Basic契約のtrainee/clientのみ（DevLab自体は常に体験可）
   const teamDevLocked = isTeamDevPlanLocked(role, learningPlan);
   // trainee=自分のチーム / instructor・admin・client=チームの編成と進捗
-  const teamDevTarget = () => goSub(role === "trainee" ? "el_devlab_myteam" : "el_devlab_teams");
+  // 2026-09-05: instructor/adminのナビは「開発演習の管理」1項目へ統合したので、
+  // el_devlab_teams はナビに無い＝goSubしても弾かれる。clientのナビには残っている
+  const teamDevTarget = () => goSub(
+    role === "trainee" ? "el_devlab_myteam"
+      : role === "client" ? "el_devlab_teams" : "el_devlab_manage",
+  );
 
   const sideCards = buildSideCards({ role, isCreator, learningPlan, goSub, goProduct, completedCount, inprogressCount, earnedSkillsCount });
 

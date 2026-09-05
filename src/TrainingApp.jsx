@@ -211,7 +211,9 @@ const EL_NAV = {
   instructor: [
     { sec: null, items: [["el_home", "ホーム", LayoutDashboard]] },
     { sec: "管理", items: [["el_manage", "コース管理", Settings], ["el_students", "受講状況", Users]] },
-    { sec: "開発演習", items: [["el_devlab_manage", "案件管理", ClipboardList], ["el_devlab_manage_workspace", "プロジェクト体験管理", FolderTree], ["el_devlab_manage_team", "チーム開発案件", Users], ["el_devlab_teams", "チーム", GitBranch]] },
+    // 2026-09-05: 4項目（案件管理／プロジェクト体験管理／チーム開発案件／チーム）は
+    // どれが題材でどれが実体か分からないという指摘を受け、1項目＋画面内タブへ統合した。
+    { sec: "開発演習", items: [["el_devlab_manage", "開発演習の管理", ClipboardList]] },
   ],
   client: [
     { sec: null, items: [["el_home", "ホーム", LayoutDashboard]] },
@@ -230,7 +232,9 @@ const EL_NAV = {
     { sec: "管理", items: [["el_manage", "コース管理", Settings], ["el_students", "受講状況", Users]] },
     // 2026-08-18 プロジェクト体験(ワークスペーステンプレート)の管理CRUD+AI生成を新設したため、
     // 「案件管理」と同じ並びに「プロジェクト体験管理」を追加(el_devlab_manage_workspace)。
-    { sec: "開発演習", items: [["el_devlab_manage", "案件管理", ClipboardList], ["el_devlab_manage_workspace", "プロジェクト体験管理", FolderTree], ["el_devlab_manage_team", "チーム開発案件", Users], ["el_devlab_teams", "チーム", GitBranch]] },
+    // 2026-09-05: 4項目（案件管理／プロジェクト体験管理／チーム開発案件／チーム）は
+    // どれが題材でどれが実体か分からないという指摘を受け、1項目＋画面内タブへ統合した。
+    { sec: "開発演習", items: [["el_devlab_manage", "開発演習の管理", ClipboardList]] },
   ],
 };
 

@@ -3,12 +3,9 @@ import {
   DevLabHome,
   DevLabCombinedCatalog,
   ProjectDetail,
-  ProjectManager,
-  WorkspaceTemplateManager,
-  TeamProjectManager,
-  TeamManager,
   MyTeamsCatalog,
 } from "./DevLabComponents.jsx";
+import DevLabManageHub from "./DevLabManageHub.jsx";
 import { PageLoading } from "../../components/common";
 
 // ワークスペース（プロジェクト体験）はSandpackを直接importする唯一のファイルで、
@@ -27,7 +24,7 @@ const TeamBranchWorkspace = lazy(() => import("./DevLabWorkspaceComponents.jsx")
 export default function DevLabProduct({ subView, goSub, role, themeColor }) {
   if (role === "client") {
     if (subView !== "dl_manage_teams") return null;
-    return <TeamManager role={role} />;
+    return <DevLabManageHub role={role} initialTab="teams" />;
   }
   if (role !== "trainee" && role !== "instructor" && role !== "admin") return null;
 
@@ -86,10 +83,12 @@ export default function DevLabProduct({ subView, goSub, role, themeColor }) {
           </Suspense>
         )
         : <DevLabCombinedCatalog role={role} onOpenProject={setActiveProjectId} onOpenTemplate={setActiveTemplateId} />,
-    dl_manage: <ProjectManager role={role} />,
-    dl_manage_workspace: <WorkspaceTemplateManager />,
-    dl_manage_team: <TeamProjectManager role={role} />,
-    dl_manage_teams: <TeamManager role={role} />,
+    // 2026-09-05: 管理系の4画面を1つのタブへ統合した。旧キーは残してあり、
+    // 対応するタブを開いた状態でハブを出す（Homeなどからの遷移を壊さないため）。
+    dl_manage: <DevLabManageHub role={role} initialTab="projects" />,
+    dl_manage_workspace: <DevLabManageHub role={role} initialTab="base" />,
+    dl_manage_team: <DevLabManageHub role={role} initialTab="teamProjects" />,
+    dl_manage_teams: <DevLabManageHub role={role} initialTab="teams" />,
     dl_team: activeTeamId
       ? (
         <Suspense fallback={<PageLoading label="チームの作業環境を準備しています…" />}>
