@@ -50,7 +50,8 @@ export function devLabWorkspaceStackLabel(stack) {
 // 2026-07-21 チェックリスト充足方式確定: rubric(自由記述)を廃止し、checklist[{text,criteria,required,reqIds}]へ。
 export const EMPTY_DEVLAB_CHECK = { text: "", criteria: "", required: true, reqIds: [] };
 // artifactType(2026-08-19): アプリ内で作らせる成果物。"none"＝従来のテキスト/URL提出。
-export const EMPTY_DEVLAB_STEP = { title: "", goal: "", deliverableGuide: "", artifactType: "none", checklist: [{ ...EMPTY_DEVLAB_CHECK }, { ...EMPTY_DEVLAB_CHECK }, { ...EMPTY_DEVLAB_CHECK }] };
+// phase(2026-09-05): 空＝どの担当でも出る。担当工程の正典は docs/specs/dev-lab-role-spec.md
+export const EMPTY_DEVLAB_STEP = { title: "", goal: "", deliverableGuide: "", artifactType: "none", phase: "", checklist: [{ ...EMPTY_DEVLAB_CHECK }, { ...EMPTY_DEVLAB_CHECK }, { ...EMPTY_DEVLAB_CHECK }] };
 
 export function emptyDevLabForm() {
   return {
@@ -64,6 +65,9 @@ export function emptyDevLabForm() {
     visibilityScope: "all",
     targetCompanyIds: [],
     workspaceTemplateId: "",
+    method: "waterfall",
+    roleSlots: [],
+    hearingItems: [],
   };
 }
 
@@ -129,6 +133,7 @@ export function formToPayload(form) {
       goal: s.goal.trim(),
       deliverableGuide: s.deliverableGuide.trim(),
       artifactType: s.artifactType || "none",
+      phase: s.phase || null,
       checklist: (s.checklist || []).filter(c => c.text.trim()).map(c => ({
         checkId: c.checkId,
         text: c.text.trim(),
@@ -141,6 +146,10 @@ export function formToPayload(form) {
     visibilityScope: form.visibilityScope,
     targetCompanyIds: form.targetCompanyIds,
     workspaceTemplateId: form.workspaceTemplateId || "",
+    method: form.method || "waterfall",
+    // 名前の無い担当区分・答えの無いヒアリング項目は捨てる（Backendも同じ判定をする）
+    roleSlots: (form.roleSlots || []).filter(r => (r.name || "").trim()),
+    hearingItems: (form.hearingItems || []).filter(h => (h.question || "").trim() && (h.answer || "").trim()),
   };
 }
 
@@ -163,6 +172,9 @@ export function projectToForm(project) {
     visibilityScope: project.visibilityScope || "all",
     targetCompanyIds: project.targetCompanyIds || [],
     workspaceTemplateId: project.workspaceTemplateId || "",
+    method: project.method || "waterfall",
+    roleSlots: project.roleSlots || [],
+    hearingItems: project.hearingItems || [],
   };
 }
 

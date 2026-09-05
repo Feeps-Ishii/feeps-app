@@ -23,7 +23,8 @@ import { CommitDiffPanel } from "./DevLabCommitDiff.jsx";
 import { artifactDef, ARTIFACT_OPTIONS } from "./artifacts/index.js";
 import { RoleSelect, RoleSummary } from "./roles/RoleSelect.jsx";
 import CounterpartPanel from "./roles/CounterpartPanel.jsx";
-import { hasRoleSetup, findRoleSlot, stepsForRole } from "./roles/phases.js";
+import { MethodSelect, PhaseSelect, RoleSlotEditor, HearingEditor } from "./roles/AdminRoleEditors.jsx";
+import { hasRoleSetup, findRoleSlot, stepsForRole, phaseLabel } from "./roles/phases.js";
 
 // ===================== ホーム =====================
 export function DevLabHome({ role, goSub }) {
@@ -797,7 +798,7 @@ function ChecklistEditor({ checklist, functionalRequirements, onChange }) {
   );
 }
 
-function StepEditor({ steps, functionalRequirements, onChange }) {
+function StepEditor({ steps, functionalRequirements, method, onChange }) {
   function updateStep(i, key, value) {
     const next = steps.map((s, idx) => (idx === i ? { ...s, [key]: value } : s));
     onChange(next);
@@ -823,6 +824,11 @@ function StepEditor({ steps, functionalRequirements, onChange }) {
               <select style={fieldStyle} value={step.artifactType || "none"} onChange={e => updateStep(i, "artifactType", e.target.value)}>
                 {ARTIFACT_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
               </select>
+            </label>
+            {/* 2026-09-05: どの工程のタスクか。指定なしなら全員に出る（従来どおり） */}
+            <label className="block">
+              <div className="mb-1 text-xs font-semibold" style={{ color: T.textMuted }}>工程</div>
+              <PhaseSelect method={method} value={step.phase} onChange={v => updateStep(i, "phase", v)} />
             </label>
             <div>
               <div className="mb-1.5 text-xs font-semibold" style={{ color: T.textMuted }}>チェックリスト</div>
@@ -913,8 +919,19 @@ function ProjectForm({ mode, role, form, onChange, onSave, onCancel, onGenerate,
             <Field label="想定時間（時間）"><input style={fieldStyle} value={form.estimatedHours} onChange={e => set("estimatedHours", e.target.value)} /></Field>
           </div>
 
+          {/* 担当工程（2026-09-05）。docs/specs/dev-lab-role-spec.md */}
+          <Field label="進め方">
+            <MethodSelect value={form.method} onChange={v => set("method", v)} />
+          </Field>
+          <Field label="担当区分（受講生が選ぶ担当。置かなければ全ステップが全員に出ます）">
+            <RoleSlotEditor method={form.method} slots={form.roleSlots} onChange={v => set("roleSlots", v)} />
+          </Field>
+          <Field label="お客様から聞き出す項目（任意）">
+            <HearingEditor items={form.hearingItems} onChange={v => set("hearingItems", v)} />
+          </Field>
+
           <Field label="ステップ・チェックリスト">
-            <StepEditor steps={form.steps} functionalRequirements={form.functionalRequirements} onChange={steps => set("steps", steps)} />
+            <StepEditor steps={form.steps} functionalRequirements={form.functionalRequirements} method={form.method} onChange={steps => set("steps", steps)} />
           </Field>
 
           <Field label="リンクするワークスペーステンプレート（任意）">
@@ -1556,6 +1573,12 @@ function TeamComposer({ teamProjects, trainees, onCreate, onSave, onCancel, busy
                     <div className="mb-1.5">
                       <span className="text-sm font-bold" style={{ color: T.textPrimary }}>{r.name}</span>
                       {r.description && <p className="text-xs" style={{ color: T.textMuted }}>{r.description}</p>}
+                      {/* 担当する工程（2026-09-05）。「どのファイルを持つか」に工程を足した */}
+                      {(r.phases || []).length > 0 && (
+                        <p className="mt-0.5 text-[11px]" style={{ color: T.textSecondary }}>
+                          担当する工程: {r.phases.map(p => phaseLabel(project?.method || "waterfall", p)).join("・")}
+                        </p>
+                      )}
                     </div>
                     <select style={fieldStyle} value={assignments[r.roleId] || ""} onChange={e => assign(r.roleId, e.target.value)}>
                       <option value="">AIメンバーが担当</option>
