@@ -24,6 +24,7 @@ import { artifactDef, ARTIFACT_OPTIONS } from "./artifacts/index.js";
 import { RoleSelect, RoleSummary } from "./roles/RoleSelect.jsx";
 import StartWizard from "./roles/StartWizard.jsx";
 import DevLabCatalogView from "./DevLabCatalogView.jsx";
+import DevLabTraineeHeader from "./DevLabTraineeHeader.jsx";
 import CounterpartPanel from "./roles/CounterpartPanel.jsx";
 import { MethodSelect, PhaseSelect, RoleSlotEditor, HearingEditor } from "./roles/AdminRoleEditors.jsx";
 import { hasRoleSetup, findRoleSlot, stepsForRole, phaseLabel } from "./roles/phases.js";
@@ -109,7 +110,7 @@ export function ProjectCatalog({ onOpenProject }) {
 // 入口の質問を一度でも通ったか。**2回目からは一覧が既定**（毎回聞かれると邪魔になる）
 const START_SEEN_KEY = "feeps.devlab.startSeen";
 
-export function DevLabCombinedCatalog({ onOpenProject, onOpenTemplate }) {
+export function DevLabCombinedCatalog({ onOpenProject, onOpenTemplate, tab = "projects", onTabChange }) {
   const { projects, loading: loadingProjects, error: errorProjects, reload: reloadProjects } = useDevLabProjects();
   const { templates, loading: loadingTemplates, error: errorTemplates, reload: reloadTemplates } = useDevLabWorkspaceTemplates();
   // 「次にやること」と進捗を出すために、自分の提出を引く（2026-09-05）
@@ -162,10 +163,11 @@ export function DevLabCombinedCatalog({ onOpenProject, onOpenTemplate }) {
   // 該当0件のセクションは表示しない（空欄を並べない）。
   return (
     <div>
-      <SectionHead
-        icon={Code2}
-        title="開発演習"
-        desc="疑似的な開発案件（提出・AIレビュー）とベースプロジェクト（ブラウザ内で編集・体験）から選んで参加できます。"
+      <DevLabTraineeHeader
+        tab={tab}
+        onChange={onTabChange || (() => {})}
+        projectCount={projects.length}
+        runningCount={projects.filter(p => p.myStatus === "in_progress").length}
       />
 
       {wizardOpen && (
@@ -1813,15 +1815,11 @@ export function TeamManager({ role }) {
 }
 
 // ===================== 受講生: 自分のチーム一覧（Step2） =====================
-export function MyTeamsCatalog({ onOpenTeam }) {
+export function MyTeamsCatalog({ onOpenTeam, tab = "team", onTabChange }) {
   const { teams, loading, error } = useMyDevLabTeams();
   return (
     <div>
-      <SectionHead
-        icon={Users}
-        title="チーム開発"
-        desc="チームで1つのコードベースを進めます。他のメンバーの変更を取り込みながら、自分の担当を実装しましょう。"
-      />
+      <DevLabTraineeHeader tab={tab} onChange={onTabChange || (() => {})} teamCount={teams.length} />
       {error && <Card className="mb-4 p-4"><p className="text-sm" style={{ color: T.danger }}>{error}</p></Card>}
       <Card>
         {loading ? <SkeletonRows rows={2} /> : teams.length === 0 ? (

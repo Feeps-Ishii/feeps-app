@@ -6,7 +6,6 @@ import {
   MyTeamsCatalog,
 } from "./DevLabComponents.jsx";
 import DevLabManageHub from "./DevLabManageHub.jsx";
-import { Seg, PRODUCT_ACCENT } from "../../components/common";
 import { PageLoading } from "../../components/common";
 
 // ワークスペース（プロジェクト体験）はSandpackを直接importする唯一のファイルで、
@@ -81,19 +80,6 @@ export default function DevLabProduct({ subView, goSub, role, themeColor }) {
   const devTab = subView === "dl_team" ? "team" : "projects";
   const [pickedTab, setPickedTab] = useState("");
   const tab = pickedTab || devTab;
-  const tabbed = (body) => (
-    <div>
-      <div className="mb-3">
-        <Seg
-          value={tab}
-          onChange={setPickedTab}
-          options={[{ value: "projects", label: "案件・練習" }, { value: "team", label: "チーム開発" }]}
-          activeFg={PRODUCT_ACCENT.learning.deep}
-        />
-      </div>
-      {body}
-    </div>
-  );
 
   const screens = {
     dl_home: <DevLabHome role={role} themeColor={themeColor} goSub={goSub} />,
@@ -113,15 +99,17 @@ export default function DevLabProduct({ subView, goSub, role, themeColor }) {
               <TeamBranchWorkspace teamId={activeTeamId} onBack={() => setActiveTeamId("")} />
             </Suspense>
           )
-          : tabbed(tab === "team"
-            ? <MyTeamsCatalog onOpenTeam={setActiveTeamId} />
+          : tab === "team"
+            ? <MyTeamsCatalog onOpenTeam={setActiveTeamId} tab={tab} onTabChange={setPickedTab} />
             : (
               <DevLabCombinedCatalog
                 role={role}
+                tab={tab}
+                onTabChange={setPickedTab}
                 onOpenProject={(projectId, roleSlotId) => { setActiveProjectId(projectId); setInitialRoleSlotId(roleSlotId || ""); }}
                 onOpenTemplate={setActiveTemplateId}
               />
-            )),
+            ),
     // 2026-09-05: 管理系の4画面を1つのタブへ統合した。旧キーは残してあり、
     // 対応するタブを開いた状態でハブを出す（Homeなどからの遷移を壊さないため）。
     dl_manage: <DevLabManageHub role={role} initialTab="projects" />,
