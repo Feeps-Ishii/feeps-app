@@ -113,8 +113,9 @@ export function RoleSelect({ project, value, onChange, onConfirm, confirmLabel =
   );
 }
 
-// 参加後の見出し。いまの担当と、担当を変える導線だけを出す
-export function RoleSummary({ project, roleSlotId, hiddenCount, onChangeRole }) {
+// 参加後の見出し。いまの担当と、担当を変える／案件をやめる導線を出す。
+// **会社から割り当てられた案件はやめられない**（onLeave を渡さない側で制御する）。
+export function RoleSummary({ project, roleSlotId, hiddenCount, onChangeRole, onLeave, assignedByManager = false }) {
   const method = methodOf(project);
   const slot = findRoleSlot(project, roleSlotId);
   if (!slot) return null;
@@ -133,8 +134,17 @@ export function RoleSummary({ project, roleSlotId, hiddenCount, onChangeRole }) 
             担当する工程: {names.join("・") || "工程の外側"}
           </p>
         </div>
-        {onChangeRole && <Btn kind="ghost" size="sm" onClick={onChangeRole}>担当を変える</Btn>}
+        <span className="flex flex-wrap gap-2">
+          {onChangeRole && <Btn kind="ghost" size="sm" onClick={onChangeRole}>担当を変える</Btn>}
+          {onLeave && !assignedByManager && <Btn kind="ghost" size="sm" onClick={onLeave}>この案件をやめる</Btn>}
+        </span>
       </div>
+
+      {assignedByManager && (
+        <p className="mt-1.5 text-xs" style={{ color: T.textMuted }}>
+          この案件は会社から割り当てられています。担当は変えられますが、参加の取り消しはできません。
+        </p>
+      )}
 
       <PhaseDiagram className="mt-3" method={method} activePhases={slot.phases || []} />
 

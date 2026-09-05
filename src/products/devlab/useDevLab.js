@@ -78,6 +78,19 @@ export function useDevLabActions(reloadCallbacks = []) {
     } finally { setBusy(false); }
   }
 
+  // 案件をやめる（2026-09-05）。**提出は消さない**ので、戻れば続きから進められる。
+  // 会社から割り当てられた案件はBackendが403で断る。
+  async function leaveProject(projectId) {
+    setBusy(true); setActionError("");
+    try {
+      await apiDelete(`/devlab/projects/${encodeURIComponent(projectId)}/assignment`);
+      await reloadAll();
+    } catch (e) {
+      setActionError(apiErrorMessage(e, "参加の取り消しに失敗しました。"));
+      throw e;
+    } finally { setBusy(false); }
+  }
+
   // お客様に1項目聞く。**答えはここで初めて返ってくる**（聞くまでBackendは渡さない）。
   // **ここで一覧を再取得しない。** 再取得すると案件詳細が読み込み中の表示に戻り、
   // それまでの会話が消える（2026-09-05に実機で確認）。更新後のassignmentは戻り値で返す。
@@ -140,7 +153,7 @@ export function useDevLabActions(reloadCallbacks = []) {
   }
 
   return {
-    start, submitStep, complete, addToSkillSheet, changeRole, askHearing, askCounterpart,
+    start, submitStep, complete, addToSkillSheet, changeRole, leaveProject, askHearing, askCounterpart,
     busy, actionError, clearActionError: () => setActionError(""),
   };
 }

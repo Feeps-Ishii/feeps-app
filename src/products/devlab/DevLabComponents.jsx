@@ -318,7 +318,7 @@ export function ProjectDetail({ projectId, onBack, onOpenWorkspace, initialRoleS
   const { assignments, submissions, reload: reloadMe } = useDevLabMe();
   const { sheet, reload: reloadSheet } = useMySkillSheet();
   const actions = useDevLabActions([reloadProjects, reloadMe, reloadSheet]);
-  const { start, submitStep, complete, addToSkillSheet, changeRole, busy, actionError, clearActionError } = actions;
+  const { start, submitStep, complete, addToSkillSheet, changeRole, leaveProject, busy, actionError, clearActionError } = actions;
   const [draft, setDraft] = useState({ submittedText: "", submittedUrl: "" });
   // 成果物エディタの編集中モデル（2026-08-19）。提出済みなら続きから編集できるよう復元する。
   const [artifactDraft, setArtifactDraft] = useState(null);
@@ -394,6 +394,17 @@ export function ProjectDetail({ projectId, onBack, onOpenWorkspace, initialRoleS
   async function handleStart() {
     clearActionError();
     await start(projectId, roleSlotId);
+  }
+
+  // 案件をやめる。**提出は消えない**ので、そのことを先に伝えてから確認する
+  async function handleLeave() {
+    clearActionError();
+    const ok = window.confirm(
+      "この案件をやめますか？\n\nこれまでの提出は残ります。もう一度参加すると続きから進められます。",
+    );
+    if (!ok) return;
+    await leaveProject(projectId);
+    onBack();
   }
 
   async function handleSubmit(step) {
@@ -517,6 +528,8 @@ export function ProjectDetail({ projectId, onBack, onOpenWorkspace, initialRoleS
               roleSlotId={roleSlotId}
               hiddenCount={hiddenCount}
               onChangeRole={() => setPickingRole(true)}
+              assignedByManager={assignment?.assignedBy === "manager"}
+              onLeave={assignment?.status === "completed" ? null : handleLeave}
             />
           ))}
 
