@@ -70,6 +70,7 @@ export function emptyDevLabForm() {
     method: "waterfall",
     roleSlots: [],
     hearingItems: [],
+    gainsText: "",
   };
 }
 
@@ -128,6 +129,7 @@ export function draftToForm(draft) {
     method,
     roleSlots: draftRoleSlots(draft, method, steps),
     hearingItems: Array.isArray(draft.hearingItems) ? draft.hearingItems : [],
+    gainsText: (Array.isArray(draft.gains) ? draft.gains : []).join("、"),
   };
 }
 
@@ -166,6 +168,8 @@ export function formToPayload(form) {
     targetCompanyIds: form.targetCompanyIds,
     workspaceTemplateId: form.workspaceTemplateId || "",
     method: form.method || "waterfall",
+    // 「身につくこと」はカンマ区切りで入力させる（3つまでを目安）
+    gains: (form.gainsText || "").split(/[,、]/).map(x => x.trim()).filter(Boolean).slice(0, 4),
     // 名前の無い担当区分・答えの無いヒアリング項目は捨てる（Backendも同じ判定をする）
     roleSlots: (form.roleSlots || []).filter(r => (r.name || "").trim()),
     hearingItems: (form.hearingItems || []).filter(h => (h.question || "").trim() && (h.answer || "").trim()),
@@ -194,6 +198,7 @@ export function projectToForm(project) {
     method: project.method || "waterfall",
     roleSlots: project.roleSlots || [],
     hearingItems: project.hearingItems || [],
+    gainsText: (project.gains || []).join("、"),
   };
 }
 
@@ -365,4 +370,15 @@ export function workspaceFormToPayload(form) {
     simulatedRun: form.stack === "spring_sim" ? { scenarios: textToScenarios(form.scenariosText) } : { scenarios: [] },
     status: form.status,
   };
+}
+
+// 一覧の並び（2026-09-05）: 進行中 → 未着手 → 完了。同じ群の中は更新の新しい順。
+// 完了を最後に置くのは、次にやることが上に来る方が自然なため。
+const MY_STATUS_ORDER = { in_progress: 0, not_started: 1, completed: 2 };
+export function sortDevLabProjects(projects) {
+  return [...(projects || [])].sort((a, b) => {
+    const d = (MY_STATUS_ORDER[a.myStatus] ?? 1) - (MY_STATUS_ORDER[b.myStatus] ?? 1);
+    if (d !== 0) return d;
+    return String(b.updatedAt || "").localeCompare(String(a.updatedAt || ""));
+  });
 }

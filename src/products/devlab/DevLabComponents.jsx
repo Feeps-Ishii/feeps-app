@@ -23,6 +23,7 @@ import { CommitDiffPanel } from "./DevLabCommitDiff.jsx";
 import { artifactDef, ARTIFACT_OPTIONS } from "./artifacts/index.js";
 import { RoleSelect, RoleSummary } from "./roles/RoleSelect.jsx";
 import StartWizard from "./roles/StartWizard.jsx";
+import DevLabCatalogView from "./DevLabCatalogView.jsx";
 import CounterpartPanel from "./roles/CounterpartPanel.jsx";
 import { MethodSelect, PhaseSelect, RoleSlotEditor, HearingEditor } from "./roles/AdminRoleEditors.jsx";
 import { hasRoleSetup, findRoleSlot, stepsForRole, phaseLabel } from "./roles/phases.js";
@@ -111,6 +112,8 @@ const START_SEEN_KEY = "feeps.devlab.startSeen";
 export function DevLabCombinedCatalog({ onOpenProject, onOpenTemplate }) {
   const { projects, loading: loadingProjects, error: errorProjects, reload: reloadProjects } = useDevLabProjects();
   const { templates, loading: loadingTemplates, error: errorTemplates, reload: reloadTemplates } = useDevLabWorkspaceTemplates();
+  // 「次にやること」と進捗を出すために、自分の提出を引く（2026-09-05）
+  const { submissions } = useDevLabMe();
   const loading = loadingProjects || loadingTemplates;
   const error = errorProjects || errorTemplates;
   const isEmpty = !loading && projects.length === 0 && templates.length === 0;
@@ -188,82 +191,13 @@ export function DevLabCombinedCatalog({ onOpenProject, onOpenTemplate }) {
       {loading ? <Card><SkeletonRows rows={3} /></Card> : isEmpty ? (
         <Card><EmptyState icon={Code2} title="公開中の案件・プロジェクトはありません" desc="新しいコンテンツが公開されるまでお待ちください。" /></Card>
       ) : (
-        <>
-          {projects.length > 0 && (
-            <div className="mb-5">
-              <div className="mb-2 flex items-baseline gap-2">
-                <h4 className="text-sm font-bold" style={{ color: T.textPrimary }}>案件（提出型）</h4>
-                <span className="text-xs" style={{ color: T.textMuted }}>ステップごとに成果物を提出し、AIレビューを受けます</span>
-              </div>
-              <Card>
-                <div className="grid gap-3 p-4 sm:grid-cols-2">
-                  {projects.map(project => (
-                    <button
-                      key={`project-${project.id}`}
-                      type="button"
-                      onClick={() => onOpenProject(project.id)}
-                      className="rounded-2xl p-4 text-left transition hover:-translate-y-0.5 hover:shadow-md"
-                      style={{ background: T.bgBase, border: `1px solid ${T.border}` }}
-                    >
-                      <div className="flex items-start justify-between gap-2">
-                        <div className="min-w-0">
-                          <div className="text-xs font-semibold" style={{ color: T.textMuted }}>{project.clientName || "案件"}</div>
-                          <div className="mt-0.5 truncate text-base font-bold" style={{ color: T.textPrimary }}>{project.title}</div>
-                        </div>
-                        <Badge tone={devLabMyStatusTone(project.myStatus)}>{devLabMyStatusLabel(project.myStatus)}</Badge>
-                      </div>
-                      <div className="mt-2 flex flex-wrap gap-1.5">
-                        <Badge tone="cyan">{devLabLevelLabel(project.level)}</Badge>
-                        {project.workspaceTemplateId && <Badge tone="green"><Link2 size={11} />プロジェクト連携</Badge>}
-                        {project.estimatedHours > 0 && <Badge tone="muted"><Clock3 size={11} />約{project.estimatedHours}時間</Badge>}
-                        {(project.techStack || []).slice(0, 3).map(tech => <Badge key={tech} tone="muted">{tech}</Badge>)}
-                      </div>
-                    </button>
-                  ))}
-                </div>
-              </Card>
-            </div>
-          )}
-          {templates.length > 0 && (
-            <div>
-              <div className="mb-2 flex items-baseline gap-2">
-                <h4 className="text-sm font-bold" style={{ color: T.textPrimary }}>プロジェクト体験</h4>
-                <span className="text-xs" style={{ color: T.textMuted }}>ブラウザ内で自由にコードを編集して体験できます</span>
-              </div>
-              <Card>
-                <div className="grid gap-3 p-4 sm:grid-cols-2">
-                  {templates.map(tpl => (
-                    <button
-                      key={`template-${tpl.id}`}
-                      type="button"
-                      onClick={() => onOpenTemplate(tpl.id)}
-                      className="rounded-2xl p-4 text-left transition hover:-translate-y-0.5 hover:shadow-md"
-                      style={{ background: T.bgBase, border: `1px solid ${T.border}` }}
-                    >
-                      <div className="flex items-start justify-between gap-2">
-                        <div className="min-w-0">
-                          <div className="text-xs font-semibold" style={{ color: T.textMuted }}>{devLabWorkspaceStackLabel(tpl.stack)}</div>
-                          <div className="mt-0.5 truncate text-base font-bold" style={{ color: T.textPrimary }}>{tpl.title}</div>
-                        </div>
-                        <Badge tone={devLabMyStatusTone(tpl.myStatus)}>{devLabMyStatusLabel(tpl.myStatus)}</Badge>
-                      </div>
-                      <p className="mt-2 text-xs leading-relaxed" style={{ color: T.textSecondary }}>{tpl.description}</p>
-                      <div className="mt-2 flex flex-wrap gap-1.5">
-                        <Badge tone="muted">{devLabLevelLabel(tpl.level)}</Badge>
-                        <Badge tone="muted">{tpl.stack === "spring_sim" ? "疑似コンソール実行" : "ブラウザ内プレビュー"}</Badge>
-                      </div>
-                      {(linkedProjectsByTemplate.get(tpl.id) || []).length > 0 && (
-                        <p className="mt-1.5 text-[11px]" style={{ color: T.textMuted }}>
-                          対応案件: {linkedProjectsByTemplate.get(tpl.id).map(p => p.title).join("、")}
-                        </p>
-                      )}
-                    </button>
-                  ))}
-                </div>
-              </Card>
-            </div>
-          )}
-        </>
+        <DevLabCatalogView
+          projects={projects}
+          templates={templates}
+          submissions={submissions}
+          onOpenProject={onOpenProject}
+          onOpenTemplate={onOpenTemplate}
+        />
       )}
     </div>
   );
@@ -981,6 +915,10 @@ function ProjectForm({ mode, role, form, onChange, onSave, onCancel, onGenerate,
           </div>
 
           {/* 担当工程（2026-09-05）。docs/specs/dev-lab-role-spec.md */}
+          <Field label="この案件で身につくこと（一覧のカードに出ます。カンマ区切りで3つまで）">
+            <input style={fieldStyle} placeholder="要件を引き出す、テーブル設計、認証の実装"
+              value={form.gainsText || ""} onChange={e => set("gainsText", e.target.value)} />
+          </Field>
           <Field label="進め方">
             <MethodSelect value={form.method} onChange={v => set("method", v)} />
           </Field>
