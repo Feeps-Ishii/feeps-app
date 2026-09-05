@@ -53,16 +53,53 @@ export function useDevLabActions(reloadCallbacks = []) {
     await Promise.all(reloadCallbacks.map(fn => fn()));
   }
 
-  async function start(projectId) {
+  async function start(projectId, roleSlotId = "") {
     setBusy(true); setActionError("");
     try {
-      const res = await apiPost(`/devlab/projects/${encodeURIComponent(projectId)}/start`, {});
+      const res = await apiPost(`/devlab/projects/${encodeURIComponent(projectId)}/start`, { roleSlotId });
       await reloadAll();
       return res?.assignment || null;
     } catch (e) {
       setActionError(apiErrorMessage(e, "案件の開始に失敗しました。"));
       throw e;
     } finally { setBusy(false); }
+  }
+
+  // 担当の変更（2026-09-05）。提出は消えない
+  async function changeRole(projectId, roleSlotId) {
+    setBusy(true); setActionError("");
+    try {
+      const res = await apiPut(`/devlab/projects/${encodeURIComponent(projectId)}/role`, { roleSlotId });
+      await reloadAll();
+      return res?.assignment || null;
+    } catch (e) {
+      setActionError(apiErrorMessage(e, "担当の変更に失敗しました。"));
+      throw e;
+    } finally { setBusy(false); }
+  }
+
+  // お客様に1項目聞く。**答えはここで初めて返ってくる**（聞くまでBackendは渡さない）
+  async function askHearing(projectId, hearingItemId) {
+    setActionError("");
+    try {
+      const res = await apiPost(`/devlab/projects/${encodeURIComponent(projectId)}/hearing/${encodeURIComponent(hearingItemId)}`, {});
+      await reloadAll();
+      return res || null;
+    } catch (e) {
+      setActionError(apiErrorMessage(e, "聞き取りに失敗しました。"));
+      throw e;
+    }
+  }
+
+  // 相手役AIに聞く。答えの受け渡しはしない制約はBackendのプロンプト側で担保している
+  async function askCounterpart(projectId, payload) {
+    setActionError("");
+    try {
+      return await apiPost(`/devlab/projects/${encodeURIComponent(projectId)}/ask`, payload);
+    } catch (e) {
+      setActionError(apiErrorMessage(e, "いま返事がもらえませんでした。"));
+      throw e;
+    }
   }
 
   async function submitStep(projectId, stepId, payload) {
@@ -102,7 +139,10 @@ export function useDevLabActions(reloadCallbacks = []) {
     } finally { setBusy(false); }
   }
 
-  return { start, submitStep, complete, addToSkillSheet, busy, actionError, clearActionError: () => setActionError("") };
+  return {
+    start, submitStep, complete, addToSkillSheet, changeRole, askHearing, askCounterpart,
+    busy, actionError, clearActionError: () => setActionError(""),
+  };
 }
 
 // ---- admin/instructor: 案件管理（CRUD＋AI下書き生成） ----

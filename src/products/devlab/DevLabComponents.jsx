@@ -22,8 +22,8 @@ import { apiGet } from "../../api.js";
 import { CommitDiffPanel } from "./DevLabCommitDiff.jsx";
 import { artifactDef, ARTIFACT_OPTIONS } from "./artifacts/index.js";
 import { RoleSelect, RoleSummary } from "./roles/RoleSelect.jsx";
+import CounterpartPanel from "./roles/CounterpartPanel.jsx";
 import { hasRoleSetup, findRoleSlot, stepsForRole } from "./roles/phases.js";
-import { getRole, setRole } from "./roles/roleStore.js";
 
 // ===================== ホーム =====================
 export function DevLabHome({ role, goSub }) {
@@ -271,7 +271,8 @@ export function ProjectDetail({ projectId, onBack, onOpenWorkspace }) {
   const { projects, loading, error, reload: reloadProjects } = useDevLabProjects();
   const { assignments, submissions, reload: reloadMe } = useDevLabMe();
   const { sheet, reload: reloadSheet } = useMySkillSheet();
-  const { start, submitStep, complete, addToSkillSheet, busy, actionError, clearActionError } = useDevLabActions([reloadProjects, reloadMe, reloadSheet]);
+  const actions = useDevLabActions([reloadProjects, reloadMe, reloadSheet]);
+  const { start, submitStep, complete, addToSkillSheet, changeRole, busy, actionError, clearActionError } = actions;
   const [draft, setDraft] = useState({ submittedText: "", submittedUrl: "" });
   // 成果物エディタの編集中モデル（2026-08-19）。提出済みなら続きから編集できるよう復元する。
   const [artifactDraft, setArtifactDraft] = useState(null);
@@ -283,12 +284,13 @@ export function ProjectDetail({ projectId, onBack, onOpenWorkspace }) {
 
   const project = useMemo(() => projects.find(p => p.id === projectId), [projects, projectId]);
   const roleReady = hasRoleSetup(project);
-  // 案件を開くたびに、前に選んだ担当を戻す
-  useEffect(() => { setRoleSlotId(getRole(projectId)); setPickingRole(false); }, [projectId]);
+  // **担当の正本は assignment（サーバー）**。画面の選択状態はそれに合わせる
+  useEffect(() => { setPickingRole(false); }, [projectId]);
+  useEffect(() => { setRoleSlotId(assignment?.roleSlotId || ""); }, [assignment?.roleSlotId]);
 
   const roleSlot = useMemo(
-    () => (roleReady ? findRoleSlot(project, roleSlotId) : null),
-    [roleReady, project, roleSlotId],
+    () => (roleReady ? findRoleSlot(project, assignment?.roleSlotId || "") : null),
+    [roleReady, project, assignment?.roleSlotId],
   );
   // 担当が決まるまでは全ステップを見せる（決めたら絞る）
   const visibleSteps = useMemo(
@@ -296,9 +298,10 @@ export function ProjectDetail({ projectId, onBack, onOpenWorkspace }) {
     [project, roleSlot],
   );
 
-  function chooseRole(id) {
+  // 参加前は選んだだけ（参加時に一緒に送る）。参加後はその場でサーバーへ書く
+  async function chooseRole(id) {
     setRoleSlotId(id);
-    setRole(projectId, id);
+    if (assignment) await changeRole(projectId, id);
   }
   const assignment = useMemo(() => assignments.find(a => a.projectId === projectId), [assignments, projectId]);
   const mySubmissions = useMemo(() => submissions.filter(s => s.projectId === projectId), [submissions, projectId]);
@@ -341,7 +344,7 @@ export function ProjectDetail({ projectId, onBack, onOpenWorkspace }) {
 
   async function handleStart() {
     clearActionError();
-    await start(projectId);
+    await start(projectId, roleSlotId);
   }
 
   async function handleSubmit(step) {
@@ -467,6 +470,20 @@ export function ProjectDetail({ projectId, onBack, onOpenWorkspace }) {
               onChangeRole={() => setPickingRole(true)}
             />
           ))}
+
+          {/* 相手役は工程で変わる。担当が決まってからでないと誰に聞くかが決まらない */}
+          {roleSlot && (
+            <div className="mb-4">
+              <CounterpartPanel
+                project={project}
+                assignment={assignment}
+                roleSlot={roleSlot}
+                stepId={currentStepId}
+                actions={actions}
+                work={draft.submittedText}
+              />
+            </div>
+          )}
 
           <h3 className="mb-3 text-sm font-bold" style={{ color: T.textPrimary }}>ステップ</h3>
           <div className="space-y-3">
