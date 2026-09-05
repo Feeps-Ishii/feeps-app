@@ -3,6 +3,8 @@
 // 正本。ここにあった旧DEVLAB_NAV(dl_*キー)はどこからも参照されない死んだコードだったため削除
 // (2026-08-18確認、実際のナビ変更はTrainingApp.jsxのEL_NAV側で行うこと)。
 
+import { roleSlotsFor } from "./roles/phases.js";
+
 export const DEVLAB_LEVEL_OPTIONS = [
   { value: "beginner", label: "初級" },
   { value: "intermediate", label: "中級" },
@@ -89,7 +91,25 @@ function normalizeChecklistForForm(list) {
 }
 
 // AI下書き生成結果 → 編集フォームへ流し込む変換
+// AIの下書き → 編集フォーム。担当区分は**既定の定義から選ぶ**（AIに作らせない）。
+// 担当できるタスクが0件になる担当は落とす（置くと受講生が空の一覧を見ることになる）。
+function draftRoleSlots(draft, method, steps) {
+  const ids = Array.isArray(draft?.roleSlotIds) ? draft.roleSlotIds : [];
+  if (!ids.length) return [];
+  const phases = new Set(steps.map(s => s.phase).filter(Boolean));
+  return roleSlotsFor({ method })
+    .filter(slot => ids.includes(slot.roleSlotId))
+    .filter(slot => (slot.phases || []).some(p => phases.has(p)));
+}
+
 export function draftToForm(draft) {
+  const method = draft.method === "agile" ? "agile" : "waterfall";
+  const steps = (draft.steps || []).map(s => ({
+    title: s.title || "", goal: s.goal || "", deliverableGuide: s.deliverableGuide || "",
+    artifactType: s.artifactType || "none",
+    phase: s.phase || "",
+    checklist: normalizeChecklistForForm(s.checklist),
+  }));
   return {
     title: draft.title || "",
     clientName: draft.clientName || "",
@@ -100,15 +120,14 @@ export function draftToForm(draft) {
     functionalRequirements: normalizeFunctionalRequirementsForForm(draft.functionalRequirements),
     level: draft.level || "beginner",
     estimatedHours: "",
-    steps: (draft.steps || []).map(s => ({
-      title: s.title || "", goal: s.goal || "", deliverableGuide: s.deliverableGuide || "",
-      artifactType: s.artifactType || "none",
-      checklist: normalizeChecklistForForm(s.checklist),
-    })),
+    steps,
     status: "draft",
     visibilityScope: "all",
     targetCompanyIds: [],
     workspaceTemplateId: "",
+    method,
+    roleSlots: draftRoleSlots(draft, method, steps),
+    hearingItems: Array.isArray(draft.hearingItems) ? draft.hearingItems : [],
   };
 }
 
