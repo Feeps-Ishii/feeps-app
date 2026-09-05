@@ -160,6 +160,15 @@ const PRODUCTS = [
   { key: "company",   label: "企業管理",       icon: Building2,     color: PRODUCT_ACCENT.admin.accent, roles: ["admin"], modes: ["company"] },
 ];
 
+// ナビには出さないが、開いてよいsubView（2026-09-05）。
+// 項目を統合したときに、履歴や古いリンクから来た人を弾いてホームへ戻さないため。
+// 対応する画面は Product 側が「まとめ先のタブを開いた状態」で返す。
+const EXTRA_ALLOWED_SUBVIEWS = [
+  "el_recommend", "el_inprogress", "el_completed", "el_cert",
+  "el_devlab_myteam", "el_devlab_workspace",
+  "el_devlab_manage_workspace", "el_devlab_manage_team", "el_devlab_teams",
+];
+
 const PRODUCT_DEFAULT_SUBVIEW = {
   training: "home",
   learning: "el_home",
@@ -199,8 +208,11 @@ function getModeLandingProduct(viewMode) {
 const EL_NAV = {
   trainee: [
     { sec: null, items: [["el_home", "ホーム", LayoutDashboard]] },
-    { sec: "Eラーニング", items: [["el_courses", "コース一覧", BookOpen], ["el_recommend", "おすすめ", Lightbulb], ["el_inprogress", "学習中", PlayCircle], ["el_completed", "修了済み", Award], ["el_skills", "獲得スキル", Sparkles]] },
-    { sec: "開発演習", items: [["el_devlab", "開発演習", Code2], ["el_devlab_myteam", "チーム開発", GitBranch]] },
+    // 2026-09-05: 「コース一覧／おすすめ／学習中／修了済み」は同じカタログの絞り込み違いで、
+    // 画面の作りも同じだった。1項目＋タブへ統合（mock/learning-inventory）。
+    // 開発演習も「ひとり／チーム」は案件の性質であってメニューではないので1項目にした。
+    { sec: "学ぶ", items: [["el_courses", "コース", BookOpen], ["el_skills", "獲得スキル", Sparkles]] },
+    { sec: "つくる", items: [["el_devlab", "開発演習", Code2]] },
   ],
   // 2026-08-18 instructor/adminのEラーニングタブに、受講生本人向けの自己学習導線
   // （コース一覧・おすすめ・学習中・修了済み・獲得スキル・修了証・プロジェクト体験）が
@@ -278,7 +290,7 @@ function normalizeAppRoute(candidate = {}, role = "trainee") {
   const requestedView = safeHistoryText(candidate.view, 64);
   const view = product === "training" && allowedTrainingViews.has(requestedView) ? requestedView : "home";
   const nav = productNavigation(product, role);
-  const allowedSubViews = new Set(nav.flatMap(group => group.items.map(([key]) => key)));
+  const allowedSubViews = new Set([...nav.flatMap(group => group.items.map(([key]) => key)), ...EXTRA_ALLOWED_SUBVIEWS]);
   const requestedSubView = safeHistoryText(candidate.subView, 64);
   const subView = product !== "home" && product !== "training" && allowedSubViews.has(requestedSubView)
     ? requestedSubView
@@ -1211,7 +1223,7 @@ export default function App() {
   const nav = useMemo(() => productNavigation(product, role), [product, role]);
   const activeView = product === "training" ? view : subView;
   const allowedViews = useMemo(() => navViewSet(role), [role]);
-  const allowedSubViews = useMemo(() => new Set(nav.flatMap(group => group.items.map(([key]) => key))), [nav]);
+  const allowedSubViews = useMemo(() => new Set([...nav.flatMap(group => group.items.map(([key]) => key)), ...EXTRA_ALLOWED_SUBVIEWS]), [nav]);
   const notif = notifications.length;
   const currentProduct = PRODUCTS.find(p => p.key === product) ?? PRODUCTS[0];
   const themeColor = currentProduct.color;

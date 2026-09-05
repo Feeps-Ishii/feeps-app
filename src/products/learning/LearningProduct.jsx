@@ -13,6 +13,7 @@ import {
   ElFinalTestView,
   ElLessonView,
 } from "./LearningComponents.jsx";
+import ElCoursesHub from "./ElCoursesHub.jsx";
 import LearningAdminProduct from "./admin/LearningAdminProduct.jsx";
 import EnrollmentManager from "./admin/EnrollmentManager.jsx";
 import PlansContractsAdmin from "./admin/PlansContractsAdmin.jsx";
@@ -176,14 +177,16 @@ export default function LearningProduct({ subView, goSub, goProduct, role, theme
   const sp = { lrn, goSub, goProduct, role, themeColor, learningPlan, onStart: handleStart, onComplete: handleComplete, onOpenDetail: handleOpenDetail };
   const sub = {
     el_home:       <LearningOverview {...sp} />,
-    el_courses:    <ElCourseView     {...sp} />,
-    el_recommend:  <ElRecommendView  {...sp} />,
-    el_inprogress: <ElInProgressView {...sp} />,
-    el_completed:  <ElCompletedView  {...sp} />,
-    el_skills:     <ElSkillsView     {...sp} />,
-    // 2026-08-21: 「修了証」タブは「修了済み」へ統合した。古いURL・履歴から来たときは
-    // 同じ内容が見られるよう修了済みへ寄せる（画面が消えたように見せない）。
-    el_cert:       <ElCompletedView {...sp} />,
+    // 2026-09-05: 「コース一覧／おすすめ／学習中／修了済み」を1項目＋タブへ統合した。
+    // どれも同じカタログの絞り込み違いで、画面の作りも同じだったため（mock/learning-inventory）。
+    // 旧キーはナビから消えたが、履歴・古いリンクから来たときのために対応するタブで開く。
+    el_courses:    <ElCoursesHub initialTab="all"        {...sp} />,
+    el_recommend:  <ElCoursesHub initialTab="recommend"  {...sp} />,
+    el_inprogress: <ElCoursesHub initialTab="inprogress" {...sp} />,
+    el_completed:  <ElCoursesHub initialTab="completed"  {...sp} />,
+    el_skills:     <ElSkillsView {...sp} />,
+    // 2026-08-21: 「修了証」タブは「修了済み」へ統合した。
+    el_cert:       <ElCoursesHub initialTab="completed"  {...sp} />,
     el_manage:     role === "admin" || role === "instructor"
       ? <LearningAdminProduct role={role} />
       : <LearningPlaceholder title="コース管理"  desc="Eラーニングコースを作成・編集・公開できます。" />,

@@ -6,6 +6,7 @@ import {
   MyTeamsCatalog,
 } from "./DevLabComponents.jsx";
 import DevLabManageHub from "./DevLabManageHub.jsx";
+import { Seg, PRODUCT_ACCENT } from "../../components/common";
 import { PageLoading } from "../../components/common";
 
 // ワークスペース（プロジェクト体験）はSandpackを直接importする唯一のファイルで、
@@ -55,7 +56,7 @@ export default function DevLabProduct({ subView, goSub, role, themeColor }) {
     if (subView !== "dl_projects") { setActiveProjectId(""); setInitialRoleSlotId(""); }
     if (subView !== "dl_projects" && subView !== "dl_workspace") setActiveTemplateId("");
     if (subView !== "dl_projects" && subView !== "dl_workspace") setWorkspaceReturnProjectId("");
-    if (subView !== "dl_team") setActiveTeamId("");
+    if (subView !== "dl_team" && subView !== "dl_projects") setActiveTeamId("");
   }, [subView]);
 
   function openWorkspaceFromProject(projectId, templateId) {
@@ -74,8 +75,30 @@ export default function DevLabProduct({ subView, goSub, role, themeColor }) {
     }
   }
 
+  // 2026-09-05: 受講生のナビは「開発演習」1項目にした。ひとりでやるかチームでやるかは
+  // 案件の性質であってメニューではないため、画面内のタブで切り替える。
+  // 古いキー(dl_team)から来たときはチーム側のタブを開く。
+  const devTab = subView === "dl_team" ? "team" : "projects";
+  const [pickedTab, setPickedTab] = useState("");
+  const tab = pickedTab || devTab;
+  const tabbed = (body) => (
+    <div>
+      <div className="mb-3">
+        <Seg
+          value={tab}
+          onChange={setPickedTab}
+          options={[{ value: "projects", label: "案件・練習" }, { value: "team", label: "チーム開発" }]}
+          activeFg={PRODUCT_ACCENT.learning.deep}
+        />
+      </div>
+      {body}
+    </div>
+  );
+
   const screens = {
     dl_home: <DevLabHome role={role} themeColor={themeColor} goSub={goSub} />,
+    // 案件の詳細・ワークスペース・チームの作業画面を開いているときはタブを出さない
+    // （その画面の中に「戻る」があるので、上にタブが並ぶと戻り先が2つに見える）
     dl_projects: activeProjectId
       ? <ProjectDetail role={role} projectId={activeProjectId} initialRoleSlotId={initialRoleSlotId} onBack={() => { setActiveProjectId(""); setInitialRoleSlotId(""); }} onOpenWorkspace={templateId => openWorkspaceFromProject(activeProjectId, templateId)} />
       : activeTemplateId
@@ -84,24 +107,29 @@ export default function DevLabProduct({ subView, goSub, role, themeColor }) {
             <WorkspaceDetail templateId={activeTemplateId} onBack={backFromWorkspace} backLabel={workspaceReturnProjectId ? "案件に戻る" : undefined} />
           </Suspense>
         )
-        : <DevLabCombinedCatalog
-          role={role}
-          onOpenProject={(projectId, roleSlotId) => { setActiveProjectId(projectId); setInitialRoleSlotId(roleSlotId || ""); }}
-          onOpenTemplate={setActiveTemplateId}
-        />,
+        : activeTeamId
+          ? (
+            <Suspense fallback={<PageLoading label="チームの作業環境を準備しています…" />}>
+              <TeamBranchWorkspace teamId={activeTeamId} onBack={() => setActiveTeamId("")} />
+            </Suspense>
+          )
+          : tabbed(tab === "team"
+            ? <MyTeamsCatalog onOpenTeam={setActiveTeamId} />
+            : (
+              <DevLabCombinedCatalog
+                role={role}
+                onOpenProject={(projectId, roleSlotId) => { setActiveProjectId(projectId); setInitialRoleSlotId(roleSlotId || ""); }}
+                onOpenTemplate={setActiveTemplateId}
+              />
+            )),
     // 2026-09-05: 管理系の4画面を1つのタブへ統合した。旧キーは残してあり、
     // 対応するタブを開いた状態でハブを出す（Homeなどからの遷移を壊さないため）。
     dl_manage: <DevLabManageHub role={role} initialTab="projects" />,
     dl_manage_workspace: <DevLabManageHub role={role} initialTab="base" />,
     dl_manage_team: <DevLabManageHub role={role} initialTab="teamProjects" />,
     dl_manage_teams: <DevLabManageHub role={role} initialTab="teams" />,
-    dl_team: activeTeamId
-      ? (
-        <Suspense fallback={<PageLoading label="チームの作業環境を準備しています…" />}>
-          <TeamBranchWorkspace teamId={activeTeamId} onBack={() => setActiveTeamId("")} />
-        </Suspense>
-      )
-      : <MyTeamsCatalog onOpenTeam={setActiveTeamId} />,
+    // 旧キー。ナビからは消えたが、履歴・古いリンクから来たら同じ画面のチーム側を出す
+    dl_team: null,
     dl_workspace: (
       <Suspense fallback={<PageLoading label="ワークスペースを準備しています…" />}>
         {activeTemplateId
@@ -110,5 +138,5 @@ export default function DevLabProduct({ subView, goSub, role, themeColor }) {
       </Suspense>
     ),
   };
-  return screens[subView] || screens.dl_home;
+  return (subView === "dl_team" ? screens.dl_projects : screens[subView]) || screens.dl_home;
 }
