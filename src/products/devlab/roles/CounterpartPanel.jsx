@@ -39,11 +39,14 @@ export default function CounterpartPanel({ project, assignment, roleSlot, stepId
   const [draft, setDraft] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  // 聞けた項目はサーバーにも入るが、一覧の再取得はしない（画面が読み込み中に戻り会話が消えるため）。
+  // 次にこの案件を開いたときは assignment.hearingGot から復元される。
+  const [justHeard, setJustHeard] = useState([]);
 
   const counterpart = roleSlot?.counterpart || "pm";
   const info = COUNTERPART_INFO[counterpart] || COUNTERPART_INFO.pm;
   const items = Array.isArray(project?.hearingItems) ? project.hearingItems : [];
-  const got = new Set(assignment?.hearingGot || []);
+  const got = new Set([...(assignment?.hearingGot || []), ...justHeard]);
   const showHearing = HEARING_COUNTERPARTS.includes(counterpart) && items.length > 0;
   const remaining = items.filter(h => !h.initial && !got.has(h.hearingItemId)).length;
 
@@ -52,6 +55,7 @@ export default function CounterpartPanel({ project, assignment, roleSlot, stepId
     setLog(prev => [...prev, { mine: true, who: "自分", text: `${item.question}について教えてください。` }]);
     try {
       const res = await actions.askHearing(project.id, item.hearingItemId);
+      setJustHeard(prev => [...prev, item.hearingItemId]);
       setLog(prev => [...prev, { mine: false, who: info.nm, text: res?.answer || "" }]);
     } catch (e) {
       setError("聞き取りに失敗しました。時間をおいて試してください。");

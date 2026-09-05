@@ -284,8 +284,11 @@ export function ProjectDetail({ projectId, onBack, onOpenWorkspace }) {
   const [pickingRole, setPickingRole] = useState(false);
 
   const project = useMemo(() => projects.find(p => p.id === projectId), [projects, projectId]);
+  const assignment = useMemo(() => assignments.find(a => a.projectId === projectId), [assignments, projectId]);
+
   const roleReady = hasRoleSetup(project);
-  // **担当の正本は assignment（サーバー）**。画面の選択状態はそれに合わせる
+  // **担当の正本は assignment（サーバー）**。画面の選択状態はそれに合わせる。
+  // この塊は assignment より後ろに置くこと（前に置くと定義前参照で実行時に落ちる）
   useEffect(() => { setPickingRole(false); }, [projectId]);
   useEffect(() => { setRoleSlotId(assignment?.roleSlotId || ""); }, [assignment?.roleSlotId]);
 
@@ -304,7 +307,6 @@ export function ProjectDetail({ projectId, onBack, onOpenWorkspace }) {
     setRoleSlotId(id);
     if (assignment) await changeRole(projectId, id);
   }
-  const assignment = useMemo(() => assignments.find(a => a.projectId === projectId), [assignments, projectId]);
   const mySubmissions = useMemo(() => submissions.filter(s => s.projectId === projectId), [submissions, projectId]);
   const byStep = useMemo(() => new Map(mySubmissions.map(s => [s.stepId, s])), [mySubmissions]);
   // 案件×ワークスペース連携(2026-07-22追加): リンク済み案件のみ、自分のworkspace overlayを取得し

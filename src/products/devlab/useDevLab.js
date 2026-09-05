@@ -78,13 +78,13 @@ export function useDevLabActions(reloadCallbacks = []) {
     } finally { setBusy(false); }
   }
 
-  // お客様に1項目聞く。**答えはここで初めて返ってくる**（聞くまでBackendは渡さない）
+  // お客様に1項目聞く。**答えはここで初めて返ってくる**（聞くまでBackendは渡さない）。
+  // **ここで一覧を再取得しない。** 再取得すると案件詳細が読み込み中の表示に戻り、
+  // それまでの会話が消える（2026-09-05に実機で確認）。更新後のassignmentは戻り値で返す。
   async function askHearing(projectId, hearingItemId) {
     setActionError("");
     try {
-      const res = await apiPost(`/devlab/projects/${encodeURIComponent(projectId)}/hearing/${encodeURIComponent(hearingItemId)}`, {});
-      await reloadAll();
-      return res || null;
+      return await apiPost(`/devlab/projects/${encodeURIComponent(projectId)}/hearing/${encodeURIComponent(hearingItemId)}`, {}) || null;
     } catch (e) {
       setActionError(apiErrorMessage(e, "聞き取りに失敗しました。"));
       throw e;
