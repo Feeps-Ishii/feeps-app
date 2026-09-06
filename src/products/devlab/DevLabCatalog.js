@@ -53,7 +53,7 @@ export function devLabWorkspaceStackLabel(stack) {
 export const EMPTY_DEVLAB_CHECK = { text: "", criteria: "", required: true, reqIds: [] };
 // artifactType(2026-08-19): アプリ内で作らせる成果物。"none"＝従来のテキスト/URL提出。
 // phase(2026-09-05): 空＝どの担当でも出る。担当工程の正典は docs/specs/dev-lab-role-spec.md
-export const EMPTY_DEVLAB_STEP = { title: "", goal: "", deliverableGuide: "", artifactType: "none", phase: "", checklist: [{ ...EMPTY_DEVLAB_CHECK }, { ...EMPTY_DEVLAB_CHECK }, { ...EMPTY_DEVLAB_CHECK }] };
+export const EMPTY_DEVLAB_STEP = { title: "", goal: "", deliverableGuide: "", artifactType: "none", phase: "", outcomeText: "", checklist: [{ ...EMPTY_DEVLAB_CHECK }, { ...EMPTY_DEVLAB_CHECK }, { ...EMPTY_DEVLAB_CHECK }] };
 
 export function emptyDevLabForm() {
   return {
@@ -109,6 +109,7 @@ export function draftToForm(draft) {
     title: s.title || "", goal: s.goal || "", deliverableGuide: s.deliverableGuide || "",
     artifactType: s.artifactType || "none",
     phase: s.phase || "",
+    outcomeText: s.outcomeText || "",
     checklist: normalizeChecklistForForm(s.checklist),
   }));
   return {
@@ -155,6 +156,7 @@ export function formToPayload(form) {
       deliverableGuide: s.deliverableGuide.trim(),
       artifactType: s.artifactType || "none",
       phase: s.phase || null,
+      outcomeText: (s.outcomeText || "").trim(),
       checklist: (s.checklist || []).filter(c => c.text.trim()).map(c => ({
         checkId: c.checkId,
         text: c.text.trim(),

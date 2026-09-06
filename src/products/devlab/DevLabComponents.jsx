@@ -26,6 +26,7 @@ import StartWizard from "./roles/StartWizard.jsx";
 import DevLabCatalogView from "./DevLabCatalogView.jsx";
 import DevLabTraineeHeader from "./DevLabTraineeHeader.jsx";
 import CounterpartPanel from "./roles/CounterpartPanel.jsx";
+import OutcomePanel from "./roles/OutcomePanel.jsx";
 import { MethodSelect, PhaseSelect, RoleSlotEditor, HearingEditor } from "./roles/AdminRoleEditors.jsx";
 import { hasRoleSetup, findRoleSlot, stepsForRole, phaseLabel } from "./roles/phases.js";
 
@@ -559,6 +560,9 @@ export function ProjectDetail({ projectId, onBack, onOpenWorkspace, initialRoleS
             })}
           </div>
 
+          {/* 担当していない工程で何ができたかを見せる。自分の担当は合格してから出す */}
+          {roleReady && <OutcomePanel project={project} roleSlot={roleSlot} byStep={byStep} />}
+
           {/* 案件の完了は**全工程**が終わったときだけ（Backendが全ステップ合格を見る）。
               担当分だけ終わった状態で完了ボタンを出すと、押しても400が返って戸惑わせる */}
           {allPassed && !isCompleted && hiddenCount > 0 && (
@@ -826,6 +830,14 @@ function StepEditor({ steps, functionalRequirements, method, onChange }) {
             <label className="block">
               <div className="mb-1 text-xs font-semibold" style={{ color: T.textMuted }}>工程</div>
               <PhaseSelect method={method} value={step.phase} onChange={v => updateStep(i, "phase", v)} />
+            </label>
+            {/* 2026-09-06: 担当していない人に「この工程で何ができたか」を見せる文。
+                自分の担当のタスクは合格するまで出さないので、答えを書いてよい */}
+            <label className="block">
+              <div className="mb-1 text-xs font-semibold" style={{ color: T.textMuted }}>できたもの（担当外の人に見せる完成例）</div>
+              <textarea style={{ ...fieldStyle, minHeight: 64 }}
+                placeholder="このタスクの成果物がどうなったかを2〜3文で。例: usersテーブルにemailとpassword_hashを持たせ、権限は一般社員と部長の2種類にした。"
+                value={step.outcomeText || ""} onChange={e => updateStep(i, "outcomeText", e.target.value)} />
             </label>
             <div>
               <div className="mb-1.5 text-xs font-semibold" style={{ color: T.textMuted }}>チェックリスト</div>
