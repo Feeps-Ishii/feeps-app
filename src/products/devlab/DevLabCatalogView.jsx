@@ -317,25 +317,28 @@ export default function DevLabCatalogView({ projects, templates, submissions, on
             {labs.length < templates.length && `（全 ${templates.length} 件から絞り込み）`}
           </p>
 
-          <div className="mt-2 grid gap-2.5 sm:grid-cols-2 xl:grid-cols-3">
-            {labs.map(t => (
-              <button
-                key={t.id} type="button" onClick={() => onOpenTemplate(t.id)}
-                className="rounded-xl border p-3 text-left transition hover:shadow-sm"
-                style={{ borderColor: T.border, background: T.bgSurface }}
-              >
-                <span className="block text-[13.5px] font-bold" style={{ color: T.textPrimary }}>{t.title}</span>
-                {t.description && (
-                  <span className="mt-0.5 line-clamp-2 block text-[11.5px] leading-relaxed" style={{ color: T.textSecondary }}>
-                    {t.description}
+          {/* 案件と同じく横に送る。数が増えても縦に伸びない */}
+          <div className="mt-2">
+            <CardRail ariaLabel="コードの練習の一覧">
+              {labs.map(t => (
+                <button
+                  key={t.id} type="button" onClick={() => onOpenTemplate(t.id)}
+                  className="h-full w-full rounded-xl border p-3 text-left transition hover:shadow-sm"
+                  style={{ borderColor: T.border, background: T.bgSurface }}
+                >
+                  <span className="block text-[13.5px] font-bold" style={{ color: T.textPrimary }}>{t.title}</span>
+                  {t.description && (
+                    <span className="mt-0.5 line-clamp-2 block text-[11.5px] leading-relaxed" style={{ color: T.textSecondary }}>
+                      {t.description}
+                    </span>
+                  )}
+                  <span className="mt-2 flex flex-wrap gap-1.5">
+                    <Badge tone="muted">{devLabWorkspaceStackLabel(t.stack)}</Badge>
+                    <Badge tone="muted">{devLabLevelLabel(t.level)}</Badge>
                   </span>
-                )}
-                <span className="mt-2 flex flex-wrap gap-1.5">
-                  <Badge tone="muted">{devLabWorkspaceStackLabel(t.stack)}</Badge>
-                  <Badge tone="muted">{devLabLevelLabel(t.level)}</Badge>
-                </span>
-              </button>
-            ))}
+                </button>
+              ))}
+            </CardRail>
           </div>
 
           {!labs.length && (
