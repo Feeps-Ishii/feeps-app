@@ -47,7 +47,7 @@ export default function CloudLabUnitRow({ unit, passed, onOpen, first }) {
       <span className="min-w-0 flex-1">
         <span className="flex flex-wrap items-center gap-2 text-[13.5px] font-bold" style={{ color: playable ? C.ink : C.muted }}>
           {unit.title}
-          {unit.status === "external" ? <Pill kind="real">本物</Pill> : <Pill kind="mock">模型</Pill>}
+          {unit.console ? <Pill kind="real">本物</Pill> : <Pill kind="mock">模型</Pill>}
           {unit.premium && <Pill kind="prem">Premium</Pill>}
           {passed && <Pill kind="ok">通過</Pill>}
           {!playable && !passed && <Pill kind="wait">準備中</Pill>}

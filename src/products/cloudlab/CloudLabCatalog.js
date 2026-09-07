@@ -112,12 +112,13 @@ export const UNITS = [
     needs: "EC2を2台置ける模型と、SG同士の参照",
   },
   {
-    id: "real_console", no: 7, status: "external",
+    id: "real_console", no: 7, status: "ready",
     title: "本物のAWSで1回作る",
     touch: "同じ構成をAWSコンソールで",
     fail: "本物のエラーメッセージを読む",
     premium: true,
-    needs: "一時キーの発行（掃除役はすでに稼働しています）",
+    // 模型ではなく本物のコンソールへ入る単元。専用の画面（CloudLabConsoleUnit）を出す
+    console: true,
   },
   {
     id: "cloudformation", no: 8, status: "pending",

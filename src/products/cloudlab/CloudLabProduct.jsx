@@ -5,6 +5,7 @@ import { useCloudLabProgress } from "./useCloudLab.js";
 import { unitById, groupById, groupOfUnit } from "./CloudLabCatalog.js";
 import CloudLabHub from "./CloudLabHub.jsx";
 import CloudLabGroup from "./CloudLabGroup.jsx";
+import CloudLabConsoleUnit from "./CloudLabConsoleUnit.jsx";
 import AwsLabSlide from "./AwsLabSlide.jsx";
 
 // クラウド実習（学習モードの3本目の柱）。正典: docs/specs/aws-lab-spec.md
@@ -64,8 +65,13 @@ export default function CloudLabProduct() {
   // 単元を開く。**遊べない単元が指定されたら開かない**（データを直したときに壊れた画面を出さない）
   const openUnit = useCallback(id => {
     const u = unitById(id);
-    if (u?.lab) setActiveUnitId(id);
+    if (u?.lab || u?.console) setActiveUnitId(id);
   }, []);
+
+  // 単元7だけは模型ではなく本物のAWSへ入る。専用の画面を出す
+  if (unit?.console) {
+    return <CloudLabConsoleUnit unit={unit} onBack={() => setActiveUnitId("")} />;
+  }
 
   if (unit?.lab) {
     // 「戻る」の行き先は、来た道に合わせる。グループ経由ならグループへ、
