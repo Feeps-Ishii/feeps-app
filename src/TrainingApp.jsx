@@ -169,6 +169,7 @@ const EXTRA_ALLOWED_SUBVIEWS = [
   "el_devlab_manage_workspace", "el_devlab_manage_team", "el_devlab_teams",
   // クラウド実習はtraineeのナビにだけ出す。instructor/adminがリンクで見に来ても弾かない
   "el_cloudlab",
+  "el_roadmap",
 ];
 
 const PRODUCT_DEFAULT_SUBVIEW = {
@@ -213,7 +214,9 @@ const EL_NAV = {
     // 2026-09-05: 「コース一覧／おすすめ／学習中／修了済み」は同じカタログの絞り込み違いで、
     // 画面の作りも同じだった。1項目＋タブへ統合（mock/learning-inventory）。
     // 開発演習も「ひとり／チーム」は案件の性質であってメニューではないので1項目にした。
-    { sec: "学ぶ", items: [["el_courses", "コース", BookOpen], ["el_skills", "獲得スキル", Sparkles]] },
+    // 2026-09-08: 「目標と到達度」を学ぶの先頭に。目指す姿に対して足りないものを出し、
+    // **既に出来る人にステップを踏ませない**ための入口（承認モック: gap-radar）。
+    { sec: "学ぶ", items: [["el_roadmap", "目標と到達度", Target], ["el_courses", "コース", BookOpen], ["el_skills", "獲得スキル", Sparkles]] },
     { sec: "つくる", items: [["el_devlab", "開発演習", Code2]] },
     // 2026-09-07: クラウド実習（AWS）を3本目の柱にする。Eラーニングの1コースに埋めると
     // 外から見えず、営業上もったいないという判断（ユーザー指示）。独立Productにしない理由は

@@ -21,6 +21,7 @@ import SeatManager from "./admin/SeatManager.jsx";
 import DevLabProduct from "../devlab/DevLabProduct.jsx";
 // クラウド実習（2026-09-07）。学習モードの3本目の柱。実体は products/cloudlab/
 import CloudLabProduct from "../cloudlab/CloudLabProduct.jsx";
+import RoadmapView from "./roadmap/RoadmapView.jsx";
 import { setProductDetailHistory } from "../../utils/common/navigationHistory.js";
 
 // 2026-07-22: 開発演習(DevLab)は独立Productを廃止し、Eラーニングと並ぶ「学習」内の
@@ -186,6 +187,12 @@ export default function LearningProduct({ subView, goSub, goProduct, role, theme
     el_recommend:  <ElCoursesHub initialTab="recommend"  {...sp} />,
     el_inprogress: <ElCoursesHub initialTab="inprogress" {...sp} />,
     el_completed:  <ElCoursesHub initialTab="completed"  {...sp} />,
+    // 2026-09-08: 目標との差分を出す画面。既に出来る人にステップを踏ませないための入口。
+    // コース名で紐づけているので、開くときはカタログから同じ名前のコースを引く。
+    el_roadmap:    <RoadmapView lrn={lrn} onOpenCourse={title => {
+      const hit = (lrn.catalog || []).find(c => c.title === title);
+      if (hit) handleOpenDetail(hit);
+    }} />,
     el_skills:     <ElSkillsView {...sp} />,
     // 2026-08-21: 「修了証」タブは「修了済み」へ統合した。
     el_cert:       <ElCoursesHub initialTab="completed"  {...sp} />,
