@@ -13,6 +13,33 @@
 
 export const CLOUD_LAB_ACCENT = "cloudlab";
 
+// グループ（2026-09-07）。**単元を平らに並べない。**
+// AWSは基礎・応用・運用で求められるものが別物で、8個を1列にすると
+// 「どこまでやれば一区切りか」が分からなくなる。
+//
+// 本物のAWSで1回作る（単元7）は**基礎の総仕上げ**に置く。応用や運用の入口ではなく、
+// 基礎で組んだものを本物で組み直すのが値打ちなので。
+export const GROUPS = [
+  {
+    id: "basic", label: "基礎", en: "FOUNDATION",
+    summary: "ネットワークを区切り、サーバーを1台立てて、外から見えるようにする",
+    detail: "つながらない理由を自分で突き止められるようになるところまで。最後は本物のAWSで同じものを組みます。",
+    unitIds: ["vpc_subnet", "igw_route", "security_group", "public_ip", "real_console"],
+  },
+  {
+    id: "applied", label: "応用", en: "APPLIED",
+    summary: "見せるものと隠すものを分け、構成をコードで書く",
+    detail: "1台では起きない問題を扱います。公開と非公開の分離、サーバー同士の通信、そして手作業をやめる方法。",
+    unitIds: ["private_subnet", "sg_reference", "cloudformation"],
+  },
+  {
+    id: "operation", label: "運用", en: "OPERATION",
+    summary: "作ったあとに毎日ついてくること",
+    detail: "費用・止め忘れ・障害の気づき方。作れることと運用できることは別物です。",
+    unitIds: ["cost", "auto_stop", "logs"],
+  },
+];
+
 export const UNITS = [
   {
     id: "vpc_subnet", no: 1, status: "pending",
@@ -99,6 +126,31 @@ export const UNITS = [
     fail: "手で作らずに済ませる",
     needs: "テンプレートを書く演習の画面",
   },
+
+  // ---- 運用（2026-09-07に枠だけ用意）。まだ模型が無いので全部 pending ----
+  // **中身を作る前でも道すじには出す。** 「作れること」と「運用できること」は別物だと
+  // 最初に見えていることに値打ちがある。
+  {
+    id: "cost", no: 9, status: "pending",
+    title: "費用の見方",
+    touch: "何にいくらかかっているかを読む",
+    fail: "止めたつもりのものが課金され続けている",
+    needs: "費用の内訳を読む模型",
+  },
+  {
+    id: "auto_stop", no: 10, status: "pending",
+    title: "止め忘れを止める",
+    touch: "使わない時間に自動で停止する",
+    fail: "夜間も動きっぱなしになっている",
+    needs: "時間で動く仕組みの模型",
+  },
+  {
+    id: "logs", no: 11, status: "pending",
+    title: "ログと気づき方",
+    touch: "落ちたことに気づく仕組みを置く",
+    fail: "利用者から言われるまで気づけない",
+    needs: "ログと通知の模型",
+  },
 ];
 
 // 身についたこと。**単元と1対1にしない。** 通った単元から導くので、
@@ -118,11 +170,51 @@ export function unitById(id) {
   return UNITS.find(u => u.id === id) || null;
 }
 
+export function groupById(id) {
+  return GROUPS.find(g => g.id === id) || null;
+}
+
+// グループに属する単元。**GROUPSに書いた順で返す**（UNITSの並び順ではない）ので、
+// 単元を足すときに並べ替えたければ GROUPS 側だけ直せばよい
+export function unitsOfGroup(groupId) {
+  const g = groupById(groupId);
+  if (!g) return [];
+  return g.unitIds.map(unitById).filter(Boolean);
+}
+
+// グループの状況。**通過数だけでなく「いま遊べるか」も返す**。
+// 全部準備中のグループを、進捗0件と同じ見た目にしないため
+export function groupStatus(group, progress) {
+  const passedMap = progress?.units || {};
+  const units = unitsOfGroup(group.id);
+  const playable = units.filter(isPlayable);
+  const passed = units.filter(u => passedMap[u.id]?.passedAt);
+  return {
+    total: units.length,
+    playable: playable.length,
+    passed: passed.length,
+    // 遊べるものが1つも無い＝まだ開けないグループ
+    open: playable.length > 0,
+    // 遊べるものを全部通した
+    cleared: playable.length > 0 && playable.every(u => passedMap[u.id]?.passedAt),
+  };
+}
+
+export function groupOfUnit(unitId) {
+  return GROUPS.find(g => g.unitIds.includes(unitId)) || null;
+}
+
 // 続きからやる単元。**通っていない中でいちばん手前の遊べるもの**。
 // 全部通っていたら null（画面側で「次に来るもの」を出す）
 export function nextUnit(progress) {
   const passed = progress?.units || {};
-  return UNITS.find(u => isPlayable(u) && !passed[u.id]?.passedAt) || null;
+  // **グループの順で探す**（基礎→応用→運用）。UNITSの並びで探すと、
+  // グループをまたいで並べ替えたときに「続きから」が飛ぶ
+  for (const g of GROUPS) {
+    const hit = unitsOfGroup(g.id).find(u => isPlayable(u) && !passed[u.id]?.passedAt);
+    if (hit) return hit;
+  }
+  return null;
 }
 
 export function passedCount(progress) {

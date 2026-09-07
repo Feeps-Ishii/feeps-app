@@ -2,19 +2,22 @@ import React, { useCallback, useEffect, useRef, useState } from "react";
 import { ArrowLeft } from "lucide-react";
 import { PRODUCT_ACCENT } from "../../components/common";
 import { useCloudLabProgress } from "./useCloudLab.js";
-import { unitById } from "./CloudLabCatalog.js";
+import { unitById, groupById, groupOfUnit } from "./CloudLabCatalog.js";
 import CloudLabHub from "./CloudLabHub.jsx";
+import CloudLabGroup from "./CloudLabGroup.jsx";
 import AwsLabSlide from "./AwsLabSlide.jsx";
 
 // クラウド実習（学習モードの3本目の柱）。正典: docs/specs/aws-lab-spec.md
 //
-// **subViewを増やさない。** ハブと単元の行き来は activeUnitId だけで切り替える。
+// 画面は3段。**ハブ（グループ一覧） → グループ（単元一覧） → 単元（実習）**。
+//
+// **subViewを増やさない。** 行き来は activeGroupId / activeUnitId だけで切り替える。
 // TrainingApp.jsx はナビに無いsubViewを検知するとホームへ戻すので、
-// 単元ごとにキーを発行すると即座に弾かれる（DevLabのactiveProjectIdと同じ形）。
+// 画面ごとにキーを発行すると即座に弾かれる（DevLabのactiveProjectIdと同じ形）。
 
 const A = PRODUCT_ACCENT.cloudlab;
 
-function UnitView({ unit, onBack, onPassed }) {
+function UnitView({ unit, backLabel, onBack, onPassed }) {
   // 単元に入っていた時間。**通過したときにだけ**記録するので、
   // 開いて閉じただけでは積算されない
   const startedAt = useRef(Date.now());
@@ -24,16 +27,18 @@ function UnitView({ unit, onBack, onPassed }) {
     onPassed(unit.id, Math.round((Date.now() - startedAt.current) / 1000));
   }, [unit.id, onPassed]);
 
+  const group = groupOfUnit(unit.id);
+
   return (
     <div>
       <button type="button" onClick={onBack}
         className="mb-4 flex items-center gap-1.5 text-[12.5px] font-bold" style={{ color: A.deep }}>
-        <ArrowLeft size={14} />クラウド実習へ戻る
+        <ArrowLeft size={14} />{backLabel}
       </button>
       <AwsLabSlide
         slide={{ id: `cloudlab_${unit.id}`, title: unit.title }}
         content={{
-          chapter: `単元 ${unit.no}`,
+          chapter: `${group ? group.label + " " : ""}単元 ${unit.no}`,
           chapterTitle: "クラウド実習",
           intro: unit.lab.intro,
           task: unit.lab.task,
@@ -48,16 +53,43 @@ function UnitView({ unit, onBack, onPassed }) {
 
 export default function CloudLabProduct() {
   const { progress, loading, error, reload, markPassed } = useCloudLabProgress();
+  const [activeGroupId, setActiveGroupId] = useState("");
   const [activeUnitId, setActiveUnitId] = useState("");
 
   const unit = activeUnitId ? unitById(activeUnitId) : null;
-  // 遊べない単元が指定されたらハブへ落とす（データを直したときに壊れた画面を出さない）
-  const openable = unit && unit.lab;
+  const group = activeGroupId ? groupById(activeGroupId) : null;
 
   const onPassed = useCallback((unitId, seconds) => { markPassed(unitId, seconds); }, [markPassed]);
 
-  if (openable) {
-    return <UnitView unit={unit} onBack={() => setActiveUnitId("")} onPassed={onPassed} />;
+  // 単元を開く。**遊べない単元が指定されたら開かない**（データを直したときに壊れた画面を出さない）
+  const openUnit = useCallback(id => {
+    const u = unitById(id);
+    if (u?.lab) setActiveUnitId(id);
+  }, []);
+
+  if (unit?.lab) {
+    // 「戻る」の行き先は、来た道に合わせる。グループ経由ならグループへ、
+    // ハブの「続きから」で直に来たならハブへ
+    const backToGroup = !!group;
+    return (
+      <UnitView
+        unit={unit}
+        backLabel={backToGroup ? `${group.label}の単元へ戻る` : "クラウド実習へ戻る"}
+        onBack={() => setActiveUnitId("")}
+        onPassed={onPassed}
+      />
+    );
+  }
+
+  if (group) {
+    return (
+      <CloudLabGroup
+        group={group}
+        progress={progress}
+        onBack={() => setActiveGroupId("")}
+        onOpenUnit={openUnit}
+      />
+    );
   }
 
   return (
@@ -66,10 +98,8 @@ export default function CloudLabProduct() {
       loading={loading}
       error={error}
       onRetry={reload}
-      onOpenUnit={id => {
-        const u = unitById(id);
-        if (u?.lab) setActiveUnitId(id);
-      }}
+      onOpenGroup={setActiveGroupId}
+      onOpenUnit={openUnit}
     />
   );
 }
