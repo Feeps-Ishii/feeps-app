@@ -24,14 +24,17 @@ export const METHODS = [
 ];
 
 // 座標はV字の腕・スプリントの輪の上に等分で置いている（PhaseDiagram.jsx が使う）
+// 2026-09-07: 底の2つ（実装・単体テスト）が x=420 と x=480 で、箱の幅132に対して
+// 60しか離れておらず**重なっていた**（ユーザー指摘）。V字の底を広げて離した。
+// 箱の半幅は66なので、隣り合う箱は最低でも136離すこと。
 const WATERFALL = [
   { id: "req", label: "要件定義", sub: "REQUIREMENT", x: 120, y: 60 },
-  { id: "basic", label: "基本設計", sub: "ARCHITECTURE", x: 220, y: 160 },
-  { id: "detail", label: "詳細設計", sub: "DETAIL", x: 320, y: 260 },
-  { id: "code", label: "実装", sub: "CODING", x: 420, y: 360 },
-  { id: "unit", label: "単体テスト", sub: "UNIT", x: 480, y: 360 },
-  { id: "integ", label: "結合テスト", sub: "INTEGRATION", x: 580, y: 260 },
-  { id: "system", label: "システムテスト", sub: "SYSTEM", x: 680, y: 160 },
+  { id: "basic", label: "基本設計", sub: "ARCHITECTURE", x: 200, y: 160 },
+  { id: "detail", label: "詳細設計", sub: "DETAIL", x: 280, y: 260 },
+  { id: "code", label: "実装", sub: "CODING", x: 360, y: 360 },
+  { id: "unit", label: "単体テスト", sub: "UNIT", x: 540, y: 360 },
+  { id: "integ", label: "結合テスト", sub: "INTEGRATION", x: 620, y: 260 },
+  { id: "system", label: "システムテスト", sub: "SYSTEM", x: 700, y: 160 },
   { id: "accept", label: "受入テスト", sub: "ACCEPTANCE", x: 780, y: 60 },
 ];
 

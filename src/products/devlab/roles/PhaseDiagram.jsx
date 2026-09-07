@@ -36,7 +36,7 @@ export default function PhaseDiagram({ method = "waterfall", activePhases = [], 
 
         {method === "waterfall" ? (
           <>
-            <path d="M120 60 L420 360 L480 360 L780 60" fill="none" stroke={T.border} strokeWidth="2.5" />
+            <path d="M120 60 L360 360 L540 360 L780 60" fill="none" stroke={T.border} strokeWidth="2.5" />
             {Object.entries(TIES).map(([left, right]) => {
               const L = list.find(p => p.id === left);
               const R = list.find(p => p.id === right);
