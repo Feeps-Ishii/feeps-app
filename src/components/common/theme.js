@@ -113,6 +113,8 @@ export const PRODUCT_ACCENT = {
   // devlab（開発演習、2026-07-21新設）: 既存7色（blue/teal/purple/orange/rose/indigo/gold）と
   // 被らない緑系。「開発・完走」のイメージ。
   devlab:    { accent: "#2FAE66", deep: "#1F8B4D", subtle: "#E7F8EE", gradFrom: "#146B39", gradTo: "#2FAE66" },
+  // クラウド実習（2026-09-07）。学習のティール・開発演習の緑・案件のオレンジと当たらない深いシアン
+  cloudlab:  { accent: "#0F7B8A", deep: "#0A5E6B", subtle: "#E2F1F3", gradFrom: "#0A5E6B", gradTo: "#17A2A8" },
 };
 
 // Role accent (2026-07-03). Independent from PRODUCT_ACCENT — this is ONLY for the

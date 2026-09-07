@@ -18,7 +18,9 @@ import SlideFigure from "./SlideFigures.jsx";
 import CodeRunSlide from "./CodeRunSlide.jsx";
 import FocusModeBar, { FONT_STEPS, TocDrawer, useFocusKeys, useRememberedFocus } from "./FocusModeBar.jsx";
 import WebRunSlide from "./WebRunSlide.jsx";
-import AwsLabSlide from "./AwsLabSlide.jsx";
+// クラウド実習（AWS）の実体は products/cloudlab/ にある。スライド種別 aws_lab としても
+// 同じ画面を使うので、ここから読む（DevLabを learning から読んでいるのと同じ形）。
+import AwsLabSlide from "../cloudlab/AwsLabSlide.jsx";
 import { AgendaSlide, ChapterSlide, ColumnsSlide, HookSlide, RoleCallouts, SlideEyebrowText, StepsSlide, WorkSlide } from "./SlideLayouts.jsx";
 
 // slidesを持つLesson専用の「メインスライド中心」表示。lesson.slides?.length > 0 の場合のみ

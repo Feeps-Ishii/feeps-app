@@ -31,7 +31,7 @@ import {
   Sparkles, Flame, X, Eye, Pencil, StickyNote, Megaphone, ArrowUpRight,
   MoreHorizontal, Check, Filter, Target, ListChecks, Lock, Mail, Lightbulb,
   Wrench, Compass, ShieldCheck, FileSpreadsheet, LogIn, Menu, Star, Activity,
-  GitBranch, Briefcase, Gauge, MapPin, User, Printer, RefreshCw, Receipt, Landmark, Code2, ClipboardList, FolderTree, HelpCircle
+  GitBranch, Briefcase, Gauge, MapPin, User, Printer, RefreshCw, Receipt, Landmark, Code2, ClipboardList, FolderTree, HelpCircle, Cloud
 } from "lucide-react";
 
 // Products other than Training (the default landing product) are code-split so the
@@ -167,6 +167,8 @@ const EXTRA_ALLOWED_SUBVIEWS = [
   "el_recommend", "el_inprogress", "el_completed", "el_cert",
   "el_devlab_myteam", "el_devlab_workspace",
   "el_devlab_manage_workspace", "el_devlab_manage_team", "el_devlab_teams",
+  // クラウド実習はtraineeのナビにだけ出す。instructor/adminがリンクで見に来ても弾かない
+  "el_cloudlab",
 ];
 
 const PRODUCT_DEFAULT_SUBVIEW = {
@@ -213,6 +215,10 @@ const EL_NAV = {
     // 開発演習も「ひとり／チーム」は案件の性質であってメニューではないので1項目にした。
     { sec: "学ぶ", items: [["el_courses", "コース", BookOpen], ["el_skills", "獲得スキル", Sparkles]] },
     { sec: "つくる", items: [["el_devlab", "開発演習", Code2]] },
+    // 2026-09-07: クラウド実習（AWS）を3本目の柱にする。Eラーニングの1コースに埋めると
+    // 外から見えず、営業上もったいないという判断（ユーザー指示）。独立Productにしない理由は
+    // 2026-07-22に開発演習で同じことをして戻しているため（docs/specs/aws-lab-spec.md §11）。
+    { sec: "動かす", items: [["el_cloudlab", "クラウド実習", Cloud]] },
   ],
   // 2026-08-18 instructor/adminのEラーニングタブに、受講生本人向けの自己学習導線
   // （コース一覧・おすすめ・学習中・修了済み・獲得スキル・修了証・プロジェクト体験）が

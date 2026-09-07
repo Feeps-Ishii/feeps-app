@@ -19,6 +19,8 @@ import EnrollmentManager from "./admin/EnrollmentManager.jsx";
 import PlansContractsAdmin from "./admin/PlansContractsAdmin.jsx";
 import SeatManager from "./admin/SeatManager.jsx";
 import DevLabProduct from "../devlab/DevLabProduct.jsx";
+// クラウド実習（2026-09-07）。学習モードの3本目の柱。実体は products/cloudlab/
+import CloudLabProduct from "../cloudlab/CloudLabProduct.jsx";
 import { setProductDetailHistory } from "../../utils/common/navigationHistory.js";
 
 // 2026-07-22: 開発演習(DevLab)は独立Productを廃止し、Eラーニングと並ぶ「学習」内の
@@ -200,6 +202,11 @@ export default function LearningProduct({ subView, goSub, goProduct, role, theme
     el_seats:      role === "client"
       ? <SeatManager />
       : <LearningPlaceholder title="プラン・席の管理" desc="この機能はご利用いただけません。" />,
+    // ナビに出すのはtraineeだけ。instructor/adminは中身を見に来られるようにしておく
+    // （管理画面は枠が決まってから作る。docs/specs/aws-lab-spec.md §9）
+    el_cloudlab:      DEVLAB_ALLOWED_ROLES.includes(role)
+      ? <CloudLabProduct />
+      : <LearningPlaceholder title="クラウド実習" desc="この機能はご利用いただけません。" />,
     el_devlab:        DEVLAB_ALLOWED_ROLES.includes(role)
       ? <DevLabProduct subView="dl_projects" goSub={goSub} role={role} themeColor={themeColor} />
       : <LearningPlaceholder title="開発演習" desc="この機能はご利用いただけません。" />,

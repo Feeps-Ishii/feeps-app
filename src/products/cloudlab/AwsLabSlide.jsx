@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { CheckCircle2, ChevronDown, Circle, Cloud, HelpCircle, Play, RotateCcw, Server, Trash2 } from "lucide-react";
 import { T } from "../../components/common";
-import { SlideEyebrowText } from "./SlideLayouts.jsx";
+import { SlideEyebrowText } from "../learning/SlideLayouts.jsx";
 import { HTTP, SSH, initialLabState, labChecks, launchInstance, terminateInstance } from "./awsLabModel.js";
 
 // 2026-09-07: AWSの構成を組み立てて、外から届くかを確かめる演習（モック）。
@@ -179,7 +179,9 @@ function NetView({ st }) {
   );
 }
 
-export default function AwsLabSlide({ slide, content = {}, lrn, courseId, lessonId }) {
+// onPassed: クラウド実習の単元として使うときの通過通知（Eラーニングのスライドとして
+// 使うときは lrn.submitExercise が担当する）。どちらも**通ったときに1回だけ**呼ぶ。
+export default function AwsLabSlide({ slide, content = {}, lrn, courseId, lessonId, onPassed }) {
   const start = useMemo(
     () => initialLabState({ userData: content.userDataStarter || DEFAULT_USER_DATA, ...(content.initial || {}) }),
     [content.initial, content.userDataStarter],
@@ -202,8 +204,9 @@ export default function AwsLabSlide({ slide, content = {}, lrn, courseId, lesson
   // 合格の記録は**通ったときに1回だけ**。押し直しても二重に送らない
   useEffect(() => {
     if (!done || submittedRef.current) return;
-    if (!lrn?.submitExercise || !courseId || !lessonId) return;
     submittedRef.current = true;
+    if (onPassed) onPassed();
+    if (!lrn?.submitExercise || !courseId || !lessonId) return;
     lrn.submitExercise({
       courseId, lessonId, slideId: slide.id, kind: "aws_lab",
       submittedAnswer: JSON.stringify({
@@ -213,6 +216,9 @@ export default function AwsLabSlide({ slide, content = {}, lrn, courseId, lesson
       }),
       isCorrect: true,
     }).catch(() => {});
+    // onPassed は呼び出し側で毎回作り直される可能性があるので依存に入れない
+    // （入れると「通過を何度も記録する」に化ける。submittedRef で1回に絞っている）
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [done, lrn, courseId, lessonId, slide.id, st]);
 
   const edit = fn => { setSt(prev => fn(prev)); setTested(false); };
