@@ -54,6 +54,7 @@ export function slideFocusTargets(slide) {
       break;
     case "code_run":
     case "web_run":
+    case "aws_lab":
       push("run-task", content.task);
       break;
     case "work":
