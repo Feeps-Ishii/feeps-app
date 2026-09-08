@@ -212,7 +212,7 @@ function LearningOverview({ lrn, goSub, goProduct, onOpenDetail, role, learningP
       <ResumeBar resume={resume} onOpenDetail={onOpenDetail} goSub={goSub} themeColor={themeColor} />
 
       <LearningMagazineHome role={role} isCreator={isCreator} canUseDevLab={canUseDevLab} learningPlan={learningPlan}
-        goSub={goSub} goProduct={goProduct} onShowPlanNotice={() => setShowPlanNotice(true)}
+        goSub={goSub} goProduct={goProduct} onShowPlanNotice={() => setShowPlanNotice(true)} lrn={lrn}
         completedCount={lrn.completed.length} inprogressCount={lrn.inprogress.length} earnedSkillsCount={earnedSkills.length} />
       {showPlanNotice && (
         <div className="mb-6 flex items-center justify-between gap-3 rounded-2xl p-4" style={{ background: C.amberW, border: `1px solid ${C.amber}30` }}>

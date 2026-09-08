@@ -2,7 +2,7 @@ import React from "react";
 import { Btn } from "../../components/common";
 import { NOVA, T, PRODUCT_ACCENT } from "../../components/common/theme.js";
 import { UserRound, UsersRound } from "lucide-react";
-import LearningRoadmap from "./LearningRoadmap.jsx";
+import RoadmapEntry from "./roadmap/RoadmapEntry.jsx";
 
 // 学習モードHome上部のヘッダー（2026-08-14刷新、設計チャットのモック
 // feeps-learning-header-mock.html「案5」を実装）。数値の羅列をやめ、状況と次の一手を
@@ -378,7 +378,7 @@ function buildSideCards({ role, isCreator, learningPlan, goSub, goProduct, compl
 //   軸2 チームで開発する = チーム開発
 // 案件参画体験の残りのフェーズ（要件受け取り・設計・レビュー・成果記録）はまだ構想段階なので、
 // 「案件参画体験」ではなく実装済みの「チーム開発」として出す（ROADMAP参照）。
-export default function LearningMagazineHome({ role, isCreator, canUseDevLab, learningPlan, goSub, goProduct, onShowPlanNotice, completedCount = 0, inprogressCount = 0, earnedSkillsCount = 0 }) {
+export default function LearningMagazineHome({ role, isCreator, canUseDevLab, learningPlan, goSub, goProduct, onShowPlanNotice, lrn, completedCount = 0, inprogressCount = 0, earnedSkillsCount = 0 }) {
   const heroIsDevLab = canUseDevLab; // trainee/instructor/admin。clientはEラーニングが軸1
   const devLabTarget = () => goSub(isCreator ? "el_devlab_manage" : "el_devlab");
   const showTrial = !isCreator && learningPlan === "basic"; // Basic契約のtrainee/clientのみ（DevLab自体は常に体験可）
@@ -470,18 +470,10 @@ export default function LearningMagazineHome({ role, isCreator, canUseDevLab, le
         {devlabPillar}
       </div>
 
-      {/* 学んだ先に何があるかを絵で見せる。実績から「いまここ」だけを動かす。 */}
-      <LearningRoadmap
-        completedCount={completedCount}
-        inprogressCount={inprogressCount}
-        canUseDevLab={canUseDevLab}
-        onStepClick={key => {
-          if (key === "learn" || key === "practice") goSub("el_courses");
-          else if (key === "solo") devLabTarget();
-          else if (key === "team") { if (teamDevLocked) onShowPlanNotice(); else teamDevTarget(); }
-          else if (key === "project") goProduct && goProduct("talent");
-        }}
-      />
+      {/* 2026-09-08: 「あなたの道のり」（全員同じ5段の絵）をやめ、目標と到達度への導線にした。
+          目標と到達度の画面ができて役目が重なったため（ユーザー指摘）。
+          絵は場所を取るわりに、次に何をすればいいかを言えていなかった。 */}
+      <RoadmapEntry lrn={lrn} onOpen={() => goSub("el_roadmap")} />
 
       <div className="mb-6 grid gap-3.5 md:grid-cols-2 lg:grid-cols-3">
         {sideCards.map(c => (
