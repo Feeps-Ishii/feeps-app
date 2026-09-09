@@ -528,7 +528,9 @@ export default function Login({ onLogin }) {
                   </div>
                 </label>
                 <button type="button" onClick={handleLogin} disabled={busy} aria-busy={busy} className={ctaClass} style={ctaStyle}>
-                  <LogIn size={17} aria-hidden="true" />{busy ? "ログイン中…" : "Feeps One にログイン"}
+                  {/* 2026-09-09: 「Feeps One にログイン」から製品名を外した。
+                      名前が変わる可能性があるので、触る箇所を増やさない（ユーザー指示） */}
+                  <LogIn size={17} aria-hidden="true" />{busy ? "ログイン中…" : "ログイン"}
                 </button>
                 <div className="feeps-auth-divider" style={{ background: PRISM.line2 }} />
                 <div className="feeps-auth-note" style={{ background: PRISM.accentSubtle, color: PRISM.ink, borderColor: PRISM.line2 }}>
