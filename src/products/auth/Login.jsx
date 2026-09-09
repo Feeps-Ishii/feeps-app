@@ -84,14 +84,17 @@ function AuthBrandVisual() {
       </div>
 
       <div className="feeps-auth-brand-copy">
-        <h1>研修も学習も、<br />ひとつのIDで。</h1>
-        {/* 幅を絞りすぎると「残り／ます。」で割れて、最後の行が「ます。」だけになる。
+        {/* 2026-09-09: 「研修も学習も、ひとつのIDで。」から差し替え（ユーザー指示）。
+            **製品名に寄りかからない言い方にする。** Feeps One という名前は変わる可能性があるので、
+            コピー側が名前や「ひとつのID」という言い回しに依存しないようにした。 */}
+        <h1>楽しく、効果的かつ効率的に。</h1>
+        {/* 幅を絞りすぎると「残り／ます。」のように割れて、最後の行が数文字だけになる。
             広めに取ったうえで、文節で折り返す（word-break: auto-phrase）。
             明示の改行は左右2列で出している間だけ効かせる（CSS側） */}
         <p style={{ color: T.darkTextSecondary }}>
           研修の出欠、Eラーニング、スキルの記録、案件への参画。
           <br className="feeps-auth-br" />
-          ひとつのIDで、記録がつながったまま残ります。
+          学んだことは記録として残り、あとから見返せます。
         </p>
         <div className="feeps-auth-tags">
           {products.map(({ label, icon: Icon }) => (
