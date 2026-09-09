@@ -1,4 +1,4 @@
-import React, { useState, useRef } from "react";
+import React, { useState, useRef, useEffect } from "react";
 import { signIn, signOut, confirmSignIn, resetPassword, confirmResetPassword, rememberDevice } from "aws-amplify/auth";
 import {
   Mail, Lock, Eye, EyeOff, ArrowLeft, CheckCircle2, ShieldCheck, Cloud,
@@ -87,7 +87,7 @@ function AuthBrandVisual() {
         {/* 2026-09-09: 「研修も学習も、ひとつのIDで。」から差し替え（ユーザー指示）。
             **製品名に寄りかからない言い方にする。** Feeps One という名前は変わる可能性があるので、
             コピー側が名前や「ひとつのID」という言い回しに依存しないようにした。 */}
-        <h1>楽しく、効果的かつ効率的に。</h1>
+        <h1><span style={{ color: PRISM.teal }}>楽しく、</span>効果的かつ効率的に。</h1>
         {/* 幅を絞りすぎると「残り／ます。」のように割れて、最後の行が数文字だけになる。
             広めに取ったうえで、文節で折り返す（word-break: auto-phrase）。
             明示の改行は左右2列で出している間だけ効かせる（CSS側） */}
@@ -112,6 +112,24 @@ function AuthBrandVisual() {
       </div>
     </aside>
   );
+}
+
+// 見出しの書体（Zen Old Mincho 900）は**ログイン画面でだけ**読み込む。
+// 日本語のフォントは容量が大きいので、アプリ本体には入れない（承認: 2026-09-09）。
+// display=swap なので、読み込みが終わるまでは標準の書体で出る（文字が消えることはない）。
+const AUTH_FONT_ID = "feeps-auth-font";
+const AUTH_FONT_HREF = "https://fonts.googleapis.com/css2?family=Zen+Old+Mincho:wght@900&display=swap";
+function useAuthDisplayFont() {
+  useEffect(() => {
+    if (document.getElementById(AUTH_FONT_ID)) return;
+    const link = document.createElement("link");
+    link.id = AUTH_FONT_ID;
+    link.rel = "stylesheet";
+    link.href = AUTH_FONT_HREF;
+    document.head.appendChild(link);
+    // 外さない。ログイン後にこの画面へ戻ることがあり、そのたびに読み直すと
+    // 書体が入れ替わって見える（キャッシュに載るので、残しても実害はない）
+  }, []);
 }
 
 function AuthMobileBrand() {
@@ -323,6 +341,7 @@ function ForgotPasswordFlow({ onBack }) {
 }
 
 export default function Login({ onLogin }) {
+  useAuthDisplayFont();
   const [screen, setScreen] = useState("login"); // "login" | "forgot" | "legal:terms" | "legal:privacy"
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
