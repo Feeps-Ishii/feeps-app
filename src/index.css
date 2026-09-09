@@ -479,7 +479,10 @@ body.feeps-modal-open .feeps-main-scroll { overflow: hidden !important; }
 .feeps-auth-shell { display: grid; grid-template-columns: minmax(0, 1.06fr) minmax(480px, .94fr); overflow: hidden; }
 .feeps-auth-brand {
   position: relative;
-  min-height: 100dvh;
+  /* **min-height ではなく height。** min-height だと中身の分だけ伸びてしまい、
+     縦が短い画面で下の「安全な認証」の行が画面の外へ出た（実測で発見）。
+     高さを固定したうえで、絵を flex で縮ませる。 */
+  height: 100dvh;
   overflow: hidden;
   display: flex;
   flex-direction: column;
@@ -497,22 +500,37 @@ body.feeps-modal-open .feeps-main-scroll { overflow: hidden !important; }
 }
 .feeps-auth-brand::before { right: -210px; top: -210px; }
 .feeps-auth-brand::after { left: -270px; bottom: -280px; }
-.feeps-auth-wordmark { position: relative; z-index: 2; }
-.feeps-auth-brand-copy { position: relative; z-index: 2; max-width: 610px; margin-top: clamp(62px, 10vh, 120px); }
-.feeps-auth-kicker { display: inline-flex; align-items: center; gap: 8px; font-size: 11px; font-weight: 800; letter-spacing: .16em; }
-.feeps-auth-kicker::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: var(--auth-teal); box-shadow: 0 0 0 5px color-mix(in srgb, var(--auth-teal) 17%, transparent); }
-.feeps-auth-brand-copy h1 { margin: 18px 0 0; font-size: clamp(34px, 4vw, 58px); line-height: 1.28; letter-spacing: -.04em; font-weight: 700; }
-.feeps-auth-brand-copy p { max-width: 560px; margin: 20px 0 0; font-size: 15px; line-height: 1.9; }
-.feeps-auth-orbit { position: relative; z-index: 2; width: min(460px, 78%); aspect-ratio: 1.55; margin: auto auto 20px; border: 1px solid color-mix(in srgb, var(--auth-on-dark) 21%, transparent); border-radius: 50%; }
-.feeps-auth-orbit::after { content: ""; position: absolute; inset: 20%; border: 1px dashed color-mix(in srgb, var(--auth-on-dark) 20%, transparent); border-radius: 50%; }
-.feeps-auth-core { position: absolute; z-index: 2; left: 50%; top: 50%; width: 92px; height: 92px; display: grid; place-items: center; transform: translate(-50%,-50%) rotate(-7deg); border: 1px solid color-mix(in srgb, var(--auth-on-dark) 30%, transparent); border-radius: 28px; color: var(--auth-on-dark); background: color-mix(in srgb, var(--auth-ink) 82%, transparent); box-shadow: 0 20px 40px color-mix(in srgb, var(--auth-ink) 32%, transparent); animation: feepsAuthCore 7s ease-in-out infinite alternate; }
-@keyframes feepsAuthCore { from { transform: translate(-50%,-50%) rotate(-7deg) translateY(-3px); } to { transform: translate(-50%,-50%) rotate(-3deg) translateY(4px); } }
-.feeps-auth-orbit-chip { position: absolute; z-index: 3; display: inline-flex; align-items: center; gap: 7px; padding: 8px 11px; border: 1px solid color-mix(in srgb, var(--auth-on-dark) 35%, transparent); border-radius: 12px; color: var(--auth-on-dark); background: color-mix(in srgb, var(--auth-on-dark) 15%, transparent); -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px); font-size: 11px; font-weight: 700; box-shadow: 0 12px 28px color-mix(in srgb, var(--auth-ink) 24%, transparent); animation: feepsFloat 7s ease-in-out infinite alternate; }
-.feeps-auth-orbit-chip.one { left: 8%; top: 18%; }
-.feeps-auth-orbit-chip.two { right: 4%; top: 15%; animation-delay: -.8s; }
-.feeps-auth-orbit-chip.three { left: 14%; bottom: 12%; animation-delay: -1.4s; }
-.feeps-auth-orbit-chip.four { right: 10%; bottom: 10%; animation-delay: -2s; }
-.feeps-auth-trust { position: relative; z-index: 2; display: flex; flex-wrap: wrap; gap: 20px; font-size: 11px; font-weight: 700; }
+.feeps-auth-wordmark { position: relative; z-index: 2; flex: 0 0 auto; }
+/* 2026-09-09: 左側の刷新。円軌道と浮遊チップは廃止し、絵を1枚置く形にした。
+   承認モック: https://claude.ai/code/artifact/bfb02376-ff82-4122-8184-fd3e5192b9ca */
+.feeps-auth-brand-copy { position: relative; z-index: 2; flex: 0 0 auto; max-width: 610px; margin-top: clamp(22px, 5vh, 60px); }
+.feeps-auth-brand-copy h1 { margin: 0; font-size: clamp(28px, 3.1vw, 42px); line-height: 1.55; letter-spacing: -.03em; font-weight: 800; }
+/* **幅を絞りすぎない。** 27em より狭いと「残り／ます。」で割れて、最後の行が「ます。」だけになる。
+   そのうえで文節折り返しを効かせる（対応していないブラウザでも明示の改行で2行に収まる） */
+.feeps-auth-brand-copy p { max-width: 27em; margin: 16px 0 0; font-size: 14px; line-height: 2;
+  word-break: auto-phrase; line-break: strict; text-wrap: pretty; }
+.feeps-auth-br { display: inline; }
+.feeps-auth-tags { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 22px; }
+.feeps-auth-tag {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 7px 13px; border-radius: 999px;
+  border: 1px solid color-mix(in srgb, var(--auth-on-dark) 18%, transparent);
+  background: color-mix(in srgb, var(--auth-on-dark) 7%, transparent);
+  color: var(--auth-on-dark); font-size: 12px; font-weight: 700;
+}
+.feeps-auth-tag svg { color: var(--auth-teal); }
+/* **絵は余ったぶんだけ使う。** 高さを vh で決め打ちすると、縦が短い画面
+   （1280x720 など）で下の「安全な認証」の行が画面の外へ出た（実測で発見）。
+   flex で伸び縮みさせ、min-height:0 で縮めるようにしておく。 */
+.feeps-auth-art {
+  position: relative; z-index: 2; display: block;
+  flex: 1 1 auto; min-height: 0;
+  width: min(320px, 60%); object-fit: contain;
+  margin: clamp(10px, 2vh, 26px) auto;
+}
+.feeps-auth-trust { position: relative; z-index: 2; flex: 0 0 auto; display: flex; flex-wrap: wrap; gap: 20px;
+  padding-top: 18px; border-top: 1px solid color-mix(in srgb, var(--auth-on-dark) 12%, transparent);
+  font-size: 11px; font-weight: 700; }
 .feeps-auth-trust span { display: inline-flex; align-items: center; gap: 7px; }
 .feeps-auth-panel { display: grid; place-items: center; padding: clamp(24px, 5vw, 72px); }
 .feeps-auth-card { width: min(100%, 460px); animation: feepsNovaUp .34s cubic-bezier(.2,.8,.2,1) both; }
@@ -544,6 +562,7 @@ body.feeps-modal-open .feeps-main-scroll { overflow: hidden !important; }
 @media (max-width: 1023.98px) {
   .feeps-auth-shell { display: block; min-height: 100dvh; background: var(--auth-card) !important; }
   .feeps-auth-brand { display: none; }
+  .feeps-auth-br { display: none; }
   .feeps-auth-panel { min-height: 100dvh !important; padding: 24px clamp(18px, 6vw, 54px); }
   .feeps-auth-card { width: min(100%, 480px); }
   .feeps-auth-mobile-brand { display: flex; flex-direction: column; align-items: flex-start; gap: 8px; margin-bottom: 38px; }
@@ -559,9 +578,7 @@ body.feeps-modal-open .feeps-main-scroll { overflow: hidden !important; }
   .view-anim,
   .feeps-mobile-drawer,
   .feeps-context-rail,
-  .feeps-auth-card,
-  .feeps-auth-core,
-  .feeps-auth-orbit-chip { animation: none; }
+  .feeps-auth-card { animation: none; }
   .feeps-global-brand,
   .feeps-global-link,
   .feeps-topbar,

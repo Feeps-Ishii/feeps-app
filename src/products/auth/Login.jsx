@@ -9,6 +9,7 @@ import { T, NOVA, PRISM, BrandMark } from "../../components/common";
 import { StandaloneLegalPage } from "../../components/common/LegalPages.jsx";
 import { TotpSetupPanel, TotpChallengePanel } from "./MfaSetup.jsx";
 import { TermsCheckbox, recordTermsAgreement } from "../../components/common/TermsConsent.jsx";
+import authArt from "../../assets/auth/learning-stack.svg";
 
 // Cognito User Pool (ap-northeast-1_QG4KZb06z) の実設定を確認のうえ表示（Phase7-4b）。
 // ハードコードではなく、実際のPasswordPolicy（MinimumLength:8, RequireUppercase/Lowercase/Numbers/Symbols:true）と一致させている。
@@ -57,36 +58,50 @@ function AuthMeta({ step }) {
   );
 }
 
+// 2026-09-09: 左側を刷新。承認モック: https://claude.ai/code/artifact/bfb02376-ff82-4122-8184-fd3e5192b9ca
+//
+// **言い切りのコピーをやめた。** 「学びがつながり、次の可能性がひらく。」は
+// サービスの中身ではなく「感じ」を言っていて、毎日見ると白々しくなる（ユーザー指摘）。
+// 何ができるかを事実で書き、絵で見せる形にした。
+//
+// 絵は ManyPixels の monochromatic（商用可・帰属表示不要）。**主色が1色**でできているので、
+// そこを置き換えるだけで色味が変わる。ここでは濃い地に載せるため、
+// 主色を明るいティールへ、輪郭などの濃い面を淡いグレーへ寄せた版を使っている
+// （置き換えないと濃い部分が背景に溶けて、絵の形が読めない）。
+//
+// 円軌道と浮遊するチップは廃止。チップは静的な帯にして、絵と役割が重ならないようにした。
 function AuthBrandVisual() {
   const products = [
-    { label: "研修", icon: GraduationCap, className: "one" },
-    { label: "学習", icon: BookOpenCheck, className: "two" },
-    { label: "成長", icon: Radar, className: "three" },
-    { label: "案件", icon: BriefcaseBusiness, className: "four" },
+    { label: "研修", icon: GraduationCap },
+    { label: "学習", icon: BookOpenCheck },
+    { label: "成長", icon: Radar },
+    { label: "案件", icon: BriefcaseBusiness },
   ];
   return (
     <aside className="feeps-auth-brand" style={{ background: NOVA.gradAuth, color: T.darkTextPrimary }}>
       <div className="feeps-auth-wordmark">
-        <BrandMark size={48} withWordmark wordmarkSize={20} wordmarkColor={T.darkTextPrimary} />
+        <BrandMark size={44} withWordmark wordmarkSize={19} wordmarkColor={T.darkTextPrimary} />
       </div>
+
       <div className="feeps-auth-brand-copy">
-        <span className="feeps-auth-kicker" style={{ color: T.darkTextSecondary }}>LEARN · GROW · CONNECT</span>
-        <h1>
-          学びがつながり、<br />
-          <span style={{ color: PRISM.teal }}>次の可能性がひらく。</span>
-        </h1>
+        <h1>研修も学習も、<br />ひとつのIDで。</h1>
+        {/* 幅を絞りすぎると「残り／ます。」で割れて、最後の行が「ます。」だけになる。
+            広めに取ったうえで、文節で折り返す（word-break: auto-phrase）。
+            明示の改行は左右2列で出している間だけ効かせる（CSS側） */}
         <p style={{ color: T.darkTextSecondary }}>
-          研修、Eラーニング、スキル、案件。日々の学びを一つにつなげ、成長の次の一歩まで支えます。
+          研修の出欠、Eラーニング、スキルの記録、案件への参画。
+          <br className="feeps-auth-br" />
+          ひとつのIDで、記録がつながったまま残ります。
         </p>
+        <div className="feeps-auth-tags">
+          {products.map(({ label, icon: Icon }) => (
+            <span key={label} className="feeps-auth-tag"><Icon size={15} aria-hidden="true" />{label}</span>
+          ))}
+        </div>
       </div>
-      <div className="feeps-auth-orbit" aria-hidden="true">
-        <span className="feeps-auth-core"><Sparkles size={34} /></span>
-        {products.map(({ label, icon: Icon, className }) => (
-          <span key={label} className={`feeps-auth-orbit-chip ${className}`}>
-            <Icon size={18} /><span>{label}</span>
-          </span>
-        ))}
-      </div>
+
+      <img className="feeps-auth-art" src={authArt} alt="" aria-hidden="true" />
+
       <div className="feeps-auth-trust" style={{ color: T.darkTextSecondary }}>
         <span><ShieldCheck size={15} aria-hidden="true" />安全な認証</span>
         <span><Cloud size={15} aria-hidden="true" />AWS基盤</span>
@@ -483,8 +498,9 @@ export default function Login({ onLogin }) {
             <div className="feeps-auth-view w-full">
               <AuthMeta step="AUTH · 01" />
               <div className="feeps-auth-heading">
-                <h2 style={{ color: PRISM.ink }}>おかえりなさい</h2>
-                <p style={{ color: PRISM.sub }}>学びと成長の続きを、ここから。</p>
+                {/* 2026-09-09: 「おかえりなさい」をやめた。毎日見る画面で情緒に寄ると白々しくなる */}
+                <h2 style={{ color: PRISM.ink }}>ログイン</h2>
+                <p style={{ color: PRISM.sub }}>メールアドレスとパスワードを入力してください。</p>
               </div>
               <div className="feeps-auth-form" role="form" aria-label="ログイン">
                 {err && <div className="feeps-auth-alert" style={{ background: PRISM.badSubtle, color: PRISM.ink, borderColor: PRISM.badLine }} role="alert">{err}</div>}
