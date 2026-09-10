@@ -20,6 +20,14 @@ export const statusKind = (status) => {
 
 export const testIdOf = (t) => String(t?.testId ?? t?.id ?? "");
 
+// 「9月10日（木）」。ホームの日付は年より曜日のほうが役に立つ（4ロール共通、2026-09-10）。
+const WEEKDAY_JA = ["日", "月", "火", "水", "木", "金", "土"];
+export function homeDateLabel(iso) {
+  const [y, m, d] = String(iso || "").split("-").map(Number);
+  if (!y || !m || !d) return String(iso || "");
+  return `${m}月${d}日（${WEEKDAY_JA[new Date(y, m - 1, d).getDay()]}）`;
+}
+
 export function emitNotificationRefresh() {
   try { window.dispatchEvent(new Event("feeps:notifications-refresh")); } catch (e) {}
 }

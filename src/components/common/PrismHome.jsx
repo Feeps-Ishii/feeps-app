@@ -170,14 +170,63 @@ export function TrainingHomeHero({ kicker, title, description, gradient, actions
 // ここでは行の見た目だけを共通化する。
 export function TrainingHomePanel({ title, meta, children, className = "" }) {
   return (
-    <PrismCard className={`p-4 sm:p-5 ${className}`}>
-      <div className="mb-1 flex items-center justify-between gap-2">
-        <h4 className="text-[13.5px] font-bold" style={{ color: NOVA.ink }}>{title}</h4>
-        {meta && <span className="text-[11.5px] font-medium" style={{ color: NOVA.muted }}>{meta}</span>}
+    // min-w-0: grid/flexの中で行の中身（nowrapのラベル等）が親を押し広げないようにする
+    <PrismCard className={`min-w-0 p-4 sm:p-5 ${className}`}>
+      <div className="mb-1 flex min-w-0 items-center justify-between gap-2">
+        <h4 className="min-w-0 text-[13.5px] font-bold" style={{ color: NOVA.ink }}>{title}</h4>
+        {meta && <span className="shrink-0 text-[11.5px] font-medium" style={{ color: NOVA.muted }}>{meta}</span>}
       </div>
       <div className="divide-y" style={{ borderColor: NOVA.line }}>{children}</div>
     </PrismCard>
   );
+}
+
+// 研修管理Home（2026-09-10 4ロール作り直し）。表の中で状態を1語で示すピル。
+// tone="unknown" は「取得できなかった」であって「問題なし」ではないため、
+// off（対象外・—）とは別の見た目にする（データ取得失敗を0件へ丸めないルール）。
+const PILL_TONE = {
+  ok: { fg: PRISM.ok, bg: PRISM.okSubtle },
+  warn: { fg: PRISM.warn, bg: PRISM.warnSubtle },
+  bad: { fg: PRISM.bad, bg: PRISM.badSubtle },
+  accent: { fg: PRISM.accent, bg: PRISM.accentSubtle },
+  off: { fg: NOVA.muted, bg: "transparent" },
+  unknown: { fg: NOVA.muted, bg: NOVA.soft },
+};
+
+export function PrismDataPill({ tone = "off", children, title }) {
+  const c = PILL_TONE[tone] || PILL_TONE.off;
+  return (
+    <span
+      title={title}
+      className="inline-flex whitespace-nowrap rounded-full px-2 py-0.5 text-[11px] font-bold"
+      style={{ background: c.bg, color: c.fg, border: tone === "unknown" ? `1px dashed ${NOVA.line}` : "1px solid transparent", fontVariantNumeric: "tabular-nums" }}
+    >
+      {children}
+    </span>
+  );
+}
+
+// 横に長い表はカードの中だけで横スクロールさせる。ページ本体を横に伸ばさない。
+export function PrismTable({ columns, children, minWidth = 660 }) {
+  return (
+    <div style={{ overflowX: "auto", minWidth: 0 }}>
+      <table className="w-full border-collapse text-left" style={{ minWidth }}>
+        <thead>
+          <tr>
+            {columns.map(col => (
+              <th key={col} className="whitespace-nowrap px-3 py-2 text-[10.5px] font-extrabold"
+                style={{ color: NOVA.muted, borderBottom: `1px solid ${NOVA.line}`, letterSpacing: "0.04em" }}>{col}</th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>{children}</tbody>
+      </table>
+    </div>
+  );
+}
+
+export function PrismTableCell({ children, className = "", style = {}, ...rest }) {
+  return <td {...rest} className={`px-3 py-2.5 align-middle text-xs ${className}`} style={{ borderBottom: `1px solid ${NOVA.line}`, color: NOVA.ink, ...style }}>{children}</td>;
 }
 
 export function TrainingHomePanelRow({ icon: Icon, tone = "accent", label, sub, badge, actionLabel, onAction, actionKind = "ghost" }) {

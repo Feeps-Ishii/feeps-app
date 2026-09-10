@@ -4,11 +4,11 @@ import { apiGet, apiPut, apiPost } from "../../api.js";
 import {
   Card, Badge, Btn, Avatar, Stat, SectionHead, Field, Modal, T, PageHeader, ProductNavCard, SkeletonRows, SkeletonCards,
   PRISM, PrismPage, PrismCard, PrismHomeHeading, PrismKpiCard, PrismSectionTitle, PrismErrorRetryCard,
-  TraineeBulkImportPanel, TrainingHomeHero, TrainingHomePanel, TrainingHomePanelRow, PRODUCT_ACCENT,
+  PrismDataPill, PrismTable, PrismTableCell,
+  TraineeBulkImportPanel, TrainingHomePanel, TrainingHomePanelRow,
 } from "../../components/common";
-import { AdminHomeIllustration } from "../../components/common/TrainingHomeIllustrations.jsx";
 import { EmptyState } from "../training/TrainingComponents.jsx";
-import { todayStr } from "../training/useTraining.js";
+import { homeDateLabel, todayStr } from "../training/useTraining.js";
 import { getActiveCourseId, setActiveCourseId } from "../../utils/common/courseContext.js";
 import {
   ClipboardCheck, Clock, NotebookPen, Users,
@@ -41,58 +41,161 @@ const datesInMonth = (ym) => {
   const last = new Date(y, m, 0).getDate();
   return Array.from({ length: last }, (_, i) => ym + "-" + String(i + 1).padStart(2, "0"));
 };
+// 「x / y」を出す。片方でも取れていなければ数字を作らず「確認できません」に倒す。
+function ratioPill(done, total, { warnBelow = 1 } = {}) {
+  if (done == null || total == null) return { tone: "unknown", text: "確認できません" };
+  if (!total) return { tone: "off", text: "—" };
+  return { tone: done >= total * warnBelow ? "ok" : done >= total * 0.8 ? "warn" : "bad", text: `${done} / ${total}` };
+}
+
+/* 管理者ホーム（2026-09-10 作り直し）。
+   「気になる受講生」のような判定ものは置かない。企業ごとに出欠・日報・講師の確認という
+   事実だけを並べ、手を打つべきものは「要対応」に集める。判定の決めごとを増やすほど
+   出てくる人が変わって信用されなくなる、というのが4ロール共通の方針。 */
 function AdminHome({ go, goProduct, openRisk }) {
-  const [companies, setCompanies] = useState([]);
-  const [courses, setCourses] = useState([]);
-  const [users, setUsers] = useState([]);
+  const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState("");
+  const [reloadKey, setReloadKey] = useState(0);
+  const date = todayStr();
+
   useEffect(() => {
     let alive = true;
     setLoading(true); setErr("");
-    // 2026-08-17 admin Homeの読み込み遅延対応: 全コース×全受講生の未解消異常を集計する
-    // /dashboard/adminは呼ばない（重い）。要フォロー受講生の確認は分析画面（openRisk）へ誘導し、
-    // そちらで/dashboard/adminを個別取得する。Homeはコース・企業・ユーザーの軽い一覧のみで構成する。
-    Promise.all([apiGet("/companies"), apiGet("/courses"), apiGet("/admin/users")])
-      .then(([cs, crs, us]) => {
-        if (!alive) return;
-        setCompanies(cs || []);
-        setCourses(crs || []);
-        setUsers(us || []);
-      })
-      .catch(e => alive && setErr("運用データの取得に失敗しました：" + (e?.message || e)))
+    // /dashboard/admin（全コース×全受講生の未解消異常＋テスト結果）は重いためホームでは呼ばない
+    // 方針を維持し（2026-08-17）、今日の状況だけを見る軽い /dashboard/admin-overview を使う。
+    apiGet(`/dashboard/admin-overview?date=${date}`)
+      .then(res => { if (alive) setData(res || null); })
+      .catch(e => { if (alive) { setData(null); setErr("本日の状況を取得できませんでした：" + (e?.errorMessage || e?.message || e)); } })
       .finally(() => alive && setLoading(false));
     return () => { alive = false; };
-  }, []);
-  const adminHeroTitle = courses.length > 0 ? `${courses.length}コースが運用中です` : "登録されているコースがありません";
-  const adminHeroDescription = courses.length > 0 ? "コースごとの出席・日報状況は分析画面で確認できます。" : "コースを作成すると、ここに運用状況が表示されます。";
+  }, [date, reloadKey]);
+
+  const availability = data?.availability || {};
+  const companies = Array.isArray(data?.companies) ? data.companies : [];
+  const actions = Array.isArray(data?.actions) ? data.actions : [];
+  const summary = data?.summary || {};
+  const trainingCount = summary.trainingCompanyCount;
+  const actionCount = summary.actionCount;
+
+  const upcoming = useMemo(() => {
+    const rows = companies.flatMap(c => (c.courses || [])
+      .filter(course => course.nextTrainingDate)
+      .map(course => ({ date: course.nextTrainingDate, courseName: course.courseName, companyName: c.companyName })));
+    return [...new Map(rows.map(r => [`${r.date}:${r.courseName}`, r])).values()]
+      .sort((a, b) => String(a.date).localeCompare(String(b.date))).slice(0, 4);
+  }, [companies]);
+
+  // 研修カレンダーが取れなければ trainingCount は null。0社（=今日は研修なし）と
+  // 混ぜずに「確認できません」と言う。
+  const heading = loading
+    ? "本日の状況を確認しています"
+    : !data
+      ? "本日の状況を確認できません"
+      : `${trainingCount == null ? "本日どこで研修中かを確認できません" : trainingCount === 0 ? "本日研修のある企業はありません" : `本日は${trainingCount}社で研修中`}${actionCount ? ` — 手を打つことが${actionCount}件あります` : trainingCount == null ? "" : " — 手を打つことはありません"}`;
+
   return (
     <PrismPage>
-      <TrainingHomeHero
-        kicker={`全社 ・ ${todayStr().replace(/-/g, "/")}`}
-        title={adminHeroTitle}
-        description={adminHeroDescription}
-        gradient={`linear-gradient(120deg, ${PRODUCT_ACCENT.training.gradFrom}, ${PRODUCT_ACCENT.training.gradTo})`}
-        illustration={<AdminHomeIllustration />}
-        actions={<>
-          <Btn kind="white" onClick={() => go && go("courses")}>コース一覧を開く</Btn>
-          <Btn onClick={() => go && go("users")} style={{ background: PRISM.heroGlassStrong, color: "#fff", border: `1px solid ${PRISM.heroLine}` }}>受講生を横断で見る</Btn>
-        </>}
+      <PrismHomeHeading
+        eyebrow={`${homeDateLabel(date)} ・ 全社`}
+        title={heading}
+        description="企業ごとに、今日ちゃんと回っているかを出しています。数字は出欠・日報という記録そのもので、誰を気にするかは見た方が決められるようにしています。"
+        action={actionCount ? <Btn onClick={() => go && go("courses")}>要対応を見る</Btn> : null}
       />
 
-      {err && <PrismErrorRetryCard message={err} />}
+      {err && <PrismErrorRetryCard message={err} onRetry={() => setReloadKey(v => v + 1)} />}
+      {!err && !loading && data && availability.calendar === false && (
+        <PrismErrorRetryCard message="研修カレンダーを取得できませんでした。本日が研修日かどうかを判定できないため、出欠・日報は「確認できません」と表示しています。" onRetry={() => setReloadKey(v => v + 1)} />
+      )}
 
-      <div className="grid gap-3 sm:grid-cols-2">
-        <TrainingHomePanel title="運営中のコース" meta={`コース${courses.length}件`}>
-          {loading ? <SkeletonRows rows={2} /> : <>
-            <TrainingHomePanelRow icon={AlertCircle} tone="accent" label="要フォロー受講生の確認" sub="欠席・遅刻・日報未提出などが続く受講生をコースごとに確認できます" actionLabel="開く" onAction={openRisk || (() => go && go("users"))} />
-            <TrainingHomePanelRow icon={BookOpen} tone="accent" label="コース・カリキュラム" sub="設定と研修運用" actionLabel="開く" onAction={() => go && go("courses")} />
-          </>}
+      <div className="grid gap-3 sm:grid-cols-3">
+        <PrismKpiCard icon={Building2} tone="accent" label="本日研修あり"
+          value={loading ? "—" : trainingCount ?? "—"} unit={summary.companyCount != null ? `/ ${summary.companyCount}社` : ""}
+          detail={loading ? "" : summary.companyCount != null ? `登録されている企業 ${summary.companyCount}社` : "企業数を確認できません"} />
+        <PrismKpiCard icon={Users} tone={summary.presentCount != null && summary.studentCount != null && summary.presentCount < summary.studentCount ? "warn" : "ok"} label="本日出勤"
+          value={loading ? "—" : summary.presentCount ?? "—"} unit={summary.studentCount != null ? `/ ${summary.studentCount}名` : ""}
+          detail={loading ? "" : summary.presentCount == null ? "打刻を確認できません" : "研修日の企業に在籍している受講生です"} />
+        <PrismKpiCard icon={AlertCircle} tone={actionCount ? "bad" : "ok"} label="要対応"
+          value={loading ? "—" : actionCount ?? "—"} unit="件"
+          detail={loading ? "" : actionCount ? "放っておくと研修が止まります" : "いま手を打つものはありません"} />
+      </div>
+
+      <PrismCard className="overflow-hidden p-0">
+        <div className="flex flex-wrap items-center justify-between gap-2 px-4 pt-4 sm:px-5">
+          <h3 className="text-[13.5px] font-bold" style={{ color: PRISM.ink }}>企業ごとの状況</h3>
+          <span className="text-[11.5px]" style={{ color: PRISM.mut }}>今日ちゃんと回っているか</span>
+        </div>
+        <div className="mt-2 px-1 pb-1 sm:px-2">
+          {loading ? <div className="p-4"><SkeletonRows rows={4} /></div> : !companies.length ? (
+            <div className="p-4"><EmptyState title="表示できる企業がありません" desc={availability.courses === false ? "コース情報を取得できませんでした。" : "コースを作成すると、ここに企業ごとの状況が出ます。"} /></div>
+          ) : (
+            <PrismTable columns={["企業 ／ コース", "本日", "出欠", "日報", "講師の確認", "設定"]}>
+              {companies.map(company => {
+                const training = (company.courses || []).filter(c => c.today === "training");
+                const courseLabel = training.length ? training.map(c => c.courseName).join("・") : (company.courses || []).map(c => c.courseName).join("・");
+                const att = company.today === "training" ? ratioPill(company.attendanceCount, company.studentCount) : { tone: "off", text: "—" };
+                const rep = company.today === "training" ? ratioPill(company.reportCount, company.studentCount) : { tone: "off", text: "—" };
+                const chk = company.today === "training" ? ratioPill(company.commentedCount, company.reportCount) : { tone: "off", text: "—" };
+                const todayPill = company.today === "training" ? { tone: "ok", text: "研修日" }
+                  : company.today === "off" ? { tone: "off", text: "研修なし" }
+                  : company.today === "setup_required" ? { tone: "bad", text: "日程 未設定" }
+                  : { tone: "unknown", text: "確認できません" };
+                const issue = (company.courses || []).flatMap(c => c.issues || [])[0];
+                return (
+                  <tr key={company.companyId || company.companyName}>
+                    <PrismTableCell>
+                      <b className="block text-[12.5px] font-extrabold">{company.companyName}</b>
+                      <span className="block text-[10.5px]" style={{ color: PRISM.mut }}>{courseLabel || "コース未設定"}</span>
+                    </PrismTableCell>
+                    <PrismTableCell><PrismDataPill tone={todayPill.tone}>{todayPill.text}</PrismDataPill></PrismTableCell>
+                    <PrismTableCell><PrismDataPill tone={att.tone}>{att.text}</PrismDataPill></PrismTableCell>
+                    <PrismTableCell><PrismDataPill tone={rep.tone}>{rep.text}</PrismDataPill></PrismTableCell>
+                    <PrismTableCell><PrismDataPill tone={chk.tone} title="提出された日報のうち、講師のコメントがついた数です">{chk.text}</PrismDataPill></PrismTableCell>
+                    <PrismTableCell>
+                      {issue
+                        ? <PrismDataPill tone={issue.severity === "critical" ? "bad" : "warn"}>{issue.label}</PrismDataPill>
+                        : <PrismDataPill tone="ok">問題なし</PrismDataPill>}
+                    </PrismTableCell>
+                  </tr>
+                );
+              })}
+            </PrismTable>
+          )}
+        </div>
+      </PrismCard>
+
+      <div className="grid gap-3 lg:grid-cols-[minmax(0,1.35fr)_minmax(0,1fr)]">
+        <TrainingHomePanel title="要対応" meta="放っておくと止まるもの">
+          {loading ? <SkeletonRows rows={3} /> : !actions.length ? (
+            <div className="py-2 text-[12.5px]" style={{ color: PRISM.sub }}>いま手を打つものはありません。</div>
+          ) : actions.slice(0, 5).map((item, i) => (
+            <TrainingHomePanelRow key={`${item.courseId}:${item.code}:${i}`} icon={AlertCircle}
+              tone={item.severity === "critical" ? "bad" : "warn"}
+              label={`${item.label}（${item.companyName || "企業未設定"}）`}
+              sub={`${item.courseName} ・ ${item.detail}`}
+              actionLabel="開く"
+              onAction={() => { if (item.courseId) setActiveCourseId(item.courseId); go && go(item.code === "instructor_unassigned" ? "courses" : "curriculum"); }} />
+          ))}
         </TrainingHomePanel>
-        <TrainingHomePanel title="管理" meta={`受講生${users.filter(u => u.role === "trainee").length}名 / 企業${companies.length}社`}>
-          <TrainingHomePanelRow icon={Users} tone="teal" label="受講生・企業マスタ" sub="アカウント・所属・権限を管理します" actionLabel="開く" onAction={() => go && go("users")} />
-          <TrainingHomePanelRow icon={Briefcase} tone="warn" label="助成金管理" sub="申請書類の状況を確認できます" actionLabel="開く" onAction={() => goProduct && goProduct("grants")} />
-        </TrainingHomePanel>
+
+        <div className="flex min-w-0 flex-col gap-3">
+          <TrainingHomePanel title="この先の予定">
+            {loading ? <SkeletonRows rows={2} /> : !upcoming.length ? (
+              <div className="py-2 text-[12.5px]" style={{ color: PRISM.sub }}>
+                {availability.schedule === false ? "この先の日程を確認できませんでした。" : "この先の研修日は登録されていません。"}
+              </div>
+            ) : upcoming.map(item => (
+              <TrainingHomePanelRow key={`${item.date}:${item.courseName}`} icon={Calendar} tone="accent"
+                label={homeDateLabel(item.date)} sub={`${item.companyName} ・ ${item.courseName}`}
+                actionLabel="開く" onAction={() => go && go("curriculum")} />
+            ))}
+          </TrainingHomePanel>
+          <TrainingHomePanel title="管理">
+            <TrainingHomePanelRow icon={Users} tone="teal" label="受講生・企業マスタ" sub="アカウント・所属・権限を管理します" actionLabel="開く" onAction={() => go && go("users")} />
+            <TrainingHomePanelRow icon={AlertCircle} tone="accent" label="要フォロー受講生の確認" sub="欠席・日報未提出などが続く方を分析画面で確認できます" actionLabel="開く" onAction={openRisk || (() => go && go("users"))} />
+            <TrainingHomePanelRow icon={Briefcase} tone="warn" label="助成金管理" sub="申請書類の状況を確認できます" actionLabel="開く" onAction={() => goProduct && goProduct("grants")} />
+          </TrainingHomePanel>
+        </div>
       </div>
     </PrismPage>
   );
