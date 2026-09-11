@@ -256,10 +256,7 @@ export default function InstructorWorkspace({ go, displayName = "講師" }) {
   const noticeCount = todayCourses.filter(c => !!textOf(asObject(c.dailyNote).announcement)).length;
   const assignedCourseCount = num(summary.assignedCourses || data?.scope?.assignedCourseCount);
   const activeStudentCount = num(summary.activeStudents);
-  const todaySummary = asObject(summary.today);
   const backlogSummary = asObject(summary.backlog);
-  const todayPendingReportCount = num(todaySummary.pendingReports) + num(todaySummary.uncommentedReports);
-  const todayAttendanceAlertCount = num(todaySummary.attendanceAlerts);
   const backlogPendingReportCount = num(backlogSummary.pendingReports) + num(backlogSummary.uncommentedReports);
   const backlogAttendanceAlertCount = num(backlogSummary.attendanceAlerts);
   const hasBacklog = backlogPendingReportCount > 0 || backlogAttendanceAlertCount > 0;
@@ -275,9 +272,10 @@ export default function InstructorWorkspace({ go, displayName = "講師" }) {
 
   const primaryCourse = courseBlocks[0] || null;
 
-  /* 講師ホーム（2026-09-10 作り直し）。「気になる受講生」はやめた。
-     何をもって気になるとするかの決めごとが増えるほど出てくる人が変わり、信用されなくなる。
-     代わりに本日の出欠という記録そのものを並べ、誰を気にするかは講師が決める。 */
+  /* 講師ホーム（2026-09-11 見直し）。「気になる受講生」に続いて「いま手を打つこと」もやめた。
+     件数を寄せ集めた1行は、0件のときに「いま手を打つことが0件あります」という
+     読みづらい言い方になるうえ、結局この下の出欠・日報を見に行くことになる（ユーザー指摘）。
+     講師のホームは**本日の出欠と日報の提出状況**が分かれば足りる。 */
   const todayAttendance = asObjectArray(data?.todayAttendance);
   const attendanceAvailable = todayCourses.length > 0 && data?.todayAttendanceAvailable !== false;
   const notClockedIn = todayAttendance.filter(item => item.state === "not_clocked_in");
@@ -291,24 +289,19 @@ export default function InstructorWorkspace({ go, displayName = "講師" }) {
       : item.clockIn ? `${item.clockIn} 出勤` : "出勤"
   );
 
-  const actionRows = [];
-  if (todayPendingReportCount > 0) {
-    actionRows.push({ key: "report_missing", icon: NotebookPen, tone: "warn", label: `本日の日報が${todayPendingReportCount}件まだです`, sub: "未提出・未コメントの合計です", actionLabel: "開く", onAction: () => go("reports") });
-  }
-  if (todayAttendanceAlertCount > 0) {
-    actionRows.push({ key: "attendance_alert", icon: Clock, tone: "bad", label: `勤怠の確認が${todayAttendanceAlertCount}件あります`, sub: "欠席・遅刻・早退・未打刻です", actionLabel: "開く", onAction: () => go("attendance") });
-  }
-  if (hasBacklog) {
-    actionRows.push({ key: "backlog", icon: CalendarDays, tone: "accent", label: `前日までの持ち越しが${backlogPendingReportCount + backlogAttendanceAlertCount}件あります`, sub: "本日分ではありません。時間のあるときに片付けられます", actionLabel: "確認", onAction: () => go(backlogPendingReportCount >= backlogAttendanceAlertCount ? "reports" : "attendance") });
-  }
+  const reportPending = todayAttendance.filter(item => item.reportState === "not_submitted");
+  const reportUncommented = todayAttendance.filter(item => item.reportState === "submitted");
+  const reportCommented = todayAttendance.filter(item => item.reportState === "commented");
 
   const headingTitle = loading
     ? "本日の状況を確認しています"
     : !todayCourses.length
       ? "本日の担当コースはありません"
-      : actionRows.length
-        ? `いま手を打つことが${todayPendingReportCount + todayAttendanceAlertCount}件あります`
-        : "今日の対応事項はありません";
+      : !attendanceAvailable || !todayAttendance.length
+        ? `本日は${todayCourses.length}コースの研修日です`
+        : notClockedIn.length || reportPending.length
+          ? `本日は${todayAttendance.length}名が研修中 — 未打刻${notClockedIn.length}名・日報未提出${reportPending.length}名です`
+          : `本日は${todayAttendance.length}名が研修中 — 出欠も日報も揃っています`;
   const headingDescription = !todayCourses.length
     ? "担当コースの情報は「コース」から確認できます。研修がない日は教材やテストの準備ができます。"
     : "出欠と日報は記録をそのまま出しています。気になる方がいれば、その場から個別の画面へ進めます。";
@@ -319,7 +312,7 @@ export default function InstructorWorkspace({ go, displayName = "講師" }) {
         eyebrow={`${formatDate(date)} ・ ${displayName}`}
         title={headingTitle}
         description={headingDescription}
-        action={actionRows.length ? <Btn onClick={actionRows[0].onAction}>対応リストを開く</Btn> : <Btn kind="soft" onClick={() => go("trainees")}>受講生一覧</Btn>}
+        action={<Btn kind="soft" onClick={() => go("trainees")}>受講生一覧</Btn>}
       />
       {unassigned && <PrismCard className="p-3"><Badge tone="amber">{textOf(data?.scope?.message, "担当コースがありません")}</Badge></PrismCard>}
 
@@ -332,8 +325,10 @@ export default function InstructorWorkspace({ go, displayName = "講師" }) {
           <div className="grid gap-3 sm:grid-cols-3">
             <PrismKpiCard icon={GraduationCap} tone="accent" label="担当している受講生" value={activeStudentCount} unit="名"
               detail={assignedCourseCount ? `担当コース ${assignedCourseCount}件` : "担当コースがありません"} />
-            <PrismKpiCard icon={NotebookPen} tone={todayPendingReportCount ? "warn" : "ok"} label="本日の日報" value={todayPendingReportCount} unit="件"
-              detail={todayCourses.length ? "未提出・未コメントの合計です" : "本日は研修なし"} />
+            <PrismKpiCard icon={NotebookPen} tone={reportPending.length ? "warn" : "ok"} label="本日の日報提出"
+              value={attendanceAvailable && todayAttendance.length ? todayAttendance.length - reportPending.length : "—"}
+              unit={attendanceAvailable && todayAttendance.length ? `/ ${todayAttendance.length}名` : ""}
+              detail={!attendanceAvailable ? "本日は研修なし" : !todayAttendance.length ? "対象の受講生がいません" : reportPending.length ? `未提出が${reportPending.length}名います` : "全員が提出しています"} />
             <PrismKpiCard icon={Clock} tone={notClockedIn.length ? "bad" : "ok"} label="本日まだ未打刻"
               value={attendanceAvailable ? notClockedIn.length : "—"} unit="名"
               detail={attendanceAvailable ? (todayAttendance.length ? `本日の対象 ${todayAttendance.length}名` : "対象の受講生がいません") : "本日は研修なし"} />
@@ -344,14 +339,6 @@ export default function InstructorWorkspace({ go, displayName = "講師" }) {
 
           <div className="grid gap-3 lg:grid-cols-[minmax(0,1.35fr)_minmax(0,1fr)]">
             <div className="flex min-w-0 flex-col gap-3">
-              <TrainingHomePanel title="いま手を打つこと" meta="放っておくと溜まるもの">
-                {actionRows.length ? actionRows.map(row => (
-                  <TrainingHomePanelRow key={row.key} icon={row.icon} tone={row.tone} label={row.label} sub={row.sub} actionLabel={row.actionLabel} onAction={row.onAction} />
-                )) : (
-                  <div className="py-2 text-[12.5px]" style={{ color: PRISM.sub }}>いま手を打つものはありません。</div>
-                )}
-              </TrainingHomePanel>
-
               <TrainingHomePanel title="本日の出欠" meta={attendanceAvailable && todayAttendance.length ? `${attendanceOkCount} / ${todayAttendance.length}名 出勤済み` : ""}>
                 {!attendanceAvailable ? (
                   <div className="py-2 text-[12.5px]" style={{ color: PRISM.sub }}>本日は研修日ではないため、出欠の対象がありません。</div>
@@ -371,12 +358,41 @@ export default function InstructorWorkspace({ go, displayName = "講師" }) {
                   </>
                 )}
               </TrainingHomePanel>
+
+              <TrainingHomePanel title="本日の日報" meta={attendanceAvailable && todayAttendance.length ? `${todayAttendance.length - reportPending.length} / ${todayAttendance.length}名 提出済み` : ""}>
+                {!attendanceAvailable ? (
+                  <div className="py-2 text-[12.5px]" style={{ color: PRISM.sub }}>本日は研修日ではないため、日報の対象がありません。</div>
+                ) : !todayAttendance.length ? (
+                  <div className="py-2 text-[12.5px]" style={{ color: PRISM.sub }}>本日の研修コースに在籍している受講生がいません。</div>
+                ) : (
+                  <>
+                    {reportPending.slice(0, 6).map(item => (
+                      <TrainingHomePanelRow key={item.traineeId} icon={NotebookPen} tone="warn"
+                        label={textOf(item.name, "受講生")} sub="まだ提出されていません"
+                        actionLabel="日報" onAction={() => go("reports")} />
+                    ))}
+                    {reportUncommented.length > 0 && (
+                      <TrainingHomePanelRow icon={NotebookPen} tone="accent" label={`${reportUncommented.length}名がコメント待ちです`} sub="提出済みで、まだ返事をつけていない日報です" actionLabel="開く" onAction={() => go("reports")} />
+                    )}
+                    {reportCommented.length > 0 && (
+                      <TrainingHomePanelRow icon={ClipboardCheck} tone="ok" label={`ほか${reportCommented.length}名はコメント済み`} sub="返事をつけた日報です" actionLabel="一覧" onAction={() => go("reports")} />
+                    )}
+                  </>
+                )}
+                {/* 前日までの持ち越しは「ある時だけ」出す。0件のときに0と書かない */}
+                {hasBacklog && (
+                  <TrainingHomePanelRow icon={CalendarDays} tone="neutral"
+                    label={`前日までの持ち越しが${backlogPendingReportCount + backlogAttendanceAlertCount}件あります`}
+                    sub="本日分ではありません。時間のあるときに片付けられます"
+                    actionLabel="確認" onAction={() => go(backlogPendingReportCount >= backlogAttendanceAlertCount ? "reports" : "attendance")} />
+                )}
+              </TrainingHomePanel>
             </div>
 
             <div className="flex min-w-0 flex-col gap-3">
               <TrainingHomePanel title="今日の進行">
                 <TrainingHomePanelRow icon={BookOpen} tone="accent" label={primaryCourse ? textOf(primaryCourse.courseName, "コース名未設定") : "今日の授業"} sub={primaryCourse?.curriculumText || "今日の授業は未設定です。"} actionLabel="状況" onAction={() => { if (primaryCourse) setActiveCourseId(primaryCourse.courseId); go("courses"); }} />
-                <TrainingHomePanelRow icon={NotebookPen} tone={todayPendingReportCount ? "warn" : "ok"} label="日報" sub={todayCourses.length ? "本日の提出状況と未コメントを確認できます" : "本日は研修なし"} actionLabel="確認" onAction={() => go("reports")} />
+                <TrainingHomePanelRow icon={GraduationCap} tone="teal" label="受講生" sub="担当している受講生の状況を一覧で確認できます" actionLabel="開く" onAction={() => go("trainees")} />
               </TrainingHomePanel>
               <TrainingHomePanel title="授業の準備" meta={`本日の単元 ${todayLessonCount}件`}>
                 <TrainingHomePanelRow icon={CalendarDays} tone={hasLessonPrep ? "accent" : "warn"} label="カリキュラム・教材" sub={hasLessonPrep ? "教材・テストの準備状況を確認できます" : "本日は研修実施日ではありません"} actionLabel="開く" onAction={() => go("curriculum")} />
