@@ -3855,14 +3855,17 @@ function curriculumDateRangeOf(items) {
   return dates.length ? { start: dates[0], end: dates[dates.length - 1] } : null;
 }
 function curriculumSectionDateRange(section) {
-  if (section?.unitMode === "section") return curriculumDateRangeOf([section]);
-  return curriculumDateRangeOf(arr(section?.chapters).flatMap(chapter => arr(chapter.lessons)));
+  // 大項目そのものに入っている期間を優先する（中・小項目に分けていても入っていることがあり、
+  // そちらが講師の入れた正本。日付の無い小項目があっても期間が縮まない）。
+  return curriculumDateRangeOf([section]) || curriculumDateRangeOf(arr(section?.chapters).flatMap(chapter => arr(chapter.lessons)));
 }
-// 1日なら「9月9日（水）」、またがるなら「9/9（水）〜9/11（金）」
+// 「4/1（水）〜4/2（木）」。1日で終わるものは「4/3（金）」（4/3〜4/3とは書かない）。
+// **長い形と短い形を混ぜない。** 混ざると同じ一覧の中で日付の見え方が変わって読みにくい。
 function curriculumDateRangeLabel(range) {
   if (!range) return "";
-  if (!range.end || range.end === range.start) return formatTrainingDate(range.start) || range.start;
-  return `${curriculumShortDate(range.start)}〜${curriculumShortDate(range.end)}`;
+  const start = curriculumShortDate(range.start) || range.start;
+  if (!range.end || range.end === range.start) return start;
+  return `${start}〜${curriculumShortDate(range.end) || range.end}`;
 }
 function CurriculumDateBadge({ range, tone = "muted" }) {
   const label = curriculumDateRangeLabel(range);
