@@ -1067,8 +1067,9 @@ function Curriculum({ role, go }) {
                           <button onClick={() => removeSection(si)} className="rounded-lg px-3 py-2 text-xs font-semibold" style={{ color: T.danger, border: `1px solid ${T.border}` }}>大項目削除</button>
                         </div>
                         <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl px-3 py-2" style={{ background: T.bgBase }}>
-                          <span className="text-xs font-semibold" style={{ color: T.textMuted }}>
+                          <span className="flex flex-wrap items-center gap-2 text-xs font-semibold" style={{ color: T.textMuted }}>
                             中項目 {(section.chapters || []).length}件 ・ 小項目 {(section.chapters || []).reduce((n, c) => n + (c.lessons || []).length, 0)}件
+                            <CurriculumDateBadge range={curriculumSectionDateRange(section)} />
                           </span>
                           <button type="button" onClick={() => setExpandedCurriculumSections(state => ({ ...state, [curriculumSectionKey(section, si)]: !state[curriculumSectionKey(section, si)] }))}
                             className="rounded-lg px-3 py-1.5 text-xs font-bold" style={{ color: T.accentHover, border: `1px solid ${T.border}`, background: T.bgSurface }}>
@@ -1164,6 +1165,8 @@ function Curriculum({ role, go }) {
                           <span className="min-w-0 flex-1">
                             <span className="flex flex-wrap items-center gap-2">
                               <span className="text-[11px] font-bold tracking-wide" style={{ color: T.accentHover }}>大項目 {si + 1}</span>
+                              <CurriculumDateBadge range={curriculumSectionDateRange(section)} />
+                              {section.durationLabel && <Badge tone="muted">{section.durationLabel}</Badge>}
                               {curriculumSectionIncludesDate(section, todayKey) && <Badge tone="cyan">今日</Badge>}
                             </span>
                             <span className="mt-1 block text-base font-bold sm:text-lg" style={{ color: T.textPrimary }}>{section.title || "大項目未設定"}</span>
@@ -1189,10 +1192,13 @@ function Curriculum({ role, go }) {
                           <div className="mt-3 flex flex-wrap items-center gap-2 border-t pt-3" style={{ borderColor: T.border }}><FileText size={13} /><span className="text-xs" style={{ color: T.textMuted }}>資料 {arr(section.materialIds).length}件</span><ClipboardCheck size={13} className="ml-2" /><span className="text-xs" style={{ color: T.textMuted }}>確認テスト {linkedTests(section, {}, {}).length}件</span>{linkedTests(section, {}, {}).map(test => <Badge key={test.testId || test.id} tone={test.status === "published" ? "green" : "muted"}>{test.title}</Badge>)}{linkedTests(section, {}, {}).length > 0 && <button type="button" onClick={() => go?.("tests")} className="ml-auto inline-flex items-center gap-1 text-xs font-bold" style={{ color: T.accentHover }}>テストへ<ChevronRight size={13} /></button>}</div>
                         </div> : <div className="mt-3 space-y-3">{arr(section.chapters).map(chapter => (
                           <div key={chapter.id} className="rounded-xl p-3" style={{ background: T.bgBase }}>
-                            <div className="font-semibold" style={{ color: T.textPrimary }}>{chapter.title || "中項目未設定"}</div>
+                            <div className="flex flex-wrap items-center gap-2">
+                              <div className="font-semibold" style={{ color: T.textPrimary }}>{chapter.title || "中項目未設定"}</div>
+                              <CurriculumDateBadge range={curriculumDateRangeOf(arr(chapter.lessons))} />
+                            </div>
                             {arr(chapter.lessons).map(lesson => (
                               <div key={lesson.id} className="mt-2 rounded-lg bg-white p-3" style={{ border: `1px solid ${T.border}` }}>
-                                <div className="flex flex-wrap items-start justify-between gap-2"><div className="flex flex-wrap items-center gap-2"><div className="text-sm font-bold" style={{ color: T.textPrimary }}>{lesson.title || "小項目未設定"}</div>{curriculumItemIncludesDate(lesson, todayKey) && <Badge tone="cyan">今日</Badge>}</div>{lesson.durationLabel && <Badge tone="muted">{lesson.durationLabel}</Badge>}</div>
+                                <div className="flex flex-wrap items-start justify-between gap-2"><div className="flex flex-wrap items-center gap-2"><div className="text-sm font-bold" style={{ color: T.textPrimary }}>{lesson.title || "小項目未設定"}</div><CurriculumDateBadge range={curriculumDateRangeOf([lesson])} />{curriculumItemIncludesDate(lesson, todayKey) && <Badge tone="cyan">今日</Badge>}</div>{lesson.durationLabel && <Badge tone="muted">{lesson.durationLabel}</Badge>}</div>
                                 {lesson.content && <p className="mt-1 text-sm" style={{ color: T.textSecondary }}>{lesson.content}</p>}
                                 {arr(lesson.learningGoals).length > 0 && <div className="mt-3 rounded-xl p-3" style={{ background: T.accentSubtle }}><div className="mb-1 flex items-center gap-1.5 text-xs font-bold" style={{ color: T.accentHover }}><Target size={13} />学習目標</div><ul className="space-y-1">{arr(lesson.learningGoals).map((goal, gi) => <li key={gi} className="flex gap-2 text-sm" style={{ color: T.textSecondary }}><CheckCircle2 size={14} className="mt-0.5 shrink-0" style={{ color: T.accent }} />{goal}</li>)}</ul></div>}
                                 {arr(lesson.preparationItems).length > 0 && <div className="mt-3 rounded-xl p-3" style={{ background: T.warningSubtle }}><div className="mb-1.5 flex items-center gap-1.5 text-xs font-bold" style={{ color: T.warning }}><AlertCircle size={13} />このLessonまでに用意・実施すること</div><ul className="space-y-1">{arr(lesson.preparationItems).map((item, pi) => <li key={pi} className="flex gap-2 text-sm" style={{ color: T.textSecondary }}><Circle size={13} className="mt-1 shrink-0" style={{ color: T.warning }} />{item}</li>)}</ul></div>}
@@ -3802,6 +3808,41 @@ function curriculumSectionIncludesDate(section, dateKey) {
   if (section?.unitMode === "section") return curriculumItemIncludesDate(section, dateKey);
   return arr(section?.chapters).some(chapter => arr(chapter.lessons).some(lesson => curriculumItemIncludesDate(lesson, dateKey)));
 }
+/* カリキュラムの日付表示（2026-09-14）。
+   いままで日付は開かないと見えず、小項目にいたっては開いても出ていなかった。
+   「いつやる単元か」は一覧の時点で分かってほしいので、見出しにも出す。
+   **日付が無いものは「未設定」とは書かず、何も出さない**（入力途中のものが
+   全部「未設定」で埋まると、本当に困っている行が見えなくなる）。 */
+function curriculumShortDate(iso) {
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(iso || "").slice(0, 10));
+  if (!m) return "";
+  const d = new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]));
+  if (Number.isNaN(d.getTime())) return "";
+  return `${d.getMonth() + 1}/${d.getDate()}（${TH_WEEKDAY[d.getDay()]}）`;
+}
+function curriculumDateRangeOf(items) {
+  const dates = arr(items).flatMap(item => [
+    String(item?.startDate || "").slice(0, 10),
+    String(item?.endDate || item?.startDate || "").slice(0, 10),
+  ]).filter(value => /^\d{4}-\d{2}-\d{2}$/.test(value)).sort();
+  return dates.length ? { start: dates[0], end: dates[dates.length - 1] } : null;
+}
+function curriculumSectionDateRange(section) {
+  if (section?.unitMode === "section") return curriculumDateRangeOf([section]);
+  return curriculumDateRangeOf(arr(section?.chapters).flatMap(chapter => arr(chapter.lessons)));
+}
+// 1日なら「9月9日（水）」、またがるなら「9/9（水）〜9/11（金）」
+function curriculumDateRangeLabel(range) {
+  if (!range) return "";
+  if (!range.end || range.end === range.start) return formatTrainingDate(range.start) || range.start;
+  return `${curriculumShortDate(range.start)}〜${curriculumShortDate(range.end)}`;
+}
+function CurriculumDateBadge({ range, tone = "muted" }) {
+  const label = curriculumDateRangeLabel(range);
+  if (!label) return null;
+  return <Badge tone={tone}><Calendar size={11} />{label}</Badge>;
+}
+
 function safeExcelFilename(value) {
   return String(value || "").replace(/[\\/:*?"<>|]/g, "_").slice(0, 60) || "コース";
 }
