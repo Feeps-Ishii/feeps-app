@@ -716,3 +716,14 @@ body.feeps-modal-open .feeps-main-scroll { overflow: hidden !important; }
 /* 横に送るカードの並び（2026-09-06）。スクロールバーは出さず、矢印と指で操作する */
 .feeps-rail{ scrollbar-width:none; -ms-overflow-style:none; }
 .feeps-rail::-webkit-scrollbar{ display:none; }
+
+/* 受講生ホームの提出カレンダー（2026-09-14）。
+   1マスに「打刻済み」などの文言が入らない幅では、マークだけにして凡例で補う。
+   **ビューポートではなくカレンダー自身の幅で切り替える**（サイドバーの有無で
+   同じ画面幅でも中身の幅が変わるため、メディアクエリでは正しく切り替わらない）。 */
+.feeps-subcal { container-type: inline-size; }
+@container (max-width: 560px) {
+  .feeps-subcal-label { display: none; }
+  .feeps-subcal-badge { padding: 3px !important; }
+  .feeps-subcal-cell { min-height: 62px !important; }
+}
