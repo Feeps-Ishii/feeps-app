@@ -724,6 +724,8 @@ body.feeps-modal-open .feeps-main-scroll { overflow: hidden !important; }
 .feeps-subcal { container-type: inline-size; }
 @container (max-width: 560px) {
   .feeps-subcal-label { display: none; }
+  /* 「今日」の帯は入らないので外す。枠と日付の色で分かる */
+  .feeps-subcal-today { display: none; }
   .feeps-subcal-badge { padding: 3px !important; }
   .feeps-subcal-cell { min-height: 62px !important; }
 }

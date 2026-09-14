@@ -240,7 +240,15 @@ export default function SubmissionCalendar({ courses = [], reports = [], attenda
                   cursor: cell.inMonth ? "pointer" : "default",
                 }}
               >
-                <span className="text-[11.5px] font-bold tabular-nums" style={{ color: s ? PRISM.ink : PRISM.mut }}>{cell.day}</span>
+                {/* 今日はどの日かが一番先に分かってほしいので、枠だけでなく日付の色も変える */}
+                <span className="flex items-center gap-1">
+                  <span className="text-[11.5px] tabular-nums"
+                    style={{ color: isToday ? PRISM.accent : s ? PRISM.ink : PRISM.mut, fontWeight: isToday ? 800 : 700 }}>{cell.day}</span>
+                  {isToday && (
+                    <span className="feeps-subcal-today rounded-full px-1.5 py-px text-[9px] font-extrabold leading-[1.4]"
+                      style={{ background: PRISM.accent, color: "#fff" }}>今日</span>
+                  )}
+                </span>
                 {s && (
                   <span className="mt-1.5 flex flex-col items-start gap-[3px]">
                     {s.kind === "plan" ? (
