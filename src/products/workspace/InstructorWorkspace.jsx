@@ -289,9 +289,10 @@ export default function InstructorWorkspace({ go, displayName = "講師" }) {
       : item.clockIn ? `${item.clockIn} 出勤` : "出勤"
   );
 
+  // 2026-09-14: 講師のコメントは必須ではないので、コメント待ちは出さない（ユーザー決定）。
+  // 促されるほどのものではないし、出すと「やっていない」ように見える。
   const reportPending = todayAttendance.filter(item => item.reportState === "not_submitted");
-  const reportUncommented = todayAttendance.filter(item => item.reportState === "submitted");
-  const reportCommented = todayAttendance.filter(item => item.reportState === "commented");
+  const reportSubmitted = todayAttendance.filter(item => item.reportState && item.reportState !== "not_submitted");
 
   const headingTitle = loading
     ? "本日の状況を確認しています"
@@ -371,11 +372,8 @@ export default function InstructorWorkspace({ go, displayName = "講師" }) {
                         label={textOf(item.name, "受講生")} sub="まだ提出されていません"
                         actionLabel="日報" onAction={() => go("reports")} />
                     ))}
-                    {reportUncommented.length > 0 && (
-                      <TrainingHomePanelRow icon={NotebookPen} tone="accent" label={`${reportUncommented.length}名がコメント待ちです`} sub="提出済みで、まだ返事をつけていない日報です" actionLabel="開く" onAction={() => go("reports")} />
-                    )}
-                    {reportCommented.length > 0 && (
-                      <TrainingHomePanelRow icon={ClipboardCheck} tone="ok" label={`ほか${reportCommented.length}名はコメント済み`} sub="返事をつけた日報です" actionLabel="一覧" onAction={() => go("reports")} />
+                    {reportSubmitted.length > 0 && (
+                      <TrainingHomePanelRow icon={ClipboardCheck} tone="ok" label={`ほか${reportSubmitted.length}名は提出済み`} sub="内容は日報の画面で読めます" actionLabel="一覧" onAction={() => go("reports")} />
                     )}
                   </>
                 )}

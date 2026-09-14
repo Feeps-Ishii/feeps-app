@@ -972,6 +972,7 @@ function Curriculum({ role, go }) {
     return test.scopeType === "course" || (!test.scopeType && !test.lessonId && !test.chapterId && !test.sectionId);
   });
   const curriculumSectionKey = (section, index) => String(section.id || `section-${index}`);
+  const curriculumSectionDomId = (section, index) => `curriculum-section-${curriculumSectionKey(section, index)}`;
   function curriculumSectionOverview(section) {
     const chapters = arr(section.chapters);
     const lessons = chapters.flatMap(chapter => arr(chapter.lessons));
@@ -992,6 +993,31 @@ function Curriculum({ role, go }) {
     };
   }
   const todayKey = localDateKey();
+  const curriculumTodayIndex = useMemo(() => sections.findIndex(section => curriculumSectionIncludesDate(section, todayKey)), [sections, todayKey]);
+  function focusCurriculumToday() {
+    const index = curriculumTodayIndex >= 0 ? curriculumTodayIndex : 0;
+    const section = sections[index];
+    if (!section) return;
+    setExpandedCurriculumSections(state => ({ ...state, [curriculumSectionKey(section, index)]: true }));
+    // 展開が画面に反映されてから位置を測る。rAF1回だとReactのcommit前に走ることがある
+    window.setTimeout(() => {
+      // behavior:"smooth" は環境によって無視され、スクロールごと効かないことがある（実測）。
+      // 確実に動く既定の動きにする。
+      document.getElementById(curriculumSectionDomId(section, index))?.scrollIntoView({ block: "start" });
+    }, 60);
+  }
+  // 初回表示は今日の大項目を開いておく。研修日が無ければ先頭。
+  // **編集画面では自動で開かない**（編集フォームが勝手に開くと、触るつもりのない所を触ってしまう）。
+  const curriculumFocusRef = useRef("");
+  useEffect(() => {
+    if (canEdit || !sections.length) return;
+    const token = `${courseId}:${sections.length}`;
+    if (curriculumFocusRef.current === token) return;
+    curriculumFocusRef.current = token;
+    const index = curriculumTodayIndex >= 0 ? curriculumTodayIndex : 0;
+    const section = sections[index];
+    if (section) setExpandedCurriculumSections({ [curriculumSectionKey(section, index)]: true });
+  }, [canEdit, sections, courseId, curriculumTodayIndex]);
   const todayUnits = useMemo(() => arr(sections).flatMap(section => section.unitMode === "section"
     ? [{ section, chapter: {}, lesson: section, title: section.title, scope: "section" }]
     : arr(section.chapters).flatMap(chapter => arr(chapter.lessons).map(lesson => ({ section, chapter, lesson, title: lesson.title, scope: "lesson" }))))
@@ -1053,12 +1079,13 @@ function Curriculum({ role, go }) {
                     <p className="mt-0.5 text-xs" style={{ color: T.textMuted }}>{canEdit ? "編集したい大項目だけ開きます。全部を開いたままにしないほうが探しやすく、動作も軽くなります。" : "必要な大項目だけ開くと、学習の流れを見失わずに確認できます。"}</p>
                   </div>
                   <div className="flex items-center gap-2">
+                    {sections.length > 0 && <button type="button" onClick={focusCurriculumToday} className="rounded-lg px-3 py-2 text-xs font-bold" style={{ color: "#fff", background: T.accent }}>{curriculumTodayIndex >= 0 ? "今日へ" : "先頭へ"}</button>}
                     <button type="button" onClick={() => setExpandedCurriculumSections(Object.fromEntries(sections.map((section, index) => [curriculumSectionKey(section, index), true])))} className="rounded-lg px-3 py-2 text-xs font-bold" style={{ color: T.accentHover, background: T.accentSubtle }}>すべて展開</button>
                     <button type="button" onClick={() => setExpandedCurriculumSections({})} className="rounded-lg px-3 py-2 text-xs font-bold" style={{ color: T.textSecondary, border: `1px solid ${T.border}`, background: T.bgSurface }}>すべて閉じる</button>
                   </div>
                 </div>}
                 {sections.map((section, si) => (
-                  <Card key={section.id || si} className={canEdit ? "p-4" : "overflow-hidden p-0"} style={!canEdit ? { border: `1px solid ${curriculumSectionIncludesDate(section, todayKey) ? T.accent : T.border}`, borderLeft: `4px solid ${T.accent}`, boxShadow: curriculumSectionIncludesDate(section, todayKey) ? `0 0 0 2px ${T.accentSubtle}` : undefined } : undefined}>
+                  <Card key={section.id || si} id={curriculumSectionDomId(section, si)} className={canEdit ? "p-4" : "overflow-hidden p-0"} style={!canEdit ? { border: `1px solid ${curriculumSectionIncludesDate(section, todayKey) ? T.accent : T.border}`, borderLeft: `4px solid ${T.accent}`, boxShadow: curriculumSectionIncludesDate(section, todayKey) ? `0 0 0 2px ${T.accentSubtle}` : undefined } : undefined}>
                     {canEdit ? (
                       <div className="space-y-4">
                         <div className="grid gap-2 md:grid-cols-[1fr_1.5fr_auto]">

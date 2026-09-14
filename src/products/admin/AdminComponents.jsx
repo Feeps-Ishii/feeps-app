@@ -135,7 +135,12 @@ function AdminHome({ go, goProduct, openRisk }) {
                 const courseLabel = training.length ? training.map(c => c.courseName).join("・") : (company.courses || []).map(c => c.courseName).join("・");
                 const att = company.today === "training" ? ratioPill(company.attendanceCount, company.studentCount) : { tone: "off", text: "—" };
                 const rep = company.today === "training" ? ratioPill(company.reportCount, company.studentCount) : { tone: "off", text: "—" };
-                const chk = company.today === "training" ? ratioPill(company.commentedCount, company.reportCount) : { tone: "off", text: "—" };
+                // 講師のコメントは必須ではない（2026-09-14ユーザー決定）ので、少なくても赤くしない。
+                // 「どのくらい目を通しているか」を見るための数字で、達成すべき目標ではない。
+                const chk = company.today !== "training" ? { tone: "off", text: "—" }
+                  : company.commentedCount == null || company.reportCount == null ? { tone: "unknown", text: "確認できません" }
+                  : !company.reportCount ? { tone: "off", text: "—" }
+                  : { tone: "accent", text: `${company.commentedCount} / ${company.reportCount}` };
                 const todayPill = company.today === "training" ? { tone: "ok", text: "研修日" }
                   : company.today === "off" ? { tone: "off", text: "研修なし" }
                   : company.today === "setup_required" ? { tone: "bad", text: "日程 未設定" }
@@ -150,7 +155,7 @@ function AdminHome({ go, goProduct, openRisk }) {
                     <PrismTableCell><PrismDataPill tone={todayPill.tone}>{todayPill.text}</PrismDataPill></PrismTableCell>
                     <PrismTableCell><PrismDataPill tone={att.tone}>{att.text}</PrismDataPill></PrismTableCell>
                     <PrismTableCell><PrismDataPill tone={rep.tone}>{rep.text}</PrismDataPill></PrismTableCell>
-                    <PrismTableCell><PrismDataPill tone={chk.tone} title="提出された日報のうち、講師のコメントがついた数です">{chk.text}</PrismDataPill></PrismTableCell>
+                    <PrismTableCell><PrismDataPill tone={chk.tone} title="提出された日報のうち、講師のコメントがついた数です。コメントは必須ではありません">{chk.text}</PrismDataPill></PrismTableCell>
                     <PrismTableCell>
                       {issue
                         ? <PrismDataPill tone={issue.severity === "critical" ? "bad" : "warn"}>{issue.label}</PrismDataPill>
