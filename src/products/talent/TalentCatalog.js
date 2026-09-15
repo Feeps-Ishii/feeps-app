@@ -1,9 +1,10 @@
-import { LayoutDashboard, GitBranch, GraduationCap, Briefcase, FileText, Award, Star } from "lucide-react";
+import { LayoutDashboard, GitBranch, GraduationCap, Briefcase, FileText, Award, Star, Building2 } from "lucide-react";
 const PHASES = ["要件定義", "基本設計", "詳細設計", "製造", "結合試験", "総合試験", "運用保守"];
 /* リスク分析：各シグナルは懸念度（高いほど要注意 0-100） */
 const TALENT_NAV_ITEMS = [
   { sec: null, items: [["tl_home", "ホーム", LayoutDashboard]] },
   { sec: "スキル・成長", items: [
+    ["tl_town",    "街",                Building2],
     ["tl_growth",  "成長履歴",          GitBranch],
     ["tl_skills",  "研修スキル",        GraduationCap],
     ["tl_sheet",   "案件用スキルシート", Briefcase],

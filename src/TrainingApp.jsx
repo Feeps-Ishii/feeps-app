@@ -1328,7 +1328,10 @@ export default function App() {
     setKarte(null);
     setDrawerOpen(false);
     setView("home");
-    setSubView(PRODUCT_DEFAULT_SUBVIEW[nextProduct] || "home");
+    // options.subView は「そのProductに入れた場合」だけ効かせる。
+    // 権限で別Productへ落ちたときに、他Productの画面名を渡してしまわないように
+    const landed = nextProduct === p && options.subView ? options.subView : null;
+    setSubView(landed || PRODUCT_DEFAULT_SUBVIEW[nextProduct] || "home");
     setTrainingNavigationVersion(version => version + 1);
   }
   // 総合ホーム廃止（モード分離Step1）。ログイン確認/ログアウト/ロール切替/モード不整合の

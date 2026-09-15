@@ -451,7 +451,36 @@ function TraineeHome({ go, goProduct, goSub, done, taskDataState, onTaskRetry, t
         today={thToday}
         go={go}
       />
+
+      {/* 街への入口。ホームから1タップで行けないと、そもそも見に行かれない */}
+      <TownEntryCard goProduct={goProduct} done={done} goals={goals} />
     </PrismPage>
+  );
+}
+
+/* 「スキル・成長 > 街」への導線。目標の達成数だけを見せて、詳しくは街の中で */
+function TownEntryCard({ goProduct, done = {}, goals = [] }) {
+  const tasks = arr(goals).flatMap(goal => arr(goal.tasks));
+  const doneCount = tasks.filter(task => done?.[task.id]).length;
+  const open = () => goProduct && goProduct("talent", { subView: "tl_town" });
+  return (
+    <PrismCard className="overflow-hidden p-0">
+      <button onClick={open} className="flex w-full items-center gap-4 p-4 text-left transition-colors hover:brightness-105">
+        <span className="grid h-12 w-12 shrink-0 place-items-center rounded-2xl"
+          style={{ background: "linear-gradient(135deg,#1B2440,#2E7FD6)", color: "#F5C451" }}>
+          <Building2 size={22} />
+        </span>
+        <span className="min-w-0 flex-1">
+          <span className="block text-sm font-bold" style={{ color: PRISM.ink }}>街をひらく</span>
+          <span className="mt-0.5 block text-xs leading-relaxed" style={{ color: PRISM.mut }}>
+            目標のひとつひとつが建物になります。
+            {tasks.length > 0 && <> いま <b style={{ color: PRISM.ink }}>{doneCount} / {tasks.length}</b> のタスクを達成しています。</>}
+          </span>
+        </span>
+        <span className="shrink-0 rounded-xl px-3 py-2 text-xs font-bold"
+          style={{ background: PRISM.accentSubtle, color: PRISM.accent }}>見に行く</span>
+      </button>
+    </PrismCard>
   );
 }
 function InstructorGoalsDashboard({ go, openKarte }) {
