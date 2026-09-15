@@ -67,11 +67,6 @@ function openTargetUrl(targetUrl, { goProduct, goTraining, goSub }) {
     if (goSub) goSub(path.includes("skills") ? "tl_skills" : "tl_growth");
     return;
   }
-  if (path.includes("/matching")) {
-    goProduct("matching");
-    if (goSub) goSub("mt_home");
-    return;
-  }
   if (path.includes("/training")) {
     const view = toTrainingView(path);
     const courseId = parsed?.searchParams.get("courseId") || "";

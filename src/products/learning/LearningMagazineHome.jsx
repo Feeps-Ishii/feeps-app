@@ -194,14 +194,6 @@ function AiCourseIcon({ tone }) {
     </svg>
   );
 }
-function MatchingIcon({ tone }) {
-  return (
-    <svg width="46" height="46" viewBox="0 0 46 46" aria-hidden="true">
-      <rect width="46" height="46" rx="12" fill={tone.accent} opacity=".13" />
-      <path d="M15 24l5 5 10-12" stroke={tone.deep} strokeWidth="2.8" strokeLinecap="round" strokeLinejoin="round" />
-    </svg>
-  );
-}
 
 const GREY_TONE = { accent: NOVA.quiet, deep: NOVA.quiet, subtle: NOVA.soft };
 
@@ -359,15 +351,10 @@ function buildSideCards({ role, isCreator, learningPlan, goSub, goProduct, compl
     stats: `修了${completedCount}本 ・ 学習中${inprogressCount}本`,
     state: "normal", onClick: () => goSub("el_courses"),
   };
-  const matching = {
-    icon: MatchingIcon, tone: PRODUCT_ACCENT.matching,
-    title: "案件管理", desc: "案件の情報を確認し、参画状況や面談の進み具合を追えます。",
-    state: "normal", onClick: () => goProduct && goProduct("matching"),
-  };
-
   // 2026-08-19: 主役が2軸（学ぶ／チームで開発する）になり、Eラーニングとチーム開発は
   // 主役側へ移った。脇はそれ以外の3枚だけにする。
-  if (role === "client") return [skill, aiCourse, matching];
+  // 2026-09-15: 案件管理を非表示にしたため、脇カードからも外した
+  if (role === "client") return [skill, aiCourse];
   return [elearning, skill, aiCourse];
 }
 
