@@ -169,6 +169,11 @@ function TraineeHome({ go, goProduct, goSub, done, taskDataState, onTaskRetry, t
     return v.includes("elearning") || v.includes("e-learning") || v.includes("eラーニング");
   };
   const thActiveCourses = thHome.courses.filter(c => !thIsElearning(c));
+  // 提出カレンダーへ渡す配列は毎回作り直さない（渡すたびに研修カレンダーを取り直してしまう）
+  const thCalendarCourses = useMemo(
+    () => (thActiveCourses.length ? thActiveCourses : thHome.courses),
+    [thHome.courses],
+  );
   const thDashboardCourses = Array.isArray(thHome.dashboard?.activeCourses) ? thHome.dashboard.activeCourses : [];
   const thSchedule = thHome.dashboard?.todayCompletion?.schedule || null;
   const thPreferredCourseId = thSchedule?.courseId || getActiveCourseId() || thDashboardCourses.find(course => course.todayCurriculum)?.courseId || "";
@@ -437,7 +442,7 @@ function TraineeHome({ go, goProduct, goSub, done, taskDataState, onTaskRetry, t
           今日の流れ・今日の単元・残っているもの・先生からの返事は畳み、
           過去の提出状況はカレンダーで1か月ぶんまとめて見えるようにした。 */}
       <SubmissionCalendar
-        courses={thActiveCourses.length ? thActiveCourses : thHome.courses}
+        courses={thCalendarCourses}
         reports={thHome.reports}
         attendance={thHome.attendance}
         reportsAvailable={thAvailability.reports}

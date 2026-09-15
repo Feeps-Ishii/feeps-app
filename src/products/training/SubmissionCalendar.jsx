@@ -71,12 +71,20 @@ export default function SubmissionCalendar({ courses = [], reports = [], attenda
   const [openDate, setOpenDate] = useState("");
   const [reloadKey, setReloadKey] = useState(0);
 
-  const courseIds = useMemo(() => courses.map(c => c?.courseId).filter(Boolean), [courses]);
+  // **配列そのものではなく文字列を依存に使う。** 親（ホーム）が再描画されるたびに
+  // courses は新しい配列になるため、配列を依存にすると画面スクロールのような
+  // 描画のたびに研修カレンダーを取り直してしまう（実際にホイール操作で毎回
+  // 「読み込み中」が挟まる不具合になっていた）。
+  const courseKey = useMemo(
+    () => [...new Set(courses.map(c => c?.courseId).filter(Boolean))].sort().join(","),
+    [courses],
+  );
 
   useEffect(() => {
     let alive = true;
+    const courseIds = courseKey ? courseKey.split(",") : [];
     if (!courseIds.length) { setDaysByDate({}); setState("ready"); return () => { alive = false; }; }
-    setState("loading");
+    setState(current => (current === "ready" ? "ready" : "loading"));
     // 勤怠画面と同じ取り方（/courses/{id}/workdays）。月を変えたときだけ取り直す。
     Promise.all(courseIds.map(courseId =>
       apiGet(`/courses/${courseId}/workdays?month=${month}`).then(result => ({ courseId, result }))))
@@ -94,7 +102,7 @@ export default function SubmissionCalendar({ courses = [], reports = [], attenda
       })
       .catch(() => { if (alive) { setDaysByDate({}); setState("error"); } });
     return () => { alive = false; };
-  }, [courseIds, month, reloadKey]);
+  }, [courseKey, month, reloadKey]);
 
   const reportByDate = useMemo(() => {
     const map = {};
@@ -215,7 +223,9 @@ export default function SubmissionCalendar({ courses = [], reports = [], attenda
         </div>
       </div>
 
-      {state === "loading" ? <div className="mt-3"><SkeletonRows rows={4} /></div> : (
+      {/* 月を変えたときなどの再取得では、いま出ているカレンダーを消さない。
+          毎回スケルトンに戻ると画面がちらついて読めない */}
+      {state === "loading" && !Object.keys(daysByDate).length ? <div className="mt-3"><SkeletonRows rows={4} /></div> : (
         <div className="feeps-subcal mt-3 grid gap-1.5" style={{ gridTemplateColumns: "repeat(7,minmax(0,1fr))" }}>
           {WEEKDAYS.map((w, i) => (
             <div key={w} className="text-center text-[10px] font-extrabold tracking-[0.06em]"
