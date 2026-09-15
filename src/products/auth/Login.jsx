@@ -91,7 +91,7 @@ function AuthBrandVisual() {
             広めに取ったうえで、文節で折り返す（word-break: auto-phrase）。
             明示の改行は左右2列で出している間だけ効かせる（CSS側） */}
         <p style={{ color: T.darkTextSecondary }}>
-          研修の出欠、Eラーニング、スキルの記録。
+          研修管理、Eラーニング、スキル管理。
           <br className="feeps-auth-br" />
           学んだことは記録として残り、あとから見返せます。
         </p>
