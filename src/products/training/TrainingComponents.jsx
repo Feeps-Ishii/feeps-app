@@ -788,21 +788,91 @@ function GoalsView({ role, done, taskSaveState, toggle, goals, setGoals, go, goP
 }
 /* 教材の横のノート。受講生の私物なので受講生にだけ出す。
    カリキュラムからでも研修資料からでも、同じ形で横に並ぶようにするための入れ物。 */
-function WithNoteDock({ show, courseId, lessons, lessonId, onLessonId, children }) {
+function WithNoteDock({ show, courseId, lessons, lessonId, onLessonId, materialId = "", page = 0, children }) {
   if (!show) return children;
   return (
     <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_360px] xl:items-start">
       <div className="min-w-0">{children}</div>
       <div className="min-w-0 xl:sticky xl:top-4">
         <React.Suspense fallback={<Card className="p-4"><SkeletonRows rows={2} /></Card>}>
-          <LessonNoteDock courseId={courseId} lessons={lessons} lessonId={lessonId} onLessonId={onLessonId} />
+          <LessonNoteDock courseId={courseId} lessons={lessons} lessonId={lessonId} onLessonId={onLessonId}
+            materialId={materialId} page={page} />
         </React.Suspense>
       </div>
     </div>
   );
 }
 
-function Curriculum({ role, go }) {
+/* カリキュラムの進み具合。**日程ベース**なので、そう書く。
+   日付が入っていない単元は数に入れない（0%と言い切らないため）。 */
+function CurriculumProgressCard({ progress, onToday, hasToday }) {
+  const { total, dated, done, now } = progress;
+  const pct = dated ? Math.round((done / dated) * 100) : null;
+  return (
+    <Card className="mb-5 p-4">
+      <div className="flex flex-wrap items-end justify-between gap-3">
+        <div className="min-w-0">
+          <div className="text-xs font-semibold" style={{ color: T.textMuted }}>いまどこまで来たか（日程ベース）</div>
+          <div className="mt-1 flex items-baseline gap-2">
+            <span className="text-3xl font-bold" style={{ color: T.textPrimary }}>{pct == null ? "—" : `${pct}%`}</span>
+            <span className="text-sm" style={{ color: T.textSecondary }}>
+              {dated ? <>終わった単元 <b style={{ color: T.textPrimary }}>{done}</b> / {dated}</> : "日程が未設定のため出せません"}
+            </span>
+          </div>
+          {now > 0 && <div className="mt-1 text-xs" style={{ color: T.accentHover }}>今日の単元が {now} 件あります。</div>}
+          {dated > 0 && dated < total && <div className="mt-1 text-xs" style={{ color: T.textMuted }}>日程が入っていない単元が {total - dated} 件あり、数に入れていません。</div>}
+        </div>
+        {hasToday && <Btn size="sm" icon={Calendar} onClick={onToday}>今日の単元を開く</Btn>}
+      </div>
+      <div className="mt-3 h-2.5 w-full overflow-hidden rounded-full" style={{ background: T.bgBase }}>
+        <div className="h-full rounded-full" style={{ width: `${pct == null ? 0 : pct}%`, background: T.accent, transition: "width .3s" }} />
+      </div>
+    </Card>
+  );
+}
+
+/* コースの大目標。**カリキュラムの上にいつでも置いておく**（2026-09-16 打合せ）。
+   達成の記録は目標とタスクと同じもの（done）を見ているので、二重管理にならない。 */
+function CourseGoalsBar({ goals, done, goProduct, go }) {
+  const rows = arr(goals).map(goal => {
+    const tasks = arr(goal.tasks);
+    return { id: goal.id, title: goal.title, sub: goal.sub, total: tasks.length, done: tasks.filter(t => done?.[t.id]).length };
+  });
+  if (!rows.length) return null;
+  const all = rows.reduce((sum, r) => sum + r.total, 0);
+  const cleared = rows.reduce((sum, r) => sum + r.done, 0);
+  return (
+    <Card className="mb-5 p-4">
+      <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+        <div>
+          <div className="flex items-center gap-2 text-sm font-bold" style={{ color: T.textPrimary }}><Target size={15} style={{ color: T.accent }} />このコースの大目標</div>
+          <div className="text-xs" style={{ color: T.textMuted }}>いま <b style={{ color: T.textPrimary }}>{cleared} / {all}</b> のタスクを達成しています。</div>
+        </div>
+        <div className="flex flex-wrap gap-2">
+          <Btn kind="ghost" size="sm" icon={Target} onClick={() => go?.("goals")}>目標とタスク</Btn>
+          <Btn kind="ghost" size="sm" icon={GitBranch} onClick={() => goProduct?.("talent", { subView: "tl_growth" })}>スキル・成長で見る</Btn>
+        </div>
+      </div>
+      <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+        {rows.map(r => {
+          const pct = r.total ? Math.round((r.done / r.total) * 100) : 0;
+          return (
+            <div key={r.id} className="rounded-xl p-3" style={{ background: T.bgBase }}>
+              <div className="truncate text-sm font-bold" style={{ color: T.textPrimary }}>{r.title}</div>
+              {r.sub && <div className="truncate text-[11px]" style={{ color: T.textMuted }}>{r.sub}</div>}
+              <div className="mt-2 h-1.5 w-full overflow-hidden rounded-full" style={{ background: T.border }}>
+                <div className="h-full rounded-full" style={{ width: `${pct}%`, background: T.accent }} />
+              </div>
+              <div className="mt-1 text-[11px] font-semibold" style={{ color: T.textSecondary }}>{r.done} / {r.total} 達成</div>
+            </div>
+          );
+        })}
+      </div>
+    </Card>
+  );
+}
+
+function Curriculum({ role, go, goProduct, done = {}, goals = [] }) {
   const [courses, setCourses] = useState([]);
   const [currentUserId, setCurrentUserId] = useState("");
   const [courseId, setCourseId] = useState("");
@@ -1089,6 +1159,18 @@ function Curriculum({ role, go }) {
     const first = todayUnits[0]?.lesson?.id || noteLessons[0]?.id || "";
     if (first) setNoteLessonId(first);
   }, [showNotes, noteLessonId, todayUnits, noteLessons]);
+  /* 受講生向けの「どこまで進んだか」。**日程ベース**で数える（終わったかどうかの記録が
+     単元単位には無いため）。日付が入っていない単元は数に入れず、その旨を出す。 */
+  const curriculumProgress = useMemo(() => {
+    const units = arr(sections).flatMap(section => section.unitMode === "section"
+      ? [section]
+      : arr(section.chapters).flatMap(chapter => arr(chapter.lessons)));
+    const dated = units.filter(u => String(u?.startDate || "").slice(0, 10));
+    const doneCount = dated.filter(u => String(u.endDate || u.startDate).slice(0, 10) < todayKey).length;
+    const nowCount = dated.filter(u => curriculumItemIncludesDate(u, todayKey)).length;
+    return { total: units.length, dated: dated.length, done: doneCount, now: nowCount };
+  }, [sections, todayKey]);
+
   const curriculumSummary = useMemo(() => {
     const lessons = sections.flatMap(section => arr(section.chapters).flatMap(chapter => arr(chapter.lessons)));
     const standalone = sections.filter(section => section.unitMode === "section");
@@ -1120,12 +1202,13 @@ function Curriculum({ role, go }) {
             </select>
           </div>
 
+          {!canEdit && <CourseGoalsBar goals={goals} done={done} goProduct={goProduct} go={go} />}
           {!loading && !canEdit && todayUnits.length > 0 && <Card className="mb-5 overflow-hidden" style={{ border: `1px solid ${T.accent}` }}>
             <div className="flex flex-wrap items-center justify-between gap-2 px-4 py-3" style={{ background: T.bgBase }}><div><div className="flex items-center gap-2 text-sm font-bold" style={{ color: T.textPrimary }}><Clock size={16} style={{ color: T.accent }} />今日のカリキュラム</div><p className="mt-0.5 text-xs" style={{ color: T.textMuted }}>{todayKey} に取り組む単元です。</p></div><Badge tone="cyan">{todayUnits.length}単元</Badge></div>
             <div className="divide-y" style={{ borderColor: T.border }}>{todayUnits.map(unit => <div key={`${unit.scope}:${unit.lesson.id}`} className="flex flex-wrap items-center gap-3 px-4 py-3"><div className="min-w-0 flex-1"><div className="text-xs" style={{ color: T.textMuted }}>{unit.section.title}</div><div className="truncate text-sm font-bold" style={{ color: T.textPrimary }}>{unit.title}</div></div>{arr(unit.lesson.preparationItems).length > 0 && <Badge tone="amber">準備 {arr(unit.lesson.preparationItems).length}件</Badge>}{unit.exercises.length > 0 && <Badge tone="cyan">演習 {unit.exercises.length}件</Badge>}{unit.linkedTests.length > 0 && <button type="button" onClick={() => go?.("tests")}><Badge tone="green">テスト {unit.linkedTests.length}件</Badge></button>}</div>)}</div>
           </Card>}
 
-          {!loading && <Card className="mb-5 p-4">
+          {!loading && canEdit && <Card className="mb-5 p-4">
             <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
               {[["小項目", curriculumSummary.lessons, BookOpen], ["学習目標", curriculumSummary.goals, Target], ["演習", curriculumSummary.exercises, Briefcase], ["確認テスト", curriculumSummary.tests, ClipboardCheck]].map(([label, value, Icon]) => (
                 <div key={label} className="rounded-xl p-3" style={{ background: T.bgBase }}>
@@ -1135,6 +1218,8 @@ function Curriculum({ role, go }) {
               ))}
             </div>
           </Card>}
+          {/* 受講生には件数ではなく「どこまで来たか」を出す（2026-09-16 打合せ） */}
+          {!loading && !canEdit && <CurriculumProgressCard progress={curriculumProgress} onToday={focusCurriculumToday} hasToday={curriculumTodayIndex >= 0} />}
 
           {loading ? <Card><SkeletonRows /></Card>
             : sections.length === 0 && !canEdit ? <Card><EmptyState title="まだ登録がありません" desc="講師がカリキュラムを準備中です" /></Card>
@@ -1146,7 +1231,7 @@ function Curriculum({ role, go }) {
                     <p className="mt-0.5 text-xs" style={{ color: T.textMuted }}>{canEdit ? "編集したい大項目だけ開きます。全部を開いたままにしないほうが探しやすく、動作も軽くなります。" : "必要な大項目だけ開くと、学習の流れを見失わずに確認できます。"}</p>
                   </div>
                   <div className="flex items-center gap-2">
-                    {sections.length > 0 && <button type="button" onClick={focusCurriculumToday} className="rounded-lg px-3 py-2 text-xs font-bold" style={{ color: "#fff", background: T.accent }}>{curriculumTodayIndex >= 0 ? "今日へ" : "先頭へ"}</button>}
+                    {sections.length > 0 && <button type="button" onClick={focusCurriculumToday} className="rounded-lg px-3 py-2 text-xs font-bold" style={{ color: "#fff", background: T.accent }}>{curriculumTodayIndex >= 0 ? (canEdit ? "今日へ" : "今日の単元を開く") : "先頭へ"}</button>}
                     <button type="button" onClick={() => setExpandedCurriculumSections(Object.fromEntries(sections.map((section, index) => [curriculumSectionKey(section, index), true])))} className="rounded-lg px-3 py-2 text-xs font-bold" style={{ color: T.accentHover, background: T.accentSubtle }}>すべて展開</button>
                     <button type="button" onClick={() => setExpandedCurriculumSections({})} className="rounded-lg px-3 py-2 text-xs font-bold" style={{ color: T.textSecondary, border: `1px solid ${T.border}`, background: T.bgSurface }}>すべて閉じる</button>
                   </div>
@@ -1291,7 +1376,9 @@ function Curriculum({ role, go }) {
                               <CurriculumDateBadge range={curriculumDateRangeOf(arr(chapter.lessons))} />
                             </div>
                             {arr(chapter.lessons).map(lesson => (
-                              <div key={lesson.id} className="mt-2 rounded-lg bg-white p-3" style={{ border: `1px solid ${T.border}` }}>
+                              <div key={lesson.id} className="mt-2 rounded-lg p-3" style={curriculumItemIncludesDate(lesson, todayKey)
+                                ? { background: T.accentSubtle, border: `1px solid ${T.accent}`, borderLeft: `4px solid ${T.accent}` }
+                                : { background: "#fff", border: `1px solid ${T.border}` }}>
                                 <div className="flex flex-wrap items-start justify-between gap-2"><div className="flex flex-wrap items-center gap-2"><div className="text-sm font-bold" style={{ color: T.textPrimary }}>{lesson.title || "小項目未設定"}</div><CurriculumDateBadge range={curriculumDateRangeOf([lesson])} />{curriculumItemIncludesDate(lesson, todayKey) && <Badge tone="cyan">今日</Badge>}</div>{lesson.durationLabel && <Badge tone="muted">{lesson.durationLabel}</Badge>}</div>
                                 {lesson.content && <p className="mt-1 text-sm" style={{ color: T.textSecondary }}>{lesson.content}</p>}
                                 {arr(lesson.learningGoals).length > 0 && <div className="mt-3 rounded-xl p-3" style={{ background: T.accentSubtle }}><div className="mb-1 flex items-center gap-1.5 text-xs font-bold" style={{ color: T.accentHover }}><Target size={13} />学習目標</div><ul className="space-y-1">{arr(lesson.learningGoals).map((goal, gi) => <li key={gi} className="flex gap-2 text-sm" style={{ color: T.textSecondary }}><CheckCircle2 size={14} className="mt-0.5 shrink-0" style={{ color: T.accent }} />{goal}</li>)}</ul></div>}
@@ -1352,6 +1439,7 @@ function Materials({ role }) {
   const showNotes = role === "trainee";
   // アプリ内で開いている教材。閉じると一覧へ戻る
   const [viewing, setViewing] = useState(null);
+  const [viewingPage, setViewingPage] = useState(1);
   const selectedCourse = useMemo(() => courses.find(c => c.courseId === courseId) || null, [courses, courseId]);
   const canEdit = role === "admin" || (role === "instructor" && Array.isArray(selectedCourse?.instructorIds) && selectedCourse.instructorIds.includes(currentUserId));
   const materialsById = useMemo(() => Object.fromEntries(items.map(m => [m.materialId, m])), [items]);
@@ -1599,7 +1687,8 @@ function Materials({ role }) {
       <input ref={fileRef} type="file" className="hidden" onChange={e => upload(e.target.files?.[0])} />
       {err && <div className="mb-4 rounded-lg px-3 py-2 text-xs" style={{ background: T.dangerSubtle, color: T.danger }}>{err}</div>}
 
-      <WithNoteDock show={showNotes} courseId={courseId} lessons={noteLessons} lessonId={noteLessonId} onLessonId={setNoteLessonId}>
+      <WithNoteDock show={showNotes} courseId={courseId} lessons={noteLessons} lessonId={noteLessonId} onLessonId={setNoteLessonId}
+        materialId={viewing?.materialId || ""} page={viewing ? viewingPage : 0}>
       {courses.length === 0 && !loading ? (
         <Card><EmptyState title={canEdit ? "コースがありません" : "所属コースがありません"} desc={canEdit ? "コース管理からコースを作成してください" : "管理者にコース登録を依頼してください"} /></Card>
       ) : (
@@ -1612,7 +1701,8 @@ function Materials({ role }) {
           </div>
           {viewing ? (
             <React.Suspense fallback={<Card><SkeletonRows rows={5} /></Card>}>
-              <MaterialViewer courseId={courseId} material={viewing} onClose={() => setViewing(null)}
+              <MaterialViewer courseId={courseId} material={viewing} onClose={() => { setViewing(null); setViewingPage(1); }}
+                onPage={setViewingPage}
                 lessonId={lessonIdByMaterial[viewing.materialId] || noteLessonId} canAnnotate={showNotes} />
             </React.Suspense>
           ) : loading ? <Card><SkeletonRows /></Card>
@@ -3044,6 +3134,8 @@ function TraineeAttendance() {
   const todayIsTrainingDay = attendanceTrainingDateSet.has(today);
   const todayCourse = enrolledCourses.find(course => course.courseId === courseForDate(today));
   const attendanceNeedsReason = (status) => ["遅刻", "早退", "欠席", "欠勤", "中抜け"].some(value => String(status || "").includes(value));
+  // 遅刻・早退・欠勤は**先に人へ伝える**もの。打刻だけで済ませない（2026-09-16 打合せ）
+  const attendanceTellInstructor = (status) => ["遅刻", "早退", "欠席", "欠勤", "中抜け"].some(value => String(status || "").includes(value));
   function upsertAttendanceRow(dateValue, value, status = "出勤") {
     setHist(rows => {
       const previous = rows.find(row => row.date === dateValue);
@@ -3201,6 +3293,7 @@ function TraineeAttendance() {
                 <span style={{ color: T.textMuted }}>–</span>
                 <input type="time" value={todayDraft.out} disabled={attendanceSaving} onChange={e => setTodayDraft(current => ({ ...current, out: e.target.value }))} aria-label="本日の退勤時刻" className="w-24 rounded-lg px-2 py-1.5 text-sm outline-none disabled:opacity-60" style={{ border: `1px solid ${T.border}`, color: T.textPrimary }} />
                 <select value={todayDraft.s} disabled={attendanceSaving} onChange={e => setTodayDraft(current => ({ ...current, s: e.target.value, reason: e.target.value === "出勤" ? "" : current.reason }))} aria-label="本日の勤怠区分" className="rounded-lg px-2 py-1.5 text-sm outline-none disabled:opacity-60" style={{ border: `1px solid ${T.border}`, color: T.textPrimary }}><option value="出勤">出勤</option><option value="遅刻">遅刻</option><option value="早退">早退</option><option value="欠勤">欠勤</option><option value="中抜け">中抜け</option><option value="休暇">休暇</option></select>
+                {attendanceTellInstructor(todayDraft.s) && <div className="w-full rounded-lg px-3 py-2 text-xs leading-relaxed" style={{ background: T.warningSubtle, color: T.warning }}><b>{todayDraft.s}は、先に講師へ連絡してから記録してください。</b>連絡のうえで、実際の時刻と理由を入力します。</div>}
                 {attendanceNeedsReason(todayDraft.s) && <input value={todayDraft.reason} disabled={attendanceSaving} onChange={e => setTodayDraft(current => ({ ...current, reason: e.target.value }))} placeholder="理由（必須）" className="min-w-48 flex-1 rounded-lg px-2 py-1.5 text-sm outline-none disabled:opacity-60" style={{ border: `1px solid ${T.border}`, color: T.textPrimary }} />}
                 <Btn size="sm" icon={Check} disabled={attendanceSaving} onClick={saveTodayEdit}>{attendanceSaving ? "保存中…" : "保存"}</Btn>
                 <Btn size="sm" kind="ghost" disabled={attendanceSaving} onClick={cancelTodayEdit}>キャンセル</Btn>
@@ -3222,9 +3315,8 @@ function TraineeAttendance() {
               </select>
             )}
             <div className="flex flex-wrap justify-center gap-3 sm:justify-end">
-              <button onClick={() => doClockIn()} disabled={editToday || workdaysLoading || attendanceSaving || !todayIsTrainingDay || !!att.in} className="flex h-24 w-24 flex-col items-center justify-center rounded-2xl font-bold disabled:opacity-50" style={{ background: att.in ? T.border : GRAD, color: att.in ? T.textMuted : "#fff" }}><Clock size={22} /><span className="mt-1 text-sm">現在時刻で出勤</span></button>
               {selectedStandardCourse && courseStandardIn(selectedStandardCourse) && <button onClick={() => doClockIn(courseStandardIn(selectedStandardCourse))} disabled={editToday || workdaysLoading || attendanceSaving || !todayIsTrainingDay || !!att.in} className="flex h-24 w-28 flex-col items-center justify-center rounded-2xl font-bold disabled:opacity-50" style={{ background: T.accentSubtle, color: T.accentHover }}><Clock size={22} /><span className="mt-1 text-xs">定時{courseStandardIn(selectedStandardCourse)}で出勤</span></button>}
-              <button onClick={() => doClockOut()} disabled={editToday || workdaysLoading || attendanceSaving || !todayIsTrainingDay || !att.in || !!att.out} className="flex h-24 w-24 flex-col items-center justify-center rounded-2xl font-bold disabled:opacity-50" style={{ background: att.out ? T.border : T.textPrimary, color: att.out ? T.textMuted : "#fff" }}><LogOut size={22} /><span className="mt-1 text-sm">現在時刻で退勤</span></button>
+              <button onClick={beginTodayEdit} disabled={editToday || workdaysLoading || attendanceSaving || !todayIsTrainingDay} className="flex h-24 w-28 flex-col items-center justify-center rounded-2xl font-bold disabled:opacity-50" style={{ background: T.accentSubtle, color: T.accentHover }}><Pencil size={22} /><span className="mt-1 text-xs">時刻を入力して記録</span></button>
               {selectedStandardCourse && courseStandardOut(selectedStandardCourse) && <button onClick={() => doClockOut(courseStandardOut(selectedStandardCourse))} disabled={editToday || workdaysLoading || attendanceSaving || !todayIsTrainingDay || !att.in || !!att.out} className="flex h-24 w-28 flex-col items-center justify-center rounded-2xl font-bold disabled:opacity-50" style={{ background: T.warningSubtle, color: T.warning }}><LogOut size={22} /><span className="mt-1 text-xs">定時{courseStandardOut(selectedStandardCourse)}で退勤</span></button>}
             </div>
             {!workdaysLoading && workdaysState === "setup_required" && <div className="rounded-lg px-3 py-2 text-xs font-semibold" style={{ background: T.warningSubtle, color: T.warning }}>所属コースの日程が未設定です。欠席とは判定せず、勤怠入力を停止しています。</div>}
@@ -3254,6 +3346,7 @@ function TraineeAttendance() {
       {calendarEditDate && <Modal title={`${calendarEditDate.replace(/-/g, "/")} の勤怠`} desc={attendanceByDate[calendarEditDate] ? "登録済みの時刻を修正できます。" : "出勤・退勤時刻を入力して登録します。"} onClose={() => { if (!calendarSaving) setCalendarEditDate(""); }} footer={<><Btn kind="ghost" disabled={calendarSaving} onClick={() => setCalendarEditDate("")}>キャンセル</Btn><Btn icon={Check} disabled={calendarSaving || !calendarDraft.in} onClick={saveCalendarAttendance}>{calendarSaving ? "保存中…" : attendanceByDate[calendarEditDate] ? "変更を保存" : "勤怠を登録"}</Btn></>}>
         <div className="grid gap-4 sm:grid-cols-2"><Field label="出勤時刻"><input type="time" value={calendarDraft.in} disabled={calendarSaving} onChange={e => setCalendarDraft(current => ({ ...current, in: e.target.value }))} className={fieldCls} style={{ border: `1px solid ${T.border}`, color: T.textPrimary, background: "#fff" }} /></Field><Field label="退勤時刻"><input type="time" value={calendarDraft.out} disabled={calendarSaving} onChange={e => setCalendarDraft(current => ({ ...current, out: e.target.value }))} className={fieldCls} style={{ border: `1px solid ${T.border}`, color: T.textPrimary, background: "#fff" }} /></Field></div>
         <Field label="勤怠区分"><select value={calendarDraft.s} disabled={calendarSaving} onChange={e => setCalendarDraft(current => ({ ...current, s: e.target.value, reason: e.target.value === "出勤" ? "" : current.reason }))} className={fieldCls} style={{ border: `1px solid ${T.border}`, color: T.textPrimary, background: T.bgSurface }}><option value="出勤">出勤</option><option value="遅刻">遅刻</option><option value="早退">早退</option><option value="欠勤">欠勤</option><option value="中抜け">中抜け</option><option value="休暇">休暇</option></select></Field>
+        {attendanceTellInstructor(calendarDraft.s) && <div className="rounded-lg px-3 py-2 text-xs leading-relaxed" style={{ background: T.warningSubtle, color: T.warning }}><b>{calendarDraft.s}は、先に講師へ連絡してから記録してください。</b>連絡のうえで、実際の時刻と理由を入力します。</div>}
         {attendanceNeedsReason(calendarDraft.s) && <Field label="理由（必須）"><textarea rows={2} value={calendarDraft.reason || ""} disabled={calendarSaving} onChange={e => setCalendarDraft(current => ({ ...current, reason: e.target.value }))} className={fieldCls + " resize-none"} style={{ border: `1px solid ${T.border}`, color: T.textPrimary, background: T.bgSurface }} /></Field>}
       </Modal>}
     </div>
@@ -5116,7 +5209,7 @@ function Reports({ role, userProfile }) {
         return {
           key: dateValue, date: label, unit, main: "提出済み",
           pill: hasComment ? { tone: "info", label: "講師コメントあり" } : { tone: "ok", label: "提出" },
-          action: { label: "開く", onClick: () => (!isTrainingDay || conflict) ? setDetailReport(report) : editReport({ date: dateValue, report }) },
+          action: { label: "見る", onClick: () => setDetailReport(report) },
         };
       }
       if (conflict) return { key: dateValue, date: label, unit, main: "同じ日に複数の研修が設定されています", pill: { tone: "warn", label: "日程重複" }, action: null };
@@ -5365,8 +5458,17 @@ function Reports({ role, userProfile }) {
           三項演算子の外側（常時マウント）に配置。以前はperiodMode==="日次"分岐の内側にあり、月次
           集計の行クリックでdetailReportをsetしてもモーダルの入れ物自体が描画されず開かなかった。 */}
       {detailReport && (
-        <Modal title={canWrite ? `${(detailReport.rawDate || detailReport.date || "").replace(/-/g, "/")} の日報` : `${nameMap[detailReport.traineeId] || detailReport.name}さんの日報`} desc={canWrite ? "閲覧専用です。編集する場合は一覧の編集ボタンから開いてください。" : periodMode === "月次" ? `${(detailReport.rawDate || detailReport.date || "").replace(/-/g, "/")} ・ ${monthNavIndex >= 0 ? `研修日 ${monthNavIndex + 1} / ${monthNavDates.length}日目` : "日報確認"}` : `${(detailReport.rawDate || detailReport.date || "").replace(/-/g, "/")} ・ ${reviewIndex >= 0 ? `${reviewIndex + 1} / ${reviewReports.length}人` : "日報確認"}`} onClose={() => setDetailReport(null)} footer={
-          canWrite ? <Btn kind="ghost" onClick={() => setDetailReport(null)}>閉じる</Btn>
+        <Modal title={canWrite ? `${(detailReport.rawDate || detailReport.date || "").replace(/-/g, "/")} の日報` : `${nameMap[detailReport.traineeId] || detailReport.name}さんの日報`} desc={canWrite ? "内容の確認です。直すときは下の「この日の日報を編集」から開きます。" : periodMode === "月次" ? `${(detailReport.rawDate || detailReport.date || "").replace(/-/g, "/")} ・ ${monthNavIndex >= 0 ? `研修日 ${monthNavIndex + 1} / ${monthNavDates.length}日目` : "日報確認"}` : `${(detailReport.rawDate || detailReport.date || "").replace(/-/g, "/")} ・ ${reviewIndex >= 0 ? `${reviewIndex + 1} / ${reviewReports.length}人` : "日報確認"}`} onClose={() => setDetailReport(null)} footer={
+          canWrite ? (() => {
+            const d = detailReport.rawDate || detailReport.date || "";
+            const editable = reportTrainingDateSet.has(d) && !reportConflictDateSet.has(d);
+            return (
+              <div className="flex w-full items-center justify-between gap-3">
+                <Btn kind="ghost" onClick={() => setDetailReport(null)}>閉じる</Btn>
+                {editable && <Btn icon={Pencil} onClick={() => { const rep = detailReport; setDetailReport(null); editReport({ date: d, report: rep }); }}>この日の日報を編集</Btn>}
+              </div>
+            );
+          })()
           // 2026-07-22 機能追加: 月次モードは受講生を固定したまま「前の日/次の日」で研修日を送る
           // （CourseCalendar登録の研修日のみが対象。__unsubmitted＝未提出日も遷移先として含める）。
           : periodMode === "月次" ? <div className="flex w-full items-center justify-between gap-3"><Btn kind="ghost" icon={ChevronLeft} disabled={monthNavIndex <= 0} onClick={() => goToMonthlyDate(monthNavDates[monthNavIndex - 1])}>前の日</Btn><span className="text-xs font-semibold" style={{ color: T.textMuted }}>{monthNavIndex >= 0 ? `${monthNavIndex + 1} / ${monthNavDates.length}日` : ""}</span><Btn kind="ghost" icon={ChevronRight} disabled={monthNavIndex < 0 || monthNavIndex >= monthNavDates.length - 1} onClick={() => goToMonthlyDate(monthNavDates[monthNavIndex + 1])}>次の日</Btn></div>

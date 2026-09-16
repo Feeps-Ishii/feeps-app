@@ -6,7 +6,7 @@ import {
 import { normalizeCurriculumSections } from "./TrainingComponents.jsx";
 import { Editor, NoteCard, flattenLessons } from "./NotesShared.jsx";
 import { isWrittenNote } from "./notesLessons.js";
-import { AlertCircle, ChevronDown, Plus, Search } from "lucide-react";
+import { AlertCircle, ChevronDown, HelpCircle, ListChecks, PenLine, Plus, Search } from "lucide-react";
 
 /* 研修ノート。正典: docs/specs/training-notes-spec.md
  *
@@ -152,6 +152,8 @@ export default function NotesView() {
         </div>
       )}
 
+      <NotesHowTo />
+
       {err && <PrismErrorRetryCard message={err} onRetry={() => setReloadKey(k => k + 1)} />}
       {saveErr && (
         <PrismCard className="flex items-center gap-2 p-3 text-sm" style={{ borderColor: PRISM.warnLine, color: PRISM.warn }}>
@@ -234,5 +236,43 @@ export default function NotesView() {
         ))
       )}
     </PrismPage>
+  );
+}
+
+/* ノートの使い方。**最初に1回だけ**読めばいい分量にする（2026-09-16 打合せ）。
+   閉じたら覚えておく（この端末のみ。サーバに置くほどのものではない）。 */
+const HOWTO_KEY = "feeps.notes.howto.closed";
+function NotesHowTo() {
+  const [closed, setClosed] = useState(() => {
+    try { return localStorage.getItem(HOWTO_KEY) === "1"; } catch { return false; }
+  });
+  if (closed) return null;
+  const close = () => {
+    setClosed(true);
+    try { localStorage.setItem(HOWTO_KEY, "1"); } catch { /* 保存できなくても使い方は出せる */ }
+  };
+  const ITEMS = [
+    { icon: PenLine, title: "教材を見ながら書く", desc: "研修資料でPDFを「読む」と、右にノートが並びます。ページごとにも、単元ぜんぶにも書けます。" },
+    { icon: HelpCircle, title: "分からないところに印を付ける", desc: "「わからない」を付けておくと、あとでその印だけを絞り込めます。質問するときの材料になります。" },
+    { icon: ListChecks, title: "日報にそのまま入れる", desc: "日報の下に「この日のノート」が出ます。書き写さずに、選んで入れるだけで済みます。" },
+  ];
+  return (
+    <PrismCard className="p-4">
+      <div className="mb-3 flex items-center gap-2">
+        <span className="text-sm font-bold" style={{ color: PRISM.ink }}>ノートの使い方</span>
+        <span className="text-[11px]" style={{ color: PRISM.mut }}>整理は要りません。カリキュラムの順に自動で並びます。</span>
+        <button onClick={close} className="ml-auto text-[11px] font-bold" style={{ color: PRISM.mut }}>閉じる</button>
+      </div>
+      <div className="grid gap-3 sm:grid-cols-3">
+        {ITEMS.map(it => (
+          <div key={it.title} className="rounded-xl p-3" style={{ background: PRISM.neutralSubtle }}>
+            <div className="flex items-center gap-2 text-xs font-bold" style={{ color: PRISM.ink }}>
+              <it.icon size={14} style={{ color: PRISM.accent }} />{it.title}
+            </div>
+            <div className="mt-1 text-[11.5px] leading-relaxed" style={{ color: PRISM.mut }}>{it.desc}</div>
+          </div>
+        ))}
+      </div>
+    </PrismCard>
   );
 }

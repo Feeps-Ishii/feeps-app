@@ -38,7 +38,7 @@ export default function TrainingProduct({
     if (role === "client") return <>{board}<ClientHome openKarte={setKarte} go={go} goProduct={goProduct} /></>;
     return null;
   }
-  if (view === "curriculum") return <Curriculum role={role} go={go} />;
+  if (view === "curriculum") return <Curriculum role={role} go={go} goProduct={goProduct} done={taskDone} goals={goals} />;
   if (view === "companies") return <ReadOnlyCompanies role={role} />;
   if (view === "courses") return <ReadOnlyCourses role={role} go={go} />;
   if (view === "users") return <ReadOnlyInstructors />;

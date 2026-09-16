@@ -17,6 +17,10 @@ import {
  * **pdfjs-dist は動的importでしか読まない。** 教材を開いた人だけが読み込む。
  * PDF以外（Excel・PowerPoint等）はブラウザに任せて別タブで開く。 */
 
+// 既定の表示倍率。**幅いっぱいの75%を「100%」として開く**（2026-09-16 打合せ）。
+// 幅いっぱいだと横に余白が無く、ノートと並べたときに文字が大きすぎる。
+const BASE_FIT = 0.75;
+
 const PDF_RE = /\.pdf$/i;
 const IMG_RE = /\.(png|jpe?g|gif|webp|bmp|svg)$/i;
 
@@ -151,7 +155,7 @@ export default function MaterialViewer({ courseId, material, onClose, onPage, le
     (async () => {
       const p = await doc.getPage(page);
       if (cancelled || !canvasRef.current) return;
-      const r = renderPdfPageToCanvas({ page: p, canvas: canvasRef.current, width, zoom });
+      const r = renderPdfPageToCanvas({ page: p, canvas: canvasRef.current, width, zoom: zoom * BASE_FIT });
       task = r.task;
       setPageSize(prev => (prev.w === r.width && prev.h === r.height ? prev : { w: r.width, h: r.height }));
       await task.promise;
@@ -243,6 +247,7 @@ export default function MaterialViewer({ courseId, material, onClose, onPage, le
           <div className="text-xs" style={{ color: T.textMuted }}>
             {kind === "pdf" ? (numPages ? `${numPages}ページ` : "読み込み中…") : kind === "image" ? "画像" : "この形式はアプリ内で開けません"}
           </div>
+          {material.description && <div className="mt-1 whitespace-pre-line text-xs leading-relaxed" style={{ color: T.textSecondary }}>{material.description}</div>}
         </div>
         <Btn kind="ghost" size="sm" icon={ExternalLink} onClick={openTab} disabled={!url}>別タブ</Btn>
         {onClose && <Btn kind="ghost" size="sm" icon={X} onClick={onClose}>閉じる</Btn>}
@@ -336,7 +341,7 @@ export default function MaterialViewer({ courseId, material, onClose, onPage, le
           </div>
         )}
         {!err && kind === "image" && url && (
-          <img src={url} alt={material.title || "教材"} className="mx-auto block max-w-full" style={{ width: `${Math.round(zoom * 100)}%` }} />
+          <img src={url} alt={material.title || "教材"} className="mx-auto block max-w-full" style={{ width: `${Math.round(zoom * BASE_FIT * 100)}%` }} />
         )}
       </div>
 
@@ -353,7 +358,7 @@ export default function MaterialViewer({ courseId, material, onClose, onPage, le
             <Btn kind="ghost" size="sm" icon={Minus} onClick={() => setZoom(z => Math.max(0.5, Math.round((z - 0.25) * 100) / 100))}>縮小</Btn>
             <span className="text-xs font-bold tabular-nums" style={{ color: T.textMuted }}>{Math.round(zoom * 100)}%</span>
             <Btn kind="ghost" size="sm" icon={Plus} onClick={() => setZoom(z => Math.min(3, Math.round((z + 0.25) * 100) / 100))}>拡大</Btn>
-            <Btn kind="ghost" size="sm" icon={Maximize2} onClick={() => setZoom(1)}>幅に合わせる</Btn>
+            <Btn kind="ghost" size="sm" icon={Maximize2} onClick={() => setZoom(zoom === 1 ? 1 / BASE_FIT : 1)}>{zoom === 1 ? "幅いっぱい" : "既定に戻す"}</Btn>
           </div>
         </div>
       )}
