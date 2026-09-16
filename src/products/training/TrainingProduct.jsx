@@ -55,7 +55,7 @@ export default function TrainingProduct({
       </React.Suspense>
     );
   }
-  if (view === "tests") return <Tests role={role} />;
+  if (view === "tests") return <Tests role={role} go={go} />;
   if (view === "attendance") return <Attendance role={role} userProfile={userProfile} />;
   if (view === "reports") return <Reports role={role} userProfile={userProfile} />;
   if (view === "trainees") return <TraineeList role={role} openKarte={setKarte} go={go} />;

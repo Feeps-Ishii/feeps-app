@@ -13,6 +13,7 @@ import {
 import { homeDateLabel } from "./useTraining.js";
 import { flattenLessons, isWrittenNote } from "./notesLessons.js";
 import { toCourseGoalsPayload } from "./courseGoals.js";
+import { extractPdfPageTexts, describeExtraction } from "./pdfText.js";
 // ノートは react-markdown を使うので、教材の横に出すぶんも開いた人だけが読み込むようにする
 const LessonNoteDock = React.lazy(() => import("./LessonNoteDock.jsx"));
 // 教材ビューアは pdfjs-dist を使うので、開いた人だけが読み込む
@@ -1650,6 +1651,22 @@ function Materials({ role }) {
   }
   useEffect(() => { setUploadTarget("course"); loadMaterials(); loadCurriculumForMaterials(); }, [courseId]);
 
+  /* テストの解説から「教材の◯ページを見る」で来たときは、その教材をそのページで開く。
+     一度使ったら消す（戻ってくるたびに勝手に開かないように）。 */
+  const [materialTarget] = useState(() => (role === "trainee" ? getTrainingTargetContext("materials", { consume: true }) : null));
+  const materialTargetDoneRef = useRef(false);
+  useEffect(() => {
+    if (!materialTarget?.materialId || materialTargetDoneRef.current) return;
+    if (materialTarget.courseId && materialTarget.courseId !== courseId) return;   // コースの読み込み待ち
+    const found = items.find(m => m.materialId === materialTarget.materialId);
+    if (!found) return;
+    materialTargetDoneRef.current = true;
+    setViewing(found);
+    setViewingPage(Number(materialTarget.page) || 1);
+    const lid = lessonIdByMaterial[found.materialId];
+    if (lid) setNoteLessonId(lid);
+  }, [materialTarget, items, courseId, lessonIdByMaterial]);
+
   async function upload(file) {
     if (!file || !courseId) return;
     if (!canEdit) { setErr("このコースの資料編集権限がありません。"); return; }
@@ -1827,7 +1844,7 @@ function Materials({ role }) {
           {viewing ? (
             <React.Suspense fallback={<Card><SkeletonRows rows={5} /></Card>}>
               <MaterialViewer courseId={courseId} material={viewing} onClose={() => { setViewing(null); setViewingPage(1); }}
-                onPage={setViewingPage}
+                onPage={setViewingPage} initialPage={viewingPage}
                 lessonId={lessonIdByMaterial[viewing.materialId] || noteLessonId} canAnnotate={showNotes} />
             </React.Suspense>
           ) : loading ? <Card><SkeletonRows /></Card>
@@ -2050,7 +2067,7 @@ function testGroupParentPath(group) {
   const unit = testGroupUnitTitle(group);
   return [group.section, group.chapter].filter(value => value && value !== unit && value !== "コース共通テスト");
 }
-function Tests({ role }) {
+function Tests({ role, go }) {
   const nameMap = useNameMap();
   const [initialTrainingTarget] = useState(() => role === "trainee" ? getTrainingTargetContext("tests", { consume: false }) : null);
   const testTargetHandledRef = useRef(false);
@@ -2301,7 +2318,7 @@ function Tests({ role }) {
     if (failed.length) setTestErr(`${failed.length}件の保存に失敗しました：${failed.join(" / ")}`);
   }
 
-  if (taking) return <TestTaking test={taking} preview={takingPreview} back={closeTaking} onDone={handleDone} />;
+  if (taking) return <TestTaking test={taking} preview={takingPreview} back={closeTaking} onDone={handleDone} go={go} />;
   if (building) return <TestBuilder back={() => { setBuilding(false); setEditingTest(null); setDuplicateTest(false); }} focus={buildFocus} student={buildStudent} onSaved={loadTests} initialTest={editingTest} duplicate={duplicateTest} />;
   if (testLoadState === "loading") {
     return <div><SectionHead title="テスト" desc={role === "trainee" ? "受験結果と公開テストを確認しています" : "公開テストと受験結果を確認しています"} /><Card className="p-5"><SkeletonRows rows={5} /></Card></div>;
@@ -2494,6 +2511,18 @@ function TestBuilder({ back, focus, student, onSaved, initialTest = null, duplic
   const [name, setName] = useState(initialTest ? `${initialTest.title || "テスト"}${duplicate ? " コピー" : ""}` : student ? `${student}さん向け 補強テスト（${focus}）` : focus ? `${focus} 補強テスト` : "オブジェクト指向 確認テスト");
   const [scope, setScope] = useState(initialTest?.description || "");
   const [courseId, setCourseId] = useState(initialTest?.courseId || "");
+  /* 2026-09-16 打合せ:
+     - テストは**コースに紐づけずに作れる**。あとから複数コースへ紐づける
+     - 問題は**コースの教材（PDF）の本文**から作れる。設問には戻り先のページを持たせる */
+  const [linkedCourseIds, setLinkedCourseIds] = useState(() => {
+    if (Array.isArray(initialTest?.courseIds)) return initialTest.courseIds.filter(Boolean);
+    return initialTest?.courseId ? [initialTest.courseId] : [];
+  });
+  const [materials, setMaterials] = useState([]);
+  const [materialId, setMaterialId] = useState("");
+  const [sourcePages, setSourcePages] = useState([]);
+  const [sourceNote, setSourceNote] = useState("");
+  const [sourceBusy, setSourceBusy] = useState(false);
   const [courses, setCourses] = useState([]);
   const [curriculumSections, setCurriculumSections] = useState([]);
   const [curriculumItems, setCurriculumItems] = useState([]);
@@ -2587,6 +2616,33 @@ function TestBuilder({ back, focus, student, onSaved, initialTest = null, duplic
   function removeT(i) { setTopics(ts => ts.filter((_, j) => j !== i)); }
   function addT(v) { const n = (v || "").trim(); if (!n || topics.some(t => t.name === n)) return; setTopics([...topics, { name: n, w: "標準" }]); setNt(""); }
   // Shared response-mapping for both the initial and "generate remaining" AI calls.
+  useEffect(() => {
+    if (!courseId) { setMaterials([]); setMaterialId(""); return undefined; }
+    let alive = true;
+    apiGet(`/materials?courseId=${encodeURIComponent(courseId)}`)
+      .then(list => { if (alive) setMaterials((Array.isArray(list) ? list : []).filter(m => /\.pdf$/i.test(String(m.filename || m.title || "")))); })
+      .catch(() => { if (alive) setMaterials([]); });
+    return () => { alive = false; };
+  }, [courseId]);
+
+  const selectedMaterial = useMemo(() => materials.find(m => m.materialId === materialId) || null, [materials, materialId]);
+
+  /* 教材の本文を読み取る。**サーバにPDFを開く仕組みが無い**ので、ここで開いて本文だけ送る */
+  async function loadMaterialText() {
+    if (!selectedMaterial || sourceBusy) return;
+    setSourceBusy(true); setSourceNote(""); setSourcePages([]);
+    try {
+      const r = await apiGet(`/materials/view?courseId=${encodeURIComponent(courseId)}&materialId=${encodeURIComponent(selectedMaterial.materialId)}`);
+      const extracted = await extractPdfPageTexts(r.url);
+      setSourcePages(extracted.pages);
+      setSourceNote(describeExtraction(extracted));
+    } catch (e) {
+      setSourceNote("教材の本文を読み取れませんでした：" + (e?.message || e));
+    } finally {
+      setSourceBusy(false);
+    }
+  }
+
   function mapAiQuestion(q, i) {
     const choices = Array.isArray(q.choices) ? q.choices : Array.isArray(q.options) ? q.options : [];
     return {
@@ -2603,6 +2659,9 @@ function TestBuilder({ back, focus, student, onSaved, initialTest = null, duplic
       wrongReason: q.wrongReason || "",
       reviewPoint: q.reviewPoint || "",
       points: q.points || 10,
+      // 復習のとき「教材のどこを見ればいいか」へ戻れるようにする
+      sourceMaterialId: q.sourcePage ? materialId : "",
+      sourcePage: Number(q.sourcePage) || 0,
     };
   }
   function buildAiScopePayload(count, instruction) {
@@ -2625,17 +2684,21 @@ function TestBuilder({ back, focus, student, onSaved, initialTest = null, duplic
       questionType: aiQuestionType,
       answerMode,
       instruction,
+      // 教材から作るときは本文をそのまま渡す（空なら今までどおりカリキュラムから作る）
+      materialId,
+      materialTitle: selectedMaterial?.title || "",
+      sourcePages,
     };
   }
   async function gen() {
     if (aiGenerating || aiGeneratingMore) return;
     setAiNotice("");
-    if (!courseId) {
-      setAiNotice("対象コースを選択してください。選択後、そのコースのカリキュラムを取得します。");
+    if (!courseId && !sourcePages.length) {
+      setAiNotice("対象コースを選ぶか、教材の本文を読み取ってください。");
       return;
     }
-    if (!curriculumId && !scope.trim() && curriculumSections.length > 0) {
-      setAiNotice("対象範囲を選ぶか、出題内容・範囲を入力してください。");
+    if (!sourcePages.length && !curriculumId && !scope.trim() && curriculumSections.length > 0) {
+      setAiNotice("対象範囲を選ぶか、出題内容・範囲を入力してください。教材から作ることもできます。");
       return;
     }
     setAiGenerating(true);
@@ -2718,13 +2781,17 @@ function TestBuilder({ back, focus, student, onSaved, initialTest = null, duplic
       wrongReason: q.wrongReason || "",
       reviewPoint: q.reviewPoint || "",
       points: Number(q.points || 10),
+      sourceMaterialId: q.sourceMaterialId || "",
+      sourcePage: Number(q.sourcePage) || 0,
     }));
     const scopeMeta = selectedScope || (courseId ? { scopeType: "course", label: selectedCourse?.name || "コース全体" } : {});
     try {
       const payload = {
         title: name.trim(),
         description: scope.trim(),
-        courseId,
+        // 紐づけ先は複数持てる。1つも選ばなければ「どのコースにも出さない下書き」になる
+        courseIds: linkedCourseIds,
+        courseId: linkedCourseIds[0] || "",
         scopeType: scopeMeta.scopeType || "",
         sectionId: scopeMeta.sectionId || "",
         sectionTitle: scopeMeta.sectionTitle || "",
@@ -2765,9 +2832,58 @@ function TestBuilder({ back, focus, student, onSaved, initialTest = null, duplic
         <div className="grid gap-3 lg:grid-cols-4">
           <div className="lg:col-span-2"><label className="text-xs font-semibold" style={{ color: T.textMuted }}>テスト名</label>
             <input value={name} onChange={e => setName(e.target.value)} className="mt-1 w-full rounded-xl px-3 py-2.5 text-sm outline-none focus:border-cyan-400" style={{ border: `1px solid ${T.border}`, color: T.textPrimary }} /></div>
-          <Field label="対象コース"><select value={courseId} onChange={e => setCourseId(e.target.value)} className="w-full rounded-xl px-3 py-2.5 text-sm outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary }}><option value="">未指定</option>{courses.map(c => <option key={courseKey(c)} value={courseKey(c)}>{c.name || c.title || courseKey(c)}</option>)}</select></Field>
+          <Field label="作るときの参照コース"><select value={courseId} onChange={e => setCourseId(e.target.value)} className="w-full rounded-xl px-3 py-2.5 text-sm outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary }}><option value="">未指定</option>{courses.map(c => <option key={courseKey(c)} value={courseKey(c)}>{c.name || c.title || courseKey(c)}</option>)}</select></Field>
           <Field label="制限時間"><input type="number" min="0" value={limitMinutes} onChange={e => setLimitMinutes(e.target.value)} className="w-full rounded-xl px-3 py-2.5 text-sm outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary }} /></Field>
         </div>
+
+        {/* 出す先。**作る場所と出す場所を分ける**ので、1つのテストを複数コースで使える（2026-09-16 打合せ） */}
+        <div className="mt-4 rounded-xl p-3" style={{ background: T.bgBase }}>
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <div className="text-xs font-bold" style={{ color: T.textPrimary }}>このテストを出すコース（複数可）</div>
+            <div className="text-[11px]" style={{ color: T.textMuted }}>
+              {linkedCourseIds.length ? `${linkedCourseIds.length}コースに出します` : "どこにも出しません（作りかけとして保存できます）"}
+            </div>
+          </div>
+          <div className="mt-2 flex flex-wrap gap-2">
+            {courses.map(c => {
+              const id = courseKey(c);
+              const on = linkedCourseIds.includes(id);
+              return (
+                <button key={id} type="button"
+                  onClick={() => setLinkedCourseIds(prev => on ? prev.filter(x => x !== id) : [...prev, id])}
+                  className="inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-bold"
+                  style={{ background: on ? T.accentSubtle : "#fff", color: on ? T.accentHover : T.textSecondary, border: `1px solid ${on ? T.accent : T.border}` }}>
+                  {on ? <CheckCircle2 size={13} /> : <Circle size={13} />}{c.name || c.title || id}
+                </button>
+              );
+            })}
+            {!courses.length && <span className="text-xs" style={{ color: T.textMuted }}>担当コースがありません。</span>}
+          </div>
+        </div>
+      </Card>
+
+      {/* 教材（PDF）から問題を作る。**本文はブラウザで読み取ってから渡す** */}
+      <Card className="mb-4 p-5">
+        <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+          <div>
+            <div className="flex items-center gap-2 text-sm font-bold" style={{ color: T.textPrimary }}><FileText size={15} style={{ color: T.accent }} />教材から問題を作る（任意）</div>
+            <div className="text-xs" style={{ color: T.textMuted }}>コースの研修資料の本文を読み取って、そこからだけ出題します。設問には「何ページを見ればよいか」が付きます。</div>
+          </div>
+        </div>
+        <div className="flex flex-wrap items-center gap-2">
+          <select value={materialId} onChange={e => { setMaterialId(e.target.value); setSourcePages([]); setSourceNote(""); }} disabled={!courseId}
+            className="min-w-56 flex-1 rounded-xl px-3 py-2.5 text-sm outline-none disabled:opacity-60" style={{ border: `1px solid ${T.border}`, color: T.textPrimary }}>
+            <option value="">{courseId ? (materials.length ? "教材を選ぶ" : "このコースにPDFの教材がありません") : "先に参照コースを選んでください"}</option>
+            {materials.map(m => <option key={m.materialId} value={m.materialId}>{m.title || m.filename}</option>)}
+          </select>
+          <Btn kind="ghost" icon={Upload} disabled={!materialId || sourceBusy} onClick={loadMaterialText}>{sourceBusy ? "読み取り中…" : "本文を読み取る"}</Btn>
+          {sourcePages.length > 0 && <Btn kind="ghost" size="sm" icon={X} onClick={() => { setSourcePages([]); setSourceNote(""); }}>使わない</Btn>}
+        </div>
+        {sourceNote && (
+          <div className="mt-2 rounded-lg px-3 py-2 text-xs" style={{ background: sourcePages.length ? T.successSubtle : T.warningSubtle, color: sourcePages.length ? T.success : T.warning }}>
+            {sourceNote}
+          </div>
+        )}
       </Card>
 
       <Card className="mb-4 p-5" style={{ background: T.accentSubtle, border: `1px solid ${T.border}` }}>
@@ -2833,7 +2949,7 @@ function TestBuilder({ back, focus, student, onSaved, initialTest = null, duplic
         {curriculumErr && <div className="mt-3 rounded-xl px-3 py-2 text-xs font-semibold" style={{ background: "#fff", color: T.textMuted, border: `1px solid ${T.border}` }}>{curriculumErr}</div>}
         <div className="mt-4 flex flex-wrap items-center gap-2">
           <Btn kind="ai" size="sm" icon={Sparkles} onClick={gen} disabled={aiGenerating || aiGeneratingMore}>{aiGenerating ? "生成中..." : "問題候補を作成"}</Btn>
-          <Btn size="sm" kind="ghost" icon={Plus} onClick={addBlankQuestion}>空の設問を追加</Btn>
+          <Btn size="sm" icon={Plus} onClick={addBlankQuestion}>自分で問題を追加</Btn>
           <span className="text-xs" style={{ color: T.textMuted }}>指定: {questionCount}問 / {questionFormat} / {level}</span>
         </div>
         {aiNotice && <div className="mt-3 rounded-xl px-3 py-2 text-xs font-semibold" style={{ background: "#fff", color: T.warning, border: `1px solid ${T.border}` }}>{aiNotice}</div>}
@@ -2885,7 +3001,7 @@ function testAnswerProvided(question, value) {
   const isChoice = question?.type === "choice" || question?.type === "trueFalse" || !question?.type;
   return isChoice ? Number.isInteger(value) : String(value ?? "").trim().length > 0;
 }
-function TestTaking({ test, back, onDone, preview = false }) {
+function TestTaking({ test, back, onDone, preview = false, go }) {
   const questions = testQuestionsOf(test);
   const total = questions.length;
   const [restoredDraft] = useState(() => preview ? null : getTraineeTestDraft(testIdOf(test)));
@@ -3089,6 +3205,23 @@ function TestTaking({ test, back, onDone, preview = false }) {
                             {detail.aiEvaluation.advice && <div className="mt-1"><b>{"\u30ef\u30f3\u30dd\u30a4\u30f3\u30c8\u30a2\u30c9\u30d0\u30a4\u30b9\uff1a"}</b>{detail.aiEvaluation.advice}</div>}
                           </div>}
                           <div>解説：{q.explanation || "解説は未設定です。"}</div>
+                          {/* どこを読み直せばよいかまで出す。**戻り先が分かって初めて復習になる**（2026-09-16 打合せ） */}
+                          {q.sourcePage > 0 && (
+                            <button type="button"
+                              onClick={() => {
+                                setTrainingTargetContext({
+                                  view: "materials",
+                                  courseId: test.courseId || (Array.isArray(test.courseIds) ? test.courseIds[0] : "") || "",
+                                  materialId: q.sourceMaterialId || "",
+                                  page: q.sourcePage,
+                                });
+                                go?.("materials");
+                              }}
+                              className="inline-flex items-center gap-1 rounded-lg px-2 py-1 text-xs font-bold"
+                              style={{ color: T.accentHover, background: T.accentSubtle }}>
+                              <FileText size={12} />教材の{q.sourcePage}ページを見る
+                            </button>
+                          )}
                           {q.wrongReason && <div>よくある誤答理由：{q.wrongReason}</div>}
                           {q.reviewPoint && <div>復習ポイント：{q.reviewPoint}</div>}
                           <div className="mt-3 rounded-lg bg-white p-3" style={{ border: `1px solid ${T.border}` }}>

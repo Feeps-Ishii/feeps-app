@@ -65,7 +65,7 @@ const TOOLS = [
 const WIDTH_LABELS = ["細", "中", "太"];
 const MAX_UNDO = 50;
 
-export default function MaterialViewer({ courseId, material, onClose, onPage, lessonId, canAnnotate = false }) {
+export default function MaterialViewer({ courseId, material, onClose, onPage, lessonId, canAnnotate = false, initialPage = 1 }) {
   const wrapRef = useRef(null);
   const canvasRef = useRef(null);
   const docRef = useRef(null);
@@ -73,7 +73,8 @@ export default function MaterialViewer({ courseId, material, onClose, onPage, le
   const [url, setUrl] = useState("");
   const [kind, setKind] = useState(() => kindOf(material));
   const [numPages, setNumPages] = useState(0);
-  const [page, setPage] = useState(1);
+  // テストの解説から飛んできたときは、そのページで開く
+  const [page, setPage] = useState(() => Math.max(1, Math.floor(Number(initialPage)) || 1));
   const [zoom, setZoom] = useState(1);        // 1 = 幅に合わせる
   const [width, setWidth] = useState(0);
   const [loading, setLoading] = useState(true);
@@ -111,7 +112,7 @@ export default function MaterialViewer({ courseId, material, onClose, onPage, le
   useEffect(() => {
     let alive = true;
     const ac = new AbortController();
-    setLoading(true); setErr(""); setPage(1); setZoom(1);
+    setLoading(true); setErr(""); setPage(Math.max(1, Math.floor(Number(initialPage)) || 1)); setZoom(1);
     setKind(kindOf(material));
     docRef.current?.destroy?.();
     docRef.current = null;

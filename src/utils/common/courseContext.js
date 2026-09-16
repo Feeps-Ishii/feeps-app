@@ -95,13 +95,17 @@ export function getTraineeTestDraft(testId = "") {
 }
 
 // Homeなど別画面から研修画面へ移る際の対象と、更新後に復元する選択内容をタブ単位で保持する。
-export function setTrainingTargetContext({ view, courseId, testId, date, mode } = {}, { historyAction = "replace" } = {}) {
+export function setTrainingTargetContext({ view, courseId, testId, date, mode, materialId, page } = {}, { historyAction = "replace" } = {}) {
+  const pageNumber = Math.floor(Number(page));
   const target = {
     view: TRAINING_TARGET_VIEWS.has(view) ? view : "home",
     courseId: safeTargetValue(courseId),
     testId: safeTargetValue(testId),
     date: safeTargetDate(date),
     mode: ["taking", "result"].includes(mode) ? mode : "",
+    // 「テストの解説から、教材の該当ページへ飛ぶ」ための行き先（2026-09-16 打合せ）
+    materialId: safeTargetValue(materialId),
+    page: Number.isInteger(pageNumber) && pageNumber >= 1 && pageNumber <= 5000 ? pageNumber : 0,
     authUserId: (() => {
       try { return window.localStorage.getItem("feeps.authUserId") || ""; }
       catch { return ""; }
@@ -110,7 +114,7 @@ export function setTrainingTargetContext({ view, courseId, testId, date, mode } 
   };
   if (target.courseId) setActiveCourseId(target.courseId);
   try {
-    if (!target.courseId && !target.testId && !target.date) {
+    if (!target.courseId && !target.testId && !target.date && !target.materialId) {
       window.sessionStorage.removeItem(TRAINING_TARGET_KEY);
       emitTrainingTargetChange(null, historyAction);
     } else {
@@ -132,6 +136,12 @@ export function getTrainingTargetContext(view, { consume = true } = {}) {
       testId: safeTargetValue(stored?.testId),
       date: safeTargetDate(stored?.date),
       mode: ["taking", "result"].includes(stored?.mode) ? stored.mode : "",
+      // 教材の該当ページへ戻る行き先（2026-09-16）。壊れた値は0にして「指定なし」と同じ扱いにする
+      materialId: safeTargetValue(stored?.materialId),
+      page: (() => {
+        const n = Math.floor(Number(stored?.page));
+        return Number.isInteger(n) && n >= 1 && n <= 5000 ? n : 0;
+      })(),
       authUserId: safeTargetValue(stored?.authUserId),
       createdAt: Number(stored?.createdAt),
     };
