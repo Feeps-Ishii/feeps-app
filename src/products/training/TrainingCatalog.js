@@ -1,4 +1,4 @@
-import { LayoutDashboard, FileText, ClipboardCheck, Clock, NotebookPen, Users, Building2, BookOpen, Settings, GraduationCap, Calendar, Sparkles, Target, Wrench, Compass, CalendarClock, Megaphone } from "lucide-react";
+import { LayoutDashboard, PenLine, FileText, ClipboardCheck, Clock, NotebookPen, Users, Building2, BookOpen, Settings, GraduationCap, Calendar, Sparkles, Target, Wrench, Compass, CalendarClock, Megaphone } from "lucide-react";
 
 
 /* ===== ロール ===== */
@@ -69,7 +69,7 @@ const QBANK = {
 const NAV = {
   trainee: [
     { sec: null, items: [["home", "ホーム", LayoutDashboard]] },
-    { sec: "研修中", items: [["courses", "コース", BookOpen], ["curriculum", "カリキュラム", Calendar], ["reports", "日報", NotebookPen], ["attendance", "勤怠", Clock], ["tests", "テスト", ClipboardCheck], ["materials", "研修資料", FileText], ["goals", "目標とタスク", Target]] },
+    { sec: "研修中", items: [["courses", "コース", BookOpen], ["curriculum", "カリキュラム", Calendar], ["reports", "日報", NotebookPen], ["attendance", "勤怠", Clock], ["tests", "テスト", ClipboardCheck], ["materials", "研修資料", FileText], ["notes", "ノート", PenLine], ["goals", "目標とタスク", Target]] },
   ],
   instructor: [
     { sec: null, items: [["home", "ホーム", LayoutDashboard]] },

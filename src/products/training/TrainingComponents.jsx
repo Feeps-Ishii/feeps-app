@@ -6264,5 +6264,7 @@ export {
   Card, Badge, Btn, Avatar, Ring, Bar, Stat, SectionHead, EmptyState,
   TraineeHome, InstructorGoalsDashboard, GoalsView, Curriculum, Materials,
   Tests, Attendance, Reports, TraineeList, Karte, ClientHome,
-  ElearningView, ReadOnlyCompanies, ReadOnlyCourses, ReadOnlyInstructors
+  ElearningView, ReadOnlyCompanies, ReadOnlyCourses, ReadOnlyInstructors,
+  // ノート画面もカリキュラムの木を同じ形で読む。作り直すと片方だけ直す事故が起きる
+  normalizeCurriculumSections
 };

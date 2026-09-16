@@ -2,6 +2,9 @@ import React from "react";
 import { ReservationManager } from "../grants/GrantsComponents.jsx";
 import Announcements, { AnnouncementBoard } from "./Announcements.jsx";
 import InstructorWorkspace from "../workspace/InstructorWorkspace.jsx";
+
+// ノートは react-markdown を使うので、開いた人だけが読み込むように分ける
+const NotesView = React.lazy(() => import("./NotesView.jsx"));
 import { PrismErrorRetryCard, SkeletonRows } from "../../components/common";
 import {
   Attendance, ClientHome, Curriculum, ElearningView, GoalsView, Karte, Materials, Reports,
@@ -43,6 +46,15 @@ export default function TrainingProduct({
   if (view === "goals") return <GoalsView role={role} done={taskDone} taskSaveState={taskSaveState} toggle={toggle} goals={goals} setGoals={setGoals} go={go} goProduct={goProduct} goSub={goSub} openKarte={setKarte} />;
   if (view === "elearning") return <ElearningView go={go} />;
   if (view === "materials") return <Materials role={role} />;
+  // ノートは私物。受講生本人だけが開ける（講師・企業担当には出さない）
+  if (view === "notes") {
+    if (role !== "trainee") return null;
+    return (
+      <React.Suspense fallback={<div className="p-4"><SkeletonRows rows={4} /></div>}>
+        <NotesView />
+      </React.Suspense>
+    );
+  }
   if (view === "tests") return <Tests role={role} />;
   if (view === "attendance") return <Attendance role={role} userProfile={userProfile} />;
   if (view === "reports") return <Reports role={role} userProfile={userProfile} />;

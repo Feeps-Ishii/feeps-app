@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { apiGet, apiPut } from "../../api.js";
 import { Card, Btn, PageHeader, PrismSectionTitle, T } from "../../components/common";
-import { AlertCircle, Building2, Check, Coins, Minus, Plus, RotateCcw, Sparkles, X } from "lucide-react";
+import { AlertCircle, Check, Coins, Minus, Plus, RotateCcw, Sparkles, X } from "lucide-react";
 import { buildPlan, landCost, hallKey, adjacentOwned, shortName } from "./town/townPlan.js";
 
 /* 成長の街。
@@ -187,9 +187,10 @@ export default function TownView({ done = {}, goals = [] }) {
   return (
     <div>
       <PageHeader
+        product="talent"
+        label="スキル・成長"
         title="街"
-        desc="目標のひとつひとつが建物になります。土地はクレジットで買い、建てるにはそのタスクを達成していることが要ります。"
-        icon={Building2}
+        description="目標のひとつひとつが建物になります。土地はクレジットで買い、建てるにはそのタスクを達成していることが要ります。"
       />
 
       {err ? (
@@ -285,7 +286,7 @@ export default function TownView({ done = {}, goals = [] }) {
           </div>
 
           {/* クレジットの内訳 */}
-          <PrismSectionTitle className="mt-8">クレジットはどこから来たか</PrismSectionTitle>
+          <PrismSectionTitle className="mt-8" title="クレジットはどこから来たか" />
           <Card className="mt-3 p-5">
             {unknown ? (
               <div className="flex items-start gap-3 text-sm">
