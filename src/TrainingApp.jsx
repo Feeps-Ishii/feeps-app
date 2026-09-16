@@ -1498,6 +1498,19 @@ export default function App() {
       })}
     </div>
   ) : null;
+  // 街は研修・学習のどちらから見ても同じものなので、Productの中ではなく上のバーに出す。
+  // 受講生だけのもの（自分の目標が建物になる画面）なので、他ロールには出さない。
+  const townTabActive = product === "talent" && subView === "tl_town";
+  const townTab = role === "trainee" ? (
+    <button type="button" onClick={() => goProduct("talent", { subView: "tl_town" })}
+      aria-label="街を開く" aria-current={townTabActive ? "page" : undefined}
+      className="inline-flex shrink-0 items-center gap-1.5 rounded-[11px] px-3 py-1.5 text-[13px] font-semibold transition hover:opacity-85"
+      style={townTabActive
+        ? { background: PRODUCT_ACCENT.talent.accent, color: "#fff" }
+        : { background: NOVA.soft, color: T.textSecondary }}>
+      <Building2 size={15} />街
+    </button>
+  ) : null;
   const demoMenu = (
     <div className="relative ml-2 shrink-0">
       <button onClick={() => setDemoOpen(v => !v)}
@@ -1639,6 +1652,7 @@ export default function App() {
           </button>
           <div className="ml-auto flex items-center gap-1">
             {modeSwitch}
+            {townTab}
             <button type="button" onClick={() => setHelpGuideOpen(true)} aria-label="使い方を開く" title="使い方" className="feeps-icon-button"><HelpCircle size={18} /></button>
             {notifBellMobile}
           </div>
@@ -1653,6 +1667,7 @@ export default function App() {
           {(role === "trainee" || role === "client") && userProfile?.learningPlan && (
             <PlanBadge learningPlan={userProfile.learningPlan} onClick={() => go("plans")} />
           )}
+          {townTab}
           <div className="ml-auto flex min-w-0 shrink-0 items-center justify-end gap-1.5">
             {role === "instructor" && !isHomeProduct && <QuickAdd onPick={go} />}
             <button type="button" onClick={() => setHelpGuideOpen(true)} aria-label="使い方を開く" title="使い方" className="feeps-icon-button"><HelpCircle size={18} /></button>
