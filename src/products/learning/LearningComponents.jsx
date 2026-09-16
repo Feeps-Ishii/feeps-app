@@ -191,9 +191,13 @@ function LearningOverview({ lrn, goSub, goProduct, onOpenDetail, role, learningP
   // （2026-08-14、LearningMagazineHome.jsxへ差し替え。matching単独のロックカードは廃止）。
   const [showPlanNotice, setShowPlanNotice] = useState(false);
   const earnedSkills = lrn.getEarnedSkills();
-  const todayCompleted = lrn.completed.filter(c => lrn.progress[c.id]?.completedAt?.slice(0, 10) === todayStr());
-  const recommend = lrn.notStarted.slice(0, 3);
-  const resume = getLearningResume(lrn);
+  // 2026-09-16: 講師・管理者は自分では学習しない。「続きから」「学習中」「おすすめ」
+  // 「今日も学習しました」「復習したいコース」は受講生の画面で、リンク先(el_inprogress /
+  // el_recommend)は講師・管理者のナビにも無い（goSubは行き先を検証しないので開けてしまう）。
+  // 2026-08-18にナビからは外したのに、ホームの中身だけ取り残されていた。
+  const todayCompleted = isCreator ? [] : lrn.completed.filter(c => lrn.progress[c.id]?.completedAt?.slice(0, 10) === todayStr());
+  const recommend = isCreator ? [] : lrn.notStarted.slice(0, 3);
+  const resume = isCreator ? null : getLearningResume(lrn);
   // 演習の誤答・AI採点低評価から復習対象コースを集計(2026-07-21追加)。コースごとに件数をまとめ、
   // Homeではコース詳細への導線のみ提示する（レッスン単位の「復習する」導線はコース詳細のWeakExercisesCard）。
   const weakByCourse = (lrn.getAllWeakItems ? lrn.getAllWeakItems() : []).reduce((acc, item) => {
@@ -201,7 +205,7 @@ function LearningOverview({ lrn, goSub, goProduct, onOpenDetail, role, learningP
     acc[item.courseId] = (acc[item.courseId] || 0) + 1;
     return acc;
   }, {});
-  const weakCourses = Object.entries(weakByCourse)
+  const weakCourses = isCreator ? [] : Object.entries(weakByCourse)
     .map(([courseId, count]) => ({ course: lrn.courseById ? lrn.courseById(courseId) : null, count }))
     .filter(entry => entry.course);
   // 2026-07-22: 開発演習(DevLab)独立タブ廃止に伴い、「学習」の2本柱
@@ -209,7 +213,8 @@ function LearningOverview({ lrn, goSub, goProduct, onOpenDetail, role, learningP
   const canUseDevLab = role === "trainee" || role === "instructor" || role === "admin";
   return (
     <div>
-      <ResumeBar resume={resume} onOpenDetail={onOpenDetail} goSub={goSub} themeColor={themeColor} />
+      {/* 「続きから」は受講生の導線。ResumeBarは中身が無くてもバーを描くので、丸ごと出さない */}
+      {!isCreator && <ResumeBar resume={resume} onOpenDetail={onOpenDetail} goSub={goSub} themeColor={themeColor} />}
 
       <LearningMagazineHome role={role} isCreator={isCreator} canUseDevLab={canUseDevLab} learningPlan={learningPlan}
         goSub={goSub} goProduct={goProduct} onShowPlanNotice={() => setShowPlanNotice(true)} lrn={lrn}
@@ -255,7 +260,7 @@ function LearningOverview({ lrn, goSub, goProduct, onOpenDetail, role, learningP
       )}
 
       {/* 学習中 */}
-      {lrn.inprogress.length > 0 && (
+      {!isCreator && lrn.inprogress.length > 0 && (
         <div className="mb-6">
           <div className="mb-3 flex items-center justify-between">
             <h3 className="text-base font-bold" style={{ color: C.ink, letterSpacing: "-0.02em" }}>学習中のコース</h3>

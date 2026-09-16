@@ -21,7 +21,15 @@ export function LearningStatusHeader({ role, resume, completedCount, inprogressC
   const pa = PRODUCT_ACCENT.learning;
   let heading, desc, ctaLabel, onCta;
 
-  if (role === "client") {
+  // 2026-09-16: instructor/adminにも「続きから学習」「まだ学習を始めていません」が
+  // 出ていた。2026-08-18にナビからは受講生導線を外したのに、ここだけ取り残されていた。
+  // **自分では学習しないロール**（講師・管理者・企業担当）は管理側の入口にする。
+  if (role === "instructor" || role === "admin") {
+    heading = "受講状況をまとめて確認できます";
+    desc = "コースごとの進み具合と、つまずいている人が分かります";
+    ctaLabel = "受講状況を開く";
+    onCta = () => goSub("el_students");
+  } else if (role === "client") {
     // clientは自分が学習しないため別文言体系。自社受講生の集計は現状取得できないため
     // （GET /dashboard/clientの流用は学習モードHomeのヘッダー1行には不釣り合いなため見送り、
     // 2026-08-14ユーザー決定）、案内文のみとする。
@@ -334,8 +342,12 @@ function buildSideCards({ role, isCreator, learningPlan, goSub, goProduct, compl
 
   const skill = {
     icon: SkillIcon, tone: PRODUCT_ACCENT.talent,
-    title: "スキル・成長", desc: "身につけたスキルを記録し、案件参画向けのシートに整えます。",
-    stats: role === "client" ? undefined : `取得スキル${earnedSkillsCount}件`,
+    title: "スキル・成長",
+    desc: isCreator || role === "client"
+      ? "受講生の保有スキルと強みを、案件参画向けのシートで確認します。"
+      : "身につけたスキルを記録し、案件参画向けのシートに整えます。",
+    // 取得スキル数は**自分が学習する人の数字**。講師・管理者・企業担当には出さない
+    stats: isCreator || role === "client" ? undefined : `取得スキル${earnedSkillsCount}件`,
     state: "normal", onClick: () => goProduct && goProduct("talent"),
   };
   const aiCourse = {
@@ -347,9 +359,11 @@ function buildSideCards({ role, isCreator, learningPlan, goSub, goProduct, compl
   };
   const elearning = {
     icon: ElearningIcon, tone: PRODUCT_ACCENT.training,
-    title: "Eラーニング", desc: "コースを受講して、理解度テストで定着を確認します。",
-    stats: `修了${completedCount}本 ・ 学習中${inprogressCount}本`,
-    state: "normal", onClick: () => goSub("el_courses"),
+    title: "Eラーニング",
+    desc: isCreator ? "コースを作って公開し、受講状況を確認します。" : "コースを受講して、理解度テストで定着を確認します。",
+    stats: isCreator ? undefined : `修了${completedCount}本 ・ 学習中${inprogressCount}本`,
+    // goSubは行き先を検証しない。ナビにある画面だけへ送る
+    state: "normal", onClick: () => goSub(isCreator ? "el_manage" : "el_courses"),
   };
   // 2026-08-19: 主役が2軸（学ぶ／チームで開発する）になり、Eラーニングとチーム開発は
   // 主役側へ移った。脇はそれ以外の3枚だけにする。
@@ -387,15 +401,23 @@ export default function LearningMagazineHome({ role, isCreator, canUseDevLab, le
       tone={PRODUCT_ACCENT.learning}
       kicker="読んで理解する"
       title="Eラーニング"
-      desc={role === "client"
-        ? "自社の受講生が学べるコースです。受講状況や理解度もここから把握できます。"
-        : "スライドで学び、その場で演習して、総合テストで確かめます。修了するとスキルと修了証が残ります。"}
+      desc={isCreator
+        ? "コースを作って公開し、受講状況を確認します。受講生からの見え方は各コースのプレビューで確かめられます。"
+        : role === "client"
+          ? "自社の受講生が学べるコースです。受講状況や理解度もここから把握できます。"
+          : "スライドで学び、その場で演習して、総合テストで確かめます。修了するとスキルと修了証が残ります。"}
       illustration={<ElearningIllustration />}
-      stats={role === "client" ? [] : [`受講中 ${inprogressCount}本`, `修了 ${completedCount}本`, `取得スキル ${earnedSkillsCount}件`]}
-      actions={<>
+      // 受講中/修了/取得スキルは**自分が学習する人の数字**。講師・管理者・企業担当には出さない
+      stats={isCreator || role === "client" ? [] : [`受講中 ${inprogressCount}本`, `修了 ${completedCount}本`, `取得スキル ${earnedSkillsCount}件`]}
+      // goSubは行き先を検証しないので、**そのロールのナビにある画面だけ**を出す。
+      // 講師・管理者のナビは「コース管理／受講状況」で、コース一覧・修了済みは無い
+      actions={isCreator ? (<>
+        <Btn onClick={() => goSub("el_manage")}>コース管理</Btn>
+        <Btn kind="ghost" onClick={() => goSub("el_students")}>受講状況</Btn>
+      </>) : (<>
         <Btn onClick={() => goSub("el_courses")}>コース一覧</Btn>
-        {role !== "client" && <Btn kind="ghost" onClick={() => goSub("el_completed")}>修了済み</Btn>}
-      </>}
+        <Btn kind="ghost" onClick={() => goSub("el_completed")}>修了済み</Btn>
+      </>)}
     />
   );
 
