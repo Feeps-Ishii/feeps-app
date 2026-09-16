@@ -933,8 +933,10 @@ export function createTown(canvasEl, host, opts) {
   scene.fog = new THREE.FogExp2(0xC6E6F5, 0.0022);
 
   var camera = new THREE.PerspectiveCamera(37, 1, 1, 1200);
-  var view = { az: 0.72, pol: 0.92, dist: 88, ty: 2 };
-  var viewT = { az: 0.72, pol: 0.92, dist: 88, ty: 2 };
+  var view = { az: 0.72, pol: 0.92, dist: 88, ty: 2, tx: 0, tz: 0 };
+  var viewT = { az: 0.72, pol: 0.92, dist: 88, ty: 2, tx: 0, tz: 0 };
+  // 画の上下の寄せ。下にパネルがある画面ほど街を上へ逃がす
+  var bias = -2;
 
   var sun = new THREE.DirectionalLight(0xFFEBC0, 1.45);
   sun.position.set(54, 46, 30);
@@ -1817,8 +1819,24 @@ export function createTown(canvasEl, host, opts) {
     var S = (e * 2 + 1) * PLOT + (whole ? 0 : PLOT * 0.9);
     var fit = Math.min(2.1, Math.max(1, 1.3 / Math.max(0.3, camera.aspect)));
     viewT.dist = (S * 1.0 + 14) * fit;
-    viewT.ty = camera.aspect < 1 ? -12 : -7;
-    if (instant) { view.dist = viewT.dist; view.ty = viewT.ty; }
+    viewT.ty = (camera.aspect < 1 ? bias - 5 : bias);
+    viewT.tx = 0; viewT.tz = 0;
+    fitDist = viewT.dist;
+    if (instant) { view.dist = viewT.dist; view.ty = viewT.ty; view.tx = 0; view.tz = 0; }
+  }
+  var fitDist = 88;
+
+  // 選んだ区画をまん中に置いて、少しだけ寄る。
+  // **遠くの区画を選んだときに、何を触っているのか分かるようにする。**
+  function focusOn(p) {
+    if (!p) { viewT.tx = 0; viewT.tz = 0; viewT.ty = (camera.aspect < 1 ? bias - 5 : bias); return; }
+    var big = p.span === 2;
+    viewT.tx = p.x + (big ? PLOT / 2 : 0);
+    viewT.tz = p.z + (big ? PLOT / 2 : 0);
+    viewT.ty = (p.level || 0) * STEP + bias * 0.4;
+    // すでに寄っているときは、そのままの距離を保つ
+    var want = Math.max(26, fitDist * 0.58);
+    if (viewT.dist > want) viewT.dist = want;
   }
 
   /* ============================================================
@@ -1835,8 +1853,10 @@ export function createTown(canvasEl, host, opts) {
       selScale = big ? (BIG + 1.1) / (TILE + 1.1) : 1;
       selRing.scale.set(selScale, 1, selScale);
       selRing.visible = true;
+      focusOn(p);
     } else {
       selRing.visible = false;
+      focusOn(null);
     }
     renderCatalog();
   }
@@ -2071,9 +2091,15 @@ export function createTown(canvasEl, host, opts) {
     view.pol += (viewT.pol - view.pol) * Math.min(1, dt * 6);
     view.dist += (viewT.dist - view.dist) * Math.min(1, dt * 4);
     view.ty += (viewT.ty - view.ty) * Math.min(1, dt * 4);
+    view.tx += (viewT.tx - view.tx) * Math.min(1, dt * 4);
+    view.tz += (viewT.tz - view.tz) * Math.min(1, dt * 4);
     var sp = Math.sin(view.pol), cp = Math.cos(view.pol);
-    camera.position.set(Math.sin(view.az) * sp * view.dist, cp * view.dist + view.ty, Math.cos(view.az) * sp * view.dist);
-    camera.lookAt(0, view.ty, 0);
+    camera.position.set(
+      view.tx + Math.sin(view.az) * sp * view.dist,
+      cp * view.dist + view.ty,
+      view.tz + Math.cos(view.az) * sp * view.dist
+    );
+    camera.lookAt(view.tx, view.ty, view.tz);
     sun.target.position.set(0, 0, 0);
     sun.target.updateMatrixWorld();
 
@@ -2168,6 +2194,10 @@ export function createTown(canvasEl, host, opts) {
       if (list.length) place(selected, list[Math.floor(Math.random() * list.length)].id);
     },
     setDusk: function (v) { state.dusk = !!v; renderUI(); },
+    // 画面の大きさが変わったとき（拡大・全画面の切り替え）
+    resize: function () { resize(); fitCamera(); },
+    // 下にパネルがある画面ほど街を上へ逃がす
+    setBias: function (n) { bias = Number(n) || 0; fitCamera(); },
     fit: function (whole) { fitCamera(false, !!whole); },
     reset: function () { resetWorld(); },
 
