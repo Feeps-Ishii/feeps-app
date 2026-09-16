@@ -14,6 +14,8 @@ import { homeDateLabel } from "./useTraining.js";
 import { flattenLessons } from "./notesLessons.js";
 // ノートは react-markdown を使うので、教材の横に出すぶんも開いた人だけが読み込むようにする
 const LessonNoteDock = React.lazy(() => import("./LessonNoteDock.jsx"));
+// 教材ビューアは pdfjs-dist を使うので、開いた人だけが読み込む
+const MaterialViewer = React.lazy(() => import("./MaterialViewer.jsx"));
 import SubmissionCalendar from "./SubmissionCalendar.jsx";
 import SubmissionList from "./SubmissionList.jsx";
 import { clearTraineeTestDraft, clearTrainingTargetContext, getActiveCourseId, getTraineeTestDraft, getTrainingTargetContext, setActiveCourseId, setTraineeTestDraft, setTrainingTargetContext } from "../../utils/common/courseContext.js";
@@ -1348,6 +1350,8 @@ function Materials({ role }) {
   // 資料を見ながらノートを書けるようにする（受講生のみ）。単元は資料の紐づけ先に合わせる
   const [noteLessonId, setNoteLessonId] = useState("");
   const showNotes = role === "trainee";
+  // アプリ内で開いている教材。閉じると一覧へ戻る
+  const [viewing, setViewing] = useState(null);
   const selectedCourse = useMemo(() => courses.find(c => c.courseId === courseId) || null, [courses, courseId]);
   const canEdit = role === "admin" || (role === "instructor" && Array.isArray(selectedCourse?.instructorIds) && selectedCourse.instructorIds.includes(currentUserId));
   const materialsById = useMemo(() => Object.fromEntries(items.map(m => [m.materialId, m])), [items]);
@@ -1367,6 +1371,17 @@ function Materials({ role }) {
     ...arr(section.chapters).flatMap(chapter => arr(chapter.lessons).map(lesson => ({ value: `lesson:${lesson.id}`, label: `紐づけ先 — Lesson補足: ${lesson.title || "名称未設定"}` }))),
   ]), [curriculumSections]);
   const noteLessons = useMemo(() => flattenLessons(curriculumSections), [curriculumSections]);
+  // どの資料がどの単元に紐づいているか。資料を開いたとき、ノートを同じ単元に合わせるために使う
+  const lessonIdByMaterial = useMemo(() => {
+    const map = {};
+    arr(curriculumSections).forEach(section => {
+      if (section.unitMode === "section") arr(section.materialIds).forEach(id => { map[id] ||= section.id; });
+      arr(section.chapters).forEach(chapter => arr(chapter.lessons).forEach(lesson => {
+        (lesson.materialIds || (lesson.materialId ? [lesson.materialId] : [])).forEach(id => { map[id] ||= lesson.id; });
+      }));
+    });
+    return map;
+  }, [curriculumSections]);
   useEffect(() => {
     if (!showNotes || noteLessonId) return;
     if (noteLessons[0]?.id) setNoteLessonId(noteLessons[0].id);
@@ -1442,7 +1457,17 @@ function Materials({ role }) {
     finally { setUploading(false); if (fileRef.current) fileRef.current.value = ""; }
   }
 
+  // 受講生はアプリ内ビューアで開く（横にノートが並ぶ）。講師・管理者と非対応形式は今までどおり別タブ。
+  function canViewInApp(m) {
+    return showNotes && /\.(pdf|png|jpe?g|gif|webp)$/i.test(String(m?.filename || m?.title || "")) && m?.mode !== "download";
+  }
   async function openMaterial(m) {
+    if (canViewInApp(m)) {
+      setViewing(m);
+      const lid = lessonIdByMaterial[m.materialId];
+      if (lid) setNoteLessonId(lid);
+      return;
+    }
     // ポップアップブロック回避のため、クリック直後に空タブを開いてから遷移
     const tab = window.open("", "_blank");
     try {
@@ -1503,7 +1528,7 @@ function Materials({ role }) {
           <div className="min-w-0"><div className="truncate text-sm font-semibold" style={{ color: T.textPrimary }}>{m.title}</div>{m.description && <div className="truncate text-xs" style={{ color: T.textSecondary }}>{m.description}</div>}<div className="text-xs" style={{ color: T.textMuted }}>{m.mode === "download" ? "DLのみ" : "閲覧可"} / {fmtTs(m.uploadedAt)}</div></div>
         </div>
         <div className="flex shrink-0 items-center gap-2">
-          <Btn kind="ghost" size="sm" icon={m.mode === "download" ? Download : Eye} onClick={() => openMaterial(m)}>{m.mode === "download" ? "DL" : "開く"}</Btn>
+          <Btn kind="ghost" size="sm" icon={m.mode === "download" ? Download : Eye} onClick={() => openMaterial(m)}>{m.mode === "download" ? "DL" : canViewInApp(m) ? "読む" : "開く"}</Btn>
           {canEdit && <Btn kind="ghost" size="sm" icon={Pencil} onClick={() => startEdit(m)}>編集</Btn>}
           {canEdit && <Btn kind="ghost" size="sm" icon={Trash2} onClick={() => setDeleting(m)}>削除</Btn>}
         </div>
@@ -1585,7 +1610,11 @@ function Materials({ role }) {
               {courses.map(c => <option key={c.courseId} value={c.courseId}>{c.name}（{kindLabel(c.kind)}）</option>)}
             </select>
           </div>
-          {loading ? <Card><SkeletonRows /></Card>
+          {viewing ? (
+            <React.Suspense fallback={<Card><SkeletonRows rows={5} /></Card>}>
+              <MaterialViewer courseId={courseId} material={viewing} onClose={() => setViewing(null)} />
+            </React.Suspense>
+          ) : loading ? <Card><SkeletonRows /></Card>
             : items.length === 0 ? <Card><EmptyState title="資料がありません" desc={canEdit ? "「ファイルを追加」からアップロードできます" : "このコースに公開されている資料はありません"} /></Card>
             : <Card>{renderMaterialList() || items.map((m, i) => (
                 <div key={m.materialId} className="flex items-center justify-between px-4 py-3" style={{ borderBottom: i < items.length - 1 ? `1px solid ${T.border}` : "none" }}>
@@ -4385,6 +4414,100 @@ function mapReportInstructor(r) {
   };
 }
 
+/* 日報の下に「その日に書いたノート」を出す。正典: docs/specs/training-notes-spec.md 6.4
+ *
+ * **転記の手間を消すのが目的。** 書き写させるのではなく、選んだ日報項目へそのまま入れる。
+ * ノートはMarkdownだが、ここでは記法を解釈せず素のまま扱う（日報はプレーンテキストのため）。 */
+function ReportNotePicker({ date, courseId, fields, onInsert }) {
+  const [notes, setNotes] = useState([]);
+  const [lessonTitles, setLessonTitles] = useState({});
+  const [loading, setLoading] = useState(true);
+  const [err, setErr] = useState("");
+  const [reloadKey, setReloadKey] = useState(0);
+  const [target, setTarget] = useState("");
+  const [usedIds, setUsedIds] = useState(() => new Set());
+  const [capped, setCapped] = useState(false);
+
+  useEffect(() => {
+    const first = arr(fields)[0]?.id || "";
+    setTarget(prev => (arr(fields).some(f => f.id === prev) ? prev : (arr(fields).some(f => f.id === "learned") ? "learned" : first)));
+  }, [fields]);
+
+  useEffect(() => {
+    let alive = true;
+    setLoading(true); setErr("");
+    apiGet("/notes/me?limit=100").then(list => {
+      if (!alive) return;
+      const rows = Array.isArray(list) ? list : [];
+      setCapped(rows.length >= 100);
+      setNotes(rows.filter(n => String(n.createdAt || "").slice(0, 10) === date && (!courseId || n.courseId === courseId)));
+    })
+      // **取れなかったものを「0件」と言わない。**
+      .catch(() => { if (alive) setErr("ノートを確認できませんでした。書いていないとは限りません。"); })
+      .finally(() => { if (alive) setLoading(false); });
+    return () => { alive = false; };
+  }, [date, courseId, reloadKey]);
+
+  useEffect(() => {
+    if (!courseId) { setLessonTitles({}); return; }
+    let alive = true;
+    apiGet(`/courses/${courseId}/curriculum`)
+      .then(res => { if (alive) setLessonTitles(Object.fromEntries(flattenLessons(normalizeCurriculumSections(res || {})).map(l => [l.id, l.title]))); })
+      .catch(() => { if (alive) setLessonTitles({}); });
+    return () => { alive = false; };
+  }, [courseId]);
+
+  if (!loading && !err && notes.length === 0) return null;
+
+  const take = note => {
+    if (!target) return;
+    onInsert(target, String(note.body || "").trim());
+    setUsedIds(prev => new Set(prev).add(note.noteId));
+  };
+
+  return (
+    <Card className="mb-6 p-5">
+      <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <h3 className="flex items-center gap-2 font-bold" style={{ color: T.textPrimary }}><StickyNote size={16} style={{ color: T.accent }} />この日のノート</h3>
+          <span className="text-xs" style={{ color: T.textMuted }}>書いたものを日報へそのまま入れられます。ノート自体は講師に見えません。</span>
+        </div>
+        {arr(fields).length > 0 && (
+          <label className="flex items-center gap-2 text-xs font-semibold" style={{ color: T.textMuted }}>入れ先
+            <select value={target} onChange={e => setTarget(e.target.value)} className="rounded-xl px-2 py-1.5 text-xs outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary, background: "#fff" }}>
+              {arr(fields).map(f => <option key={f.id} value={f.id}>{f.label}</option>)}
+            </select>
+          </label>
+        )}
+      </div>
+
+      {err ? (
+        <div className="flex flex-wrap items-center gap-2 rounded-xl px-3 py-2 text-xs" style={{ background: T.warningSubtle, color: T.warning }}>
+          {err}<Btn kind="ghost" size="sm" icon={RefreshCw} className="ml-auto" onClick={() => setReloadKey(k => k + 1)}>再試行</Btn>
+        </div>
+      ) : loading ? <SkeletonRows rows={2} /> : (
+        <div className="space-y-2">
+          {capped && <div className="rounded-lg px-3 py-2 text-xs" style={{ background: T.warningSubtle, color: T.warning }}>直近100件までを見ています。これより古いノートはノート画面から確認してください。</div>}
+          {notes.map(note => {
+            const used = usedIds.has(note.noteId);
+            return (
+              <div key={note.noteId} className="flex flex-wrap items-start gap-3 rounded-xl p-3" style={{ background: T.bgBase, opacity: used ? 0.55 : 1 }}>
+                <div className="min-w-0 flex-1">
+                  <div className="text-xs font-semibold" style={{ color: T.textMuted }}>
+                    {lessonTitles[note.lessonId] || "単元"}{note.mark === "unknown" ? " ・わからない" : note.mark === "later" ? " ・あとで見返す" : ""}
+                  </div>
+                  <div className="mt-0.5 whitespace-pre-wrap break-words text-sm" style={{ color: T.textPrimary }}>{String(note.body || "").slice(0, 300)}</div>
+                </div>
+                <Btn kind="ghost" size="sm" icon={Plus} disabled={!target} onClick={() => take(note)}>{used ? "もう一度入れる" : "日報へ入れる"}</Btn>
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </Card>
+  );
+}
+
 function Reports({ role, userProfile }) {
   const nameMap = useNameMap();
   const [adminEditingReport, setAdminEditingReport] = useState(false);
@@ -4617,6 +4740,15 @@ function Reports({ role, userProfile }) {
       setReports([]);
     }
   }, [role, date, canViewReports, reportReloadKey, showDeletedReports]);
+  // ノートを日報へ入れる。**上書きしない**（書きかけを消さないため、必ず末尾に足す）
+  const insertNoteIntoReport = (fieldId, text) => {
+    if (!fieldId || !text) return;
+    setDraft(cur => {
+      const prevVal = reportFieldValue(cur, fieldId);
+      const next = prevVal.trim() ? `${prevVal.replace(/\s+$/, "")}\n${text}` : text;
+      return REPORT_FIXED_KEYS.has(fieldId) ? { ...cur, [fieldId]: next } : { ...cur, customFields: { ...cur.customFields, [fieldId]: next } };
+    });
+  };
   const settingsCourseId = canWrite ? reportCourseId : (opsFilter.courseId || (role === "admin" ? opsFilter.courses[0]?.courseId : opsFilter.courses.find(c => instructorAssignedCourseIds.has(c.courseId))?.courseId) || "");
   useEffect(() => {
     const loadVersion = ++reportFieldsLoadVersionRef.current;
@@ -5213,6 +5345,7 @@ function Reports({ role, userProfile }) {
             <textarea value={reportFieldValue(draft, field.id)} disabled={saving} onChange={e => setDraft(current => REPORT_FIXED_KEYS.has(field.id) ? { ...current, [field.id]: e.target.value } : { ...current, customFields: { ...current.customFields, [field.id]: e.target.value } })} placeholder={field.placeholder} rows={4} className="w-full resize-y rounded-xl px-3 py-3 text-sm leading-relaxed outline-none focus:border-cyan-400 disabled:opacity-60" style={{ border: `1px solid ${T.border}`, color: T.textPrimary, minHeight: 108 }} /></div>
         ))}</div>
         <div className="mt-4 flex flex-wrap items-center justify-end gap-3" aria-live="polite">{saveErr && <span className="mr-auto text-xs font-semibold" style={{ color: T.danger }}>{saveErr}</span>}{reportSaveState === "saved" && <span className="mr-auto text-xs font-semibold" style={{ color: T.success }}>日報を保存しました</span>}<Btn icon={Send} disabled={saving || reportWorkdaysLoading || !reportTrainingDateSet.has(editingReportDate)} onClick={submit}>{saving ? "保存中…" : "日報を保存"}</Btn></div></Card>}
+      {canWrite && <ReportNotePicker date={editingReportDate} courseId={reportCourseId} fields={reportFields} onInsert={insertNoteIntoReport} />}
       {/* 2026-09-15: 月カレンダーをやめ、1日ずつの記録リストにした（承認モック: trainee-reports）。
           未提出の研修日も行として出すので、出し忘れはここでも残る。 */}
       {canWrite && <SubmissionList
