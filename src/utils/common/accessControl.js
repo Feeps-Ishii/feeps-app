@@ -10,6 +10,10 @@ export function isProductVisibleForMode(product, { role, viewMode }) {
   // スキルモードも同じ扱い。「モード未指定＝どこでも出す」の対象外にしないと、
   // ホームや分析までスキルの下に並んでしまう（2026-09-16）。
   if (viewMode === "skill") return Boolean(product.modes?.includes("skill"));
+  // **スキルモードを持つのは受講生だけ**（自分の成長を見る場所）。受講生には他モードで
+  // 重複表示しない。講師・企業担当・管理者にとってのスキル・成長は「受講生スキルシート」
+  // という受講生を見る仕事なので、研修管理の中に置く（2026-09-16）。
+  if (role === "trainee" && product.modes?.includes("skill")) return false;
   if (role === "instructor") return true;
   // modesが無い（未指定）Productはモードの概念がない、または両モード共通（talent等）
   if (!product.modes || product.modes.length === 0) return true;
@@ -34,17 +38,22 @@ export function canUseCompanyMode({ role, adminTier }) {
   return role === "admin" && adminTier !== "standard";
 }
 
-// 2026-09-16: スキルモードを追加。スキル・成長（スキルシート／成長履歴／街）は
-// **研修と学習のどちらから見ても同じもの**で、「何を売っているか」の軸に属さない。
-// 契約モードでゲートしない（研修だけの契約でも、自分の記録は見える）。
+// 2026-09-16: スキルモードを追加。成長履歴・街・スキルシートは**自分の成長を見る場所**で、
+// 研修と学習のどちらから見ても同じもの。「何を売っているか」の軸に属さないので独立させた。
+// **受講生だけのモード。** 契約モードではゲートしない（研修だけの契約でも自分の記録は見える）。
+// 講師・企業担当・管理者にとってのスキルは「受講生スキルシート」＝受講生を見る仕事なので、
+// 独立モードにはせず研修管理の中に置く（モードにすると中身が1枚だけになり浮く）。
 export function allowedViewModes({ role, contractMode, adminTier }) {
   if (role === "admin") {
     return canUseCompanyMode({ role, adminTier })
-      ? ["training", "learning", "skill", "company"]
-      : ["training", "learning", "skill"];
+      ? ["training", "learning", "company"]
+      : ["training", "learning"];
   }
   if (role === "instructor") return ["training", "learning"];
   const cm = contractMode || "both"; // Backendのフェイルオープン既定値と揃える
+  // 企業担当は自分では学習しない。スキル（自分の成長）のモードは持たず、
+  // 受講生スキルシートは研修管理の中から開く
+  if (role === "client") return cm === "both" ? ["training", "learning"] : [cm];
   return cm === "both" ? ["training", "learning", "skill"] : [cm, "skill"];
 }
 

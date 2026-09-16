@@ -1,6 +1,7 @@
 import React from "react";
 import { AdminCompanies } from "../admin/AdminComponents.jsx";
 import PlansContractsAdmin from "../learning/admin/PlansContractsAdmin.jsx";
+import { AwsCostDashboard } from "../analytics/AnalyticsProduct.jsx";
 
 // 企業管理モード（2026-08-21新設）。
 //
@@ -14,5 +15,7 @@ import PlansContractsAdmin from "../learning/admin/PlansContractsAdmin.jsx";
 // 将来ここへ足すもの: AI利用量、請求。企業担当者向けの契約閲覧は別タブ（本人の会社のみ）。
 export default function CompanyProduct({ subView }) {
   if (subView === "cm_plans") return <PlansContractsAdmin />;
+  // 2026-09-16: AWS利用料金は運営コスト。研修の分析ではないのでここへ移した
+  if (subView === "cm_awscosts") return <AwsCostDashboard />;
   return <AdminCompanies />;
 }

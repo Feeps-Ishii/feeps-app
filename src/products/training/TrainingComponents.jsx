@@ -16,7 +16,7 @@ import SubmissionList from "./SubmissionList.jsx";
 import { clearTraineeTestDraft, clearTrainingTargetContext, getActiveCourseId, getTraineeTestDraft, getTrainingTargetContext, setActiveCourseId, setTraineeTestDraft, setTrainingTargetContext } from "../../utils/common/courseContext.js";
 import {
   FileText, ClipboardCheck, Clock, NotebookPen, Users,
-  Building2, BookOpen, Search, Upload, Download,
+  Building2, Castle, BookOpen, Search, Upload, Download,
   CheckCircle2, Circle, AlertCircle, ChevronRight, ChevronLeft, ChevronUp, ChevronDown, Trash2, LogOut,
   Plus, Send, MessageSquare, PlayCircle,
   Sparkles, X, Eye, Pencil, StickyNote, Megaphone,
@@ -458,7 +458,7 @@ function TraineeHome({ go, goProduct, goSub, done, taskDataState, onTaskRetry, t
   );
 }
 
-/* 「スキル・成長 > 街」への導線。目標の達成数だけを見せて、詳しくは街の中で */
+/* 「成長の街」への導線。目標の達成数と、クレジットの増え方の要点だけを見せる */
 function TownEntryCard({ goProduct, done = {}, goals = [] }) {
   const tasks = arr(goals).flatMap(goal => arr(goal.tasks));
   const doneCount = tasks.filter(task => done?.[task.id]).length;
@@ -466,14 +466,14 @@ function TownEntryCard({ goProduct, done = {}, goals = [] }) {
   return (
     <PrismCard className="overflow-hidden p-0">
       <button onClick={open} className="flex w-full items-center gap-4 p-4 text-left transition-colors hover:brightness-105">
-        <span className="grid h-12 w-12 shrink-0 place-items-center rounded-2xl"
-          style={{ background: "linear-gradient(135deg,#1B2440,#2E7FD6)", color: "#F5C451" }}>
-          <Building2 size={22} />
+        <span className="grid h-12 w-12 shrink-0 place-items-center rounded-2xl text-white"
+          style={{ background: "linear-gradient(135deg,#E0642A,#8B63E0)" }}>
+          <Castle size={22} />
         </span>
         <span className="min-w-0 flex-1">
-          <span className="block text-sm font-bold" style={{ color: PRISM.ink }}>街をひらく</span>
+          <span className="block text-sm font-bold" style={{ color: PRISM.ink }}>成長の街をひらく</span>
           <span className="mt-0.5 block text-xs leading-relaxed" style={{ color: PRISM.mut }}>
-            目標のひとつひとつが建物になります。
+            目標のひとつひとつが建物になります。日報 +20 CR・テスト合格 +60 CR・その日にひらく +25 CR。
             {tasks.length > 0 && <> いま <b style={{ color: PRISM.ink }}>{doneCount} / {tasks.length}</b> のタスクを達成しています。</>}
           </span>
         </span>

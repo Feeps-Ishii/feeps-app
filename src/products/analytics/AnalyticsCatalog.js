@@ -1,12 +1,13 @@
-import { Activity, Gauge, NotebookPen, Receipt } from "lucide-react";
+import { Activity, Gauge, NotebookPen } from "lucide-react";
 
 export const ANALYTICS_NAV = [
   { sec: null, items: [["an_home", "ホーム", Activity]] },
-  { sec: "分析", items: [["an_awscosts", "AWS利用料金", Receipt], ["an_report", "月次レポート", NotebookPen], ["an_risk", "リスク分析", Gauge]] },
+  // 2026-09-16: AWS利用料金は「研修の分析」ではなく運営コストなので企業管理モードへ移した。
+  // 画面(AwsCostDashboard)は移動せず、置き場所だけを変えている。
+  { sec: "分析", items: [["an_report", "月次レポート", NotebookPen], ["an_risk", "リスク分析", Gauge]] },
 ];
 
 export const ANALYTICS_HOME_CARDS = [
-  { key: "an_awscosts", icon: Receipt,     label: "AWS利用料金",  desc: "月別のAWS利用料金とBedrock使用量を確認します。" },
   { key: "an_risk",     icon: Gauge,       label: "リスク分析",   desc: "受講生のリスクを自動検出・アラート表示します。" },
   { key: "an_report",   icon: NotebookPen, label: "月次レポート", desc: "研修実績・受講状況の月次集計を確認します。" },
 ];

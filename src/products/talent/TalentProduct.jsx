@@ -16,7 +16,7 @@ function TalentProduct({ subView, goSub, goProduct, role, themeColor, done = {},
   if (subView === "tl_town") {
     return (
       <Suspense fallback={<div className="p-10 text-center text-sm opacity-60">街を読み込んでいます…</div>}>
-        <TownView done={done} goals={goals} />
+        <TownView done={done} goals={goals} goProduct={goProduct} />
       </Suspense>
     );
   }

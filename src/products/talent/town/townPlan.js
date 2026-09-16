@@ -62,6 +62,30 @@ export function buildPlan(goals) {
   return plan;
 }
 
+/* つぎの一歩。街を見て終わりにせず「では何をすればいいか」を1つだけ返す。
+ * 優先順位: 建てられる → クレジットが足りない → タスクが未達成 → 土地を買う → 完成。
+ * credits が null（実績を確認できなかった）ときは何も返さない。
+ * 返すのは種別と対象だけで、文言と行き先は呼び出し側（TownView）が決める。 */
+export function nextStepFor({ plan = [], ownedLand, built, done = {}, credits }) {
+  if (credits == null) return null;
+  const owns = key => (ownedLand?.has ? ownedLand.has(key) : false);
+  const isBuilt = task => (built?.has ? built.has(task) : false);
+  const taskLots = plan.filter(p => p.kind === "task");
+
+  const ready = taskLots.find(p => owns(p.key) && done[p.task] && !isBuilt(p.task));
+  if (ready) return credits >= ready.cost ? { kind: "build", lot: ready } : { kind: "short", lot: ready, need: ready.cost - credits };
+
+  const learn = taskLots.find(p => owns(p.key) && !done[p.task]);
+  if (learn) return { kind: "learn", lot: learn };
+
+  const buyable = plan.find(p => p.kind !== "hall" && !owns(p.key) && adjacentOwned(ownedLand, p.gx, p.gy));
+  if (buyable) {
+    const c = landCost(buyable.gx, buyable.gy);
+    return credits >= c ? { kind: "land", lot: buyable, cost: c } : { kind: "shortLand", lot: buyable, need: c - credits };
+  }
+  return { kind: "done" };
+}
+
 /* 建物の短い名前。タスク名は長いので、街の上には出さない */
 export function shortName(p) {
   if (!p || p.kind !== "task") return p?.title || "";

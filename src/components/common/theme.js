@@ -115,6 +115,9 @@ export const PRODUCT_ACCENT = {
   devlab:    { accent: "#2FAE66", deep: "#1F8B4D", subtle: "#E7F8EE", gradFrom: "#146B39", gradTo: "#2FAE66" },
   // クラウド実習（2026-09-07）。学習のティール・開発演習の緑・案件のオレンジと当たらない深いシアン
   cloudlab:  { accent: "#0F7B8A", deep: "#0A5E6B", subtle: "#E2F1F3", gradFrom: "#0A5E6B", gradTo: "#17A2A8" },
+  // 成長の街（2026-09-16）。ここだけは遊びの場所なので、業務画面の色と混ざらない夕景の
+  // グラデ（オレンジ→talentの紫）にする。ナビでも一目で「他と違う」と分かるのが目的。
+  town:      { accent: "#E58A2B", deep: "#B4661A", subtle: "#FFF2E2", gradFrom: "#E0642A", gradTo: "#8B63E0" },
 };
 
 // Role accent (2026-07-03). Independent from PRODUCT_ACCENT — this is ONLY for the

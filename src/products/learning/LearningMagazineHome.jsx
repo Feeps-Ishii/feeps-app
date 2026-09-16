@@ -416,7 +416,8 @@ export default function LearningMagazineHome({ role, isCreator, canUseDevLab, le
         <Btn kind="ghost" onClick={() => goSub("el_students")}>受講状況</Btn>
       </>) : (<>
         <Btn onClick={() => goSub("el_courses")}>コース一覧</Btn>
-        <Btn kind="ghost" onClick={() => goSub("el_completed")}>修了済み</Btn>
+        {/* 「修了済み」は本人の修了コース。自分では受講しない企業担当には出さない */}
+        {role === "trainee" && <Btn kind="ghost" onClick={() => goSub("el_completed")}>修了済み</Btn>}
       </>)}
     />
   );

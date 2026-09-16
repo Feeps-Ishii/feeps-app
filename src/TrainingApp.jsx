@@ -148,7 +148,7 @@ const PRODUCTS = [
   // 2026-09-16: スキルは研修・学習のどちらから見ても同じものなので、独立したモードへ切り出した。
   // instructorは isProductVisibleForMode がモード非依存（常にtrue）なので、研修管理の
   // サイドバーからこれまで通り受講生スキルシートへ入れる。
-  { key: "talent",    label: "スキル・成長",   icon: TrendingUp,    color: PRODUCT_ACCENT.talent.accent, roles: ["trainee","instructor","client","admin"], modes: ["skill"] },
+  { key: "talent",    label: "スキル・成長",   icon: TrendingUp,    color: PRODUCT_ACCENT.talent.accent, roles: ["trainee","instructor","client","admin"], modes: ["skill","training"] },
   // 2026-07-14 Home緊急修正: 講師は案件管理を業務上使わないためHome/上部タブ/サイドバー/
   // Global Rail/モバイルドロワーから除外（PRODUCTSが全Product表示の正本を兼ねる）。
   // Backend(routes/matching.mjs)もGET /projects等の主要操作をinstructorに403で返しており、
@@ -157,7 +157,10 @@ const PRODUCTS = [
   // 導入企業がすぐ案件管理を使うとは限らないため。**消さずに roles を空にしてある**ので、
   // 出すときはここへロールを戻すだけでよい。Backendと画面の実装はそのまま残している。
   { key: "matching",  label: "案件管理",       icon: Briefcase,     color: PRODUCT_ACCENT.matching.accent, roles: [], modes: ["learning"] },
-  { key: "analytics", label: "分析・レポート", icon: Activity,      color: PRODUCT_ACCENT.analytics.accent, roles: ["admin"] },
+  // 2026-09-16: 中身は研修の分析（月次レポート・リスク分析）なので研修管理へ寄せた。
+  // 学習モードにも同じものが出ていて、どちらの分析なのか分からなくなっていた。
+  // 運営コスト（AWS利用料金）は企業管理モードへ移してある。
+  { key: "analytics", label: "分析・レポート", icon: Activity,      color: PRODUCT_ACCENT.analytics.accent, roles: ["admin"], modes: ["training"] },
   // 助成金管理: instructor/traineeは業務上利用しないため除外（Backend routes/grants.mjsも
   // isAdmin||isClient以外を全エンドポイントで403にしている、Matching同様の設計）。
   { key: "grants",    label: "助成金管理",     icon: Landmark,      color: PRODUCT_ACCENT.grants.accent, roles: ["client","admin"], modes: ["training"] },
@@ -246,7 +249,9 @@ const EL_NAV = {
   ],
   client: [
     { sec: null, items: [["el_home", "ホーム", LayoutDashboard]] },
-    { sec: "学習", items: [["el_courses", "コース一覧", BookOpen], ["el_completed", "修了済み", Award]] },
+    // 2026-09-16: 企業担当は自分では受講しない（ユーザー決定）。「修了済み」は本人の
+    // 修了コース一覧なので外した。コース一覧は**自社受講生の進捗を見る**導線として残す。
+    { sec: "受講状況", items: [["el_courses", "コース一覧", BookOpen]] },
     // 2026-08-19 席（スロット）課金。契約した席を自社社員へ割り当てる（ADR 0019）
     { sec: "契約", items: [["el_seats", "プラン・席の管理", Receipt]] },
     // 2026-08-19 自社社員をアサインしてハンズオン研修する導線。編成と進捗（コミット履歴）の閲覧まで。
@@ -271,6 +276,8 @@ const EL_NAV = {
 const COMPANY_NAV = [
   { sec: null, items: [["cm_companies", "企業マスタ", Building2]] },
   { sec: "契約", items: [["cm_plans", "契約・プラン・席", Receipt]] },
+  // 2026-09-16: AWS利用料金は運営コスト。研修の分析ではないのでここへ移した
+  { sec: "運営", items: [["cm_awscosts", "AWS利用料金", Gauge]] },
 ];
 
 function productNavigation(product, role) {
@@ -601,13 +608,41 @@ function NotificationCenter({ notifications, loading, error, role, go, goProduct
 
 /* ===== Nova Command グローバルレール =====
    Product切替を常に同じ視点位置へ固定する。表示可否は既存PRODUCTS.rolesのみを使う。 */
-function GlobalRail({ products, active, onSelect, onOpenPalette }) {
+// 2026-09-16: レールは「現在モードのProduct」だけを出していたため、Productが1つしかない
+// ロール（受講生など）では常にアイコン1個で、事実上なにも選べなかった。
+// **モードの切り替えをここへ出す。** Productはモード内に2つ以上あるときだけ下に続ける。
+const MODE_RAIL = {
+  training: { short: "研修", icon: GraduationCap },
+  learning: { short: "学習", icon: BookOpen },
+  skill:    { short: "成長", icon: TrendingUp },
+  company:  { short: "企業", icon: Building2 },
+};
+function GlobalRail({ products, active, onSelect, onOpenPalette, modes = [], viewMode, onSelectMode }) {
+  const showModes = modes.length > 1;
+  const showProducts = products.length > 1 || !showModes;
   return (
-    <aside className="feeps-global-rail hidden lg:flex" aria-label="プロダクトナビゲーション">
+    <aside className="feeps-global-rail hidden lg:flex" aria-label="モード・プロダクトナビゲーション">
       <button type="button" onClick={() => onSelect("home")} aria-label="Feeps One Homeへ戻る" className="feeps-global-brand">
         <BrandMark size={44} />
       </button>
-      <nav className="feeps-global-products">
+      {showModes && (
+        <nav className="feeps-global-products" aria-label="モード切替">
+          {modes.map(m => {
+            const cfg = MODE_RAIL[m] || { short: MODE_LABEL[m] || m, icon: Compass };
+            const isActive = m === viewMode;
+            return (
+              <button key={m} type="button" onClick={() => onSelectMode(m)} title={MODE_LABEL[m] || m}
+                aria-current={isActive ? "page" : undefined}
+                className={"feeps-global-link" + (isActive ? " is-active" : "")}>
+                <cfg.icon size={20} />
+                <span>{cfg.short}</span>
+              </button>
+            );
+          })}
+        </nav>
+      )}
+      {showModes && showProducts && <span className="mx-auto my-1 block h-px w-7" style={{ background: "rgba(255,255,255,.18)" }} />}
+      <nav className="feeps-global-products" aria-label="この中の機能" hidden={!showProducts}>
         {products.map(p => {
           const isActive = active === p.key;
           const short = { home: "Home", training: "研修", learning: "学習", talent: "成長", matching: "案件", analytics: "分析", grants: "助成金" }[p.key] || p.label;
@@ -720,16 +755,21 @@ function SideNav({ groups, view, karte, go, badges = {}, collapsed = false, pa =
           {g.sec && (collapsed
             ? <div className="relative z-[1] mx-2 mb-2 h-px" style={{ background: T.border }} />
             : <div className="relative z-[1] mb-1.5 px-3 text-[11px] font-bold uppercase" style={{ color: T.textMuted, letterSpacing: "0.08em" }}>{g.sec}</div>)}
-          {g.items.map(([k, lab, I]) => { const active = view === k && !karte; const b = badges[k];
+          {/* 4要素目は任意の装飾。chip（グラデ地のアイコン）を渡した項目だけ、業務項目と
+              見た目を変える。今は「成長の街」だけが使う（2026-09-16）。 */}
+          {g.items.map(([k, lab, I, opt]) => { const active = view === k && !karte; const b = badges[k];
             return (
               <button key={k} onClick={() => go(k)} title={collapsed ? (b ? `${lab}（未対応の通知 ${b}件）` : lab) : (b ? `未対応の通知 ${b}件` : undefined)} data-nav-active={active ? "true" : undefined} aria-current={active ? "page" : undefined}
                 className={"relative z-[1] mb-1 flex min-h-[44px] w-full items-center rounded-xl transition-colors " + (collapsed ? "justify-center px-0" : "gap-3 px-3") + (active ? "" : " hover:bg-black/[.04]")}
                 style={{ color: active ? T.textPrimary : T.textSecondary, fontWeight: active ? 600 : 500 }}>
                 <span className="relative inline-flex shrink-0">
-                  <I size={18} style={{ color: active ? pa.accent : T.textMuted }} />
+                  {opt?.chip
+                    ? <span className="flex h-[26px] w-[26px] items-center justify-center rounded-lg text-white"
+                        style={{ background: opt.chip, boxShadow: `0 1px 3px ${opt.shadow || "rgba(0,0,0,.18)"}` }}><I size={15} /></span>
+                    : <I size={18} style={{ color: active ? pa.accent : T.textMuted }} />}
                   {collapsed && b ? <span className="absolute -right-1 -top-1 h-1.5 w-1.5 rounded-full" style={{ background: T.accent }} /> : null}
                 </span>
-                {!collapsed && <span className="flex-1 truncate text-left text-sm">{lab}</span>}
+                {!collapsed && <span className="flex-1 truncate text-left text-sm" style={opt?.tint && !active ? { color: opt.tint, fontWeight: 600 } : undefined}>{lab}</span>}
                 {!collapsed && b ? <span title={`未対応の通知 ${b}件`} aria-label={`未対応の通知 ${b}件`} className="flex h-5 items-center justify-center rounded-full px-1.5 text-xs font-bold text-white" style={{ background: T.accent, minWidth: 20, fontVariantNumeric: "tabular-nums" }}>{b}</span> : null}
               </button>
             );
@@ -1633,7 +1673,9 @@ export default function App() {
       "--nova-glass": NOVA.glass, "--nova-shadow-sm": NOVA.shadowSm,
       "--nova-shadow-md": NOVA.shadowMd, "--nova-brand": NOVA.gradBrand,
     }}>
-      <GlobalRail products={availableProducts} active={product} onSelect={goProduct} onOpenPalette={() => setPaletteOpen(true)} />
+      <GlobalRail products={availableProducts} active={product} onSelect={goProduct} onOpenPalette={() => setPaletteOpen(true)}
+        modes={modeSwitchVisible ? modeTabs.map(m => m.key) : []} viewMode={viewMode}
+        onSelectMode={m => { setViewMode(m); resetToModeLanding(m); }} />
       {/* ヘッダー固定表示化(2026-08-16)。sticky top-0だけでは効かなかった原因: ルートdivに
           overflow-x-hidden（lg未満でも常時適用）があると、CSS仕様上overflow-yがvisibleのまま
           だと自動的にauto扱いへ格上げされ、ルートdiv自身が「スクロールコンテナ」になる。

@@ -2,7 +2,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { apiGet, apiPut } from "../../api.js";
 import { Card, Btn, PageHeader, PrismSectionTitle, T } from "../../components/common";
 import { AlertCircle, Check, Coins, Minus, Plus, RotateCcw, Sparkles, X } from "lucide-react";
-import { buildPlan, landCost, hallKey, adjacentOwned, shortName } from "./town/townPlan.js";
+import { buildPlan, landCost, hallKey, adjacentOwned, shortName, nextStepFor } from "./town/townPlan.js";
 
 /* 成長の街。
  *
@@ -17,7 +17,15 @@ const SKIN_NAMES = [
 const RESKIN = 20;
 const TODS = [["朝", 0.28], ["昼", 0.50], ["夕", 0.78], ["夜", 0.95]];
 
-export default function TownView({ done = {}, goals = [] }) {
+/* クレジットの入り口。サーバ（town.mjs）の CR_REPORT / CR_TEST / CR_LOGIN と同じ値を、
+   「どうすれば増えるか」として見せる。実際の付与はサーバの記録から数え直す（ここは案内だけ）。 */
+const EARN_WAYS = [
+  { key: "report", label: "日報を出す",       cr: 20, how: "その日の学びを書いて提出する。1件ごとに入ります。", to: ["training", "reports"], cta: "日報を書く" },
+  { key: "test",   label: "確認テストに合格", cr: 60, how: "70点以上で合格。同じテストは初回合格ぶんが入ります。", to: ["learning", "el_courses"], cta: "コースを見る" },
+  { key: "login",  label: "その日にひらく",   cr: 25, how: "学びに来た日が1日ぶんとして入ります。", to: null, cta: null },
+];
+
+export default function TownView({ done = {}, goals = [], goProduct }) {
   const canvasRef = useRef(null);
   const worldRef = useRef(null);
   const saveRef = useRef(Promise.resolve());
@@ -175,6 +183,22 @@ export default function TownView({ done = {}, goals = [] }) {
     persist({ spent: nextSpent, land: [...land], built: [...built], skin: nextSkin });
   };
 
+  /* つぎの一歩。「学んだ分だけ街が育つ」を毎回1つだけ具体で示す。
+     達成済みで建てられるもの → 足りないクレジット → まだ達成していないタスク → 土地、の順。 */
+  const step = useMemo(() => nextStepFor({ plan, ownedLand, built, done, credits: unknown ? null : credits }),
+    [plan, ownedLand, built, done, credits, unknown]);
+  const openLot = key => { setSel(key); worldRef.current?.focus(key); };
+  const nextStep = useMemo(() => {
+    if (!step) return null;
+    const l = step.lot;
+    if (step.kind === "build") return { head: `「${shortName(l)}」を建てられます`, sub: `${l.goalTitle}／達成ずみ・${l.cost} CR`, cta: "区画をひらく", act: () => openLot(l.key) };
+    if (step.kind === "short") return { head: `あと ${step.need} CR で「${shortName(l)}」が建ちます`, sub: "日報を出す・テストに合格するとクレジットが増えます。", cta: "日報を書く", act: () => goProduct?.("training", { subView: "reports" }) };
+    if (step.kind === "learn") return { head: `つぎは「${l.title}」`, sub: `${l.goalTitle}のタスク。達成すると、この区画に建物が建てられます。`, cta: "目標とタスクを見る", act: () => goProduct?.("training", { subView: "goals" }) };
+    if (step.kind === "land") return { head: "となりの土地を買えます", sub: `${step.cost} CR で街をひろげられます。`, cta: "区画をひらく", act: () => openLot(l.key) };
+    if (step.kind === "shortLand") return { head: `あと ${step.need} CR で土地を買えます`, sub: "学びの記録がそのままクレジットになります。", cta: "コースを見る", act: () => goProduct?.("learning", { subView: "el_courses" }) };
+    return { head: "街はここまで完成しています", sub: "新しい目標が増えると、区画も増えます。", cta: null, act: null };
+  }, [step, goProduct]);
+
   const selP = sel ? planBy[sel] : null;
   const stats = {
     land: ownedLand.size, lots: plan.length,
@@ -189,7 +213,7 @@ export default function TownView({ done = {}, goals = [] }) {
       <PageHeader
         product="talent"
         label="スキル・成長"
-        title="街"
+        title="成長の街"
         description="目標のひとつひとつが建物になります。土地はクレジットで買い、建てるにはそのタスクを達成していることが要ります。"
       />
 
@@ -283,6 +307,41 @@ export default function TownView({ done = {}, goals = [] }) {
                 style={{ background: auto ? T.soft : "transparent" }}>自動</button>
             </div>
             <div className="ml-auto text-xs opacity-60">区画をクリックすると買えます ／ ドラッグで見回せます</div>
+          </div>
+
+          {/* つぎの一歩。街を「見るだけ」で終わらせず、学ぶ画面へ戻す導線 */}
+          {nextStep && (
+            <Card className="mt-4 p-4">
+              <div className="flex flex-wrap items-center gap-3">
+                <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl text-white"
+                  style={{ background: "linear-gradient(135deg,#E0642A,#8B63E0)" }}><Sparkles size={18} /></span>
+                <div className="min-w-0 flex-1">
+                  <div className="text-[10px] font-bold tracking-[.12em] opacity-60">つぎの一歩</div>
+                  <div className="text-sm font-bold">{nextStep.head}</div>
+                  <div className="mt-0.5 text-[12px] leading-relaxed opacity-70">{nextStep.sub}</div>
+                </div>
+                {nextStep.cta && <Btn size="sm" onClick={nextStep.act}>{nextStep.cta}</Btn>}
+              </div>
+            </Card>
+          )}
+
+          {/* クレジットの貯め方。「どうすれば増えるか」を先に、「どこから来たか」を後に置く */}
+          <PrismSectionTitle className="mt-8" title="クレジットの貯め方" />
+          <div className="mt-3 grid gap-3 sm:grid-cols-3">
+            {EARN_WAYS.map(w => (
+              <Card key={w.key} className="flex flex-col p-4">
+                <div className="flex items-baseline gap-2">
+                  <span className="font-mono text-xl font-bold" style={{ color: "#B4661A" }}>+{w.cr}</span>
+                  <span className="text-[10px] font-bold tracking-[.12em] opacity-60">CR</span>
+                </div>
+                <div className="mt-1 text-sm font-bold">{w.label}</div>
+                <div className="mt-1 flex-1 text-[12px] leading-relaxed opacity-70">{w.how}</div>
+                {w.to && (
+                  <Btn kind="ghost" size="sm" className="mt-3 self-start"
+                    onClick={() => goProduct?.(w.to[0], { subView: w.to[1] })}>{w.cta}</Btn>
+                )}
+              </Card>
+            ))}
           </div>
 
           {/* クレジットの内訳 */}
