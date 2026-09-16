@@ -1,21 +1,18 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { apiGet, apiPut } from "../../api.js";
-import { Card, Btn, PageHeader, PrismSectionTitle, T } from "../../components/common";
-import { AlertCircle, Check, Coins, Minus, Plus, RotateCcw, Sparkles, X } from "lucide-react";
-import { buildPlan, landCost, hallKey, adjacentOwned, shortName, nextStepFor } from "./town/townPlan.js";
+import { Card, Btn, PageHeader, T } from "../../components/common";
+import { AlertCircle, ChevronDown, ChevronUp, Lock, Maximize2, Moon, RotateCcw, RotateCw, Shuffle, Sun } from "lucide-react";
+import { GENRES, CATALOG, nextGenre, unlockedGenres } from "./town3/catalog.js";
 
 /* 成長の街。
  *
  * **three.js は動的importでしか読まない。** 街を開いた人だけが読み込むようにして、
- * 研修画面ぜんたいのバンドルを太らせない。 */
+ * 研修画面ぜんたいのバンドルを太らせない。
+ *
+ * **3Dは区画の見た目と当たり判定だけを持つ。** 数値と選択状態は world.js から
+ * コールバックで受け取り、画面はここが描く。3Dを読まずに文言を直せるようにしておく。 */
 
-const SKIN_NAMES = [
-  { n: "レンガと銅板", sw: ["#7A4A32", "#2E6B60", "#8A6A4A"] },
-  { n: "白壁と瓦", sw: ["#C9C4B8", "#2A2E38", "#8A8478"] },
-  { n: "黒と真鍮", sw: ["#1C1E24", "#B08838", "#4A4436"] },
-];
-const RESKIN = 20;
-const TODS = [["朝", 0.28], ["昼", 0.50], ["夕", 0.78], ["夜", 0.95]];
+const SAVE_DELAY = 1200;
 
 /* クレジットの入り口。サーバ（town.mjs）の CR_REPORT / CR_TEST / CR_LOGIN と同じ値を、
    「どうすれば増えるか」として見せる。実際の付与はサーバの記録から数え直す（ここは案内だけ）。 */
@@ -25,199 +22,133 @@ const EARN_WAYS = [
   { key: "login",  label: "その日にひらく",   cr: 25, how: "学びに来た日が1日ぶんとして入ります。", to: null, cta: null },
 ];
 
-export default function TownView({ done = {}, goals = [], goProduct }) {
+function Num({ v, k, accent }) {
+  return (
+    <div className="min-w-0">
+      <div className="font-mono text-lg font-bold leading-none" style={{ color: accent || "#F3F7FB" }}>{v}</div>
+      <div className="mt-1 text-[10px] opacity-70">{k}</div>
+    </div>
+  );
+}
+
+export default function TownView({ goProduct }) {
   const canvasRef = useRef(null);
+  const hostRef = useRef(null);
   const worldRef = useRef(null);
-  const saveRef = useRef(Promise.resolve());
+  const saveTimer = useRef(0);
+  const saveChain = useRef(Promise.resolve());
+  const noteTimer = useRef(0);
 
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState("");
   const [reloadKey, setReloadKey] = useState(0);
-  const [remote, setRemote] = useState(null);       // サーバから来たもの
-  const [land, setLand] = useState(() => new Set());
-  const [built, setBuilt] = useState(() => new Set());
-  const [skin, setSkin] = useState({});
-  const [spent, setSpent] = useState(0);
+  const [remote, setRemote] = useState(null);
+  const [stats, setStats] = useState(null);
   const [sel, setSel] = useState(null);
-  const [clock, setClock] = useState(0.5);
-  const [auto, setAuto] = useState(true);
-  const [ready, setReady] = useState(false);
+  const [note, setNote] = useState(null);
   const [saveErr, setSaveErr] = useState("");
+  const [dusk, setDusk] = useState(false);
 
-  const plan = useMemo(() => buildPlan(goals), [goals]);
-  const planBy = useMemo(() => Object.fromEntries(plan.map(p => [p.key, p])), [plan]);
-
-  const earned = remote?.earned ?? null;
-  const credits = earned == null ? null : Math.max(0, earned - spent);
-  const unknown = earned == null;
+  const credits = remote?.credits;
+  const unknown = credits == null;
+  const completed = remote?.completedCourses;
+  const open = useMemo(() => unlockedGenres(completed ?? 0), [completed]);
+  const openSet = useMemo(() => new Set(open), [open]);
+  const next = useMemo(() => nextGenre(completed ?? 0), [completed]);
 
   /* ---- 読み込み ---- */
   useEffect(() => {
     let alive = true;
-    setLoading(true); setErr("");
-    apiGet("/town/me").then(r => {
-      if (!alive) return;
-      setRemote(r);
-      setLand(new Set(Array.isArray(r.land) ? r.land : []));
-      setBuilt(new Set(Array.isArray(r.built) ? r.built : []));
-      setSkin(r.skin && typeof r.skin === "object" ? r.skin : {});
-      setSpent(Number(r.spent) || 0);
-    }).catch(() => {
-      if (alive) setErr("街の状態を読み込めませんでした。未購入・0クレジットとは限りません。再読み込みしてください。");
-    }).finally(() => alive && setLoading(false));
+    setLoading(true);
+    setErr("");
+    apiGet("/town/me")
+      .then(r => { if (alive) { setRemote(r); setLoading(false); } })
+      .catch(e => { if (alive) { setErr(e?.message || "通信に失敗しました。"); setLoading(false); } });
     return () => { alive = false; };
   }, [reloadKey]);
 
-  /* ---- 3D ---- */
-  useEffect(() => {
-    if (loading || err) return;
-    let alive = true, world = null, ro = null;
-    import("./town/townWorld.js").then(mod => {
-      if (!alive || !canvasRef.current) return;
-      world = mod.createTown(canvasRef.current, {
-        plan,
-        onPick: key => setSel(key),
-        isPowered: () => true,
-        onClock: t => setClock(t),
-      });
-      worldRef.current = world;
-      world.start();
-      setReady(true);
-      ro = new ResizeObserver(() => world.resize());
-      ro.observe(canvasRef.current.parentElement);
-    }).catch(() => { if (alive) setErr("街の描画を読み込めませんでした。"); });
-    return () => {
-      alive = false; ro?.disconnect();
-      worldRef.current = null;
-      world?.dispose();
-    };
-  }, [loading, err, plan]);
-
-  /* 役所の区画は最初から持っている扱いにする（買う対象にしない） */
-  const ownedLand = useMemo(() => {
-    const s = new Set(land); s.add(hallKey); return s;
-  }, [land]);
-
-  const canBuild = useCallback(p => p?.kind === "task" && ownedLand.has(p.key) && !!done[p.task], [ownedLand, done]);
-
-  /* 区画の上に出す値札 */
-  const labels = useMemo(() => {
-    const out = {};
-    plan.forEach(p => {
-      if (p.kind === "hall") return;
-      const has = ownedLand.has(p.key);
-      if (!has) {
-        if (!adjacentOwned(ownedLand, p.gx, p.gy)) return;
-        const c = landCost(p.gx, p.gy);
-        out[p.key] = {
-          top: p.kind === "park" ? "公園にする" : shortName(p),
-          bottom: `${c} CR`,
-          color: !unknown && credits >= c ? "rgba(245,196,81,.96)" : "rgba(163,176,206,.85)",
-        };
-        return;
-      }
-      if (p.kind !== "task" || built.has(p.task)) return;
-      const ok = !!done[p.task];
-      out[p.key] = {
-        top: shortName(p),
-        bottom: ok ? `${p.cost} CR` : "まだ達成していません",
-        bad: !ok,
-        color: ok ? (!unknown && credits >= p.cost ? "rgba(245,196,81,.96)" : "rgba(163,176,206,.85)") : "rgba(232,115,95,.95)",
-      };
-    });
-    return out;
-  }, [plan, ownedLand, built, done, credits, unknown]);
-
-  useEffect(() => {
-    const w = worldRef.current; if (!w) return;
-    w.setState({ land: ownedLand, built, skin, labels, running: built.size >= 3 });
-  }, [ready, ownedLand, built, skin, labels]);
-
-  /* 初回だけは建設アニメを飛ばす（開くたびに街が建ち直すとうるさい） */
-  const snappedRef = useRef(false);
-  useEffect(() => {
-    if (!ready || snappedRef.current) return;
-    snappedRef.current = true;
-    worldRef.current?.snapBuilt();
-  }, [ready]);
-
-  useEffect(() => { worldRef.current?.setDay(clockTarget.current ?? 0.5, auto); }, [auto]);
-  const clockTarget = useRef(null);
-  const setTod = v => { clockTarget.current = v; setAuto(false); worldRef.current?.setDay(v, false); };
-
-  /* ---- 保存 ---- */
-  const persist = useCallback((next) => {
-    setSaveErr("");
-    saveRef.current = saveRef.current.catch(() => {}).then(() =>
-      apiPut("/town/me", next).catch(() => {
-        setSaveErr("保存できませんでした。通信を確認して、もう一度お試しください。");
-      }));
+  /* ---- 保存。まとめて送り、順番に流す ---- */
+  const save = useCallback(() => {
+    const world = worldRef.current;
+    if (!world) return;
+    const st = world.getState();
+    saveChain.current = saveChain.current
+      .then(() => apiPut("/town/me", { spent: st.spent, town: st }))
+      .then(r => {
+        setSaveErr("");
+        setRemote(prev => (prev ? { ...prev, credits: r?.credits ?? prev.credits, spent: r?.spent ?? prev.spent } : prev));
+        if (r && typeof r.credits === "number") world.setPoints(r.credits);
+      })
+      .catch(e => setSaveErr(e?.message || "街を保存できませんでした。"));
   }, []);
 
-  const buyLand = key => {
-    const p = planBy[key]; if (!p || ownedLand.has(key)) return;
-    const c = landCost(p.gx, p.gy);
-    if (unknown || credits < c || !adjacentOwned(ownedLand, p.gx, p.gy)) return;
-    const nextLand = new Set(land); nextLand.add(key);
-    const nextSpent = spent + c;
-    setLand(nextLand); setSpent(nextSpent);
-    persist({ spent: nextSpent, land: [...nextLand], built: [...built], skin });
-  };
-  const buildOn = key => {
-    const p = planBy[key]; if (!canBuild(p) || built.has(p.task)) return;
-    if (unknown || credits < p.cost) return;
-    const nextBuilt = new Set(built); nextBuilt.add(p.task);
-    const nextSpent = spent + p.cost;
-    setBuilt(nextBuilt); setSpent(nextSpent);
-    persist({ spent: nextSpent, land: [...land], built: [...nextBuilt], skin });
-  };
-  const pickSkin = (key, i) => {
-    const p = planBy[key]; if (!p?.task) return;
-    const cur = skin[p.task] ?? 0;
-    if (cur === i) return;
-    const isBuilt = built.has(p.task);
-    if (isBuilt && (unknown || credits < RESKIN)) return;
-    const nextSkin = { ...skin, [p.task]: i };
-    const nextSpent = spent + (isBuilt ? RESKIN : 0);
-    setSkin(nextSkin); setSpent(nextSpent);
-    persist({ spent: nextSpent, land: [...land], built: [...built], skin: nextSkin });
-  };
+  const queueSave = useCallback(() => {
+    clearTimeout(saveTimer.current);
+    saveTimer.current = setTimeout(save, SAVE_DELAY);
+  }, [save]);
 
-  /* つぎの一歩。「学んだ分だけ街が育つ」を毎回1つだけ具体で示す。
-     達成済みで建てられるもの → 足りないクレジット → まだ達成していないタスク → 土地、の順。 */
-  const step = useMemo(() => nextStepFor({ plan, ownedLand, built, done, credits: unknown ? null : credits }),
-    [plan, ownedLand, built, done, credits, unknown]);
-  const openLot = key => { setSel(key); worldRef.current?.focus(key); };
-  const nextStep = useMemo(() => {
-    if (!step) return null;
-    const l = step.lot;
-    if (step.kind === "build") return { head: `「${shortName(l)}」を建てられます`, sub: `${l.goalTitle}／達成ずみ・${l.cost} CR`, cta: "区画をひらく", act: () => openLot(l.key) };
-    if (step.kind === "short") return { head: `あと ${step.need} CR で「${shortName(l)}」が建ちます`, sub: "日報を出す・テストに合格するとクレジットが増えます。", cta: "日報を書く", act: () => goProduct?.("training", { subView: "reports" }) };
-    if (step.kind === "learn") return { head: `つぎは「${l.title}」`, sub: `${l.goalTitle}のタスク。達成すると、この区画に建物が建てられます。`, cta: "目標とタスクを見る", act: () => goProduct?.("training", { subView: "goals" }) };
-    if (step.kind === "land") return { head: "となりの土地を買えます", sub: `${step.cost} CR で街をひろげられます。`, cta: "区画をひらく", act: () => openLot(l.key) };
-    if (step.kind === "shortLand") return { head: `あと ${step.need} CR で土地を買えます`, sub: "学びの記録がそのままクレジットになります。", cta: "コースを見る", act: () => goProduct?.("learning", { subView: "el_courses" }) };
-    return { head: "街はここまで完成しています", sub: "新しい目標が増えると、区画も増えます。", cta: null, act: null };
-  }, [step, goProduct]);
+  /* ---- 3Dの立ち上げ ---- */
+  useEffect(() => {
+    if (!remote || !canvasRef.current || !hostRef.current) return;
+    let alive = true;
+    let world = null;
 
-  const selP = sel ? planBy[sel] : null;
-  const stats = {
-    land: ownedLand.size, lots: plan.length,
-    built: built.size, tasks: plan.filter(p => p.kind === "task").length,
-    doneCount: plan.filter(p => p.kind === "task" && done[p.task]).length,
-  };
-  const hh = String(Math.floor(clock * 24)).padStart(2, "0");
-  const mm = String(Math.floor((clock * 24 % 1) * 60)).padStart(2, "0");
+    import("./town3/world.js").then(mod => {
+      if (!alive || !canvasRef.current) return;
+      world = mod.createTown(canvasRef.current, hostRef.current, {
+        onStats: s => setStats(s),
+        onSelect: s => setSel(s),
+        onToast: (t, s) => {
+          setNote({ t, s });
+          clearTimeout(noteTimer.current);
+          noteTimer.current = setTimeout(() => setNote(null), 4200);
+        },
+        onChange: queueSave,
+      });
+      worldRef.current = world;
+      world.setUnlocked(unlockedGenres(remote.completedCourses ?? 0));
+      world.setPoints(remote.credits ?? 0);
+      if (remote.town && Array.isArray(remote.town.plots) && remote.town.plots.length) {
+        world.applyState(remote.town);
+      }
+    }).catch(e => setErr(e?.message || "3Dの読み込みに失敗しました。"));
 
-  return (
-    <div>
-      <PageHeader
-        product="talent"
-        label="スキル・成長"
-        title="成長の街"
-        description="目標のひとつひとつが建物になります。土地はクレジットで買い、建てるにはそのタスクを達成していることが要ります。"
-      />
+    return () => {
+      alive = false;
+      clearTimeout(saveTimer.current);
+      clearTimeout(noteTimer.current);
+      if (world) world.dispose();
+      worldRef.current = null;
+    };
+    // remote は最初の1回だけで作る。以後の残高は setPoints で渡す
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [remote ? "ready" : "wait", reloadKey]);
 
-      {err ? (
+  /* ---- 残高と解放を3Dへ渡し直す ---- */
+  useEffect(() => {
+    const world = worldRef.current;
+    if (!world || !remote) return;
+    world.setPoints(remote.credits ?? 0);
+    world.setUnlocked(unlockedGenres(remote.completedCourses ?? 0));
+  }, [remote]);
+
+  const act = useCallback((fn) => () => { const w = worldRef.current; if (w) fn(w); }, []);
+
+  const selLabel = !sel ? "区画をタップして選ぶ"
+    : sel.water ? "ここは水面です"
+    : sel.span ? "この大きな施設を建て替える"
+    : !sel.item ? "この荒れ地に建てる"
+    : "この区画を建て替える";
+  const selSub = !sel ? "整えた区画も選べます。建て替えは何度でもできます。"
+    : sel.water ? "「盛る」で一段上げると建てられます。"
+    : !sel.item ? `${sel.cost} クレジット${sel.level ? ` ・高さ ${sel.level}段` : ""}`
+    : `建て替えは無料${sel.level ? ` ・高さ ${sel.level}段` : ""}`;
+
+  if (err) {
+    return (
+      <div>
+        <PageHeader product="talent" label="スキル・成長" title="成長の街"
+          description="学びの記録がクレジットになり、区画をひらいて街をつくります。" />
         <Card className="mt-6 p-6">
           <div className="flex items-start gap-3">
             <AlertCircle size={18} style={{ color: T.danger }} />
@@ -228,271 +159,200 @@ export default function TownView({ done = {}, goals = [], goProduct }) {
             </div>
           </div>
         </Card>
-      ) : (
-        <>
-          <div className="relative mt-5 overflow-hidden rounded-2xl border" style={{ borderColor: T.line, background: "#05070E" }}>
-            <canvas ref={canvasRef} className="block w-full" style={{ aspectRatio: "16 / 9", maxHeight: "72vh", touchAction: "pan-y" }} />
-            <div className="pointer-events-none absolute inset-0"
-              style={{ background: "radial-gradient(128% 104% at 50% 40%, transparent 46%, rgba(0,0,0,.5) 100%)" }} />
+      </div>
+    );
+  }
 
-            {/* HUD */}
-            <div className="pointer-events-none absolute inset-x-0 top-0 flex flex-wrap items-start gap-2 p-3">
-              <div className="rounded-xl border px-3 py-2 backdrop-blur"
-                style={{ borderColor: "rgba(199,154,46,.85)", background: "rgba(28,22,8,.74)" }}>
-                <div className="text-[9.5px] font-bold tracking-[.16em]" style={{ color: "#C79A2E" }}>CREDIT</div>
-                <div className="font-mono text-xl font-bold leading-none" style={{ color: "#F5C451" }}>
-                  {unknown ? "—" : credits.toLocaleString("ja-JP")}
-                </div>
-              </div>
-              <div className="flex gap-4 rounded-xl border px-3 py-2 backdrop-blur"
-                style={{ borderColor: "rgba(58,71,112,.9)", background: "rgba(8,11,21,.7)" }}>
-                <Stat v={`${stats.land}/${stats.lots}`} k="土地" />
-                <Stat v={`${stats.built}/${stats.tasks}`} k="建物" />
-                <Stat v={`${stats.doneCount}/${stats.tasks}`} k="達成" />
-              </div>
-              <div className="ml-auto rounded-xl border px-3 py-2 backdrop-blur"
-                style={{ borderColor: "rgba(58,71,112,.9)", background: "rgba(8,11,21,.7)" }}>
-                <div className="text-[9.5px] font-bold tracking-[.14em]" style={{ color: "#6C7A9C" }}>
-                  {Number(hh) < 5 ? "深夜" : Number(hh) < 9 ? "朝" : Number(hh) < 16 ? "昼" : Number(hh) < 19 ? "夕" : "夜"}
-                </div>
-                <div className="font-mono text-base font-bold leading-tight text-white">{hh}:{mm}</div>
-              </div>
-            </div>
-
-            {/* 区画のカード */}
-            {selP && (
-              <div className="absolute bottom-3 left-3 w-[min(330px,calc(100%-24px))] rounded-2xl border p-4 backdrop-blur"
-                style={{ borderColor: "rgba(58,71,112,.95)", background: "rgba(8,11,21,.9)" }}>
-                <LotCard
-                  p={selP} owned={ownedLand.has(selP.key)} built={built.has(selP.task)}
-                  doneOk={!!done[selP.task]} credits={credits} unknown={unknown}
-                  reachable={adjacentOwned(ownedLand, selP.gx, selP.gy)}
-                  skinIndex={skin[selP.task] ?? 0}
-                  onBuyLand={() => buyLand(selP.key)}
-                  onBuild={() => buildOn(selP.key)}
-                  onSkin={i => pickSkin(selP.key, i)}
-                  onClose={() => { setSel(null); worldRef.current?.focus(null); }}
-                />
-              </div>
-            )}
-
-            <div className="absolute bottom-3 right-3 flex flex-col gap-1.5">
-              <ZoomBtn icon={Plus} onClick={() => worldRef.current?.zoom(-14)} label="寄る" />
-              <ZoomBtn icon={Minus} onClick={() => worldRef.current?.zoom(14)} label="引く" />
-            </div>
-            {!ready && (
-              <div className="absolute inset-0 grid place-items-center font-mono text-xs tracking-[.14em]"
-                style={{ background: "#05070E", color: "#6C7A9C" }}>BUILDING THE TOWN…</div>
-            )}
-          </div>
-
-          {saveErr && (
-            <div className="mt-3 flex items-center gap-2 rounded-xl border px-3 py-2 text-sm"
-              style={{ borderColor: T.danger, color: T.danger }}>
-              <AlertCircle size={16} />{saveErr}
-            </div>
-          )}
-
-          {/* 操作 */}
-          <div className="mt-4 flex flex-wrap items-center gap-2">
-            <span className="text-[10px] font-bold tracking-[.14em] opacity-60">時間帯</span>
-            <div className="flex overflow-hidden rounded-lg" style={{ boxShadow: `inset 0 0 0 1px ${T.line}` }}>
-              {TODS.map(([n, v]) => (
-                <button key={n} onClick={() => setTod(v)}
-                  className="px-3 py-1.5 text-xs font-bold"
-                  style={{ background: !auto && clockTarget.current === v ? T.soft : "transparent" }}>{n}</button>
-              ))}
-              <button onClick={() => { setAuto(true); clockTarget.current = null; }}
-                className="px-3 py-1.5 text-xs font-bold"
-                style={{ background: auto ? T.soft : "transparent" }}>自動</button>
-            </div>
-            <div className="ml-auto text-xs opacity-60">区画をクリックすると買えます ／ ドラッグで見回せます</div>
-          </div>
-
-          {/* つぎの一歩。街を「見るだけ」で終わらせず、学ぶ画面へ戻す導線 */}
-          {nextStep && (
-            <Card className="mt-4 p-4">
-              <div className="flex flex-wrap items-center gap-3">
-                <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl text-white"
-                  style={{ background: "linear-gradient(135deg,#E0642A,#8B63E0)" }}><Sparkles size={18} /></span>
-                <div className="min-w-0 flex-1">
-                  <div className="text-[10px] font-bold tracking-[.12em] opacity-60">つぎの一歩</div>
-                  <div className="text-sm font-bold">{nextStep.head}</div>
-                  <div className="mt-0.5 text-[12px] leading-relaxed opacity-70">{nextStep.sub}</div>
-                </div>
-                {nextStep.cta && <Btn size="sm" onClick={nextStep.act}>{nextStep.cta}</Btn>}
-              </div>
-            </Card>
-          )}
-
-          {/* クレジットの貯め方。「どうすれば増えるか」を先に、「どこから来たか」を後に置く */}
-          <PrismSectionTitle className="mt-8" title="クレジットの貯め方" />
-          <div className="mt-3 grid gap-3 sm:grid-cols-3">
-            {EARN_WAYS.map(w => (
-              <Card key={w.key} className="flex flex-col p-4">
-                <div className="flex items-baseline gap-2">
-                  <span className="font-mono text-xl font-bold" style={{ color: "#B4661A" }}>+{w.cr}</span>
-                  <span className="text-[10px] font-bold tracking-[.12em] opacity-60">CR</span>
-                </div>
-                <div className="mt-1 text-sm font-bold">{w.label}</div>
-                <div className="mt-1 flex-1 text-[12px] leading-relaxed opacity-70">{w.how}</div>
-                {w.to && (
-                  <Btn kind="ghost" size="sm" className="mt-3 self-start"
-                    onClick={() => goProduct?.(w.to[0], { subView: w.to[1] })}>{w.cta}</Btn>
-                )}
-              </Card>
-            ))}
-          </div>
-
-          {/* クレジットの内訳 */}
-          <PrismSectionTitle className="mt-8" title="クレジットはどこから来たか" />
-          <Card className="mt-3 p-5">
-            {unknown ? (
-              <div className="flex items-start gap-3 text-sm">
-                <AlertCircle size={18} style={{ color: T.warn }} />
-                <div>
-                  <div className="font-bold">いまは実績を確認できませんでした</div>
-                  <div className="mt-1 opacity-80">0件・0クレジットとは限りません。土地と建物の購入は、確認できるまで止めています。</div>
-                  <Btn kind="ghost" size="sm" icon={RotateCcw} className="mt-3" onClick={() => setReloadKey(k => k + 1)}>再読み込み</Btn>
-                </div>
-              </div>
-            ) : (
-              <div className="grid gap-3 sm:grid-cols-4">
-                <Src label="日報の提出" n={remote?.sources?.reports} rate={remote?.sources?.rates?.report} />
-                <Src label="確認テスト合格" n={remote?.sources?.passedTests} rate={remote?.sources?.rates?.test} />
-                <Src label="来た日" n={remote?.sources?.loginDays} rate={remote?.sources?.rates?.login} />
-                <div className="rounded-xl p-3" style={{ background: T.soft }}>
-                  <div className="text-[10px] font-bold tracking-[.12em] opacity-60">つかった</div>
-                  <div className="font-mono text-lg font-bold">{spent.toLocaleString("ja-JP")}<span className="ml-1 text-xs">CR</span></div>
-                  <div className="mt-1 text-[11px] opacity-70">稼いだ {earned?.toLocaleString("ja-JP")} CR</div>
-                </div>
-              </div>
-            )}
-            <div className="mt-4 text-[12px] leading-relaxed opacity-70">
-              クレジットは<b>記録から毎回数え直しています</b>。残高そのものは保存していないので、
-              日報やテストの記録と食い違うことがありません。<b>建てるにはクレジットに加えて、その目標のタスクを達成していることが必要</b>です。
-            </div>
-          </Card>
-        </>
-      )}
-    </div>
-  );
-}
-
-function Stat({ v, k }) {
   return (
     <div>
-      <div className="font-mono text-sm font-bold leading-tight text-white">{v}</div>
-      <div className="text-[9.5px] font-bold tracking-[.12em]" style={{ color: "#6C7A9C" }}>{k}</div>
-    </div>
-  );
-}
-function Src({ label, n, rate }) {
-  return (
-    <div className="rounded-xl p-3" style={{ background: T.soft }}>
-      <div className="text-[10px] font-bold tracking-[.12em] opacity-60">{label}</div>
-      <div className="font-mono text-lg font-bold">{(n ?? 0).toLocaleString("ja-JP")}<span className="ml-1 text-xs opacity-70">件</span></div>
-      <div className="mt-1 text-[11px] opacity-70">× {rate ?? 0} CR</div>
-    </div>
-  );
-}
-function ZoomBtn({ icon: Icon, onClick, label }) {
-  return (
-    <button onClick={onClick} aria-label={label}
-      className="grid h-8 w-8 place-items-center rounded-lg border backdrop-blur"
-      style={{ borderColor: "rgba(58,71,112,.9)", background: "rgba(8,11,21,.75)", color: "#A3B0CE" }}>
-      <Icon size={15} />
-    </button>
-  );
-}
+      <PageHeader product="talent" label="スキル・成長" title="成長の街"
+        description="学びの記録がクレジットになります。区画をひらいて何を建てるか選び、盛って段差をつけ、道路と線路をつなげて街をつくります。" />
 
-function LotCard({ p, owned, built, doneOk, credits, unknown, reachable, skinIndex, onBuyLand, onBuild, onSkin, onClose }) {
-  const money = v => unknown ? "—" : `${v} CR`;
-  const short = (v) => unknown ? null : credits < v ? `あと ${v - credits} CR 足りません。` : null;
-  return (
-    <div className="text-white">
-      <div className="flex items-start gap-2">
-        <div className="min-w-0 flex-1">
-          <div className="text-[9.5px] font-bold tracking-[.18em]" style={{ color: "#F5C451" }}>
-            {p.kind === "hall" ? "はじめからある建物" : p.kind === "park" ? "緑地" : p.goalTitle}
+      {remote?.rebuilt ? (
+        <Card className="mt-5 p-4">
+          <div className="text-sm font-bold">街を作り直しました</div>
+          <div className="mt-1 text-xs opacity-75">
+            区画ごとに建てるものを選べる街になりました。前の街で使ったクレジットはお返ししてあります。
           </div>
-          <div className="mt-0.5 text-lg font-bold leading-snug">
-            {p.kind === "hall" ? "役所" : p.kind === "park" ? "公園" : shortName(p)}
+        </Card>
+      ) : null}
+
+      <div ref={hostRef} className="relative mt-5 overflow-hidden rounded-2xl border"
+        style={{ borderColor: T.line, background: "#BDE3F2" }}>
+        <canvas ref={canvasRef} className="block h-full w-full"
+          style={{ aspectRatio: "16 / 10", maxHeight: "70vh", touchAction: "none" }} />
+
+        {/* 数値 */}
+        <div className="pointer-events-none absolute right-3 top-3 rounded-xl border px-3 py-2 backdrop-blur"
+          style={{ borderColor: "rgba(255,255,255,.7)", background: "rgba(255,255,255,.82)" }}>
+          <div className="text-[9.5px] font-bold tracking-[.16em]" style={{ color: "#C7891F" }}>CREDIT</div>
+          <div className="font-mono text-xl font-bold leading-none" style={{ color: "#1F2A36" }}>
+            {unknown ? "—" : Math.floor(credits).toLocaleString("ja-JP")}
           </div>
+          {stats ? (
+            <div className="mt-2 flex gap-4 border-t pt-2 text-[#1F2A36]" style={{ borderColor: "rgba(31,42,54,.12)" }}>
+              <Num v={`${stats.done}`} k="ひらいた区画" accent="#1F2A36" />
+              <Num v={`${stats.left}`} k="残り" accent="#1F2A36" />
+              <Num v={`${stats.cost}`} k="次の区画" accent="#C7891F" />
+            </div>
+          ) : null}
         </div>
-        <button onClick={onClose} aria-label="閉じる" className="opacity-60 hover:opacity-100"><X size={16} /></button>
+
+        {/* お題 */}
+        {stats ? (
+          <div className="pointer-events-none absolute left-3 top-3 max-w-[min(320px,calc(100%-120px))] rounded-xl border px-3 py-2 backdrop-blur"
+            style={{ borderColor: "rgba(255,255,255,.7)", background: "rgba(255,255,255,.82)", color: "#1F2A36" }}>
+            <div className="text-[9.5px] font-bold tracking-[.16em]" style={{ color: "#2F9E92" }}>いまのお題</div>
+            <div className="mt-0.5 text-[13px] font-bold">{stats.questText || "お題はぜんぶ達成"}</div>
+            <div className="mt-0.5 text-[10.5px] leading-relaxed opacity-70">
+              {stats.questSub || "あとは好きなだけ街を作り込めます。"}
+            </div>
+          </div>
+        ) : null}
+
+        {/* お知らせ */}
+        {note ? (
+          <div className="pointer-events-none absolute left-1/2 top-3 w-[min(360px,calc(100%-24px))] -translate-x-1/2 rounded-xl border px-4 py-2 text-center backdrop-blur"
+            style={{ borderColor: "rgba(255,255,255,.7)", background: "rgba(255,255,255,.9)", color: "#1F2A36" }}>
+            <div className="text-[13px] font-bold">{note.t}</div>
+            {note.s ? <div className="mt-0.5 text-[11px] leading-relaxed opacity-75">{note.s}</div> : null}
+          </div>
+        ) : null}
+
+        {loading ? (
+          <div className="absolute inset-0 grid place-items-center text-sm" style={{ background: "#BDE3F2", color: "#3A5568" }}>
+            街を読み込んでいます…
+          </div>
+        ) : null}
       </div>
 
-      {p.kind === "task" && <div className="mt-1 text-[11.5px] leading-relaxed" style={{ color: "#A3B0CE" }}>{p.title}</div>}
-
-      {p.kind === "hall" && <div className="mt-2 text-[11.5px]" style={{ color: "#6C7A9C" }}>ここから街をひろげます。となりの土地から順に買えます。</div>}
-      {p.kind === "park" && owned && <div className="mt-2 text-[11.5px]" style={{ color: "#6C7A9C" }}>建物は建ちません。街の余白です。</div>}
-
-      {!owned && p.kind !== "hall" && (
-        <>
-          <button disabled={unknown || !reachable || credits < landCost(p.gx, p.gy)} onClick={onBuyLand}
-            className="mt-3 flex w-full items-center justify-center gap-2 rounded-xl px-3 py-2.5 text-sm font-bold disabled:cursor-default"
-            style={{
-              background: !unknown && reachable && credits >= landCost(p.gx, p.gy) ? "#F5C451" : "#1C2540",
-              color: !unknown && reachable && credits >= landCost(p.gx, p.gy) ? "#1A1204" : "#6C7A9C",
-            }}>
-            <Coins size={15} />土地を買う<span className="font-mono">{money(landCost(p.gx, p.gy))}</span>
-          </button>
-          {!reachable && <div className="mt-2 text-[11px]" style={{ color: "#F5C451" }}>いま持っている土地に接していません。手前から順に買ってください。</div>}
-          {reachable && short(landCost(p.gx, p.gy)) && <div className="mt-2 text-[11px]" style={{ color: "#F5C451" }}>{short(landCost(p.gx, p.gy))}</div>}
-        </>
-      )}
-
-      {owned && p.kind === "task" && !built && (
-        <>
-          <div className="mt-3 flex items-center gap-2 rounded-lg px-2.5 py-2 text-[11.5px]"
-            style={{ background: doneOk ? "rgba(79,209,139,.14)" : "rgba(232,115,95,.13)" }}>
-            {doneOk ? <Check size={14} style={{ color: "#4FD18B" }} /> : <X size={14} style={{ color: "#E8735F" }} />}
-            <span style={{ color: doneOk ? "#BFE9D0" : "#F0BCB2" }}>
-              {doneOk ? "このタスクは達成済みです" : "このタスクを達成すると建てられます"}
-            </span>
+      {unknown ? (
+        <Card className="mt-4 p-4">
+          <div className="flex items-start gap-3">
+            <AlertCircle size={16} style={{ color: T.warn }} />
+            <div className="min-w-0 text-sm">
+              <div className="font-bold">いまはクレジットを確認できません</div>
+              <div className="mt-1 text-xs opacity-75">記録の読み取りに失敗しているため、残高を出していません。時間をおいて開き直してください。区画をひらく操作は保存されません。</div>
+            </div>
           </div>
-          <SkinRow value={skinIndex} onChange={onSkin} title="外観をえらぶ" />
-          <button disabled={unknown || !doneOk || credits < p.cost} onClick={onBuild}
-            className="mt-3 flex w-full items-center justify-center gap-2 rounded-xl px-3 py-2.5 text-sm font-bold disabled:cursor-default"
-            style={{
-              background: !unknown && doneOk && credits >= p.cost ? "#F5C451" : "#1C2540",
-              color: !unknown && doneOk && credits >= p.cost ? "#1A1204" : "#6C7A9C",
-            }}>
-            <Sparkles size={15} />{doneOk ? "建てる" : "まだ建てられません"}<span className="font-mono">{money(p.cost)}</span>
-          </button>
-          {doneOk && short(p.cost) && <div className="mt-2 text-[11px]" style={{ color: "#F5C451" }}>{short(p.cost)}</div>}
-        </>
-      )}
+        </Card>
+      ) : null}
+      {saveErr ? (
+        <Card className="mt-4 p-4">
+          <div className="text-sm font-bold">街を保存できませんでした</div>
+          <div className="mt-1 text-xs opacity-75">{saveErr}</div>
+        </Card>
+      ) : null}
 
-      {owned && p.kind === "task" && built && (
-        <>
-          <div className="mt-2 flex items-center gap-2 text-[11.5px]" style={{ color: "#4FD18B" }}>
-            <Check size={14} />建っています
+      {/* 選んだ区画に建てるもの */}
+      <Card className="mt-5 p-4">
+        <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
+          <div className="font-bold">{selLabel}</div>
+          <div className="text-xs opacity-70">{selSub}</div>
+        </div>
+
+        <div className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
+          {GENRES.map(g => {
+            const isOpen = openSet.has(g.id);
+            const items = CATALOG.filter(it => it.g === g.id);
+            return (
+              <div key={g.id} className="min-w-0">
+                <div className="mb-1.5 flex items-center gap-1.5 text-[10px] font-bold tracking-[.12em] opacity-60">
+                  {isOpen ? null : <Lock size={11} />}{g.name}
+                </div>
+                {isOpen ? (
+                  <div className="grid gap-1.5">
+                    {items.map(it => {
+                      const here = sel && sel.item === it.id;
+                      return (
+                        <button key={it.id} type="button"
+                          onClick={act(w => w.place(it.id))}
+                          disabled={!sel || sel.water || unknown}
+                          className="rounded-xl border px-2.5 py-2 text-left transition disabled:opacity-45"
+                          style={{
+                            borderColor: here ? T.brand : "transparent",
+                            background: here ? "rgba(63,184,175,.12)" : "rgba(34,48,61,.05)",
+                          }}>
+                          <div className="text-[12px] font-bold">{it.name}{here ? " ・いま" : ""}</div>
+                          <div className="text-[9.5px] opacity-60">{it.d}</div>
+                        </button>
+                      );
+                    })}
+                  </div>
+                ) : (
+                  <div className="rounded-xl border border-dashed px-2.5 py-3 text-[10.5px] leading-relaxed"
+                    style={{ borderColor: "rgba(63,184,175,.45)", background: "rgba(63,184,175,.06)" }}>
+                    <b className="block text-[11.5px]">あと {g.needCourses - (completed ?? 0)} コース修了</b>
+                    で置けるようになります
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+
+        <div className="mt-4 flex flex-wrap gap-2 border-t pt-3" style={{ borderColor: T.line }}>
+          <Btn kind="ghost" size="sm" icon={ChevronUp} onClick={act(w => w.level(1))}>盛る</Btn>
+          <Btn kind="ghost" size="sm" icon={ChevronDown} onClick={act(w => w.level(-1))}>削る</Btn>
+          <Btn kind="ghost" size="sm" icon={RotateCw} onClick={act(w => w.turn())}>向きを変える</Btn>
+          <Btn kind="ghost" size="sm" icon={Shuffle} onClick={act(w => w.auto())}>おまかせ</Btn>
+          <Btn kind="ghost" size="sm" icon={dusk ? Sun : Moon}
+            onClick={act(w => { const v = !dusk; setDusk(v); w.setDusk(v); })}>{dusk ? "昼" : "夕方"}</Btn>
+          <Btn kind="ghost" size="sm" icon={Maximize2} onClick={act(w => w.fit(true))}>全体を見る</Btn>
+        </div>
+        <div className="mt-2 text-[11px] opacity-60">
+          区画をタップ → 建てるものを選ぶ ／ ドラッグで見回す ／ ホイールで寄る ／ 同じ高さに盛ったとなりとは土地がつながり、段差には階段ができます
+        </div>
+      </Card>
+
+      {/* 街の効果と、クレジットの増やし方 */}
+      <div className="mt-5 grid gap-4 lg:grid-cols-2">
+        <Card className="p-4">
+          <div className="font-bold">街の効果</div>
+          <ul className="mt-2 space-y-1.5 text-sm">
+            <li className={stats?.hall ? "" : "opacity-60"}>
+              <b>市役所</b> … {stats?.hall ? "あり。土地を広げられます" : "なし。これがないと土地が広がりません"}
+            </li>
+            <li className={stats?.depot ? "" : "opacity-60"}>
+              <b>工務店</b> … {stats?.depot ? `×${stats.depot}　区画の費用が −${stats.depot * 12}%` : "1軒ごとに区画の費用が下がります"}
+            </li>
+            <li className={stats?.campus ? "" : "opacity-60"}>
+              <b>研修センター</b> … {stats?.campus ? `×${stats.campus}　収入が ＋${stats.campus * 25}%` : "建てると街の収入が上がります"}
+            </li>
+            <li className={stats?.station ? "" : "opacity-60"}>
+              <b>駅</b> … {stats?.station ? `×${stats.station}　となりの区画が 1.3倍` : "となり合う区画の収入が上がります"}
+            </li>
+          </ul>
+          <div className="mt-3 border-t pt-3 text-xs opacity-75" style={{ borderColor: T.line }}>
+            修了したコース {completed == null ? "—" : completed} 件。
+            {next ? `あと ${next.remain} コースで「${next.genre.name}」が開きます。` : "すべてのジャンルが開いています。"}
           </div>
-          <SkinRow value={skinIndex} onChange={onSkin} title={`外観を変える（${RESKIN} CR）`} />
-        </>
-      )}
+        </Card>
+
+        <Card className="p-4">
+          <div className="font-bold">クレジットの増やし方</div>
+          <div className="mt-2 space-y-2">
+            {EARN_WAYS.map(w => (
+              <div key={w.key} className="flex items-start justify-between gap-3 rounded-xl px-3 py-2"
+                style={{ background: "rgba(34,48,61,.04)" }}>
+                <div className="min-w-0">
+                  <div className="text-sm font-bold">{w.label}<span className="ml-2 font-mono text-xs opacity-70">+{w.cr}</span></div>
+                  <div className="mt-0.5 text-[11px] leading-relaxed opacity-70">{w.how}</div>
+                </div>
+                {w.to && goProduct ? (
+                  <Btn kind="ghost" size="sm" onClick={() => goProduct(w.to[0], { subView: w.to[1] })}>{w.cta}</Btn>
+                ) : null}
+              </div>
+            ))}
+          </div>
+          {remote?.sources ? (
+            <div className="mt-3 border-t pt-3 text-xs opacity-75" style={{ borderColor: T.line }}>
+              日報 {remote.sources.reports ?? "—"} 件 ／ テスト合格 {remote.sources.passedTests ?? "—"} 件 ／ 来た日 {remote.sources.loginDays ?? "—"} 日
+              ｜ 使った {Math.floor(remote.spent || 0).toLocaleString("ja-JP")}
+            </div>
+          ) : null}
+        </Card>
+      </div>
     </div>
-  );
-}
-
-function SkinRow({ value, onChange, title }) {
-  return (
-    <>
-      <div className="mt-3 text-[10.5px]" style={{ color: "#6C7A9C" }}>{title}</div>
-      <div className="mt-1.5 flex gap-1.5">
-        {SKIN_NAMES.map((s, i) => (
-          <button key={s.n} onClick={() => onChange(i)}
-            className="flex flex-1 flex-col items-center gap-1 rounded-lg px-1 py-2"
-            style={{ boxShadow: `inset 0 0 0 ${i === value ? 2 : 1}px ${i === value ? "#F5C451" : "#28314F"}`, background: i === value ? "#1C2540" : "transparent" }}>
-            <span className="flex gap-0.5">
-              {s.sw.map(c => <i key={c} className="block h-3 w-3 rounded-sm" style={{ background: c }} />)}
-            </span>
-            <span className="text-[9.5px] font-bold leading-tight" style={{ color: "#A3B0CE" }}>{s.n}</span>
-          </button>
-        ))}
-      </div>
-    </>
   );
 }
