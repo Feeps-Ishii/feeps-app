@@ -1276,9 +1276,6 @@ function Curriculum({ role, go, goProduct, done = {}, goals = [] }) {
       {msg && <div className="mb-4 rounded-lg px-3 py-2 text-xs" style={{ background: T.successSubtle, color: T.success }}>{msg}</div>}
       {err && <div className="mb-4 rounded-lg px-3 py-2 text-xs" style={{ background: T.dangerSubtle, color: T.danger }}>{err}</div>}
 
-      {/* ノートは研修資料の横に置く。カリキュラムは**一覧として読む**画面なので、
-          横に並べず、読みやすい行長に収める（2026-09-16 打合せ） */}
-      <div className="mx-auto w-full max-w-5xl">
       {courses.length === 0 && !loading ? (
         <Card><EmptyState title={canEdit ? "コースがありません" : "所属コースがありません"} desc={canEdit ? "コース管理からコースを作成してください" : "管理者にコースへの登録を依頼してください"} /></Card>
       ) : (
@@ -1488,7 +1485,6 @@ function Curriculum({ role, go, goProduct, done = {}, goals = [] }) {
             )}
         </>
       )}
-      </div>
       {importPreview && <Modal title="Excel取込内容の確認" onClose={() => setImportPreview(null)} footer={sections.length > 0
         ? <><Btn kind="ghost" onClick={() => setImportPreview(null)}>キャンセル</Btn><Btn kind="ghost" icon={Plus} onClick={() => applyCurriculumImport("merge")}>既存に追記する</Btn><Btn icon={Check} onClick={() => applyCurriculumImport("replace")}>既存を置き換える</Btn></>
         : <><Btn kind="ghost" onClick={() => setImportPreview(null)}>キャンセル</Btn><Btn icon={Check} onClick={() => applyCurriculumImport("replace")}>編集画面へ反映</Btn></>}>
