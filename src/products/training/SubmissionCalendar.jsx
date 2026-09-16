@@ -172,8 +172,8 @@ export default function SubmissionCalendar({ courses = [], reports = [], attenda
   }
 
   return (
-    <PrismCard className="p-5">
-      <div className="mb-3 flex flex-wrap items-center gap-2">
+    <PrismCard className="px-5 pb-5 pt-4">
+      <div className="mb-2.5 flex flex-wrap items-center gap-2">
         <span className="text-[13.5px] font-bold" style={{ color: PRISM.ink }}>提出カレンダー</span>
         <span className="text-[11.5px]" style={{ color: PRISM.mut }}>勤怠と日報を出せているか</span>
         <div className="ml-auto flex items-center gap-1">

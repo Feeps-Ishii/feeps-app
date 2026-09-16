@@ -23,7 +23,7 @@ import SubmissionList from "./SubmissionList.jsx";
 import { clearTraineeTestDraft, clearTrainingTargetContext, getActiveCourseId, getTraineeTestDraft, getTrainingTargetContext, setActiveCourseId, setTraineeTestDraft, setTrainingTargetContext } from "../../utils/common/courseContext.js";
 import {
   FileText, ClipboardCheck, Clock, NotebookPen, Users,
-  Building2, Castle, BookOpen, Search, Upload, Download,
+  Building2, BookOpen, PenLine, Search, Upload, Download,
   CheckCircle2, Circle, AlertCircle, ChevronRight, ChevronLeft, ChevronUp, ChevronDown, Trash2, LogOut,
   Plus, Send, MessageSquare, PlayCircle,
   Sparkles, X, Eye, Pencil, StickyNote, Megaphone,
@@ -334,7 +334,7 @@ function TraineeHome({ go, goProduct, goSub, done, taskDataState, onTaskRetry, t
   if (thSubmittedReportCount > 0) thOpenItems.push({ key: "reports", tone: "ok", value: thSubmittedReportCount, unit: "件", label: "これまでに提出した日報" });
 
   return (
-    <PrismPage className="max-w-full overflow-x-hidden">
+    <PrismPage className="max-w-full overflow-x-hidden" style={{ gap: 16 }}>
       {/* 2026-08-24 リデザイン（承認モック: mock/training-home 案A「状況ボード」）。
           左＝今日の状態と次の一手、右＝いま抱えているもの。研修日／研修がない日で
           同じ骨格を使い、中身だけ入れ替える。 */}
@@ -459,40 +459,10 @@ function TraineeHome({ go, goProduct, goSub, done, taskDataState, onTaskRetry, t
         go={go}
       />
 
-      {/* 街への入口。ホームから1タップで行けないと、そもそも見に行かれない */}
-      <TownEntryCard goProduct={goProduct} done={done} goals={goals} />
     </PrismPage>
   );
 }
 
-/* 「成長の街」への導線。目標の達成数と、クレジットの増え方の要点だけを見せる */
-function TownEntryCard({ goProduct, done = {}, goals = [] }) {
-  const tasks = arr(goals).flatMap(goal => arr(goal.tasks));
-  const doneCount = tasks.filter(task => done?.[task.id]).length;
-  const open = () => goProduct && goProduct("talent", { subView: "tl_town" });
-  return (
-    <PrismCard className="overflow-hidden p-0">
-      <button onClick={open} className="flex w-full items-center gap-4 p-4 text-left transition-colors hover:brightness-105">
-        <span className="grid h-12 w-12 shrink-0 place-items-center rounded-2xl text-white"
-          style={{ background: "linear-gradient(135deg,#E0642A,#8B63E0)" }}>
-          <Castle size={22} />
-        </span>
-        <span className="min-w-0 flex-1">
-          <span className="block text-sm font-bold" style={{ color: PRISM.ink }}>成長の街をひらく</span>
-          <span className="mt-0.5 block text-xs leading-relaxed" style={{ color: PRISM.mut }}>
-            目標のひとつひとつが建物になります。日報 +20 CR・テスト合格 +60 CR・その日にひらく +25 CR。
-            {tasks.length > 0 && <> いま <b style={{ color: PRISM.ink }}>{doneCount} / {tasks.length}</b> のタスクを達成しています。</>}
-          </span>
-        </span>
-        <span className="shrink-0 rounded-xl px-3 py-2 text-xs font-bold"
-          style={{ background: PRISM.accentSubtle, color: PRISM.accent }}>見に行く</span>
-      </button>
-    </PrismCard>
-  );
-}
-/* コースごとの目標の設定（講師・管理者）。2026-09-16 打合せ。
-   **コースによって目標が違う**ので、共通の初期目標をコース側に写して直せるようにする。
-   受講生が自分で足した目標は、ここを直しても消えない（courseGoals.js の合わせ方）。 */
 function CourseGoalsEditor() {
   const [courses, setCourses] = useState([]);
   const [courseId, setCourseId] = useState("");
@@ -1017,9 +987,6 @@ function Curriculum({ role, go, goProduct, done = {}, goals = [] }) {
   const [revealedExerciseAnswers, setRevealedExerciseAnswers] = useState({});
   const [importPreview, setImportPreview] = useState(null);
   const [importingCurriculum, setImportingCurriculum] = useState(false);
-  // ノートは受講生の私物。カリキュラムを開いている単元に合わせて横に出す
-  const [noteLessonId, setNoteLessonId] = useState("");
-  const showNotes = role === "trainee";
   const curriculumImportRef = useRef(null);
   const materialsById = useMemo(() => Object.fromEntries(materials.map(m => [m.materialId, m])), [materials]);
   const selectedCourse = useMemo(() => courses.find(c => c.courseId === courseId) || null, [courses, courseId]);
@@ -1278,13 +1245,6 @@ function Curriculum({ role, go, goProduct, done = {}, goals = [] }) {
     : arr(section.chapters).flatMap(chapter => arr(chapter.lessons).map(lesson => ({ section, chapter, lesson, title: lesson.title, scope: "lesson" }))))
     .filter(unit => curriculumItemIncludesDate(unit.lesson, todayKey))
     .map(unit => ({ ...unit, exercises: arr(unit.lesson.exercises), linkedTests: linkedTests(unit.section, unit.chapter, unit.scope === "section" ? {} : unit.lesson) })), [sections, tests, todayKey]);
-  // ノート用の単元リスト（カリキュラム＝教科書の並びそのまま）。最初は今日の単元を開く
-  const noteLessons = useMemo(() => flattenLessons(sections), [sections]);
-  useEffect(() => {
-    if (!showNotes || noteLessonId) return;
-    const first = todayUnits[0]?.lesson?.id || noteLessons[0]?.id || "";
-    if (first) setNoteLessonId(first);
-  }, [showNotes, noteLessonId, todayUnits, noteLessons]);
   /* 受講生向けの「どこまで進んだか」。**日程ベース**で数える（終わったかどうかの記録が
      単元単位には無いため）。日付が入っていない単元は数に入れず、その旨を出す。 */
   const curriculumProgress = useMemo(() => {
@@ -1316,7 +1276,9 @@ function Curriculum({ role, go, goProduct, done = {}, goals = [] }) {
       {msg && <div className="mb-4 rounded-lg px-3 py-2 text-xs" style={{ background: T.successSubtle, color: T.success }}>{msg}</div>}
       {err && <div className="mb-4 rounded-lg px-3 py-2 text-xs" style={{ background: T.dangerSubtle, color: T.danger }}>{err}</div>}
 
-      <WithNoteDock show={showNotes} courseId={courseId} lessons={noteLessons} lessonId={noteLessonId} onLessonId={setNoteLessonId}>
+      {/* ノートは研修資料の横に置く。カリキュラムは**一覧として読む**画面なので、
+          横に並べず、読みやすい行長に収める（2026-09-16 打合せ） */}
+      <div className="mx-auto w-full max-w-5xl">
       {courses.length === 0 && !loading ? (
         <Card><EmptyState title={canEdit ? "コースがありません" : "所属コースがありません"} desc={canEdit ? "コース管理からコースを作成してください" : "管理者にコースへの登録を依頼してください"} /></Card>
       ) : (
@@ -1511,7 +1473,7 @@ function Curriculum({ role, go, goProduct, done = {}, goals = [] }) {
                                 {arr(lesson.preparationItems).length > 0 && <div className="mt-3 rounded-xl p-3" style={{ background: T.warningSubtle }}><div className="mb-1.5 flex items-center gap-1.5 text-xs font-bold" style={{ color: T.warning }}><AlertCircle size={13} />このLessonまでに用意・実施すること</div><ul className="space-y-1">{arr(lesson.preparationItems).map((item, pi) => <li key={pi} className="flex gap-2 text-sm" style={{ color: T.textSecondary }}><Circle size={13} className="mt-1 shrink-0" style={{ color: T.warning }} />{item}</li>)}</ul></div>}
                                 {renderReadOnlyExercises(lesson.exercises, `lesson:${lesson.id}`, T.bgBase)}
                                 {arr(lesson.skills).length > 0 && <div className="mt-2 flex flex-wrap gap-1.5">{arr(lesson.skills).map(skill => <Badge key={skill} tone="cyan">{skill}</Badge>)}</div>}
-                                <div className="mt-3 flex flex-wrap items-center gap-2 border-t pt-3" style={{ borderColor: T.border }}><FileText size={13} style={{ color: T.textMuted }} /><span className="text-xs" style={{ color: T.textMuted }}>資料 {sessMids(lesson).length}件</span><ClipboardCheck size={13} className="ml-2" style={{ color: T.textMuted }} /><span className="text-xs" style={{ color: T.textMuted }}>確認テスト {linkedTests(section, chapter, lesson).length}件</span>{linkedTests(section, chapter, lesson).map(test => <Badge key={test.testId || test.id} tone={test.status === "published" ? "green" : "muted"}>{test.title}</Badge>)}{linkedTests(section, chapter, lesson).length > 0 && <button type="button" onClick={() => go?.("tests")} className={(showNotes ? "" : "ml-auto ") + "inline-flex items-center gap-1 text-xs font-bold"} style={{ color: T.accentHover }}>テストへ<ChevronRight size={13} /></button>}{showNotes && <button type="button" onClick={() => setNoteLessonId(lesson.id)} className="ml-auto inline-flex items-center gap-1 rounded-lg px-2 py-1 text-xs font-bold" style={{ color: noteLessonId === lesson.id ? T.accentHover : T.textSecondary, background: noteLessonId === lesson.id ? T.accentSubtle : "transparent", border: `1px solid ${T.border}` }} title="この単元のノートを横に出す"><StickyNote size={13} />ノート</button>}</div>
+                                <div className="mt-3 flex flex-wrap items-center gap-2 border-t pt-3" style={{ borderColor: T.border }}><FileText size={13} style={{ color: T.textMuted }} /><span className="text-xs" style={{ color: T.textMuted }}>資料 {sessMids(lesson).length}件</span><ClipboardCheck size={13} className="ml-2" style={{ color: T.textMuted }} /><span className="text-xs" style={{ color: T.textMuted }}>確認テスト {linkedTests(section, chapter, lesson).length}件</span>{linkedTests(section, chapter, lesson).map(test => <Badge key={test.testId || test.id} tone={test.status === "published" ? "green" : "muted"}>{test.title}</Badge>)}{linkedTests(section, chapter, lesson).length > 0 && <button type="button" onClick={() => go?.("tests")} className="ml-auto inline-flex items-center gap-1 text-xs font-bold" style={{ color: T.accentHover }}>テストへ<ChevronRight size={13} /></button>}</div>
                               </div>
                             ))}
                           </div>
@@ -1526,7 +1488,7 @@ function Curriculum({ role, go, goProduct, done = {}, goals = [] }) {
             )}
         </>
       )}
-      </WithNoteDock>
+      </div>
       {importPreview && <Modal title="Excel取込内容の確認" onClose={() => setImportPreview(null)} footer={sections.length > 0
         ? <><Btn kind="ghost" onClick={() => setImportPreview(null)}>キャンセル</Btn><Btn kind="ghost" icon={Plus} onClick={() => applyCurriculumImport("merge")}>既存に追記する</Btn><Btn icon={Check} onClick={() => applyCurriculumImport("replace")}>既存を置き換える</Btn></>
         : <><Btn kind="ghost" onClick={() => setImportPreview(null)}>キャンセル</Btn><Btn icon={Check} onClick={() => applyCurriculumImport("replace")}>編集画面へ反映</Btn></>}>
@@ -6662,6 +6624,40 @@ function ReadOnlyCourses({ role, go }) {
       .catch(e => setErr(e?.errorMessage || e?.message || String(e)))
       .finally(() => setLoading(false));
   }, [role]);
+  /* 受講生の「所属コース」。名前と説明だけでは開く意味がないので、
+     **いつ・どこまで・何があるか**を出す。取れなかったものは0件と言わずに伏せる。 */
+  const [traineeDetail, setTraineeDetail] = useState(null);
+  useEffect(() => {
+    if (!selectedId || role !== "trainee") { setTraineeDetail(null); return undefined; }
+    let alive = true;
+    setDetailLoading(true);
+    const month = today.slice(0, 7);
+    Promise.allSettled([
+      apiGet(`/courses/${selectedId}/curriculum`),
+      apiGet(`/materials?courseId=${selectedId}`),
+      apiGet(`/tests?courseId=${selectedId}`),
+      apiGet(`/courses/${selectedId}/workdays?month=${month}`),
+    ]).then(([cur, mat, tst, wd]) => {
+      if (!alive) return;
+      const sections = cur.status === "fulfilled" ? normalizeCurriculumSections(cur.value || {}) : null;
+      const units = sections
+        ? arr(sections).flatMap(section => section.unitMode === "section" ? [section] : arr(section.chapters).flatMap(chapter => arr(chapter.lessons)))
+        : null;
+      const dated = units ? units.filter(u => String(u?.startDate || "").slice(0, 10)) : null;
+      setTraineeDetail({
+        units: units ? units.length : null,
+        dated: dated ? dated.length : null,
+        finished: dated ? dated.filter(u => String(u.endDate || u.startDate).slice(0, 10) < today).length : null,
+        todayUnits: units ? units.filter(u => curriculumItemIncludesDate(u, today)) : null,
+        materials: mat.status === "fulfilled" && Array.isArray(mat.value) ? mat.value.length : null,
+        tests: tst.status === "fulfilled" && Array.isArray(tst.value) ? tst.value.filter(t => t.status === "published").length : null,
+        trainingDays: wd.status === "fulfilled" ? (wd.value?.trainingDaysCount ?? null) : null,
+        month,
+      });
+    }).finally(() => { if (alive) setDetailLoading(false); });
+    return () => { alive = false; };
+  }, [selectedId, role, today]);
+
   useEffect(() => {
     if (!selectedId || role === "trainee") return;
     let alive = true;
@@ -6698,6 +6694,58 @@ function ReadOnlyCourses({ role, go }) {
           <Card className="p-5">
             <div className="flex flex-wrap items-start justify-between gap-3"><div className="min-w-0"><div className="flex flex-wrap items-center gap-2"><h3 className="text-base font-bold" style={{ color: T.textPrimary }}>{selected.name || selected.courseId}</h3><Badge tone={kindTone(selected.type || selected.kind)}>{kindLabel(selected.type || selected.kind)}</Badge></div><p className="mt-1 max-w-3xl text-sm leading-relaxed" style={{ color: T.textSecondary }}>{selected.description || selected.memo || "コース説明は未登録です。"}</p></div>{Array.isArray(selected.instructorIds) && <Badge tone={selected.instructorIds.length ? "cyan" : "amber"}>担当講師 {selected.instructorIds.length}名</Badge>}</div>
           </Card>
+          {role === "trainee" && (detailLoading && !traineeDetail ? <Card><SkeletonRows rows={3} /></Card> : traineeDetail && (
+            <>
+              <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+                <Stat icon={Calendar} label="今月の研修日" value={traineeDetail.trainingDays == null ? "確認できません" : `${traineeDetail.trainingDays}日`} tone="cyan" />
+                <Stat icon={BookOpen} label="単元" value={traineeDetail.units == null ? "確認できません" : `${traineeDetail.units}件`} />
+                <Stat icon={FileText} label="研修資料" value={traineeDetail.materials == null ? "確認できません" : `${traineeDetail.materials}件`} />
+                <Stat icon={ClipboardCheck} label="公開中のテスト" value={traineeDetail.tests == null ? "確認できません" : `${traineeDetail.tests}件`} />
+              </div>
+
+              <Card className="p-5">
+                <div className="flex flex-wrap items-end justify-between gap-3">
+                  <div className="min-w-0">
+                    <div className="text-xs font-semibold" style={{ color: T.textMuted }}>いまどこまで来たか（日程ベース）</div>
+                    <div className="mt-1 flex items-baseline gap-2">
+                      <span className="text-3xl font-bold" style={{ color: T.textPrimary }}>
+                        {traineeDetail.dated ? `${Math.round((traineeDetail.finished / traineeDetail.dated) * 100)}%` : "—"}
+                      </span>
+                      <span className="text-sm" style={{ color: T.textSecondary }}>
+                        {traineeDetail.dated
+                          ? <>終わった単元 <b style={{ color: T.textPrimary }}>{traineeDetail.finished}</b> / {traineeDetail.dated}</>
+                          : traineeDetail.units == null ? "カリキュラムを確認できませんでした" : "日程が未設定のため出せません"}
+                      </span>
+                    </div>
+                    {arr(traineeDetail.todayUnits).length > 0 && (
+                      <div className="mt-2 text-sm" style={{ color: T.textSecondary }}>
+                        今日は <b style={{ color: T.textPrimary }}>{traineeDetail.todayUnits.map(u => u.title).filter(Boolean).join(" / ") || `${traineeDetail.todayUnits.length}件`}</b> です。
+                      </div>
+                    )}
+                  </div>
+                  <Btn size="sm" icon={Calendar} onClick={() => go?.("curriculum")}>カリキュラムを見る</Btn>
+                </div>
+                <div className="mt-3 h-2.5 w-full overflow-hidden rounded-full" style={{ background: T.bgBase }}>
+                  <div className="h-full rounded-full" style={{ width: `${traineeDetail.dated ? Math.round((traineeDetail.finished / traineeDetail.dated) * 100) : 0}%`, background: T.accent, transition: "width .3s" }} />
+                </div>
+              </Card>
+
+              <Card className="p-5">
+                <div className="mb-3">
+                  <h3 className="font-bold" style={{ color: T.textPrimary }}>このコースでやること</h3>
+                  <p className="text-xs" style={{ color: T.textMuted }}>コースを選んだまま、それぞれの画面へ移動します。</p>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  <Btn kind="soft" size="sm" icon={Calendar} onClick={() => go?.("curriculum")}>カリキュラム</Btn>
+                  <Btn kind="ghost" size="sm" icon={FileText} onClick={() => go?.("materials")}>研修資料</Btn>
+                  <Btn kind="ghost" size="sm" icon={NotebookPen} onClick={() => go?.("reports")}>日報</Btn>
+                  <Btn kind="ghost" size="sm" icon={Clock} onClick={() => go?.("attendance")}>勤怠</Btn>
+                  <Btn kind="ghost" size="sm" icon={ClipboardCheck} onClick={() => go?.("tests")}>テスト</Btn>
+                  <Btn kind="ghost" size="sm" icon={PenLine} onClick={() => go?.("notes")}>ノート</Btn>
+                </div>
+              </Card>
+            </>
+          ))}
           {role !== "trainee" && <>
             {detailLoading ? <Card><SkeletonRows rows={4} /></Card> : <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4"><Stat icon={Users} label="所属受講生" value={`${trainees.length}名`} /><Stat icon={NotebookPen} label="本日の日報未保存" value={`${missingReports}名`} tone={missingReports ? "amber" : "green"} /><Stat icon={Clock} label="本日の勤怠未登録" value={`${missingAttendance}名`} tone={missingAttendance ? "amber" : "green"} /><Stat icon={Calendar} label="今月の研修日" value={`${workdays.trainingDaysCount || 0}日`} tone="cyan" /></div>}
             <Card className="p-5"><div className="mb-3"><h3 className="font-bold" style={{ color: T.textPrimary }}>このコースで行うこと</h3><p className="text-xs" style={{ color: T.textMuted }}>{role === "client" ? "コース選択を保ったまま、確認したい画面へ移動します。" : "コース選択を保ったまま、必要な管理画面へ移動します。"}</p></div><div className="flex flex-wrap gap-2"><Btn kind="soft" size="sm" icon={Calendar} onClick={() => go?.("curriculum")}>カリキュラム</Btn><Btn kind="ghost" size="sm" icon={NotebookPen} onClick={() => go?.("reports")}>日報</Btn><Btn kind="ghost" size="sm" icon={Clock} onClick={() => go?.("attendance")}>勤怠</Btn><Btn kind="ghost" size="sm" icon={ClipboardCheck} onClick={() => go?.("tests")}>テスト</Btn><Btn kind="ghost" size="sm" icon={FileText} onClick={() => go?.("materials")}>研修資料</Btn><Btn kind="ghost" size="sm" icon={Users} onClick={() => go?.("trainees")}>受講生</Btn></div></Card>
