@@ -11,6 +11,9 @@ import {
   QBANK
 } from "./TrainingCatalog.js";
 import { homeDateLabel } from "./useTraining.js";
+import { flattenLessons } from "./notesLessons.js";
+// ノートは react-markdown を使うので、教材の横に出すぶんも開いた人だけが読み込むようにする
+const LessonNoteDock = React.lazy(() => import("./LessonNoteDock.jsx"));
 import SubmissionCalendar from "./SubmissionCalendar.jsx";
 import SubmissionList from "./SubmissionList.jsx";
 import { clearTraineeTestDraft, clearTrainingTargetContext, getActiveCourseId, getTraineeTestDraft, getTrainingTargetContext, setActiveCourseId, setTraineeTestDraft, setTrainingTargetContext } from "../../utils/common/courseContext.js";
@@ -781,6 +784,22 @@ function GoalsView({ role, done, taskSaveState, toggle, goals, setGoals, go, goP
     </div>
   );
 }
+/* 教材の横のノート。受講生の私物なので受講生にだけ出す。
+   カリキュラムからでも研修資料からでも、同じ形で横に並ぶようにするための入れ物。 */
+function WithNoteDock({ show, courseId, lessons, lessonId, onLessonId, children }) {
+  if (!show) return children;
+  return (
+    <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_360px] xl:items-start">
+      <div className="min-w-0">{children}</div>
+      <div className="min-w-0 xl:sticky xl:top-4">
+        <React.Suspense fallback={<Card className="p-4"><SkeletonRows rows={2} /></Card>}>
+          <LessonNoteDock courseId={courseId} lessons={lessons} lessonId={lessonId} onLessonId={onLessonId} />
+        </React.Suspense>
+      </div>
+    </div>
+  );
+}
+
 function Curriculum({ role, go }) {
   const [courses, setCourses] = useState([]);
   const [currentUserId, setCurrentUserId] = useState("");
@@ -800,6 +819,9 @@ function Curriculum({ role, go }) {
   const [revealedExerciseAnswers, setRevealedExerciseAnswers] = useState({});
   const [importPreview, setImportPreview] = useState(null);
   const [importingCurriculum, setImportingCurriculum] = useState(false);
+  // ノートは受講生の私物。カリキュラムを開いている単元に合わせて横に出す
+  const [noteLessonId, setNoteLessonId] = useState("");
+  const showNotes = role === "trainee";
   const curriculumImportRef = useRef(null);
   const materialsById = useMemo(() => Object.fromEntries(materials.map(m => [m.materialId, m])), [materials]);
   const selectedCourse = useMemo(() => courses.find(c => c.courseId === courseId) || null, [courses, courseId]);
@@ -1058,6 +1080,13 @@ function Curriculum({ role, go }) {
     : arr(section.chapters).flatMap(chapter => arr(chapter.lessons).map(lesson => ({ section, chapter, lesson, title: lesson.title, scope: "lesson" }))))
     .filter(unit => curriculumItemIncludesDate(unit.lesson, todayKey))
     .map(unit => ({ ...unit, exercises: arr(unit.lesson.exercises), linkedTests: linkedTests(unit.section, unit.chapter, unit.scope === "section" ? {} : unit.lesson) })), [sections, tests, todayKey]);
+  // ノート用の単元リスト（カリキュラム＝教科書の並びそのまま）。最初は今日の単元を開く
+  const noteLessons = useMemo(() => flattenLessons(sections), [sections]);
+  useEffect(() => {
+    if (!showNotes || noteLessonId) return;
+    const first = todayUnits[0]?.lesson?.id || noteLessons[0]?.id || "";
+    if (first) setNoteLessonId(first);
+  }, [showNotes, noteLessonId, todayUnits, noteLessons]);
   const curriculumSummary = useMemo(() => {
     const lessons = sections.flatMap(section => arr(section.chapters).flatMap(chapter => arr(chapter.lessons)));
     const standalone = sections.filter(section => section.unitMode === "section");
@@ -1077,6 +1106,7 @@ function Curriculum({ role, go }) {
       {msg && <div className="mb-4 rounded-lg px-3 py-2 text-xs" style={{ background: T.successSubtle, color: T.success }}>{msg}</div>}
       {err && <div className="mb-4 rounded-lg px-3 py-2 text-xs" style={{ background: T.dangerSubtle, color: T.danger }}>{err}</div>}
 
+      <WithNoteDock show={showNotes} courseId={courseId} lessons={noteLessons} lessonId={noteLessonId} onLessonId={setNoteLessonId}>
       {courses.length === 0 && !loading ? (
         <Card><EmptyState title={canEdit ? "コースがありません" : "所属コースがありません"} desc={canEdit ? "コース管理からコースを作成してください" : "管理者にコースへの登録を依頼してください"} /></Card>
       ) : (
@@ -1266,7 +1296,7 @@ function Curriculum({ role, go }) {
                                 {arr(lesson.preparationItems).length > 0 && <div className="mt-3 rounded-xl p-3" style={{ background: T.warningSubtle }}><div className="mb-1.5 flex items-center gap-1.5 text-xs font-bold" style={{ color: T.warning }}><AlertCircle size={13} />このLessonまでに用意・実施すること</div><ul className="space-y-1">{arr(lesson.preparationItems).map((item, pi) => <li key={pi} className="flex gap-2 text-sm" style={{ color: T.textSecondary }}><Circle size={13} className="mt-1 shrink-0" style={{ color: T.warning }} />{item}</li>)}</ul></div>}
                                 {renderReadOnlyExercises(lesson.exercises, `lesson:${lesson.id}`, T.bgBase)}
                                 {arr(lesson.skills).length > 0 && <div className="mt-2 flex flex-wrap gap-1.5">{arr(lesson.skills).map(skill => <Badge key={skill} tone="cyan">{skill}</Badge>)}</div>}
-                                <div className="mt-3 flex flex-wrap items-center gap-2 border-t pt-3" style={{ borderColor: T.border }}><FileText size={13} style={{ color: T.textMuted }} /><span className="text-xs" style={{ color: T.textMuted }}>資料 {sessMids(lesson).length}件</span><ClipboardCheck size={13} className="ml-2" style={{ color: T.textMuted }} /><span className="text-xs" style={{ color: T.textMuted }}>確認テスト {linkedTests(section, chapter, lesson).length}件</span>{linkedTests(section, chapter, lesson).map(test => <Badge key={test.testId || test.id} tone={test.status === "published" ? "green" : "muted"}>{test.title}</Badge>)}{linkedTests(section, chapter, lesson).length > 0 && <button type="button" onClick={() => go?.("tests")} className="ml-auto inline-flex items-center gap-1 text-xs font-bold" style={{ color: T.accentHover }}>テストへ<ChevronRight size={13} /></button>}</div>
+                                <div className="mt-3 flex flex-wrap items-center gap-2 border-t pt-3" style={{ borderColor: T.border }}><FileText size={13} style={{ color: T.textMuted }} /><span className="text-xs" style={{ color: T.textMuted }}>資料 {sessMids(lesson).length}件</span><ClipboardCheck size={13} className="ml-2" style={{ color: T.textMuted }} /><span className="text-xs" style={{ color: T.textMuted }}>確認テスト {linkedTests(section, chapter, lesson).length}件</span>{linkedTests(section, chapter, lesson).map(test => <Badge key={test.testId || test.id} tone={test.status === "published" ? "green" : "muted"}>{test.title}</Badge>)}{linkedTests(section, chapter, lesson).length > 0 && <button type="button" onClick={() => go?.("tests")} className={(showNotes ? "" : "ml-auto ") + "inline-flex items-center gap-1 text-xs font-bold"} style={{ color: T.accentHover }}>テストへ<ChevronRight size={13} /></button>}{showNotes && <button type="button" onClick={() => setNoteLessonId(lesson.id)} className="ml-auto inline-flex items-center gap-1 rounded-lg px-2 py-1 text-xs font-bold" style={{ color: noteLessonId === lesson.id ? T.accentHover : T.textSecondary, background: noteLessonId === lesson.id ? T.accentSubtle : "transparent", border: `1px solid ${T.border}` }} title="この単元のノートを横に出す"><StickyNote size={13} />ノート</button>}</div>
                               </div>
                             ))}
                           </div>
@@ -1281,6 +1311,7 @@ function Curriculum({ role, go }) {
             )}
         </>
       )}
+      </WithNoteDock>
       {importPreview && <Modal title="Excel取込内容の確認" onClose={() => setImportPreview(null)} footer={sections.length > 0
         ? <><Btn kind="ghost" onClick={() => setImportPreview(null)}>キャンセル</Btn><Btn kind="ghost" icon={Plus} onClick={() => applyCurriculumImport("merge")}>既存に追記する</Btn><Btn icon={Check} onClick={() => applyCurriculumImport("replace")}>既存を置き換える</Btn></>
         : <><Btn kind="ghost" onClick={() => setImportPreview(null)}>キャンセル</Btn><Btn icon={Check} onClick={() => applyCurriculumImport("replace")}>編集画面へ反映</Btn></>}>
@@ -1314,6 +1345,9 @@ function Materials({ role }) {
   const [deleting, setDeleting] = useState(null);
   const [saving, setSaving] = useState(false);
   const fileRef = React.useRef(null);
+  // 資料を見ながらノートを書けるようにする（受講生のみ）。単元は資料の紐づけ先に合わせる
+  const [noteLessonId, setNoteLessonId] = useState("");
+  const showNotes = role === "trainee";
   const selectedCourse = useMemo(() => courses.find(c => c.courseId === courseId) || null, [courses, courseId]);
   const canEdit = role === "admin" || (role === "instructor" && Array.isArray(selectedCourse?.instructorIds) && selectedCourse.instructorIds.includes(currentUserId));
   const materialsById = useMemo(() => Object.fromEntries(items.map(m => [m.materialId, m])), [items]);
@@ -1332,6 +1366,11 @@ function Materials({ role }) {
     { value: `section:${section.id}`, label: `紐づけ先 — 大項目: ${section.title || "名称未設定"}` },
     ...arr(section.chapters).flatMap(chapter => arr(chapter.lessons).map(lesson => ({ value: `lesson:${lesson.id}`, label: `紐づけ先 — Lesson補足: ${lesson.title || "名称未設定"}` }))),
   ]), [curriculumSections]);
+  const noteLessons = useMemo(() => flattenLessons(curriculumSections), [curriculumSections]);
+  useEffect(() => {
+    if (!showNotes || noteLessonId) return;
+    if (noteLessons[0]?.id) setNoteLessonId(noteLessons[0].id);
+  }, [showNotes, noteLessonId, noteLessons]);
   const materialGroups = useMemo(() => {
     const referenced = new Set();
     const groups = arr(curriculumSections).map(section => {
@@ -1490,7 +1529,10 @@ function Materials({ role }) {
                 <div className="px-3 py-2 text-xs font-bold" style={{ color: T.textSecondary, background: T.bgBase }}>{chapter.title}</div>
                 {chapter.lessons.map(lesson => (
                   <div key={lesson.id}>
-                    <div className="px-3 pt-3 text-xs font-semibold" style={{ color: T.textMuted }}>{lesson.title}</div>
+                    <div className="flex items-center gap-2 px-3 pt-3">
+                      <div className="min-w-0 flex-1 truncate text-xs font-semibold" style={{ color: T.textMuted }}>{lesson.title}</div>
+                      {showNotes && noteLessons.some(l => l.id === lesson.id) && <button type="button" onClick={() => setNoteLessonId(lesson.id)} title="この単元のノートを横に出す" className="inline-flex shrink-0 items-center gap-1 rounded-lg px-2 py-1 text-xs font-bold" style={{ color: noteLessonId === lesson.id ? T.accentHover : T.textSecondary, background: noteLessonId === lesson.id ? T.accentSubtle : "transparent", border: `1px solid ${T.border}` }}><StickyNote size={13} />ノート</button>}
+                    </div>
                     {lesson.materials.map(m => renderMaterialRow(m, `${lesson.id}:${m.materialId}`))}
                   </div>
                 ))}
@@ -1532,6 +1574,7 @@ function Materials({ role }) {
       <input ref={fileRef} type="file" className="hidden" onChange={e => upload(e.target.files?.[0])} />
       {err && <div className="mb-4 rounded-lg px-3 py-2 text-xs" style={{ background: T.dangerSubtle, color: T.danger }}>{err}</div>}
 
+      <WithNoteDock show={showNotes} courseId={courseId} lessons={noteLessons} lessonId={noteLessonId} onLessonId={setNoteLessonId}>
       {courses.length === 0 && !loading ? (
         <Card><EmptyState title={canEdit ? "コースがありません" : "所属コースがありません"} desc={canEdit ? "コース管理からコースを作成してください" : "管理者にコース登録を依頼してください"} /></Card>
       ) : (
@@ -1559,6 +1602,7 @@ function Materials({ role }) {
               ))}</Card>}
         </>
       )}
+      </WithNoteDock>
       {editing && (
         <Modal title="研修資料を編集" onClose={() => !saving && setEditing(null)} footer={<><Btn kind="ghost" onClick={() => setEditing(null)} disabled={saving}>キャンセル</Btn><Btn onClick={saveMaterial} disabled={saving || !editDraft.title.trim()}>{saving ? "保存中..." : "保存"}</Btn></>}>
           <div className="space-y-4">

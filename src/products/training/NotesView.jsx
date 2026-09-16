@@ -1,48 +1,18 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import ReactMarkdown from "react-markdown";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { apiGet, apiPost, apiPut, apiDelete } from "../../api.js";
 import {
   PRISM, PrismPage, PrismCard, PrismHomeHeading, PrismSectionTitle, PrismErrorRetryCard, SkeletonRows,
 } from "../../components/common";
 import { normalizeCurriculumSections } from "./TrainingComponents.jsx";
-import {
-  AlertCircle, Bold, Check, ChevronDown, Code, Hash, HelpCircle, List, ListChecks,
-  PenLine, Plus, Search, Trash2, X,
-} from "lucide-react";
+import { Editor, NoteCard, flattenLessons } from "./NotesShared.jsx";
+import { AlertCircle, ChevronDown, Plus, Search } from "lucide-react";
 
 /* 研修ノート。正典: docs/specs/training-notes-spec.md
  *
  * **整理をさせない。** タグもフォルダも作らせず、カリキュラムの並び順に勝手に並べる。
  * そのために、すべてのノートは単元(lessonId)に刺さる。刺さらないノートは作れない。 */
 
-const MARKS = {
-  none:    { label: "ふつう",       color: PRISM.mut },
-  later:   { label: "あとで見返す", color: PRISM.accent },
-  unknown: { label: "わからない",   color: PRISM.warn },
-};
 const FILTERS = [["all", "すべて"], ["later", "あとで見返す"], ["unknown", "わからない"]];
-
-/* カリキュラムの木を、上から順の平らな単元リストにする（＝教科書の並び） */
-function flattenLessons(sections) {
-  const out = [];
-  (sections || []).forEach(section => {
-    if (section.unitMode === "section") {
-      out.push({ id: section.id, title: section.title, sectionTitle: section.title, chapterTitle: "" });
-      return;
-    }
-    (section.chapters || []).forEach(chapter => {
-      (chapter.lessons || []).forEach(lesson => {
-        out.push({
-          id: lesson.id,
-          title: lesson.title,
-          sectionTitle: section.title,
-          chapterTitle: chapter.title,
-        });
-      });
-    });
-  });
-  return out;
-}
 
 export default function NotesView() {
   const [courses, setCourses] = useState([]);
@@ -263,123 +233,5 @@ export default function NotesView() {
         ))
       )}
     </PrismPage>
-  );
-}
-
-function NoteCard({ note, onEdit, onMark, onRemove }) {
-  const mark = MARKS[note.mark] || MARKS.none;
-  return (
-    <PrismCard className="p-4">
-      <div className="flex items-start gap-3">
-        <div className="feeps-lesson-md min-w-0 flex-1 break-words text-sm" style={{ color: PRISM.ink }}>
-          <ReactMarkdown>{note.body || ""}</ReactMarkdown>
-        </div>
-        <div className="flex shrink-0 gap-1">
-          <IconBtn label="直す" onClick={onEdit}><PenLine size={14} /></IconBtn>
-          <IconBtn label="消す" onClick={onRemove} danger><Trash2 size={14} /></IconBtn>
-        </div>
-      </div>
-      <div className="mt-3 flex flex-wrap items-center gap-1.5">
-        {Object.entries(MARKS).map(([k, v]) => (
-          <button key={k} onClick={() => onMark(k)}
-            className="flex items-center gap-1 rounded-lg px-2 py-1 text-[11px] font-bold"
-            style={{
-              background: note.mark === k ? PRISM.accentSubtle : "transparent",
-              color: note.mark === k ? v.color : PRISM.mut,
-              boxShadow: `inset 0 0 0 1px ${note.mark === k ? v.color + "55" : PRISM.line}`,
-            }}>
-            {k === "unknown" && <HelpCircle size={12} />}
-            {k === "later" && <ListChecks size={12} />}
-            {k === "none" && <Check size={12} />}
-            {v.label}
-          </button>
-        ))}
-        <span className="ml-auto text-[11px]" style={{ color: PRISM.mut }}>
-          {String(note.updatedAt || note.createdAt || "").slice(0, 10)}
-        </span>
-      </div>
-    </PrismCard>
-  );
-}
-
-function IconBtn({ children, label, onClick, danger }) {
-  return (
-    <button onClick={onClick} aria-label={label} title={label}
-      className="grid h-7 w-7 place-items-center rounded-lg"
-      style={{ color: danger ? PRISM.warn : PRISM.mut, background: PRISM.neutralSubtle }}>
-      {children}
-    </button>
-  );
-}
-
-/* Markdownで書くが、**記法を覚えさせない**。ボタンから入れる */
-function Editor({ lessons, value, saving, onChange, onSave, onCancel }) {
-  const ref = useRef(null);
-  const insert = (before, after = "") => {
-    const el = ref.current; if (!el) return;
-    const { selectionStart: s, selectionEnd: e, value: v } = el;
-    const next = v.slice(0, s) + before + v.slice(s, e) + after + v.slice(e);
-    onChange({ ...value, body: next });
-    requestAnimationFrame(() => {
-      el.focus();
-      el.setSelectionRange(s + before.length, e + before.length);
-    });
-  };
-  const TOOLS = [
-    { icon: Hash, label: "見出し", run: () => insert("## ") },
-    { icon: Bold, label: "太字", run: () => insert("**", "**") },
-    { icon: List, label: "箇条書き", run: () => insert("- ") },
-    { icon: ListChecks, label: "チェック", run: () => insert("- [ ] ") },
-    { icon: Code, label: "コード", run: () => insert("```\n", "\n```") },
-  ];
-  return (
-    <PrismCard className="p-4">
-      <div className="flex flex-wrap items-center gap-2">
-        <span className="text-xs font-bold" style={{ color: PRISM.mut }}>どの単元のノートか</span>
-        <div className="relative min-w-0 flex-1">
-          <select
-            value={value.lessonId} onChange={e => onChange({ ...value, lessonId: e.target.value })}
-            className="w-full appearance-none rounded-xl border py-2 pl-3 pr-9 text-sm"
-            style={{ borderColor: PRISM.line, background: PRISM.surface, color: PRISM.ink }}>
-            {lessons.map(l => (
-              <option key={l.id} value={l.id}>
-                {l.sectionTitle && l.sectionTitle !== l.title ? `${l.sectionTitle} / ` : ""}{l.title}
-              </option>
-            ))}
-          </select>
-          <ChevronDown size={15} className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2" style={{ color: PRISM.mut }} />
-        </div>
-      </div>
-
-      <div className="mt-3 flex flex-wrap gap-1">
-        {TOOLS.map(t => (
-          <button key={t.label} onClick={t.run} title={t.label}
-            className="flex items-center gap-1 rounded-lg px-2 py-1.5 text-[11px] font-bold"
-            style={{ background: PRISM.neutralSubtle, color: PRISM.mut }}>
-            <t.icon size={13} />{t.label}
-          </button>
-        ))}
-      </div>
-
-      <textarea
-        ref={ref} rows={8} value={value.body}
-        onChange={e => onChange({ ...value, body: e.target.value })}
-        placeholder="気づいたこと、詰まったこと、あとで見返したいこと"
-        className="mt-2 w-full resize-y rounded-xl border p-3 text-sm leading-relaxed"
-        style={{ borderColor: PRISM.line, background: PRISM.surface, color: PRISM.ink }} />
-
-      <div className="mt-3 flex items-center gap-2">
-        <button onClick={onSave} disabled={saving || !value.lessonId || !value.body.trim()}
-          className="rounded-xl px-4 py-2 text-sm font-bold disabled:opacity-50"
-          style={{ background: PRISM.accent, color: "#fff" }}>
-          {saving ? "保存中…" : "保存する"}
-        </button>
-        <button onClick={onCancel}
-          className="flex items-center gap-1 rounded-xl px-3 py-2 text-sm font-bold"
-          style={{ color: PRISM.mut }}>
-          <X size={14} />やめる
-        </button>
-      </div>
-    </PrismCard>
   );
 }
