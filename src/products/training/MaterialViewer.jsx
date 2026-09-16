@@ -1,8 +1,12 @@
-import React, { useEffect, useLayoutEffect, useRef, useState } from "react";
+import React, { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import pdfjsWorkerUrl from "pdfjs-dist/build/pdf.worker.min.mjs?url";
-import { apiGet } from "../../api.js";
+import { apiGet, apiPut } from "../../api.js";
 import { Card, Btn, T, SkeletonRows } from "../../components/common";
-import { AlertCircle, ChevronLeft, ChevronRight, ExternalLink, Maximize2, Minus, Plus, RotateCcw, X } from "lucide-react";
+import InkLayer, { INK_COLORS } from "./InkLayer.jsx";
+import {
+  AlertCircle, ChevronLeft, ChevronRight, Eraser, ExternalLink, Hand, Highlighter, Maximize2,
+  Minus, Pencil, Plus, Redo2, RotateCcw, Slash, Square, Trash2, Type, Undo2, X,
+} from "lucide-react";
 
 /* 教材ビューア。正典: docs/specs/training-notes-spec.md 6.1
  *
@@ -36,10 +40,28 @@ export function renderPdfPageToCanvas({ page, canvas, width, zoom = 1, maxDpr = 
   canvas.style.height = `${Math.floor(viewport.height)}px`;
   const ctx = canvas.getContext("2d");
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-  return page.render({ canvasContext: ctx, viewport });
+  // 書き込みのレイヤをぴったり重ねるので、CSS上の大きさも返す
+  return {
+    task: page.render({ canvasContext: ctx, viewport }),
+    width: Math.floor(viewport.width),
+    height: Math.floor(viewport.height),
+  };
 }
 
-export default function MaterialViewer({ courseId, material, onClose, onPage }) {
+/* 書き込みの道具。**6色固定**（迷わせない）。太さは3段だけ持つ */
+const TOOLS = [
+  { kind: "hand",   label: "手のひら",   icon: Hand },
+  { kind: "pen",    label: "ペン",       icon: Pencil,      widths: [2, 3, 6] },
+  { kind: "marker", label: "マーカー",   icon: Highlighter, widths: [10, 14, 20] },
+  { kind: "line",   label: "直線",       icon: Slash,       widths: [2, 3, 6] },
+  { kind: "rect",   label: "四角",       icon: Square,      widths: [2, 3, 6] },
+  { kind: "text",   label: "文字",       icon: Type,        widths: [3, 4, 6] },
+  { kind: "eraser", label: "消しゴム",   icon: Eraser },
+];
+const WIDTH_LABELS = ["細", "中", "太"];
+const MAX_UNDO = 50;
+
+export default function MaterialViewer({ courseId, material, onClose, onPage, lessonId, canAnnotate = false }) {
   const wrapRef = useRef(null);
   const canvasRef = useRef(null);
   const docRef = useRef(null);
@@ -54,6 +76,18 @@ export default function MaterialViewer({ courseId, material, onClose, onPage }) 
   const [err, setErr] = useState("");
   const [reloadKey, setReloadKey] = useState(0);
   const [docVersion, setDocVersion] = useState(0);
+  const [pageSize, setPageSize] = useState({ w: 0, h: 0 });
+
+  /* ---- 教材への書き込み（PDF直書き） ---- */
+  const [tool, setTool] = useState({ kind: "hand", color: 0, w: 3 });
+  const [strokes, setStrokes] = useState([]);
+  const [hist, setHist] = useState({ undo: [], redo: [] });
+  const [inkState, setInkState] = useState("idle");   // idle | loading | error | saving | saved | saveerror
+  const [inkReload, setInkReload] = useState(0);
+  const pendingRef = useRef(null);                     // { page, strokes } … まだ保存していないもの
+  const flushRef = useRef(null);
+  // 書けるのは受講生だけ。単元が決まらないと刺す先が無いので書かせない（ノート全体の決まり）
+  const inkReady = canAnnotate && kind === "pdf" && !!lessonId;
 
   useEffect(() => { onPage?.(page); }, [page, onPage]);
 
@@ -117,7 +151,9 @@ export default function MaterialViewer({ courseId, material, onClose, onPage }) 
     (async () => {
       const p = await doc.getPage(page);
       if (cancelled || !canvasRef.current) return;
-      task = renderPdfPageToCanvas({ page: p, canvas: canvasRef.current, width, zoom });
+      const r = renderPdfPageToCanvas({ page: p, canvas: canvasRef.current, width, zoom });
+      task = r.task;
+      setPageSize(prev => (prev.w === r.width && prev.h === r.height ? prev : { w: r.width, h: r.height }));
       await task.promise;
     })().catch(e => {
       if (cancelled || e?.name === "RenderingCancelledException") return;
@@ -125,6 +161,76 @@ export default function MaterialViewer({ courseId, material, onClose, onPage }) 
     });
     return () => { cancelled = true; task?.cancel?.(); };
   }, [docVersion, page, zoom, width]);
+
+  /* このページの書き込みを読む。
+     **読めなかったときは書かせない。** 空のまま書き足して保存すると、前に書いたものを消してしまう。 */
+  useEffect(() => {
+    if (!inkReady) { setStrokes([]); setHist({ undo: [], redo: [] }); return undefined; }
+    let alive = true;
+    setInkState("loading"); setStrokes([]); setHist({ undo: [], redo: [] });
+    apiGet(`/notes/ink?courseId=${encodeURIComponent(courseId)}&materialId=${encodeURIComponent(material.materialId)}&page=${page}`)
+      .then(r => { if (!alive) return; setStrokes(Array.isArray(r?.strokes) ? r.strokes : []); setInkState("idle"); })
+      .catch(() => { if (alive) setInkState("error"); })
+      .finally(() => {});
+    return () => { alive = false; };
+  }, [inkReady, courseId, material.materialId, page, inkReload]);
+
+  /* 保存。**ページを持ったまま覚えておく**（保存前にページを送っても、別のページへ書き込まない） */
+  const flush = useCallback(async () => {
+    const p = pendingRef.current;
+    if (!p || !inkReady) return;
+    pendingRef.current = null;
+    setInkState("saving");
+    try {
+      await apiPut("/notes/ink", {
+        courseId, lessonId, materialId: material.materialId, page: p.page, strokes: p.strokes,
+      });
+      setInkState("saved");
+    } catch {
+      pendingRef.current = p;      // 捨てない。次の機会にもう一度出す
+      setInkState("saveerror");
+    }
+  }, [courseId, lessonId, material.materialId, inkReady]);
+  useEffect(() => { flushRef.current = flush; }, [flush]);
+
+  // 書き終わって少し経ったら保存する（1本ごとに通信しない）
+  useEffect(() => {
+    if (!pendingRef.current) return undefined;
+    const t = setTimeout(() => { flushRef.current?.(); }, 800);
+    return () => clearTimeout(t);
+  }, [strokes]);
+
+  // ページを移るとき・閉じるときは、溜まっているぶんを必ず出す
+  useEffect(() => () => { flushRef.current?.(); }, [page]);
+
+  const applyStrokes = useCallback(next => {
+    setStrokes(cur => {
+      setHist(h => ({ undo: [...h.undo, cur].slice(-MAX_UNDO), redo: [] }));
+      pendingRef.current = { page, strokes: next };
+      return next;
+    });
+  }, [page]);
+
+  const undo = () => setHist(h => {
+    if (!h.undo.length) return h;
+    const prev = h.undo[h.undo.length - 1];
+    setStrokes(cur => { pendingRef.current = { page, strokes: prev }; return prev; });
+    return { undo: h.undo.slice(0, -1), redo: [...h.redo, strokes].slice(-MAX_UNDO) };
+  });
+  const redo = () => setHist(h => {
+    if (!h.redo.length) return h;
+    const next = h.redo[h.redo.length - 1];
+    setStrokes(cur => { pendingRef.current = { page, strokes: next }; return next; });
+    return { undo: [...h.undo, strokes].slice(-MAX_UNDO), redo: h.redo.slice(0, -1) };
+  });
+  const clearPage = () => { if (strokes.length) applyStrokes([]); };
+
+  const pickTool = kindName => setTool(t => {
+    const def = TOOLS.find(x => x.kind === kindName);
+    const widths = def?.widths;
+    return { ...t, kind: kindName, w: widths ? (widths.includes(t.w) ? t.w : widths[1]) : t.w };
+  });
+  const toolDef = TOOLS.find(t => t.kind === tool.kind);
 
   const openTab = () => { if (url) window.open(url, "_blank", "noopener"); };
   const go = d => setPage(p => Math.min(Math.max(1, p + d), Math.max(1, numPages)));
@@ -155,9 +261,80 @@ export default function MaterialViewer({ courseId, material, onClose, onPage }) 
         </div>
       ) : null}
 
+      {/* 書き込みの道具。**PDFそのものは書き換えない**ので、いつでも消せる */}
+      {!err && !loading && inkReady && (
+        <div className="flex flex-wrap items-center gap-2 border-b px-4 py-2.5" style={{ borderColor: T.border, background: T.bgSurface }}>
+          <div className="flex overflow-hidden rounded-xl" style={{ boxShadow: `inset 0 0 0 1px ${T.border}` }}>
+            {TOOLS.map(t => (
+              <button key={t.kind} type="button" onClick={() => pickTool(t.kind)} title={t.label} aria-pressed={tool.kind === t.kind}
+                className="flex items-center gap-1 px-2.5 py-1.5 text-xs font-bold"
+                style={{
+                  background: tool.kind === t.kind ? T.accentSubtle : "transparent",
+                  color: tool.kind === t.kind ? T.accentHover : T.textSecondary,
+                }}>
+                <t.icon size={14} />
+              </button>
+            ))}
+          </div>
+
+          {tool.kind !== "hand" && tool.kind !== "eraser" && (
+            <>
+              <div className="flex items-center gap-1">
+                {INK_COLORS.map((c, i) => (
+                  <button key={c} type="button" onClick={() => setTool(t => ({ ...t, color: i }))} aria-label={`色${i + 1}`}
+                    className="h-6 w-6 rounded-full"
+                    style={{ background: c, boxShadow: tool.color === i ? `0 0 0 2px #fff, 0 0 0 4px ${c}` : "inset 0 0 0 1px rgba(0,0,0,.15)" }} />
+                ))}
+              </div>
+              {toolDef?.widths && (
+                <div className="flex overflow-hidden rounded-lg" style={{ boxShadow: `inset 0 0 0 1px ${T.border}` }}>
+                  {toolDef.widths.map((w, i) => (
+                    <button key={w} type="button" onClick={() => setTool(t => ({ ...t, w }))}
+                      className="px-2 py-1.5 text-xs font-bold"
+                      style={{ background: tool.w === w ? T.accentSubtle : "transparent", color: tool.w === w ? T.accentHover : T.textMuted }}>
+                      {WIDTH_LABELS[i]}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </>
+          )}
+
+          <div className="ml-auto flex items-center gap-1.5">
+            <span className="text-xs" style={{ color: inkState === "saveerror" || inkState === "error" ? T.danger : T.textMuted }}>
+              {inkState === "loading" ? "書き込みを読み込み中…"
+                : inkState === "error" ? "書き込みを読めませんでした（消さないため、書き込みを止めています）"
+                : inkState === "saving" ? "保存中…"
+                : inkState === "saveerror" ? "保存できませんでした。もう一度書くか、時間をおいてください"
+                : inkState === "saved" ? "保存しました" : ""}
+            </span>
+            {inkState === "error" && <Btn kind="ghost" size="sm" icon={RotateCcw} onClick={() => setInkReload(k => k + 1)}>再試行</Btn>}
+            <Btn kind="ghost" size="sm" icon={Undo2} disabled={!hist.undo.length} onClick={undo}>戻す</Btn>
+            <Btn kind="ghost" size="sm" icon={Redo2} disabled={!hist.redo.length} onClick={redo}>やり直す</Btn>
+            <Btn kind="ghost" size="sm" icon={Trash2} disabled={!strokes.length} onClick={clearPage}>このページを消す</Btn>
+          </div>
+        </div>
+      )}
+      {!err && !loading && canAnnotate && kind === "pdf" && !lessonId && (
+        <div className="border-b px-4 py-2 text-xs" style={{ borderColor: T.border, color: T.textMuted }}>
+          単元が決まっていないため書き込みはできません。カリキュラムが読み込まれると書けるようになります。
+        </div>
+      )}
+
       {/* 表示面。**ノートと横に並べる前提なので、幅は親が決める** */}
       <div ref={wrapRef} className="overflow-auto px-4 py-4" style={{ maxHeight: "76vh", background: T.bgBase }}>
-        {!err && kind === "pdf" && <canvas ref={canvasRef} className="mx-auto block" style={{ boxShadow: "0 1px 6px rgba(0,0,0,.14)" }} />}
+        {!err && kind === "pdf" && (
+          <div className="relative mx-auto" style={{ width: pageSize.w || undefined, height: pageSize.h || undefined }}>
+            <canvas ref={canvasRef} className="block" style={{ boxShadow: "0 1px 6px rgba(0,0,0,.14)" }} />
+            {inkReady && pageSize.w > 0 && (
+              <InkLayer
+                width={pageSize.w} height={pageSize.h} strokes={strokes} tool={tool}
+                disabled={inkState === "loading" || inkState === "error"}
+                onCommit={applyStrokes}
+              />
+            )}
+          </div>
+        )}
         {!err && kind === "image" && url && (
           <img src={url} alt={material.title || "教材"} className="mx-auto block max-w-full" style={{ width: `${Math.round(zoom * 100)}%` }} />
         )}

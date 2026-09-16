@@ -25,6 +25,12 @@ export function flattenLessons(sections) {
   return out;
 }
 
+/* 教材への書き込み(kind="ink")などは、書いた文章の一覧には出さない。
+   ノート画面・ドック・日報の取り込みは、いずれも**本文のあるノート**だけを並べる。 */
+export function isWrittenNote(n) {
+  return !!n && (!n.kind || n.kind === "note");
+}
+
 /* ドックの見出しに出す件数。**取れなかったものを0件と言わない**（研修全体の決まり）。
    mine = この単元のノート数、total = このコース全体のノート数。 */
 export function noteCountLabel({ err, mine, total }) {

@@ -5,6 +5,7 @@ import {
 } from "../../components/common";
 import { normalizeCurriculumSections } from "./TrainingComponents.jsx";
 import { Editor, NoteCard, flattenLessons } from "./NotesShared.jsx";
+import { isWrittenNote } from "./notesLessons.js";
 import { AlertCircle, ChevronDown, Plus, Search } from "lucide-react";
 
 /* 研修ノート。正典: docs/specs/training-notes-spec.md
@@ -51,7 +52,7 @@ export default function NotesView() {
     ]).then(([cur, note]) => {
       if (!alive) return;
       if (cur.status === "fulfilled") setLessons(flattenLessons(normalizeCurriculumSections(cur.value || {})));
-      if (note.status === "fulfilled") setNotes(Array.isArray(note.value) ? note.value : []);
+      if (note.status === "fulfilled") setNotes(Array.isArray(note.value) ? note.value.filter(isWrittenNote) : []);
       const failed = [cur, note].filter(r => r.status === "rejected").length;
       // **取れなかったものを0件として見せない。**
       if (failed) setErr(`一部を取得できませんでした（${failed}件）。0件とは限りません。再読み込みしてください。`);

@@ -11,7 +11,7 @@ import {
   QBANK
 } from "./TrainingCatalog.js";
 import { homeDateLabel } from "./useTraining.js";
-import { flattenLessons } from "./notesLessons.js";
+import { flattenLessons, isWrittenNote } from "./notesLessons.js";
 // ノートは react-markdown を使うので、教材の横に出すぶんも開いた人だけが読み込むようにする
 const LessonNoteDock = React.lazy(() => import("./LessonNoteDock.jsx"));
 // 教材ビューアは pdfjs-dist を使うので、開いた人だけが読み込む
@@ -1612,7 +1612,8 @@ function Materials({ role }) {
           </div>
           {viewing ? (
             <React.Suspense fallback={<Card><SkeletonRows rows={5} /></Card>}>
-              <MaterialViewer courseId={courseId} material={viewing} onClose={() => setViewing(null)} />
+              <MaterialViewer courseId={courseId} material={viewing} onClose={() => setViewing(null)}
+                lessonId={lessonIdByMaterial[viewing.materialId] || noteLessonId} canAnnotate={showNotes} />
             </React.Suspense>
           ) : loading ? <Card><SkeletonRows /></Card>
             : items.length === 0 ? <Card><EmptyState title="資料がありません" desc={canEdit ? "「ファイルを追加」からアップロードできます" : "このコースに公開されている資料はありません"} /></Card>
@@ -4440,7 +4441,7 @@ function ReportNotePicker({ date, courseId, fields, onInsert }) {
       if (!alive) return;
       const rows = Array.isArray(list) ? list : [];
       setCapped(rows.length >= 100);
-      setNotes(rows.filter(n => String(n.createdAt || "").slice(0, 10) === date && (!courseId || n.courseId === courseId)));
+      setNotes(rows.filter(n => isWrittenNote(n) && String(n.createdAt || "").slice(0, 10) === date && (!courseId || n.courseId === courseId)));
     })
       // **取れなかったものを「0件」と言わない。**
       .catch(() => { if (alive) setErr("ノートを確認できませんでした。書いていないとは限りません。"); })

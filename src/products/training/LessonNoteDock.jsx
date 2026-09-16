@@ -2,7 +2,7 @@ import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { apiGet, apiPost, apiPut, apiDelete } from "../../api.js";
 import { PRISM, PrismCard, SkeletonRows } from "../../components/common";
 import { Editor, NoteCard } from "./NotesShared.jsx";
-import { lessonLabel, noteCountLabel } from "./notesLessons.js";
+import { isWrittenNote, lessonLabel, noteCountLabel } from "./notesLessons.js";
 import { AlertCircle, ChevronDown, ChevronUp, PenLine, Plus, RotateCcw } from "lucide-react";
 
 /* 教材の横に出すノート。正典: docs/specs/training-notes-spec.md
@@ -28,7 +28,7 @@ export default function LessonNoteDock({ courseId, lessons = [], lessonId, onLes
     let alive = true;
     setLoading(true); setErr("");
     apiGet(`/notes/me?courseId=${encodeURIComponent(courseId)}`)
-      .then(list => { if (alive) setNotes(Array.isArray(list) ? list : []); })
+      .then(list => { if (alive) setNotes(Array.isArray(list) ? list.filter(isWrittenNote) : []); })
       // **取れなかったものを0件として見せない。**
       .catch(() => { if (alive) setErr("ノートを取得できませんでした。0件とは限りません。"); })
       .finally(() => { if (alive) setLoading(false); });
