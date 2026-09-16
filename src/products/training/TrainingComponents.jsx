@@ -12,6 +12,7 @@ import {
 } from "./TrainingCatalog.js";
 import { homeDateLabel } from "./useTraining.js";
 import { flattenLessons, isWrittenNote } from "./notesLessons.js";
+import { toCourseGoalsPayload } from "./courseGoals.js";
 // ノートは react-markdown を使うので、教材の横に出すぶんも開いた人だけが読み込むようにする
 const LessonNoteDock = React.lazy(() => import("./LessonNoteDock.jsx"));
 // 教材ビューアは pdfjs-dist を使うので、開いた人だけが読み込む
@@ -488,6 +489,127 @@ function TownEntryCard({ goProduct, done = {}, goals = [] }) {
     </PrismCard>
   );
 }
+/* コースごとの目標の設定（講師・管理者）。2026-09-16 打合せ。
+   **コースによって目標が違う**ので、共通の初期目標をコース側に写して直せるようにする。
+   受講生が自分で足した目標は、ここを直しても消えない（courseGoals.js の合わせ方）。 */
+function CourseGoalsEditor() {
+  const [courses, setCourses] = useState([]);
+  const [courseId, setCourseId] = useState("");
+  const [goals, setGoalRows] = useState([]);
+  const [configured, setConfigured] = useState(null);   // null=まだ読めていない
+  const [loading, setLoading] = useState(true);
+  const [err, setErr] = useState("");
+  const [msg, setMsg] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [reloadKey, setReloadKey] = useState(0);
+  const [newTask, setNewTask] = useState({});
+  const [newGoal, setNewGoal] = useState("");
+
+  useEffect(() => {
+    let alive = true;
+    apiGet("/courses").then(list => {
+      if (!alive) return;
+      const rows = Array.isArray(list) ? list : [];
+      setCourses(rows);
+      setCourseId(prev => prev || getActiveCourseId() || rows[0]?.courseId || "");
+      if (!rows.length) setLoading(false);
+    }).catch(() => { if (alive) { setErr("コースを取得できませんでした。"); setLoading(false); } });
+    return () => { alive = false; };
+  }, []);
+
+  useEffect(() => {
+    if (!courseId) return undefined;
+    let alive = true;
+    setLoading(true); setErr(""); setMsg("");
+    apiGet(`/courses/${courseId}/goals`).then(r => {
+      if (!alive) return;
+      setGoalRows(arr(r?.goals));
+      setConfigured(!!r?.configured);
+    }).catch(() => { if (alive) { setErr("このコースの目標を取得できませんでした。"); setConfigured(null); } })
+      .finally(() => { if (alive) setLoading(false); });
+    return () => { alive = false; };
+  }, [courseId, reloadKey]);
+
+  const update = next => { setGoalRows(next); setMsg(""); };
+  const addGoal = () => {
+    const title = newGoal.trim();
+    if (!title) return;
+    update([...goals, { id: `g${Date.now().toString(36)}`, title, sub: "", tasks: [] }]);
+    setNewGoal("");
+  };
+  const addTask = gid => {
+    const t = String(newTask[gid] || "").trim();
+    if (!t) return;
+    update(goals.map(g => g.id === gid ? { ...g, tasks: [...arr(g.tasks), { id: `${gid}_t${Date.now().toString(36)}`, t }] } : g));
+    setNewTask(state => ({ ...state, [gid]: "" }));
+  };
+  const save = async () => {
+    if (saving || !courseId) return;
+    setSaving(true); setErr(""); setMsg("");
+    try {
+      const r = await apiPut(`/courses/${courseId}/goals`, { goals: toCourseGoalsPayload(goals) });
+      setGoalRows(arr(r?.goals));
+      setConfigured(true);
+      setMsg("保存しました。受講生の画面には次に開いたときから出ます。");
+    } catch (e) {
+      setErr("保存できませんでした：" + (e?.errorMessage || e?.message || e));
+    } finally { setSaving(false); }
+  };
+
+  return (
+    <Card className="mb-6 p-5">
+      <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <h3 className="flex items-center gap-2 font-bold" style={{ color: T.textPrimary }}><Target size={16} style={{ color: T.accent }} />このコースの目標</h3>
+          <p className="text-xs" style={{ color: T.textMuted }}>コースごとに大目標とタスクを設定します。受講生が自分で足した目標は消えません。</p>
+        </div>
+        <div className="flex flex-wrap items-center gap-2">
+          <select value={courseId} onChange={e => { setCourseId(e.target.value); setActiveCourseId(e.target.value); }} className="rounded-xl px-3 py-2 text-sm outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary, background: "#fff" }}>
+            {courses.map(c => <option key={c.courseId} value={c.courseId}>{c.name}</option>)}
+          </select>
+          <Btn icon={Check} disabled={saving || loading || !courseId} onClick={save}>{saving ? "保存中…" : "保存"}</Btn>
+        </div>
+      </div>
+
+      {err && <div className="mb-3 flex flex-wrap items-center gap-2 rounded-lg px-3 py-2 text-xs" style={{ background: T.dangerSubtle, color: T.danger }}>{err}<Btn kind="ghost" size="sm" icon={RefreshCw} className="ml-auto" onClick={() => setReloadKey(k => k + 1)}>再試行</Btn></div>}
+      {msg && <div className="mb-3 rounded-lg px-3 py-2 text-xs" style={{ background: T.successSubtle, color: T.success }}>{msg}</div>}
+      {configured === false && !loading && <div className="mb-3 rounded-lg px-3 py-2 text-xs" style={{ background: T.warningSubtle, color: T.warning }}>このコースの目標はまだ設定されていません。いまは共通の初期目標が受講生に出ています。ここで設定すると、このコースの目標に切り替わります。</div>}
+
+      {loading ? <SkeletonRows rows={4} /> : (
+        <div className="space-y-3">
+          {goals.length === 0 && <div className="rounded-xl px-3 py-4 text-center text-sm" style={{ background: T.bgBase, color: T.textMuted }}>目標がありません。下から追加してください。</div>}
+          {goals.map(goal => (
+            <div key={goal.id} className="rounded-xl p-3" style={{ background: T.bgBase }}>
+              <div className="flex flex-wrap items-center gap-2">
+                <input value={goal.title} onChange={e => update(goals.map(g => g.id === goal.id ? { ...g, title: e.target.value } : g))} placeholder="大目標" className="min-w-40 flex-1 rounded-lg px-2 py-1.5 text-sm font-semibold outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary }} />
+                <input value={goal.sub || ""} onChange={e => update(goals.map(g => g.id === goal.id ? { ...g, sub: e.target.value } : g))} placeholder="ひとこと説明" className="min-w-40 flex-1 rounded-lg px-2 py-1.5 text-sm outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary }} />
+                <button onClick={() => update(goals.filter(g => g.id !== goal.id))} className="rounded-lg px-2 py-1.5 text-xs font-semibold" style={{ color: T.danger, border: `1px solid ${T.border}` }}>削除</button>
+              </div>
+              <div className="mt-2 space-y-1.5">
+                {arr(goal.tasks).map(task => (
+                  <div key={task.id} className="flex items-center gap-2">
+                    <span className="h-1.5 w-1.5 shrink-0 rounded-full" style={{ background: T.accent }} />
+                    <input value={task.t} onChange={e => update(goals.map(g => g.id === goal.id ? { ...g, tasks: arr(g.tasks).map(x => x.id === task.id ? { ...x, t: e.target.value } : x) } : g))} className="min-w-0 flex-1 rounded-lg px-2 py-1.5 text-sm outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary }} />
+                    <button onClick={() => update(goals.map(g => g.id === goal.id ? { ...g, tasks: arr(g.tasks).filter(x => x.id !== task.id) } : g))} aria-label="タスクを削除" className="rounded-lg p-1.5"><X size={14} style={{ color: T.textMuted }} /></button>
+                  </div>
+                ))}
+                <div className="flex items-center gap-2">
+                  <input value={newTask[goal.id] || ""} onChange={e => setNewTask(state => ({ ...state, [goal.id]: e.target.value }))} onKeyDown={e => { if (e.key === "Enter") addTask(goal.id); }} placeholder="タスクを追加してEnter" className="min-w-0 flex-1 rounded-lg px-2 py-1.5 text-sm outline-none" style={{ border: `1px dashed ${T.border}`, color: T.textPrimary }} />
+                  <Btn kind="ghost" size="sm" icon={Plus} onClick={() => addTask(goal.id)}>追加</Btn>
+                </div>
+              </div>
+            </div>
+          ))}
+          <div className="flex items-center gap-2">
+            <input value={newGoal} onChange={e => setNewGoal(e.target.value)} onKeyDown={e => { if (e.key === "Enter") addGoal(); }} placeholder="大目標を追加してEnter" className="min-w-0 flex-1 rounded-lg px-3 py-2 text-sm outline-none" style={{ border: `1px dashed ${T.border}`, color: T.textPrimary }} />
+            <Btn kind="ghost" icon={Plus} onClick={addGoal}>目標を追加</Btn>
+          </div>
+        </div>
+      )}
+    </Card>
+  );
+}
+
 function InstructorGoalsDashboard({ go, openKarte }) {
   const [state, setState] = useState({ courses: [], trainees: [], reports: [], companies: [] });
   const [loading, setLoading] = useState(true);
@@ -607,7 +729,10 @@ function InstructorGoalsDashboard({ go, openKarte }) {
 }
 
 function GoalsView({ role, done, taskSaveState, toggle, goals, setGoals, go, goProduct, goSub, openKarte }) {
-  if (role === "instructor") return <InstructorGoalsDashboard go={go} openKarte={openKarte} />;
+  // 講師・管理者・企業担当は「受講生の達成状況を見る」と「コースの目標を決める」が仕事。
+  // 自分用の目標編集は出さない（2026-09-16 打合せ）
+  if (role === "instructor") return <><CourseGoalsEditor /><InstructorGoalsDashboard go={go} openKarte={openKarte} /></>;
+  if (role === "admin" || role === "client") return <CourseGoalsEditor />;
   const gp = goalProgress(goals, done);
   const overall = overallProgress(goals, done);
   const all = flatTasks(goals);

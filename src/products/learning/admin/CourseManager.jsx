@@ -521,8 +521,8 @@ export default function CourseManager({ onOpenLessons = () => {}, onSelectCourse
             <div className="mb-2 flex h-9 w-9 items-center justify-center rounded-xl text-white" style={{ background: T.accent }}>
               <FileUp size={16} />
             </div>
-            <div className="text-sm font-bold" style={{ color: C.ink }}>PDFから作る</div>
-            <p className="mt-1 text-xs" style={{ color: C.body }}>既にある研修資料のPDFを読み込み、ページ・解説・演習つきのコースに変換します。</p>
+            <div className="text-sm font-bold" style={{ color: C.ink }}>資料から作る（PDF・パワポ）</div>
+            <p className="mt-1 text-xs" style={{ color: C.body }}>既にある研修資料を読み込み、ページ・解説・演習つきのコースに変換します。パワポを添えると発表者ノートを説明に使います。</p>
           </button>
         </div>
       </AdminModal>

@@ -18,8 +18,10 @@ import { navViewSet, statusKind, testIdOf, todayStr } from "./products/training/
 import {
   clearTraineeTestDraft,
   clearTrainingTargetContext,
+  getActiveCourseId,
   setActiveCourseId,
 } from "./utils/common/courseContext.js";
+import { mergeCourseGoals } from "./products/training/courseGoals.js";
 import { filterProductsForRoleAndMode, allowedViewModes, shouldShowModeSwitch } from "./utils/common/accessControl.js";
 import useAppNavigationHistory from "./hooks/common/useAppNavigationHistory.js";
 import useCountUp from "./hooks/common/useCountUp.js";
@@ -1177,7 +1179,19 @@ export default function App() {
     const loadVersion = taskSaveVersionRef.current;
     setTaskDataState("loading");
     setTaskSaveState("");
-    apiGet("/tasks/me").then(item => {
+    // コースの目標（講師が設定したもの）を土台にする。取れなくても自分の目標は出す
+    const courseGoalsRequest = role === "trainee"
+      ? apiGet("/me/courses")
+          .then(list => {
+            const rows = Array.isArray(list) ? list : [];
+            const active = getActiveCourseId();
+            const target = rows.find(c => c.courseId === active) || rows[0];
+            return target ? apiGet(`/courses/${target.courseId}/goals`) : null;
+          })
+          .catch(() => null)
+      : Promise.resolve(null);
+
+    Promise.all([apiGet("/tasks/me"), courseGoalsRequest]).then(([item, courseGoals]) => {
       if (loadVersion !== taskSaveVersionRef.current) return;
       const loadedDone = item?.done || {};
       const loadedGoals = Array.isArray(item?.goals) && item.goals.length > 0
@@ -1189,9 +1203,12 @@ export default function App() {
           icon: GOAL_ICON_MAP[g.id] ?? Star,
         }))
         : GOALS;
+      // **コースの目標が土台。自分で足したものは消さない**（courseGoals.js）
+      const mergedGoals = mergeCourseGoals(courseGoals?.goals, loadedGoals)
+        .map((g, i) => ({ ...g, icon: g.icon || GOAL_ICON_MAP[g.id] || Star, id: g.id || `g_${i}` }));
       setTaskDone(loadedDone);
-      setGoals(loadedGoals);
-      confirmedTaskStateRef.current = { done: loadedDone, goals: loadedGoals };
+      setGoals(mergedGoals);
+      confirmedTaskStateRef.current = { done: loadedDone, goals: mergedGoals };
       setTaskDataState("ready");
     }).catch(() => {
       if (loadVersion === taskSaveVersionRef.current) setTaskDataState("error");

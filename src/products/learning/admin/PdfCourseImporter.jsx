@@ -5,6 +5,7 @@ import { Btn, Field, fieldStyle, T } from "../../../components/common";
 import AdminModal from "./AdminModal.jsx";
 import { requestMaterialUploadUrl, uploadMaterialFile } from "./useLearningAdmin.js";
 import { EMPTY_COURSE_FORM, EMPTY_MATERIAL_FORM } from "./LearningAdminCatalog.js";
+import { extractPptxNotesByPage } from "./pptxNotes.js";
 import { apiGet, apiPost } from "../../../api.js";
 
 const C = { ink: T.textPrimary, body: T.textSecondary, muted: T.textMuted, line: T.border, canvas: T.bgBase };
@@ -53,6 +54,9 @@ export default function PdfCourseImporter({
   createCourseAwaitingApi, createMaterialAwaitingApi,
 }) {
   const [file, setFile] = useState(null);
+  // パワポの発表者ノート（任意）。**スライドは見た目、ノートは説明**なので、分けて渡す
+  const [pptxFile, setPptxFile] = useState(null);
+  const [notesCount, setNotesCount] = useState(null);
   const [courseHint, setCourseHint] = useState("");
   const [note, setNote] = useState("");
   const [official, setOfficial] = useState(Boolean(canMarkOfficial));
@@ -174,10 +178,24 @@ export default function PdfCourseImporter({
       const pages = await renderAndUpload(course.id, file);
       if (!pages.length) throw new Error("ページを1枚も取り込めませんでした。");
 
+      // パワポが添えられていれば、発表者ノートをページ番号で突き合わせる。
+      // **PDFのページ順とスライド順が同じ前提**（PDFはこのパワポの書き出し）。
+      let notesByPage = new Map();
+      if (pptxFile) {
+        try {
+          notesByPage = await extractPptxNotesByPage(pptxFile);
+          setNotesCount(notesByPage.size);
+        } catch (e) {
+          // ノートが読めなくても、スライドからのコース生成は続ける
+          console.warn("pptx notes failed", e);
+          setNotesCount(0);
+        }
+      }
+
       // ここから先はサーバー側で走る。**この画面を閉じてよい。**
       const started = await apiPost("/learning/admin/pdf-import/start", {
         courseId: course.id,
-        pages: pages.map(p => ({ page: p.page, materialId: p.materialId, text: p.text })),
+        pages: pages.map(p => ({ page: p.page, materialId: p.materialId, text: p.text, notes: notesByPage.get(p.page) || "" })),
         filename: file.name,
         courseHint: courseHint.trim(),
         note: note.trim(),
@@ -207,8 +225,8 @@ export default function PdfCourseImporter({
   return (
     <AdminModal
       open={open}
-      title="PDFからコースを作る"
-      desc="既存の研修資料（PDF）を、ページ・解説・演習つきのEラーニングコースに変換します。"
+      title="資料からコースを作る"
+      desc="既存の研修資料（PDF）を、ページ・解説・演習つきのEラーニングコースに変換します。パワポを添えると、発表者ノートを説明に使います。"
       onClose={handleClose}
       width={640}
     >
@@ -240,6 +258,18 @@ export default function PdfCourseImporter({
               )}
               <input ref={inputRef} type="file" accept="application/pdf" className="hidden" onChange={e => { setFile(e.target.files?.[0] || null); setErrorMsg(""); e.target.value = ""; }} />
             </div>
+
+            <Field label="パワポ（任意・発表者ノートを説明に使います）">
+              <div className="flex flex-wrap items-center gap-2">
+                <input type="file" accept=".pptx,application/vnd.openxmlformats-officedocument.presentationml.presentation"
+                  onChange={e => { setPptxFile(e.target.files?.[0] || null); setNotesCount(null); }} className="text-xs" />
+                {pptxFile && <span className="text-[11px]" style={{ color: C.muted }}>{pptxFile.name}</span>}
+              </div>
+              <div className="mt-1 text-[11px] leading-relaxed" style={{ color: C.muted }}>
+                同じ資料のPDFとパワポを両方入れると、<b>スライドは見た目、発表者ノートは説明</b>として分けて使います。
+                ページの並びはPDFと同じ前提です（PDFはこのパワポの書き出し）。
+              </div>
+            </Field>
 
             <Field label="コース名（任意・空ならAIが資料から決めます）">
               <input style={fieldStyle} value={courseHint} onChange={e => setCourseHint(e.target.value)} placeholder="例: IT基礎" />
