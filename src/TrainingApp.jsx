@@ -145,7 +145,10 @@ function roleFromIdTokenPayload(payload = {}) {
 const PRODUCTS = [
   { key: "training",  label: "研修管理",       icon: GraduationCap, color: PRODUCT_ACCENT.training.accent, roles: ["trainee","instructor","client","admin"], modes: ["training"] },
   { key: "learning",  label: "Eラーニング",    icon: BookOpen,      color: PRODUCT_ACCENT.learning.accent, roles: ["trainee","instructor","client","admin"], modes: ["learning"] },
-  { key: "talent",    label: "スキル・成長",   icon: TrendingUp,    color: PRODUCT_ACCENT.talent.accent, roles: ["trainee","instructor","client","admin"], modes: ["training","learning"] },
+  // 2026-09-16: スキルは研修・学習のどちらから見ても同じものなので、独立したモードへ切り出した。
+  // instructorは isProductVisibleForMode がモード非依存（常にtrue）なので、研修管理の
+  // サイドバーからこれまで通り受講生スキルシートへ入れる。
+  { key: "talent",    label: "スキル・成長",   icon: TrendingUp,    color: PRODUCT_ACCENT.talent.accent, roles: ["trainee","instructor","client","admin"], modes: ["skill"] },
   // 2026-07-14 Home緊急修正: 講師は案件管理を業務上使わないためHome/上部タブ/サイドバー/
   // Global Rail/モバイルドロワーから除外（PRODUCTSが全Product表示の正本を兼ねる）。
   // Backend(routes/matching.mjs)もGET /projects等の主要操作をinstructorに403で返しており、
@@ -189,15 +192,17 @@ const PRODUCT_DEFAULT_SUBVIEW = {
 // 主Productへ統一する（研修管理モード→研修管理、学習モード→Eラーニング）。
 // モードタブの表示名と配色。モードは「研修管理／学習」に加えて、
 // 2026-08-21から super admin 限定で「企業管理」の3つ。
-const MODE_LABEL = { training: "研修管理", learning: "学習", company: "企業管理" };
+const MODE_LABEL = { training: "研修管理", learning: "学習", skill: "スキル", company: "企業管理" };
 const MODE_ACCENT = {
   training: PRODUCT_ACCENT.training,
   learning: PRODUCT_ACCENT.learning,
+  skill: PRODUCT_ACCENT.talent,
   company: PRODUCT_ACCENT.admin,
 };
 
 function getModeLandingProduct(viewMode) {
   if (viewMode === "company") return "company";
+  if (viewMode === "skill") return "talent";
   return viewMode === "learning" ? "learning" : "training";
 }
 
@@ -1118,7 +1123,10 @@ export default function App() {
       // （viewMode単独の一致チェックでは検知できない）。product.modesを直接見て判定する。
       if (viewMode !== "training") setViewMode("training");
       const currentProduct = PRODUCTS.find(px => px.key === product);
-      if (currentProduct?.modes?.length && !currentProduct.modes.includes("training")) {
+      // 2026-09-16: スキルモードのProduct（スキル・成長）は研修・学習のどちらにも属さない
+      // 横断の画面で、instructorも研修管理のサイドバーから正規に開ける。ここで弾かない。
+      const isSkillProduct = currentProduct?.modes?.includes("skill");
+      if (currentProduct?.modes?.length && !currentProduct.modes.includes("training") && !isSkillProduct) {
         resetToModeLanding("training");
       }
     }
@@ -1320,7 +1328,20 @@ export default function App() {
     setDrawerOpen(false);
   }
   function goProduct(p, options = {}) {
-    const nextProduct = filterProductsForRoleAndMode(PRODUCTS, { role, viewMode }).some(item => item.key === p) ? p : getModeLandingProduct(viewMode);
+    // 2026-09-16: Productが「いまのモードには無いが、入れる別のモードにはある」ときは
+    // モードごと連れて行く。スキルを独立モードへ切り出したことで、研修管理のホームから
+    // 「街をひらく」を押すような、モードをまたぐ導線が生まれたため。
+    let viewModeForNav = viewMode;
+    const visibleNow = filterProductsForRoleAndMode(PRODUCTS, { role, viewMode });
+    if (!visibleNow.some(item => item.key === p)) {
+      const allowed = allowedViewModes({ role, contractMode: userProfile?.contractMode, adminTier: userProfile?.adminTier });
+      const home = allowed.find(vm => vm !== viewMode
+        && filterProductsForRoleAndMode(PRODUCTS, { role, viewMode: vm }).some(item => item.key === p));
+      if (home) { viewModeForNav = home; setViewMode(home); }
+    }
+    const nextProduct = filterProductsForRoleAndMode(PRODUCTS, { role, viewMode: viewModeForNav }).some(item => item.key === p)
+      ? p
+      : getModeLandingProduct(viewModeForNav);
     replaceCurrentNavigationEntry();
     if (!options.preserveTarget) setNavigationTrainingTarget(null);
     clearProductDetail();
@@ -1498,19 +1519,6 @@ export default function App() {
       })}
     </div>
   ) : null;
-  // 街は研修・学習のどちらから見ても同じものなので、Productの中ではなく上のバーに出す。
-  // 受講生だけのもの（自分の目標が建物になる画面）なので、他ロールには出さない。
-  const townTabActive = product === "talent" && subView === "tl_town";
-  const townTab = role === "trainee" ? (
-    <button type="button" onClick={() => goProduct("talent", { subView: "tl_town" })}
-      aria-label="街を開く" aria-current={townTabActive ? "page" : undefined}
-      className="inline-flex shrink-0 items-center gap-1.5 rounded-[11px] px-3 py-1.5 text-[13px] font-semibold transition hover:opacity-85"
-      style={townTabActive
-        ? { background: PRODUCT_ACCENT.talent.accent, color: "#fff" }
-        : { background: NOVA.soft, color: T.textSecondary }}>
-      <Building2 size={15} />街
-    </button>
-  ) : null;
   const demoMenu = (
     <div className="relative ml-2 shrink-0">
       <button onClick={() => setDemoOpen(v => !v)}
@@ -1652,8 +1660,7 @@ export default function App() {
           </button>
           <div className="ml-auto flex items-center gap-1">
             {modeSwitch}
-            {townTab}
-            <button type="button" onClick={() => setHelpGuideOpen(true)} aria-label="使い方を開く" title="使い方" className="feeps-icon-button"><HelpCircle size={18} /></button>
+              <button type="button" onClick={() => setHelpGuideOpen(true)} aria-label="使い方を開く" title="使い方" className="feeps-icon-button"><HelpCircle size={18} /></button>
             {notifBellMobile}
           </div>
         </div>
@@ -1667,7 +1674,6 @@ export default function App() {
           {(role === "trainee" || role === "client") && userProfile?.learningPlan && (
             <PlanBadge learningPlan={userProfile.learningPlan} onClick={() => go("plans")} />
           )}
-          {townTab}
           <div className="ml-auto flex min-w-0 shrink-0 items-center justify-end gap-1.5">
             {role === "instructor" && !isHomeProduct && <QuickAdd onPick={go} />}
             <button type="button" onClick={() => setHelpGuideOpen(true)} aria-label="使い方を開く" title="使い方" className="feeps-icon-button"><HelpCircle size={18} /></button>

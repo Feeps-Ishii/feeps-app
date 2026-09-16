@@ -7,6 +7,9 @@ export function isProductVisibleForMode(product, { role, viewMode }) {
   // 企業管理モードは運営専用。「モード未指定＝どこでも出す」の対象外にする。
   // そうしないと分析・レポートやHomeまで企業管理モードに並んでしまう（2026-08-21）。
   if (viewMode === "company") return Boolean(product.modes?.includes("company"));
+  // スキルモードも同じ扱い。「モード未指定＝どこでも出す」の対象外にしないと、
+  // ホームや分析までスキルの下に並んでしまう（2026-09-16）。
+  if (viewMode === "skill") return Boolean(product.modes?.includes("skill"));
   if (role === "instructor") return true;
   // modesが無い（未指定）Productはモードの概念がない、または両モード共通（talent等）
   if (!product.modes || product.modes.length === 0) return true;
@@ -31,15 +34,18 @@ export function canUseCompanyMode({ role, adminTier }) {
   return role === "admin" && adminTier !== "standard";
 }
 
+// 2026-09-16: スキルモードを追加。スキル・成長（スキルシート／成長履歴／街）は
+// **研修と学習のどちらから見ても同じもの**で、「何を売っているか」の軸に属さない。
+// 契約モードでゲートしない（研修だけの契約でも、自分の記録は見える）。
 export function allowedViewModes({ role, contractMode, adminTier }) {
   if (role === "admin") {
     return canUseCompanyMode({ role, adminTier })
-      ? ["training", "learning", "company"]
-      : ["training", "learning"];
+      ? ["training", "learning", "skill", "company"]
+      : ["training", "learning", "skill"];
   }
   if (role === "instructor") return ["training", "learning"];
   const cm = contractMode || "both"; // Backendのフェイルオープン既定値と揃える
-  return cm === "both" ? ["training", "learning"] : [cm];
+  return cm === "both" ? ["training", "learning", "skill"] : [cm, "skill"];
 }
 
 export function shouldShowModeSwitch({ role, contractMode, adminTier }) {
