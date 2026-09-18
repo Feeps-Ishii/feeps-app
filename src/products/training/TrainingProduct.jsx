@@ -5,9 +5,11 @@ import InstructorWorkspace from "../workspace/InstructorWorkspace.jsx";
 
 // ノートは react-markdown を使うので、開いた人だけが読み込むように分ける
 const NotesView = React.lazy(() => import("./NotesView.jsx"));
+// 研修資料。PDFビューアを抱えるので、開いた人だけが読み込むように分ける（2026-09-18）
+const LibraryView = React.lazy(() => import("./LibraryView.jsx"));
 import { PrismErrorRetryCard, SkeletonRows } from "../../components/common";
 import {
-  Attendance, ClientHome, Curriculum, ElearningView, GoalsView, Karte, Materials, Reports,
+  Attendance, ClientHome, Curriculum, ElearningView, GoalsView, Karte, Reports,
   ReadOnlyCompanies, ReadOnlyCourses, ReadOnlyInstructors, Tests, TraineeHome, TraineeList
 } from "./TrainingComponents.jsx";
 
@@ -45,7 +47,17 @@ export default function TrainingProduct({
   if (view === "goals" && role === "trainee" && taskDataState !== "ready") return <div className="p-4">{taskDataState === "error" ? <PrismErrorRetryCard message="目標・タスクを取得できませんでした。データ保護のため、編集を停止しています。" onRetry={onTaskRetry} /> : <SkeletonRows rows={5} />}</div>;
   if (view === "goals") return <GoalsView role={role} done={taskDone} taskSaveState={taskSaveState} toggle={toggle} goals={goals} setGoals={setGoals} go={go} goProduct={goProduct} goSub={goSub} openKarte={setKarte} />;
   if (view === "elearning") return <ElearningView go={go} />;
-  if (view === "materials") return <Materials role={role} />;
+  /* 研修資料はフォルダ管理へ置き換えた（2026-09-18）。PDFはこれまでの教材ビューアで開くので、
+     手書き・ノートの使い勝手は変わらない。旧画面の Materials は TrainingComponents に
+     残してあるが、ここからは呼ばない。カリキュラムからの資料ひも付けは
+     MaterialsTable 経由で今までどおり動く（アップロード時に両方へ書いている）。 */
+  if (view === "materials") {
+    return (
+      <React.Suspense fallback={<div className="p-4"><SkeletonRows rows={5} /></div>}>
+        <LibraryView role={role} />
+      </React.Suspense>
+    );
+  }
   // ノートは私物。受講生本人だけが開ける（講師・企業担当には出さない）
   if (view === "notes") {
     if (role !== "trainee") return null;
