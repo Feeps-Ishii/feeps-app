@@ -23,6 +23,7 @@ const ROLE_KEYS = [
   ["instructor", "講師"],
   ["client", "企業担当"],
 ];
+const PERSONAL = "me";
 
 function fmtSize(bytes) {
   const b = Number(bytes) || 0;
@@ -37,11 +38,18 @@ function fmtDate(iso) {
   return Number.isNaN(d.getTime()) ? "—" : `${d.getMonth() + 1}/${String(d.getDate()).padStart(2, "0")}`;
 }
 /** 誰が見られるかを一文で返す。**設定した結果を言葉で見せる**のが肝 */
-function describeAcl(acl, courseName) {
+function describeAcl(acl, courseName, groupNames) {
   if (!acl) return "";
   const who = ROLE_KEYS.filter(([k]) => acl.roles?.[k]).map(([, label]) => label);
   if (!who.length) return "管理者だけが見られます。";
-  const where = acl.scope === "org" ? "全コース" : (courseName || "このコース");
+  let where;
+  if (acl.scope === "org") where = "全コース";
+  else if (acl.scope === "groups") {
+    const names = (acl.groups || []).map(g => groupNames?.[g]).filter(Boolean);
+    where = names.length
+      ? `${courseName || "このコース"}の${names.join("・")}`
+      : `${courseName || "このコース"}の指定グループ`;
+  } else where = courseName || "このコース";
   return `${where}の${who.join("・")}が見られます。管理者はいつでも見られます。` +
     (acl.roles?.trainee ? (acl.traineeWrite ? "受講生もここに置けます。" : "受講生は見るだけです。") : "");
 }
@@ -66,6 +74,7 @@ export default function LibraryView({ role }) {
   const [notice, setNotice] = useState("");
   const [actionErr, setActionErr] = useState("");
   const [viewing, setViewing] = useState(null);
+  const [groups, setGroups] = useState([]);
   const fileInput = useRef(null);
 
   useEffect(() => {
@@ -99,6 +108,22 @@ export default function LibraryView({ role }) {
   }, [spaceId]);
 
   useEffect(() => { load(false); }, [load]);
+
+  // グループはコース単位。公開範囲でチームを選ぶときに要る
+  const courseIdOfSpace = spaceId.startsWith("course#") ? spaceId.slice("course#".length) : "";
+  const loadGroups = useCallback(async () => {
+    if (!courseIdOfSpace) { setGroups([]); return; }
+    try {
+      const r = await apiGet(`/library/groups?courseId=${encodeURIComponent(courseIdOfSpace)}`);
+      setGroups(Array.isArray(r?.groups) ? r.groups : []);
+    } catch { setGroups([]); }
+  }, [courseIdOfSpace]);
+  useEffect(() => { loadGroups(); }, [loadGroups]);
+
+  const groupNames = useMemo(
+    () => Object.fromEntries(groups.map(g => [g.groupId, g.name])),
+    [groups]
+  );
 
   const byId = useMemo(() => {
     const m = new Map();
@@ -192,7 +217,6 @@ export default function LibraryView({ role }) {
 
   /* PDFは**これまでの教材ビューアをそのまま使う**（手書き・ノートが続けて使えるように）。
      共有ライブラリのファイルや、PDF以外は署名付きURLで開く。 */
-  const courseIdOfSpace = spaceId.startsWith("course#") ? spaceId.slice("course#".length) : "";
   function isPdf(n) { return /\.pdf$/i.test(n.name || "") || n.contentType === "application/pdf"; }
 
   async function openFile(n, forceDownload) {
@@ -270,6 +294,7 @@ export default function LibraryView({ role }) {
             >
               {courses.map(c => <option key={c.courseId} value={`course#${c.courseId}`}>{c.name || c.courseId}</option>)}
               <option value="shared">共有ライブラリ（全社）</option>
+              {role === "trainee" && <option value={PERSONAL}>マイフォルダ（自分だけ）</option>}
             </select>
           </div>
         }
@@ -318,10 +343,30 @@ export default function LibraryView({ role }) {
         {current && (
           <div className="flex flex-wrap items-center gap-2 px-4 py-2.5 text-xs" style={{ background: T.bgBase, color: T.textMuted }}>
             <Users size={13} />
-            <span>{describeAcl(current.acl, courseName)}</span>
+            <span>{describeAcl(current.acl, courseName, groupNames)}</span>
             {current.canWrite && (
               <Btn kind="ghost" size="sm" onClick={() => setAclTarget(current)}>公開範囲を変える</Btn>
             )}
+          </div>
+        )}
+
+        {/* 個人フォルダの残り。**超えるアップロードは通らない**ので、先に見せておく */}
+        {data?.quotaBytes > 0 && (
+          <div className="px-4 py-2.5" style={{ background: T.bgBase }}>
+            <div className="flex items-center justify-between text-xs" style={{ color: T.textSecondary }}>
+              <span>マイフォルダの使用量</span>
+              <span className="tabular-nums">{fmtSize(data.usedBytes)} / {fmtSize(data.quotaBytes)}</span>
+            </div>
+            <div className="mt-1.5 h-2 overflow-hidden rounded-full" style={{ background: T.border }}>
+              <div className="h-full rounded-full"
+                style={{
+                  width: `${Math.min(100, (data.usedBytes / data.quotaBytes) * 100).toFixed(1)}%`,
+                  background: data.usedBytes > data.quotaBytes * 0.9 ? T.danger : T.accent,
+                }} />
+            </div>
+            <div className="mt-1 text-[11px]" style={{ color: T.textMuted }}>
+              上限まで {fmtSize(Math.max(0, data.quotaBytes - data.usedBytes))}。超えるアップロードは通りません。
+            </div>
           </div>
         )}
 
@@ -380,6 +425,12 @@ export default function LibraryView({ role }) {
                       </td>
                       <td className="px-4 py-2.5">
                         <Badge tone={chip.tone}>{chip.label}</Badge>
+                        {n.acl?.scope === "groups" && (
+                          <span className="ml-1.5 text-[11px]" style={{ color: T.accentHover }}>
+                            {(n.acl.groups || []).map(g => groupNames[g]).filter(Boolean).join("・") || "グループ指定"}
+                          </span>
+                        )}
+                        {n.acl?.scope === "org" && <span className="ml-1.5 text-[11px]" style={{ color: T.textMuted }}>全コース</span>}
                         {!n.ownAcl && <span className="ml-1.5 text-[11px]" style={{ color: T.textMuted }}>継承</span>}
                         {n.acl?.traineeWrite && n.acl?.roles?.trainee && (
                           <span className="ml-1.5 text-[11px]" style={{ color: T.textMuted }}>受講生も置ける</span>
@@ -449,6 +500,14 @@ export default function LibraryView({ role }) {
           node={aclTarget}
           courseName={courseName}
           isRoot={aclTarget.nodeId === ROOT}
+          groups={groups}
+          groupNames={groupNames}
+          canUseGroups={!!courseIdOfSpace}
+          onCreateGroup={async name => {
+            const g = await apiPost("/library/groups", { courseId: courseIdOfSpace, name });
+            await loadGroups();
+            return g;
+          }}
           onClose={() => setAclTarget(null)}
           onSave={acl => {
             const target = aclTarget;
@@ -478,12 +537,14 @@ function MenuItem({ icon: Icon, label, onClick, danger }) {
 }
 
 /* 公開範囲は「どの範囲に」×「だれに」。**選んだ結果を必ず文章で出す**。
-   グループ指定（チーム開発演習など）はPhase 2で足す。 */
-function AclModal({ node, courseName, isRoot, onClose, onSave }) {
+   グループ（チーム開発演習の班分けなど）は誰でも作れる。作った人はそこに入る。 */
+function AclModal({ node, courseName, isRoot, groups, groupNames, canUseGroups, onCreateGroup, onClose, onSave }) {
   const inherited = !node.ownAcl;
   const [mode, setMode] = useState(inherited && !isRoot ? "inherit" : "own");
+  const [groupErr, setGroupErr] = useState("");
   const [draft, setDraft] = useState(() => ({
-    scope: node.acl?.scope === "org" ? "org" : "course",
+    scope: ["org", "groups"].includes(node.acl?.scope) ? node.acl.scope : "course",
+    groups: Array.isArray(node.acl?.groups) ? node.acl.groups : [],
     roles: {
       trainee: !!node.acl?.roles?.trainee,
       instructor: !!node.acl?.roles?.instructor,
@@ -491,6 +552,19 @@ function AclModal({ node, courseName, isRoot, onClose, onSave }) {
     },
     traineeWrite: !!node.acl?.traineeWrite,
   }));
+
+  async function addGroup() {
+    const name = window.prompt("グループの名前", "チームA");
+    if (!name || !name.trim()) return;
+    setGroupErr("");
+    try {
+      const g = await onCreateGroup(name.trim());
+      // **作ったグループは、そのまま選んでおく。** 選び直させない
+      setDraft(d => ({ ...d, scope: "groups", groups: [...new Set([...d.groups, g.groupId])] }));
+    } catch (e) {
+      setGroupErr(e?.errorMessage || e?.message || "グループを作れませんでした。");
+    }
+  }
 
   const result = mode === "inherit" ? null : draft;
   return (
@@ -500,7 +574,10 @@ function AclModal({ node, courseName, isRoot, onClose, onSave }) {
       footer={
         <div className="flex justify-end gap-2">
           <Btn kind="ghost" onClick={onClose}>やめる</Btn>
-          <Btn onClick={() => onSave(result)}>保存</Btn>
+          <Btn
+            onClick={() => onSave(result)}
+            disabled={mode === "own" && draft.scope === "groups" && draft.groups.length === 0}
+          >保存</Btn>
         </div>
       }
     >
@@ -537,9 +614,41 @@ function AclModal({ node, courseName, isRoot, onClose, onSave }) {
               style={{ border: `1px solid ${T.border}`, color: T.textPrimary }}
             >
               <option value="course">{courseName || "このコース"}の中だけ</option>
+              {canUseGroups && <option value="groups">コース内のグループだけ</option>}
               <option value="org">全コース共通</option>
             </select>
           </Field>
+
+          {draft.scope === "groups" && (
+            <div className="mt-3">
+              <div className="mb-1.5 text-xs font-bold" style={{ color: T.textMuted }}>どのグループに</div>
+              <div className="flex flex-wrap gap-2">
+                {groups.map(g => {
+                  const on = draft.groups.includes(g.groupId);
+                  return (
+                    <label key={g.groupId} className="flex cursor-pointer items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-semibold"
+                      style={{ border: `1px solid ${on ? T.accent : T.border}`, background: on ? T.accentSubtle : "transparent", color: on ? T.accentHover : T.textSecondary }}>
+                      <input type="checkbox" checked={on}
+                        onChange={e => setDraft(d => ({
+                          ...d,
+                          groups: e.target.checked ? [...d.groups, g.groupId] : d.groups.filter(x => x !== g.groupId),
+                        }))} />
+                      {g.name}
+                      <span style={{ color: T.textMuted }}>{g.memberCount}人</span>
+                    </label>
+                  );
+                })}
+                <button type="button" onClick={addGroup}
+                  className="rounded-full px-3 py-1.5 text-xs font-bold"
+                  style={{ border: `1px dashed ${T.accent}`, color: T.accentHover }}>＋ 新しいグループ</button>
+              </div>
+              {groupErr && <div className="mt-1.5 text-[11px] font-semibold" style={{ color: T.danger }}>{groupErr}</div>}
+              <div className="mt-1.5 text-[11px]" style={{ color: T.textMuted }}>
+                グループは誰でも作れます。作った人はそのグループに入ります。
+                {draft.groups.length === 0 && <b style={{ color: T.warning }}> 1つ以上選んでください。</b>}
+              </div>
+            </div>
+          )}
           <div className="mt-3">
             <div className="mb-1.5 text-xs font-bold" style={{ color: T.textMuted }}>だれに見せるか</div>
             <div className="flex flex-wrap gap-2">
@@ -570,7 +679,7 @@ function AclModal({ node, courseName, isRoot, onClose, onSave }) {
         <b>結果：</b>
         {mode === "inherit"
           ? "親フォルダの範囲をそのまま使います。"
-          : describeAcl({ ...draft, roles: draft.roles }, courseName)}
+          : describeAcl(draft, courseName, groupNames)}
         <div className="mt-1" style={{ color: T.textMuted }}>
           親より広くはできません。親が狭い場合は、そちらに合わせて狭くなります。
         </div>
