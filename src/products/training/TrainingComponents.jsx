@@ -2046,6 +2046,11 @@ function Tests({ role, go }) {
   const [buildFocus, setBuildFocus] = useState(null);
   const [buildStudent, setBuildStudent] = useState(null);
   const [results, setResults] = useState(null);
+  // 作ったあとでも、どのコースに出すかを一覧から変えられるようにする（2026-09-18）
+  const [assignTest, setAssignTest] = useState(null);
+  const [assignIds, setAssignIds] = useState([]);
+  const [assignBusy, setAssignBusy] = useState(false);
+  const [assignErr, setAssignErr] = useState("");
   const [testResultsMap, setTestResultsMap] = useState({});
   const [reviewDrafts, setReviewDrafts] = useState({});
   const [onlyNeedsReview, setOnlyNeedsReview] = useState(false);
@@ -2223,6 +2228,27 @@ function Tests({ role, go }) {
       emitNotificationRefresh();
     } catch (e) { setTestErr("テスト状態の更新に失敗しました。"); }
   }
+  function openAssign(t) {
+    const ids = Array.isArray(t.courseIds) ? t.courseIds.filter(Boolean) : (t.courseId ? [t.courseId] : []);
+    setAssignIds(ids);
+    setAssignErr("");
+    setAssignTest(t);
+  }
+  async function saveAssign() {
+    if (!assignTest || assignBusy) return;
+    setAssignBusy(true);
+    setAssignErr("");
+    try {
+      await apiPut(`/tests/${testIdOf(assignTest)}`, { courseIds: assignIds });
+      await loadTests();
+      emitNotificationRefresh();
+      setAssignTest(null);
+    } catch (e) {
+      setAssignErr(e?.message || "コースへの割り当てを保存できませんでした。");
+    } finally {
+      setAssignBusy(false);
+    }
+  }
   async function deleteTest(t) {
     if (!window.confirm("このテストを削除しますか？受講結果がある場合は確認してください。")) return;
     try {
@@ -2396,6 +2422,7 @@ function Tests({ role, go }) {
             <div className="flex flex-wrap justify-end gap-1.5">
               {canEditTest(t) && <Btn kind="ghost" size="sm" icon={Pencil} onClick={() => { setEditingTest(t); setDuplicateTest(false); setBuilding(true); }}>編集</Btn>}
               {canEditTest(t) && <Btn kind="ghost" size="sm" icon={Plus} onClick={() => { setEditingTest(t); setDuplicateTest(true); setBuilding(true); }}>複製</Btn>}
+              {canEditTest(t) && <Btn kind="ghost" size="sm" icon={BookOpen} onClick={() => openAssign(t)}>コースに出す</Btn>}
               {canManage && <Btn kind="ghost" size="sm" icon={Eye} onClick={() => { setTaking(t); setTakingPreview(true); }}>プレビュー</Btn>}
               {canManage && <Btn kind="ghost" size="sm" icon={PlayCircle} onClick={() => { setTaking(t); setTakingPreview(true); }}>試し受験</Btn>}
               {canEditTest(t) && <Btn kind="ghost" size="sm" icon={t.status === "published" ? Lock : Send} onClick={() => updateTestStatus(t, t.status === "published" ? "draft" : "published")}>{t.status === "published" ? "非公開" : "公開"}</Btn>}
@@ -2403,6 +2430,43 @@ function Tests({ role, go }) {
               {canEditTest(t) && <Btn kind="ghost" size="sm" icon={Trash2} onClick={() => deleteTest(t)}>削除</Btn>}
             </div></div></div>
       ))}</Card>)}</div>
+      {assignTest && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: "rgba(0,0,0,.4)" }} onClick={() => !assignBusy && setAssignTest(null)}>
+          <div className="w-full max-w-lg rounded-2xl p-5" style={{ background: "#fff", border: `1px solid ${T.border}` }} onClick={e => e.stopPropagation()}>
+            <div className="mb-1 flex items-start justify-between gap-3">
+              <h3 className="font-bold leading-snug" style={{ color: T.textPrimary }}>「{assignTest.title}」を出すコース</h3>
+              <button onClick={() => !assignBusy && setAssignTest(null)} aria-label="閉じる"><X size={18} style={{ color: T.textMuted }} /></button>
+            </div>
+            <p className="mb-3 text-xs leading-relaxed" style={{ color: T.textMuted }}>
+              チェックしたコースの受講生に出ます。複数のコースで同じテストを使えます。チェックを全部外すと、どこにも出ません（作りかけとして残ります）。
+            </p>
+            <div className="max-h-[46vh] space-y-1.5 overflow-y-auto">
+              {opsFilter.courses.map(c => {
+                const id = c.courseId;
+                const on = assignIds.includes(id);
+                return (
+                  <button key={id} type="button"
+                    onClick={() => setAssignIds(prev => on ? prev.filter(x => x !== id) : [...prev, id])}
+                    className="flex w-full items-center gap-2 rounded-xl px-3 py-2.5 text-left text-sm font-semibold"
+                    style={{ background: on ? T.accentSubtle : T.bgBase, color: on ? T.accentHover : T.textSecondary, border: `1px solid ${on ? T.accent : T.border}` }}>
+                    {on ? <CheckCircle2 size={15} /> : <Circle size={15} />}
+                    <span className="min-w-0 flex-1 truncate">{c.name || id}</span>
+                  </button>
+                );
+              })}
+              {!opsFilter.courses.length && <div className="py-6 text-center text-sm" style={{ color: T.textMuted }}>担当コースがありません。</div>}
+            </div>
+            {assignErr && <div className="mt-3 rounded-lg px-3 py-2 text-xs" style={{ background: T.dangerSubtle, color: T.danger }}>{assignErr}</div>}
+            <div className="mt-4 flex items-center justify-between gap-2">
+              <span className="text-xs" style={{ color: T.textMuted }}>{assignIds.length ? `${assignIds.length}コースに出します` : "どこにも出しません"}</span>
+              <div className="flex gap-2">
+                <Btn kind="ghost" size="sm" onClick={() => setAssignTest(null)} disabled={assignBusy}>やめる</Btn>
+                <Btn size="sm" icon={Check} onClick={saveAssign} disabled={assignBusy}>{assignBusy ? "保存中…" : "保存"}</Btn>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
       {results && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: "rgba(0,0,0,.4)" }} onClick={() => setResults(null)}>
           <div className="w-full max-w-md rounded-2xl p-5" style={{ background: "#fff", border: `1px solid ${T.border}` }} onClick={e => e.stopPropagation()}>
@@ -2479,6 +2543,8 @@ function TestBuilder({ back, focus, student, onSaved, initialTest = null, duplic
   const [materials, setMaterials] = useState([]);
   const [materialId, setMaterialId] = useState("");
   const [sourcePages, setSourcePages] = useState([]);
+  const [pageFrom, setPageFrom] = useState("");
+  const [pageTo, setPageTo] = useState("");
   const [sourceNote, setSourceNote] = useState("");
   const [sourceBusy, setSourceBusy] = useState(false);
   const [courses, setCourses] = useState([]);
@@ -2592,8 +2658,19 @@ function TestBuilder({ back, focus, student, onSaved, initialTest = null, duplic
     try {
       const r = await apiGet(`/materials/view?courseId=${encodeURIComponent(courseId)}&materialId=${encodeURIComponent(selectedMaterial.materialId)}`);
       const extracted = await extractPdfPageTexts(r.url);
-      setSourcePages(extracted.pages);
-      setSourceNote(describeExtraction(extracted));
+      // **ページ範囲は読み取ったあとに絞る。** 空欄なら全ページ
+      const from = Number(pageFrom) > 0 ? Number(pageFrom) : 1;
+      const to = Number(pageTo) > 0 ? Number(pageTo) : Infinity;
+      const picked = extracted.pages.filter(p => p.page >= from && p.page <= to);
+      setSourcePages(picked);
+      if (!picked.length) {
+        setSourceNote(extracted.pages.length
+          ? `指定した範囲（${from}〜${Number(pageTo) > 0 ? pageTo : extracted.numPages}ページ）に文字がありませんでした。範囲を広げてください。`
+          : describeExtraction(extracted));
+      } else {
+        const head = `${picked.length}ページ読み取りました（${picked[0].page}〜${picked[picked.length - 1].page}ページ）。`;
+        setSourceNote(head + (extracted.truncated ? `このPDFは${extracted.numPages}ページあり、先頭${extracted.limit}ページまでを対象にしています。` : ""));
+      }
     } catch (e) {
       setSourceNote("教材の本文を読み取れませんでした：" + (e?.message || e));
     } finally {
@@ -2622,27 +2699,20 @@ function TestBuilder({ back, focus, student, onSaved, initialTest = null, duplic
       sourcePage: Number(q.sourcePage) || 0,
     };
   }
-  function buildAiScopePayload(count, instruction) {
-    const scopeMeta = selectedScope || { scopeType: "course", label: selectedCourse?.name || "コース全体", learningContext: `コース名: ${selectedCourse?.name || courseId}` };
+  function buildAiScopePayload(count, extra) {
+    // **渡すのは教材の本文と、講師が書いた文章だけ。**
+    // カリキュラムの範囲は渡さない（読み取ったページ以外から作らせないため）
+    const text = scope.trim();
     return {
       courseId,
       courseName: selectedCourse?.name || "",
-      curriculumId: scopeMeta.id || "",
-      scopeType: scopeMeta.scopeType || "course",
-      sectionId: scopeMeta.sectionId || "",
-      sectionTitle: scopeMeta.sectionTitle || "",
-      chapterId: scopeMeta.chapterId || "",
-      chapterTitle: scopeMeta.chapterTitle || "",
-      lessonId: scopeMeta.lessonId || "",
-      lessonTitle: scopeMeta.lessonTitle || "",
-      learningContext: scopeMeta.learningContext || "",
-      range: [scopeMeta.learningContext, scope.trim()].filter(Boolean).join("\n\n"),
+      scopeType: "material",
+      range: text,
       difficulty: level,
       questionCount: count,
       questionType: aiQuestionType,
       answerMode,
-      instruction,
-      // 教材から作るときは本文をそのまま渡す（空なら今までどおりカリキュラムから作る）
+      instruction: [text, extra].filter(Boolean).join("\n\n"),
       materialId,
       materialTitle: selectedMaterial?.title || "",
       sourcePages,
@@ -2651,18 +2721,16 @@ function TestBuilder({ back, focus, student, onSaved, initialTest = null, duplic
   async function gen() {
     if (aiGenerating || aiGeneratingMore) return;
     setAiNotice("");
-    if (!courseId && !sourcePages.length) {
-      setAiNotice("対象コースを選ぶか、教材の本文を読み取ってください。");
-      return;
-    }
-    if (!sourcePages.length && !curriculumId && !scope.trim() && curriculumSections.length > 0) {
-      setAiNotice("対象範囲を選ぶか、出題内容・範囲を入力してください。教材から作ることもできます。");
+    // **問題は教材のページからだけ作る。** 範囲が曖昧なまま作ると、
+    // どこを復習すればよいかを設問に付けられない（2026-09-18）
+    if (!sourcePages.length) {
+      setAiNotice("先に教材（PDF）を選んで、ページ範囲を読み取ってください。問題は読み取ったページからだけ作ります。");
       return;
     }
     setAiGenerating(true);
     try {
       const requested = Number(questionCount) || 5;
-      const data = await apiPost("/ai/tests/generate", buildAiScopePayload(requested, aiInstruction.trim()));
+      const data = await apiPost("/ai/tests/generate", buildAiScopePayload(requested, ""));
       const generated = Array.isArray(data?.questions) ? data.questions : [];
       if (!generated.length) throw new Error("問題候補が返りませんでした。");
       setQs(generated.map(mapAiQuestion));
@@ -2693,8 +2761,7 @@ function TestBuilder({ back, focus, student, onSaved, initialTest = null, duplic
       const dedupeNote = existingTitles.length
         ? `既に以下の問題が生成済みです。重複を避け、残り${aiShortfall}問だけ新しく作成してください。\n` + existingTitles.map((t, idx) => `${idx + 1}. ${t}`).join("\n")
         : "";
-      const instruction = [aiInstruction.trim(), dedupeNote].filter(Boolean).join("\n\n");
-      const data = await apiPost("/ai/tests/generate", buildAiScopePayload(aiShortfall, instruction));
+      const data = await apiPost("/ai/tests/generate", buildAiScopePayload(aiShortfall, dedupeNote));
       const generated = Array.isArray(data?.questions) ? data.questions : [];
       if (!generated.length) throw new Error("追加の問題候補が返りませんでした。");
       const mapped = generated.map(mapAiQuestion);
@@ -2824,8 +2891,8 @@ function TestBuilder({ back, focus, student, onSaved, initialTest = null, duplic
       <Card className="mb-4 p-5">
         <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
           <div>
-            <div className="flex items-center gap-2 text-sm font-bold" style={{ color: T.textPrimary }}><FileText size={15} style={{ color: T.accent }} />教材から問題を作る（任意）</div>
-            <div className="text-xs" style={{ color: T.textMuted }}>コースの研修資料の本文を読み取って、そこからだけ出題します。設問には「何ページを見ればよいか」が付きます。</div>
+            <div className="flex items-center gap-2 text-sm font-bold" style={{ color: T.textPrimary }}><FileText size={15} style={{ color: T.accent }} />教材（PDF）とページ範囲</div>
+            <div className="text-xs" style={{ color: T.textMuted }}>問題は、ここで読み取ったページからだけ作ります。ページ範囲は空欄なら全ページです。設問には「何ページを見ればよいか」が付きます。</div>
           </div>
         </div>
         <div className="flex flex-wrap items-center gap-2">
@@ -2834,7 +2901,15 @@ function TestBuilder({ back, focus, student, onSaved, initialTest = null, duplic
             <option value="">{courseId ? (materials.length ? "教材を選ぶ" : "このコースにPDFの教材がありません") : "先に参照コースを選んでください"}</option>
             {materials.map(m => <option key={m.materialId} value={m.materialId}>{m.title || m.filename}</option>)}
           </select>
-          <Btn kind="ghost" icon={Upload} disabled={!materialId || sourceBusy} onClick={loadMaterialText}>{sourceBusy ? "読み取り中…" : "本文を読み取る"}</Btn>
+          <div className="flex items-center gap-1.5 text-xs font-semibold" style={{ color: T.textMuted }}>
+            <span>ページ</span>
+            <input type="number" min="1" value={pageFrom} onChange={e => setPageFrom(e.target.value)} placeholder="先頭"
+              className="w-20 rounded-lg px-2 py-2 text-sm outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary }} />
+            <span>〜</span>
+            <input type="number" min="1" value={pageTo} onChange={e => setPageTo(e.target.value)} placeholder="最後"
+              className="w-20 rounded-lg px-2 py-2 text-sm outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary }} />
+          </div>
+          <Btn kind="ghost" icon={Upload} disabled={!materialId || sourceBusy} onClick={loadMaterialText}>{sourceBusy ? "読み取り中…" : "このページを読み取る"}</Btn>
           {sourcePages.length > 0 && <Btn kind="ghost" size="sm" icon={X} onClick={() => { setSourcePages([]); setSourceNote(""); }}>使わない</Btn>}
         </div>
         {sourceNote && (
@@ -2855,53 +2930,23 @@ function TestBuilder({ back, focus, student, onSaved, initialTest = null, duplic
           </div>
           <Badge tone="cyan">講師確認後に公開</Badge>
         </div>
-        <div className="mb-2 text-xs font-bold" style={{ color: T.textPrimary }}>① どこから出すか</div>
+        <div className="mb-2 text-xs font-bold" style={{ color: T.textPrimary }}>① どんなテストにするか</div>
         <div className="grid gap-3 lg:grid-cols-3">
-          <Field label="対象範囲"><select value={curriculumId} onChange={e => setCurriculumId(e.target.value)} disabled={!courseId || curriculumLoading} className="w-full rounded-xl px-3 py-2.5 text-sm outline-none disabled:opacity-60" style={{ border: `1px solid ${T.border}`, color: T.textPrimary }}><option value="">{!courseId ? "先に対象コースを選択" : curriculumLoading ? "取得中..." : "コース全体"}</option>{curriculumItems.map((item, i) => {
-            const id = curriculumKey(item, i);
-            return <option key={id} value={id}>{item.label || `項目${i + 1}`}</option>;
-          })}</select></Field>
           <Field label="難易度"><select value={level} onChange={e => setLevel(e.target.value)} className="w-full rounded-xl px-3 py-2.5 text-sm outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary }}><option>基礎</option><option>標準</option><option>応用</option></select></Field>
           <Field label="問題数">
             <input type="number" min="1" max="20" value={questionCount} onChange={e => setQuestionCount(e.target.value)} className="w-full rounded-xl px-3 py-2.5 text-sm outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary }} />
-            <div className="mt-1 text-[11px] leading-snug" style={{ color: T.textMuted }}>選択肢・コード記述式など内容量が多い問題では、指定数より少なく生成される場合があります。</div>
+            <div className="mt-1 text-[11px] leading-snug" style={{ color: T.textMuted }}>内容量が多い問題では、指定より少なく生成される場合があります。</div>
           </Field>
-        </div>
-        <div className="mb-2 mt-4 text-xs font-bold" style={{ color: T.textPrimary }}>② どんな問題にするか</div>
-        <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
-          <Field label={"\u51fa\u984c\u30bf\u30a4\u30d7"}><select value={questionFormat} onChange={e => setQuestionFormat(e.target.value)} className="w-full rounded-xl px-3 py-2.5 text-sm outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary }}><option value="choice">{"\u9078\u629e\u5f0f"}</option><option value="descriptive">{"\u8a18\u8ff0\u5f0f"}</option><option value="code">{"\u30b3\u30fc\u30c9\u8a18\u8ff0\u5f0f"}</option><option value="mixed">{"\u6df7\u5728"}</option></select></Field>
-          {questionFormat !== "choice" && <Field label={"\u8a18\u8ff0\u5f0f\u306e\u50be\u5411"}><select value={answerMode} onChange={e => setAnswerMode(e.target.value)} className="w-full rounded-xl px-3 py-2.5 text-sm outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary }}><option value="explanation">{"\u6587\u7ae0\u56de\u7b54\u4e2d\u5fc3"}</option><option value="exact">{"\u6c7a\u5b9a\u56de\u7b54\u4e2d\u5fc3"}</option><option value="codeExact">{"\u30b3\u30fc\u30c9\u56de\u7b54\u4e2d\u5fc3"}</option><option value="mixed">{"\u6df7\u5728"}</option></select></Field>}
-        </div>
-        <div className="mt-3 rounded-xl bg-white px-3 py-2 text-xs leading-relaxed" style={{ color: T.textSecondary, border: `1px solid ${T.border}` }}>
-          <div className="font-bold" style={{ color: T.textPrimary }}>{answerModeLabel(answerMode)}{"\u306e\u4f8b"}</div>
-          <div className="mt-1">{modeExamples[answerMode]}</div>
-          <div className="mt-3 flex flex-wrap gap-2">{instructionSamples.map((s, i) => <button key={i} type="button" onClick={() => appendInstruction(s)} className="rounded-full px-3 py-1 text-xs font-semibold" style={{ background: i === 1 ? T.warningSubtle : T.bgBase, color: i === 1 ? T.warning : T.accentHover, border: `1px solid ${T.border}` }}>{i === 1 ? "\u69cb\u6587\u554f\u984c\u3092\u4e2d\u5fc3\u306b\u3057\u305f\u3044\uff08\u304a\u3059\u3059\u3081\uff09" : s}</button>)}</div>
+          <Field label={"出題タイプ"}><select value={questionFormat} onChange={e => setQuestionFormat(e.target.value)} className="w-full rounded-xl px-3 py-2.5 text-sm outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary }}><option value="choice">{"選択式"}</option><option value="descriptive">{"記述式"}</option><option value="code">{"コード記述式"}</option><option value="mixed">{"混在"}</option></select></Field>
         </div>
         <div className="mt-4 rounded-xl bg-white p-3" style={{ border: `1px solid ${T.border}` }}>
-          <div className="mb-2 text-xs font-bold" style={{ color: T.textPrimary }}>③ 出題してほしい内容（任意）</div>
-          <div className="mb-3"><Field label="AIへの追加指示"><input value={aiInstruction} onChange={e => setAiInstruction(e.target.value)} placeholder="例: EC2とVPCを重点的に。実務でつまずきやすい観点を多めに。" className="w-full rounded-xl px-3 py-2.5 text-sm outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary }} /></Field></div>
-          <label className="text-xs font-semibold" style={{ color: T.textMuted }}>出題内容・範囲<span className="ml-1 font-normal">（テストの説明としても保存されます）</span></label>
-          <textarea value={scope} onChange={e => setScope(e.target.value)} rows={2} placeholder="例）RAG・Bedrock・Lambda を中心に。特にハルシネーション対策を重点的に出題したい。"
-            className="mt-1 w-full resize-none rounded-xl px-3 py-2.5 text-sm outline-none focus:border-cyan-400" style={{ border: `1px solid ${T.border}`, color: T.textPrimary }} />
-
-        <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
-          <label className="text-xs font-semibold" style={{ color: T.textMuted }}>重点トピック</label>
-          <span className="text-xs" style={{ color: T.textMuted }}>苦手な分野を「多め」にすると問題数が増えます</span></div>
-        <div className="flex flex-wrap gap-2">
-          {topics.map((t, i) => (
-            <span key={i} className="inline-flex items-center gap-1.5 rounded-full py-1 pl-3 pr-1.5 text-xs font-semibold" style={{ background: t.w === "多め" ? T.accentSubtle : T.bgBase, color: T.textPrimary, border: `1px solid ${t.w === "多め" ? T.border : T.border}` }}>
-              {t.name}
-              <button onClick={() => toggleW(i)} className="rounded-full px-1.5 py-0.5" style={{ background: t.w === "多め" ? T.accent : T.border, color: t.w === "多め" ? "#fff" : T.textMuted }}>{t.w}</button>
-              <button onClick={() => removeT(i)}><X size={13} style={{ color: T.textMuted }} /></button>
-            </span>
-          ))}
-        </div>
-        <div className="mt-3 flex flex-wrap items-center gap-2">
-          <input value={nt} onChange={e => setNt(e.target.value)} onKeyDown={e => e.key === "Enter" && addT(nt)} placeholder="トピックを追加…" list="topic-list"
-            className="rounded-lg px-3 py-1.5 text-sm outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary }} />
-          <datalist id="topic-list">{allTopics.map(t => <option key={t} value={t} />)}</datalist>
-          <Btn kind="ghost" size="sm" icon={Plus} onClick={() => addT(nt)}>追加</Btn>
-        </div>
+          <div className="mb-1 text-xs font-bold" style={{ color: T.textPrimary }}>② どんな問題を出すか（文章で指示できます）</div>
+          <div className="mb-2 text-[11px] leading-relaxed" style={{ color: T.textMuted }}>
+            重点的に出したい内容、避けたい内容、答え方の傾向などをそのまま書いてください。ここに書いた文章はテストの説明としても保存されます。
+          </div>
+          <textarea value={scope} onChange={e => setScope(e.target.value)} rows={4}
+            placeholder="例）EC2とVPCを重点的に。実務でつまずきやすい観点を多めに。文章説明ではなく、答えが明確に決まる記述式を中心にしてください。"
+            className="w-full resize-y rounded-xl px-3 py-2.5 text-sm outline-none focus:border-cyan-400" style={{ border: `1px solid ${T.border}`, color: T.textPrimary }} />
         </div>
         {selectedScope?.learningContext && <div className="mt-3 rounded-xl bg-white px-3 py-2 text-xs leading-relaxed" style={{ color: T.textMuted, border: `1px solid ${T.border}` }}>AIへ渡す学習内容: {selectedScope.label}</div>}
         {curriculumErr && <div className="mt-3 rounded-xl px-3 py-2 text-xs font-semibold" style={{ background: "#fff", color: T.textMuted, border: `1px solid ${T.border}` }}>{curriculumErr}</div>}

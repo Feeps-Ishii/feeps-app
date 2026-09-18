@@ -621,7 +621,13 @@ const MODE_RAIL = {
 };
 function GlobalRail({ products, active, onSelect, onOpenPalette, modes = [], viewMode, onSelectMode }) {
   const showModes = modes.length > 1;
-  const showProducts = products.length > 1 || !showModes;
+  // **モードと同じものを下にもう一度出さない。**
+  // 研修モードの「研修」のように、同じ名前と同じアイコンが上下に並んで2つあるように見えていた。
+  // モードのボタンを押せば必ずそのモードの入口Productへ戻る（resetToModeLanding）ので、
+  // 下から消しても行き先が無くなることはない。
+  const landing = showModes ? getModeLandingProduct(viewMode) : "";
+  const railProducts = showModes ? products.filter(p => p.key !== landing) : products;
+  const showProducts = railProducts.length > 0;
   return (
     <aside className="feeps-global-rail hidden lg:flex" aria-label="モード・プロダクトナビゲーション">
       <button type="button" onClick={() => onSelect("home")} aria-label="Feeps One Homeへ戻る" className="feeps-global-brand">
@@ -645,7 +651,7 @@ function GlobalRail({ products, active, onSelect, onOpenPalette, modes = [], vie
       )}
       {showModes && showProducts && <span className="mx-auto my-1 block h-px w-7" style={{ background: "rgba(255,255,255,.18)" }} />}
       <nav className="feeps-global-products" aria-label="この中の機能" hidden={!showProducts}>
-        {products.map(p => {
+        {railProducts.map(p => {
           const isActive = active === p.key;
           const short = { home: "Home", training: "研修", learning: "学習", talent: "成長", matching: "案件", analytics: "分析", grants: "助成金" }[p.key] || p.label;
           return (
