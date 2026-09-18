@@ -7,9 +7,6 @@ import {
   TrainingHomeHero, TrainingHomePanel, TrainingHomePanelRow, PRODUCT_ACCENT, NOVA,
 } from "../../components/common";
 import { TraineeTrainingDayIllustration, TraineeOffDayIllustration, ClientHomeIllustration } from "../../components/common/TrainingHomeIllustrations.jsx";
-import {
-  QBANK
-} from "./TrainingCatalog.js";
 import { homeDateLabel } from "./useTraining.js";
 import { flattenLessons, isWrittenNote } from "./notesLessons.js";
 import { toCourseGoalsPayload } from "./courseGoals.js";
@@ -29,7 +26,7 @@ import {
   Sparkles, X, Eye, Pencil, StickyNote, Megaphone,
   Check, Target, Lock,
   FileSpreadsheet, Star,
-  GitBranch, Briefcase, Gauge, RefreshCw, Calendar, GraduationCap,
+  GitBranch, Briefcase, RefreshCw, Calendar,
   AlertTriangle
 } from "lucide-react";
 
@@ -708,8 +705,8 @@ function GoalsView({ role, done, taskSaveState, toggle, goals, setGoals, go, goP
   const gp = goalProgress(goals, done);
   const overall = overallProgress(goals, done);
   const all = flatTasks(goals);
-  const [nt, setNt] = useState({});
   const [ng, setNg] = useState("");
+  const [nt, setNt] = useState({});
   const [goalDrafts, setGoalDrafts] = useState({});
   const [taskDrafts, setTaskDrafts] = useState({});
   const [todayReport, setTodayReport] = useState(null);
@@ -1500,347 +1497,9 @@ function Curriculum({ role, go, goProduct, done = {}, goals = [] }) {
   );
 }
 
-/* ===== 教材 ===== */
-function Materials({ role }) {
-  const [courses, setCourses] = useState([]);
-  const [currentUserId, setCurrentUserId] = useState("");
-  const [courseId, setCourseId] = useState("");
-  const [items, setItems] = useState([]);
-  const [curriculumSections, setCurriculumSections] = useState([]);
-  const [curriculumLoading, setCurriculumLoading] = useState(false);
-  const [curriculumErr, setCurriculumErr] = useState("");
-  const [loading, setLoading] = useState(true);
-  const [uploading, setUploading] = useState(false);
-  const [err, setErr] = useState("");
-  const [mode, setMode] = useState("view");
-  const [uploadTarget, setUploadTarget] = useState("course");
-  const [editing, setEditing] = useState(null);
-  const [editDraft, setEditDraft] = useState({ title: "", description: "", mode: "view" });
-  const [deleting, setDeleting] = useState(null);
-  const [saving, setSaving] = useState(false);
-  const fileRef = React.useRef(null);
-  // 資料を見ながらノートを書けるようにする（受講生のみ）。単元は資料の紐づけ先に合わせる
-  const [noteLessonId, setNoteLessonId] = useState("");
-  const showNotes = role === "trainee";
-  // アプリ内で開いている教材。閉じると一覧へ戻る
-  const [viewing, setViewing] = useState(null);
-  const [viewingPage, setViewingPage] = useState(1);
-  const selectedCourse = useMemo(() => courses.find(c => c.courseId === courseId) || null, [courses, courseId]);
-  const canEdit = role === "admin" || (role === "instructor" && Array.isArray(selectedCourse?.instructorIds) && selectedCourse.instructorIds.includes(currentUserId));
-  const materialsById = useMemo(() => Object.fromEntries(items.map(m => [m.materialId, m])), [items]);
-  // 紐づけ先は大項目ごとにoptgroupで区切る（フラットな一覧だと大項目かLessonか分からない）
-  const materialTargetGroups = useMemo(() => arr(curriculumSections).map(section => ({
-    label: section.title || "名称未設定",
-    options: [
-      { value: `section:${section.id}`, label: `大項目全体: ${section.title || "名称未設定"}` },
-      ...arr(section.chapters).flatMap(chapter => arr(chapter.lessons).map(lesson => ({
-        value: `lesson:${lesson.id}`,
-        label: `${chapter.title || "章"} / ${lesson.title || "名称未設定"}`,
-      }))),
-    ],
-  })), [curriculumSections]);
-  const materialTargetOptions = useMemo(() => arr(curriculumSections).flatMap(section => [
-    { value: `section:${section.id}`, label: `紐づけ先 — 大項目: ${section.title || "名称未設定"}` },
-    ...arr(section.chapters).flatMap(chapter => arr(chapter.lessons).map(lesson => ({ value: `lesson:${lesson.id}`, label: `紐づけ先 — Lesson補足: ${lesson.title || "名称未設定"}` }))),
-  ]), [curriculumSections]);
-  const noteLessons = useMemo(() => flattenLessons(curriculumSections), [curriculumSections]);
-  // どの資料がどの単元に紐づいているか。資料を開いたとき、ノートを同じ単元に合わせるために使う
-  const lessonIdByMaterial = useMemo(() => {
-    const map = {};
-    arr(curriculumSections).forEach(section => {
-      if (section.unitMode === "section") arr(section.materialIds).forEach(id => { map[id] ||= section.id; });
-      arr(section.chapters).forEach(chapter => arr(chapter.lessons).forEach(lesson => {
-        (lesson.materialIds || (lesson.materialId ? [lesson.materialId] : [])).forEach(id => { map[id] ||= lesson.id; });
-      }));
-    });
-    return map;
-  }, [curriculumSections]);
-  useEffect(() => {
-    if (!showNotes || noteLessonId) return;
-    if (noteLessons[0]?.id) setNoteLessonId(noteLessons[0].id);
-  }, [showNotes, noteLessonId, noteLessons]);
-  const materialGroups = useMemo(() => {
-    const referenced = new Set();
-    const groups = arr(curriculumSections).map(section => {
-      const sectionMaterials = arr(section.materialIds).map(id => materialsById[id]).filter(Boolean);
-      sectionMaterials.forEach(m => referenced.add(m.materialId));
-      return {
-        id: section.id || section.title,
-        title: section.title || "カリキュラム",
-        materials: sectionMaterials,
-        chapters: arr(section.chapters).map(chapter => ({
-        id: chapter.id || chapter.title,
-        title: chapter.title || "章",
-        lessons: arr(chapter.lessons).map(lesson => {
-          const materials = arr(lesson.materialIds).map(id => materialsById[id]).filter(Boolean);
-          materials.forEach(m => referenced.add(m.materialId));
-          return { id: lesson.id || lesson.title, title: lesson.title || "レッスン", materials };
-        }).filter(lesson => lesson.materials.length > 0),
-        })).filter(chapter => chapter.lessons.length > 0),
-      };
-    }).filter(section => section.materials.length > 0 || section.chapters.length > 0);
-    return { groups, loose: items.filter(m => !referenced.has(m.materialId)) };
-  }, [curriculumSections, items, materialsById]);
-
-  useEffect(() => {
-    const ep = role === "trainee" ? "/me/courses" : "/courses";
-    const me = role === "instructor" ? getCurrentUser().catch(() => null) : Promise.resolve(null);
-    Promise.all([apiGet(ep), me]).then(([list, user]) => {
-      const cs = list || [];
-      setCurrentUserId(user?.userId || user?.username || "");
-      setCourses(cs);
-      const active = getActiveCourseId();
-      if (cs.length) setCourseId(cs.some(c => c.courseId === active) ? active : cs[0].courseId); else setLoading(false);
-    })
-      .catch(() => { setErr("コースの取得に失敗しました。"); setLoading(false); });
-  }, [role]);
-
-  function loadMaterials() {
-    if (!courseId) return;
-    setLoading(true); setErr("");
-    apiGet(`/materials?courseId=${courseId}`).then(l => setItems(l || [])).catch(() => setErr("資料一覧の取得に失敗しました。")).finally(() => setLoading(false));
-  }
-  function loadCurriculumForMaterials() {
-    if (!courseId) return;
-    setCurriculumLoading(true); setCurriculumErr("");
-    apiGet(`/courses/${courseId}/curriculum`)
-      .then(res => setCurriculumSections(normalizeCurriculumSections(res || {})))
-      .catch(() => { setCurriculumSections([]); setCurriculumErr("カリキュラム情報を取得できませんでした。資料のみ表示します。"); })
-      .finally(() => setCurriculumLoading(false));
-  }
-  useEffect(() => { setUploadTarget("course"); loadMaterials(); loadCurriculumForMaterials(); }, [courseId]);
-
-  /* テストの解説から「教材の◯ページを見る」で来たときは、その教材をそのページで開く。
-     一度使ったら消す（戻ってくるたびに勝手に開かないように）。 */
-  const [materialTarget] = useState(() => (role === "trainee" ? getTrainingTargetContext("materials", { consume: true }) : null));
-  const materialTargetDoneRef = useRef(false);
-  useEffect(() => {
-    if (!materialTarget?.materialId || materialTargetDoneRef.current) return;
-    if (materialTarget.courseId && materialTarget.courseId !== courseId) return;   // コースの読み込み待ち
-    const found = items.find(m => m.materialId === materialTarget.materialId);
-    if (!found) return;
-    materialTargetDoneRef.current = true;
-    setViewing(found);
-    setViewingPage(Number(materialTarget.page) || 1);
-    const lid = lessonIdByMaterial[found.materialId];
-    if (lid) setNoteLessonId(lid);
-  }, [materialTarget, items, courseId, lessonIdByMaterial]);
-
-  async function upload(file) {
-    if (!file || !courseId) return;
-    if (!canEdit) { setErr("このコースの資料編集権限がありません。"); return; }
-    setUploading(true); setErr("");
-    try {
-      const ct = file.type || "application/octet-stream";
-      const { uploadUrl, materialId, s3key } = await apiPost("/materials/upload-url", { courseId, filename: file.name, contentType: ct });
-      const put = await fetch(uploadUrl, { method: "PUT", headers: { "content-type": ct }, body: file });
-      if (!put.ok) throw new Error("S3アップロード失敗 " + put.status);
-      await apiPost("/materials", { courseId, materialId, s3key, title: file.name, filename: file.name, mode });
-      if (uploadTarget !== "course") {
-        const nextSections = addMaterialToCurriculumTarget(curriculumSections, uploadTarget, materialId);
-        await apiPut(`/courses/${courseId}/curriculum`, { sections: nextSections, sessions: sessionsFromSections(nextSections) });
-        setCurriculumSections(nextSections);
-      }
-      loadMaterials();
-    } catch (e) { setErr("アップロードに失敗しました：" + (e?.message || e)); }
-    finally { setUploading(false); if (fileRef.current) fileRef.current.value = ""; }
-  }
-
-  // 受講生はアプリ内ビューアで開く（横にノートが並ぶ）。講師・管理者と非対応形式は今までどおり別タブ。
-  function canViewInApp(m) {
-    return showNotes && /\.(pdf|png|jpe?g|gif|webp)$/i.test(String(m?.filename || m?.title || "")) && m?.mode !== "download";
-  }
-  async function openMaterial(m) {
-    if (canViewInApp(m)) {
-      setViewing(m);
-      const lid = lessonIdByMaterial[m.materialId];
-      if (lid) setNoteLessonId(lid);
-      return;
-    }
-    // ポップアップブロック回避のため、クリック直後に空タブを開いてから遷移
-    const tab = window.open("", "_blank");
-    try {
-      const r = await apiGet(`/materials/view?courseId=${courseId}&materialId=${m.materialId}`);
-      if (tab) tab.location.href = r.url; else window.open(r.url, "_blank");
-    } catch (e) { if (tab) tab.close(); setErr("URLの取得に失敗しました：" + (e?.message || e)); }
-  }
-
-  function startEdit(m) {
-    if (!canEdit) return;
-    setEditing(m);
-    setEditDraft({
-      title: m.title || "",
-      description: m.description || "",
-      mode: m.mode === "download" ? "download" : "view",
-    });
-  }
-
-  async function saveMaterial() {
-    if (!editing || !courseId) return;
-    if (!canEdit) { setErr("このコースの資料編集権限がありません。"); return; }
-    setSaving(true); setErr("");
-    try {
-      await apiPut(`/materials/${encodeURIComponent(editing.materialId)}`, {
-        courseId,
-        title: editDraft.title,
-        description: editDraft.description,
-        mode: editDraft.mode,
-      });
-      setEditing(null);
-      loadMaterials();
-    } catch (e) {
-      setErr("資料の更新に失敗しました: " + (e?.errorMessage || e?.message || e));
-    } finally {
-      setSaving(false);
-    }
-  }
-
-  async function deleteMaterial() {
-    if (!deleting || !courseId) return;
-    if (!canEdit) { setErr("このコースの資料削除権限がありません。"); return; }
-    setSaving(true); setErr("");
-    try {
-      await apiDeleteBase(`/materials/${encodeURIComponent(deleting.materialId)}?courseId=${encodeURIComponent(courseId)}`);
-      setDeleting(null);
-      loadMaterials();
-    } catch (e) {
-      setErr("資料の削除に失敗しました: " + (e?.errorMessage || e?.message || e));
-    } finally {
-      setSaving(false);
-    }
-  }
-  function renderMaterialRow(m, key) {
-    return (
-      <div key={key || m.materialId} className="flex items-center justify-between gap-3 px-4 py-3" style={{ borderTop: `1px solid ${T.border}` }}>
-        <div className="flex min-w-0 items-center gap-3">
-          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl" style={{ background: T.accentSubtle }}><FileText size={17} style={{ color: T.accent }} /></div>
-          <div className="min-w-0"><div className="truncate text-sm font-semibold" style={{ color: T.textPrimary }}>{m.title}</div>{m.description && <div className="truncate text-xs" style={{ color: T.textSecondary }}>{m.description}</div>}<div className="text-xs" style={{ color: T.textMuted }}>{m.mode === "download" ? "DLのみ" : "閲覧可"} / {fmtTs(m.uploadedAt)}</div></div>
-        </div>
-        <div className="flex shrink-0 items-center gap-2">
-          <Btn kind="ghost" size="sm" icon={m.mode === "download" ? Download : Eye} onClick={() => openMaterial(m)}>{m.mode === "download" ? "DL" : canViewInApp(m) ? "読む" : "開く"}</Btn>
-          {canEdit && <Btn kind="ghost" size="sm" icon={Pencil} onClick={() => startEdit(m)}>編集</Btn>}
-          {canEdit && <Btn kind="ghost" size="sm" icon={Trash2} onClick={() => setDeleting(m)}>削除</Btn>}
-        </div>
-      </div>
-    );
-  }
-  function renderMaterialList() {
-    if (!items.length) return null;
-    return (
-      <div>
-        <div className="px-4 py-3" style={{ borderBottom: `1px solid ${T.border}` }}>
-          <div className="text-sm font-bold" style={{ color: T.textPrimary }}>カリキュラム別教材</div>
-          <div className="text-xs" style={{ color: T.textMuted }}>大項目全体の資料と、Lesson専用の補足資料を分けて表示します。</div>
-        </div>
-        {curriculumLoading && <div className="px-4 py-3 text-xs" style={{ color: T.textMuted }}>カリキュラムを確認中...</div>}
-        {curriculumErr && <div className="mx-4 mt-3 rounded-lg px-3 py-2 text-xs" style={{ background: T.warningSubtle, color: T.warning }}>{curriculumErr}</div>}
-        {materialGroups.groups.map(section => (
-          <div key={section.id} className="px-4 py-3" style={{ borderTop: `1px solid ${T.border}` }}>
-            <div className="text-sm font-bold" style={{ color: T.textPrimary }}>{section.title}</div>
-            {section.materials.length > 0 && <div className="mt-3 overflow-hidden rounded-xl" style={{ border: `1px solid ${T.border}`, background: T.bgSurface }}><div className="flex items-center gap-2 px-3 py-2 text-xs font-bold" style={{ color: T.accentHover, background: T.bgBase }}><FileText size={13} />大項目の資料</div>{section.materials.map(m => renderMaterialRow(m, `section:${section.id}:${m.materialId}`))}</div>}
-            {section.chapters.map(chapter => (
-              <div key={chapter.id} className="mt-3 rounded-xl" style={{ border: `1px solid ${T.border}`, background: "#fff" }}>
-                <div className="px-3 py-2 text-xs font-bold" style={{ color: T.textSecondary, background: T.bgBase }}>{chapter.title}</div>
-                {chapter.lessons.map(lesson => (
-                  <div key={lesson.id}>
-                    <div className="flex items-center gap-2 px-3 pt-3">
-                      <div className="min-w-0 flex-1 truncate text-xs font-semibold" style={{ color: T.textMuted }}>{lesson.title}</div>
-                      {showNotes && noteLessons.some(l => l.id === lesson.id) && <button type="button" onClick={() => setNoteLessonId(lesson.id)} title="この単元のノートを横に出す" className="inline-flex shrink-0 items-center gap-1 rounded-lg px-2 py-1 text-xs font-bold" style={{ color: noteLessonId === lesson.id ? T.accentHover : T.textSecondary, background: noteLessonId === lesson.id ? T.accentSubtle : "transparent", border: `1px solid ${T.border}` }}><StickyNote size={13} />ノート</button>}
-                    </div>
-                    {lesson.materials.map(m => renderMaterialRow(m, `${lesson.id}:${m.materialId}`))}
-                  </div>
-                ))}
-              </div>
-            ))}
-          </div>
-        ))}
-        {materialGroups.loose.length > 0 && (
-          <div className="px-4 py-3" style={{ borderTop: `1px solid ${T.border}` }}>
-            <div className="text-sm font-bold" style={{ color: T.textPrimary }}>{materialGroups.groups.length ? "未紐づけ教材" : "教材一覧"}</div>
-            <div className="mt-2 rounded-xl" style={{ border: `1px solid ${T.border}`, background: "#fff" }}>
-              {materialGroups.loose.map(m => renderMaterialRow(m, `loose:${m.materialId}`))}
-            </div>
-          </div>
-        )}
-      </div>
-    );
-  }
-
-  return (
-    <div>
-      <SectionHead title="研修資料" desc={canEdit ? "研修・Eラーニング・継続支援コース単位の資料を管理します" : "あなたの所属コースの資料"}
-        action={canEdit && courseId ? (
-          <div className="flex flex-wrap items-center justify-end gap-2">
-            <select value={uploadTarget} onChange={e => setUploadTarget(e.target.value)} title="資料を紐づけるカリキュラム" disabled={curriculumLoading} className="max-w-[260px] rounded-xl px-2 py-2 text-xs outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary, background: T.bgSurface }}>
-              <option value="course">紐づけ先 — コース共通</option>
-              {materialTargetGroups.map(group => (
-                <optgroup key={group.label} label={group.label}>
-                  {group.options.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}
-                </optgroup>
-              ))}
-            </select>
-            <select value={mode} onChange={e => setMode(e.target.value)} title="アップロード時の公開方法" className="rounded-xl px-2 py-2 text-xs outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary, background: T.bgSurface }}>
-              <option value="view">閲覧可</option><option value="download">DLのみ</option>
-            </select>
-            <Btn icon={Upload} onClick={() => fileRef.current?.click()}>{uploading ? "アップロード中…" : "ファイルを追加"}</Btn>
-          </div>
-        ) : null} />
-      <input ref={fileRef} type="file" className="hidden" onChange={e => upload(e.target.files?.[0])} />
-      {err && <div className="mb-4 rounded-lg px-3 py-2 text-xs" style={{ background: T.dangerSubtle, color: T.danger }}>{err}</div>}
-
-      <WithNoteDock show={showNotes} courseId={courseId} lessons={noteLessons} lessonId={noteLessonId} onLessonId={setNoteLessonId}
-        materialId={viewing?.materialId || ""} page={viewing ? viewingPage : 0}>
-      {courses.length === 0 && !loading ? (
-        <Card><EmptyState title={canEdit ? "コースがありません" : "所属コースがありません"} desc={canEdit ? "コース管理からコースを作成してください" : "管理者にコース登録を依頼してください"} /></Card>
-      ) : (
-        <>
-          <div className="mb-5 flex items-center gap-3">
-            <span className="text-xs font-semibold" style={{ color: T.textMuted }}>コース</span>
-            <select value={courseId} onChange={e => { setCourseId(e.target.value); setActiveCourseId(e.target.value); }} className="rounded-xl px-3 py-2 text-sm outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary, background: "#fff" }}>
-              {courses.map(c => <option key={c.courseId} value={c.courseId}>{c.name}（{kindLabel(c.kind)}）</option>)}
-            </select>
-          </div>
-          {viewing ? (
-            <React.Suspense fallback={<Card><SkeletonRows rows={5} /></Card>}>
-              <MaterialViewer courseId={courseId} material={viewing} onClose={() => { setViewing(null); setViewingPage(1); }}
-                onPage={setViewingPage} initialPage={viewingPage}
-                lessonId={lessonIdByMaterial[viewing.materialId] || noteLessonId} canAnnotate={showNotes} />
-            </React.Suspense>
-          ) : loading ? <Card><SkeletonRows /></Card>
-            : items.length === 0 ? <Card><EmptyState title="資料がありません" desc={canEdit ? "「ファイルを追加」からアップロードできます" : "このコースに公開されている資料はありません"} /></Card>
-            : <Card>{renderMaterialList() || items.map((m, i) => (
-                <div key={m.materialId} className="flex items-center justify-between px-4 py-3" style={{ borderBottom: i < items.length - 1 ? `1px solid ${T.border}` : "none" }}>
-                  <div className="flex min-w-0 items-center gap-3">
-                    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl" style={{ background: T.accentSubtle }}><FileText size={17} style={{ color: T.accent }} /></div>
-                    <div className="min-w-0"><div className="truncate text-sm font-semibold" style={{ color: T.textPrimary }}>{m.title}</div>{m.description && <div className="truncate text-xs" style={{ color: T.textSecondary }}>{m.description}</div>}<div className="text-xs" style={{ color: T.textMuted }}>{m.mode === "download" ? "DLのみ" : "閲覧可"} / {fmtTs(m.uploadedAt)}</div></div>
-                  </div>
-                  <div className="flex shrink-0 items-center gap-2">
-                    <Btn kind="ghost" size="sm" icon={m.mode === "download" ? Download : Eye} onClick={() => openMaterial(m)}>{m.mode === "download" ? "DL" : "開く"}</Btn>
-                    {canEdit && <Btn kind="ghost" size="sm" icon={Pencil} onClick={() => startEdit(m)}>編集</Btn>}
-                    {canEdit && <Btn kind="ghost" size="sm" icon={Trash2} onClick={() => setDeleting(m)}>削除</Btn>}
-                  </div>
-                </div>
-              ))}</Card>}
-        </>
-      )}
-      </WithNoteDock>
-      {editing && (
-        <Modal title="研修資料を編集" onClose={() => !saving && setEditing(null)} footer={<><Btn kind="ghost" onClick={() => setEditing(null)} disabled={saving}>キャンセル</Btn><Btn onClick={saveMaterial} disabled={saving || !editDraft.title.trim()}>{saving ? "保存中..." : "保存"}</Btn></>}>
-          <div className="space-y-4">
-            <Field label="タイトル"><input value={editDraft.title} onChange={e => setEditDraft(d => ({ ...d, title: e.target.value }))} className="w-full rounded-xl px-3 py-2 text-sm outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary }} /></Field>
-            <Field label="説明"><textarea value={editDraft.description} onChange={e => setEditDraft(d => ({ ...d, description: e.target.value }))} rows={3} className="w-full rounded-xl px-3 py-2 text-sm outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary }} /></Field>
-            <Field label="公開方法"><select value={editDraft.mode} onChange={e => setEditDraft(d => ({ ...d, mode: e.target.value }))} className="w-full rounded-xl px-3 py-2 text-sm outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary, background: "#fff" }}><option value="view">閲覧可</option><option value="download">DLのみ</option></select></Field>
-          </div>
-        </Modal>
-      )}
-      {deleting && (
-        <Modal title="研修資料を削除" danger onClose={() => !saving && setDeleting(null)} footer={<><Btn kind="ghost" onClick={() => setDeleting(null)} disabled={saving}>キャンセル</Btn><Btn onClick={deleteMaterial} disabled={saving}>{saving ? "削除中..." : "削除"}</Btn></>}>
-          <p className="text-sm leading-relaxed" style={{ color: T.textSecondary }}>「{deleting.title}」を削除します。カリキュラムで使用中の場合は削除されず、理由が表示されます。</p>
-        </Modal>
-      )}
-    </div>
-  );
-}
+/* 旧「研修資料」画面(Materials)は 2026-09-18 に削除した。
+   フォルダ管理の LibraryView.jsx が置き換えている。カリキュラムへの紐づけも
+   そちらへ移したので、この画面が担っていた役割は残っていない。 */
 
 /* ===== テスト ===== */
 // assignedCourseIds: 一般管理者の担当コース。渡された場合、担当が1件だけなら初期選択し、UIで「担当」を示す。
@@ -2572,12 +2231,10 @@ function TestBuilder({ back, focus, student, onSaved, initialTest = null, duplic
     if (base.some(t => t.name === focus)) return base.map(t => t.name === focus ? { ...t, w: "多め" } : t);
     return [{ name: focus, w: "多め" }, ...base];
   });
-  const [nt, setNt] = useState("");
   const [level, setLevel] = useState("標準");
   const [questionCount, setQuestionCount] = useState(5);
   const [questionFormat, setQuestionFormat] = useState("choice");
   const [answerMode, setAnswerMode] = useState("explanation");
-  const [aiInstruction, setAiInstruction] = useState("");
   const [aiNotice, setAiNotice] = useState("");
   const [aiGenerating, setAiGenerating] = useState(false);
   const [aiGeneratingMore, setAiGeneratingMore] = useState(false);
@@ -2609,23 +2266,13 @@ function TestBuilder({ back, focus, student, onSaved, initialTest = null, duplic
   const [reviewProgress, setReviewProgress] = useState({ done: 0, total: 0 });
   const [reviewErr, setReviewErr] = useState("");
   const [reviewedNote, setReviewedNote] = useState("");
-  const allTopics = Object.keys(QBANK);
   const aiQuestionType = questionFormat === "descriptive" || questionFormat === "code" ? "text" : questionFormat === "mixed" ? "mixed" : "choice";
-  const instructionSamples = [
-    "\u6587\u7ae0\u7406\u89e3\u3092\u78ba\u8a8d\u3057\u305f\u3044",
-    "Java\u306e\u5909\u6570\u5ba3\u8a00\u306b\u3064\u3044\u3066\u3001\u6587\u7ae0\u8aac\u660e\u3067\u306f\u306a\u304f\u3001\u7b54\u3048\u304c\u660e\u78ba\u306b\u6c7a\u307e\u308b\u8a18\u8ff0\u5f0f\u554f\u984c\u3092\u4e2d\u5fc3\u306b\u4f5c\u6210\u3057\u3066\u304f\u3060\u3055\u3044\u3002\n\n\u4f8b\uff1a\n\u300cint\u578b\u306e\u5909\u6570num\u3092\u5ba3\u8a00\u3057\u3066\u304f\u3060\u3055\u3044\u3002\u300d\n\u306e\u3088\u3046\u306b\u3001\u77ed\u3044\u30b3\u30fc\u30c9\u3067\u7b54\u3048\u308b\u554f\u984c\u306b\u3057\u3066\u304f\u3060\u3055\u3044\u3002",
-    "\u30b3\u30fc\u30c9\u3092\u66f8\u304b\u305b\u305f\u3044",
-    "\u5b9f\u52d9\u5bc4\u308a\u306b\u3057\u305f\u3044",
-    "\u521d\u5b66\u8005\u5411\u3051",
-    "\u5fdc\u7528\u30ec\u30d9\u30eb",
-  ];
   const modeExamples = {
     explanation: "Java\u306b\u304a\u3051\u308b\u5909\u6570\u3068\u306f\u4f55\u304b\u8aac\u660e\u3057\u3066\u304f\u3060\u3055\u3044\u3002",
     exact: "int\u578b\u306e\u5909\u6570num\u3092\u5ba3\u8a00\u3057\u3066\u304f\u3060\u3055\u3044\u3002",
     codeExact: "for\u6587\u3092\u4f7f\u3063\u30660\u301c9\u307e\u3067\u8868\u793a\u3057\u3066\u304f\u3060\u3055\u3044\u3002",
     mixed: "\u6587\u7ae0\u8aac\u660e\u30fb\u77ed\u3044\u69cb\u6587\u56de\u7b54\u30fb\u30b3\u30fc\u30c9\u56de\u7b54\u3092\u30d0\u30e9\u30f3\u30b9\u3088\u304f\u51fa\u984c\u3057\u307e\u3059\u3002",
   };
-  const appendInstruction = (text) => setAiInstruction(v => [v.trim(), text].filter(Boolean).join("\n\n"));
   const courseKey = (c) => String(c?.courseId || c?.id || c?.course || "");
   const curriculumKey = (item, i) => String(item?.id || i);
   const selectedCourse = courses.find(c => courseKey(c) === courseId);
@@ -2655,9 +2302,6 @@ function TestBuilder({ back, focus, student, onSaved, initialTest = null, duplic
       .catch(e => { console.warn("test builder curriculum failed", { courseId, error: e }); setCurriculumSections([]); setCurriculumItems([]); setCurriculumErr("カリキュラムを取得できませんでした。"); })
       .finally(() => setCurriculumLoading(false));
   }, [courseId]);
-  function toggleW(i) { setTopics(ts => ts.map((t, j) => j === i ? { ...t, w: t.w === "多め" ? "標準" : "多め" } : t)); }
-  function removeT(i) { setTopics(ts => ts.filter((_, j) => j !== i)); }
-  function addT(v) { const n = (v || "").trim(); if (!n || topics.some(t => t.name === n)) return; setTopics([...topics, { name: n, w: "標準" }]); setNt(""); }
   // Shared response-mapping for both the initial and "generate remaining" AI calls.
   useEffect(() => {
     if (!courseId) { setMaterials([]); setMaterialId(""); return undefined; }
@@ -4833,7 +4477,7 @@ function normalizeCurriculumSections(item) {
   });
   return sections;
 }
-function sessionsFromSections(sections) {
+export function sessionsFromSections(sections) {
   return arr(sections).flatMap(section => section.unitMode === "section" ? [{
     id: section.id,
     categoryTitle: section.title || "",
@@ -4873,7 +4517,8 @@ function sessionsFromSections(sections) {
     durationLabel: lesson.durationLabel || "",
   }))));
 }
-function addMaterialToCurriculumTarget(sections, target, materialId) {
+// 教材フォルダ(LibraryView.jsx)からも使う。紐づけの組み立ては1か所に置く（2026-09-18）
+export function addMaterialToCurriculumTarget(sections, target, materialId) {
   const addId = values => values.includes(materialId) ? values : [...values, materialId];
   if (target.startsWith("section:")) {
     const sectionId = target.slice("section:".length);
@@ -7200,7 +6845,7 @@ function reportDetailItems(r, fields = DEFAULT_REPORT_FIELDS) {
 
 export {
   Card, Badge, Btn, Avatar, Ring, Bar, Stat, SectionHead, EmptyState,
-  TraineeHome, InstructorGoalsDashboard, GoalsView, Curriculum, Materials,
+  TraineeHome, InstructorGoalsDashboard, GoalsView, Curriculum,
   Tests, Attendance, Reports, TraineeList, Karte, ClientHome,
   ElearningView, ReadOnlyCompanies, ReadOnlyCourses, ReadOnlyInstructors,
   // ノート画面もカリキュラムの木を同じ形で読む。作り直すと片方だけ直す事故が起きる

@@ -6,7 +6,11 @@ import {
 } from "../../components/common";
 import MaterialViewer from "./MaterialViewer.jsx";
 import {
-  ChevronRight, Download, FileText, Folder, MoreHorizontal, Pencil, Plus, Trash2, Upload, Users,
+  addMaterialToCurriculumTarget, normalizeCurriculumSections, sessionsFromSections,
+} from "./TrainingComponents.jsx";
+import {
+  ChevronRight, Download, FileText, Folder, HardDrive, MoreHorizontal, Pencil, Plus, Trash2,
+  Upload, Users,
 } from "lucide-react";
 
 /* 研修資料をフォルダで整理する（2026-09-18 打合せ）。
@@ -76,6 +80,8 @@ export default function LibraryView({ role }) {
   const [actionErr, setActionErr] = useState("");
   const [viewing, setViewing] = useState(null);
   const [groups, setGroups] = useState([]);
+  const [usage, setUsage] = useState(null);      // 管理者だけが開ける「容量と費用」
+  const [usageOpen, setUsageOpen] = useState(false);
   const fileInput = useRef(null);
 
   useEffect(() => {
@@ -125,6 +131,37 @@ export default function LibraryView({ role }) {
     () => Object.fromEntries(groups.map(g => [g.groupId, g.name])),
     [groups]
   );
+
+  /* アップロードと同時にカリキュラムの単元へ紐づけられるようにする（2026-09-18）。
+     フォルダに入れるだけだと、カリキュラム画面から選び直す手間が残るため。
+     紐づけ先は MaterialsTable の materialId を見ているので、コース教材のときだけ。 */
+  const [curriculum, setCurriculum] = useState([]);
+  const [linkTarget, setLinkTarget] = useState("");
+  useEffect(() => {
+    setLinkTarget("");
+    if (!courseIdOfSpace || role === "trainee" || role === "client") { setCurriculum([]); return; }
+    let alive = true;
+    apiGet(`/courses/${encodeURIComponent(courseIdOfSpace)}/curriculum`)
+      .then(d => { if (alive) setCurriculum(normalizeCurriculumSections(d)); })
+      .catch(() => { if (alive) setCurriculum([]); });
+    return () => { alive = false; };
+  }, [courseIdOfSpace, role]);
+
+  const linkOptions = useMemo(() => {
+    const out = [];
+    (curriculum || []).forEach(section => {
+      out.push({ value: `section:${section.id}`, label: `大項目：${section.title || "名称未設定"}` });
+      (section.chapters || []).forEach(chapter => {
+        (chapter.lessons || []).forEach(lesson => {
+          out.push({
+            value: `lesson:${lesson.id}`,
+            label: `　${chapter.title || "章"} / ${lesson.title || "名称未設定"}`,
+          });
+        });
+      });
+    });
+    return out;
+  }, [curriculum]);
 
   const byId = useMemo(() => {
     const m = new Map();
@@ -265,8 +302,32 @@ export default function LibraryView({ role }) {
           materialId: got.materialId, name: f.name, sizeBytes: f.size,
           contentType: got.contentType,
         });
-        setNotice(`「${f.name}」を追加しました。`);
+        // カリキュラムへの紐づけは、失敗してもアップロード自体は成功として扱う
+        let linked = "";
+        if (linkTarget && got.materialId && courseIdOfSpace) {
+          try {
+            const next = addMaterialToCurriculumTarget(curriculum, linkTarget, got.materialId);
+            await apiPut(`/courses/${encodeURIComponent(courseIdOfSpace)}/curriculum`, {
+              sections: next, sessions: sessionsFromSections(next),
+            });
+            setCurriculum(next);
+            linked = "カリキュラムにも紐づけました。";
+          } catch (e) {
+            linked = "ただし、カリキュラムへの紐づけはできませんでした（カリキュラム画面から選べます）。";
+          }
+        }
+        setNotice(`「${f.name}」を追加しました。${linked}`);
       });
+    }
+  }
+
+  async function openUsage() {
+    setUsageOpen(true);
+    setUsage(null);
+    try {
+      setUsage(await apiGet("/library/usage"));
+    } catch (e) {
+      setUsage({ error: e?.errorMessage || e?.message || "集計を取得できませんでした。" });
     }
   }
 
@@ -289,6 +350,9 @@ export default function LibraryView({ role }) {
         desc="コース教材と全社の共有ライブラリを、フォルダで整理します。公開範囲はフォルダごとに決められます。"
         action={
           <div className="flex flex-wrap items-center gap-2">
+            {role === "admin" && (
+              <Btn kind="ghost" icon={HardDrive} onClick={openUsage}>容量と費用</Btn>
+            )}
             <select
               value={spaceId}
               onChange={e => setSpaceId(e.target.value)}
@@ -335,6 +399,19 @@ export default function LibraryView({ role }) {
             )}
             <Btn size="sm" icon={Plus} onClick={newFolder} disabled={!mayWriteHere || !!busy}
               title={mayWriteHere ? "" : "このフォルダに作る権限がありません。"}>フォルダ</Btn>
+            {mayWriteHere && linkOptions.length > 0 && (
+              <select
+                value={linkTarget}
+                onChange={e => setLinkTarget(e.target.value)}
+                aria-label="アップロードしたものをカリキュラムへ紐づける"
+                title="アップロードと同時に、カリキュラムの単元へ紐づけます"
+                className="max-w-56 rounded-xl px-2.5 py-1.5 text-xs outline-none"
+                style={{ border: `1px solid ${linkTarget ? T.accent : T.border}`, color: linkTarget ? T.accentHover : T.textMuted, background: T.bgSurface }}
+              >
+                <option value="">カリキュラムに紐づけない</option>
+                {linkOptions.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+              </select>
+            )}
             <Btn kind="primary" size="sm" icon={Upload} onClick={pickFiles} disabled={!mayWriteHere || !!busy}
               title={mayWriteHere ? "" : "このフォルダに置く権限がありません。"}>
               {busy === "upload" ? "アップロード中…" : "アップロード"}
@@ -520,6 +597,10 @@ export default function LibraryView({ role }) {
         );
       })()}
 
+      {usageOpen && (
+        <UsageModal data={usage} onClose={() => setUsageOpen(false)} />
+      )}
+
       {viewing && (
         <MaterialViewer
           courseId={courseIdOfSpace}
@@ -554,6 +635,97 @@ export default function LibraryView({ role }) {
         />
       )}
     </div>
+  );
+}
+
+/* 容量と費用（管理者）。**実測値で出す。**
+   最初に見せた試算ページは仮の数字だったが、ここは本番のデータそのもの。
+   誰が何GB落としたかは出さない。運用に要るのは「上限に近い人が何人か」まで。 */
+function UsageModal({ data, onClose }) {
+  const yen = v => "¥" + Math.round(Number(v) || 0).toLocaleString("ja-JP");
+  const gb = b => (Number(b || 0) / 1024 / 1024 / 1024).toFixed(2) + " GB";
+  return (
+    <Modal
+      title="容量と費用"
+      desc={data?.period ? `${data.period} の実測値です` : "集計しています"}
+      size="lg"
+      onClose={onClose}
+      footer={<div className="flex justify-end"><Btn kind="ghost" onClick={onClose}>閉じる</Btn></div>}
+    >
+      {!data && <SkeletonRows rows={5} />}
+      {data?.error && (
+        <div className="rounded-xl px-3 py-2 text-xs font-semibold" style={{ background: T.dangerSubtle, color: T.danger }}>
+          {data.error}
+        </div>
+      )}
+      {data && !data.error && (
+        <>
+          <div className="grid gap-3 sm:grid-cols-3">
+            {[
+              { l: "保管の合計", v: gb(data.totalBytes), s: yen(data.cost.storageYen) + " / 月" },
+              { l: "今月の通信量", v: gb(data.transfer.bytes), s: data.transfer.billableGb > 0 ? yen(data.cost.transferYen) + " / 月" : "無料枠の中" },
+              { l: "月額の目安", v: yen(data.cost.totalYen), s: "保管＋通信" },
+            ].map(x => (
+              <div key={x.l} className="rounded-xl p-3" style={{ background: T.bgBase }}>
+                <div className="text-[11px] font-bold" style={{ color: T.textMuted }}>{x.l}</div>
+                <div className="mt-0.5 text-xl font-bold tabular-nums" style={{ color: T.textPrimary }}>{x.v}</div>
+                <div className="text-[11px]" style={{ color: T.textSecondary }}>{x.s}</div>
+              </div>
+            ))}
+          </div>
+
+          <div className="mt-4 rounded-xl px-3 py-2.5 text-xs leading-relaxed"
+            style={{ background: data.transfer.billableGb > 0 ? T.warningSubtle : T.successSubtle, color: data.transfer.billableGb > 0 ? T.warning : T.success }}>
+            {data.transfer.billableGb > 0
+              ? `今月の通信量が無料枠（${data.transfer.freeGb} GB）を ${data.transfer.billableGb.toFixed(1)} GB 超えています。`
+              : `今月の通信量は無料枠（${data.transfer.freeGb} GB）の中に収まっています。通信費はかかっていません。`}
+            {data.transfer.overCap > 0 && ` 上限に達した人が ${data.transfer.overCap} 人います。`}
+            {data.transfer.nearCap > 0 && ` 上限が近い人が ${data.transfer.nearCap} 人います。`}
+          </div>
+
+          <div className="mt-4 text-xs font-bold" style={{ color: T.textMuted }}>コース別の保管量</div>
+          <div className="mt-1.5 overflow-x-auto">
+            <table className="w-full min-w-[380px] border-collapse">
+              <thead>
+                <tr>
+                  {["コース", "ファイル", "容量"].map((h, i) => (
+                    <th key={h} className={"py-1.5 text-left text-[11px] font-bold" + (i ? " text-right" : "")}
+                      style={{ color: T.textMuted, borderBottom: `1px solid ${T.border}` }}>{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {data.courses.map(c => (
+                  <tr key={c.courseId} style={{ borderBottom: `1px solid ${T.border}` }}>
+                    <td className="py-2 text-sm" style={{ color: T.textPrimary }}>{c.name}</td>
+                    <td className="py-2 text-right text-xs tabular-nums" style={{ color: T.textMuted }}>{c.files}</td>
+                    <td className="py-2 text-right text-xs font-semibold tabular-nums" style={{ color: T.textSecondary }}>{gb(c.bytes)}</td>
+                  </tr>
+                ))}
+                <tr style={{ borderBottom: `1px solid ${T.border}` }}>
+                  <td className="py-2 text-sm" style={{ color: T.textPrimary }}>共有ライブラリ</td>
+                  <td className="py-2 text-right text-xs tabular-nums" style={{ color: T.textMuted }}>{data.shared.files}</td>
+                  <td className="py-2 text-right text-xs font-semibold tabular-nums" style={{ color: T.textSecondary }}>{gb(data.shared.bytes)}</td>
+                </tr>
+                <tr>
+                  <td className="py-2 text-sm" style={{ color: T.textPrimary }}>
+                    個人フォルダ<span className="ml-1.5 text-[11px]" style={{ color: T.textMuted }}>{data.personal.people}人が使用</span>
+                  </td>
+                  <td className="py-2 text-right text-xs tabular-nums" style={{ color: T.textMuted }}>{data.personal.files}</td>
+                  <td className="py-2 text-right text-xs font-semibold tabular-nums" style={{ color: T.textSecondary }}>{gb(data.personal.bytes)}</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
+          <p className="mt-3 text-[11px] leading-relaxed" style={{ color: T.textMuted }}>
+            {data.cost.note} アプリ本体の配信・API・DB・AI生成の費用は入っていません。
+            通信量は<b>URLを出した時点</b>で数えているため、実際に落とした量より多めに出ます。
+            個人フォルダの中身は本人以外に見えません（ここでは容量だけを集計しています）。
+          </p>
+        </>
+      )}
+    </Modal>
   );
 }
 
