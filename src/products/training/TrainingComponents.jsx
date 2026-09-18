@@ -2954,13 +2954,14 @@ function TestBuilder({ back, focus, student, onSaved, initialTest = null, duplic
     }));
     setReviews(prev => ({ ...prev, [i]: { ...prev[i], applied: true } }));
   }
+  /* まとめて反映できるのは、修正案がある問と、**中身は合っているがページだけずれた問**。
+     スライドを足したときは後者がまとまって出るので、1問ずつ押させない */
+  const canApplyReview = (r) => !!r && !r.applied && (r.verdict === "fix" || (r.verdict === "ok" && r.pageMoved));
   function applyAllReviews() {
-    Object.keys(reviews).forEach(k => {
-      const r = reviews[k];
-      if (r && r.verdict === "fix" && !r.applied) applyReview(Number(k));
-    });
+    Object.keys(reviews).forEach(k => { if (canApplyReview(reviews[k])) applyReview(Number(k)); });
   }
   const reviewList = Object.values(reviews);
+  const reviewApplyCount = reviewList.filter(canApplyReview).length;
   const reviewFixCount = reviewList.filter(r => r.verdict === "fix" && !r.applied).length;
   const reviewOkCount = reviewList.filter(r => r.verdict === "ok").length;
   const reviewOutdatedCount = reviewList.filter(r => r.verdict === "outdated").length;
@@ -3129,8 +3130,8 @@ function TestBuilder({ back, focus, student, onSaved, initialTest = null, duplic
               <Btn kind="ai" icon={RefreshCw} disabled={reviewBusy || !sourcePages.length} onClick={reviewAgainstMaterial}>
                 {reviewBusy ? `点検中… ${reviewProgress.done}/${reviewProgress.total}問` : "読み取ったページで点検"}
               </Btn>
-              {reviewFixCount > 0 && !reviewBusy && (
-                <Btn icon={CheckCircle2} onClick={applyAllReviews}>修正案をまとめて反映（{reviewFixCount}問）</Btn>
+              {reviewApplyCount > 0 && !reviewBusy && (
+                <Btn icon={CheckCircle2} onClick={applyAllReviews}>まとめて反映（{reviewApplyCount}問）</Btn>
               )}
             </div>
           </div>
