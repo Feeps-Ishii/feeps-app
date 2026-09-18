@@ -1,7 +1,8 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { apiGet, apiPost, apiPut, apiDelete } from "../../api.js";
 import {
-  T, Card, Btn, Badge, Field, Modal, EmptyState, SectionHead, SkeletonRows, PrismErrorRetryCard,
+  T, NOVA, Z, Card, Btn, Badge, Field, Modal, EmptyState, SectionHead, SkeletonRows, PrismErrorRetryCard,
 } from "../../components/common";
 import MaterialViewer from "./MaterialViewer.jsx";
 import {
@@ -462,38 +463,23 @@ export default function LibraryView({ role }) {
                       </td>
                       <td className="px-4 py-2.5 text-right text-xs tabular-nums" style={{ color: T.textSecondary }}>{fmtSize(size)}</td>
                       <td className="px-4 py-2.5 text-xs tabular-nums" style={{ color: T.textMuted }}>{fmtDate(n.updatedAt)}</td>
-                      <td className="relative px-2 py-2.5 text-right">
+                      <td className="px-2 py-2.5 text-right">
                         <button
                           type="button"
                           aria-label={`${n.name} の操作`}
-                          onClick={e => { e.stopPropagation(); setMenuFor(menuFor === n.nodeId ? null : n.nodeId); }}
+                          aria-haspopup="menu"
+                          aria-expanded={menuFor?.nodeId === n.nodeId}
+                          onClick={e => {
+                            e.stopPropagation();
+                            if (menuFor?.nodeId === n.nodeId) { setMenuFor(null); return; }
+                            // 表の overflow に切られないよう、画面に対する位置で開く
+                            setMenuFor({ nodeId: n.nodeId, rect: e.currentTarget.getBoundingClientRect() });
+                          }}
                           className="rounded-lg p-1.5"
                           style={{ color: T.textMuted }}
                         >
                           <MoreHorizontal size={16} />
                         </button>
-                        {menuFor === n.nodeId && (
-                          <div
-                            onClick={e => e.stopPropagation()}
-                            className="absolute right-2 z-20 mt-1 w-52 rounded-xl p-1.5 text-left shadow-lg"
-                            style={{ background: T.bgSurface, border: `1px solid ${T.border}` }}
-                          >
-                            {n.type === "file" && (
-                              <MenuItem icon={Download} label="ダウンロード" onClick={() => { setMenuFor(null); openFile(n, true); }} />
-                            )}
-                            {n.canWrite ? (
-                              <>
-                                <MenuItem icon={Users} label="公開範囲を変える" onClick={() => { setMenuFor(null); setAclTarget(n); }} />
-                                <MenuItem icon={Pencil} label="名前を変える" onClick={() => { setMenuFor(null); rename(n); }} />
-                                <MenuItem icon={Trash2} label="削除" danger onClick={() => { setMenuFor(null); remove(n); }} />
-                              </>
-                            ) : (
-                              <div className="px-2.5 py-2 text-[11px]" style={{ color: T.textMuted }}>
-                                このフォルダは見るだけです。
-                              </div>
-                            )}
-                          </div>
-                        )}
                       </td>
                     </tr>
                   );
@@ -509,6 +495,30 @@ export default function LibraryView({ role }) {
           このコースのフォルダが多くなりすぎています。整理してください。
         </Card>
       )}
+
+      {/* 行のメニュー。**表の外に出す**（overflow-x-auto の中だと下が切れる） */}
+      {menuFor && (() => {
+        const n = byId.get(menuFor.nodeId);
+        if (!n) return null;
+        return (
+          <RowMenu anchor={menuFor.rect} onClose={() => setMenuFor(null)}>
+            {n.type === "file" && (
+              <MenuItem icon={Download} label="ダウンロード" onClick={() => { setMenuFor(null); openFile(n, true); }} />
+            )}
+            {n.canWrite ? (
+              <>
+                <MenuItem icon={Users} label="公開範囲を変える" onClick={() => { setMenuFor(null); setAclTarget(n); }} />
+                <MenuItem icon={Pencil} label="名前を変える" onClick={() => { setMenuFor(null); rename(n); }} />
+                <MenuItem icon={Trash2} label="削除" danger onClick={() => { setMenuFor(null); remove(n); }} />
+              </>
+            ) : (
+              <div className="px-2.5 py-2 text-[11px]" style={{ color: T.textMuted }}>
+                {n.type === "folder" ? "このフォルダは見るだけです。" : "この資料は見るだけです。"}
+              </div>
+            )}
+          </RowMenu>
+        );
+      })()}
 
       {viewing && (
         <MaterialViewer
@@ -544,6 +554,62 @@ export default function LibraryView({ role }) {
         />
       )}
     </div>
+  );
+}
+
+/* 行の「⋯」メニュー。**body直下に出す。**
+   表の中に置くと `overflow-x-auto` に切られて、下の項目が読めなくなる。
+   画面の下端に近いときは上へ開く。 */
+function RowMenu({ anchor, onClose, children }) {
+  const ref = useRef(null);
+  const [pos, setPos] = useState({ left: -9999, top: -9999 });
+
+  useLayoutEffect(() => {
+    const el = ref.current;
+    if (!el || !anchor) return;
+    const { width, height } = el.getBoundingClientRect();
+    const gap = 4;
+    const left = Math.max(8, Math.min(anchor.right - width, window.innerWidth - width - 8));
+    const below = anchor.bottom + gap;
+    const top = below + height > window.innerHeight - 8
+      ? Math.max(8, anchor.top - height - gap)
+      : below;
+    setPos({ left, top });
+  }, [anchor]);
+
+  useEffect(() => {
+    // 開いたまま裏がスクロールすると位置がずれるので、動いたら閉じる
+    const close = () => onClose();
+    const onKey = e => { if (e.key === "Escape") onClose(); };
+    // 本体の外（ヘッダーやレールなど）を押しても閉じるようにする。
+    // 開いたその click で閉じないよう、次のフレームから見はじめる
+    const id = requestAnimationFrame(() => document.addEventListener("click", close));
+    window.addEventListener("scroll", close, true);
+    window.addEventListener("resize", close);
+    window.addEventListener("keydown", onKey);
+    return () => {
+      cancelAnimationFrame(id);
+      document.removeEventListener("click", close);
+      window.removeEventListener("scroll", close, true);
+      window.removeEventListener("resize", close);
+      window.removeEventListener("keydown", onKey);
+    };
+  }, [onClose]);
+
+  return createPortal(
+    <div
+      ref={ref}
+      role="menu"
+      onClick={e => e.stopPropagation()}
+      className="fixed w-56 rounded-xl p-1.5 text-left"
+      style={{
+        left: pos.left, top: pos.top, zIndex: Z.modal,
+        background: T.bgSurface, border: `1px solid ${T.border}`, boxShadow: NOVA.shadowMd,
+      }}
+    >
+      {children}
+    </div>,
+    document.body
   );
 }
 
