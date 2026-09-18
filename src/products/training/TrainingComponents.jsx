@@ -2042,6 +2042,9 @@ function Tests({ role, go }) {
   const takingUsesBrowserHistoryRef = useRef(false);
   const [building, setBuilding] = useState(false);
   const [editingTest, setEditingTest] = useState(null);
+  // 「AIで作る」と「手で作る」で画面の中身を変える（2026-09-18）。
+  // どちらも同じ画面だったため、ボタンが2つある意味が無かった
+  const [buildMode, setBuildMode] = useState("manual");
   const [duplicateTest, setDuplicateTest] = useState(false);
   const [buildFocus, setBuildFocus] = useState(null);
   const [buildStudent, setBuildStudent] = useState(null);
@@ -2303,7 +2306,7 @@ function Tests({ role, go }) {
   }
 
   if (taking) return <TestTaking test={taking} preview={takingPreview} back={closeTaking} onDone={handleDone} go={go} />;
-  if (building) return <TestBuilder back={() => { setBuilding(false); setEditingTest(null); setDuplicateTest(false); }} focus={buildFocus} student={buildStudent} onSaved={loadTests} initialTest={editingTest} duplicate={duplicateTest} />;
+  if (building) return <TestBuilder mode={buildMode} back={() => { setBuilding(false); setEditingTest(null); setDuplicateTest(false); }} focus={buildFocus} student={buildStudent} onSaved={loadTests} initialTest={editingTest} duplicate={duplicateTest} />;
   if (testLoadState === "loading") {
     return <div><SectionHead title="テスト" desc={role === "trainee" ? "受験結果と公開テストを確認しています" : "公開テストと受験結果を確認しています"} /><Card className="p-5"><SkeletonRows rows={5} /></Card></div>;
   }
@@ -2382,7 +2385,7 @@ function Tests({ role, go }) {
     const totalNeedsReview = visibleTestStats.reduce((s, v) => s + (v.needsReview || 0), 0);
     return (
     <div>
-      <SectionHead title={canManage ? "テスト管理" : "テスト結果"} desc={canManage ? "範囲と重点を指定して作成・受験後すぐ自動採点" : "自社受講生の公開テスト結果を確認します"} action={canCreateTests ? <div className="flex flex-wrap gap-2"><Btn kind="ai" icon={Sparkles} onClick={() => { setBuildFocus(null); setBuildStudent(null); setBuilding(true); }}>AIでテスト作成</Btn><Btn icon={Plus} onClick={() => { setBuildFocus(null); setBuildStudent(null); setBuilding(true); }}>テストを作成</Btn></div> : null} />
+      <SectionHead title={canManage ? "テスト管理" : "テスト結果"} desc={canManage ? "自分で作るか、教材から作るかを選べます。受験後はすぐ自動採点されます" : "自社受講生の公開テスト結果を確認します"} action={canCreateTests ? <div className="flex flex-wrap gap-2"><Btn kind="ai" icon={Sparkles} onClick={() => { setBuildFocus(null); setBuildStudent(null); setEditingTest(null); setDuplicateTest(false); setBuildMode("ai"); setBuilding(true); }}>教材から作る（AI）</Btn><Btn icon={Plus} onClick={() => { setBuildFocus(null); setBuildStudent(null); setEditingTest(null); setDuplicateTest(false); setBuildMode("manual"); setBuilding(true); }}>自分で作る</Btn></div> : null} />
       {testErr && <div className="mb-4 rounded-lg px-3 py-2 text-xs" style={{ background: T.warningSubtle, color: T.warning }}>{testErr}</div>}
       <OpsFilterPanel filter={opsFilter} summary={results?.rows ? `表示対象: ${opsFilter.targetTrainees.length}名 / 受験済み: ${filteredRows.length}件 / 平均点: ${filteredRows.length ? avg : "—"}点` : `表示対象: ${opsFilter.targetTrainees.length}名`} />
       <Card className="mb-5 overflow-hidden">
@@ -2420,8 +2423,8 @@ function Tests({ role, go }) {
           <div className="flex items-center gap-4">
             <div className="hidden text-right sm:block"><div className="text-sm font-bold" style={{ color: T.textPrimary }}>{testStats[testIdOf(t)]?.avgScore == null ? "結果なし" : `平均 ${testStats[testIdOf(t)].avgScore}点`}</div><div className="text-xs" style={{ color: T.textMuted }}>提出 {testStats[testIdOf(t)]?.submitted || 0}{opsFilter.targetTrainees.length ? ` / 未受験 ${testStats[testIdOf(t)]?.unsubmitted || 0}` : ""}{testStats[testIdOf(t)]?.needsReview ? ` / 採点確認 ${testStats[testIdOf(t)].needsReview}` : ""}</div></div>
             <div className="flex flex-wrap justify-end gap-1.5">
-              {canEditTest(t) && <Btn kind="ghost" size="sm" icon={Pencil} onClick={() => { setEditingTest(t); setDuplicateTest(false); setBuilding(true); }}>編集</Btn>}
-              {canEditTest(t) && <Btn kind="ghost" size="sm" icon={Plus} onClick={() => { setEditingTest(t); setDuplicateTest(true); setBuilding(true); }}>複製</Btn>}
+              {canEditTest(t) && <Btn kind="ghost" size="sm" icon={Pencil} onClick={() => { setEditingTest(t); setDuplicateTest(false); setBuildMode("manual"); setBuilding(true); }}>編集</Btn>}
+              {canEditTest(t) && <Btn kind="ghost" size="sm" icon={Plus} onClick={() => { setEditingTest(t); setDuplicateTest(true); setBuildMode("manual"); setBuilding(true); }}>複製</Btn>}
               {canEditTest(t) && <Btn kind="ghost" size="sm" icon={BookOpen} onClick={() => openAssign(t)}>コースに出す</Btn>}
               {canManage && <Btn kind="ghost" size="sm" icon={Eye} onClick={() => { setTaking(t); setTakingPreview(true); }}>プレビュー</Btn>}
               {canManage && <Btn kind="ghost" size="sm" icon={PlayCircle} onClick={() => { setTaking(t); setTakingPreview(true); }}>試し受験</Btn>}
@@ -2528,7 +2531,8 @@ function Tests({ role, go }) {
     </div>
   );
 }
-function TestBuilder({ back, focus, student, onSaved, initialTest = null, duplicate = false }) {
+function TestBuilder({ back, focus, student, onSaved, initialTest = null, duplicate = false, mode = "ai" }) {
+  const aiMode = mode === "ai";
   const initialQuestions = testQuestionsOf(initialTest);
   const [name, setName] = useState(initialTest ? `${initialTest.title || "テスト"}${duplicate ? " コピー" : ""}` : student ? `${student}さん向け 補強テスト（${focus}）` : focus ? `${focus} 補強テスト` : "オブジェクト指向 確認テスト");
   const [scope, setScope] = useState(initialTest?.description || "");
@@ -2590,6 +2594,8 @@ function TestBuilder({ back, focus, student, onSaved, initialTest = null, duplic
   })));
   const [saveErr, setSaveErr] = useState("");
   const [saving, setSaving] = useState(false);
+  const [polishing, setPolishing] = useState({});
+  const [polishErr, setPolishErr] = useState("");
   const allTopics = Object.keys(QBANK);
   const aiQuestionType = questionFormat === "descriptive" || questionFormat === "code" ? "text" : questionFormat === "mixed" ? "mixed" : "choice";
   const instructionSamples = [
@@ -2752,6 +2758,59 @@ function TestBuilder({ back, focus, student, onSaved, initialTest = null, duplic
       setAiGenerating(false);
     }
   }
+  /* 書きかけの1問だけをAIに整えてもらう。
+     **作り直しではなく、書いたものを活かして埋める。** 手で作る人が、選択肢や解説を
+     考えるところだけ手伝ってほしいときのための機能（2026-09-18）。 */
+  async function polishQuestion(i) {
+    const item = qs[i];
+    if (!item || polishing[i]) return;
+    const draft = [
+      item.q && `設問の下書き: ${item.q}`,
+      Array.isArray(item.a) && item.a.filter(Boolean).length ? `選択肢の下書き: ${item.a.filter(Boolean).join(" / ")}` : "",
+      item.modelAnswer && `想定する答え: ${item.modelAnswer}`,
+      item.explanation && `解説の下書き: ${item.explanation}`,
+    ].filter(Boolean).join("\n");
+    if (!draft) { setPolishErr(`Q${i + 1}: 先に設問を書いてください。書いた内容をもとに整えます。`); return; }
+    setPolishErr("");
+    setPolishing(p => ({ ...p, [i]: true }));
+    try {
+      const isChoice = (item.type || "choice") === "choice" || item.type === "trueFalse";
+      const data = await apiPost("/ai/tests/generate", {
+        courseId,
+        courseName: selectedCourse?.name || title || "テスト",
+        scopeType: "manual",
+        range: scope.trim() || draft,
+        difficulty: level,
+        questionCount: 1,
+        questionType: isChoice ? "choice" : "text",
+        answerMode: answerModeOf(item) || answerMode,
+        instruction: `次の下書きを、そのまま出題できる設問に整えてください。問いたいことは変えず、言い回しを整え、${isChoice ? "選択肢4つと正解" : "模範解答"}・解説・よくある誤答理由・復習ポイントを補ってください。\n\n${draft}`,
+        sourcePages,
+        materialId,
+        materialTitle: selectedMaterial?.title || "",
+      });
+      const got = (Array.isArray(data?.questions) ? data.questions : [])[0];
+      if (!got) throw new Error("AIから内容が返りませんでした。");
+      const mapped = mapAiQuestion(got, i);
+      setQs(list => list.map((row, j) => j === i ? {
+        ...row,
+        q: mapped.q || row.q,
+        a: isChoice && mapped.a?.filter(Boolean).length ? mapped.a : row.a,
+        correctIndex: isChoice ? (Number.isInteger(mapped.correctIndex) ? mapped.correctIndex : row.correctIndex) : row.correctIndex,
+        modelAnswer: isChoice ? row.modelAnswer : (mapped.modelAnswer || row.modelAnswer),
+        explanation: mapped.explanation || row.explanation,
+        wrongReason: mapped.wrongReason || row.wrongReason,
+        reviewPoint: mapped.reviewPoint || row.reviewPoint,
+        w: "AIで整えた",
+      } : row));
+    } catch (e) {
+      const debug = [e?.errorCode, e?.errorMessage, e?.hint].filter(Boolean).join(" / ");
+      setPolishErr(`Q${i + 1}: AIで整えられませんでした。${debug || e?.message || ""}`);
+    } finally {
+      setPolishing(p => ({ ...p, [i]: false }));
+    }
+  }
+
   async function genMore() {
     if (aiGenerating || aiGeneratingMore || aiShortfall <= 0) return;
     setAiGeneratingMore(true);
@@ -2887,6 +2946,7 @@ function TestBuilder({ back, focus, student, onSaved, initialTest = null, duplic
         </div>
       </Card>
 
+      {aiMode && (<>
       {/* 教材（PDF）から問題を作る。**本文はブラウザで読み取ってから渡す** */}
       <Card className="mb-4 p-5">
         <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
@@ -2966,6 +3026,36 @@ function TestBuilder({ back, focus, student, onSaved, initialTest = null, duplic
 
 
 
+      </>)}
+      {!aiMode && (
+        <Card className="mb-4 p-5">
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div className="min-w-0">
+              <div className="text-sm font-bold" style={{ color: T.textPrimary }}>問題を書く</div>
+              <p className="mt-1 text-xs leading-relaxed" style={{ color: T.textMuted }}>
+                設問をひとつずつ足していきます。書きかけでも、各問の<b>「AIで整える」</b>を押すと、
+                選択肢・正解・解説・よくある誤答理由をAIが補います。書いた内容は置き換えません。
+              </p>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <Btn icon={Plus} onClick={addBlankQuestion}>問題を追加</Btn>
+            </div>
+          </div>
+          {/* 説明は保存される（受講生に出る）。AIで整えるときの手がかりにもなる */}
+          <div className="mt-3">
+            <label className="text-xs font-semibold" style={{ color: T.textMuted }}>テストの説明<span className="ml-1 font-normal">（受講生に表示されます・任意）</span></label>
+            <textarea value={scope} onChange={e => setScope(e.target.value)} rows={2}
+              placeholder="例）クラウド基礎の3日目まで。オンデマンドと従量課金の考え方を確認します。"
+              className="mt-1 w-full resize-y rounded-xl px-3 py-2.5 text-sm outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary }} />
+          </div>
+          {qs.length === 0 && (
+            <div className="mt-3 rounded-xl px-3 py-4 text-center text-xs" style={{ background: T.bgBase, color: T.textMuted }}>
+              まだ問題がありません。「問題を追加」から始めてください。
+            </div>
+          )}
+        </Card>
+      )}
+      {polishErr && <div className="mb-3 rounded-xl px-3 py-2 text-xs font-semibold" style={{ background: T.warningSubtle, color: T.warning, border: `1px solid ${T.border}` }}>{polishErr}</div>}
       {qs.length > 0 && (
         <div className="mb-3 flex flex-wrap items-center gap-2 text-xs"><span className="font-bold" style={{ color: T.textPrimary }}>全{qs.length}問</span>
           {counts.map(c => <Badge key={c.name} tone="cyan">{c.name} {c.n}問</Badge>)}</div>
@@ -2979,7 +3069,8 @@ function TestBuilder({ back, focus, student, onSaved, initialTest = null, duplic
             {(item.type === "descriptive" || item.type === "code") && <select value={answerModeOf(item)} onChange={e => editQuestionField(i, "answerMode", e.target.value)} className="rounded-xl px-2 py-1.5 text-xs outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary }}><option value="explanation">{"\u6587\u7ae0\u56de\u7b54"}</option><option value="exact">{"\u6c7a\u5b9a\u56de\u7b54"}</option><option value="codeExact">{"\u30b3\u30fc\u30c9\u56de\u7b54"}</option></select>}
             <input value={item.q} onChange={e => editQ(i, e.target.value)} aria-label={`設問${i + 1}`} className="ff-input flex-1 rounded-lg px-2 py-1.5 text-sm outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary }} />
             <input type="number" min="1" value={item.points || 10} onChange={e => editQuestionField(i, "points", e.target.value)} className="w-20 rounded-lg px-2 py-1.5 text-xs outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary }} />
-            <Badge tone="cyan">{item.topic}</Badge></div>
+            <Btn kind="ai" size="sm" icon={Sparkles} disabled={!!polishing[i]} onClick={() => polishQuestion(i)}>{polishing[i] ? "整えています…" : "AIで整える"}</Btn>
+            {item.topic && <Badge tone="cyan">{item.topic}</Badge>}</div>
           {(item.type || "choice") === "choice" || item.type === "trueFalse" ? <div className="space-y-2 pl-7">{item.a.map((o, oi) => (
             <div key={oi} className="flex items-center gap-2"><Circle size={14} style={{ color: oi === (Number.isInteger(item.correctIndex) ? item.correctIndex : 0) ? T.success : T.textMuted }} />
               <input value={o} onChange={e => editA(i, oi, e.target.value)} aria-label={`設問${i + 1} 選択肢${oi + 1}${oi === 0 ? "（正解）" : ""}`} className="ff-input flex-1 rounded-lg px-2 py-1.5 text-sm outline-none" style={{ border: `1px solid ${T.border}`, color: T.textSecondary }} /></div>
