@@ -109,7 +109,7 @@ function ActionCard({ icon: Icon, title, value, desc, buttonLabel, onClick, tone
 }
 
 function CourseOpenButton({ course, go }) {
-  return <Btn size="sm" kind="ghost" icon={ArrowUpRight} onClick={() => { setActiveCourseId(course.courseId); go("courses"); }}>コースを開く</Btn>;
+  return <Btn size="sm" kind="ghost" icon={ArrowUpRight} onClick={() => { setActiveCourseId(course.courseId); go("curriculum"); }}>カリキュラムを開く</Btn>;
 }
 
 function LinkButton({ label, targetUrl, go }) {
@@ -389,7 +389,7 @@ export default function InstructorWorkspace({ go, displayName = "講師" }) {
 
             <div className="flex min-w-0 flex-col gap-3">
               <TrainingHomePanel title="今日の進行">
-                <TrainingHomePanelRow icon={BookOpen} tone="accent" label={primaryCourse ? textOf(primaryCourse.courseName, "コース名未設定") : "今日の授業"} sub={primaryCourse?.curriculumText || "今日の授業は未設定です。"} actionLabel="状況" onAction={() => { if (primaryCourse) setActiveCourseId(primaryCourse.courseId); go("courses"); }} />
+                <TrainingHomePanelRow icon={BookOpen} tone="accent" label={primaryCourse ? textOf(primaryCourse.courseName, "コース名未設定") : "今日の授業"} sub={primaryCourse?.curriculumText || "今日の授業は未設定です。"} actionLabel="状況" onAction={() => { if (primaryCourse) setActiveCourseId(primaryCourse.courseId); go("curriculum"); }} />
                 <TrainingHomePanelRow icon={GraduationCap} tone="teal" label="受講生" sub="担当している受講生の状況を一覧で確認できます" actionLabel="開く" onAction={() => go("trainees")} />
               </TrainingHomePanel>
               <TrainingHomePanel title="授業の準備" meta={`本日の単元 ${todayLessonCount}件`}>

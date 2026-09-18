@@ -2303,23 +2303,44 @@ function TestBuilder({ back, focus, student, onSaved, initialTest = null, duplic
       .finally(() => setCurriculumLoading(false));
   }, [courseId]);
   // Shared response-mapping for both the initial and "generate remaining" AI calls.
+  /* 教材は**コースを選ばなくても選べる**（2026-09-18）。
+     全コース共通の共有ライブラリへ1回上げておけば、どのテストからでも使えるようにするため。
+     コースを選んだときは、そのコースの教材も一緒に並べる。 */
   useEffect(() => {
-    if (!courseId) { setMaterials([]); setMaterialId(""); return undefined; }
     let alive = true;
-    apiGet(`/materials?courseId=${encodeURIComponent(courseId)}`)
-      .then(list => { if (alive) setMaterials((Array.isArray(list) ? list : []).filter(m => /\.pdf$/i.test(String(m.filename || m.title || "")))); })
-      .catch(() => { if (alive) setMaterials([]); });
+    const mine = courseId
+      ? apiGet(`/materials?courseId=${encodeURIComponent(courseId)}`).catch(() => [])
+      : Promise.resolve([]);
+    const shared = apiGet("/library?spaceId=shared").catch(() => null);
+    Promise.all([mine, shared]).then(([list, lib]) => {
+      if (!alive) return;
+      const isPdf = name => /\.pdf$/i.test(String(name || ""));
+      const rows = (Array.isArray(list) ? list : [])
+        .filter(m => isPdf(m.filename || m.title))
+        .map(m => ({ materialId: m.materialId, title: m.title || m.filename, from: "course" }));
+      // 共有ライブラリは library API から。読み取りは署名URLを別途もらう
+      (lib?.nodes || [])
+        .filter(n => n.type === "file" && isPdf(n.name))
+        .forEach(n => rows.push({ materialId: `shared:${n.nodeId}`, title: n.name, from: "shared", nodeId: n.nodeId }));
+      setMaterials(rows);
+      setMaterialId(prev => (rows.some(r => r.materialId === prev) ? prev : ""));
+    });
     return () => { alive = false; };
   }, [courseId]);
 
   const selectedMaterial = useMemo(() => materials.find(m => m.materialId === materialId) || null, [materials, materialId]);
+  const courseMaterials = useMemo(() => materials.filter(m => m.from === "course"), [materials]);
+  const sharedMaterials = useMemo(() => materials.filter(m => m.from === "shared"), [materials]);
 
   /* 教材の本文を読み取る。**サーバにPDFを開く仕組みが無い**ので、ここで開いて本文だけ送る */
   async function loadMaterialText() {
     if (!selectedMaterial || sourceBusy) return;
     setSourceBusy(true); setSourceNote(""); setSourcePages([]);
     try {
-      const r = await apiGet(`/materials/view?courseId=${encodeURIComponent(courseId)}&materialId=${encodeURIComponent(selectedMaterial.materialId)}`);
+      // 共有ライブラリのものは library API から署名URLをもらう（コースに属していないため）
+      const r = selectedMaterial.from === "shared"
+        ? await apiGet(`/library/download?spaceId=shared&nodeId=${encodeURIComponent(selectedMaterial.nodeId)}`)
+        : await apiGet(`/materials/view?courseId=${encodeURIComponent(courseId)}&materialId=${encodeURIComponent(selectedMaterial.materialId)}`);
       const extracted = await extractPdfPageTexts(r.url);
       // **ページ範囲は読み取ったあとに絞る。** 空欄なら全ページ
       const from = Number(pageFrom) > 0 ? Number(pageFrom) : 1;
@@ -2358,7 +2379,9 @@ function TestBuilder({ back, focus, student, onSaved, initialTest = null, duplic
       reviewPoint: q.reviewPoint || "",
       points: q.points || 10,
       // 復習のとき「教材のどこを見ればいいか」へ戻れるようにする
-      sourceMaterialId: q.sourcePage ? materialId : "",
+      // 共有ライブラリのIDは MaterialsTable の materialId ではないので、戻り先には使わない
+      // （ページ番号だけは残るので「何ページを見るか」は伝わる）
+      sourceMaterialId: q.sourcePage && selectedMaterial?.from === "course" ? materialId : "",
       sourcePage: Number(q.sourcePage) || 0,
     };
   }
@@ -2734,10 +2757,20 @@ function TestBuilder({ back, focus, student, onSaved, initialTest = null, duplic
           </div>
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          <select value={materialId} onChange={e => { setMaterialId(e.target.value); setSourcePages([]); setSourceNote(""); }} disabled={!courseId}
-            className="min-w-56 flex-1 rounded-xl px-3 py-2.5 text-sm outline-none disabled:opacity-60" style={{ border: `1px solid ${T.border}`, color: T.textPrimary }}>
-            <option value="">{courseId ? (materials.length ? "教材を選ぶ" : "このコースにPDFの教材がありません") : "先に参照コースを選んでください"}</option>
-            {materials.map(m => <option key={m.materialId} value={m.materialId}>{m.title || m.filename}</option>)}
+          {/* コースを選ばなくても、共有ライブラリの教材から作れる（2026-09-18） */}
+          <select value={materialId} onChange={e => { setMaterialId(e.target.value); setSourcePages([]); setSourceNote(""); }}
+            className="min-w-56 flex-1 rounded-xl px-3 py-2.5 text-sm outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary }}>
+            <option value="">{materials.length ? "教材を選ぶ" : "使えるPDFの教材がありません"}</option>
+            {courseMaterials.length > 0 && (
+              <optgroup label="このコースの教材">
+                {courseMaterials.map(m => <option key={m.materialId} value={m.materialId}>{m.title}</option>)}
+              </optgroup>
+            )}
+            {sharedMaterials.length > 0 && (
+              <optgroup label="共有ライブラリ（全コース共通）">
+                {sharedMaterials.map(m => <option key={m.materialId} value={m.materialId}>{m.title}</option>)}
+              </optgroup>
+            )}
           </select>
           <div className="flex items-center gap-1.5 text-xs font-semibold" style={{ color: T.textMuted }}>
             <span>ページ</span>

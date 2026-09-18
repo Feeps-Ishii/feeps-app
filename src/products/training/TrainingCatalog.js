@@ -69,21 +69,21 @@ const QBANK = {
 const NAV = {
   trainee: [
     { sec: null, items: [["home", "ホーム", LayoutDashboard]] },
-    { sec: "研修中", items: [["courses", "コース", BookOpen], ["curriculum", "カリキュラム", Calendar], ["reports", "日報", NotebookPen], ["attendance", "勤怠", Clock], ["tests", "テスト", ClipboardCheck], ["materials", "研修資料", FileText], ["notes", "ノート", PenLine], ["goals", "目標とタスク", Target]] },
+    { sec: "研修中", items: [["curriculum", "カリキュラム", Calendar], ["reports", "日報", NotebookPen], ["attendance", "勤怠", Clock], ["tests", "テスト", ClipboardCheck], ["materials", "研修資料", FileText], ["notes", "ノート", PenLine], ["goals", "目標とタスク", Target]] },
   ],
   instructor: [
     { sec: null, items: [["home", "ホーム", LayoutDashboard]] },
-    { sec: "コース運用", items: [["courses", "コース", BookOpen], ["trainees", "受講生", Users], ["announcements", "お知らせ", Megaphone], ["reservations", "予約", CalendarClock]] },
+    { sec: "コース運用", items: [["trainees", "受講生", Users], ["announcements", "お知らせ", Megaphone], ["reservations", "予約", CalendarClock]] },
     { sec: "研修中", items: [["curriculum", "カリキュラム", Calendar], ["reports", "日報", NotebookPen], ["attendance", "勤怠", Clock], ["tests", "テスト", ClipboardCheck], ["materials", "研修資料", FileText], ["goals", "目標とタスク", Target]] },
   ],
   client: [
     { sec: null, items: [["home", "ホーム", LayoutDashboard]] },
-    { sec: "自社", items: [["courses", "コース", BookOpen], ["trainees", "受講生", Users], ["companies", "企業情報", Building2], ["announcements", "お知らせ", Megaphone], ["reservations", "予約", CalendarClock]] },
+    { sec: "自社", items: [["trainees", "受講生", Users], ["companies", "企業情報", Building2], ["announcements", "お知らせ", Megaphone], ["reservations", "予約", CalendarClock]] },
     { sec: "研修中", items: [["curriculum", "カリキュラム", Calendar], ["attendance", "勤怠", Clock], ["reports", "日報", NotebookPen], ["tests", "テスト", ClipboardCheck], ["materials", "研修資料", FileText]] },
   ],
   admin: [
     { sec: null, items: [["home", "ホーム", LayoutDashboard]] },
-    { sec: "全体管理", items: [["courses", "コース", BookOpen], ["trainees", "受講生", GraduationCap], ["companies", "企業", Building2], ["users", "ユーザー・講師", Users], ["announcements", "お知らせ", Megaphone], ["reservations", "予約", CalendarClock]] },
+    { sec: "全体管理", items: [["trainees", "受講生", GraduationCap], ["companies", "企業", Building2], ["users", "ユーザー・講師", Users], ["announcements", "お知らせ", Megaphone], ["reservations", "予約", CalendarClock]] },
     { sec: "研修中", items: [["curriculum", "カリキュラム", Calendar], ["reports", "日報", NotebookPen], ["attendance", "勤怠", Clock], ["tests", "テスト", ClipboardCheck], ["materials", "研修資料", FileText], ["goals", "目標とタスク", Target]] },
   ],
 };

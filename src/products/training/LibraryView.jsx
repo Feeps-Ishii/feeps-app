@@ -9,8 +9,8 @@ import {
   addMaterialToCurriculumTarget, normalizeCurriculumSections, sessionsFromSections,
 } from "./TrainingComponents.jsx";
 import {
-  ChevronRight, Download, FileText, Folder, HardDrive, MoreHorizontal, Pencil, Plus, Trash2,
-  Upload, Users,
+  ChevronRight, Download, FileText, Folder, FolderPlus, HardDrive, MoreHorizontal, Pencil, Plus,
+  Trash2, Upload, Users,
 } from "lucide-react";
 
 /* 研修資料をフォルダで整理する（2026-09-18 打合せ）。
@@ -321,6 +321,23 @@ export default function LibraryView({ role }) {
     }
   }
 
+  /* 共有ライブラリのファイルを、必要なコースへ置く（2026-09-18）。
+     全コース共通で1回だけ上げて、そこから配る使い方にするため。
+     実体はコピーせず、同じものを指すだけ。 */
+  const [linkFile, setLinkFile] = useState(null);
+  function placeToCourses(node, courseIds) {
+    setLinkFile(null);
+    run("link", async () => {
+      const r = await apiPost("/library/link-to-course", { spaceId, nodeId: node.nodeId, courseIds });
+      const done = (r.placed || []).length, already = (r.skipped || []).length;
+      setNotice(
+        (done ? `「${node.name}」を${done}件のコースに置きました。` : "")
+        + (already ? `${already}件はすでに置かれていました。` : "")
+        + (done ? "各コースの研修資料とテスト作成から使えます。" : "")
+      );
+    });
+  }
+
   async function openUsage() {
     setUsageOpen(true);
     setUsage(null);
@@ -573,6 +590,9 @@ export default function LibraryView({ role }) {
             {n.type === "file" && (
               <MenuItem icon={Download} label="ダウンロード" onClick={() => { setMenuFor(null); openFile(n, true); }} />
             )}
+            {n.type === "file" && spaceId === "shared" && role !== "trainee" && role !== "client" && (
+              <MenuItem icon={FolderPlus} label="コースに置く" onClick={() => { setMenuFor(null); setLinkFile(n); }} />
+            )}
             {n.canWrite ? (
               <>
                 <MenuItem icon={Users} label="公開範囲を変える" onClick={() => { setMenuFor(null); setAclTarget(n); }} />
@@ -587,6 +607,15 @@ export default function LibraryView({ role }) {
           </RowMenu>
         );
       })()}
+
+      {linkFile && (
+        <PlaceToCoursesModal
+          node={linkFile}
+          courses={courses}
+          onClose={() => setLinkFile(null)}
+          onPlace={ids => placeToCourses(linkFile, ids)}
+        />
+      )}
 
       {usageOpen && (
         <UsageModal data={usage} onClose={() => setUsageOpen(false)} />
@@ -626,6 +655,49 @@ export default function LibraryView({ role }) {
         />
       )}
     </div>
+  );
+}
+
+/* 共有ライブラリのファイルを、どのコースへ置くか選ぶ。
+   **実体はコピーしない**ので、容量は増えない。それを画面でも言っておく。 */
+function PlaceToCoursesModal({ node, courses, onClose, onPlace }) {
+  const [picked, setPicked] = useState([]);
+  const toggle = id => setPicked(p => (p.includes(id) ? p.filter(x => x !== id) : [...p, id]));
+  return (
+    <Modal
+      title="コースに置く"
+      desc={`「${node.name}」を、選んだコースの研修資料に置きます`}
+      onClose={onClose}
+      footer={
+        <div className="flex justify-end gap-2">
+          <Btn kind="ghost" onClick={onClose}>やめる</Btn>
+          <Btn disabled={!picked.length} onClick={() => onPlace(picked)}>置く（{picked.length}件）</Btn>
+        </div>
+      }
+    >
+      {courses.length === 0 ? (
+        <p className="text-sm" style={{ color: T.textMuted }}>置けるコースがありません。</p>
+      ) : (
+        <div className="flex flex-col gap-1.5">
+          {courses.map(c => {
+            const on = picked.includes(c.courseId);
+            return (
+              <label key={c.courseId} className="flex cursor-pointer items-center gap-2.5 rounded-xl px-3 py-2.5"
+                style={{ border: `1px solid ${on ? T.accent : T.border}`, background: on ? T.accentSubtle : "transparent" }}>
+                <input type="checkbox" checked={on} onChange={() => toggle(c.courseId)} />
+                <span className="text-sm font-semibold" style={{ color: on ? T.accentHover : T.textPrimary }}>
+                  {c.name || c.courseId}
+                </span>
+              </label>
+            );
+          })}
+        </div>
+      )}
+      <p className="mt-3 text-[11px] leading-relaxed" style={{ color: T.textMuted }}>
+        ファイルは<b>コピーされません</b>。同じものを各コースから見られるようにするだけなので、容量は増えません。
+        置いたあとは、そのコースのカリキュラムへの紐づけやテスト作成からも使えます。
+      </p>
+    </Modal>
   );
 }
 

@@ -25,6 +25,7 @@ import { mergeCourseGoals } from "./products/training/courseGoals.js";
 import { filterProductsForRoleAndMode, allowedViewModes, shouldShowModeSwitch } from "./utils/common/accessControl.js";
 import useAppNavigationHistory from "./hooks/common/useAppNavigationHistory.js";
 import useCountUp from "./hooks/common/useCountUp.js";
+import { clearActivity, watchIdle } from "./idleSession.js";
 import {
   LayoutDashboard, FileText, ClipboardCheck, Clock, NotebookPen, Users,
   Building2, BookOpen, Settings, GraduationCap, Search, Upload, Download,
@@ -1144,6 +1145,19 @@ export default function App() {
   useEffect(() => { storageSet("feeps.product", product); }, [product]);
   useEffect(() => { storageSet("feeps.subView", subView); }, [subView]);
   useEffect(() => { storageSet("feeps.viewMode", viewMode); }, [viewMode]);
+
+  /* 無操作が12時間続いたらログアウトする（2026-09-18 決定）。
+     触れば延びるので、使っているあいだは切れない。
+     スリープ明けにも気づけるよう、復帰時にも見ている（idleSession.js） */
+  const [idleLoggedOut, setIdleLoggedOut] = useState(false);
+  useEffect(() => {
+    if (!loggedIn) return undefined;
+    setIdleLoggedOut(false);
+    return watchIdle(() => {
+      setIdleLoggedOut(true);
+      logout();
+    });
+  }, [loggedIn]);
   // 研修管理/学習の2モード分離。contractModeはuserProfile読み込み後（GET /profile/me）に
   // 判明する非同期値のため、早期実行のnormalizeAppRoute()ではなくこの補正useEffectへ寄せている
   // （product/roleの既存の補正パターンと同じ場所に、mode条件を&&で足す増分実装）。
@@ -1346,6 +1360,7 @@ export default function App() {
     setAuthRetryKey(value => value + 1);
   }
   async function logout() {
+    clearActivity();
     try { await signOut(); } catch (e) {}
     resetNavigationHistorySession();
     clearTrainingTargetContext();
@@ -1501,7 +1516,18 @@ export default function App() {
 
   if (!authChecked) return <PageLoading label="ログイン状態を確認しています…" />;
   if (authBootstrapError) return <div className="grid min-h-screen place-items-center p-5" style={{ background: T.bgBase }}><Card className="w-full max-w-md p-6 text-center"><AlertCircle size={28} className="mx-auto" style={{ color: T.warning }} /><h1 className="mt-3 text-lg font-bold" style={{ color: T.textPrimary }}>ログイン状態を確認できません</h1><p className="mt-2 text-sm" style={{ color: T.textMuted }}>{authBootstrapError}</p><Btn className="mt-5" icon={RefreshCw} onClick={() => setAuthRetryKey(value => value + 1)}>再試行</Btn></Card></div>;
-  if (!loggedIn) return <Login onLogin={login} />;
+  if (!loggedIn) {
+    return (
+      <>
+        {idleLoggedOut && (
+          <div className="px-4 py-2.5 text-center text-sm font-semibold" style={{ background: T.warningSubtle, color: T.warning }}>
+            しばらく操作がなかったため、自動でログアウトしました。もう一度サインインしてください。
+          </div>
+        )}
+        <Login onLogin={login} />
+      </>
+    );
+  }
   if (!profileChecked) return null;
   // 利用規約・プライバシーポリシーへの同意が未記録なら、先に同意してもらう
   if (needsTermsAgreement(userProfile)) {
