@@ -11,7 +11,11 @@ import { AlertCircle, ChevronDown, HelpCircle, ListChecks, PenLine, Plus, Search
 /* 研修ノート。正典: docs/specs/training-notes-spec.md
  *
  * **整理をさせない。** タグもフォルダも作らせず、カリキュラムの並び順に勝手に並べる。
- * そのために、すべてのノートは単元(lessonId)に刺さる。刺さらないノートは作れない。 */
+ * そのために、ノートは単元(lessonId)に刺さるのが基本。
+ *
+ * ただし **単元に紐づけないノートも作れる**（2026-09-18）。どの単元か決まらないうちに
+ * 書きたいもの、授業と関係ないメモを、書けずに諦めさせないため。紐づけないものは
+ * 先頭にまとめて出し、あとから単元を選び直せる。 */
 
 const FILTERS = [["all", "すべて"], ["later", "あとで見返す"], ["unknown", "わからない"]];
 
@@ -76,11 +80,22 @@ export default function NotesView() {
         .filter(Boolean).some(v => String(v).toLowerCase().includes(needle));
     };
     const byLesson = {};
-    notes.filter(hit).forEach(n => { (byLesson[n.lessonId] ||= []).push(n); });
+    const free = [];
+    notes.filter(hit).forEach(n => {
+      if (!n.lessonId) { free.push(n); return; }
+      (byLesson[n.lessonId] ||= []).push(n);
+    });
     // 単元の順番はカリキュラムが決めている。並べ替えUIは作らない
     const rows = lessons
       .filter(l => byLesson[l.id]?.length)
       .map(l => ({ lesson: l, items: byLesson[l.id] }));
+    // **紐づけないノートは先頭。** 場所が決まっていないぶん、探しに来るのはここになる
+    if (free.length) {
+      rows.unshift({
+        lesson: { id: "__free", title: "単元に紐づけないノート", sectionTitle: "", chapterTitle: "" },
+        items: free,
+      });
+    }
     // カリキュラムから消えた単元のノートも落とさない（最後にまとめる）
     const orphan = Object.keys(byLesson).filter(id => !lessonById[id]);
     if (orphan.length) {
@@ -100,10 +115,11 @@ export default function NotesView() {
 
   /* ---- 保存 ---- */
   const save = useCallback(async () => {
-    if (!editing?.lessonId || !editing.body.trim()) return;
+    // 単元は任意。本文さえあれば保存できる
+    if (!editing || !editing.body.trim()) return;
     setSaving(true); setSaveErr("");
     try {
-      const payload = { courseId, lessonId: editing.lessonId, body: editing.body, kind: "note" };
+      const payload = { courseId, lessonId: editing.lessonId || "", body: editing.body, kind: "note" };
       const saved = editing.noteId
         ? await apiPut(`/notes/${editing.noteId}`, payload)
         : await apiPost("/notes/me", payload);
@@ -168,20 +184,33 @@ export default function NotesView() {
           onChange={setEditing} onSave={save} onCancel={() => setEditing(null)}
         />
       ) : (
-        <button
-          onClick={() => setEditing({ lessonId: lessons[0]?.id || "", body: "" })}
-          disabled={!lessons.length}
-          className="flex w-full items-center gap-3 rounded-2xl border p-4 text-left disabled:opacity-50"
-          style={{ borderColor: PRISM.line, background: PRISM.surface }}>
-          <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl"
-            style={{ background: PRISM.accentSubtle, color: PRISM.accent }}><Plus size={18} /></span>
-          <span className="min-w-0">
-            <span className="block text-sm font-bold" style={{ color: PRISM.ink }}>ノートを書く</span>
-            <span className="block text-xs" style={{ color: PRISM.mut }}>
-              {lessons.length ? "単元を選んで書くと、その場所に残ります。" : "このコースのカリキュラムがまだありません。"}
+        <div className="flex flex-col gap-2 sm:flex-row">
+          <button
+            onClick={() => setEditing({ lessonId: lessons[0]?.id || "", body: "" })}
+            disabled={!lessons.length}
+            className="flex min-w-0 flex-1 items-center gap-3 rounded-2xl border p-4 text-left disabled:opacity-50"
+            style={{ borderColor: PRISM.line, background: PRISM.surface }}>
+            <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl"
+              style={{ background: PRISM.accentSubtle, color: PRISM.accent }}><Plus size={18} /></span>
+            <span className="min-w-0">
+              <span className="block text-sm font-bold" style={{ color: PRISM.ink }}>単元にひもづけて書く</span>
+              <span className="block text-xs" style={{ color: PRISM.mut }}>
+                {lessons.length ? "単元を選んで書くと、その場所に残ります。" : "このコースのカリキュラムがまだありません。"}
+              </span>
             </span>
-          </span>
-        </button>
+          </button>
+          <button
+            onClick={() => setEditing({ lessonId: "", body: "" })}
+            className="flex min-w-0 flex-1 items-center gap-3 rounded-2xl border p-4 text-left"
+            style={{ borderColor: PRISM.line, background: PRISM.surface }}>
+            <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl"
+              style={{ background: PRISM.bgSoft || PRISM.accentSubtle, color: PRISM.mut }}><PenLine size={18} /></span>
+            <span className="min-w-0">
+              <span className="block text-sm font-bold" style={{ color: PRISM.ink }}>とりあえず書く（フリーメモ）</span>
+              <span className="block text-xs" style={{ color: PRISM.mut }}>単元を決めずに書けます。あとから紐づけ直せます。</span>
+            </span>
+          </button>
+        </div>
       )}
 
       {/* 探す */}
@@ -214,7 +243,7 @@ export default function NotesView() {
             {notes.length ? "この条件に合うノートはありません" : "まだノートがありません"}
           </div>
           <div className="mt-1 text-xs" style={{ color: PRISM.mut }}>
-            {notes.length ? "検索や絞り込みを外すと出てきます。" : "授業中に気づいたことを、単元に紐づけて残せます。"}
+            {notes.length ? "検索や絞り込みを外すと出てきます。" : "授業中に気づいたことを残せます。単元に紐づけても、紐づけずに書いても構いません。"}
           </div>
         </PrismCard>
       ) : (

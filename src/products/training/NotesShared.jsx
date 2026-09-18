@@ -90,10 +90,13 @@ export function Editor({ lessons, value, saving, onChange, onSave, onCancel, row
         <div className="flex flex-wrap items-center gap-2">
           <span className="text-xs font-bold" style={{ color: PRISM.mut }}>どの単元のノートか</span>
           <div className="relative min-w-0 flex-1">
+            {/* **単元に紐づけないノートも作れる。** どの単元か決まらないうちに書きたいもの、
+                授業と関係ないメモを、書けずに諦めさせないため（2026-09-18） */}
             <select
               value={value.lessonId} onChange={e => onChange({ ...value, lessonId: e.target.value })}
               className="w-full appearance-none rounded-xl border py-2 pl-3 pr-9 text-sm"
               style={{ borderColor: PRISM.line, background: PRISM.surface, color: PRISM.ink }}>
+              <option value="">単元に紐づけない（フリーメモ）</option>
               {lessons.map(l => <option key={l.id} value={l.id}>{lessonLabel(l)}</option>)}
             </select>
             <ChevronDown size={15} className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2" style={{ color: PRISM.mut }} />
