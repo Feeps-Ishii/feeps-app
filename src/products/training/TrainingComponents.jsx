@@ -3134,7 +3134,9 @@ function TestTaking({ test, back, onDone, preview = false, go }) {
     return (
       <div>
         <div className="flex flex-wrap items-center justify-between gap-2"><Btn kind="ghost" size="sm" icon={ChevronLeft} onClick={back}>テスト一覧へ</Btn>{!preview && <Badge tone="green">結果を保存しました</Badge>}</div>
-        <Card className="mx-auto mt-6 max-w-3xl overflow-hidden">
+        {/* **幅は他画面と同じ横いっぱい。** 中央に細く寄せると読むところが狭くなり、
+            解説と再挑戦が縦に伸びて見づらかった（2026-09-18） */}
+        <Card className="mt-6 overflow-hidden">
           <div className="p-8 text-center text-white" style={{ background: pass ? "linear-gradient(135deg,#1FA463,#3FCB86)" : "linear-gradient(135deg,#DF9520,#F0B860)" }}>
             <div className="text-sm opacity-90">{test.title}</div>
             <div className="mt-2 text-5xl font-bold">{result.score}<span className="text-2xl">点</span></div>
@@ -3150,7 +3152,9 @@ function TestTaking({ test, back, onDone, preview = false, go }) {
                     <div className="flex items-start gap-2">
                       <ToneIcon size={16} style={{ color: tone.color, marginTop: 2 }} />
                       <div className="flex-1"><div className="flex flex-wrap items-start justify-between gap-2"><div className="text-sm font-semibold" style={{ color: T.textPrimary }}>{q.q}</div><span className="rounded-full px-2 py-0.5 text-xs font-bold" style={{ background: "#fff", color: tone.color }}>{tone.label} ・ {detail.score == null ? "採点待ち" : `${detail.earned ?? 0}/${detail.points ?? questionPoints(q, 0)}点`}</span></div>
-                        <div className="mt-1 space-y-1 text-xs" style={{ color: T.textSecondary }}>
+                        {/* 広い画面では、解説と再挑戦を左右に並べる。縦に伸びると読み返しづらい */}
+                        <div className="mt-1 grid gap-3 text-xs xl:grid-cols-2 xl:items-start" style={{ color: T.textSecondary }}>
+                          <div className="min-w-0 space-y-1">
                           <div>自分の回答：{isChoice ? (q.a[ans[i]] ?? "未回答") : (ans[i] || "未回答")}</div>
                           <div>{isChoice ? "正解" : "模範解答"}：{isChoice ? q.a[q.c] : (q.modelAnswer || q.answer || "未設定")}</div>
                           {detail.aiEvaluation && <div className="mt-2 rounded-lg bg-white p-3" style={{ border: `1px solid ${T.border}` }}>
@@ -3182,7 +3186,8 @@ function TestTaking({ test, back, onDone, preview = false, go }) {
                           )}
                           {q.wrongReason && <div>よくある誤答理由：{q.wrongReason}</div>}
                           {q.reviewPoint && <div>復習ポイント：{q.reviewPoint}</div>}
-                          <div className="mt-3 rounded-lg bg-white p-3" style={{ border: `1px solid ${T.border}` }}>
+                          </div>
+                          <div className="mt-3 min-w-0 rounded-lg bg-white p-3 xl:mt-0" style={{ border: `1px solid ${T.border}` }}>
                             <div className="mb-2 flex flex-wrap items-center justify-between gap-2"><b>{"\u3082\u3046\u4e00\u5ea6\u6311\u6226"}</b><span className="text-[11px]" style={{ color: T.textMuted }}>{"\u5fa9\u7fd2\u5c02\u7528\u3067\u6b63\u5f0f\u7d50\u679c\u306b\u306f\u53cd\u6620\u3057\u307e\u305b\u3093"}</span></div>
                             {isChoice ? <fieldset className="space-y-1.5"><legend className="sr-only">{`設問${i + 1}の再回答`}</legend>{q.a.map((opt, oi) => <label key={oi} className="flex cursor-pointer items-center gap-2 rounded-lg px-2 py-1.5" style={{ background: retryAns[i] === oi ? T.accentSubtle : T.bgBase }}><input type="radio" name={`retry-${testIdOf(test)}-${i}`} value={oi} checked={retryAns[i] === oi} onChange={() => setRetryAns(s => ({ ...s, [i]: oi }))} className="sr-only" />{retryAns[i] === oi ? <CheckCircle2 size={13} style={{ color: T.accent }} /> : <Circle size={13} style={{ color: T.textMuted }} />}{opt}</label>)}</fieldset> : <textarea value={retryAns[i] || ""} onChange={e => setRetryAns(s => ({ ...s, [i]: e.target.value }))} rows={q.type === "code" ? 5 : 3} className="w-full resize-y rounded-lg px-3 py-2 font-mono text-sm outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary }} />}
                             <div className="mt-2 flex flex-wrap items-center gap-2"><Btn size="sm" kind="ghost" icon={RefreshCw} onClick={() => retryQuestion(i)} disabled={retrying[i]}>{retrying[i] ? "\u63a1\u70b9\u4e2d..." : "\u3082\u3046\u4e00\u5ea6\u6311\u6226"}</Btn>{retry && <span className="rounded-full px-2 py-1 text-xs font-bold" style={{ background: retryTone.bg, color: retryTone.color }}>{"\u524d\u56de"} {retry.previousScore}{"\u70b9"} {"\u2192"} {"\u4eca\u56de"} {retry.score == null ? "\u63a1\u70b9\u5f85\u3061" : `${retry.score}\u70b9`} {retry.diff == null ? "" : retry.diff > 0 ? `+${retry.diff}\u70b9` : `${retry.diff}\u70b9`}</span>}</div>
