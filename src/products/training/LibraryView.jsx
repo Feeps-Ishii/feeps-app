@@ -331,14 +331,6 @@ export default function LibraryView({ role }) {
     }
   }
 
-  function importOld() {
-    if (!window.confirm("このコースの既存の研修資料を、このフォルダの直下に取り込みます。よろしいですか。")) return;
-    run("migrate", async () => {
-      const r = await apiPost("/library/migrate", { spaceId });
-      setNotice(r.added ? `${r.added}件を取り込みました。` : "取り込む資料はありませんでした（すでに取り込み済みです）。");
-    });
-  }
-
   if (loading && !data) {
     return <div><SectionHead title="研修資料" desc="読み込んでいます" /><SkeletonRows rows={6} /></div>;
   }
@@ -394,9 +386,9 @@ export default function LibraryView({ role }) {
             })}
           </nav>
           <div className="ml-auto flex flex-wrap gap-2">
-            {data?.canManage && spaceId.startsWith("course#") && role === "admin" && (
-              <Btn kind="ghost" size="sm" onClick={importOld} disabled={!!busy}>既存の資料を取り込む</Btn>
-            )}
+            {/* 「既存の資料を取り込む」ボタンは置かない（2026-09-18）。
+                コースを初めて開いたときに自動で取り込まれるので、押す場面が無い。
+                取りこぼしたときの手動実行は POST /library/migrate が残してある */}
             <Btn size="sm" icon={Plus} onClick={newFolder} disabled={!mayWriteHere || !!busy}
               title={mayWriteHere ? "" : "このフォルダに作る権限がありません。"}>フォルダ</Btn>
             {mayWriteHere && linkOptions.length > 0 && (
@@ -533,7 +525,6 @@ export default function LibraryView({ role }) {
                           </span>
                         )}
                         {n.acl?.scope === "org" && <span className="ml-1.5 text-[11px]" style={{ color: T.textMuted }}>全コース</span>}
-                        {!n.ownAcl && <span className="ml-1.5 text-[11px]" style={{ color: T.textMuted }}>継承</span>}
                         {n.acl?.traineeWrite && n.acl?.roles?.trainee && (
                           <span className="ml-1.5 text-[11px]" style={{ color: T.textMuted }}>受講生も置ける</span>
                         )}
