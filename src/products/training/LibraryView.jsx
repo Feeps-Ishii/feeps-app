@@ -223,6 +223,8 @@ export default function LibraryView({ role }) {
     setActionErr("");
     if (!forceDownload && courseIdOfSpace && n.materialId && isPdf(n)) {
       setViewing(n);
+      // 開いたぶんは通信量に入るので、メーターを追いつかせる
+      load(true);
       return;
     }
     try {
@@ -231,8 +233,9 @@ export default function LibraryView({ role }) {
         + (forceDownload ? "&mode=download" : "")
       );
       window.open(r.url, "_blank", "noopener");
+      load(true);
     } catch (e) {
-      setActionErr(e?.message || "ファイルを開けませんでした。");
+      setActionErr(e?.errorMessage || e?.message || "ファイルを開けませんでした。");
     }
   }
 
@@ -347,6 +350,27 @@ export default function LibraryView({ role }) {
             {current.canWrite && (
               <Btn kind="ghost" size="sm" onClick={() => setAclTarget(current)}>公開範囲を変える</Btn>
             )}
+          </div>
+        )}
+
+        {/* 今月のダウンロード。**上限に達すると開けなくなる**ので、先に見せておく */}
+        {data?.transfer?.capBytes > 0 && (
+          <div className="px-4 py-2.5" style={{ background: T.bgBase, borderTop: `1px solid ${T.border}` }}>
+            <div className="flex items-center justify-between text-xs" style={{ color: T.textSecondary }}>
+              <span>今月のダウンロード</span>
+              <span className="tabular-nums">{fmtSize(data.transfer.usedBytes)} / {fmtSize(data.transfer.capBytes)}</span>
+            </div>
+            <div className="mt-1.5 h-2 overflow-hidden rounded-full" style={{ background: T.border }}>
+              <div className="h-full rounded-full"
+                style={{
+                  width: `${Math.min(100, (data.transfer.usedBytes / data.transfer.capBytes) * 100).toFixed(1)}%`,
+                  background: data.transfer.usedBytes > data.transfer.capBytes * 0.8 ? T.warning : T.accent,
+                }} />
+            </div>
+            <div className="mt-1 text-[11px]" style={{ color: T.textMuted }}>
+              資料の取り出しにも通信料がかかるため、月ごとの上限があります。
+              上限に達すると、来月まで新しく開けません。
+            </div>
           </div>
         )}
 
