@@ -475,6 +475,18 @@ export default function LearningMagazineHome({ role, isCreator, canUseDevLab, le
 
   return (
     <>
+      {/* 2026-09-26: 体験型Eラーニング「テノラボ」の入口（ADR 0022）。LMSとは別の画面（lab.html）で開く。
+          見た目はテノラボ側に合わせる（白地・墨の線・「ラボ」にだけ黄色の線）。 */}
+      <a href="/lab.html#/home"
+        className="mb-3.5 flex flex-wrap items-center gap-x-4 gap-y-2 rounded-2xl border-2 bg-white px-4 py-3 no-underline"
+        style={{ borderColor: "#15171C", color: "#15171C", boxShadow: "4px 4px 0 #15171C" }}>
+        <span style={{ fontFamily: "'Dela Gothic One', 'Hiragino Kaku Gothic ProN', sans-serif", fontSize: 22, lineHeight: 1, letterSpacing: ".02em" }}>
+          テノ<span style={{ backgroundImage: "linear-gradient(transparent 55%, #FFE14D 55%, #FFE14D 92%, transparent 92%)", padding: "0 .05em" }}>ラボ</span>
+        </span>
+        <span className="text-sm" style={{ color: "#454B57" }}>新しい体験型Eラーニング（試験公開）。コードを書いて、その場で動かしながら学びます。</span>
+        <span className="ml-auto text-sm font-bold">テノラボを開く →</span>
+      </a>
+
       <div className="mb-3.5 grid gap-3.5 lg:grid-cols-2">
         {elearningPillar}
         {devlabPillar}

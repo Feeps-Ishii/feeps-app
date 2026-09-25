@@ -17,6 +17,8 @@ export default defineConfig({
       input: {
         main: resolve(__dirname, "index.html"),
         exercise: resolve(__dirname, "exercise.html"),
+        // テノラボ（体験型Eラーニング）。LMSとは別の画面として開く（ADR 0022）
+        lab: resolve(__dirname, "lab.html"),
       },
     },
   },
