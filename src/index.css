@@ -1,5 +1,20 @@
 @import "tailwindcss";
 
+/* 日本語の折り返し（2026-09-26 ユーザー指摘「不自然に改行されている」）。
+   これまではブラウザ任せで、文字の途中どこでも折り返していた（例：「その｜場で」）。
+   文節の途中では折り返さない（Chrome/Edge は auto-phrase。対応していないブラウザは今までどおり）。
+   入りきらない長い語句だけは、はみ出さないよう途中で折り返す（break-word は列幅の計算を変えない）。 */
+html:lang(ja) body {
+  word-break: auto-phrase;
+  line-break: strict;
+  overflow-wrap: break-word;
+}
+/* 段落は最後の行に1〜2文字だけ残らないように、見出しは行の長さをそろえる */
+p, li, dd, figcaption, blockquote { text-wrap: pretty; }
+h1, h2, h3, h4 { text-wrap: balance; }
+/* コード・入力欄は折り返しの規則を変えない */
+pre, code, kbd, samp, textarea, input { word-break: normal; line-break: auto; }
+
 html,
 body,
 #root {
