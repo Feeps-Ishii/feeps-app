@@ -1,4 +1,5 @@
 import React, { useState } from "react";
+import { Jp } from "../textFlow.jsx";
 import { signIn, signOut, confirmSignIn } from "aws-amplify/auth";
 
 // テノラボのログイン。アカウントは Feeps One と共通（ADR 0022）。
@@ -88,7 +89,7 @@ export default function LoginPage({ onLoggedIn, onGo, pendingClear }) {
               {step === "elsewhere" ? (
                 <>
                   <h1>最初の設定が必要です</h1>
-                  <p className="sub">初回のパスワード設定や、二要素認証の登録がまだのアカウントです。Feeps One の画面で設定を済ませると、テノラボにも同じアカウントで入れます。</p>
+                  <p className="sub"><Jp>初回のパスワード設定や、二要素認証の登録がまだのアカウントです。Feeps One の画面で設定を済ませると、テノラボにも同じアカウントで入れます。</Jp></p>
                   <div className="fm">
                     <a className="btn btn-pri" href={FEEPS_ONE_LOGIN}>Feeps One で設定する</a>
                     <button className="lnk" type="button" onClick={() => setStep("login")}>ログイン画面にもどる</button>
@@ -97,7 +98,7 @@ export default function LoginPage({ onLoggedIn, onGo, pendingClear }) {
               ) : step === "totp" ? (
                 <>
                   <h1>確認コード</h1>
-                  <p className="sub">認証アプリに出ている6桁の数字を入れてください。</p>
+                  <p className="sub"><Jp>認証アプリに出ている6桁の数字を入れてください。</Jp></p>
                   <form className="fm" onSubmit={submitCode} noValidate>
                     <div className="fld">
                       <label htmlFor="tlCode">確認コード</label>
@@ -111,7 +112,7 @@ export default function LoginPage({ onLoggedIn, onGo, pendingClear }) {
               ) : (
                 <>
                   <h1>おかえりなさい</h1>
-                  <p className="sub">{pendingClear ? "ログインすると、さっきの単元2のクリアを残します。" : "Feeps One と同じアカウントで入れます。前回書いたコードの続きから始まります。"}</p>
+                  <p className="sub"><Jp>{pendingClear ? "ログインすると、さっきの単元2のクリアを残します。" : "Feeps One と同じアカウントで入れます。前回書いたコードの続きから始まります。"}</Jp></p>
                   <form className="fm" onSubmit={submit} noValidate>
                     <div className="fld">
                       <label htmlFor="tlMail">メールアドレス</label>
@@ -129,8 +130,8 @@ export default function LoginPage({ onLoggedIn, onGo, pendingClear }) {
                     <button className="lnk" type="button" onClick={() => setForgot(true)}>パスワードを忘れた方</button>
                     {forgot && <div className="info" role="status">パスワードの決め直しは、<a href={FEEPS_ONE_LOGIN}>Feeps One のログイン画面</a>の「パスワードを忘れた方」からできます。決め直したパスワードで、テノラボにも入れます。</div>}
                   </form>
-                  <div className="or"><span>アカウントをお持ちでない方</span></div>
-                  <p className="lg-new" style={{ margin: 0 }}>アカウントは、会社や研修の担当者から届きます。まずは登録なしで、単元を1つ試せます。</p>
+                  <div className="or"><span><Jp>アカウントをお持ちでない方</Jp></span></div>
+                  <p className="lg-new" style={{ margin: 0 }}><Jp>アカウントは、会社や研修の担当者から届きます。まずは登録なしで、単元を1つ試せます。</Jp></p>
                 </>
               )}
             </div>
@@ -138,9 +139,9 @@ export default function LoginPage({ onLoggedIn, onGo, pendingClear }) {
             <aside className="lg-side" aria-label="ログインするとできること">
               <h2>書きかけのコードは、<br /><span className="mk">そのまま</span>待っています。</h2>
               <ul className="lg-list">
-                <li><span className="ic" aria-hidden="true">1</span><div><b>前回の続きから始まる</b><span>止めた単元の、止めたステップから。書いたコードも残っています。</span></div></li>
-                <li><span className="ic" aria-hidden="true">2</span><div><b>自分のアプリが育っていく</b><span>単元を終えるたびに部品が増えて、最後に1本のアプリが手元に残ります。</span></div></li>
-                <li><span className="ic" aria-hidden="true">3</span><div><b>どの端末でも同じ続き</b><span>記録は保存されるので、会社のPCでも家のPCでも続きから始められます。</span></div></li>
+                <li><span className="ic" aria-hidden="true">1</span><div><b>前回の続きから始まる</b><span><Jp>止めた単元の、止めたステップから。書いたコードも残っています。</Jp></span></div></li>
+                <li><span className="ic" aria-hidden="true">2</span><div><b>自分のアプリが育っていく</b><span><Jp>単元を終えるたびに部品が増えて、最後に1本のアプリが手元に残ります。</Jp></span></div></li>
+                <li><span className="ic" aria-hidden="true">3</span><div><b>どの端末でも同じ続き</b><span><Jp>記録は保存されるので、会社のPCでも家のPCでも続きから始められます。</Jp></span></div></li>
               </ul>
             </aside>
           </main>

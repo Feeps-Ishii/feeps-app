@@ -1279,3 +1279,12 @@ body{margin:0; background:#FFFFFF}
 .tl-app .embed-note{display:flex; flex-wrap:wrap; gap:6px 12px; align-items:baseline; padding-block:10px; font-size:13px; color:var(--ink2)}
 .tl-app .embed-note b{font-family:var(--display); font-weight:400; font-size:17px; color:var(--ink)}
 .tl-app .embed-frame{display:block; width:100%; height:calc(100vh - 110px); min-height:560px; border:0; border-top:2px solid var(--ink); background:#fff}
+
+/* ---- 日本語の折り返し（2026-09-26）----
+   文節の途中で折り返さない（Chrome 系は auto-phrase、ほかは strict までで止まる）。
+   説明文は1文ずつを1つのかたまり（.tl-sent）にして、改行が「。」のあとで起きるようにする */
+.tl-app, .tl-lp, .tl-map, .tl-lab{word-break:auto-phrase; line-break:strict}
+.tl-app p, .tl-lp p, .tl-map p, .tl-lab p{text-wrap:pretty}
+.tl-sent, .tl-cl{display:inline-block}
+/* 文の途中の太字・リンク・コードも、短い語句なので1つのかたまりで折り返す */
+[data-jp-done] :is(b, strong, a, code, em){display:inline-block}

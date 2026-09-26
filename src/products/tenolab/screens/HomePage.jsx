@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
+import { Jp } from "../textFlow.jsx";
 import { THUMBS } from "../thumbs.js";
 import { COURSES, COURSE_ID, GOALS, LV, MISSION, SKILLS, UNITS, courseProgress, isPlayable } from "../tenolabData.js";
 
@@ -51,7 +52,7 @@ export default function HomePage({ tab, onTab, onGo, name, progressState, items,
           <button type="button" aria-expanded={menu} aria-controls="tlMe" aria-label="アカウント" onClick={() => setMenu(v => !v)}>{(name || "？").charAt(0)}</button>
           {menu && (
             <div className="me-menu" id="tlMe">
-              <div className="who"><b>{name}</b><span>Feeps One と同じアカウント</span></div>
+              <div className="who"><b>{name}</b><span><Jp>Feeps One と同じアカウント</Jp></span></div>
               <hr />
               <a href={FEEPS_ONE} style={{ fontWeight: 700, textDecoration: "none" }}>Feeps One を開く</a>
               <hr />
@@ -103,7 +104,7 @@ function AppNow({ done }) {
   const lines = [["受講生の数: 5"], ["合計: 389"], ["平均: 77.8"], ["最高点: 90"]];
   return (
     <div className="brw">
-      <div className="brw-bar"><i /><i /><i /><span>score-dashboard</span></div>
+      <div className="brw-bar"><i /><i /><i /><span><Jp>score-dashboard</Jp></span></div>
       <div className="ghost" aria-hidden="true">
         <div className="gh"><span>見出し</span><span>単元5</span></div>
         <div className="gh-row"><div className="gh">数字</div><div className="gh">数字</div><div className="gh">数字</div><div className="gh">単元6</div></div>
@@ -197,7 +198,7 @@ function HomePane({ name, pr, items, onGo, onTab }) {
 
       <section>
         <div className="sh"><h2>ほかのコース</h2><button className="lnk" type="button" onClick={() => onTab("find")}>コースをぜんぶ見る</button>
-          <p>いま中身まで触れるのは「点数ダッシュボードを作ろう」です。ほかのコースは順に開きます。</p></div>
+          <p><Jp>いま中身まで触れるのは「点数ダッシュボードを作ろう」です。ほかのコースは順に開きます。</Jp></p></div>
         <div className="courses">{["quiz", "todo", "nippo"].map(id => <CourseCard key={id} id={id} pr={pr} onGo={onGo} />)}</div>
       </section>
     </div>
@@ -216,7 +217,7 @@ function CourseCard({ id, pr, onGo }) {
       <span className="c-body">
         <span className="c-tags"><span className={"tag " + lv[0]}>{lv[1]}</span><span className="tag">{c.lang}</span>
           {doing ? <span className="tag doing num">学習中 {pr.done}/{pr.total}</span> : !c.open ? <span className="tag">準備中</span> : null}</span>
-        <h3>{c.t}</h3><p>{c.d}</p>
+        <h3>{c.t}</h3><p><Jp>{c.d}</Jp></p>
         {doing && <span className="c-prog" aria-hidden="true"><i style={{ width: (pr.done / pr.total * 100).toFixed(1) + "%" }} /></span>}
         <span className="c-meta"><span><b>{c.units}</b> 単元</span><span>約 <b>{c.h}</b> 時間</span><span className="c-open">{c.open ? (doing ? "続きから →" : "単元を見る →") : "準備中"}</span></span>
       </span>
@@ -235,9 +236,9 @@ function FindPane({ filter, setFilter, goal, setGoal, pr, onGo }) {
   const chips = [["all", "すべて"], ["doing", "学習中"], ["lv1", "はじめて"], ["Web", "Web"], ["Java", "Java"], ["AWS", "AWS"]];
   return (
     <div className="hb">
-      <div className="greet"><div><h1>コースをさがす</h1><p>どのコースも、単元を進めるたびに1本のアプリが育っていきます。</p></div></div>
+      <div className="greet"><div><h1>コースをさがす</h1><p><Jp>どのコースも、単元を進めるたびに1本のアプリが育っていきます。</Jp></p></div></div>
       <section>
-        <div className="sh"><h2>目標から選ぶ</h2><p>なりたい姿を選ぶと、そこまでのコースだけに絞ります。もう一度押すと外れます。</p></div>
+        <div className="sh"><h2>目標から選ぶ</h2><p><Jp>なりたい姿を選ぶと、そこまでのコースだけに絞ります。もう一度押すと外れます。</Jp></p></div>
         <div className="goals">
           {GOALS.map(g => (
             <button key={g.id} className="goal-c" type="button" aria-pressed={goal === g.id} onClick={() => setGoal(goal === g.id ? "" : g.id)}>
@@ -253,7 +254,7 @@ function FindPane({ filter, setFilter, goal, setGoal, pr, onGo }) {
         </div>
         {list.length
           ? <div className="courses">{list.map(c => <CourseCard key={c.id} id={c.id} pr={pr} onGo={onGo} />)}</div>
-          : <p className="wk-note">この組み合わせに合うコースはありません。絞り込みを「すべて」に戻してください。</p>}
+          : <p className="wk-note"><Jp>この組み合わせに合うコースはありません。絞り込みを「すべて」に戻してください。</Jp></p>}
       </section>
     </div>
   );
@@ -263,9 +264,9 @@ function MadePane({ pr, onGo }) {
   const done = pr.done;
   return (
     <div className="hb">
-      <div className="greet"><div><h1>つくったもの</h1><p>いま作っているアプリと、身についたことです。コースを修了すると、ここに作品と修了証が並びます。</p></div></div>
+      <div className="greet"><div><h1>つくったもの</h1><p><Jp>いま作っているアプリと、身についたことです。コースを修了すると、ここに作品と修了証が並びます。</Jp></p></div></div>
       <section>
-        <div className="sh"><h2>身についたこと</h2><p>単元をクリアすると増えます。</p></div>
+        <div className="sh"><h2>身についたこと</h2><p><Jp>単元をクリアすると増えます。</Jp></p></div>
         <div className="skills" style={{ marginTop: 14 }}>
           {SKILLS.map(s => {
             const got = pr.cleared.has(s.unit);
@@ -359,7 +360,7 @@ function HomeCarousel({ pr, next, playable, saved, onGo, onTab }) {
         <div className="car-l">
           <span className="car-k">{cur.k}</span>
           <h2>{cur.title}</h2>
-          <p>{cur.text}</p>
+          <p><Jp>{cur.text}</Jp></p>
           <div><button className="btn btn-pri" type="button" onClick={cur.on}>{cur.cta}</button></div>
         </div>
         <div className="car-r" aria-hidden="true"><Thumb id={cur.thumb} /></div>

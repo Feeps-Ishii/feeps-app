@@ -1,4 +1,5 @@
 import React, { useEffect, useRef } from "react";
+import { wrapSentences } from "./textFlow.jsx";
 
 // モックから持ち込んだ画面（入口・コースマップ・体験ラボ）を載せる台。
 // 中身は固定の HTML 文字列（利用者の入力は入らない）と、その動きを付ける mount 関数。
@@ -39,10 +40,20 @@ export default function MountedHtml({ html, mount, opts, onGo, className, mountK
     let destroy = null;
     try {
       destroy = mount(root, optsRef.current || {});
+      wrapSentences(root);
     } catch (e) {
       console.error("tenolab mount failed", e);
     }
+    // 絞り込みなどで中身が描き直されたら、文ごとのかたまりを付け直す（1フレームに1回まで）
+    let frame = 0;
+    const observer = new MutationObserver(() => {
+      if (frame) return;
+      frame = requestAnimationFrame(() => { frame = 0; wrapSentences(root); });
+    });
+    observer.observe(root, { childList: true, subtree: true });
     return () => {
+      observer.disconnect();
+      if (frame) cancelAnimationFrame(frame);
       root.removeEventListener("click", onClick, true);
       if (typeof destroy === "function") destroy();
       root.innerHTML = "";
