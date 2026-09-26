@@ -13,7 +13,7 @@ import CloudLabProduct from "./products/cloudlab/CloudLabProduct.jsx";
    そこで別の入口（lab-embed.html）で開き、テノラボからは iframe で載せる。
    ログインは同じ（同じドメインなので、Cognito のトークンを共有する）。
    見た目をテノラボに置き換えたら、この入口は外す。 */
-const WHICH = (window.location.hash || "").replace(/^#\/?/, "");
+const whichOf = () => (window.location.hash || "").replace(/^#\/?/, "");
 
 function roleOf(payload = {}) {
   const claimed = String(payload?.["custom:role"] || payload?.role || "").toLowerCase();
@@ -25,6 +25,12 @@ function roleOf(payload = {}) {
 
 function EmbedApp() {
   const [role, setRole] = useState(null); // null=読み込み中 / "out"=未ログイン
+  const [which, setWhich] = useState(whichOf);
+  useEffect(() => {
+    const on = () => setWhich(whichOf());
+    window.addEventListener("hashchange", on);
+    return () => window.removeEventListener("hashchange", on);
+  }, []);
   useEffect(() => {
     fetchAuthSession()
       .then(s => {
@@ -38,7 +44,7 @@ function EmbedApp() {
   if (role === "out") return <p style={{ padding: 24, fontSize: 14 }}>ログインが切れています。テノラボの画面でログインし直してください。</p>;
 
   let body;
-  if (WHICH === "cloudlab") {
+  if (which === "cloudlab") {
     body = role === "client"
       ? <p style={{ fontSize: 14 }}>クラウド実習は、受講する方の機能です。</p>
       : <CloudLabProduct />;

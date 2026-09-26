@@ -307,7 +307,8 @@ function EmbeddedPane({ which }) {
   return (
     <div className="embed-wrap">
       <div className="wrap embed-note"><b>{label}</b><span>中身はいまの{label}です。見た目は順にテノラボに置き換えます。</span></div>
-      <iframe className="embed-frame" title={label} src={`/lab-embed.html#${which}`} />
+      {/* key を変えて枠ごと作り直す（# の後ろだけ変えても、枠の中は読み込み直されない） */}
+      <iframe key={which} className="embed-frame" title={label} src={`/lab-embed.html#${which}`} />
     </div>
   );
 }
