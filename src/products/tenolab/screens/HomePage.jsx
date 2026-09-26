@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { THUMBS } from "../thumbs.js";
 import { COURSES, COURSE_ID, GOALS, LV, MISSION, SKILLS, UNITS, courseProgress, isPlayable } from "../tenolabData.js";
 
@@ -74,15 +74,16 @@ export default function HomePage({ tab, onTab, onGo, name, progressState, items,
       </div>
     );
   } else if (tab === "find") body = <FindPane filter={filter} setFilter={setFilter} goal={goal} setGoal={setGoal} pr={pr} onGo={onGo} />;
-  else if (tab === "devlab") body = <ElsewherePane title="開発演習" text="現場に近い案件を、ひとりで、またはチームで最後まで作ります。テノラボの見た目にするのは次の版です。いまは Feeps One の学習モードで使えます。" />;
-  else if (tab === "cloud") body = <ElsewherePane title="クラウド実習" text="本物のAWSに入る前に、模型で仕組みをつかみます。テノラボの見た目にするのは次の版です。いまは Feeps One の学習モードで使えます。" />;
+  else if (tab === "devlab" || tab === "cloud") body = null;
   else if (tab === "made") body = <MadePane pr={pr} onGo={onGo} />;
   else body = <HomePane name={name} pr={pr} items={items} onGo={onGo} onTab={onTab} />;
 
   return (
     <div className="tl-app tl-home" onClick={e => { if (menu && !e.target.closest(".me")) setMenu(false); }}>
       {header}
-      <div className="wrap">{body}</div>
+      {(tab === "devlab" || tab === "cloud") && progressState !== "loading" && progressState !== "error"
+        ? <EmbeddedPane which={tab === "cloud" ? "cloudlab" : "devlab"} />
+        : <div className="wrap">{body}</div>}
     </div>
   );
 }
@@ -136,10 +137,7 @@ function HomePane({ name, pr, items, onGo, onTab }) {
 
   return (
     <div className="hb">
-      <div className="greet"><div>
-        <h1>おかえりなさい、{name}さん</h1>
-        <p>{next ? (playable ? `単元${pr.done + 1}の${saved ? "続き" : "最初"}から。約${next.min}分で終わります。` : "次の単元は準備中です。できた単元から順に開きます。") : "このコースは全部クリアしました。"}</p>
-      </div></div>
+      <HomeCarousel pr={pr} next={next} playable={playable} saved={saved} onGo={onGo} onTab={onTab} />
 
       {next && (
         <section className="cont" aria-labelledby="tlCont">
@@ -301,11 +299,78 @@ function MadePane({ pr, onGo }) {
   );
 }
 
-function ElsewherePane({ title, text }) {
+/* 開発演習・クラウド実習。見た目をテノラボに置き換えるまでは、今の画面を別の入口（lab-embed.html）で
+   はめ込む。Tailwind の見た目がテノラボ側に混ざらないよう、iframe で分けている（ADR 0022） */
+function EmbeddedPane({ which }) {
+  const label = which === "cloudlab" ? "クラウド実習" : "開発演習";
   return (
-    <div className="hb">
-      <div className="greet"><div><h1>{title}</h1><p>{text}</p></div></div>
-      <div><a className="btn btn-pri" href={FEEPS_ONE}>Feeps One で開く</a></div>
+    <div className="embed-wrap">
+      <div className="wrap embed-note"><b>{label}</b><span>中身はいまの{label}です。見た目は順にテノラボに置き換えます。</span></div>
+      <iframe className="embed-frame" title={label} src={`/lab-embed.html#${which}`} />
     </div>
+  );
+}
+
+/* ホームの上の、自動で切り替わる画面。続きの単元・アプリの今・ほかの場所を順に見せる。
+   触れている間と、動きを減らす設定のときは止める */
+function HomeCarousel({ pr, next, playable, saved, onGo, onTab }) {
+  const slides = [];
+  if (next && playable) {
+    const ms = MISSION[next.id];
+    slides.push({
+      key: "next", k: saved ? "つづきから" : "次の単元", title: next.t,
+      text: (ms ? ms.todo + "。" : "") + "約" + next.min + "分。",
+      cta: saved ? "続きをはじめる" : "はじめる", on: () => onGo(`unit:${COURSE_ID}:${next.id}`), thumb: "dash", tone: "y",
+    });
+  }
+  slides.push({
+    key: "app", k: "あなたのアプリ", title: pr.done >= 2 ? "コンソールに4行が加わりました" : "単元2で、4つの数字が出るようになります",
+    text: "点数ダッシュボードは、単元を終えるたびに部品が増えていきます。いまの姿をコースマップで見られます。",
+    cta: "コースマップを見る", on: () => onGo(`course:${COURSE_ID}`), thumb: "dash", tone: "w",
+  });
+  slides.push({
+    key: "devlab", k: "開発演習", title: "コースで覚えたことを、案件で使う",
+    text: "現場に近い案件を、ひとりで、またはチームで最後まで作ります。",
+    cta: "開発演習を開く", on: () => onTab("devlab"), thumb: "attend", tone: "b",
+  });
+  slides.push({
+    key: "cloud", k: "クラウド実習", title: "本物のAWSの前に、模型でつかむ",
+    text: "わざと「通らない」を体験してから直すので、理由まで分かります。",
+    cta: "クラウド実習を開く", on: () => onTab("cloud"), thumb: "aws", tone: "m",
+  });
+
+  const [i, setI] = useState(0);
+  const [hold, setHold] = useState(false);
+  const reduced = useRef(!!(window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches));
+  const n = slides.length;
+  useEffect(() => {
+    if (hold || reduced.current || n < 2) return undefined;
+    const t = setTimeout(() => setI(v => (v + 1) % n), 6000);
+    return () => clearTimeout(t);
+  }, [i, hold, n]);
+  const idx = Math.min(i, n - 1);
+  const cur = slides[idx];
+
+  return (
+    <section className="car" aria-roledescription="カルーセル" aria-label="おすすめ"
+      onMouseEnter={() => setHold(true)} onMouseLeave={() => setHold(false)}
+      onFocus={() => setHold(true)} onBlur={() => setHold(false)}>
+      <div className={"car-slide tone-" + cur.tone} key={cur.key} aria-live="polite">
+        <div className="car-l">
+          <span className="car-k">{cur.k}</span>
+          <h2>{cur.title}</h2>
+          <p>{cur.text}</p>
+          <div><button className="btn btn-pri" type="button" onClick={cur.on}>{cur.cta}</button></div>
+        </div>
+        <div className="car-r" aria-hidden="true"><Thumb id={cur.thumb} /></div>
+      </div>
+      <div className="car-nav">
+        <button type="button" className="car-arrow" aria-label="前へ" onClick={() => setI((idx - 1 + n) % n)}>‹</button>
+        {slides.map((sl, k) => (
+          <button key={sl.key} type="button" className="car-dot" aria-label={`${k + 1}枚目：${sl.k}`} aria-current={k === idx || undefined} onClick={() => setI(k)} />
+        ))}
+        <button type="button" className="car-arrow" aria-label="次へ" onClick={() => setI((idx + 1) % n)}>›</button>
+      </div>
+    </section>
   );
 }
