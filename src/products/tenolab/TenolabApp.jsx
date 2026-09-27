@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useState } from "react";
-import { getCurrentUser, signOut } from "aws-amplify/auth";
+import { fetchAuthSession, getCurrentUser, signOut } from "aws-amplify/auth";
 import { apiGet } from "../../api.js";
 import MountedHtml from "./MountedHtml.jsx";
 import { LANDING_HTML } from "./landing/landingMarkup.js";
@@ -9,8 +9,10 @@ import { mountCourseMap } from "./coursemap/mountCourseMap.js";
 import LoginPage from "./screens/LoginPage.jsx";
 import HomePage from "./screens/HomePage.jsx";
 import LabPage from "./screens/LabPage.jsx";
-import { useTenolabProgress } from "./useTenolab.js";
-import { COURSE_ID, courseProgress, isPlayable } from "./tenolabData.js";
+import StudioPage from "./studio/StudioPage.jsx";
+import { useTenolabCourse, useTenolabProgress } from "./useTenolab.js";
+import { COURSE_ID, courseProgress } from "./tenolabData.js";
+import { roleOf, isStaffRole } from "./role.js";
 import "./tenolab.css";
 
 /* テノラボ（体験型Eラーニング）の本体。LMS（TrainingApp）とは別の入口 lab.html で開く（ADR 0022）。
@@ -20,7 +22,8 @@ import "./tenolab.css";
      #/try         登録なしで1単元（記録は残らない）
      #/home #/find #/devlab #/cloud #/made   ホーム（タブ）
      #/courses/dash        コースマップ
-     #/units/dash/u2       単元（体験ラボ） */
+     #/units/dash/u2       単元（体験ラボ）
+     #/studio …            単元づくり（講師・管理者。#/studio/dash/u2/try で受講生として試す） */
 const HOME_TABS = ["home", "find", "devlab", "cloud", "made"];
 
 function parseHash() {
@@ -32,6 +35,10 @@ function parseHash() {
   if (HOME_TABS.includes(p[0])) return { page: "home", tab: p[0] };
   if (p[0] === "courses" && p[1]) return { page: "map", courseId: p[1] };
   if (p[0] === "units" && p[1] && p[2]) return { page: "lab", courseId: p[1], unitId: p[2] };
+  if (p[0] === "studio") {
+    if (p[1] && p[2] && p[3] === "try") return { page: "lab", courseId: p[1], unitId: p[2], preview: true };
+    return { page: "studio", courseId: p[1] || null, unitId: p[2] || null };
+  }
   return { page: "lp" };
 }
 
@@ -41,12 +48,16 @@ function setHash(h) {
 
 export default function TenolabApp() {
   const [route, setRoute] = useState(parseHash);
-  const [auth, setAuth] = useState({ state: "loading", name: "" }); // loading | in | out
+  const [auth, setAuth] = useState({ state: "loading", name: "", role: "" }); // loading | in | out
   const [pendingClear, setPendingClear] = useState(false);
   const [trialSnap, setTrialSnap] = useState(null);
   const [modal, setModal] = useState(null);
   const [toast, setToast] = useState("");
   const progress = useTenolabProgress(auth.state === "in");
+  // 見本のコースの公開中の単元（遊べる単元を決める）。ログイン前は同梱の見本
+  const dash = useTenolabCourse(COURSE_ID, auth.state === "in");
+  const playable = (dash.state === "ready" ? dash.units.map(u => u.id) : ["u2"]);
+  const staff = isStaffRole(auth.role);
 
   useEffect(() => {
     const onHash = () => { setRoute(parseHash()); window.scrollTo(0, 0); };
@@ -71,10 +82,17 @@ export default function TenolabApp() {
         // 名前が取れなくてもログインは続ける（メールの前半で呼ぶ）
         console.warn("tenolab profile load failed", e);
       }
-      setAuth({ state: "in", name: name || "あなた" });
+      let role = "trainee";
+      try {
+        const s = await fetchAuthSession();
+        role = roleOf(s?.tokens?.idToken?.payload || {});
+      } catch (e) {
+        console.warn("tenolab role load failed", e);
+      }
+      setAuth({ state: "in", name: name || "あなた", role });
       return true;
     } catch (e) {
-      setAuth({ state: "out", name: "" });
+      setAuth({ state: "out", name: "", role: "" });
       return false;
     }
   }, []);
@@ -88,7 +106,9 @@ export default function TenolabApp() {
     if (to === "try") return setHash("#/try");
     if (to === "home") return setHash("#/home");
     if (HOME_TABS.includes(to)) return setHash("#/" + to);
-    if (to === "cleared") return onCleared();
+    if (to === "cleared") return route.preview ? setHash(`#/studio/${route.courseId}/${route.unitId}`) : onCleared();
+    if (to === "studio") return setHash("#/studio");
+    if (to === "studio-back") return setHash(route.courseId && route.unitId ? `#/studio/${route.courseId}/${route.unitId}` : "#/studio");
     const [kind, a, b] = String(to).split(":");
     if (kind === "course") return setHash("#/courses/" + a);
     if (kind === "unit") {
@@ -96,7 +116,7 @@ export default function TenolabApp() {
       return setHash(`#/units/${a}/${b}`);
     }
     return undefined;
-  }, [auth.state]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [auth.state, route.preview, route.courseId, route.unitId]); // eslint-disable-line react-hooks/exhaustive-deps
 
   function onCleared() {
     if (auth.state === "in") {
@@ -134,13 +154,13 @@ export default function TenolabApp() {
 
   async function logout() {
     try { await signOut(); } catch (e) { /* 抜けられなくても入口へ戻す */ }
-    setAuth({ state: "out", name: "" });
+    setAuth({ state: "out", name: "", role: "" });
     setHash("#/");
     setToast("ログアウトしました");
   }
 
   // ログインが要る画面
-  const needsLogin = route.page === "home" || route.page === "map" || (route.page === "lab" && !route.trial);
+  const needsLogin = route.page === "home" || route.page === "map" || route.page === "studio" || (route.page === "lab" && !route.trial);
   useEffect(() => {
     if (auth.state === "out" && needsLogin) {
       if (route.page === "map") return; // コースマップは、ログインしていなくても見せる（入口から来る）
@@ -155,21 +175,28 @@ export default function TenolabApp() {
   } else if (route.page === "login") {
     page = <LoginPage onLoggedIn={onLoggedIn} onGo={go} pendingClear={pendingClear} />;
   } else if (route.page === "home") {
-    page = <HomePage tab={route.tab} onTab={t => setHash("#/" + t)} onGo={go} name={auth.name}
+    page = <HomePage tab={route.tab} onTab={t => setHash("#/" + t)} onGo={go} name={auth.name} staff={staff} playable={playable}
       progressState={progress.state} items={progress.items} onRetry={progress.reload} onLogout={logout} />;
+  } else if (route.page === "studio" || (route.page === "lab" && route.preview)) {
+    if (!staff) {
+      page = <div className="tl-app"><div className="wrap hb"><div className="info" role="alert">単元づくりは講師と管理者だけが使えます。</div>
+        <div><a className="btn btn-sec" href="#/home">ホームへ</a></div></div></div>;
+    } else if (route.page === "lab") {
+      page = <LabPage courseId={route.courseId} unitId={route.unitId} preview onGo={go} />;
+    } else {
+      page = <StudioPage courseId={route.courseId} unitId={route.unitId} role={auth.role} name={auth.name} onGo={go} setToast={setToast} />;
+    }
   } else if (route.page === "map") {
     if (auth.state === "in" && progress.state === "loading") page = <Loading />;
     else if (auth.state === "in" && progress.state === "error") page = <LoadError onRetry={progress.reload} />;
     else {
       const pr = courseProgress(progress.items, route.courseId);
       page = <MountedHtml className="tl-map" html={COURSE_MAP_HTML} mount={mountCourseMap}
-        opts={{ done: pr.done, loggedIn: auth.state === "in" }} onGo={go} mountKey={`${pr.done}/${auth.state}`} />;
+        opts={{ done: pr.done, loggedIn: auth.state === "in", playable: playable.map(id => Number(id.replace(/^u/, ""))) }} onGo={go}
+        mountKey={`${pr.done}/${auth.state}/${playable.join(",")}`} />;
     }
   } else if (route.page === "lab") {
-    if (!isPlayable(route.courseId, route.unitId)) {
-      page = <div className="tl-app"><div className="wrap hb"><div className="greet"><div><h1>この単元は準備中です</h1><p>できた単元から順に開きます。</p></div></div>
-        <div><a className="btn btn-sec" href={`#/courses/${route.courseId}`}>コースマップへもどる</a></div></div></div>;
-    } else if (!route.trial && progress.state === "loading") page = <Loading />;
+    if (!route.trial && progress.state === "loading") page = <Loading />;
     else if (!route.trial && progress.state === "error") page = <LoadError onRetry={progress.reload} />;
     else {
       const saved = (progress.items || []).find(x => x.courseId === route.courseId && x.unitId === route.unitId) || null;

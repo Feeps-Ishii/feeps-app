@@ -4,7 +4,9 @@ export function mountCourseMap(root, OPTS) {
   OPTS = OPTS || {};
 
   var $ = function(id){ return document.getElementById(id); };
-    var TRY_UNIT = 2;   // モックで実際に体験できる単元（体験ラボのモックにつながる）
+    // 中身がある（公開中の）単元の番号。単元づくりで公開すると増える
+    var PLAYABLE = (OPTS.playable && OPTS.playable.length ? OPTS.playable : [2]);
+    function playable(u){ return PLAYABLE.indexOf(u) >= 0; }
 
   var CHAPTERS = [
     { no: 1, title: "データを扱う", sub: "JavaScript", units: [1, 2, 3, 4] },
@@ -54,7 +56,7 @@ export function mountCourseMap(root, OPTS) {
     var h = Math.floor(left / 60), m = left % 60;
     var cta;
     if (!next) cta = '<span class="cta" aria-disabled="true">全単元クリア</span>';
-    else if (next === TRY_UNIT) cta = '<a class="cta" href="#" data-go="unit:dash:u2">' + ICON_PLAY + '続きから始める</a>';
+    else if (playable(next)) cta = '<a class="cta" href="#" data-go="unit:dash:u' + next + '">' + ICON_PLAY + '続きから始める</a>';
     else cta = '<span class="cta" aria-disabled="true" title="この単元はいま準備中です">' + ICON_PLAY + '続きから始める</span>';
     $("summary").innerHTML =
       '<div><div class="sm-k">進み具合</div><div class="sm-v num">' + S.done + ' <small>/ ' + TOTAL + ' 単元</small></div>' +
@@ -77,12 +79,12 @@ export function mountCourseMap(root, OPTS) {
   function unitHtml(u){
     var d = UNITS[u], st = stateOf(u), open = S.open === u;
     var node = st === "done" ? ICON_CHECK : st === "lock" ? ICON_LOCK : String(u);
-    var tags = (st === "now" ? '<span class="tag now">いまここ</span>' : "") + (u === TRY_UNIT ? '<span class="tag try">体験できます</span>' : "");
+    var tags = (st === "now" ? '<span class="tag now">いまここ</span>' : "") + (playable(u) ? '<span class="tag try">体験できます</span>' : "");
     var detail = "";
     if (open) {
       var cta;
-      if (u === TRY_UNIT && st !== "lock") {
-        cta = '<a class="cta" href="#" data-go="unit:dash:u2">' + ICON_PLAY + (st === "done" ? "もう一度やる" : "はじめる") + '</a>';
+      if (playable(u) && st !== "lock") {
+        cta = '<a class="cta" href="#" data-go="unit:dash:u' + u + '">' + ICON_PLAY + (st === "done" ? "もう一度やる" : "はじめる") + '</a>';
       } else if (st === "lock") {
         cta = '<span class="note">単元' + (u - 1) + '「' + esc(UNITS[u - 1].t) + '」を終えると開きます。</span>';
       } else {

@@ -1,11 +1,8 @@
-// テノラボのコースと単元（最初の版は見本を1本だけ持つ。ADR 0022）
-// 単元づくり（講師が画面で作る）が入るまでは、中身はここが正本。
+// テノラボの見本コースの一覧用の情報（ADR 0022）。
+// 単元の中身は API（/tenolab/courses、単元づくり）が正本。ここはホーム・コースマップの見出しに使う固定の情報。
 // 進み具合と書いたコードは API（/tenolab/progress）に保存する。
 
 export const COURSE_ID = "dash";
-
-// 単元の中身がある（実際に触れる）もの。ほかは「準備中」と出す
-export const PLAYABLE = { dash: ["u2"] };
 
 // 見本のコースは単元2から始める。単元1（変数と表示）はコンソールに1行出すだけなので、
 // 最初の版ではクリア済みとして扱う（中身を作ったら外す）。
@@ -84,8 +81,4 @@ export function courseProgress(items, courseId = COURSE_ID) {
   for (const u of UNITS) { if (cleared.has(u.id)) done++; else break; }
   const next = UNITS[done] || null;
   return { cleared, byUnit, done, next, total: UNITS.length };
-}
-
-export function isPlayable(courseId, unitId) {
-  return (PLAYABLE[courseId] || []).includes(unitId);
 }

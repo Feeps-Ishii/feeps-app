@@ -6,6 +6,7 @@ import "./aws.js";
 import { PRODUCT_ACCENT } from "./components/common";
 import DevLabProduct from "./products/devlab/DevLabProduct.jsx";
 import CloudLabProduct from "./products/cloudlab/CloudLabProduct.jsx";
+import { roleOf } from "./products/tenolab/role.js";
 
 /* テノラボの中にはめ込む「開発演習」「クラウド実習」（ADR 0022）。
    どちらも Tailwind・Prism の見た目で作られていて、そのままテノラボの画面に入れると
@@ -14,14 +15,6 @@ import CloudLabProduct from "./products/cloudlab/CloudLabProduct.jsx";
    ログインは同じ（同じドメインなので、Cognito のトークンを共有する）。
    見た目をテノラボに置き換えたら、この入口は外す。 */
 const whichOf = () => (window.location.hash || "").replace(/^#\/?/, "");
-
-function roleOf(payload = {}) {
-  const claimed = String(payload?.["custom:role"] || payload?.role || "").toLowerCase();
-  if (["admin", "instructor", "client", "trainee"].includes(claimed)) return claimed;
-  const raw = payload?.["cognito:groups"] ?? payload?.groups ?? [];
-  const g = (Array.isArray(raw) ? raw.join(",") : String(raw)).toLowerCase();
-  return g.includes("admin") ? "admin" : g.includes("instructor") ? "instructor" : g.includes("client") ? "client" : "trainee";
-}
 
 function EmbedApp() {
   const [role, setRole] = useState(null); // null=読み込み中 / "out"=未ログイン

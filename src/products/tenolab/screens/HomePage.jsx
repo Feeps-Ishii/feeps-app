@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from "react";
 import { Jp } from "../textFlow.jsx";
 import Kw from "../Kw.jsx";
 import { THUMBS } from "../thumbs.js";
-import { COURSES, COURSE_ID, GOALS, LV, MISSION, SKILLS, UNITS, courseProgress, isPlayable } from "../tenolabData.js";
+import { COURSES, COURSE_ID, GOALS, LV, MISSION, SKILLS, UNITS, courseProgress } from "../tenolabData.js";
 
 const FEEPS_ONE = "/index.html";
 
@@ -31,7 +31,7 @@ function weekOf(items) {
   return { days, today };
 }
 
-export default function HomePage({ tab, onTab, onGo, name, progressState, items, onRetry, onLogout }) {
+export default function HomePage({ tab, onTab, onGo, name, staff, playable, progressState, items, onRetry, onLogout }) {
   const [filter, setFilter] = useState("all");
   const [goal, setGoal] = useState("");
   const [menu, setMenu] = useState(false);
@@ -55,6 +55,7 @@ export default function HomePage({ tab, onTab, onGo, name, progressState, items,
             <div className="me-menu" id="tlMe">
               <div className="who"><b>{name}</b><span><Jp>Feeps One と同じアカウント</Jp></span></div>
               <hr />
+              {staff && <a href="#/studio" onClick={e => { e.preventDefault(); onGo("studio"); }} style={{ fontWeight: 700, textDecoration: "none" }}>単元づくり</a>}
               <a href={FEEPS_ONE} style={{ fontWeight: 700, textDecoration: "none" }}>Feeps One を開く</a>
               <hr />
               <button type="button" onClick={onLogout}>ログアウト</button>
@@ -78,7 +79,7 @@ export default function HomePage({ tab, onTab, onGo, name, progressState, items,
   } else if (tab === "find") body = <FindPane filter={filter} setFilter={setFilter} goal={goal} setGoal={setGoal} pr={pr} onGo={onGo} />;
   else if (tab === "devlab" || tab === "cloud") body = null;
   else if (tab === "made") body = <MadePane pr={pr} onGo={onGo} />;
-  else body = <HomePane name={name} pr={pr} items={items} onGo={onGo} onTab={onTab} />;
+  else body = <HomePane name={name} pr={pr} items={items} onGo={onGo} onTab={onTab} playableIds={playable || ["u2"]} />;
 
   return (
     <div className="tl-app tl-home" onClick={e => { if (menu && !e.target.closest(".me")) setMenu(false); }}>
@@ -124,10 +125,10 @@ function AppNow({ done }) {
   );
 }
 
-function HomePane({ name, pr, items, onGo, onTab }) {
+function HomePane({ name, pr, items, onGo, onTab, playableIds }) {
   const next = pr.next;
   const ms = next ? MISSION[next.id] : null;
-  const playable = next && isPlayable(COURSE_ID, next.id);
+  const playable = !!next && playableIds.includes(next.id);
   const saved = next ? pr.byUnit[next.id] : null;
   const at = saved && ms ? Math.min(saved.step || 0, ms.steps.length - 1) : 0;
   let left = 0;

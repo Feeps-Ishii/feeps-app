@@ -1,4 +1,7 @@
-/* 自動生成（docs/design/mockups/tenolab-2026-09/src/gen_tenolab.py）で、モックから移植した。以後はこのファイルを直接直す。 */
+/* 体験ラボのエンジン。モック（docs/design/mockups/tenolab-2026-09）から移植し、2026-09-27に単元データ（OPTS.unit）で動くよう書き換えた。
+   OPTS.unit … 単元（API /tenolab/courses/{c}/units/{u} の unit と同じ形）
+   OPTS.meta … 見出し用 { courseId, courseTitle, unitNo, unitTotal, chapter }
+   OPTS.preview … 講師の「受講生として試す」。保存の印を出さない */
 export function mountLab(root, OPTS) {
   "use strict";
   OPTS = OPTS || {};
@@ -22,162 +25,132 @@ export function mountLab(root, OPTS) {
   var REDUCED = !!(window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches);
 
   /* =====================================================================
-     レッスンの中身
+     レッスンの中身は単元データ（OPTS.unit）から読む（単元づくり、2026-09-27〜）
      ===================================================================== */
-  var PLACEHOLDER = "// ここに1行書いてみよう";
-  var STEP4_MARK = "// ステップ4：平均を求めて「平均:」と表示しよう";
-  var STEP5_MARK = "// ステップ5（チャレンジ）：いちばん高い点数を「最高点:」と表示しよう";
-  var INITIAL = [
-    "// お題：テストの点数をまとめる",
-    "const scores = [72, 85, 90, 64, 78];",
-    "",
-    "console.log(\"受講生の数:\", scores.length);",
-    "",
-    "// ステップ3：合計を求めよう",
-    "let total = 0;",
-    "for (const n of scores) {",
-    "  " + PLACEHOLDER,
-    "}",
-    "console.log(\"合計:\", total);",
-    ""
-  ].join("\n");
+  var U = OPTS.unit;
+  var STEPS = U.steps || [];
+  var INITIAL = (U.files && U.files.start) || "";
+  var ANSWER = (U.files && U.files.answer) || "";
+  var DATA = U.dataVar || "";
+  var META = OPTS.meta || {};
 
-  function sum(a){ return a.reduce(function(s, x){ return s + (Number(x) || 0); }, 0); }
-  function findLine(r, re){
-    for (var i = 0; i < r.out.length; i++) if (re.test(r.out[i].s)) return r.out[i].s;
+  function esc(s){ return String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;"); }
+  // 説明文は `コード` と **太字** だけ使える
+  function rich(s){ return esc(s || "").replace(/`([^`]+)`/g, "<code>$1</code>").replace(/\*\*([^*]+)\*\*/g, "<b>$1</b>"); }
+
+  /* 受講生が書き換えるデータ（例 scores）。コードに書いてある配列をそのまま読む。
+     打っている途中でも、目標の数字が追いつくように */
+  function dataRe(){ return new RegExp("((?:const|let|var)\\s+" + DATA + "\\s*=\\s*)(\\[[^\\]]*\\])"); }
+  function parseData(t){
+    if (!DATA) return null;
+    var m = dataRe().exec(t || "");
+    if (!m) return null;
+    try { var v = JSON.parse(m[2]); return Array.isArray(v) ? v : null; } catch (e) { return null; }
+  }
+  var BASE_DATA = parseData(INITIAL);
+  function dataOf(r){ return (r && r.vars && Array.isArray(r.vars[DATA])) ? r.vars[DATA] : null; }
+  function sameData(a, b){ return JSON.stringify(a) === JSON.stringify(b); }
+  function outLines(r){ return r.out.map(function(o){ return o.s; }); }
+  function findPrefix(lines, p){
+    for (var i = 0; i < lines.length; i++) if (lines[i].indexOf(p) === 0) return lines[i];
     return null;
   }
-  function numAfterColon(s){ var m = /:\s*(-?\d+(?:\.\d+)?)/.exec(s || ""); return m ? Number(m[1]) : NaN; }
-  function scoresOf(r){ return (r && r.vars && Array.isArray(r.vars.scores)) ? r.vars.scores : null; }
-
-  var STEPS = [
-    {
-      short: "動かす", title: "まずは動かしてみよう", goal: "「実行」を押して、出力を確かめる",
-      body: "お手本のコードがもう入っています。<b>実行</b>（Ctrl+Enter）を押すと、<code>console.log</code> の中身が下の出力に出ます。",
-      anchor: ["console.log(\"受講生の数:\""],
-      hints: ["エディタの右上に「実行」があります。Ctrl+Enter でも動きます。", "押したら、下の「出力」に何が出たかを見てください。"],
-      why: "`console.log` は、値を画面に出して確かめるための命令です。プログラムの途中で値を見たいときにもよく使います。",
-      check: function(r){ return r.ok && !!findLine(r, /^受講生の数: \d+$/); },
-      clear: function(){ return "出力を確かめました"; },
-      done: function(){ return "動きましたね。合計がまだ `0` なのは、足す処理をまだ書いていないからです。"; }
-    },
-    {
-      short: "変える", title: "点数を1つ増やしてみよう", goal: "配列 scores に数字を1つ足して、もう一度実行する",
-      body: "配列 <code>scores</code> に数字を1つ足して、もう一度実行してみましょう。受講生の数が変わるはずです。",
-      anchor: ["const scores"],
-      hints: ["配列は `[ ]` の中に、カンマで区切って数字を並べます。", "たとえば `78` のあとに `, 95` と足してから実行します。"],
-      why: "データを変えるだけで結果が変わるのが、配列や変数を使う良さです。コードそのものを書き直さずに試せます。",
-      check: function(r){ var s = scoresOf(r); return r.ok && !!s && s.join(",") !== "72,85,90,64,78"; },
-      clear: function(r){ return "点数が " + scoresOf(r).length + " 人分になりました"; },
-      done: function(r){ return "受講生の数が " + scoresOf(r).length + " になりました。データを変えただけで結果が変わりましたね。"; }
-    },
-    {
-      short: "合計", title: "合計を求めよう", goal: "ループの中で total に n を足して、合計を出す",
-      body: "<code>for...of</code> は、配列から1つずつ取り出して <code>n</code> に入れてくれます。ループの中で <code>total</code> に <code>n</code> を足していきましょう。",
-      anchor: [PLACEHOLDER, "total +=", "total = total", "for ("],
-      hints: ["ループの中では、いま取り出した点数が `n` に入っています。", "`total` に `n` を足して戻します。書き方は `total += n;` です。"],
-      why: "`total += n` は `total = total + n` を短く書いたものです。ループが回るたびに、いまの合計へ次の点数を足しています。",
-      check: function(r){ var s = scoresOf(r); return r.ok && !!s && findLine(r, /^合計:/) === "合計: " + sum(s); },
-      clear: function(r){ return "合計 " + sum(scoresOf(r)) + " が出ました"; },
-      done: function(){ return "合計が出ました。ループのたびに `total` が増えていく様子を、下の出力に並べておきました。"; },
-      trace: true
-    },
-    {
-      short: "平均", title: "平均を出そう", goal: "合計 ÷ 人数 で平均を出し、「平均:」と表示する",
-      body: "平均は <b>合計 ÷ 人数</b>。人数は <code>scores.length</code> で分かります。小数第1位までにするなら <code>toFixed(1)</code> を使います。",
-      anchor: [STEP4_MARK],
-      hints: ["合計は `total`、人数は `scores.length` で取れます。", "`const average = total / scores.length;` のあと、`console.log(\"平均:\", average.toFixed(1));` で表示できます。"],
-      why: "`toFixed(1)` は、数を小数第1位までの文字にします。成績表で読みやすい形にそろえるためです。",
-      check: function(r){
-        var s = scoresOf(r); if (!r.ok || !s || !s.length) return false;
-        var v = numAfterColon(findLine(r, /^平均:/));
-        return isFinite(v) && Math.abs(v - sum(s) / s.length) <= 0.051;
-      },
-      clear: function(r){ var s = scoresOf(r); return "平均 " + (sum(s) / s.length).toFixed(1) + " が出ました"; },
-      done: function(){ return "平均も出ましたね。`toFixed(1)` で小数第1位までにそろえています。"; }
-    },
-    {
-      short: "最高点", title: "最高点を探そう（チャレンジ）", goal: "いちばん高い点数を「最高点:」と表示する",
-      body: "ここは自分で考えてみましょう。詰まったら、右のコーチに聞いてかまいません。",
-      anchor: [STEP5_MARK],
-      hints: ["配列の最大値は `Math.max(...scores)` で取れます。`...` は配列を1つずつに広げる書き方です。", "ループで書くなら、`best` を最初の点数にして、もっと大きい `n` が来たら入れ替えます。"],
-      why: "`Math.max` は、渡された数の中からいちばん大きいものを返します。配列はそのまま渡せないので `...scores` で広げます。",
-      check: function(r){ var s = scoresOf(r); return r.ok && !!s && s.length > 0 && findLine(r, /^最高点:/) === "最高点: " + Math.max.apply(null, s); },
-      clear: function(r){ return "最高点 " + Math.max.apply(null, scoresOf(r)) + " が出ました"; },
-      done: function(){ return "最高点まで出せました。これでレッスンは完了です。"; }
-    }
-  ];
-
-  /* ゴールの見せ方（2026-09-25）。
-     「何をするか」だけでなく「どう出れば合格か」を、いまの点数から計算した実際の出力で見せる。
-     説明文を読まなくても、目標の1行と自分の出力を見比べれば進められるようにするため。 */
-  var BASE_SCORES = [72, 85, 90, 64, 78];
-  function avgText(sc){ return sc.length ? (sum(sc) / sc.length).toFixed(1) : "0"; }
-  function maxOf(sc){ return sc.length ? Math.max.apply(null, sc) : 0; }
-  var MISSION = [
-    { todo: "「実行」を押して、プログラムを動かす", line: 0, prefix: /^受講生の数:/,
-      want: function(sc){ return "受講生の数: " + sc.length; },
-      cond: function(sc){ return ["出力に", "受講生の数: " + sc.length, "と出れば合格"]; } },
-    { todo: "scores の [ ] に点数を1つ足して、もう一度実行する", line: 0, prefix: /^受講生の数:/,
-      want: function(){ return "受講生の数: 5 以外の数"; },
-      cond: function(){ return ["受講生の数が", "5", "から変われば合格"]; } },
-    { todo: "ループの中で、total に n を足していく", line: 1, prefix: /^合計:/,
-      want: function(sc){ return "合計: " + sum(sc); },
-      cond: function(sc){ return ["出力に", "合計: " + sum(sc), "と出れば合格"]; } },
-    { todo: "合計 ÷ 人数 で平均を出して、「平均:」と表示する", line: 2, prefix: /^平均:/,
-      want: function(sc){ return "平均: " + avgText(sc); },
-      cond: function(sc){ return ["出力に", "平均: " + avgText(sc), "と出れば合格（小数第1位まで）"]; } },
-    { todo: "いちばん高い点数を見つけて、「最高点:」と表示する", line: 3, prefix: /^最高点:/,
-      want: function(sc){ return "最高点: " + maxOf(sc); },
-      cond: function(sc){ return ["出力に", "最高点: " + maxOf(sc), "と出れば合格"]; } }
-  ];
-  function finalLines(sc){
-    return ["受講生の数: " + sc.length, "合計: " + sum(sc), "平均: " + avgText(sc), "最高点: " + maxOf(sc)];
+  /* 同じ行か。数字は小数のずれ（77.8 と 77.80）を許す */
+  function sameLine(got, want, prefix){
+    if (got == null || want == null) return false;
+    if (got === want) return true;
+    prefix = prefix || "";
+    if (got.slice(0, prefix.length) !== want.slice(0, prefix.length)) return false;
+    var a = got.slice(prefix.length).trim(), b = want.slice(prefix.length).trim();
+    if (!a || !b) return false;
+    return isFinite(Number(a)) && isFinite(Number(b)) && Math.abs(Number(a) - Number(b)) <= 0.051;
   }
-  // 出力の各行が「できた」になるステップ（受講生の数はステップ2まで使う）
-  var LINE_DONE_AT = [2, 3, 4, 5];
-  /* コードに書いてある配列をそのまま読む。打っている途中でも目標の数字が追いつくように */
-  function parseScores(t){
-    var m = /const\s+scores\s*=\s*\[([^\]]*)\]/.exec(t || "");
-    if (!m) return null;
-    var nums = m[1].split(",").map(function(x){ return x.trim(); }).filter(Boolean).map(Number);
-    return nums.length && nums.every(function(n){ return isFinite(n); }) ? nums : null;
+
+  /* 完成したときの出力。完成形のコードを、受講生のいまのデータで動かして作る */
+  var goalCache = {};
+  function goalLines(data){
+    if (!ANSWER) return U.goalLines || [];
+    var key = JSON.stringify(data || null);
+    if (goalCache[key]) return goalCache[key];
+    var src = ANSWER;
+    if (DATA && data) src = src.replace(dataRe(), function(_, head){ return head + JSON.stringify(data); });
+    var r = execute(src);
+    var lines = r.ok && r.out.length ? outLines(r) : (U.goalLines || []);
+    goalCache[key] = lines;
+    return lines;
+  }
+
+  /* ステップ i で出てほしい1行（出力で判定しないステップは null） */
+  function stepWant(i, data){
+    var c = STEPS[i].check;
+    if (c.kind === "answerLine") return findPrefix(goalLines(data), c.prefix);
+    if (c.kind === "line") return c.value.split("\n")[0];
+    return null;
+  }
+  function stepPrefix(i){ var c = STEPS[i].check; return c.kind === "answerLine" ? c.prefix : ""; }
+
+  function passes(i, r){
+    if (!r.ok) return false;
+    var c = STEPS[i].check, lines = outLines(r);
+    if (c.kind === "answerLine") {
+      var want = stepWant(i, dataOf(r) || BASE_DATA);
+      return !!want && sameLine(findPrefix(lines, c.prefix), want, c.prefix);
+    }
+    if (c.kind === "line") return c.value.split("\n").filter(Boolean).every(function(l){ return lines.indexOf(l) >= 0; });
+    if (c.kind === "change") { var d = dataOf(r); return !!d && !sameData(d, BASE_DATA); }
+    if (c.kind === "code") return c.value.split("\n").filter(Boolean).every(function(l){ return S.text.indexOf(l) >= 0; });
+    return false;
+  }
+
+  function clearText(i, r){
+    var c = STEPS[i].check;
+    if (c.kind === "answerLine") return findPrefix(outLines(r), c.prefix) || "";
+    if (c.kind === "line") return c.value.split("\n")[0];
+    if (c.kind === "change") return DATA + " = " + fmt(dataOf(r), true);
+    return c.value.split("\n")[0];
+  }
+
+  /* 合格の条件を [前, 印, 後] で返す（印はコードの見た目で出す） */
+  function condParts(i, data){
+    var c = STEPS[i].check;
+    if (c.kind === "change") return ["", DATA, "の中身が変われば合格"];
+    if (c.kind === "code") return ["コードに", c.value.split("\n")[0], "があれば合格"];
+    return ["出力に", stepWant(i, data) || "", "と出れば合格"];
+  }
+
+  /* 完成の出力のうち、ステップ i が目指している行の番号 */
+  function lineOfStep(i, lines){
+    var p = stepPrefix(i);
+    if (!p) return -1;
+    for (var k = 0; k < lines.length; k++) if (lines[k].indexOf(p) === 0) return k;
+    return -1;
+  }
+  /* 出力の行 k が「できた」になるステップ（その行を目指す最後のステップを越えたとき） */
+  function lineDoneAt(k, lines){
+    var at = -1;
+    for (var i = 0; i < STEPS.length; i++) if (lineOfStep(i, lines) === k) at = i;
+    return at < 0 ? STEPS.length : at + 1;
   }
 
   /* お手本。いまのコードのどこに何を打つかを返す */
-  var REPLAYS = [
-    function(){ return { run: true }; },
-    function(t){
-      var i = t.indexOf("const scores = ["); if (i < 0) return null;
-      var j = t.indexOf("]", i); if (j < 0) return null;
-      return { at: j, del: 0, ins: ", 95" };
-    },
-    function(t){
-      if (/total\s*\+=|total\s*=\s*total\s*\+/.test(t)) return { already: "for (const n of scores) {\n  total += n;\n}" };
-      var i = t.indexOf(PLACEHOLDER);
-      if (i >= 0) return { at: i, del: PLACEHOLDER.length, ins: "total += n;" };
-      var head = "for (const n of scores) {", k = t.indexOf(head);
-      return k < 0 ? null : { at: k + head.length, del: 0, ins: "\n  total += n;" };
-    },
-    function(t){
-      var code = "const average = total / scores.length;\nconsole.log(\"平均:\", average.toFixed(1));";
-      if (/\b(const|let|var)\s+average\b/.test(t)) return { already: code };
-      var i = t.indexOf(STEP4_MARK);
-      return { at: i >= 0 ? i + STEP4_MARK.length : t.replace(/\s*$/, "").length, del: 0, ins: "\n" + code };
-    },
-    function(t){
-      var code = "const best = Math.max(...scores);\nconsole.log(\"最高点:\", best);";
-      if (/\b(const|let|var)\s+best\b/.test(t)) return { already: code };
-      var i = t.indexOf(STEP5_MARK);
-      return { at: i >= 0 ? i + STEP5_MARK.length : t.replace(/\s*$/, "").length, del: 0, ins: "\n" + code };
+  function demoPlan(i, t){
+    var st = STEPS[i], d = st.demo || { mode: "none" };
+    if (d.mode === "run") return { run: true };
+    if (d.mode === "none" || !d.text) return null;
+    if (t.indexOf(d.text.trim()) >= 0) return { already: d.text.trim() };
+    if (d.mode === "insert" || d.mode === "replace") {
+      var k = d.at ? t.indexOf(d.at) : -1;
+      if (k < 0) return { already: d.text.trim() };
+      return d.mode === "insert" ? { at: k + d.at.length, del: 0, ins: d.text } : { at: k, del: d.at.length, ins: d.text };
     }
-  ];
+    var mark = st.appendOnStart, m = mark ? t.indexOf(mark) : -1;
+    return { at: m >= 0 ? m + mark.length : t.replace(/\s*$/, "").length, del: 0, ins: "\n" + d.text };
+  }
+  function hasDemo(i){ var d = STEPS[i] && STEPS[i].demo; return !!d && (d.mode === "run" || (d.mode !== "none" && !!d.text)); }
 
   /* =====================================================================
      色付け・実行（画面に依存しない部分）
      ===================================================================== */
-  function esc(s){ return String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;"); }
-
   var TOKEN = /(\/\/[^\n]*)|("(?:[^"\\\n]|\\.)*"?|'(?:[^'\\\n]|\\.)*'?|`(?:[^`\\]|\\.)*`?)|(\b\d+(?:\.\d+)?\b)|(\b(?:const|let|var|for|of|in|if|else|while|do|return|function|new|true|false|null|undefined|break|continue|typeof)\b)|(\b(?:console|Math)\b)|(\.[A-Za-z_$][\w$]*(?=\s*\())/g;
   function highlight(src){
     var out = "", last = 0, m;
@@ -240,7 +213,9 @@ export function mountLab(root, OPTS) {
     return String(v);
   }
 
-  var VARS = ["scores", "total", "average", "best"];
+  // 「変数の中身」タブに出す変数。書き換えるデータは判定に使うので、必ず読む
+  var VARS = (U.watch && U.watch.length ? U.watch : []).slice();
+  var READ_VARS = DATA && VARS.indexOf(DATA) < 0 ? VARS.concat([DATA]) : VARS;
   var LOOP_MSG = "ループが止まらなくなっています";
 
   function lineFromStack(stack){
@@ -256,7 +231,7 @@ export function mountLab(root, OPTS) {
       error: function(){ con.log.apply(null, arguments); }
     };
     var g = { n: 0 };
-    var body = instrument(code) + "\n;return {" + VARS.map(function(v){
+    var body = instrument(code) + "\n;return {" + READ_VARS.map(function(v){
       return v + ':(typeof ' + v + '!=="undefined"?' + v + ':undefined)';
     }).join(",") + "};";
     var fn;
@@ -313,13 +288,32 @@ export function mountLab(root, OPTS) {
   var ta = $("src"), hl = $("hl"), gutter = $("gutter"), bands = $("bands"), pops = $("pops"), codeBox = $("codeBox");
   var S;
 
+  /* 見出し（コース名・単元番号・ファイル名）を単元に合わせる */
+  (function applyMeta(){
+    function set(sel, v){ var el = root.querySelector(sel); if (el && v != null) el.textContent = v; }
+    var no = META.unitNo ? "単元 " + META.unitNo : "";
+    set(".tk-c", [META.courseTitle, no && META.unitTotal ? no + " / " + META.unitTotal : no].filter(Boolean).join(" ・ "));
+    set(".eyebrow", [no, META.chapter].filter(Boolean).join(" ・ "));
+    set(".lesson h1", U.title);
+    set(".ide-bar .file", U.fileName || "main.js");
+    var back = root.querySelector(".tk-back");
+    if (back) {
+      if (OPTS.backGo) { back.setAttribute("data-go", OPTS.backGo); back.textContent = OPTS.backLabel || back.textContent; }
+      else if (META.courseId) back.setAttribute("data-go", "course:" + META.courseId);
+    }
+    var kw = root.querySelector(".app > .kw");
+    if (kw && OPTS.preview) kw.innerHTML = '<li class="m">受講生として試す</li><li>下書き</li><li>記録なし</li>';
+    var ask = $("askInput");
+    if (ask) ask.placeholder = "コーチに聞く";
+  })();
+
   function fresh(useSaved){
     var sv = useSaved && OPTS.initial ? OPTS.initial : null;
     return {
       step: sv ? Math.min(Math.max(0, sv.step || 0), STEPS.length) : 0, text: sv && sv.code ? sv.code : INITIAL, last: null, errLine: null,
       runs0: sv ? sv.runs || 0 : 0, hints0: sv ? sv.hints || 0 : 0, replays0: sv ? sv.replays || 0 : 0,
       runs: 0, hints: 0, replays: 0, errors: 0,
-      hintLevel: [0, 0, 0, 0, 0], collapsed: false, replaying: false, fast: false,
+      hintLevel: STEPS.map(function(){ return 0; }), collapsed: false, replaying: false, fast: false,
       started: Date.now(), touched: Date.now(), nudged: {}, lastCoach: "", doneAt: null, tab: "out"
     };
   }
@@ -363,21 +357,22 @@ export function mountLab(root, OPTS) {
     var html;
     if (S.step >= STEPS.length) {
       var mins = Math.max(1, Math.round(((S.doneAt || Date.now()) - S.started) / 60000));
+      var skills = (U.skills || []).map(function(k, i){ return "<li" + (i === 0 ? ' class="m"' : "") + ">" + esc(k) + "</li>"; }).join("");
       html = '<div class="pop" id="pop">' +
         '<div class="k">レッスン完了</div><div class="t">お疲れさまでした</div>' +
-        '<div class="b">配列・ループ・平均・最大値まで、自分の手で動かしました。本番では、この記録が講師の画面に残り、どのステップでつまずいたかが分かります。</div>' +
+        (skills ? '<ul class="kw sm">' + skills + "</ul>" : "") +
         '<div class="sum"><div>かかった時間<b>' + mins + '分</b></div><div>実行した回数<b>' + S.runs + '回</b></div>' +
         '<div>ヒント<b>' + S.hints + '回</b></div><div>お手本<b>' + S.replays + '回</b></div></div>' +
-        '<div class="a"><button type="button" class="go" data-go="cleared">コースマップへ（単元クリア）</button><button type="button" data-a="restart">もう一度はじめから</button></div></div>';
+        '<div class="a"><button type="button" class="go" data-go="cleared">' + (OPTS.preview ? "単元づくりへ戻る" : "コースマップへ（単元クリア）") + '</button><button type="button" data-a="restart">もう一度はじめから</button></div></div>';
     } else if (S.collapsed) {
       html = '<button class="pill" type="button" data-a="open" id="pop">ステップ' + (S.step + 1) + 'の説明を開く</button>';
     } else {
-      var st = STEPS[S.step];
+      var st = STEPS[S.step], dm = st.demo || {};
       html = '<div class="pop" id="pop" role="note">' +
         '<div class="k">ステップ ' + (S.step + 1) + ' の説明</div>' +
-        '<div class="t">' + st.title + '</div><div class="b">' + st.body + '</div>' +
+        '<div class="t">' + esc(st.title) + '</div><div class="b">' + rich(st.body) + '</div>' +
         '<div class="a"><button type="button" class="pri" data-a="ok">分かった</button>' +
-        (S.step === 0 ? '<button type="button" data-a="run">実行してみる</button>' : '<button type="button" data-a="demo">お手本を見る</button>') +
+        (dm.mode === "run" ? '<button type="button" data-a="run">実行してみる</button>' : hasDemo(S.step) ? '<button type="button" data-a="demo">お手本を見る</button>' : "") +
         '</div></div>';
     }
     pops.innerHTML = html;
@@ -392,38 +387,40 @@ export function mountLab(root, OPTS) {
     el.style.top = top + "px";
   }
 
-  function currentScores(){ return parseScores(S.text) || scoresOf(S.last) || BASE_SCORES; }
+  function currentData(){ return parseData(S.text) || dataOf(S.last) || BASE_DATA; }
 
   var ICON_TODO = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="3.5"/></svg>';
   var ICON_PASS = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="8"/><path d="m8.5 12 2.5 2.5 4.5-5"/></svg>';
 
   /* ゴール欄。左に「やること」と「合格の条件」、右に完成したときの出力を出す */
   function renderMission(){
-    var sc = currentScores(), done = S.step >= STEPS.length;
-    var nowLine = done ? -1 : MISSION[S.step].line;
-    var preview = '<div class="preview"><div class="h">完成すると、出力はこうなります</div>' +
-      finalLines(sc).map(function(l, i){
-        var ok = S.step >= LINE_DONE_AT[i], now = i === nowLine;
+    var data = currentData(), done = S.step >= STEPS.length;
+    var lines = goalLines(data);
+    var nowLine = done ? -1 : lineOfStep(S.step, lines);
+    var preview = lines.length ? '<div class="preview"><div class="h">完成すると、出力はこうなります</div>' +
+      lines.map(function(l, i){
+        var ok = S.step >= lineDoneAt(i, lines), now = i === nowLine;
         return '<div class="pl' + (ok ? " done" : now ? " now" : "") + '"><span class="ic">' + (ok ? "✓" : now ? "▶" : "・") + "</span>" +
           "<span>" + esc(l) + "</span>" + (now ? '<span class="here">いまここ</span>' : "") + "</div>";
-      }).join("") + "</div>";
+      }).join("") + "</div>" : "";
 
     var left;
     if (done) {
       left = '<div><div class="ms-head"><span class="ms-step">レッスン完了</span></div>' +
-        '<div class="ms-title">4行ぜんぶ出せました</div>' +
+        '<div class="ms-title">' + (lines.length ? lines.length + "行ぜんぶ出せました" : "ぜんぶのステップをクリア") + "</div>" +
         '<div class="ms-rows"><div class="ms-row"><div class="ms-k">' + ICON_TODO + "次にできること</div>" +
-        '<div class="ms-v">点数を変えたり、最低点を出してみたり、自由に試してみてください。</div></div></div>' + '<div class="ms-go"><button type="button" data-go="cleared">この単元をクリアにしてコースマップへ</button></div></div>';
+        '<div class="ms-v">自由に書き換えて試す</div></div></div>' +
+        '<div class="ms-go"><button type="button" data-go="cleared">' + (OPTS.preview ? "単元づくりへ戻る" : "この単元をクリアにしてコースマップへ") + "</button></div></div>";
     } else {
-      var st = STEPS[S.step], ms = MISSION[S.step], c = ms.cond(sc);
-      var changed = sc.join(",") !== BASE_SCORES.join(",");
+      var st = STEPS[S.step], c = condParts(S.step, data);
+      var changed = DATA && BASE_DATA && data && !sameData(data, BASE_DATA) && st.check.kind === "answerLine";
       left = '<div><div class="ms-head"><span class="ms-step">ステップ ' + (S.step + 1) + " / " + STEPS.length + "</span></div>" +
         '<div class="ms-title">' + esc(st.title) + "</div>" +
         '<div class="ms-rows">' +
-          '<div class="ms-row"><div class="ms-k">' + ICON_TODO + 'やること</div><div class="ms-v">' + esc(ms.todo) + "</div></div>" +
+          '<div class="ms-row"><div class="ms-k">' + ICON_TODO + 'やること</div><div class="ms-v">' + rich(st.todo) + "</div></div>" +
           '<div class="ms-row"><div class="ms-k">' + ICON_PASS + '合格の条件</div><div class="ms-v pass">' +
             esc(c[0]) + " <code>" + esc(c[1]) + "</code> " + esc(c[2]) +
-            (changed && S.step >= 2 ? '<div class="ms-note">あなたが変えた点数（' + sc.length + "人分）で計算しています。</div>" : "") +
+            (changed ? '<div class="ms-note">あなたの <code>' + esc(DATA) + "</code> で計算</div>" : "") +
           "</div></div>" +
         "</div></div>";
     }
@@ -432,22 +429,24 @@ export function mountLab(root, OPTS) {
     el.innerHTML = left + preview;
   }
 
-  /* 合格しなかった実行のあとに、目標といまの出力を並べる */
+  /* 合格しなかった実行のあとに、目標といまの出力を並べる（出力で判定するステップだけ） */
   function cmpHtml(r){
     if (S.step >= STEPS.length) return "";
-    var ms = MISSION[S.step], sc = scoresOf(r) || currentScores();
-    var got = findLine(r, ms.prefix);
-    return '<div class="cmp"><div class="r"><span class="cl">目標</span><code>' + esc(ms.want(sc)) + "</code></div>" +
+    var want = stepWant(S.step, dataOf(r) || currentData());
+    if (!want) return "";
+    var p = stepPrefix(S.step), lines = outLines(r);
+    var got = p ? findPrefix(lines, p) : (lines.indexOf(want) >= 0 ? want : null);
+    return '<div class="cmp"><div class="r"><span class="cl">目標</span><code>' + esc(want) + "</code></div>" +
       '<div class="r"><span class="cl">いまの出力</span>' + (got ? "<code>" + esc(got) + "</code>" : '<span class="miss">まだ出ていません</span>') + "</div></div>";
   }
 
   function renderSteps(){
     $("steps").innerHTML = STEPS.map(function(st, i){
       var cls = i < S.step ? "done" : i === S.step ? "now" : "";
-      return '<li class="' + cls + '" title="' + st.title + '"><span class="bar"></span><span class="lbl">' + (i + 1) + ". " + st.short + "</span></li>";
+      return '<li class="' + cls + '" title="' + esc(st.title) + '"><span class="bar"></span><span class="lbl">' + (i + 1) + ". " + esc(st.short || st.title) + "</span></li>";
     }).join("");
     $("stats").innerHTML = "実行 <b>" + S.runs + "</b> ・ ヒント <b>" + S.hints + "</b> ・ お手本 <b>" + S.replays + "</b>";
-    $("btnDemo").disabled = S.step >= STEPS.length || S.replaying;
+    $("btnDemo").disabled = S.step >= STEPS.length || S.replaying || !hasDemo(S.step);
     $("chipErr").disabled = !(S.last && !S.last.ok);
   }
 
@@ -505,40 +504,34 @@ export function mountLab(root, OPTS) {
 
   /* いまのコードと実行結果を見て、具体的に言えることがあれば言う */
   function situational(){
-    var r = S.last, t = S.text, i = S.step, s = scoresOf(r);
-    if (i === 1 && r && r.ok && s && s.join(",") === "72,85,90,64,78") return "点数はまだ元のままです。`[ ]` の中に数字を1つ足してから実行しましょう。";
-    if (i === 2) {
-      if (!/total\s*\+=|total\s*=\s*total\s*\+/.test(t)) return "まだ `total` に足す行が見当たりません。";
-      if (r && r.ok && s) {
-        var got = numAfterColon(findLine(r, /^合計:/)), want = sum(s);
-        if (isFinite(got) && got !== want) return "足す行はありますが、合計が " + got + " になっています（正しくは " + want + "）。足す行がループの `{ }` の中にあるか見てみましょう。";
-      }
+    var r = S.last, i = S.step;
+    if (i >= STEPS.length || !r || !r.ok) return "";
+    var c = STEPS[i].check;
+    if (c.kind === "change") {
+      var d = dataOf(r);
+      return d && sameData(d, BASE_DATA) ? "`" + DATA + "` はまだ元のままです。中身を変えてから実行しましょう。" : "";
     }
-    if (i === 3 && r && r.ok && s && s.length) {
-      var line = findLine(r, /^平均:/);
-      if (!line) return "「平均:」と表示する行がまだ見当たりません。";
-      var v = numAfterColon(line), w = sum(s) / s.length;
-      if (isFinite(v) && Math.abs(v - w) > 0.051) return "平均が " + v + " と出ています。正しくは " + w.toFixed(1) + " です。割る数が人数（`scores.length`）になっているか見てみましょう。";
+    if (c.kind === "answerLine") {
+      var got = findPrefix(outLines(r), c.prefix), want = stepWant(i, dataOf(r) || BASE_DATA);
+      if (!got) return "「" + c.prefix + "」で始まる行がまだ出ていません。";
+      if (want && !sameLine(got, want, c.prefix)) return "`" + got + "` と出ています。目標は `" + want + "` です。";
     }
-    if (i === 4 && r && r.ok && s && s.length) {
-      var l5 = findLine(r, /^最高点:/);
-      if (!l5) return "「最高点:」と表示する行がまだ見当たりません。";
-      var bv = numAfterColon(l5), bw = Math.max.apply(null, s);
-      if (isFinite(bv) && bv !== bw) return "最高点が " + bv + " と出ています。いちばん大きい点数は " + bw + " です。";
+    if (c.kind === "line") {
+      var miss = c.value.split("\n").filter(Boolean).filter(function(l){ return outLines(r).indexOf(l) < 0; })[0];
+      if (miss) return "`" + miss + "` がまだ出ていません。";
     }
     return "";
   }
 
   function giveHint(){
-    if (S.step >= STEPS.length) { pushCoach("レッスンは完了しています。数字を変えたり、最低点を出してみたり、自由に試してみてください。", { force: true }); return; }
-    var st = STEPS[S.step], lv = S.hintLevel[S.step];
-    S.hints++; S.hintLevel[S.step]++;
-    var pre = situational();
-    if (lv >= 2) {
-      pushCoach((pre ? pre + " " : "") + "ここまで来たら、お手本を見てしまうのも手です。「お手本を見る」で、実際に打ってみせます。", { force: true });
-    } else {
-      pushCoach((pre ? pre + " " : "") + st.hints[lv], { force: true });
-    }
+    if (S.step >= STEPS.length) { pushCoach("レッスンは完了しています。自由に書き換えて試してみてください。", { force: true }); return; }
+    var st = STEPS[S.step], hints = st.hints || [], lv = S.hintLevel[S.step] || 0;
+    S.hints++; S.hintLevel[S.step] = lv + 1;
+    var pre = situational(), msg;
+    if (lv < hints.length) msg = hints[lv];
+    else if (hasDemo(S.step)) msg = "ここまで来たら、お手本を見てしまうのも手です。「お手本を見る」で、実際に打ってみせます。";
+    else msg = hints.length ? hints[hints.length - 1] : "やることと合格の条件を見比べてみましょう。";
+    pushCoach((pre ? pre + " " : "") + msg, { force: true });
     renderSteps();
   }
 
@@ -546,18 +539,13 @@ export function mountLab(root, OPTS) {
     var st = STEPS[Math.min(S.step, STEPS.length - 1)];
     if (/エラー|動かない|だめ|ダメ|おかしい/.test(q)) {
       if (S.last && !S.last.ok) return explainError(S.last.error);
-      return "いまはエラーは出ていません。思ったとおりにならないところを、もう少し教えてください。";
+      return situational() || "いまはエラーは出ていません。思ったとおりにならないところを、もう少し教えてください。";
     }
     if (/ヒント|わから|分から|詰ま|つま/.test(q)) { giveHint(); return null; }
     if (/お手本|答え|見せて/.test(q)) { replay(); return null; }
-    if (/なぜ|どうして|意味|理由/.test(q)) return st.why;
-    if (/for|ループ|繰り返/.test(q)) return "`for (const n of scores) { ... }` は、`scores` の中身を先頭から1つずつ `n` に入れて、`{ }` の中を繰り返します。5人分なら5回まわります。";
-    if (/配列|\[/.test(q)) return "配列は、値を順番に並べて1つにまとめたものです。`scores[0]` で1番目、`scores.length` で個数が取れます。";
-    if (/平均|toFixed/.test(q)) return STEPS[3].why;
-    if (/const|let/.test(q)) return "`const` はあとから入れ替えない値、`let` はあとで入れ替える値に使います。合計はループで増えていくので `let` です。";
-    if (/console|log/.test(q)) return STEPS[0].why;
+    if (/なぜ|どうして|意味|理由/.test(q)) return st.why || st.hints[0] || "";
     if (S.step >= STEPS.length) return "レッスンは完了しています。気になったことは何でも試してみてください。";
-    return "いまは「" + st.title + "」のステップです。" + st.hints[0];
+    return "いまは「" + st.title + "」のステップです。" + (situational() || (st.hints || [])[0] || "");
   }
 
   function onChip(q){
@@ -569,7 +557,7 @@ export function mountLab(root, OPTS) {
         pushCoach((e.line ? e.line + "行目で止まっています。" : "") + explainError(e), { force: true });
       } else pushCoach("いまはエラーは出ていません。", { force: true });
     }
-    else if (q === "why") { pushMe("なぜこう書くの？"); pushCoach(STEPS[Math.min(S.step, STEPS.length - 1)].why, { force: true }); }
+    else if (q === "why") { pushMe("なぜこう書くの？"); var w = STEPS[Math.min(S.step, STEPS.length - 1)]; pushCoach(w.why || (w.hints || [])[0] || "", { force: true }); }
     else if (q === "demo") { pushMe("お手本を見せて"); replay(); }
   }
 
@@ -580,11 +568,10 @@ export function mountLab(root, OPTS) {
     ta.value = S.text;
   }
 
-  function traceHtml(s){
-    var run = 0;
-    return '<div class="trace">ループの中で起きたこと（n を足すたびに total が増える）<div class="row">' +
-      s.map(function(n){ run += Number(n) || 0; return '<span class="c">+' + esc(n) + " → <span>" + run + "</span></span>"; }).join("") +
-      "</div></div>";
+  // ステップに入ったとき、目印の行（例「// ステップ4：…」）がなければ足す
+  function enterStep(){
+    var st = STEPS[S.step];
+    if (st && st.appendOnStart) ensureMark(st.appendOnStart);
   }
 
   function run(){
@@ -597,14 +584,12 @@ export function mountLab(root, OPTS) {
 
     var extra = "", advanced = false;
     if (r.ok) {
-      while (S.step < STEPS.length && STEPS[S.step].check(r)) {
+      while (S.step < STEPS.length && passes(S.step, r)) {
         var st = STEPS[S.step];
-        extra += '<div class="o-ok"><b>ステップ' + (S.step + 1) + ' クリア</b>' + esc(st.clear(r)) + "</div>";
-        if (st.trace) extra += traceHtml(scoresOf(r));
-        pushCoach(st.done(r), { force: true });
+        extra += '<div class="o-ok"><b>ステップ' + (S.step + 1) + ' クリア</b>' + esc(clearText(S.step, r)) + "</div>";
+        if (st.done) pushCoach(st.done, { force: true });
         S.step++; advanced = true;
-        if (S.step === 3) ensureMark(STEP4_MARK);
-        if (S.step === 4) ensureMark(STEP5_MARK);
+        enterStep();
       }
       // 合格しなかったときは、目標の1行といまの出力を並べて見せる
       if (!advanced) extra += cmpHtml(r);
@@ -640,9 +625,9 @@ export function mountLab(root, OPTS) {
   function replay(){
     if (S.replaying) return;
     if (S.step >= STEPS.length) { pushCoach("レッスンは完了しています。", { force: true }); return; }
-    var plan = REPLAYS[S.step](S.text);
+    if (!hasDemo(S.step)) { pushCoach("このステップにはお手本がありません。ヒントを使ってみてください。", { force: true }); return; }
+    var plan = demoPlan(S.step, S.text);
     S.replays++;
-    if (!plan) { pushCoach("お手本を入れる場所が見つかりませんでした。「最初から」で元の形に戻せます。", { force: true }); renderSteps(); return; }
     if (plan.run) {
       var btn = $("btnRun"); btn.classList.remove("flash"); void btn.offsetWidth; btn.classList.add("flash");
       pushCoach("お手本では、ここで「実行」を押します。見ていてください。", { force: true });
@@ -651,7 +636,7 @@ export function mountLab(root, OPTS) {
       return;
     }
     if (plan.already) {
-      pushCoach("もう書き始めていますね。お手本の書き方はこうです。見比べてみてください。", { code: plan.already, force: true });
+      pushCoach("お手本の書き方はこうです。見比べてみてください。", { code: plan.already, force: true });
       renderSteps();
       return;
     }
@@ -763,11 +748,12 @@ export function mountLab(root, OPTS) {
   function restart(useSaved){
     if (S && S.replaying) { clearTimeout(S.replayTimer); ta.readOnly = false; $("replayBar").hidden = true; }
     S = fresh(useSaved);
+    enterStep();
     ta.value = S.text; ta.scrollTop = 0;
     $("msgs").innerHTML = "";
     renderOutput(null); renderVars(null); setTab("out");
     renderAll();
-    if (useSaved && S.step >= STEPS.length) pushCoach("この単元はクリア済みです。数字を変えたり、最低点を出してみたり、自由に試してみてください。", { force: true });
+    if (useSaved && S.step >= STEPS.length) pushCoach("この単元はクリア済みです。自由に書き換えて試してみてください。", { force: true });
     else if (useSaved && S.step > 0) pushCoach("おかえりなさい。前回の続き、ステップ" + (S.step + 1) + "「" + STEPS[S.step].title + "」からです。", { force: true });
     else pushCoach("こんにちは、コーチです。コードの横に出る説明を読みながら進めてください。分からないことは、いつでもここで聞いてください。まずは「実行」を押してみましょう。", { force: true });
   }
