@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { apiPost } from "../../../api.js";
 import MountedHtml from "../MountedHtml.jsx";
 import { LAB_HTML } from "../lab/labMarkup.js";
 import { mountLab } from "../lab/mountLab.js";
@@ -47,6 +48,8 @@ export default function LabPage({ courseId, unitId, trial, preview, saved, onSav
     backGo: preview ? "studio-back" : null,
     backLabel: preview ? "← 単元づくり" : null,
     initial: noSave ? null : saved,
+    // Java は本物の javac / java で動かす（学習モードの演習と同じ実行環境。ログインが要る）
+    runJava: trial ? null : (payload) => apiPost("/learning/exercises/java/run", payload),
     // おためし中は保存しないが、クリアしたところまでは覚えておく（ログインしたら保存する）
     onProgress: (snap) => { if (trial) { onTrialProgress && onTrialProgress(snap); return; } flush(snap); },
     onChange: (snap) => {
@@ -80,14 +83,6 @@ export default function LabPage({ courseId, unitId, trial, preview, saved, onSav
         <div><a className="btn btn-sec" href={`#/courses/${courseId}`}>コースマップへもどる</a></div></div></div>
     );
   }
-  if (unit.runtime && unit.runtime !== "js") {
-    return (
-      <div className="tl-app"><div className="wrap hb"><div className="greet"><div><h1>{unit.title}</h1></div></div>
-        <ul className="kw sm"><li className="m">{unit.runtime === "web" ? "Web" : "Java"}</li><li>準備中</li></ul>
-        <div><a className="btn btn-sec" href={`#/courses/${courseId}`}>コースマップへもどる</a></div></div></div>
-    );
-  }
-
   return (
     <>
       <div className="tl-app">

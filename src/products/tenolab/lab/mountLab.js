@@ -2,6 +2,8 @@
    OPTS.unit … 単元（API /tenolab/courses/{c}/units/{u} の unit と同じ形）
    OPTS.meta … 見出し用 { courseId, courseTitle, unitNo, unitTotal, chapter }
    OPTS.preview … 講師の「受講生として試す」。保存の印を出さない */
+import { explainJava, highlightCode, javaResult, makeMeasureFrames, parseTests, renderWeb, webCond, webDocument, webMeasure, webPasses, webWant } from "./labRuntimes.js";
+
 export function mountLab(root, OPTS) {
   "use strict";
   OPTS = OPTS || {};
@@ -9,7 +11,7 @@ export function mountLab(root, OPTS) {
      onProgress: ステップが進んだとき（すぐ保存する）／onChange: コードを打ったとき（間を置いて保存する） */
   function snapshot(){
     return {
-      step: S.step, status: S.step >= STEPS.length ? "cleared" : "doing", code: S.text,
+      step: S.step, status: S.step >= STEPS.length ? "cleared" : "doing", code: packCode(S.files),
       runs: S.runs0 + S.runs, hints: S.hints0 + S.hints, replays: S.replays0 + S.replays,
       minutes: Math.max(1, Math.round((Date.now() - S.started) / 60000))
     };
@@ -29,10 +31,18 @@ export function mountLab(root, OPTS) {
      ===================================================================== */
   var U = OPTS.unit;
   var STEPS = U.steps || [];
-  var INITIAL = (U.files && U.files.start) || "";
-  var ANSWER = (U.files && U.files.answer) || "";
-  var DATA = U.dataVar || "";
+  // 実行環境：js＝ブラウザで動かす／web＝HTML・CSS を描画して表示を測る／java＝本物の javac・java（API）
+  var RT = U.runtime === "web" || U.runtime === "java" ? U.runtime : "js";
+  var UF = U.files || {};
+  // ファイル。js・java は main の1つ、web は html（index.html）と css（style.css）
+  var FILES0 = RT === "web" ? { html: UF.start || "", css: UF.css || "" } : { main: UF.start || "" };
+  var FILE_NAME = { html: "index.html", css: "style.css", main: U.fileName || (RT === "java" ? "Main.java" : "main.js") };
+  var INITIAL = FILES0.main || "";
+  var ANSWER = RT === "js" ? (UF.answer || "") : "";
+  var DATA = RT === "js" ? (U.dataVar || "") : "";
   var META = OPTS.meta || {};
+  function stepFile(i){ return RT === "web" ? ((STEPS[i] && STEPS[i].file) || "html") : "main"; }
+  function langOf(f){ return RT === "web" ? f : RT; }
 
   function esc(s){ return String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;"); }
   // 説明文は `コード` と **太字** だけ使える
@@ -89,21 +99,61 @@ export function mountLab(root, OPTS) {
   }
   function stepPrefix(i){ var c = STEPS[i].check; return c.kind === "answerLine" ? c.prefix : ""; }
 
+  function hasAll(text, value){ return value.split("\n").filter(Boolean).every(function(l){ return text.indexOf(l) >= 0; }); }
+
+  /* ステップ i に合格したか。Java のテストは入力を変えてもう一度動かすので、Promise を返すことがある */
   function passes(i, r){
+    var c = STEPS[i].check;
+    if (RT === "web") {
+      if (!r.docs) return false;
+      return webPasses(c, r.docs, S.files);
+    }
+    if (RT === "java") {
+      if (c.kind === "compile") return r.compiled === true;
+      if (c.kind === "tests" && r.compiled) return runTests(c).then(function(res){ r.tests = res; return res.length > 0 && res.every(function(t){ return t.ok; }); });
+      if (!r.ok) return false;
+      if (c.kind === "code") return hasAll(S.files.main, c.value);
+      var jl = outLines(r).map(function(l){ return l.trim(); });
+      return c.value.split("\n").map(function(l){ return l.trim(); }).filter(Boolean).every(function(l){ return jl.indexOf(l) >= 0; });
+    }
     if (!r.ok) return false;
-    var c = STEPS[i].check, lines = outLines(r);
+    var lines = outLines(r);
     if (c.kind === "answerLine") {
       var want = stepWant(i, dataOf(r) || BASE_DATA);
       return !!want && sameLine(findPrefix(lines, c.prefix), want, c.prefix);
     }
     if (c.kind === "line") return c.value.split("\n").filter(Boolean).every(function(l){ return lines.indexOf(l) >= 0; });
     if (c.kind === "change") { var d = dataOf(r); return !!d && !sameData(d, BASE_DATA); }
-    if (c.kind === "code") return c.value.split("\n").filter(Boolean).every(function(l){ return S.text.indexOf(l) >= 0; });
+    if (c.kind === "code") return hasAll(S.files.main, c.value);
     return false;
+  }
+
+  /* Java のテスト：入力を標準入力に渡して1つずつ動かす */
+  function runTests(c){
+    var tests = parseTests(c.value), out = [];
+    var chain = Promise.resolve();
+    tests.forEach(function(t){
+      chain = chain.then(function(){
+        return callJava(t.input).then(function(r){
+          var got = r.ok ? outLines(r).map(function(l){ return l.trim(); }) : [];
+          out.push({ label: t.label || "（入力なし）", want: t.want, got: r.ok ? (got.filter(function(l){ return l; }).slice(-1)[0] || "（何も出ない）") : (r.error && r.error.message || "エラー").split("\n")[0], ok: r.ok && got.indexOf(t.want) >= 0 });
+        });
+      });
+    });
+    return chain.then(function(){ return out; });
+  }
+
+  function callJava(stdin){
+    if (!OPTS.runJava) return Promise.resolve({ ok: false, out: [], vars: {}, error: { message: "Java を動かすにはログインが必要です。" } });
+    return OPTS.runJava({ files: [{ name: FILE_NAME.main, content: S.files.main }], filename: FILE_NAME.main, stdin: stdin || "" })
+      .then(javaResult, function(e){ return { ok: false, out: [], vars: {}, error: { message: (e && e.errorMessage) || "実行環境につながりませんでした。もう一度実行してください。" } }; });
   }
 
   function clearText(i, r){
     var c = STEPS[i].check;
+    if (RT === "web") return webWant(c);
+    if (c.kind === "compile") return "コンパイルが通りました";
+    if (c.kind === "tests") return (r.tests || []).length + "個のテストが通りました";
     if (c.kind === "answerLine") return findPrefix(outLines(r), c.prefix) || "";
     if (c.kind === "line") return c.value.split("\n")[0];
     if (c.kind === "change") return DATA + " = " + fmt(dataOf(r), true);
@@ -113,6 +163,9 @@ export function mountLab(root, OPTS) {
   /* 合格の条件を [前, 印, 後] で返す（印はコードの見た目で出す） */
   function condParts(i, data){
     var c = STEPS[i].check;
+    if (RT === "web") return webCond(c);
+    if (c.kind === "compile") return ["", "コンパイル", "が通れば合格"];
+    if (c.kind === "tests") return ["", parseTests(c.value).length + "個のテスト", "がすべて通れば合格"];
     if (c.kind === "change") return ["", DATA, "の中身が変われば合格"];
     if (c.kind === "code") return ["コードに", c.value.split("\n")[0], "があれば合格"];
     return ["出力に", stepWant(i, data) || "", "と出れば合格"];
@@ -120,7 +173,8 @@ export function mountLab(root, OPTS) {
 
   /* 完成の出力のうち、ステップ i が目指している行の番号 */
   function lineOfStep(i, lines){
-    var p = stepPrefix(i);
+    var c = STEPS[i].check, p = stepPrefix(i);
+    if (c.kind === "line") { var first = c.value.split("\n")[0].trim(); return first ? lines.indexOf(first) : -1; }
     if (!p) return -1;
     for (var k = 0; k < lines.length; k++) if (lines[k].indexOf(p) === 0) return k;
     return -1;
@@ -144,30 +198,14 @@ export function mountLab(root, OPTS) {
       return d.mode === "insert" ? { at: k + d.at.length, del: 0, ins: d.text } : { at: k, del: d.at.length, ins: d.text };
     }
     var mark = st.appendOnStart, m = mark ? t.indexOf(mark) : -1;
-    return { at: m >= 0 ? m + mark.length : t.replace(/\s*$/, "").length, del: 0, ins: "\n" + d.text };
+    return m >= 0 ? { at: m + mark.length, del: 0, ins: "\n" + d.text } : { at: t.replace(/\s*$/, "").length, del: 0, ins: "\n\n" + d.text };
   }
   function hasDemo(i){ var d = STEPS[i] && STEPS[i].demo; return !!d && (d.mode === "run" || (d.mode !== "none" && !!d.text)); }
 
   /* =====================================================================
      色付け・実行（画面に依存しない部分）
      ===================================================================== */
-  var TOKEN = /(\/\/[^\n]*)|("(?:[^"\\\n]|\\.)*"?|'(?:[^'\\\n]|\\.)*'?|`(?:[^`\\]|\\.)*`?)|(\b\d+(?:\.\d+)?\b)|(\b(?:const|let|var|for|of|in|if|else|while|do|return|function|new|true|false|null|undefined|break|continue|typeof)\b)|(\b(?:console|Math)\b)|(\.[A-Za-z_$][\w$]*(?=\s*\())/g;
-  function highlight(src){
-    var out = "", last = 0, m;
-    TOKEN.lastIndex = 0;
-    while ((m = TOKEN.exec(src))) {
-      out += esc(src.slice(last, m.index));
-      if (m[1]) out += '<span class="t-c">' + esc(m[0]) + "</span>";
-      else if (m[2]) out += '<span class="t-s">' + esc(m[0]) + "</span>";
-      else if (m[3]) out += '<span class="t-n">' + esc(m[0]) + "</span>";
-      else if (m[4]) out += '<span class="t-k">' + esc(m[0]) + "</span>";
-      else if (m[5]) out += '<span class="t-b">' + esc(m[0]) + "</span>";
-      else out += '.<span class="t-f">' + esc(m[0].slice(1)) + "</span>";
-      last = TOKEN.lastIndex;
-      if (!m[0].length) TOKEN.lastIndex++;
-    }
-    return out + esc(src.slice(last));
-  }
+  function highlight(src, lang){ return highlightCode(src, lang || langOf(S ? S.cur : "main")); }
 
   /* 止まらないループで画面ごと固まらないよう、for / while の本体に回数の見張りを差し込む。
      行を増やさない（エラーの行番号がずれないように）。 */
@@ -271,6 +309,7 @@ export function mountLab(root, OPTS) {
   }
 
   function explainError(err){
+    if (RT === "java") return explainJava(err);
     var msg = err.message || "";
     var name = /^(\S+) is not defined/.exec(msg);
     if (err.loop) return "ループが止まらなくなっています。繰り返しの条件が、いつまでも変わらないままになっていないか見てみましょう。";
@@ -295,7 +334,21 @@ export function mountLab(root, OPTS) {
     set(".tk-c", [META.courseTitle, no && META.unitTotal ? no + " / " + META.unitTotal : no].filter(Boolean).join(" ・ "));
     set(".eyebrow", [no, META.chapter].filter(Boolean).join(" ・ "));
     set(".lesson h1", U.title);
-    set(".ide-bar .file", U.fileName || "main.js");
+    set(".ide-bar .lang", RT === "web" ? "HTML・CSS" : RT === "java" ? "Java" : "JavaScript");
+    var fileEl = root.querySelector(".ide-bar .file");
+    if (fileEl) {
+      if (RT === "web") {
+        // index.html と style.css を切り替えるタブ
+        fileEl.classList.add("ftabs");
+        fileEl.setAttribute("role", "tablist");
+        fileEl.innerHTML = '<button type="button" role="tab" data-f="html">index.html</button><button type="button" role="tab" data-f="css">style.css</button>';
+      } else fileEl.textContent = FILE_NAME.main;
+    }
+    var kw0 = root.querySelector(".app > .kw .m");
+    if (kw0) kw0.textContent = RT === "web" ? "本当に表示される HTML・CSS" : RT === "java" ? "本物の Java で実行" : "本当に動く JavaScript";
+    var tv = $("tabVar");
+    if (tv && RT === "web") tv.textContent = "スマホ幅";
+    if (tv && RT === "java") tv.hidden = true;
     var back = root.querySelector(".tk-back");
     if (back) {
       if (OPTS.backGo) { back.setAttribute("data-go", OPTS.backGo); back.textContent = OPTS.backLabel || back.textContent; }
@@ -307,10 +360,21 @@ export function mountLab(root, OPTS) {
     if (ask) ask.placeholder = "コーチに聞く";
   })();
 
+  /* 保存するコード。web は2つのファイルを JSON にまとめて1つの文字列にする */
+  function packCode(files){ return RT === "web" ? JSON.stringify({ html: files.html, css: files.css }) : files.main; }
+  function unpackCode(code){
+    if (!code) return null;
+    if (RT !== "web") return { main: String(code) };
+    try { var o = JSON.parse(code); return { html: String(o.html || ""), css: String(o.css || "") }; } catch (e) { return null; }
+  }
+
   function fresh(useSaved){
     var sv = useSaved && OPTS.initial ? OPTS.initial : null;
+    var files = (sv && unpackCode(sv.code)) || { html: FILES0.html, css: FILES0.css, main: FILES0.main };
+    var step = sv ? Math.min(Math.max(0, sv.step || 0), STEPS.length) : 0;
+    var cur = stepFile(Math.min(step, Math.max(0, STEPS.length - 1)));
     return {
-      step: sv ? Math.min(Math.max(0, sv.step || 0), STEPS.length) : 0, text: sv && sv.code ? sv.code : INITIAL, last: null, errLine: null,
+      step: step, files: files, cur: cur, text: files[cur] || "", last: null, errLine: null, running: false,
       runs0: sv ? sv.runs || 0 : 0, hints0: sv ? sv.hints || 0 : 0, replays0: sv ? sv.replays || 0 : 0,
       runs: 0, hints: 0, replays: 0, errors: 0,
       hintLevel: STEPS.map(function(){ return 0; }), collapsed: false, replaying: false, fast: false,
@@ -320,9 +384,27 @@ export function mountLab(root, OPTS) {
 
   function lineCount(){ return S.text.split("\n").length; }
 
+  // いま開いているファイルの中身を変える（S.text と S.files をそろえる）
+  function setText(t){ S.text = t; S.files[S.cur] = t; }
+
+  function renderFileTabs(){
+    if (RT !== "web") return;
+    root.querySelectorAll(".ide-bar [data-f]").forEach(function(b){
+      b.setAttribute("aria-selected", String(b.getAttribute("data-f") === S.cur));
+    });
+  }
+  function switchFile(f){
+    if (RT !== "web" || f === S.cur || S.replaying) return;
+    S.cur = f; S.text = S.files[f] || ""; S.errLine = null;
+    ta.value = S.text; ta.scrollTop = 0;
+    renderFileTabs(); renderCode(); renderPopup();
+  }
+  // 説明の吹き出しは、そのステップで書くファイルを開いているときだけ行に付ける
+  function onStepFile(){ return S.step >= STEPS.length || stepFile(S.step) === S.cur; }
+
   function anchorLine(){
     var lines = S.text.split("\n");
-    if (S.step >= STEPS.length) return 1;
+    if (S.step >= STEPS.length || !onStepFile()) return 1;
     var keys = STEPS[S.step].anchor;
     for (var k = 0; k < keys.length; k++) {
       for (var i = 0; i < lines.length; i++) if (lines[i].indexOf(keys[k]) >= 0) return i + 1;
@@ -364,6 +446,8 @@ export function mountLab(root, OPTS) {
         '<div class="sum"><div>かかった時間<b>' + mins + '分</b></div><div>実行した回数<b>' + S.runs + '回</b></div>' +
         '<div>ヒント<b>' + S.hints + '回</b></div><div>お手本<b>' + S.replays + '回</b></div></div>' +
         '<div class="a"><button type="button" class="go" data-go="cleared">' + (OPTS.preview ? "単元づくりへ戻る" : "コースマップへ（単元クリア）") + '</button><button type="button" data-a="restart">もう一度はじめから</button></div></div>';
+    } else if (!onStepFile()) {
+      html = '<button class="pill" type="button" data-a="gofile" id="pop">ステップ' + (S.step + 1) + ' → ' + esc(FILE_NAME[stepFile(S.step)]) + "</button>";
     } else if (S.collapsed) {
       html = '<button class="pill" type="button" data-a="open" id="pop">ステップ' + (S.step + 1) + 'の説明を開く</button>';
     } else {
@@ -387,7 +471,7 @@ export function mountLab(root, OPTS) {
     el.style.top = top + "px";
   }
 
-  function currentData(){ return parseData(S.text) || dataOf(S.last) || BASE_DATA; }
+  function currentData(){ return parseData(S.files.main || "") || dataOf(S.last) || BASE_DATA; }
 
   var ICON_TODO = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="3.5"/></svg>';
   var ICON_PASS = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="8"/><path d="m8.5 12 2.5 2.5 4.5-5"/></svg>';
@@ -426,18 +510,38 @@ export function mountLab(root, OPTS) {
     }
     var el = $("mission");
     el.className = "mission" + (done ? " ms-done" : "");
+    if (RT === "web") {
+      // 完成の見た目は枠で1回だけ描く（打つたびに描き直すとちらつく）
+      if (!el.querySelector(".ms-l")) {
+        el.innerHTML = '<div class="ms-l"></div>' + (UF.answer ? '<div class="preview wgoal"><div class="h">完成すると、こうなります</div><div class="wg"><iframe sandbox="" tabindex="-1" scrolling="no" title="完成の見た目"></iframe></div></div>' : "");
+        var gf = el.querySelector(".wgoal iframe");
+        if (gf) gf.srcdoc = webDocument(UF.answer, UF.answerCss);
+      }
+      el.querySelector(".ms-l").innerHTML = left;
+      return;
+    }
     el.innerHTML = left + preview;
   }
 
   /* 合格しなかった実行のあとに、目標といまの出力を並べる（出力で判定するステップだけ） */
+  function cmpRow(want, got){
+    return '<div class="cmp"><div class="r"><span class="cl">目標</span><code>' + esc(want) + "</code></div>" +
+      '<div class="r"><span class="cl">いま</span>' + (got ? "<code>" + esc(got) + "</code>" : '<span class="miss">まだ出ていません</span>') + "</div></div>";
+  }
   function cmpHtml(r){
     if (S.step >= STEPS.length) return "";
+    var c = STEPS[S.step].check;
+    if (RT === "web") return r.docs ? cmpRow(webWant(c), webMeasure(c, r.docs)) : "";
+    if (c.kind === "tests" && r.tests) {
+      return '<div class="cmp">' + r.tests.map(function(t){
+        return '<div class="r"><span class="cl">' + (t.ok ? "✓" : "✗") + " " + esc(t.label) + '</span><code>' + esc(t.want) + "</code>" + (t.ok ? "" : ' <span class="miss">いま ' + esc(t.got) + "</span>") + "</div>";
+      }).join("") + "</div>";
+    }
     var want = stepWant(S.step, dataOf(r) || currentData());
     if (!want) return "";
     var p = stepPrefix(S.step), lines = outLines(r);
     var got = p ? findPrefix(lines, p) : (lines.indexOf(want) >= 0 ? want : null);
-    return '<div class="cmp"><div class="r"><span class="cl">目標</span><code>' + esc(want) + "</code></div>" +
-      '<div class="r"><span class="cl">いまの出力</span>' + (got ? "<code>" + esc(got) + "</code>" : '<span class="miss">まだ出ていません</span>') + "</div></div>";
+    return cmpRow(want, got);
   }
 
   function renderSteps(){
@@ -450,11 +554,32 @@ export function mountLab(root, OPTS) {
     $("chipErr").disabled = !(S.last && !S.last.ok);
   }
 
+  /* Web：出力の欄は「表示」（いまのコードをそのまま描いた枠）と、確かめた結果 */
+  var WEB = null;
+  function setupWebPanes(){
+    if (RT !== "web") return;
+    $("outPane").innerHTML = '<div class="wprev"><iframe sandbox="allow-same-origin" title="表示"></iframe></div><div class="wres" aria-live="polite"></div>';
+    $("varPane").innerHTML = '<div class="wprev narrow"><iframe sandbox="allow-same-origin" title="スマホ幅の表示"></iframe></div>';
+    WEB = { wide: $("outPane").querySelector("iframe"), narrow: $("varPane").querySelector("iframe"), measure: WEB ? WEB.measure : makeMeasureFrames(root), timer: 0 };
+  }
+  // 打つたびに（少し間を置いて）表示だけ描き直す。判定は「実行」のときだけ
+  function refreshWebPreview(now){
+    if (!WEB) return;
+    clearTimeout(WEB.timer);
+    var draw = function(){ var d = webDocument(S.files.html, S.files.css); WEB.wide.srcdoc = d; WEB.narrow.srcdoc = d; };
+    if (now) draw(); else WEB.timer = setTimeout(draw, 350);
+  }
+
   function renderOutput(r, extra){
+    if (RT === "web") {
+      var res = $("outPane").querySelector(".wres");
+      if (res) res.innerHTML = r ? (extra || "") : '<div class="o-empty">「実行」で表示を確かめる</div>';
+      return;
+    }
     var pane = $("outPane");
     if (!r) { pane.innerHTML = '<div class="o-empty">「実行」を押すと、ここに結果が出ます。</div>'; return; }
     var h = r.out.map(function(l){ return '<div class="o-line"><span class="g">›</span><span>' + esc(l.s) + "</span></div>"; }).join("");
-    if (!r.out.length && r.ok) h = '<div class="o-empty">何も表示されませんでした（console.log がありません）。</div>';
+    if (!r.out.length && r.ok) h = '<div class="o-empty">何も表示されませんでした（' + (RT === "java" ? "System.out.println" : "console.log") + " がありません）。</div>";
     if (!r.ok) {
       h += '<div class="o-err"><b>エラー</b>' + (r.error.line ? '<span class="at">' + r.error.line + "行目</span>" : "") + esc(r.error.loop ? LOOP_MSG + "（20万回で止めました）" : r.error.message) + "</div>";
     }
@@ -463,6 +588,7 @@ export function mountLab(root, OPTS) {
   }
 
   function renderVars(r){
+    if (RT !== "js") return;
     var v = (r && r.ok) ? r.vars : {};
     $("varPane").innerHTML = '<table class="vt"><tbody>' + VARS.map(function(name){
       var has = v && v[name] !== undefined;
@@ -507,6 +633,14 @@ export function mountLab(root, OPTS) {
     var r = S.last, i = S.step;
     if (i >= STEPS.length || !r || !r.ok) return "";
     var c = STEPS[i].check;
+    if (RT === "web") {
+      if (!r.docs) return "";
+      return "いまは `" + webMeasure(c, r.docs) + "`。目標は `" + webWant(c) + "` です。";
+    }
+    if (c.kind === "tests" && r.tests) {
+      var bad = r.tests.filter(function(t){ return !t.ok; })[0];
+      return bad ? "入力 `" + bad.label + "` のとき `" + bad.want + "` と出てほしいところ、いまは `" + bad.got + "` です。" : "";
+    }
     if (c.kind === "change") {
       var d = dataOf(r);
       return d && sameData(d, BASE_DATA) ? "`" + DATA + "` はまだ元のままです。中身を変えてから実行しましょう。" : "";
@@ -562,38 +696,77 @@ export function mountLab(root, OPTS) {
   }
 
   /* ---- 実行 ---- */
-  function ensureMark(mark){
-    if (S.text.indexOf(mark) >= 0) return;
-    S.text = S.text.replace(/\s*$/, "") + "\n\n" + mark + "\n";
-    ta.value = S.text;
+  // 目印の行を、そのステップで書くファイルの最後に足す（なければ）
+  function ensureMark(mark, f){
+    f = f || S.cur;
+    var t = S.files[f] || "";
+    if (t.indexOf(mark) >= 0) return;
+    S.files[f] = t.replace(/\s*$/, "") + "\n\n" + mark + "\n";
+    if (f === S.cur) { S.text = S.files[f]; ta.value = S.text; }
   }
 
-  // ステップに入ったとき、目印の行（例「// ステップ4：…」）がなければ足す
+  // ステップに入ったとき：そのステップのファイルを開き、目印の行（例「// ステップ4：…」）がなければ足す
   function enterStep(){
     var st = STEPS[S.step];
-    if (st && st.appendOnStart) ensureMark(st.appendOnStart);
+    if (!st) return;
+    if (RT === "web" && stepFile(S.step) !== S.cur) {
+      S.cur = stepFile(S.step); S.text = S.files[S.cur] || ""; ta.value = S.text; ta.scrollTop = 0; renderFileTabs();
+    }
+    if (st.appendOnStart) ensureMark(st.appendOnStart, stepFile(S.step));
   }
 
-  function run(){
-    if (S.replaying) return;
-    var r = execute(S.text);
+  function setRunning(on){
+    var b = $("btnRun");
+    b.disabled = on;
+    b.classList.toggle("busy", on);
+    $("btnDemo").disabled = on || S.step >= STEPS.length || !hasDemo(S.step);
+    if (on && RT === "java") renderOutputBusy();
+  }
+  function renderOutputBusy(){ $("outPane").innerHTML = '<div class="o-empty">Java をコンパイルして実行しています…</div>'; }
+
+  // 実行環境ごとに動かす。結果の形はどれも { ok, out:[{s}], vars, error }（web は docs も）
+  function execNow(){
+    if (RT === "js") return Promise.resolve(execute(S.files.main));
+    if (RT === "java") {
+      // 入力で確かめるステップでは、最初のテストの入力を渡して動かす（入力なしだと読み込みで止まるため）
+      var c = S.step < STEPS.length ? STEPS[S.step].check : null;
+      var first = c && c.kind === "tests" ? parseTests(c.value)[0] : null;
+      return callJava(first ? first.input : "");
+    }
+    refreshWebPreview(true);
+    return renderWeb(WEB.measure, S.files.html, S.files.css).then(function(docs){ return { ok: true, out: [], vars: {}, docs: docs }; });
+  }
+
+  // 実行中（Java のテストを含めて終わるまで）は、もう一度押せないようにする
+  async function run(){
+    if (S.replaying || S.running) return;
+    S.running = true; setRunning(true);
+    try { await runOnce(); } finally { if (!destroyed) { S.running = false; setRunning(false); } }
+  }
+
+  async function runOnce(){
+    var r = await execNow();
+    if (destroyed) return;
     S.runs++; S.last = r; S.touched = Date.now();
-    S.errLine = (!r.ok && r.error.line && r.error.line <= lineCount()) ? r.error.line : null;
+    S.errLine = (!r.ok && r.error && r.error.line && r.error.line <= lineCount()) ? r.error.line : null;
     if (!r.ok) S.errors++;
     renderVars(r);
 
     var extra = "", advanced = false;
-    if (r.ok) {
-      while (S.step < STEPS.length && passes(S.step, r)) {
-        var st = STEPS[S.step];
-        extra += '<div class="o-ok"><b>ステップ' + (S.step + 1) + ' クリア</b>' + esc(clearText(S.step, r)) + "</div>";
-        if (st.done) pushCoach(st.done, { force: true });
-        S.step++; advanced = true;
-        enterStep();
-      }
-      // 合格しなかったときは、目標の1行といまの出力を並べて見せる
-      if (!advanced) extra += cmpHtml(r);
+    // 合格したステップは続けて確かめる（完成形をまとめて書いた人は一度に進む）
+    while (S.step < STEPS.length) {
+      if (RT === "java" && STEPS[S.step].check.kind === "tests") $("outPane").innerHTML = '<div class="o-empty">入力を変えて、テストを動かしています…</div>';
+      var ok = await passes(S.step, r);
+      if (destroyed) return;
+      if (!ok) break;
+      var st = STEPS[S.step];
+      extra += '<div class="o-ok"><b>ステップ' + (S.step + 1) + ' クリア</b>' + esc(clearText(S.step, r)) + "</div>";
+      if (st.done) pushCoach(st.done, { force: true });
+      S.step++; advanced = true;
+      enterStep();
     }
+    // 合格しなかったときは、目標といまを並べて見せる
+    if (!advanced && r.ok) extra += cmpHtml(r);
     renderOutput(r, extra);
     setTab("out");
 
@@ -623,9 +796,11 @@ export function mountLab(root, OPTS) {
   }
 
   function replay(){
-    if (S.replaying) return;
+    if (S.replaying || S.running) return;
     if (S.step >= STEPS.length) { pushCoach("レッスンは完了しています。", { force: true }); return; }
     if (!hasDemo(S.step)) { pushCoach("このステップにはお手本がありません。ヒントを使ってみてください。", { force: true }); return; }
+    // お手本は、そのステップで書くファイルに打つ
+    if (RT === "web" && stepFile(S.step) !== S.cur) switchFile(stepFile(S.step));
     var plan = demoPlan(S.step, S.text);
     S.replays++;
     if (plan.run) {
@@ -643,11 +818,11 @@ export function mountLab(root, OPTS) {
     var before = S.text.slice(0, plan.at), after = S.text.slice(plan.at + plan.del), ins = plan.ins, i = 0;
     S.replaying = true; ta.readOnly = true; $("replayBar").hidden = false;
     pushCoach("お手本を打ちます。手元の動きを見ていてください。", { force: true });
-    S.finishReplay = function(){ S.text = before + ins + after; ta.value = S.text; };
+    S.finishReplay = function(){ setText(before + ins + after); ta.value = S.text; };
     function tick(){
       if (!S.replaying) return;
       i = REDUCED ? ins.length : Math.min(ins.length, i + 1);
-      S.text = before + ins.slice(0, i) + after; ta.value = S.text;
+      setText(before + ins.slice(0, i) + after); ta.value = S.text;
       var caret = before.length + i;
       try { ta.setSelectionRange(caret, caret); } catch (e) {}
       keepVisible(caret);
@@ -664,6 +839,7 @@ export function mountLab(root, OPTS) {
     if (S.finishReplay) S.finishReplay();
     S.finishReplay = null; S.replaying = false; S.fast = false;
     ta.readOnly = false; $("replayBar").hidden = true; $("btnFast").textContent = "2倍速";
+    refreshWebPreview(true);
     renderAll();
     if (runAfter) setTimeout(run, REDUCED ? 0 : 450);
   }
@@ -681,9 +857,14 @@ export function mountLab(root, OPTS) {
   }
 
   ta.addEventListener("input", function(){
-    S.text = ta.value; S.errLine = null; S.touched = Date.now();
+    setText(ta.value); S.errLine = null; S.touched = Date.now();
     changed();
+    refreshWebPreview(false);
     renderCode(); renderPopup(); renderMission();
+  });
+  var fileBar = root.querySelector(".ide-bar .file");
+  if (fileBar && RT === "web") fileBar.addEventListener("click", function(e){
+    var b = e.target.closest("[data-f]"); if (b) switchFile(b.getAttribute("data-f"));
   });
   ta.addEventListener("scroll", function(){ syncScroll(); renderPopup(); });
   ta.addEventListener("keydown", function(e){
@@ -715,6 +896,7 @@ export function mountLab(root, OPTS) {
     else if (a === "demo") { replay(); }
     else if (a === "run") { run(); }
     else if (a === "restart") { restart(); }
+    else if (a === "gofile") { switchFile(stepFile(S.step)); }
   });
 
   $("chips").addEventListener("click", function(e){
@@ -751,6 +933,7 @@ export function mountLab(root, OPTS) {
     enterStep();
     ta.value = S.text; ta.scrollTop = 0;
     $("msgs").innerHTML = "";
+    setupWebPanes(); renderFileTabs(); refreshWebPreview(true);
     renderOutput(null); renderVars(null); setTab("out");
     renderAll();
     if (useSaved && S.step >= STEPS.length) pushCoach("この単元はクリア済みです。自由に書き換えて試してみてください。", { force: true });
@@ -778,5 +961,6 @@ export function mountLab(root, OPTS) {
     clearInterval(nudgeTimer);
     window.removeEventListener("resize", onResize);
     if (S) clearTimeout(S.replayTimer);
+    if (WEB) { clearTimeout(WEB.timer); WEB.measure.wide.remove(); WEB.measure.narrow.remove(); }
   };
 }

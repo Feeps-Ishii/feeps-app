@@ -1152,7 +1152,22 @@ body{margin:0; background:#FFFFFF}
 .tl-lab .o-empty{color:var(--ide-mute); font-family:"Noto Sans JP",sans-serif; font-size:12.5px}
 .tl-lab .o-line{display:flex; gap:10px}
 .tl-lab .o-line .g{color:var(--ide-gutter); user-select:none}
-.tl-lab .o-err{margin-top:4px; padding:8px 10px; border-radius:8px; background:rgba(224,137,129,.12); color:#FFB1A8; font-family:"Noto Sans JP",sans-serif; font-size:12.5px}
+.tl-lab .o-err{margin-top:4px; padding:8px 10px; border-radius:8px; background:rgba(224,137,129,.12); color:#FFB1A8; font-family:"Noto Sans JP",sans-serif; font-size:12.5px; white-space:pre-wrap; overflow-wrap:anywhere}
+/* Web・Java（フェーズB） */
+.tl-lab .file.ftabs{display:inline-flex; gap:2px; padding:2px}
+.tl-lab .ftabs button{border:0; background:transparent; color:var(--ide-mute); font:inherit; padding:2px 9px; border-radius:5px}
+.tl-lab .ftabs button[aria-selected="true"]{background:rgba(255,255,255,.1); color:var(--ide-ink)}
+.tl-lab .opane:has(.wprev){padding:0; display:grid; grid-template-rows:minmax(0,1fr) auto; height:300px}
+.tl-lab .wprev{background:#fff; min-height:0; overflow:hidden}
+.tl-lab .wprev iframe{display:block; width:100%; height:100%; min-height:150px; border:0; background:#fff}
+.tl-lab .wprev.narrow{height:100%; display:flex; justify-content:center; background:#2A3040}
+.tl-lab .wprev.narrow iframe{width:375px; max-width:100%}
+.tl-lab .wres{padding:0 12px 8px; max-height:96px; overflow:auto}
+.tl-lab .wres:empty{display:none}
+.tl-lab .wgoal .wg{height:120px; overflow:hidden; border-radius:7px; background:#fff}
+/* 完成の見た目は広い幅（720px）で描いて縮める。枠の幅で描くとスマホ幅の見た目になってしまう */
+.tl-lab .wgoal iframe{width:720px; height:441px; border:0; transform:scale(.34); transform-origin:0 0; pointer-events:none; background:#fff}
+.tl-lab .runbtn.busy{opacity:.7; cursor:progress}
 .tl-lab .o-err b{margin-right:6px}
 .tl-lab .o-err .at{display:inline-block; margin-right:6px; padding:0 7px; border-radius:999px; background:rgba(255,156,146,.18); font-size:11.5px}
 .tl-lab .o-ok{margin-top:8px; padding:8px 10px; border-radius:8px; background:rgba(123,196,155,.13); color:#A7E3BF; font-family:"Noto Sans JP",sans-serif; font-size:12.5px}
