@@ -68,7 +68,9 @@ body{margin:0; background:#FFFFFF}
 .tl-app .lg-card .sub{margin:6px 0 0; color:var(--ink2); font-size:14px}
 .tl-app .fm{display:grid; gap:14px; margin-top:20px}
 .tl-app .fld{display:grid; gap:6px}
-.tl-app .fld label{font-size:13px; font-weight:700}
+.tl-app .fld label, .tl-app .fld .lb2{font-size:13px; font-weight:700}
+.tl-app .lg-qr{display:block; width:200px; height:200px; border:2px solid var(--ink); border-radius:12px; background:#fff; padding:6px}
+.tl-app .lg-key{font-family:var(--mono); font-size:13px; background:var(--soft); border:1.5px solid var(--ink); border-radius:8px; padding:6px 10px; word-break:break-all; user-select:all}
 .tl-app .inp{width:100%; border:2px solid var(--ink); border-radius:10px; padding:10px 12px; font:inherit; font-size:15px; background:#fff; color:var(--ink)}
 .tl-app .inp:focus{outline:none; box-shadow:0 0 0 4px var(--marker)}
 .tl-app .inp[aria-invalid="true"]{border-color:var(--red)}

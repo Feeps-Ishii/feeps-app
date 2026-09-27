@@ -11,6 +11,7 @@ import Login from "./products/auth/Login.jsx";
 import { MfaSuggestionDialog, MfaSettingsCard, useMfaStatus } from "./products/auth/MfaSetup.jsx";
 import { TermsAgreementDialog, needsTermsAgreement, TERMS_VERSION } from "./components/common/TermsConsent.jsx";
 import { LegalPageView } from "./components/common/LegalPages.jsx";
+import TenolabLink from "./components/common/TenolabLink.jsx";
 import { Card, Badge, Btn, Avatar, Stat, SectionHead, T, NOVA, PRISM, PRISM_PRODUCT_GRAD, BrandMark, PRODUCT_ACCENT, ROLE_ACCENT, Z, PageLoading, EmptyState as CommonEmptyState, SkeletonRows, HelpGuideModal } from "./components/common";
 import { HELP_GUIDE_CONTENT } from "./products/home/helpGuideContent.js";
 import { GOALS, GOAL_ICON_MAP, NAV, ROLES } from "./products/training/TrainingCatalog.js";
@@ -1751,6 +1752,7 @@ export default function App() {
           </button>
           <div className="ml-auto flex items-center gap-1">
             {modeSwitch}
+            <TenolabLink compact />
               <button type="button" onClick={() => setHelpGuideOpen(true)} aria-label="使い方を開く" title="使い方" className="feeps-icon-button"><HelpCircle size={18} /></button>
             {notifBellMobile}
           </div>
@@ -1767,6 +1769,7 @@ export default function App() {
           )}
           <div className="ml-auto flex min-w-0 shrink-0 items-center justify-end gap-1.5">
             {role === "instructor" && !isHomeProduct && <QuickAdd onPick={go} />}
+            <TenolabLink />
             <button type="button" onClick={() => setHelpGuideOpen(true)} aria-label="使い方を開く" title="使い方" className="feeps-icon-button"><HelpCircle size={18} /></button>
             {demoMenu}{notifBellDesktop}{userActionsTail}
           </div>

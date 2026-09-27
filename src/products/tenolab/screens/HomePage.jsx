@@ -4,8 +4,6 @@ import Kw from "../Kw.jsx";
 import { THUMBS } from "../thumbs.js";
 import { COURSES, COURSE_ID, GOALS, LV, MISSION, SKILLS, UNITS, courseProgress } from "../tenolabData.js";
 
-const FEEPS_ONE = "/index.html";
-
 function Thumb({ id, small }) {
   const html = THUMBS[id] ? THUMBS[id]() : "";
   return small
@@ -53,11 +51,9 @@ export default function HomePage({ tab, onTab, onGo, name, staff, playable, prog
           <button type="button" aria-expanded={menu} aria-controls="tlMe" aria-label="アカウント" onClick={() => setMenu(v => !v)}>{(name || "？").charAt(0)}</button>
           {menu && (
             <div className="me-menu" id="tlMe">
-              <div className="who"><b>{name}</b><span><Jp>Feeps One と同じアカウント</Jp></span></div>
+              <div className="who"><b>{name}</b></div>
               <hr />
-              {staff && <a href="#/studio" onClick={e => { e.preventDefault(); onGo("studio"); }} style={{ fontWeight: 700, textDecoration: "none" }}>単元づくり</a>}
-              <a href={FEEPS_ONE} style={{ fontWeight: 700, textDecoration: "none" }}>Feeps One を開く</a>
-              <hr />
+              {staff && <><a href="#/studio" onClick={e => { e.preventDefault(); onGo("studio"); }} style={{ fontWeight: 700, textDecoration: "none" }}>単元づくり</a><hr /></>}
               <button type="button" onClick={onLogout}>ログアウト</button>
             </div>
           )}
