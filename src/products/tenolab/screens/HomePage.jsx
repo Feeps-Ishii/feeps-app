@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { Jp } from "../textFlow.jsx";
+import Kw from "../Kw.jsx";
 import { THUMBS } from "../thumbs.js";
 import { COURSES, COURSE_ID, GOALS, LV, MISSION, SKILLS, UNITS, courseProgress, isPlayable } from "../tenolabData.js";
 
@@ -164,7 +165,7 @@ function HomePane({ name, pr, items, onGo, onTab }) {
           <div className="cont-r">
             <div className="cr-h">あなたのアプリ<span>いまの姿</span></div>
             <AppNow done={pr.done} />
-            <p className="cr-note">{pr.done >= 2 ? <>単元2で<b>4行</b>が加わりました。次の単元で、計算を何度でも使い回せるようになります。</> : <>単元2を終えると、コンソールに<b>4行</b>が加わります。点線の部品は第2章から形になります。</>}</p>
+            <Kw cls="sm" items={pr.done >= 2 ? ["+4行 追加済み", "次：関数"] : ["単元2で +4行", "点線 = これから"]} />
           </div>
         </section>
       )}
@@ -180,7 +181,7 @@ function HomePane({ name, pr, items, onGo, onTab }) {
             })}
           </div>
           <div className="wk-sum"><span><b className="num">{wkMin}</b>分</span><span><b className="num">{wkDays}</b>日</span></div>
-          <p className="wk-note">{wk.days[wk.today] > 0 ? "今日も手を動かしました。" : "今日はまだ学んでいません。20分で1単元終わります。"}</p>
+          <Kw cls="sm" items={[wk.days[wk.today] > 0 ? "今日 ✓" : "今日 まだ", "1単元 約20分"]} />
         </section>
         <section className="panel" aria-labelledby="tlMine">
           <h3 id="tlMine">学習中のコース</h3>
@@ -198,7 +199,7 @@ function HomePane({ name, pr, items, onGo, onTab }) {
 
       <section>
         <div className="sh"><h2>ほかのコース</h2><button className="lnk" type="button" onClick={() => onTab("find")}>コースをぜんぶ見る</button>
-          <p><Jp>いま中身まで触れるのは「点数ダッシュボードを作ろう」です。ほかのコースは順に開きます。</Jp></p></div>
+          <Kw cls="sm" items={["公開中 1", "準備中 5"]} /></div>
         <div className="courses">{["quiz", "todo", "nippo"].map(id => <CourseCard key={id} id={id} pr={pr} onGo={onGo} />)}</div>
       </section>
     </div>
@@ -236,9 +237,9 @@ function FindPane({ filter, setFilter, goal, setGoal, pr, onGo }) {
   const chips = [["all", "すべて"], ["doing", "学習中"], ["lv1", "はじめて"], ["Web", "Web"], ["Java", "Java"], ["AWS", "AWS"]];
   return (
     <div className="hb">
-      <div className="greet"><div><h1>コースをさがす</h1><p><Jp>どのコースも、単元を進めるたびに1本のアプリが育っていきます。</Jp></p></div></div>
+      <div className="greet"><div><h1>コースをさがす</h1><Kw items={["全6コース", "Web", "Java", "AWS"]} /></div></div>
       <section>
-        <div className="sh"><h2>目標から選ぶ</h2><p><Jp>なりたい姿を選ぶと、そこまでのコースだけに絞ります。もう一度押すと外れます。</Jp></p></div>
+        <div className="sh"><h2>目標から選ぶ</h2></div>
         <div className="goals">
           {GOALS.map(g => (
             <button key={g.id} className="goal-c" type="button" aria-pressed={goal === g.id} onClick={() => setGoal(goal === g.id ? "" : g.id)}>
@@ -264,9 +265,9 @@ function MadePane({ pr, onGo }) {
   const done = pr.done;
   return (
     <div className="hb">
-      <div className="greet"><div><h1>つくったもの</h1><p><Jp>いま作っているアプリと、身についたことです。コースを修了すると、ここに作品と修了証が並びます。</Jp></p></div></div>
+      <div className="greet"><div><h1>つくったもの</h1><Kw items={["制作中 1", "修了 0", "身についたこと " + pr.cleared.size]} /></div></div>
       <section>
-        <div className="sh"><h2>身についたこと</h2><p><Jp>単元をクリアすると増えます。</Jp></p></div>
+        <div className="sh"><h2>身についたこと</h2></div>
         <div className="skills" style={{ marginTop: 14 }}>
           {SKILLS.map(s => {
             const got = pr.cleared.has(s.unit);
@@ -275,7 +276,7 @@ function MadePane({ pr, onGo }) {
               <div key={s.name} className="sk">
                 <b>{s.name}</b>
                 <div className="lv" role="img" aria-label={got ? "身についた" : "まだ"}><i className={got ? "on" : ""} /><i /><i /><i /></div>
-                <span>{got ? "身についた場所：" : "まだ。"}単元{unit.id.slice(1)}「{unit.t}」{got ? "" : "で身につきます"}</span>
+                <span>{got ? "✓ " : ""}単元{unit.id.slice(1)}「{unit.t}」</span>
               </div>
             );
           })}
@@ -289,11 +290,11 @@ function MadePane({ pr, onGo }) {
             <div className="made-b">
               <span className="tag doing num" style={{ justifySelf: "start" }}>制作中 ・ {done} / {pr.total}</span>
               <span className="t">点数ダッシュボード</span>
-              <span className="s">完成するとこうなります。いまはコンソールに{done >= 2 ? "5" : "1"}行出ています。</span>
+              <Kw cls="sm" items={["完成形", "コンソール " + (done >= 2 ? "5" : "1") + "行"]} />
               <div className="made-a"><a className="btn btn-sm btn-sec" href={`#/courses/${COURSE_ID}`} onClick={e => { e.preventDefault(); onGo(`course:${COURSE_ID}`); }}>コースマップで見る</a></div>
             </div>
           </article>
-          <div className="made empty"><div><b>修了したアプリはまだありません</b>コースを最後まで終えると、ここに並び、修了証も出ます。</div></div>
+          <div className="made empty"><div><b>修了したアプリ</b><Kw cls="sm" plainFirst items={["まだなし", "修了で追加"]} /></div></div>
         </div>
       </section>
     </div>
@@ -306,7 +307,7 @@ function EmbeddedPane({ which }) {
   const label = which === "cloudlab" ? "クラウド実習" : "開発演習";
   return (
     <div className="embed-wrap">
-      <div className="wrap embed-note"><b>{label}</b><span>中身はいまの{label}です。見た目は順にテノラボに置き換えます。</span></div>
+      <div className="wrap embed-note"><b>{label}</b><Kw cls="sm" plainFirst items={["いまの" + label, "見た目は順次テノラボへ"]} /></div>
       {/* key を変えて枠ごと作り直す（# の後ろだけ変えても、枠の中は読み込み直されない） */}
       <iframe key={which} className="embed-frame" title={label} src={`/lab-embed.html#${which}`} />
     </div>
@@ -321,23 +322,23 @@ function HomeCarousel({ pr, next, playable, saved, onGo, onTab }) {
     const ms = MISSION[next.id];
     slides.push({
       key: "next", k: saved ? "つづきから" : "次の単元", title: next.t,
-      text: (ms ? ms.todo + "。" : "") + "約" + next.min + "分。",
+      kws: [(ms ? ms.steps.length + "ステップ" : ""), "約" + next.min + "分", ms ? ms.chap.replace(/^第\d章 /, "") : ""],
       cta: saved ? "続きをはじめる" : "はじめる", on: () => onGo(`unit:${COURSE_ID}:${next.id}`), thumb: "dash", tone: "y",
     });
   }
   slides.push({
     key: "app", k: "あなたのアプリ", title: pr.done >= 2 ? "コンソールに4行が加わりました" : "単元2で、4つの数字が出るようになります",
-    text: "点数ダッシュボードは、単元を終えるたびに部品が増えていきます。いまの姿をコースマップで見られます。",
+    kws: ["単元ごとに部品 +1", "いまの姿はコースマップで"],
     cta: "コースマップを見る", on: () => onGo(`course:${COURSE_ID}`), thumb: "dash", tone: "w",
   });
   slides.push({
     key: "devlab", k: "開発演習", title: "コースで覚えたことを、案件で使う",
-    text: "現場に近い案件を、ひとりで、またはチームで最後まで作ります。",
+    kws: ["ひとり", "チーム", "現場に近い案件"],
     cta: "開発演習を開く", on: () => onTab("devlab"), thumb: "attend", tone: "b",
   });
   slides.push({
     key: "cloud", k: "クラウド実習", title: "本物のAWSの前に、模型でつかむ",
-    text: "わざと「通らない」を体験してから直すので、理由まで分かります。",
+    kws: ["模型", "本物のAWS", "わざと失敗"],
     cta: "クラウド実習を開く", on: () => onTab("cloud"), thumb: "aws", tone: "m",
   });
 
@@ -361,7 +362,7 @@ function HomeCarousel({ pr, next, playable, saved, onGo, onTab }) {
         <div className="car-l">
           <span className="car-k">{cur.k}</span>
           <h2>{cur.title}</h2>
-          <p><Jp>{cur.text}</Jp></p>
+          <Kw items={cur.kws} />
           <div><button className="btn btn-pri" type="button" onClick={cur.on}>{cur.cta}</button></div>
         </div>
         <div className="car-r" aria-hidden="true"><Thumb id={cur.thumb} /></div>

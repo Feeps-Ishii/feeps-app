@@ -106,12 +106,12 @@ export function mountLanding(root, OPTS) {
 
   var COURSE_LINK = "https://claude.ai/artifact/ExC8bx8tAQvgfFEonnfm9A";
   var COURSES = [
-    { id: "dash", t: "点数ダッシュボードを作ろう", lv: 1, lang: "Web", units: 13, h: 5, d: "配列・関数・画面づくり・グラフまで。最初の1本に。", link: COURSE_LINK },
-    { id: "quiz", t: "クイズアプリを作ろう", lv: 1, lang: "Web", units: 8, h: 3, d: "問題を出して、答えを判定して、点数を出す。条件分岐が身につきます。" },
-    { id: "nippo", t: "日報アプリを作ろう", lv: 2, lang: "Web", units: 12, h: 5, d: "書いて、保存して、あとから見返す。データの保存と一覧表示を学びます。" },
-    { id: "todo", t: "ToDoアプリで学ぶ更新と削除", lv: 2, lang: "Web", units: 10, h: 4, d: "追加・完了・削除。アプリの基本の動きをひと通り作ります。" },
-    { id: "java", t: "Javaで成績計算ツール", lv: 2, lang: "Java", units: 12, h: 5, d: "ファイルを読み込んで集計し、評価をつける。クラスの使い方まで。" },
-    { id: "aws", t: "作ったアプリをAWSで公開", lv: 3, lang: "AWS", units: 9, h: 4, d: "自分のアプリを世界に出す。S3とCloudFrontで公開するまで。" }
+    { id: "dash", t: "点数ダッシュボードを作ろう", lv: 1, lang: "Web", units: 13, h: 5, d: "配列・関数・グラフ・最初の1本", link: COURSE_LINK },
+    { id: "quiz", t: "クイズアプリを作ろう", lv: 1, lang: "Web", units: 8, h: 3, d: "条件分岐・判定・点数" },
+    { id: "nippo", t: "日報アプリを作ろう", lv: 2, lang: "Web", units: 12, h: 5, d: "保存・一覧・見返す" },
+    { id: "todo", t: "ToDoアプリで学ぶ更新と削除", lv: 2, lang: "Web", units: 10, h: 4, d: "追加・完了・削除" },
+    { id: "java", t: "Javaで成績計算ツール", lv: 2, lang: "Java", units: 12, h: 5, d: "ファイル読込・集計・クラス" },
+    { id: "aws", t: "作ったアプリをAWSで公開", lv: 3, lang: "AWS", units: 9, h: 4, d: "S3・CloudFront・公開" }
   ];
   var LV = { 1: ["lv1", "はじめて"], 2: ["lv2", "基礎"], 3: ["lv3", "実務"] };
 
@@ -140,7 +140,7 @@ export function mountLanding(root, OPTS) {
       var attrs = c.link ? ' href="#" data-go="course:dash"' : "";
       return "<" + tag + ' class="course"' + attrs + ">" + THUMBS[c.id]() +
         '<div class="c-body"><div class="c-tags"><span class="tag ' + lv[0] + '">' + lv[1] + '</span><span class="tag lang">' + c.lang + "</span></div>" +
-        "<h3>" + esc(c.t) + "</h3><p>" + esc(c.d) + "</p>" +
+        "<h3>" + esc(c.t) + '</h3><ul class="kw sm">' + c.d.split("・").map(function(w, i){ return "<li" + (i ? "" : ' class="m"') + ">" + esc(w) + "</li>"; }).join("") + "</ul>" +
         '<div class="c-meta"><span><b>' + c.units + "</b> 単元</span><span>約 <b>" + c.h + "</b> 時間</span>" +
         (c.link ? '<span class="c-open">単元の一覧を見る →</span>' : "") + "</div></div></" + tag + ">";
     }).join("");

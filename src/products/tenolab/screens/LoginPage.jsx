@@ -1,5 +1,6 @@
 import React, { useState } from "react";
 import { Jp } from "../textFlow.jsx";
+import Kw from "../Kw.jsx";
 import { signIn, signOut, confirmSignIn } from "aws-amplify/auth";
 
 // テノラボのログイン。アカウントは Feeps One と共通（ADR 0022）。
@@ -112,7 +113,7 @@ export default function LoginPage({ onLoggedIn, onGo, pendingClear }) {
               ) : (
                 <>
                   <h1>おかえりなさい</h1>
-                  <p className="sub"><Jp>{pendingClear ? "ログインすると、さっきの単元2のクリアを残します。" : "Feeps One と同じアカウントで入れます。前回書いたコードの続きから始まります。"}</Jp></p>
+                  <Kw items={pendingClear ? ["ログインで単元2のクリアを保存"] : ["Feeps One と共通アカウント", "続きから再開"]} />
                   <form className="fm" onSubmit={submit} noValidate>
                     <div className="fld">
                       <label htmlFor="tlMail">メールアドレス</label>
@@ -131,7 +132,7 @@ export default function LoginPage({ onLoggedIn, onGo, pendingClear }) {
                     {forgot && <div className="info" role="status">パスワードの決め直しは、<a href={FEEPS_ONE_LOGIN}>Feeps One のログイン画面</a>の「パスワードを忘れた方」からできます。決め直したパスワードで、テノラボにも入れます。</div>}
                   </form>
                   <div className="or"><span><Jp>アカウントをお持ちでない方</Jp></span></div>
-                  <p className="lg-new" style={{ margin: 0 }}><Jp>アカウントは、会社や研修の担当者から届きます。まずは登録なしで、単元を1つ試せます。</Jp></p>
+                  <Kw cls="sm" plainFirst items={["アカウントは担当者から", "登録なしで1単元"]} />
                 </>
               )}
             </div>
@@ -139,9 +140,9 @@ export default function LoginPage({ onLoggedIn, onGo, pendingClear }) {
             <aside className="lg-side" aria-label="ログインするとできること">
               <h2>書きかけのコードは、<br /><span className="mk">そのまま</span>待っています。</h2>
               <ul className="lg-list">
-                <li><span className="ic" aria-hidden="true">1</span><div><b>前回の続きから始まる</b><span><Jp>止めた単元の、止めたステップから。書いたコードも残っています。</Jp></span></div></li>
-                <li><span className="ic" aria-hidden="true">2</span><div><b>自分のアプリが育っていく</b><span><Jp>単元を終えるたびに部品が増えて、最後に1本のアプリが手元に残ります。</Jp></span></div></li>
-                <li><span className="ic" aria-hidden="true">3</span><div><b>どの端末でも同じ続き</b><span><Jp>記録は保存されるので、会社のPCでも家のPCでも続きから始められます。</Jp></span></div></li>
+                <li><span className="ic" aria-hidden="true">1</span><div><b>前回の続きから始まる</b></div></li>
+                <li><span className="ic" aria-hidden="true">2</span><div><b>自分のアプリが育っていく</b></div></li>
+                <li><span className="ic" aria-hidden="true">3</span><div><b>どの端末でも同じ続き</b></div></li>
               </ul>
             </aside>
           </main>

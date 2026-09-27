@@ -1288,3 +1288,25 @@ body{margin:0; background:#FFFFFF}
 .tl-sent, .tl-cl{display:inline-block}
 /* 文の途中の太字・リンク・コードも、短い語句なので1つのかたまりで折り返す */
 [data-jp-done] :is(b, strong, a, code, em){display:inline-block}
+
+  /* 説明の文章の代わりに並べる、短い言葉の印（2026-09-27） */
+  :is(.tl-app, .tl-lp, .tl-map, .tl-lab) .kw{display:flex; flex-wrap:wrap; align-items:center; gap:6px; margin:12px 0 0; padding:0; list-style:none}
+  :is(.tl-app, .tl-lp, .tl-map, .tl-lab) .kw li{font-size:12.5px; font-weight:700; letter-spacing:.03em; line-height:1.5; padding:3px 11px; border:1.5px solid #15171C; border-radius:999px; background:#fff; color:#15171C; white-space:nowrap}
+  :is(.tl-app, .tl-lp, .tl-map, .tl-lab) .kw li.m{background:#FFE14D}
+  :is(.tl-app, .tl-lp, .tl-map, .tl-lab) .kw.sm li{font-size:11.5px; padding:1px 9px}
+  /* 流れ：太字の言葉を矢印でつなぐ */
+  :is(.tl-app, .tl-lp, .tl-map, .tl-lab) .kw.flow{gap:4px 10px; margin-top:18px}
+  :is(.tl-app, .tl-lp, .tl-map, .tl-lab) .kw.flow li{border:0; background:none; padding:0; font-family:"Dela Gothic One","Zen Kaku Gothic New",sans-serif; font-weight:400; font-size:clamp(18px,2.2vw,24px); letter-spacing:.02em}
+  :is(.tl-app, .tl-lp, .tl-map, .tl-lab) .kw.flow li + li::before{content:"→"; margin-right:10px; color:#767D8C; font-family:"Zen Kaku Gothic New",sans-serif; font-weight:700}
+  :is(.tl-app, .tl-lp, .tl-map, .tl-lab) .kw.flow li.m{background:none; background-image:linear-gradient(transparent 58%, #FFE14D 58%, #FFE14D 92%, transparent 92%)}
+  /* 黒い面の上では、白い線で */
+  :is(.tl-app, .tl-lp, .tl-map, .tl-lab) .kw.inv li{background:transparent; color:#F4F4EF; border-color:rgba(255,255,255,.55)}
+  :is(.tl-app, .tl-lp, .tl-map, .tl-lab) .kw.inv li.m{background:#FFE14D; color:#15171C; border-color:#FFE14D}
+  .tl-lp .final-sub{margin-top:10px}
+  .tl-lp .final-sub .kw{margin-top:0}
+  .tl-lp .try-foot .tf-k{font-size:11.5px; font-weight:700; border:1.5px solid #15171C; border-radius:999px; padding:0 9px; background:#FFE14D; margin-right:4px}
+  .tl-lab .coach-note .kw{margin:0}
+  .tl-lab .app > .kw{margin-top:10px}
+
+/* ログイン画面の方眼を、画面の下まで */
+.tl-app .tl-login{min-height:100vh}
