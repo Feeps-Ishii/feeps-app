@@ -13,7 +13,7 @@ const SAVE_DELAY = 4000;
 export default function LabPage({ courseId, unitId, trial, preview, saved, onSave, onGo, onTrialProgress }) {
   const noSave = trial || preview;
   const unitQ = useTenolabUnit(courseId, unitId, { trial, draft: preview });
-  const courseQ = useTenolabCourse(courseId, !trial);
+  const courseQ = useTenolabCourse(courseId, !trial, { draft: !!preview });
   const course = trial ? SAMPLE_COURSE : courseQ.course;
 
   const [saveState, setSaveState] = useState("idle"); // idle | saving | saved | error

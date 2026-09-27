@@ -41,14 +41,14 @@ export function useTenolabProgress(enabled) {
 
 /* コースの中身（公開中の単元の要約つき）。API にまだ無いコース（見本を取り込む前）は、
    同梱の見本を使う。404 以外の失敗は "error" のまま出す。 */
-export function useTenolabCourse(courseId, enabled) {
+export function useTenolabCourse(courseId, enabled, { draft = false } = {}) {
   const [st, setSt] = useState({ state: enabled ? "loading" : "off", course: null, units: [], source: null });
 
   const reload = useCallback(async () => {
     if (!enabled || !courseId) { setSt({ state: "off", course: null, units: [], source: null }); return; }
     setSt(s => ({ ...s, state: "loading" }));
     try {
-      const res = await apiGet(`/tenolab/courses/${courseId}`);
+      const res = await apiGet(`/tenolab/courses/${courseId}${draft ? "?draft=1" : ""}`);
       setSt({ state: "ready", course: res.course, units: res.units || [], source: "api" });
     } catch (e) {
       if (e?.status === 404 && SAMPLE_COURSE.courseId === courseId) {
@@ -59,7 +59,7 @@ export function useTenolabCourse(courseId, enabled) {
       console.warn("tenolab course load failed", e);
       setSt(s => ({ ...s, state: "error" }));
     }
-  }, [courseId, enabled]);
+  }, [courseId, enabled, draft]);
 
   useEffect(() => { reload(); }, [reload]);
   return { ...st, reload };

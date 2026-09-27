@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { apiDelete, apiGet, apiPost, apiPut } from "../../../api.js";
-import { CHECKS_JS, DEMO_MODES, HINT_LEVELS, RUNTIMES, blankStep, errText, fillUnit, splitList, toSave, unitIssues } from "./studioModel.js";
+import { CHECKS_JS, DEMO_MODES, HINT_LEVELS, RUNTIMES, blankStep, blankUnit, errText, fillUnit, splitList, toSave, unitIssues } from "./studioModel.js";
 
 /* 単元づくり。左：ステップの一覧／中：最初のコードと完成形／右：選んだところの入力。
    下書きを保存 → 受講生として試す（下書きをそのまま動かす）→ 公開する（直すところがあれば止める） */
@@ -48,7 +48,26 @@ export default function UnitEditor({ courseId, unitId, setToast, onGo }) {
   }, [dirty]);
 
   if (st.state === "loading") return <p className="wk-note" role="status">単元を読み込んでいます…</p>;
-  if (st.state === "missing") return <div className="info" role="alert">この単元はありません。<a href={`#/studio/${courseId}`}>コースへ戻る</a></div>;
+  if (st.state === "missing") {
+    // コースの章には並んでいるが、中身をまだ作っていない単元
+    const create = async () => {
+      setBusy(true); setErr("");
+      try {
+        await apiPut(`/tenolab/courses/${courseId}/units/${unitId}`, { unit: blankUnit(unitId, ""), baseUpdatedAt: "" });
+        load();
+      } catch (e) {
+        setErr(errText(e, "作れませんでした。"));
+      } finally { setBusy(false); }
+    };
+    return (
+      <div style={{ display: "grid", gap: 12, justifyItems: "start" }}>
+        <div className="crumb"><a href="#/studio">コース管理</a> ／ <a href={`#/studio/${courseId}`}>{courseId}</a> ／ {unitId}</div>
+        <ul className="kw sm"><li className="m">{unitId}</li><li>未作成</li></ul>
+        {err && <div className="issues" role="alert"><b>{err}</b></div>}
+        <button className="btn btn-pri" type="button" disabled={busy} onClick={create}>この単元を作る</button>
+      </div>
+    );
+  }
   if (st.state === "error" || !unit) {
     return (
       <div style={{ display: "grid", gap: 12 }}>

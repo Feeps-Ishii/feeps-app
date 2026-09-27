@@ -249,7 +249,7 @@ function CourseEdit({ courseId, setToast }) {
                     <span className="n">{n}</span>
                     <a href={`#/studio/${courseId}/${id}`} style={{ textDecoration: "none" }}>
                       <span className="t">{u ? u.title || "（名前なし）" : id}</span>
-                      <span className="s">{u ? `約${u.minutes}分 ・ ${u.steps}ステップ` : id}</span>
+                      <span className="s">{u ? `約${u.minutes}分 ・ ${u.steps}ステップ` : "開いて作る"}</span>
                     </a>
                     <span />
                     {chip}
