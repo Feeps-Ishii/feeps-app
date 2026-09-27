@@ -32,6 +32,8 @@ export default function LabPage({ courseId, unitId, trial, preview, saved, onSav
     try {
       await onSaveRef.current(courseId, unitId, s);
       setSaveState("saved");
+      // 「保存しました」は少しだけ出して消す（ずっと出ているとコーチ欄の下にかぶる）
+      setTimeout(() => setSaveState(s => (s === "saved" ? "idle" : s)), 2500);
     } catch (e) {
       console.warn("tenolab save failed", e);
       setSaveState("error");
