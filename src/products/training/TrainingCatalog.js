@@ -1,4 +1,4 @@
-import { LayoutDashboard, PenLine, FileText, ClipboardCheck, Clock, NotebookPen, Users, Building2, BookOpen, Settings, GraduationCap, Calendar, Sparkles, Target, Wrench, Compass, CalendarClock, Megaphone, Briefcase } from "lucide-react";
+import { LayoutDashboard, PenLine, FileText, ClipboardCheck, Clock, NotebookPen, Users, Building2, BookOpen, Settings, GraduationCap, Calendar, Sparkles, Target, Wrench, Compass, CalendarClock, Megaphone } from "lucide-react";
 
 
 /* ===== ロール ===== */
@@ -67,30 +67,31 @@ const QBANK = {
 // あわせて「予約」（個別面談・成果報告会）を助成金管理から研修管理へ移した。
 // 三者（管理者・企業担当者・講師）で行う業務で、助成金の付随物ではないため。
 // 2026-09-28: Eラーニングを外してLMSを研修管理だけにしたのに合わせ、見出しを**使う頻度の順**に並べ直した
-// （毎日 → 研修 → 自分用・連絡）。受講生スキルシート（skillsheet）は、スキル・成長のProductから
-// 講師・企業担当・管理者の研修管理のサイドバーへ移した。
+// （毎日 → 研修 → 自分用・連絡）。
+// 2026-09-28（同日）: スキル・成長のProductは外し、受講生の「研修スキル」（skills）だけを自分用へ移した。
+// 案件用スキルシート・資格・バッジ・成長履歴・成長の街・受講生スキルシートは一旦なし（ユーザー決定、ADR 0023）。
 const NAV = {
   trainee: [
     { sec: null, items: [["home", "ホーム", LayoutDashboard]] },
     { sec: "毎日", items: [["reports", "日報", NotebookPen], ["attendance", "勤怠", Clock]] },
     { sec: "研修", items: [["curriculum", "カリキュラム", Calendar], ["tests", "テスト", ClipboardCheck], ["materials", "研修資料", FileText]] },
-    { sec: "自分用", items: [["notes", "ノート", PenLine], ["goals", "目標とタスク", Target]] },
+    { sec: "自分用", items: [["notes", "ノート", PenLine], ["goals", "目標とタスク", Target], ["skills", "研修スキル", GraduationCap]] },
   ],
   instructor: [
     { sec: null, items: [["home", "ホーム", LayoutDashboard]] },
     { sec: "毎日", items: [["trainees", "受講生", Users], ["reports", "日報", NotebookPen], ["attendance", "勤怠", Clock]] },
-    { sec: "研修", items: [["curriculum", "カリキュラム", Calendar], ["tests", "テスト", ClipboardCheck], ["materials", "研修資料", FileText], ["goals", "目標とタスク", Target], ["skillsheet", "受講生スキルシート", Briefcase]] },
+    { sec: "研修", items: [["curriculum", "カリキュラム", Calendar], ["tests", "テスト", ClipboardCheck], ["materials", "研修資料", FileText], ["goals", "目標とタスク", Target]] },
     { sec: "連絡", items: [["announcements", "お知らせ", Megaphone], ["reservations", "予約", CalendarClock]] },
   ],
   client: [
     { sec: null, items: [["home", "ホーム", LayoutDashboard]] },
-    { sec: "自社", items: [["trainees", "受講生", Users], ["skillsheet", "受講生スキルシート", Briefcase], ["companies", "企業情報", Building2]] },
+    { sec: "自社", items: [["trainees", "受講生", Users], ["companies", "企業情報", Building2]] },
     { sec: "研修の様子", items: [["attendance", "勤怠", Clock], ["reports", "日報", NotebookPen], ["tests", "テスト", ClipboardCheck], ["curriculum", "カリキュラム", Calendar], ["materials", "研修資料", FileText]] },
     { sec: "連絡", items: [["announcements", "お知らせ", Megaphone], ["reservations", "予約", CalendarClock]] },
   ],
   admin: [
     { sec: null, items: [["home", "ホーム", LayoutDashboard]] },
-    { sec: "全体", items: [["trainees", "受講生", GraduationCap], ["skillsheet", "受講生スキルシート", Briefcase], ["companies", "企業", Building2], ["users", "ユーザー・講師", Users]] },
+    { sec: "全体", items: [["trainees", "受講生", GraduationCap], ["companies", "企業", Building2], ["users", "ユーザー・講師", Users]] },
     { sec: "研修", items: [["curriculum", "カリキュラム", Calendar], ["reports", "日報", NotebookPen], ["attendance", "勤怠", Clock], ["tests", "テスト", ClipboardCheck], ["materials", "研修資料", FileText], ["goals", "目標とタスク", Target]] },
     { sec: "連絡", items: [["announcements", "お知らせ", Megaphone], ["reservations", "予約", CalendarClock]] },
   ],

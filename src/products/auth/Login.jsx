@@ -74,7 +74,7 @@ function AuthBrandVisual() {
   const products = [
     // 2026-09-28: 学習はLMSから外した（テノラボへ）
     { label: "研修", icon: GraduationCap },
-    { label: "成長", icon: Radar },
+    { label: "スキル", icon: Radar },
   ];
   return (
     <aside className="feeps-auth-brand" style={{ background: NOVA.gradAuth, color: T.darkTextPrimary }}>

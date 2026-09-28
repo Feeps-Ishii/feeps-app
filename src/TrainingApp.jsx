@@ -47,7 +47,6 @@ const RiskBoard = lazy(() => import("./products/analytics/AnalyticsProduct.jsx")
 const MatchingProduct = lazy(() => import("./products/matching/MatchingProduct.jsx"));
 const ProjectMatching = lazy(() => import("./products/matching/MatchingProduct.jsx").then(m => ({ default: m.ProjectMatching })));
 const TalentProduct = lazy(() => import("./products/talent/TalentProduct.jsx"));
-const SkillSheetView = lazy(() => import("./products/talent/TalentComponents.jsx").then(m => ({ default: m.SkillSheetView })));
 const AdminProduct = lazy(() => import("./products/admin/AdminProduct.jsx"));
 const GrantsProduct = lazy(() => import("./products/grants/GrantsProduct.jsx"));
 // 企業管理モード（2026-08-21新設）。契約・プラン・席・企業マスタを1か所へ。
@@ -155,9 +154,9 @@ const PRODUCTS = [
   // 2026-09-16: スキルは研修・学習のどちらから見ても同じものなので、独立したモードへ切り出した。
   // instructorは isProductVisibleForMode がモード非依存（常にtrue）なので、研修管理の
   // サイドバーからこれまで通り受講生スキルシートへ入れる。
-  // 2026-09-28: モードをやめ、受講生のレールに並ぶProductの1つにした。講師・企業担当・管理者の
-  // 「受講生スキルシート」は研修管理のサイドバーへ移した（1項目のためにレールの場所を作らない）。
-  { key: "talent",    label: "スキル・成長",   icon: TrendingUp,    color: PRODUCT_ACCENT.talent.accent, roles: ["trainee"], modes: ["training"] },
+  // 2026-09-28: スキル・成長は一旦なし（ユーザー決定、ADR 0023）。受講生の「研修スキル」だけを
+  // 研修管理のサイドバー（skills）へ移した。**消さずに roles を空にしてある**（成長の街などは後で戻す）。
+  { key: "talent",    label: "スキル・成長",   icon: TrendingUp,    color: PRODUCT_ACCENT.talent.accent, roles: [], modes: ["training"] },
   // 2026-07-14 Home緊急修正: 講師は案件管理を業務上使わないためHome/上部タブ/サイドバー/
   // Global Rail/モバイルドロワーから除外（PRODUCTSが全Product表示の正本を兼ねる）。
   // Backend(routes/matching.mjs)もGET /projects等の主要操作をinstructorに403で返しており、
@@ -381,9 +380,10 @@ function openNotificationTarget(n, { go, goProduct, goSub }) {
     window.location.href = "/lab.html#/home";
     return;
   }
+  // 2026-09-28: スキル・成長は外した。研修スキルは研修管理の中（受講生本人だけ。ほかは go が home へ落とす）
   if (path.includes("/talent")) {
-    goProduct("talent");
-    if (goSub) goSub(path.includes("skills") ? "tl_skills" : "tl_growth");
+    goProduct("training", { preserveTarget: true });
+    go("skills");
     return;
   }
   if (path.includes("/training")) {
@@ -1557,8 +1557,6 @@ export default function App() {
     if (view === "risk") return <RiskBoard />;
     if (view === "awscosts") return <AwsCostDashboard />;
     if (product === "company") return <CompanyProduct subView={subView} />;
-    // 2026-09-28: 受講生スキルシート（講師・企業担当・管理者）は研修管理のサイドバーから開く
-    if (product === "training" && view === "skillsheet") return <SkillSheetView role={role} />;
     if (product === "training" && role === "admin" && ["home", "companies", "courses", "users"].includes(view)) return <AdminProduct view={view} go={go} goProduct={goProduct} goSub={goSub} />;
     return <TrainingProduct
       key={`training-${trainingNavigationVersion}`}

@@ -761,7 +761,7 @@ function GoalsView({ role, done, taskSaveState, toggle, goals, setGoals, go, goP
 
   return (
     <div>
-      <SectionHead title="目標とタスク" desc="長期目標、小目標、今日やることを分けて確認します。Eラーニングとは別に、成長履歴とスキルシートへつなげます。" action={taskSaveState && <span className="text-xs font-semibold" aria-live="polite" style={{ color: taskSaveState === "error" ? T.danger : taskSaveState === "saved" ? T.success : T.textMuted }}>{taskSaveState === "saving" ? "保存中…" : taskSaveState === "saved" ? "保存しました" : "保存に失敗したため元に戻しました"}</span>} />
+      <SectionHead title="目標とタスク" desc="長期目標、小目標、今日やることを分けて確認します。" action={taskSaveState && <span className="text-xs font-semibold" aria-live="polite" style={{ color: taskSaveState === "error" ? T.danger : taskSaveState === "saved" ? T.success : T.textMuted }}>{taskSaveState === "saving" ? "保存中…" : taskSaveState === "saved" ? "保存しました" : "保存に失敗したため元に戻しました"}</span>} />
 
       <Card className="mb-6 p-5">
         <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
@@ -775,8 +775,8 @@ function GoalsView({ role, done, taskSaveState, toggle, goals, setGoals, go, goP
           </div>
         ))}</div> : <div className="rounded-xl p-4 text-sm" style={adminPanelStyle}>今日のタスクは未設定です。日報で今日の目標を追加するとここに表示されます。</div>}
         <div className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-xl p-3" style={{ background: T.accentSubtle }}>
-          <p className="text-xs leading-relaxed" style={{ color: T.textMuted }}>今後、達成した小目標や今日のタスクは成長履歴に反映し、スキルシートで説明できる材料として整理していきます。</p>
-          <div className="flex gap-2"><Btn size="sm" kind="ghost" icon={NotebookPen} onClick={() => go && go("reports")}>日報へ</Btn><Btn size="sm" icon={GitBranch} onClick={() => { goProduct?.("talent"); goSub?.("tl_growth"); }}>成長履歴へ</Btn></div>
+          <p className="text-xs leading-relaxed" style={{ color: T.textMuted }}>達成したタスクとテストの結果は、研修スキルにまとまります。</p>
+          <div className="flex gap-2"><Btn size="sm" kind="ghost" icon={NotebookPen} onClick={() => go && go("reports")}>日報へ</Btn><Btn size="sm" icon={GitBranch} onClick={() => go && go("skills")}>研修スキルへ</Btn></div>
         </div>
       </Card>
 
@@ -835,7 +835,7 @@ function GoalsView({ role, done, taskSaveState, toggle, goals, setGoals, go, goP
             <div className="flex justify-between rounded-xl px-3 py-2" style={{ background: T.bgBase }}><span style={{ color: T.textMuted }}>長期目標</span><b style={{ color: T.textPrimary }}>{gp.length}件</b></div>
           </div>
           <div className="mt-4 grid gap-2">
-            <Btn kind="soft" icon={GitBranch} onClick={() => { goProduct?.("talent"); goSub?.("tl_growth"); }}>成長履歴へ</Btn>
+            <Btn kind="soft" icon={GitBranch} onClick={() => go?.("skills")}>研修スキルへ</Btn>
           </div>
         </Card>
       </div>
@@ -862,7 +862,7 @@ function GoalsView({ role, done, taskSaveState, toggle, goals, setGoals, go, goP
                     <button onClick={() => toggle(t.id)}>{ok ? <CheckCircle2 size={18} style={{ color: T.success }} /> : <Circle size={18} style={{ color: T.textMuted }} />}</button>
                     {taskDrafts[t.id] ? <input value={taskDrafts[t.id].text} onChange={e => setTaskDrafts(d => ({ ...d, [t.id]: { text: e.target.value } }))} onKeyDown={e => e.key === "Enter" && updateTaskText(g.id, t.id, taskDrafts[t.id]?.text)} className="min-w-0 flex-1 rounded-lg px-2 py-1.5 text-sm outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary }} />
                       : <button onClick={() => toggle(t.id)} className="min-w-0 flex-1 text-left text-sm" style={{ color: ok ? T.textMuted : T.textPrimary, textDecoration: ok ? "line-through" : "none" }}>{t.t}</button>}
-                    {ok && <Badge tone="green">成長履歴候補</Badge>}
+                    {ok && <Badge tone="green">達成</Badge>}
                     {g.custom && <div className="flex gap-1">{taskDrafts[t.id] ? <Btn size="sm" kind="ghost" icon={Check} onClick={() => updateTaskText(g.id, t.id, taskDrafts[t.id]?.text)}>保存</Btn> : <button onClick={() => setTaskDrafts(d => ({ ...d, [t.id]: { text: t.t || "" } }))} className="rounded-lg p-1 hover:bg-gray-100"><Pencil size={14} style={{ color: T.textMuted }} /></button>}<button onClick={() => deleteTask(g.id, t.id)} className="rounded-lg p-1 hover:bg-gray-100"><Trash2 size={14} style={{ color: T.textMuted }} /></button></div>}
                   </div>;
                 }) : <div className="rounded-xl p-3 text-sm" style={adminPanelStyle}>小目標データ未設定です。</div>}
@@ -926,7 +926,7 @@ function CurriculumProgressCard({ progress, onToday, hasToday }) {
 
 /* コースの大目標。**カリキュラムの上にいつでも置いておく**（2026-09-16 打合せ）。
    達成の記録は目標とタスクと同じもの（done）を見ているので、二重管理にならない。 */
-function CourseGoalsBar({ goals, done, goProduct, go }) {
+function CourseGoalsBar({ goals, done, go, role }) {
   const rows = arr(goals).map(goal => {
     const tasks = arr(goal.tasks);
     return { id: goal.id, title: goal.title, sub: goal.sub, total: tasks.length, done: tasks.filter(t => done?.[t.id]).length };
@@ -943,7 +943,7 @@ function CourseGoalsBar({ goals, done, goProduct, go }) {
         </div>
         <div className="flex flex-wrap gap-2">
           <Btn kind="ghost" size="sm" icon={Target} onClick={() => go?.("goals")}>目標とタスク</Btn>
-          <Btn kind="ghost" size="sm" icon={GitBranch} onClick={() => goProduct?.("talent", { subView: "tl_growth" })}>スキル・成長で見る</Btn>
+          {role === "trainee" && <Btn kind="ghost" size="sm" icon={GitBranch} onClick={() => go?.("skills")}>研修スキルで見る</Btn>}
         </div>
       </div>
       <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
@@ -1284,7 +1284,7 @@ function Curriculum({ role, go, goProduct, done = {}, goals = [] }) {
             </select>
           </div>
 
-          {!canEdit && <CourseGoalsBar goals={goals} done={done} goProduct={goProduct} go={go} />}
+          {!canEdit && <CourseGoalsBar goals={goals} done={done} go={go} role={role} />}
           {!loading && !canEdit && todayUnits.length > 0 && <Card className="mb-5 overflow-hidden" style={{ border: `1px solid ${T.accent}` }}>
             <div className="flex flex-wrap items-center justify-between gap-2 px-4 py-3" style={{ background: T.bgBase }}><div><div className="flex items-center gap-2 text-sm font-bold" style={{ color: T.textPrimary }}><Clock size={16} style={{ color: T.accent }} />今日のカリキュラム</div><p className="mt-0.5 text-xs" style={{ color: T.textMuted }}>{todayKey} に取り組む単元です。</p></div><Badge tone="cyan">{todayUnits.length}単元</Badge></div>
             <div className="divide-y" style={{ borderColor: T.border }}>{todayUnits.map(unit => <div key={`${unit.scope}:${unit.lesson.id}`} className="flex flex-wrap items-center gap-3 px-4 py-3"><div className="min-w-0 flex-1"><div className="text-xs" style={{ color: T.textMuted }}>{unit.section.title}</div><div className="truncate text-sm font-bold" style={{ color: T.textPrimary }}>{unit.title}</div></div>{arr(unit.lesson.preparationItems).length > 0 && <Badge tone="amber">準備 {arr(unit.lesson.preparationItems).length}件</Badge>}{unit.exercises.length > 0 && <Badge tone="cyan">演習 {unit.exercises.length}件</Badge>}{unit.linkedTests.length > 0 && <button type="button" onClick={() => go?.("tests")}><Badge tone="green">テスト {unit.linkedTests.length}件</Badge></button>}</div>)}</div>
@@ -6078,8 +6078,7 @@ function TraineeList({ role, openKarte, go }) {
                       <div className="rounded-xl p-3" style={{ background: T.bgBase }}><div className="text-xs font-bold" style={{ color: T.textMuted }}>目標/タスク</div><div className="mt-1 text-sm font-semibold" style={{ color: T.textPrimary }}>{taskTotal ? `${taskDone}/${taskTotal} 完了` : "未登録"}</div></div>
                       <div className="rounded-xl p-3" style={{ background: T.bgBase }}><div className="text-xs font-bold" style={{ color: T.textMuted }}>直近カルテ</div><div className="mt-1 truncate text-sm font-semibold" style={{ color: T.textPrimary }}>{latestMemo?.text || "未登録"}</div></div>
                     </div>
-                    <p className="text-xs" style={{ color: T.textMuted }}>研修中の状態と、研修後のスキルシート・Eラーニング・現場参画支援につながる情報を受講生単位で確認できます。</p>
-                  </div>}
+                                      </div>}
               </div>}
           </Card>
         </div>}
