@@ -72,8 +72,8 @@ function AuthMeta({ step }) {
 // 円軌道と浮遊するチップは廃止。チップは静的な帯にして、絵と役割が重ならないようにした。
 function AuthBrandVisual() {
   const products = [
+    // 2026-09-28: 学習はLMSから外した（テノラボへ）
     { label: "研修", icon: GraduationCap },
-    { label: "学習", icon: BookOpenCheck },
     { label: "成長", icon: Radar },
   ];
   return (
@@ -91,7 +91,7 @@ function AuthBrandVisual() {
             広めに取ったうえで、文節で折り返す（word-break: auto-phrase）。
             明示の改行は左右2列で出している間だけ効かせる（CSS側） */}
         <p style={{ color: T.darkTextSecondary }}>
-          研修管理、Eラーニング、スキル管理。
+          研修管理とスキル管理。
           <br className="feeps-auth-br" />
           学んだことは記録として残り、あとから見返せます。
         </p>

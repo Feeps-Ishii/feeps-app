@@ -47,6 +47,7 @@ const RiskBoard = lazy(() => import("./products/analytics/AnalyticsProduct.jsx")
 const MatchingProduct = lazy(() => import("./products/matching/MatchingProduct.jsx"));
 const ProjectMatching = lazy(() => import("./products/matching/MatchingProduct.jsx").then(m => ({ default: m.ProjectMatching })));
 const TalentProduct = lazy(() => import("./products/talent/TalentProduct.jsx"));
+const SkillSheetView = lazy(() => import("./products/talent/TalentComponents.jsx").then(m => ({ default: m.SkillSheetView })));
 const AdminProduct = lazy(() => import("./products/admin/AdminProduct.jsx"));
 const GrantsProduct = lazy(() => import("./products/grants/GrantsProduct.jsx"));
 // 企業管理モード（2026-08-21新設）。契約・プラン・席・企業マスタを1か所へ。
@@ -148,11 +149,15 @@ function roleFromIdTokenPayload(payload = {}) {
 // analyticsは今回のスコープ外（分析・レポートの非表示化は別途対応、ADR 0013参照）のため無指定のまま。
 const PRODUCTS = [
   { key: "training",  label: "研修管理",       icon: GraduationCap, color: PRODUCT_ACCENT.training.accent, roles: ["trainee","instructor","client","admin"], modes: ["training"] },
-  { key: "learning",  label: "Eラーニング",    icon: BookOpen,      color: PRODUCT_ACCENT.learning.accent, roles: ["trainee","instructor","client","admin"], modes: ["learning"] },
+  // 2026-09-28: LMSは研修管理だけにした（Eラーニングはテノラボへ、ユーザー決定）。
+  // **消さずに roles を空にしてある**（案件管理と同じ）。画面・API・データはそのまま残っている。
+  { key: "learning",  label: "Eラーニング",    icon: BookOpen,      color: PRODUCT_ACCENT.learning.accent, roles: [], modes: ["learning"] },
   // 2026-09-16: スキルは研修・学習のどちらから見ても同じものなので、独立したモードへ切り出した。
   // instructorは isProductVisibleForMode がモード非依存（常にtrue）なので、研修管理の
   // サイドバーからこれまで通り受講生スキルシートへ入れる。
-  { key: "talent",    label: "スキル・成長",   icon: TrendingUp,    color: PRODUCT_ACCENT.talent.accent, roles: ["trainee","instructor","client","admin"], modes: ["skill","training"] },
+  // 2026-09-28: モードをやめ、受講生のレールに並ぶProductの1つにした。講師・企業担当・管理者の
+  // 「受講生スキルシート」は研修管理のサイドバーへ移した（1項目のためにレールの場所を作らない）。
+  { key: "talent",    label: "スキル・成長",   icon: TrendingUp,    color: PRODUCT_ACCENT.talent.accent, roles: ["trainee"], modes: ["training"] },
   // 2026-07-14 Home緊急修正: 講師は案件管理を業務上使わないためHome/上部タブ/サイドバー/
   // Global Rail/モバイルドロワーから除外（PRODUCTSが全Product表示の正本を兼ねる）。
   // Backend(routes/matching.mjs)もGET /projects等の主要操作をinstructorに403で返しており、
@@ -170,7 +175,8 @@ const PRODUCTS = [
   { key: "grants",    label: "助成金管理",     icon: Landmark,      color: PRODUCT_ACCENT.grants.accent, roles: ["client","admin"], modes: ["training"] },
   // 企業管理（2026-08-21新設）: 契約・プラン・席・企業マスタ。Feeps側の運営機能なので
   // super adminだけ（モードの出し分けは allowedViewModes / canUseCompanyMode）。
-  { key: "company",   label: "企業管理",       icon: Building2,     color: PRODUCT_ACCENT.admin.accent, roles: ["admin"], modes: ["company"] },
+  // 2026-09-28: モードをやめ、レールに並ぶProductの1つにした。super adminだけ（filterProductsForRoleAndMode）。
+  { key: "company",   label: "企業管理",       icon: Building2,     color: PRODUCT_ACCENT.admin.accent, roles: ["admin"], modes: ["training"] },
 ];
 
 // ナビには出さないが、開いてよいsubView（2026-09-05）。
@@ -370,9 +376,9 @@ function openNotificationTarget(n, { go, goProduct, goSub }) {
   let parsed = null;
   try { parsed = new URL(targetUrl, "https://feeps.local"); } catch (e) { /* 通常のto遷移へフォールバック */ }
   const path = parsed?.pathname || targetUrl;
+  // 2026-09-28: 学習はLMSから外してテノラボへ移した。学習の通知はテノラボで開く
   if (path.includes("/learning")) {
-    goProduct("learning");
-    if (goSub) goSub(path.includes("courses") ? "el_courses" : path.includes("tests") ? "el_recommend" : "el_inprogress");
+    window.location.href = "/lab.html#/home";
     return;
   }
   if (path.includes("/talent")) {
@@ -655,7 +661,7 @@ function GlobalRail({ products, active, onSelect, onOpenPalette, modes = [], vie
       <nav className="feeps-global-products" aria-label="この中の機能" hidden={!showProducts}>
         {railProducts.map(p => {
           const isActive = active === p.key;
-          const short = { home: "Home", training: "研修", learning: "学習", talent: "成長", matching: "案件", analytics: "分析", grants: "助成金" }[p.key] || p.label;
+          const short = { home: "Home", training: "研修", learning: "学習", talent: "成長", matching: "案件", analytics: "分析", grants: "助成金", company: "企業" }[p.key] || p.label;
           return (
             <button key={p.key} type="button" onClick={() => onSelect(p.key)} title={p.label} aria-current={isActive ? "page" : undefined}
               className={"feeps-global-link" + (isActive ? " is-active" : "")}>
@@ -806,16 +812,7 @@ const PLAN_FEATURE_ROWS = [
   // 常駐サンドボックス。**まだ作っていないので ○ にしない**（出すと嘘になる）。
   { label: "本物の開発環境（ターミナル・git）", basic: "no", standard: "no", premium: "soon" },
 ];
-function PlanBadge({ learningPlan, onClick }) {
-  const pa = PRODUCT_ACCENT.learning;
-  return (
-    <button type="button" onClick={onClick}
-      className="inline-flex min-w-0 shrink-0 items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-bold transition hover:opacity-80"
-      style={{ background: pa.subtle, color: pa.deep }} aria-label={`現在のプラン: ${PLAN_LABEL[learningPlan] || "—"}。プラン比較を見る`}>
-      <Sparkles size={13} /><span>{PLAN_LABEL[learningPlan] || "プラン"}</span>
-    </button>
-  );
-}
+// 2026-09-28: 上のバーの学習プランの印（PlanBadge）は外した。プランはLMSに関係しない（付けるならテノラボ側）
 function PlanComparisonView({ role, learningPlan }) {
   const applicable = role === "trainee" || role === "client";
   const pa = PRODUCT_ACCENT.learning;
@@ -941,7 +938,8 @@ function UserProfileView({ me, displayName, userProfile, onSaved, mfaAvailable =
           {message && <div className="text-sm font-semibold" style={{ color: message.includes("失敗") || message.includes("入力してください") ? T.danger : T.success }}>{message}</div>}
         </div>
       </Card>
-      {userProfile?.learningPlan && (
+      {/* 2026-09-28: プランはLMSに関係しない（付けるならテノラボ側）。onOpenPlans を渡さない限り出さない */}
+      {userProfile?.learningPlan && onOpenPlans && (
         <Card className="p-4">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div>
@@ -1411,14 +1409,14 @@ export default function App() {
     // モードごと連れて行く。スキルを独立モードへ切り出したことで、研修管理のホームから
     // 「街をひらく」を押すような、モードをまたぐ導線が生まれたため。
     let viewModeForNav = viewMode;
-    const visibleNow = filterProductsForRoleAndMode(PRODUCTS, { role, viewMode });
+    const visibleNow = filterProductsForRoleAndMode(PRODUCTS, { role, viewMode, adminTier: userProfile?.adminTier });
     if (!visibleNow.some(item => item.key === p)) {
       const allowed = allowedViewModes({ role, contractMode: userProfile?.contractMode, adminTier: userProfile?.adminTier });
       const home = allowed.find(vm => vm !== viewMode
-        && filterProductsForRoleAndMode(PRODUCTS, { role, viewMode: vm }).some(item => item.key === p));
+        && filterProductsForRoleAndMode(PRODUCTS, { role, viewMode: vm, adminTier: userProfile?.adminTier }).some(item => item.key === p));
       if (home) { viewModeForNav = home; setViewMode(home); }
     }
-    const nextProduct = filterProductsForRoleAndMode(PRODUCTS, { role, viewMode: viewModeForNav }).some(item => item.key === p)
+    const nextProduct = filterProductsForRoleAndMode(PRODUCTS, { role, viewMode: viewModeForNav, adminTier: userProfile?.adminTier }).some(item => item.key === p)
       ? p
       : getModeLandingProduct(viewModeForNav);
     replaceCurrentNavigationEntry();
@@ -1452,7 +1450,7 @@ export default function App() {
   }
   // コマンドパレットの項目（実際にナビゲーションが働くものだけ。ダミー項目は置かない）
   const paletteItems = useMemo(() => {
-    const productItems = filterProductsForRoleAndMode(PRODUCTS, { role, viewMode }).map(p => ({
+    const productItems = filterProductsForRoleAndMode(PRODUCTS, { role, viewMode, adminTier: userProfile?.adminTier }).map(p => ({
       key: "product:" + p.key,
       label: p.key === "home" ? "Home" : p.label + "を開く",
       icon: p.icon,
@@ -1542,13 +1540,13 @@ export default function App() {
     // （2026-08-17、プランバッジ導入時に発覚。プロフィールボタンも同じ理由で従来から
     // 学習モード中は開けなかった）。
     if (view === "notifications") return <NotificationCenter notifications={notifications} loading={notifLoading} error={notifErr} role={role} go={go} goProduct={goProduct} goSub={goSub} />;
-    if (view === "profile") return <UserProfileView me={me} displayName={displayName} userProfile={userProfile} onSaved={setUserProfile} mfaAvailable={mfaAvailable} onOpenPlans={() => go("plans")} />;
+    if (view === "profile") return <UserProfileView me={me} displayName={displayName} userProfile={userProfile} onSaved={setUserProfile} mfaAvailable={mfaAvailable} />;
     if (view === "plans") return <PlanComparisonView role={role} learningPlan={userProfile?.learningPlan} />;
     if (view === "terms") return <LegalPageView doc="terms" />;
     if (view === "privacy") return <LegalPageView doc="privacy" />;
     // 総合ホーム廃止（モード分離Step1、2026-08-14）。"home"はPRODUCTSから除外済みのため
     // 到達不能。FeepsOneHome.jsx自体は削除せず、将来復活の入口として残してある。
-    if (product === "home") return <FeepsOneHome role={role} displayName={displayName} products={filterProductsForRoleAndMode(PRODUCTS, { role, viewMode })} goProduct={goProduct} goTraining={go} goSub={goSub} />;
+    if (product === "home") return <FeepsOneHome role={role} displayName={displayName} products={filterProductsForRoleAndMode(PRODUCTS, { role, viewMode, adminTier: userProfile?.adminTier })} goProduct={goProduct} goTraining={go} goSub={goSub} />;
     if (product === "learning") return <LearningProduct key={`learning-${trainingNavigationVersion}`} subView={subView} goSub={goSub} goProduct={goProduct} role={role} themeColor={themeColor} navigationTarget={productDetail} learningPlan={userProfile?.learningPlan} />;
     if (product === "talent") return <TalentProduct subView={subView} goSub={goSub} goProduct={goProduct} role={role} themeColor={themeColor} done={taskDone} goals={goals} contractMode={userProfile?.contractMode} />;
     if (product === "matching") return <MatchingProduct subView={subView} goSub={goSub} role={role} themeColor={themeColor} />;
@@ -1559,6 +1557,8 @@ export default function App() {
     if (view === "risk") return <RiskBoard />;
     if (view === "awscosts") return <AwsCostDashboard />;
     if (product === "company") return <CompanyProduct subView={subView} />;
+    // 2026-09-28: 受講生スキルシート（講師・企業担当・管理者）は研修管理のサイドバーから開く
+    if (product === "training" && view === "skillsheet") return <SkillSheetView role={role} />;
     if (product === "training" && role === "admin" && ["home", "companies", "courses", "users"].includes(view)) return <AdminProduct view={view} go={go} goProduct={goProduct} goSub={goSub} />;
     return <TrainingProduct
       key={`training-${trainingNavigationVersion}`}
@@ -1704,7 +1704,7 @@ export default function App() {
     </>
   );
 
-  const availableProducts = filterProductsForRoleAndMode(PRODUCTS, { role, viewMode });
+  const availableProducts = filterProductsForRoleAndMode(PRODUCTS, { role, viewMode, adminTier: userProfile?.adminTier });
   const pa = PRODUCT_ACCENT[product] || PRODUCT_ACCENT.training;
   // モード別レール配色（モード分離Step1）。研修管理=ブルー/学習=ティール。個々のProductの
   // アクセント色(pa)とは別に、GlobalRailの選択中アイテムだけこのモード色で統一する。
@@ -1764,9 +1764,6 @@ export default function App() {
             <div className="min-w-0"><div className="truncate text-[11px] font-semibold" style={{ color: T.textMuted }}>{isHomeProduct ? "すべての機能" : currentProduct.label}</div><div className="truncate text-sm font-bold">{isHomeProduct ? "総合ホーム" : viewTitle}</div></div>
           </div>
           {modeSwitch}
-          {(role === "trainee" || role === "client") && userProfile?.learningPlan && (
-            <PlanBadge learningPlan={userProfile.learningPlan} onClick={() => go("plans")} />
-          )}
           <div className="ml-auto flex min-w-0 shrink-0 items-center justify-end gap-1.5">
             {role === "instructor" && !isHomeProduct && <QuickAdd onPick={go} />}
             <TenolabLink />
@@ -1898,7 +1895,7 @@ export default function App() {
       <CommandPalette open={paletteOpen} onClose={() => setPaletteOpen(false)} items={paletteItems} />
       {helpGuideOpen && (
         <HelpGuideModal
-          products={filterProductsForRoleAndMode(PRODUCTS, { role, viewMode }).filter(p => p.key !== "home").map(p => ({ ...p, desc: HELP_GUIDE_CONTENT[p.key] }))}
+          products={filterProductsForRoleAndMode(PRODUCTS, { role, viewMode, adminTier: userProfile?.adminTier }).filter(p => p.key !== "home").map(p => ({ ...p, desc: HELP_GUIDE_CONTENT[p.key] }))}
           onClose={() => setHelpGuideOpen(false)}
         />
       )}

@@ -26,7 +26,7 @@ const BIAS_WIDE = -9;     // カタログが3Dの上に浮いているとき
    「どうすれば増えるか」として見せる。実際の付与はサーバの記録から数え直す（ここは案内だけ）。 */
 const EARN_WAYS = [
   { key: "report", label: "日報を出す",       cr: 20, how: "その日の学びを書いて提出する。1件ごとに入ります。", to: ["training", "reports"], cta: "日報を書く" },
-  { key: "test",   label: "確認テストに合格", cr: 60, how: "70点以上で合格。同じテストは初回合格ぶんが入ります。", to: ["learning", "el_courses"], cta: "コースを見る" },
+  { key: "test",   label: "確認テストに合格", cr: 60, how: "70点以上で合格。同じテストは初回合格ぶんが入ります。", to: null, cta: null }, // 2026-09-28: 学習はLMSから外したので、行き先のボタンを外した
   { key: "login",  label: "その日にひらく",   cr: 25, how: "学びに来た日が1日ぶんとして入ります。", to: null, cta: null },
 ];
 

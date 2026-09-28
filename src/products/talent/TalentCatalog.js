@@ -4,7 +4,8 @@ const PHASES = ["要件定義", "基本設計", "詳細設計", "製造", "結�
 /* リスク分析：各シグナルは懸念度（高いほど要注意 0-100） */
 const TALENT_NAV_ITEMS = [
   { sec: null, items: [["tl_home", "ホーム", LayoutDashboard]] },
-  { sec: "スキル・成長", items: [
+  // 2026-09-28: 見出しを「成長」（自分の伸び）と「就職・案件」（外に見せるもの）に分けた
+  { sec: "成長", items: [
     // 成長の街だけは「遊びの場所」。他の業務項目と同じ見た目にしない（2026-09-16ユーザー指定）
     ["tl_town",    "成長の街",          Castle, {
       chip: `linear-gradient(135deg, ${PRODUCT_ACCENT.town.gradFrom}, ${PRODUCT_ACCENT.town.gradTo})`,
@@ -13,6 +14,8 @@ const TALENT_NAV_ITEMS = [
     }],
     ["tl_growth",  "成長履歴",          GitBranch],
     ["tl_skills",  "研修スキル",        GraduationCap],
+  ]},
+  { sec: "就職・案件", items: [
     ["tl_sheet",   "案件用スキルシート", Briefcase],
     ["tl_works",   "制作実績",          FileText],
     ["tl_badge",   "資格・バッジ",      Award],

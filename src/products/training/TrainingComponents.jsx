@@ -836,7 +836,6 @@ function GoalsView({ role, done, taskSaveState, toggle, goals, setGoals, go, goP
           </div>
           <div className="mt-4 grid gap-2">
             <Btn kind="soft" icon={GitBranch} onClick={() => { goProduct?.("talent"); goSub?.("tl_growth"); }}>成長履歴へ</Btn>
-            <Btn kind="ghost" icon={BookOpen} onClick={() => { goProduct?.("learning"); goSub?.("el_inprogress"); }}>Eラーニングへ</Btn>
           </div>
         </Card>
       </div>
