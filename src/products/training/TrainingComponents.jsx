@@ -893,72 +893,32 @@ function WithNoteDock({ show, courseId, lessons, lessonId, onLessonId, materialI
   );
 }
 
-/* カリキュラムの進み具合。**日程ベース**なので、そう書く。
-   日付が入っていない単元は数に入れない（0%と言い切らないため）。 */
-function CurriculumProgressCard({ progress, onToday, hasToday }) {
-  const { total, dated, done, now } = progress;
-  const pct = dated ? Math.round((done / dated) * 100) : null;
-  return (
-    <Card className="mb-5 p-4">
-      <div className="flex flex-wrap items-end justify-between gap-3">
-        <div className="min-w-0">
-          <div className="text-xs font-semibold" style={{ color: T.textMuted }}>いまどこまで来たか（日程ベース）</div>
-          <div className="mt-1 flex items-baseline gap-2">
-            <span className="text-3xl font-bold" style={{ color: T.textPrimary }}>{pct == null ? "—" : `${pct}%`}</span>
-            <span className="text-sm" style={{ color: T.textSecondary }}>
-              {dated ? <>終わった単元 <b style={{ color: T.textPrimary }}>{done}</b> / {dated}</> : "日程が未設定のため出せません"}
-            </span>
-          </div>
-          {now > 0 && <div className="mt-1 text-xs" style={{ color: T.accentHover }}>今日の単元が {now} 件あります。</div>}
-          {dated > 0 && dated < total && <div className="mt-1 text-xs" style={{ color: T.textMuted }}>日程が入っていない単元が {total - dated} 件あり、数に入れていません。</div>}
-        </div>
-        {hasToday && <Btn size="sm" icon={Calendar} onClick={onToday}>今日の単元を開く</Btn>}
-      </div>
-      <div className="mt-3 h-2.5 w-full overflow-hidden rounded-full" style={{ background: T.bgBase }}>
-        <div className="h-full rounded-full" style={{ width: `${pct == null ? 0 : pct}%`, background: T.accent, transition: "width .3s" }} />
-      </div>
-    </Card>
-  );
+/* カリキュラムの単元＝小項目（大項目を1つの単元にした場合は大項目）。並び順のまま平らにする。
+   key は位置で持つ（u:大:中:小／u:大）。2026-09-29 カリキュラム画面を「左に目次・右に選んだ単元」に整理。 */
+function curriculumUnitList(sections) {
+  return arr(sections).flatMap((section, si) => section.unitMode === "section"
+    ? [{ key: `u:${si}`, si, section, chapter: {}, lesson: section, scope: "section" }]
+    : arr(section.chapters).flatMap((chapter, ci) => arr(chapter.lessons).map((lesson, li) => ({ key: `u:${si}:${ci}:${li}`, si, section, chapter, lesson, scope: "lesson" }))));
 }
-
-/* コースの大目標。**カリキュラムの上にいつでも置いておく**（2026-09-16 打合せ）。
-   達成の記録は目標とタスクと同じもの（done）を見ているので、二重管理にならない。 */
-function CourseGoalsBar({ goals, done, go, role }) {
-  const rows = arr(goals).map(goal => {
-    const tasks = arr(goal.tasks);
-    return { id: goal.id, title: goal.title, sub: goal.sub, total: tasks.length, done: tasks.filter(t => done?.[t.id]).length };
-  });
-  if (!rows.length) return null;
-  const all = rows.reduce((sum, r) => sum + r.total, 0);
-  const cleared = rows.reduce((sum, r) => sum + r.done, 0);
-  return (
-    <Card className="mb-5 p-4">
-      <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-        <div>
-          <div className="flex items-center gap-2 text-sm font-bold" style={{ color: T.textPrimary }}><Target size={15} style={{ color: T.accent }} />このコースの大目標</div>
-          <div className="text-xs" style={{ color: T.textMuted }}>いま <b style={{ color: T.textPrimary }}>{cleared} / {all}</b> のタスクを達成しています。</div>
-        </div>
-        <div className="flex flex-wrap gap-2">
-          <Btn kind="ghost" size="sm" icon={Target} onClick={() => go?.("goals")}>目標とタスク</Btn>
-        </div>
-      </div>
-      <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
-        {rows.map(r => {
-          const pct = r.total ? Math.round((r.done / r.total) * 100) : 0;
-          return (
-            <div key={r.id} className="rounded-xl p-3" style={{ background: T.bgBase }}>
-              <div className="truncate text-sm font-bold" style={{ color: T.textPrimary }}>{r.title}</div>
-              {r.sub && <div className="truncate text-[11px]" style={{ color: T.textMuted }}>{r.sub}</div>}
-              <div className="mt-2 h-1.5 w-full overflow-hidden rounded-full" style={{ background: T.border }}>
-                <div className="h-full rounded-full" style={{ width: `${pct}%`, background: T.accent }} />
-              </div>
-              <div className="mt-1 text-[11px] font-semibold" style={{ color: T.textSecondary }}>{r.done} / {r.total} 達成</div>
-            </div>
-          );
-        })}
-      </div>
-    </Card>
-  );
+// 日程から見た単元の状態。終わったかどうかの記録は単元単位に無いので、日付だけで決める
+function curriculumUnitState(lesson, todayKey) {
+  const start = String(lesson?.startDate || "").slice(0, 10);
+  if (!start) return "";
+  if (curriculumItemIncludesDate(lesson, todayKey)) return "today";
+  return String(lesson.endDate || start).slice(0, 10) < todayKey ? "done" : "";
+}
+// 開いたときに選んでおく単元：今日 → これから一番近い日 → 先頭
+function curriculumDefaultUnitKey(units, todayKey) {
+  const today = units.find(u => curriculumUnitState(u.lesson, todayKey) === "today");
+  if (today) return today.key;
+  const next = units.find(u => String(u.lesson?.startDate || "").slice(0, 10) >= todayKey);
+  return (next || units[0])?.key || "";
+}
+function curriculumMonthDay(value) {
+  const s = String(value || "").slice(0, 10);
+  if (!s) return "";
+  const [, m, d] = s.split("-");
+  return `${Number(m)}/${Number(d)}`;
 }
 
 function Curriculum({ role, go, goProduct, done = {}, goals = [] }) {
@@ -976,7 +936,7 @@ function Curriculum({ role, go, goProduct, done = {}, goals = [] }) {
   const [aiExerciseBusy, setAiExerciseBusy] = useState({});
   const [aiExerciseErrors, setAiExerciseErrors] = useState({});
   const [expandedCurriculumSections, setExpandedCurriculumSections] = useState({});
-  const [expandedExerciseGroups, setExpandedExerciseGroups] = useState({});
+  const [selectedCurriculumKey, setSelectedCurriculumKey] = useState("");
   const [revealedExerciseAnswers, setRevealedExerciseAnswers] = useState({});
   const [importPreview, setImportPreview] = useState(null);
   const [importingCurriculum, setImportingCurriculum] = useState(false);
@@ -1005,7 +965,14 @@ function Curriculum({ role, go, goProduct, done = {}, goals = [] }) {
     setExpandedCurriculumSections({});
     setLoading(true); setMsg(""); setErr("");
     apiGet(`/courses/${courseId}/curriculum`)
-      .then(item => setSections(normalizeCurriculumSections(item)))
+      .then(item => {
+        const next = normalizeCurriculumSections(item);
+        setSections(next);
+        // 開いたときは今日の単元（無ければ次の単元）を選んでおく
+        const key = curriculumDefaultUnitKey(curriculumUnitList(next), localDateKey());
+        setSelectedCurriculumKey(key);
+        setExpandedCurriculumSections(key ? { [key.split(":")[1]]: true } : {});
+      })
       .catch(() => setErr("カリキュラムの取得に失敗しました。"))
       .finally(() => setLoading(false));
     apiGet(`/materials?courseId=${courseId}`).then(l => setMaterials(l || [])).catch(() => setMaterials([]));
@@ -1155,20 +1122,14 @@ function Curriculum({ role, go, goProduct, done = {}, goals = [] }) {
     } else {
       if (sections.length > 0 && !window.confirm("現在の編集内容を消して、Excelの内容に置き換えます。よろしいですか？")) return;
       setSections(importPreview.sections);
+      setSelectedCurriculumKey("");
       setMsg("Excelの内容で編集画面を置き換えました。内容を確認して画面上部の「保存」を押してください。");
     }
     setImportPreview(null);
   }
   const exerciseTypeLabel = type => ({ hands_on: "実技", individual: "個人演習", team: "チーム演習", submission: "提出課題" }[type] || "演習");
-  function renderReadOnlyExercises(exercises, key, background = T.bgSurface) {
-    const rows = arr(exercises);
-    if (!rows.length) return null;
-    const expanded = !!expandedExerciseGroups[key];
-    return <div className="mt-3 overflow-hidden rounded-xl" style={{ border: `1px solid ${T.border}`, background }}>
-      <button type="button" aria-expanded={expanded} onClick={() => setExpandedExerciseGroups(state => ({ ...state, [key]: !state[key] }))} className="flex w-full items-center gap-2 px-3 py-2.5 text-left">
-        <Briefcase size={14} style={{ color: T.accent }} /><span className="text-sm font-bold" style={{ color: T.textPrimary }}>演習</span><Badge tone="cyan">{rows.length}件</Badge><span className="ml-auto text-xs font-semibold" style={{ color: T.accentHover }}>{expanded ? "閉じる" : "展開する"}</span>{expanded ? <ChevronUp size={15} style={{ color: T.accent }} /> : <ChevronDown size={15} style={{ color: T.accent }} />}
-      </button>
-      {expanded && <div className="space-y-2 border-t p-3" style={{ borderColor: T.border }}>{rows.map((exercise, ei) => {
+  function renderExerciseList(exercises, key) {
+    return <div className="space-y-2">{arr(exercises).map((exercise, ei) => {
         const answerKey = `${key}:${exercise.id || ei}`;
         const answerVisible = !!revealedExerciseAnswers[answerKey];
         return <div key={exercise.id || ei} className="rounded-xl bg-white p-3" style={{ border: `1px solid ${T.border}` }}>
@@ -1177,8 +1138,7 @@ function Curriculum({ role, go, goProduct, done = {}, goals = [] }) {
           {exercise.completionCriteria && <p className="mt-2 whitespace-pre-line break-words border-t pt-2 text-xs leading-5" style={{ borderColor: T.border, color: T.textMuted }}><span className="font-semibold">完了条件</span>{"\n"}{formatExerciseDisplayText(exercise.completionCriteria)}</p>}
           {exercise.answerExample && <div className="mt-3"><button type="button" onClick={() => setRevealedExerciseAnswers(state => ({ ...state, [answerKey]: !state[answerKey] }))} className="inline-flex items-center gap-1.5 text-xs font-bold" style={{ color: T.accentHover }}>{answerVisible ? <Eye size={13} /> : <Lock size={13} />}{answerVisible ? "解答例を閉じる" : "解いた後に解答例を確認"}</button>{answerVisible && <div className="mt-2 rounded-xl p-3" style={{ background: T.successSubtle, color: T.textSecondary }}><div className="mb-1 text-xs font-bold" style={{ color: T.success }}>解答例・確認ポイント</div><p className="whitespace-pre-line break-words text-sm leading-6">{formatExerciseDisplayText(exercise.answerExample)}</p></div>}</div>}
         </div>;
-      })}</div>}
-    </div>;
+    })}</div>;
   }
   const linkedTests = (section, chapter, lesson) => tests.filter(test => {
     if (test.lessonId) return test.lessonId === lesson.id;
@@ -1186,58 +1146,29 @@ function Curriculum({ role, go, goProduct, done = {}, goals = [] }) {
     if (test.sectionId) return test.sectionId === section.id;
     return test.scopeType === "course" || (!test.scopeType && !test.lessonId && !test.chapterId && !test.sectionId);
   });
-  const curriculumSectionKey = (section, index) => String(section.id || `section-${index}`);
-  const curriculumSectionDomId = (section, index) => `curriculum-section-${curriculumSectionKey(section, index)}`;
-  function curriculumSectionOverview(section) {
-    const chapters = arr(section.chapters);
-    const lessons = chapters.flatMap(chapter => arr(chapter.lessons));
-    const chapterIds = new Set(chapters.map(chapter => chapter.id).filter(Boolean));
-    const lessonIds = new Set(lessons.map(lesson => lesson.id).filter(Boolean));
-    const materialIds = new Set([...arr(section.materialIds), ...lessons.flatMap(lesson => sessMids(lesson))]);
-    const testCount = tests.filter(test => {
-      if (test.lessonId) return lessonIds.has(test.lessonId);
-      if (test.chapterId) return chapterIds.has(test.chapterId);
-      if (test.sectionId) return test.sectionId === section.id;
-      return test.scopeType === "course" || (!test.scopeType && !test.lessonId && !test.chapterId && !test.sectionId);
-    }).length;
-    return {
-      units: section.unitMode === "section" ? 1 : lessons.length,
-      materials: materialIds.size,
-      exercises: arr(section.exercises).length + lessons.reduce((sum, lesson) => sum + arr(lesson.exercises).length, 0),
-      tests: testCount,
-    };
-  }
   const todayKey = localDateKey();
-  const curriculumTodayIndex = useMemo(() => sections.findIndex(section => curriculumSectionIncludesDate(section, todayKey)), [sections, todayKey]);
-  function focusCurriculumToday() {
-    const index = curriculumTodayIndex >= 0 ? curriculumTodayIndex : 0;
-    const section = sections[index];
-    if (!section) return;
-    setExpandedCurriculumSections(state => ({ ...state, [curriculumSectionKey(section, index)]: true }));
-    // 展開が画面に反映されてから位置を測る。rAF1回だとReactのcommit前に走ることがある
-    window.setTimeout(() => {
-      // behavior:"smooth" は環境によって無視され、スクロールごと効かないことがある（実測）。
-      // 確実に動く既定の動きにする。
-      document.getElementById(curriculumSectionDomId(section, index))?.scrollIntoView({ block: "start" });
-    }, 60);
+  const curriculumUnits = useMemo(() => curriculumUnitList(sections), [sections]);
+  const defaultCurriculumKey = useMemo(() => curriculumDefaultUnitKey(curriculumUnits, todayKey), [curriculumUnits, todayKey]);
+  /* 選んでいるもの：u:大:中:小（小項目）／u:大（大項目で1単元）／S:大（大項目の設定）／C:大:中（中項目の設定）。
+     編集で増減して見つからなくなったら、既定の単元（今日 → 次 → 先頭）へ戻す。 */
+  const curriculumKeyExists = key => {
+    const [kind, si, ci] = String(key || "").split(":");
+    if (kind === "u") return curriculumUnits.some(u => u.key === key);
+    if (kind === "S") return !!sections[Number(si)];
+    if (kind === "C") return !!arr(sections[Number(si)]?.chapters)[Number(ci)];
+    return false;
+  };
+  const activeCurriculumKey = curriculumKeyExists(selectedCurriculumKey) ? selectedCurriculumKey : (defaultCurriculumKey || (canEdit && sections.length ? "S:0" : ""));
+  const activeCurriculumUnit = curriculumUnits.find(u => u.key === activeCurriculumKey) || null;
+  const curriculumDetailRef = useRef(null);
+  function selectCurriculumItem(key, keepScroll = false) {
+    if (!key) return;
+    setSelectedCurriculumKey(key);
+    const si = key.split(":")[1];
+    setExpandedCurriculumSections(state => ({ ...state, [si]: true }));
+    // スマホ・タブレットでは目次の下に中身が出るので、選んだら中身まで送る
+    if (!keepScroll && window.matchMedia?.("(max-width: 1279px)").matches) window.setTimeout(() => curriculumDetailRef.current?.scrollIntoView({ block: "start" }), 60);
   }
-  // 初回表示は今日の大項目を開いておく。研修日が無ければ先頭。
-  // **編集画面では自動で開かない**（編集フォームが勝手に開くと、触るつもりのない所を触ってしまう）。
-  const curriculumFocusRef = useRef("");
-  useEffect(() => {
-    if (canEdit || !sections.length) return;
-    const token = `${courseId}:${sections.length}`;
-    if (curriculumFocusRef.current === token) return;
-    curriculumFocusRef.current = token;
-    const index = curriculumTodayIndex >= 0 ? curriculumTodayIndex : 0;
-    const section = sections[index];
-    if (section) setExpandedCurriculumSections({ [curriculumSectionKey(section, index)]: true });
-  }, [canEdit, sections, courseId, curriculumTodayIndex]);
-  const todayUnits = useMemo(() => arr(sections).flatMap(section => section.unitMode === "section"
-    ? [{ section, chapter: {}, lesson: section, title: section.title, scope: "section" }]
-    : arr(section.chapters).flatMap(chapter => arr(chapter.lessons).map(lesson => ({ section, chapter, lesson, title: lesson.title, scope: "lesson" }))))
-    .filter(unit => curriculumItemIncludesDate(unit.lesson, todayKey))
-    .map(unit => ({ ...unit, exercises: arr(unit.lesson.exercises), linkedTests: linkedTests(unit.section, unit.chapter, unit.scope === "section" ? {} : unit.lesson) })), [sections, tests, todayKey]);
   /* 受講生向けの「どこまで進んだか」。**日程ベース**で数える（終わったかどうかの記録が
      単元単位には無いため）。日付が入っていない単元は数に入れず、その旨を出す。 */
   const curriculumProgress = useMemo(() => {
@@ -1261,10 +1192,240 @@ function Curriculum({ role, go, goProduct, done = {}, goals = [] }) {
     };
   }, [sections, tests]);
 
+  const hasTodayUnit = curriculumUnits.some(u => curriculumUnitState(u.lesson, todayKey) === "today");
+  const hasUpcomingUnit = curriculumUnits.some(u => String(u.lesson?.startDate || "").slice(0, 10) > todayKey);
+  const progressPct = curriculumProgress.dated ? Math.round((curriculumProgress.done / curriculumProgress.dated) * 100) : null;
+
+  /* 左の目次。大項目を開くと中項目・小項目が並ぶ。印は日程から（済み／今日／これから）。 */
+  function renderCurriculumToc() {
+    const addStyle = { color: T.accent };
+    return (
+      <Card className="p-2 xl:sticky xl:top-4 xl:max-h-[calc(100vh-2rem)] xl:overflow-y-auto">
+        {sections.map((section, si) => {
+          const open = !!expandedCurriculumSections[String(si)];
+          const units = curriculumUnits.filter(u => u.si === si);
+          const doneCount = units.filter(u => curriculumUnitState(u.lesson, todayKey) === "done").length;
+          const hasToday = units.some(u => curriculumUnitState(u.lesson, todayKey) === "today");
+          const dot = hasToday ? T.accent : units.length && doneCount === units.length ? T.success : T.border;
+          const single = section.unitMode === "section";
+          const headKey = single ? `u:${si}` : `S:${si}`;
+          const headActive = activeCurriculumKey === headKey;
+          return (
+            <div key={section.id || si} className="py-0.5">
+              <button type="button" aria-expanded={single ? undefined : open}
+                onClick={() => { if (single || canEdit) selectCurriculumItem(headKey, true); if (!single) setExpandedCurriculumSections(state => ({ ...state, [String(si)]: canEdit ? !(headActive && open) : !open })); }}
+                className="flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-left text-sm font-bold"
+                style={{ color: T.textPrimary, background: headActive ? T.accentSubtle : "transparent", boxShadow: headActive ? `inset 3px 0 0 ${T.accent}` : undefined }}>
+                <span className="h-2 w-2 shrink-0 rounded-full" style={{ background: dot }} />
+                <span className="min-w-0 flex-1 truncate">{section.title || "大項目未設定"}</span>
+                {single
+                  ? <span className="text-[11px] font-medium tabular-nums" style={{ color: hasToday ? T.accent : T.textMuted }}>{hasToday ? "今日" : curriculumMonthDay(section.startDate)}</span>
+                  : <><span className="text-[11px] font-medium tabular-nums" style={{ color: T.textMuted }}>{doneCount}/{units.length}</span>{open ? <ChevronUp size={14} style={{ color: T.textMuted }} /> : <ChevronDown size={14} style={{ color: T.textMuted }} />}</>}
+              </button>
+              {open && !single && (
+                <div className="pb-1">
+                  {arr(section.chapters).map((chapter, ci) => (
+                    <div key={chapter.id || ci}>
+                      {canEdit
+                        ? <button type="button" onClick={() => selectCurriculumItem(`C:${si}:${ci}`)} className="block w-full truncate rounded-lg py-1.5 pl-6 pr-2 text-left text-[11.5px] font-bold" style={{ color: activeCurriculumKey === `C:${si}:${ci}` ? T.accent : T.textMuted, background: activeCurriculumKey === `C:${si}:${ci}` ? T.accentSubtle : "transparent" }}>{chapter.title || "中項目未設定"}</button>
+                        : chapter.title && <div className="truncate pb-0.5 pl-6 pr-2 pt-2 text-[11.5px] font-bold" style={{ color: T.textMuted }}>{chapter.title}</div>}
+                      {arr(chapter.lessons).map((lesson, li) => {
+                        const key = `u:${si}:${ci}:${li}`;
+                        const state = curriculumUnitState(lesson, todayKey);
+                        const active = activeCurriculumKey === key;
+                        return (
+                          <button key={lesson.id || li} type="button" onClick={() => selectCurriculumItem(key)}
+                            className="grid w-full grid-cols-[16px_minmax(0,1fr)_auto] items-center gap-2 rounded-lg py-1.5 pl-6 pr-2.5 text-left text-[13px]"
+                            style={active ? { background: T.accentSubtle, color: T.textPrimary, fontWeight: 700, boxShadow: `inset 3px 0 0 ${T.accent}` } : { color: T.textSecondary }}>
+                            <span className="flex h-4 w-4 items-center justify-center rounded-full" style={state === "done" ? { background: T.success, color: "#fff" } : { border: `${state === "today" ? 2 : 1.5}px solid ${state === "today" ? T.accent : T.border}` }}>{state === "done" && <Check size={10} strokeWidth={3.5} />}</span>
+                            <span className="truncate">{lesson.title || "小項目未設定"}</span>
+                            <span className="text-[11px] tabular-nums" style={{ color: state === "today" ? T.accent : T.textMuted, fontWeight: state === "today" ? 700 : 400 }}>{state === "today" ? "今日" : curriculumMonthDay(lesson.startDate)}</span>
+                          </button>
+                        );
+                      })}
+                      {canEdit && <button type="button" onClick={() => { addLesson(si, ci); selectCurriculumItem(`u:${si}:${ci}:${arr(chapter.lessons).length}`, true); }} className="flex items-center gap-1.5 py-1.5 pl-6 pr-2 text-xs font-bold" style={addStyle}><Plus size={13} />小項目を足す</button>}
+                    </div>
+                  ))}
+                  {canEdit && <button type="button" onClick={() => { addChapter(si); selectCurriculumItem(`C:${si}:${arr(section.chapters).length}`, true); }} className="flex items-center gap-1.5 py-1.5 pl-6 pr-2 text-xs font-bold" style={addStyle}><Plus size={13} />中項目を足す</button>}
+                </div>
+              )}
+            </div>
+          );
+        })}
+        {canEdit && <button type="button" onClick={() => { addSection(); selectCurriculumItem(`S:${sections.length}`, true); }} className="mt-1 flex w-full items-center gap-1.5 border-t px-2.5 pb-1.5 pt-3 text-xs font-bold" style={{ ...addStyle, borderColor: T.border }}><Plus size={13} />大項目を足す</button>}
+      </Card>
+    );
+  }
+
+  /* 右：受講生（見るだけ）。選んだ単元の中身だけを出す。 */
+  function renderCurriculumUnit(unit) {
+    const { section, chapter, lesson, scope } = unit;
+    const state = curriculumUnitState(lesson, todayKey);
+    const at = curriculumUnits.findIndex(u => u.key === unit.key);
+    const prev = curriculumUnits[at - 1];
+    const next = curriculumUnits[at + 1];
+    const goals = arr(lesson.learningGoals);
+    const prep = arr(lesson.preparationItems);
+    const exercises = arr(lesson.exercises);
+    const ownMids = scope === "section" ? arr(section.materialIds) : sessMids(lesson);
+    const sectionMids = scope === "section" ? [] : arr(section.materialIds);
+    const unitTests = linkedTests(section, chapter, scope === "section" ? {} : lesson);
+    const intro = scope === "section" ? section.description : "";
+    const body = scope === "section" ? section.content : lesson.content;
+    const empty = !intro && !body && !goals.length && !prep.length && !exercises.length && !ownMids.length && !sectionMids.length && !unitTests.length;
+    const materialButton = mid => materialsById[mid] && <button key={mid} type="button" onClick={() => openMaterialById(mid)} className="inline-flex items-center gap-2 rounded-xl bg-white px-3 py-2 text-sm font-semibold" style={{ color: T.textPrimary, border: `1px solid ${T.border}` }}><FileText size={14} style={{ color: T.accent }} />{materialsById[mid].title}</button>;
+    const block = (icon, title, children, note) => (
+      <div className="border-t px-5 py-4" style={{ borderColor: T.border }}>
+        <div className="mb-2 flex items-center gap-2 text-[13px] font-bold" style={{ color: T.textSecondary }}>{icon}{title}{note && <span className="ml-auto text-xs font-medium" style={{ color: T.textMuted }}>{note}</span>}</div>
+        {children}
+      </div>
+    );
+    return (
+      <Card className="overflow-hidden p-0">
+        <div className="px-5 py-4">
+          <div className="text-xs" style={{ color: T.textMuted }}>{[section.title, scope === "section" ? "" : chapter.title].filter(Boolean).join(" ／ ")}</div>
+          <h3 className="mt-0.5 text-xl font-bold" style={{ color: T.textPrimary }}>{(scope === "section" ? section.title : lesson.title) || "小項目未設定"}</h3>
+          <div className="mt-2 flex flex-wrap items-center gap-1.5">
+            {state === "today" && <Badge tone="cyan">今日</Badge>}
+            {state === "done" && <Badge tone="green">済み</Badge>}
+            <CurriculumDateBadge range={curriculumDateRangeOf([lesson])} />
+            {lesson.durationLabel && <Badge tone="muted">{lesson.durationLabel}</Badge>}
+          </div>
+          {intro && <p className="mt-3 whitespace-pre-line text-sm leading-6" style={{ color: T.textSecondary }}>{intro}</p>}
+          {body && <p className="mt-3 whitespace-pre-line text-sm leading-6" style={{ color: T.textSecondary }}>{body}</p>}
+          {empty && <p className="mt-3 text-sm" style={{ color: T.textMuted }}>講師が準備中です。</p>}
+        </div>
+        {goals.length > 0 && block(<Target size={15} style={{ color: T.accent }} />, "学習目標", <ul className="space-y-1">{goals.map((goal, gi) => <li key={gi} className="flex gap-2 text-sm" style={{ color: T.textPrimary }}><CheckCircle2 size={14} className="mt-1 shrink-0" style={{ color: T.accent }} />{goal}</li>)}</ul>)}
+        {prep.length > 0 && block(<AlertCircle size={15} style={{ color: T.warning }} />, "事前に用意・実施すること", <ul className="space-y-1">{prep.map((item, pi) => <li key={pi} className="flex gap-2 text-sm" style={{ color: T.textPrimary }}><Circle size={13} className="mt-1 shrink-0" style={{ color: T.warning }} />{item}</li>)}</ul>)}
+        {exercises.length > 0 && block(<Briefcase size={15} style={{ color: T.accent }} />, "演習", renderExerciseList(exercises, `${scope}:${lesson.id}`), `${exercises.length}件`)}
+        {(ownMids.length > 0 || sectionMids.length > 0) && block(<FileText size={15} style={{ color: T.accent }} />, "資料", <div className="space-y-3">
+          {ownMids.length > 0 && <div className="flex flex-wrap gap-2">{ownMids.map(materialButton)}</div>}
+          {sectionMids.length > 0 && <div><div className="mb-1.5 text-[11px] font-bold" style={{ color: T.textMuted }}>{section.title || "大項目"} 全体の資料</div><div className="flex flex-wrap gap-2">{sectionMids.map(materialButton)}</div></div>}
+        </div>)}
+        {unitTests.length > 0 && block(<ClipboardCheck size={15} style={{ color: T.accent }} />, "確認テスト", <div className="flex flex-wrap items-center gap-2">
+          {unitTests.map(test => <Badge key={test.testId || test.id} tone={test.status === "published" ? "green" : "muted"}>{test.title}</Badge>)}
+          <div className="ml-auto"><Btn size="sm" onClick={() => go?.("tests")}>テストへ</Btn></div>
+        </div>)}
+        <div className="flex items-center justify-between gap-2 border-t px-5 py-3" style={{ borderColor: T.border, background: T.bgBase }}>
+          <Btn size="sm" kind="ghost" icon={ChevronLeft} disabled={!prev} onClick={() => prev && selectCurriculumItem(prev.key)}>前の単元</Btn>
+          <Btn size="sm" kind="ghost" disabled={!next} onClick={() => next && selectCurriculumItem(next.key)}>次の単元<ChevronRight size={14} className="ml-1 inline" /></Btn>
+        </div>
+      </Card>
+    );
+  }
+
+  /* 右：講師・管理者（編集）。選んだ大項目・中項目・小項目の入力欄だけを出す。 */
+  function renderCurriculumEditor(key) {
+    const [kind, siText, ciText, liText] = String(key || "").split(":");
+    const si = Number(siText);
+    const section = sections[si];
+    if (!section) return <Card><EmptyState title="左で大項目を選んでください" desc="" /></Card>;
+    const path = text => <div className="mb-3 text-xs font-bold" style={{ color: T.textMuted }}>{text}</div>;
+    if (kind === "S" || (kind === "u" && ciText === undefined)) {
+      return (
+        <Card className="space-y-4 p-5">
+          {path("大項目")}
+          <div className="grid gap-2 md:grid-cols-[1fr_1.5fr_auto]">
+          <input value={section.title || ""} onChange={e => updateSection(si, "title", e.target.value)} placeholder="大項目 例: AWS / Java" className="rounded-lg px-3 py-2 text-sm font-semibold outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary }} />
+          <input value={section.description || ""} onChange={e => updateSection(si, "description", e.target.value)} placeholder="大項目の説明" className="rounded-xl px-3 py-2 text-sm outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary }} />
+          <button onClick={() => removeSection(si)} className="rounded-lg px-3 py-2 text-xs font-semibold" style={{ color: T.danger, border: `1px solid ${T.border}` }}>大項目削除</button>
+          </div>
+          <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl p-3" style={{ background: T.accentSubtle }}><div><div className="text-sm font-bold" style={{ color: T.textPrimary }}>この大項目の構成</div><p className="text-xs" style={{ color: T.textMuted }}>大項目だけで完結する研修か、中・小項目へ分ける研修かを選べます。</p></div><select value={section.unitMode || "lessons"} onChange={e => updateSection(si, "unitMode", e.target.value)} className="rounded-xl bg-white px-3 py-2 text-sm font-semibold outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary }}><option value="lessons">中・小項目に分ける</option><option value="section">大項目を1つの単元にする</option></select></div>
+          {section.unitMode === "section" ? (
+            <div className="rounded-xl p-4" style={{ background: T.bgBase, border: `1px solid ${T.border}` }}>
+              <div className="grid gap-2 xl:grid-cols-[1.3fr_1fr_1fr]"><textarea value={section.content || ""} onChange={e => updateSection(si, "content", e.target.value)} rows={2} placeholder="この大項目で学ぶ内容" className="resize-none rounded-xl bg-white px-3 py-2 text-sm outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary }} /><input type="date" value={section.startDate || ""} onChange={e => updateSection(si, "startDate", e.target.value)} className="rounded-xl bg-white px-3 py-2 text-sm outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary }} /><input type="date" value={section.endDate || ""} onChange={e => updateSection(si, "endDate", e.target.value)} className="rounded-xl bg-white px-3 py-2 text-sm outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary }} /></div>
+              <div className="mt-2 grid gap-2 md:grid-cols-[1fr_220px]"><textarea value={arr(section.learningGoals).join("\n")} onChange={e => updateSection(si, "learningGoals", e.target.value.split("\n").map(v => v.trim()).filter(Boolean))} rows={2} placeholder={"学習目標（1行に1つ）"} className="resize-none rounded-xl bg-white px-3 py-2 text-sm outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary }} /><input value={section.durationLabel || ""} onChange={e => updateSection(si, "durationLabel", e.target.value)} placeholder="期間表示（例：1〜3日目）" className="rounded-xl bg-white px-3 py-2 text-sm outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary }} /></div>
+              <div className="mt-2 rounded-xl bg-white p-3" style={{ border: `1px solid ${T.border}` }}><label className="mb-1 flex items-center gap-2 text-xs font-bold" style={{ color: T.warning }}><AlertCircle size={14} />事前に用意・実施してほしいこと</label><textarea value={arr(section.preparationItems).join("\n")} onChange={e => updateSection(si, "preparationItems", splitCurriculumList(e.target.value))} rows={2} placeholder={"1行に1つ入力 例:\n研修開始前にAWSアカウントへログインできることを確認する"} className="w-full resize-none rounded-xl px-3 py-2 text-sm outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary }} /></div>
+              <div className="mt-3 rounded-xl bg-white p-3" style={{ border: `1px solid ${T.border}` }}><div className="mb-2 flex items-center justify-between gap-2"><div className="flex items-center gap-2 text-sm font-bold" style={{ color: T.textPrimary }}><Briefcase size={15} />大項目の演習</div><Btn size="sm" kind="ghost" icon={Plus} onClick={() => addSectionExercise(si)}>演習を追加</Btn></div>
+              <div className="mb-3 rounded-xl p-3" style={{ background: T.accentSubtle }}><div className="mb-1 flex items-center gap-1.5 text-xs font-bold" style={{ color: T.accentHover }}><Sparkles size={13} />AIに演習案を依頼</div><div className="flex flex-col gap-2 sm:flex-row"><textarea value={aiExercisePrompts[`section:${section.id}`] || ""} onChange={e => setAiExercisePrompts(state => ({ ...state, [`section:${section.id}`]: e.target.value }))} rows={2} placeholder="例：AWS初心者がチームで構成図を作り、発表する演習を3つ考えて" className="min-w-0 flex-1 resize-none rounded-xl bg-white px-3 py-2 text-sm outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary }} /><Btn icon={Sparkles} disabled={!String(aiExercisePrompts[`section:${section.id}`] || "").trim() || aiExerciseBusy[`section:${section.id}`]} onClick={() => generateAiExercises(`section:${section.id}`, { scopeType: "section", sectionTitle: section.title, learningContext: buildLearningContext({ section, lessons: [], materialsById }) }, generated => updateSection(si, "exercises", [...arr(section.exercises), ...generated]))}>{aiExerciseBusy[`section:${section.id}`] ? "生成中…" : "AIで作る"}</Btn></div>{aiExerciseErrors[`section:${section.id}`] && <p className="mt-2 text-xs" style={{ color: T.danger }}>{aiExerciseErrors[`section:${section.id}`]}</p>}</div>
+              {arr(section.exercises).length === 0 ? <div className="rounded-lg px-3 py-2 text-xs" style={{ background: T.bgBase, color: T.textMuted }}>演習はまだありません。</div> : <div className="space-y-2">{arr(section.exercises).map((exercise, ei) => <div key={exercise.id || ei} className="rounded-xl p-3" style={{ background: T.bgBase }}><div className="grid gap-2 2xl:grid-cols-[minmax(0,1fr)_140px_110px_auto]"><input value={exercise.title || ""} onChange={e => updateSectionExercise(si, ei, "title", e.target.value)} placeholder="演習名" className="rounded-xl bg-white px-3 py-2 text-sm font-semibold outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary }} /><select value={exercise.type || "hands_on"} onChange={e => updateSectionExercise(si, ei, "type", e.target.value)} className="rounded-xl bg-white px-3 py-2 text-sm outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary }}><option value="hands_on">実技</option><option value="individual">個人演習</option><option value="team">チーム演習</option><option value="submission">提出課題</option></select><input type="number" min="0" value={exercise.estimatedMinutes ?? ""} onChange={e => updateSectionExercise(si, ei, "estimatedMinutes", e.target.value === "" ? "" : Number(e.target.value))} placeholder="目安（分）" className="rounded-xl bg-white px-3 py-2 text-sm outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary }} /><button onClick={() => removeSectionExercise(si, ei)} aria-label="演習を削除" style={{ color: T.danger }}><Trash2 size={16} /></button></div><div className="mt-2 grid gap-2 md:grid-cols-2"><textarea value={exercise.instructions || ""} onChange={e => updateSectionExercise(si, ei, "instructions", e.target.value)} rows={2} placeholder="問題・取り組む内容・手順" className="resize-none rounded-xl bg-white px-3 py-2 text-sm outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary }} /><textarea value={exercise.completionCriteria || ""} onChange={e => updateSectionExercise(si, ei, "completionCriteria", e.target.value)} rows={2} placeholder="完了条件・提出物" className="resize-none rounded-xl bg-white px-3 py-2 text-sm outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary }} /></div><textarea value={exercise.answerExample || ""} onChange={e => updateSectionExercise(si, ei, "answerExample", e.target.value)} rows={2} placeholder="解答例・確認ポイント（受講生はボタンを押すまで非表示）" className="mt-2 w-full resize-none rounded-xl bg-white px-3 py-2 text-sm outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary }} /></div>)}</div>}
+              </div>
+              {arr(section.materialIds).length > 0 && <div className="mt-3 flex flex-wrap gap-1.5">{arr(section.materialIds).map(mid => materialsById[mid] && <span key={mid} className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs" style={{ background: T.accentSubtle, color: T.accentHover }}><button onClick={() => openMaterialById(mid)} className="inline-flex items-center gap-1"><FileText size={11} />{materialsById[mid].title}</button><button onClick={() => updateSection(si, "materialIds", arr(section.materialIds).filter(id => id !== mid))}><X size={11} /></button></span>)}</div>}
+              <select value="" onChange={e => { const id=e.target.value; if(id && !arr(section.materialIds).includes(id)) updateSection(si, "materialIds", [...arr(section.materialIds), id]); e.target.value=""; }} className="mt-2 w-full rounded-xl bg-white px-3 py-2 text-xs outline-none" style={{ border: `1px solid ${T.border}`, color: T.textMuted }}><option value="">＋ 資料を追加</option>{materials.filter(m => !arr(section.materialIds).includes(m.materialId)).map(m => <option key={m.materialId} value={m.materialId}>{m.title}</option>)}</select>
+              <div className="mt-3 flex flex-wrap items-center gap-2 rounded-xl bg-white px-3 py-2.5" style={{ border: `1px solid ${T.border}` }}><ClipboardCheck size={14} /><span className="text-xs font-bold">確認テスト</span>{linkedTests(section, {}, {}).length ? linkedTests(section, {}, {}).map(test => <Badge key={test.testId || test.id} tone={test.status === "published" ? "green" : "muted"}>{test.title}</Badge>) : <span className="text-xs" style={{ color: T.textMuted }}>未設定</span>}<button type="button" onClick={() => go?.("tests")} className="ml-auto text-xs font-semibold" style={{ color: T.accentHover }}>テスト管理へ <ChevronRight size={13} className="inline" /></button></div>
+            </div>
+          ) : (
+            <div className="rounded-xl bg-white p-3" style={{ border: `1px solid ${T.border}` }}>
+              <div className="flex items-center gap-2 text-sm font-bold" style={{ color: T.textPrimary }}><FileText size={15} style={{ color: T.accent }} />大項目「{section.title || `大項目${si + 1}`}」の資料</div>
+              <p className="mt-1 text-xs" style={{ color: T.textMuted }}>この大項目全体で使う資料です。小項目専用の補足資料は各Lesson側に追加できます。</p>
+              {arr(section.materialIds).length > 0 && <div className="mt-2 flex flex-wrap gap-1.5">{arr(section.materialIds).map(mid => materialsById[mid] && <span key={mid} className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs" style={{ background: T.accentSubtle, color: T.accentHover }}><button onClick={() => openMaterialById(mid)} className="inline-flex items-center gap-1"><FileText size={11} />{materialsById[mid].title}</button><button onClick={() => updateSection(si, "materialIds", arr(section.materialIds).filter(id => id !== mid))} aria-label="大項目から資料を外す"><X size={11} /></button></span>)}</div>}
+              <select value="" onChange={e => { const id = e.target.value; if (id && !arr(section.materialIds).includes(id)) updateSection(si, "materialIds", [...arr(section.materialIds), id]); e.target.value = ""; }} className="mt-2 w-full rounded-xl px-3 py-2 text-xs outline-none" style={{ border: `1px solid ${T.border}`, color: T.textMuted, background: T.bgSurface }}><option value="">＋ 大項目に資料を追加</option>{materials.filter(m => !arr(section.materialIds).includes(m.materialId)).map(m => <option key={m.materialId} value={m.materialId}>{m.title}</option>)}</select>
+            </div>
+          )}
+        </Card>
+      );
+    }
+    const ci = Number(ciText);
+    const chapter = arr(section.chapters)[ci];
+    if (!chapter) return null;
+    if (kind === "C") {
+      return (
+        <Card className="space-y-3 p-5">
+          {path(`${section.title || "大項目"} ／ 中項目`)}
+          <div className="grid gap-2 md:grid-cols-[1fr_1.5fr_auto]">
+          <input value={chapter.title || ""} onChange={e => updateChapter(si, ci, "title", e.target.value)} placeholder="中項目 例: はじめてのAWS" className="rounded-lg px-3 py-2 text-sm font-semibold outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary }} />
+          <input value={chapter.description || ""} onChange={e => updateChapter(si, ci, "description", e.target.value)} placeholder="中項目の説明" className="rounded-xl px-3 py-2 text-sm outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary }} />
+          <button onClick={() => removeChapter(si, ci)} className="rounded-lg px-3 py-2 text-xs font-semibold" style={{ color: T.danger, border: `1px solid ${T.border}`, background: "#fff" }}>中項目削除</button>
+          </div>
+          <button type="button" onClick={() => { addLesson(si, ci); selectCurriculumItem(`u:${si}:${ci}:${arr(chapter.lessons).length}`, true); }} className="flex w-full items-center justify-center gap-2 rounded-xl py-2 text-xs font-semibold" style={{ border: `1.5px dashed ${T.border}`, color: T.accent }}><Plus size={14} />小項目を追加</button>
+        </Card>
+      );
+    }
+    const li = Number(liText);
+    const lesson = arr(chapter.lessons)[li];
+    if (!lesson) return null;
+    return (
+      <Card className="p-5">
+        {path(`${section.title || "大項目"} ／ ${chapter.title || "中項目"}`)}
+        <div className="grid gap-2 xl:grid-cols-[1.3fr_1fr_1fr_auto]">
+        <input value={lesson.title || ""} onChange={e => updateLesson(si, ci, li, "title", e.target.value)} placeholder="小項目 例: Lesson1 EC2とは" className="rounded-lg px-3 py-2 text-sm font-semibold outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary }} />
+        <input type="date" value={lesson.startDate || ""} onChange={e => updateLesson(si, ci, li, "startDate", e.target.value)} className="rounded-xl px-3 py-2 text-sm outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary }} />
+        <input type="date" value={lesson.endDate || ""} onChange={e => updateLesson(si, ci, li, "endDate", e.target.value)} className="rounded-xl px-3 py-2 text-sm outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary }} />
+        <button onClick={() => removeLesson(si, ci, li)} className="rounded-lg px-3 py-2 text-xs font-semibold" style={{ color: T.danger, border: `1px solid ${T.border}` }}>削除</button>
+        </div>
+        <div className="mt-2 grid gap-2 md:grid-cols-2">
+        <textarea value={lesson.content || ""} onChange={e => updateLesson(si, ci, li, "content", e.target.value)} rows={2} placeholder="学習内容" className="resize-none rounded-xl px-3 py-2 text-sm outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary }} />
+        <textarea value={lesson.memo || ""} onChange={e => updateLesson(si, ci, li, "memo", e.target.value)} rows={2} placeholder="講義メモ" className="resize-none rounded-xl px-3 py-2 text-sm outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary }} />
+        </div>
+        <div className="mt-2 rounded-xl p-3" style={{ background: T.accentSubtle }}>
+        <label className="mb-1 flex items-center gap-2 text-xs font-bold" style={{ color: T.accentHover }}><Target size={14} />この単元の学習目標</label>
+        <textarea value={arr(lesson.learningGoals).join("\n")} onChange={e => updateLesson(si, ci, li, "learningGoals", e.target.value.split("\n").map(v => v.trim()).filter(Boolean))} rows={2} placeholder={"1行に1つ入力 例:\n基本構文を使って処理を実装できる"} className="w-full resize-none rounded-xl bg-white px-3 py-2 text-sm outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary }} />
+        </div>
+        <div className="mt-2 rounded-xl p-3" style={{ background: T.warningSubtle, border: `1px solid ${T.border}` }}><label className="mb-1 flex items-center gap-2 text-xs font-bold" style={{ color: T.warning }}><AlertCircle size={14} />このLessonまでに用意・実施してほしいこと</label><textarea value={arr(lesson.preparationItems).join("\n")} onChange={e => updateLesson(si, ci, li, "preparationItems", splitCurriculumList(e.target.value))} rows={2} placeholder={"1行に1つ入力 例:\nVS CodeとJava 21をインストールする"} className="w-full resize-none rounded-xl bg-white px-3 py-2 text-sm outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary }} /></div>
+        <div className="mt-2 grid gap-2 md:grid-cols-2">
+        <input value={lesson.durationLabel || ""} onChange={e => updateLesson(si, ci, li, "durationLabel", e.target.value)} placeholder="期間表示（例：3日目）" className="rounded-xl px-3 py-2 text-sm outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary }} />
+        </div>
+        <div className="mt-3 rounded-xl p-3" style={{ border: `1px solid ${T.border}` }}>
+        <div className="mb-2 flex items-center justify-between gap-3"><div><div className="flex items-center gap-2 text-sm font-bold" style={{ color: T.textPrimary }}><Briefcase size={15} />演習</div><p className="mt-0.5 text-xs" style={{ color: T.textMuted }}>知識を使う課題と、完了の基準を設定します。</p></div><Btn size="sm" kind="ghost" icon={Plus} onClick={() => addExercise(si, ci, li)}>演習を追加</Btn></div>
+        <div className="mb-3 rounded-xl p-3" style={{ background: T.accentSubtle }}><div className="mb-1 flex items-center gap-1.5 text-xs font-bold" style={{ color: T.accentHover }}><Sparkles size={13} />AIに演習案を依頼</div><div className="flex flex-col gap-2 sm:flex-row"><textarea value={aiExercisePrompts[`lesson:${lesson.id}`] || ""} onChange={e => setAiExercisePrompts(state => ({ ...state, [`lesson:${lesson.id}`]: e.target.value }))} rows={2} placeholder="例：この単元の理解を確認できる、初心者向けの実技演習を3つ考えて" className="min-w-0 flex-1 resize-none rounded-xl bg-white px-3 py-2 text-sm outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary }} /><Btn icon={Sparkles} disabled={!String(aiExercisePrompts[`lesson:${lesson.id}`] || "").trim() || aiExerciseBusy[`lesson:${lesson.id}`]} onClick={() => generateAiExercises(`lesson:${lesson.id}`, { scopeType: "lesson", sectionTitle: section.title, chapterTitle: chapter.title, lessonTitle: lesson.title, learningContext: buildLearningContext({ section, chapter, lessons: [lesson], materialsById }) }, generated => updateLesson(si, ci, li, "exercises", [...arr(lesson.exercises), ...generated]))}>{aiExerciseBusy[`lesson:${lesson.id}`] ? "生成中…" : "AIで作る"}</Btn></div>{aiExerciseErrors[`lesson:${lesson.id}`] && <p className="mt-2 text-xs" style={{ color: T.danger }}>{aiExerciseErrors[`lesson:${lesson.id}`]}</p>}</div>
+        {arr(lesson.exercises).length === 0 ? <div className="rounded-lg px-3 py-2 text-xs" style={{ background: T.bgBase, color: T.textMuted }}>演習はまだありません。</div> : <div className="space-y-2">{arr(lesson.exercises).map((exercise, ei) => (
+        <div key={exercise.id || ei} className="rounded-xl p-3" style={{ background: T.bgBase }}>
+        <div className="grid gap-2 2xl:grid-cols-[minmax(0,1fr)_140px_110px_auto]">
+        <input value={exercise.title || ""} onChange={e => updateExercise(si, ci, li, ei, "title", e.target.value)} placeholder="演習名" className="rounded-xl bg-white px-3 py-2 text-sm font-semibold outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary }} />
+        <select value={exercise.type || "hands_on"} onChange={e => updateExercise(si, ci, li, ei, "type", e.target.value)} className="rounded-xl bg-white px-3 py-2 text-sm outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary }}><option value="hands_on">実技</option><option value="individual">個人演習</option><option value="team">チーム演習</option><option value="submission">提出課題</option></select>
+        <input type="number" min="0" value={exercise.estimatedMinutes ?? ""} onChange={e => updateExercise(si, ci, li, ei, "estimatedMinutes", e.target.value === "" ? "" : Number(e.target.value))} placeholder="目安（分）" className="rounded-xl bg-white px-3 py-2 text-sm outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary }} />
+        <button onClick={() => removeExercise(si, ci, li, ei)} className="rounded-lg px-2 py-2" aria-label="演習を削除" style={{ color: T.danger }}><Trash2 size={16} /></button>
+        </div>
+        <div className="mt-2 grid gap-2 md:grid-cols-2"><textarea value={exercise.instructions || ""} onChange={e => updateExercise(si, ci, li, ei, "instructions", e.target.value)} rows={2} placeholder="問題・取り組む内容・手順" className="resize-none rounded-xl bg-white px-3 py-2 text-sm outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary }} /><textarea value={exercise.completionCriteria || ""} onChange={e => updateExercise(si, ci, li, ei, "completionCriteria", e.target.value)} rows={2} placeholder="完了条件・提出物" className="resize-none rounded-xl bg-white px-3 py-2 text-sm outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary }} /></div><textarea value={exercise.answerExample || ""} onChange={e => updateExercise(si, ci, li, ei, "answerExample", e.target.value)} rows={2} placeholder="解答例・確認ポイント（受講生はボタンを押すまで非表示）" className="mt-2 w-full resize-none rounded-xl bg-white px-3 py-2 text-sm outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary }} />
+        </div>
+        ))}</div>}
+        </div>
+        {sessMids(lesson).length > 0 && <div className="mt-2 flex flex-wrap gap-1.5">{sessMids(lesson).map(mid => materialsById[mid] && <span key={mid} className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs" style={{ background: T.accentSubtle, color: T.accentHover }}><button onClick={() => openMaterialById(mid)} className="inline-flex items-center gap-1"><FileText size={11} />{materialsById[mid].title}</button><button onClick={() => removeMaterial(si, ci, li, mid)}><X size={11} /></button></span>)}</div>}
+        <select value="" onChange={e => { addMaterial(si, ci, li, e.target.value); e.target.value = ""; }} className="mt-2 w-full rounded-xl px-3 py-2 text-xs outline-none" style={{ border: `1px solid ${T.border}`, color: T.textMuted, background: T.bgSurface }}>
+        <option value="">＋ 資料を追加（任意・複数可）</option>
+        {materials.filter(m => !sessMids(lesson).includes(m.materialId)).map(m => <option key={m.materialId} value={m.materialId}>{m.title}</option>)}
+        </select>
+        <div className="mt-3 rounded-xl px-3 py-2.5" style={{ background: T.bgBase }}><div className="flex flex-wrap items-center justify-between gap-2"><div className="flex flex-wrap items-center gap-2"><span className="flex items-center gap-1.5 text-xs font-bold" style={{ color: T.textSecondary }}><ClipboardCheck size={14} />確認テスト</span>{linkedTests(section, chapter, lesson).length ? linkedTests(section, chapter, lesson).map(test => <Badge key={test.testId || test.id} tone={test.status === "published" ? "green" : "muted"}>{test.title}</Badge>) : <span className="text-xs" style={{ color: T.textMuted }}>未設定</span>}</div><button type="button" onClick={() => go?.("tests")} className="text-xs font-semibold" style={{ color: T.accentHover }}>テスト管理へ <ChevronRight size={13} className="inline" /></button></div></div>
+      </Card>
+    );
+  }
+
   return (
     <div>
-      <SectionHead title="カリキュラム" desc={canEdit ? "単元ごとに学習目標・事前準備・演習・資料・確認テストをまとめて設計します" : "全体像と今日の単元、必要な準備・演習・確認テストを確認できます"}
-        action={canEdit && courseId ? <div className="flex flex-wrap justify-end gap-2"><Btn kind="ghost" icon={Download} onClick={exportCurriculumTemplate}>Excelテンプレート</Btn><Btn kind="ghost" icon={FileSpreadsheet} onClick={() => curriculumImportRef.current?.click()} disabled={importingCurriculum}>{importingCurriculum ? "読込中…" : "Excel読込"}</Btn><Btn icon={Check} onClick={save}>{busy ? "保存中…" : "保存"}</Btn></div> : null} />
+      <SectionHead title="カリキュラム"
+        action={canEdit && courseId
+          ? <div className="flex flex-wrap justify-end gap-2"><Btn kind="ghost" icon={Download} onClick={exportCurriculumTemplate}>Excelテンプレート</Btn><Btn kind="ghost" icon={FileSpreadsheet} onClick={() => curriculumImportRef.current?.click()} disabled={importingCurriculum}>{importingCurriculum ? "読込中…" : "Excel読込"}</Btn><Btn icon={Check} onClick={save}>{busy ? "保存中…" : "保存"}</Btn></div>
+          : !canEdit && !loading && (hasTodayUnit || hasUpcomingUnit) ? <Btn icon={Calendar} onClick={() => selectCurriculumItem(defaultCurriculumKey)}>{hasTodayUnit ? "今日の単元" : "次の単元"}</Btn> : null} />
       <input ref={curriculumImportRef} type="file" accept=".xlsx,.xls" className="hidden" onChange={e => previewCurriculumImport(e.target.files?.[0])} />
       {msg && <div className="mb-4 rounded-lg px-3 py-2 text-xs" style={{ background: T.successSubtle, color: T.success }}>{msg}</div>}
       {err && <div className="mb-4 rounded-lg px-3 py-2 text-xs" style={{ background: T.dangerSubtle, color: T.danger }}>{err}</div>}
@@ -1273,207 +1434,37 @@ function Curriculum({ role, go, goProduct, done = {}, goals = [] }) {
         <Card><EmptyState title={canEdit ? "コースがありません" : "所属コースがありません"} desc={canEdit ? "コース管理からコースを作成してください" : "管理者にコースへの登録を依頼してください"} /></Card>
       ) : (
         <>
-          <div className="mb-5 flex items-center gap-3">
-            <span className="text-xs font-semibold" style={{ color: T.textMuted }}>コース</span>
-            <select value={courseId} onChange={e => { setCourseId(e.target.value); setActiveCourseId(e.target.value); }} className="rounded-xl px-3 py-2 text-sm outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary, background: "#fff" }}>
+          <div className="mb-4 flex flex-wrap items-center gap-x-5 gap-y-3 rounded-2xl bg-white px-4 py-3" style={{ border: `1px solid ${T.border}` }}>
+            <select aria-label="コース" value={courseId} onChange={e => { setCourseId(e.target.value); setActiveCourseId(e.target.value); }} className="rounded-xl px-3 py-2 text-sm font-semibold outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary, background: "#fff" }}>
               {courses.map(c => <option key={c.courseId} value={c.courseId}>{c.name}（{kindLabel(c.kind)}）</option>)}
             </select>
+            {/* 受講生には件数ではなく「どこまで来たか」を1行で（日程ベース。日程のない単元は数えない） */}
+            {!loading && !canEdit && sections.length > 0 && (
+              <div className="flex min-w-[240px] flex-1 flex-wrap items-center gap-x-3 gap-y-1">
+                <span className="text-xs font-semibold" style={{ color: T.textMuted }}>いまどこまで</span>
+                <b className="text-lg tabular-nums" style={{ color: T.textPrimary }}>{progressPct == null ? "—" : `${progressPct}%`}</b>
+                <div className="h-2 min-w-[120px] flex-1 overflow-hidden rounded-full" style={{ background: T.bgBase }}><div className="h-full rounded-full" style={{ width: `${progressPct ?? 0}%`, background: T.accent }} /></div>
+                <span className="text-xs tabular-nums" style={{ color: T.textMuted }}>{curriculumProgress.dated ? `${curriculumProgress.done} / ${curriculumProgress.dated} 単元` : "日程が未設定のため出せません"}{curriculumProgress.dated > 0 && curriculumProgress.dated < curriculumProgress.total ? ` ・ 日程なし ${curriculumProgress.total - curriculumProgress.dated}` : ""}</span>
+              </div>
+            )}
+            {!loading && canEdit && (
+              <div className="flex flex-wrap gap-1.5">
+                {[["小項目", curriculumSummary.lessons], ["学習目標", curriculumSummary.goals], ["演習", curriculumSummary.exercises], ["確認テスト", curriculumSummary.tests]].map(([label, value]) => <Badge key={label} tone="muted">{label} {value}</Badge>)}
+              </div>
+            )}
           </div>
-
-          {!canEdit && <CourseGoalsBar goals={goals} done={done} go={go} role={role} />}
-          {!loading && !canEdit && todayUnits.length > 0 && <Card className="mb-5 overflow-hidden" style={{ border: `1px solid ${T.accent}` }}>
-            <div className="flex flex-wrap items-center justify-between gap-2 px-4 py-3" style={{ background: T.bgBase }}><div><div className="flex items-center gap-2 text-sm font-bold" style={{ color: T.textPrimary }}><Clock size={16} style={{ color: T.accent }} />今日のカリキュラム</div><p className="mt-0.5 text-xs" style={{ color: T.textMuted }}>{todayKey} に取り組む単元です。</p></div><Badge tone="cyan">{todayUnits.length}単元</Badge></div>
-            <div className="divide-y" style={{ borderColor: T.border }}>{todayUnits.map(unit => <div key={`${unit.scope}:${unit.lesson.id}`} className="flex flex-wrap items-center gap-3 px-4 py-3"><div className="min-w-0 flex-1"><div className="text-xs" style={{ color: T.textMuted }}>{unit.section.title}</div><div className="truncate text-sm font-bold" style={{ color: T.textPrimary }}>{unit.title}</div></div>{arr(unit.lesson.preparationItems).length > 0 && <Badge tone="amber">準備 {arr(unit.lesson.preparationItems).length}件</Badge>}{unit.exercises.length > 0 && <Badge tone="cyan">演習 {unit.exercises.length}件</Badge>}{unit.linkedTests.length > 0 && <button type="button" onClick={() => go?.("tests")}><Badge tone="green">テスト {unit.linkedTests.length}件</Badge></button>}</div>)}</div>
-          </Card>}
-
-          {!loading && canEdit && <Card className="mb-5 p-4">
-            <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
-              {[["小項目", curriculumSummary.lessons, BookOpen], ["学習目標", curriculumSummary.goals, Target], ["演習", curriculumSummary.exercises, Briefcase], ["確認テスト", curriculumSummary.tests, ClipboardCheck]].map(([label, value, Icon]) => (
-                <div key={label} className="rounded-xl p-3" style={{ background: T.bgBase }}>
-                  <div className="flex items-center gap-2 text-xs font-semibold" style={{ color: T.textMuted }}><Icon size={14} />{label}</div>
-                  <div className="mt-1 text-2xl font-bold" style={{ color: T.textPrimary }}>{value}<span className="ml-1 text-xs font-medium" style={{ color: T.textMuted }}>件</span></div>
-                </div>
-              ))}
-            </div>
-          </Card>}
-          {/* 受講生には件数ではなく「どこまで来たか」を出す（2026-09-16 打合せ） */}
-          {!loading && !canEdit && <CurriculumProgressCard progress={curriculumProgress} onToday={focusCurriculumToday} hasToday={curriculumTodayIndex >= 0} />}
 
           {loading ? <Card><SkeletonRows /></Card>
             : sections.length === 0 && !canEdit ? <Card><EmptyState title="まだ登録がありません" desc="講師がカリキュラムを準備中です" /></Card>
+            : sections.length === 0 ? <button type="button" onClick={() => { addSection(); selectCurriculumItem("S:0", true); }} className="flex w-full items-center justify-center gap-2 rounded-xl py-3 text-sm font-semibold" style={{ border: `1.5px dashed ${T.border}`, color: T.accent }}><Plus size={16} />大項目を追加</button>
             : (
-              <div className="space-y-4">
-                {<div className="flex flex-wrap items-center justify-between gap-3 rounded-xl px-1">
-                  <div>
-                    <div className="text-sm font-bold" style={{ color: T.textPrimary }}>{canEdit ? "大項目を選んで編集" : "大項目から全体を確認"}</div>
-                    <p className="mt-0.5 text-xs" style={{ color: T.textMuted }}>{canEdit ? "編集したい大項目だけ開きます。全部を開いたままにしないほうが探しやすく、動作も軽くなります。" : "必要な大項目だけ開くと、学習の流れを見失わずに確認できます。"}</p>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    {sections.length > 0 && <button type="button" onClick={focusCurriculumToday} className="rounded-lg px-3 py-2 text-xs font-bold" style={{ color: "#fff", background: T.accent }}>{curriculumTodayIndex >= 0 ? (canEdit ? "今日へ" : "今日の単元を開く") : "先頭へ"}</button>}
-                    <button type="button" onClick={() => setExpandedCurriculumSections(Object.fromEntries(sections.map((section, index) => [curriculumSectionKey(section, index), true])))} className="rounded-lg px-3 py-2 text-xs font-bold" style={{ color: T.accentHover, background: T.accentSubtle }}>すべて展開</button>
-                    <button type="button" onClick={() => setExpandedCurriculumSections({})} className="rounded-lg px-3 py-2 text-xs font-bold" style={{ color: T.textSecondary, border: `1px solid ${T.border}`, background: T.bgSurface }}>すべて閉じる</button>
-                  </div>
-                </div>}
-                {sections.map((section, si) => (
-                  <Card key={section.id || si} id={curriculumSectionDomId(section, si)} className={canEdit ? "p-4" : "overflow-hidden p-0"} style={!canEdit ? { border: `1px solid ${curriculumSectionIncludesDate(section, todayKey) ? T.accent : T.border}`, borderLeft: `4px solid ${T.accent}`, boxShadow: curriculumSectionIncludesDate(section, todayKey) ? `0 0 0 2px ${T.accentSubtle}` : undefined } : undefined}>
-                    {canEdit ? (
-                      <div className="space-y-4">
-                        <div className="grid gap-2 md:grid-cols-[1fr_1.5fr_auto]">
-                          <input value={section.title || ""} onChange={e => updateSection(si, "title", e.target.value)} placeholder="大項目 例: AWS / Java" className="rounded-lg px-3 py-2 text-sm font-semibold outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary }} />
-                          <input value={section.description || ""} onChange={e => updateSection(si, "description", e.target.value)} placeholder="大項目の説明" className="rounded-xl px-3 py-2 text-sm outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary }} />
-                          <button onClick={() => removeSection(si)} className="rounded-lg px-3 py-2 text-xs font-semibold" style={{ color: T.danger, border: `1px solid ${T.border}` }}>大項目削除</button>
-                        </div>
-                        <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl px-3 py-2" style={{ background: T.bgBase }}>
-                          <span className="flex flex-wrap items-center gap-2 text-xs font-semibold" style={{ color: T.textMuted }}>
-                            中項目 {(section.chapters || []).length}件 ・ 小項目 {(section.chapters || []).reduce((n, c) => n + (c.lessons || []).length, 0)}件
-                            <CurriculumDateBadge range={curriculumSectionDateRange(section)} />
-                          </span>
-                          <button type="button" onClick={() => setExpandedCurriculumSections(state => ({ ...state, [curriculumSectionKey(section, si)]: !state[curriculumSectionKey(section, si)] }))}
-                            className="rounded-lg px-3 py-1.5 text-xs font-bold" style={{ color: T.accentHover, border: `1px solid ${T.border}`, background: T.bgSurface }}>
-                            {expandedCurriculumSections[curriculumSectionKey(section, si)] ? "この大項目を閉じる" : "この大項目を編集する"}
-                          </button>
-                        </div>
-                        {!!expandedCurriculumSections[curriculumSectionKey(section, si)] && (<>
-                        <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl p-3" style={{ background: T.accentSubtle }}><div><div className="text-sm font-bold" style={{ color: T.textPrimary }}>この大項目の構成</div><p className="text-xs" style={{ color: T.textMuted }}>大項目だけで完結する研修か、中・小項目へ分ける研修かを選べます。</p></div><select value={section.unitMode || "lessons"} onChange={e => updateSection(si, "unitMode", e.target.value)} className="rounded-xl bg-white px-3 py-2 text-sm font-semibold outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary }}><option value="lessons">中・小項目に分ける</option><option value="section">大項目を1つの単元にする</option></select></div>
-                        {section.unitMode === "section" ? (
-                          <div className="rounded-xl p-4" style={{ background: T.bgBase, border: `1px solid ${T.border}` }}>
-                            <div className="grid gap-2 md:grid-cols-[1.3fr_1fr_1fr]"><textarea value={section.content || ""} onChange={e => updateSection(si, "content", e.target.value)} rows={2} placeholder="この大項目で学ぶ内容" className="resize-none rounded-xl bg-white px-3 py-2 text-sm outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary }} /><input type="date" value={section.startDate || ""} onChange={e => updateSection(si, "startDate", e.target.value)} className="rounded-xl bg-white px-3 py-2 text-sm outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary }} /><input type="date" value={section.endDate || ""} onChange={e => updateSection(si, "endDate", e.target.value)} className="rounded-xl bg-white px-3 py-2 text-sm outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary }} /></div>
-                            <div className="mt-2 grid gap-2 md:grid-cols-[1fr_220px]"><textarea value={arr(section.learningGoals).join("\n")} onChange={e => updateSection(si, "learningGoals", e.target.value.split("\n").map(v => v.trim()).filter(Boolean))} rows={2} placeholder={"学習目標（1行に1つ）"} className="resize-none rounded-xl bg-white px-3 py-2 text-sm outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary }} /><input value={section.durationLabel || ""} onChange={e => updateSection(si, "durationLabel", e.target.value)} placeholder="期間表示（例：1〜3日目）" className="rounded-xl bg-white px-3 py-2 text-sm outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary }} /></div>
-                            <div className="mt-2 rounded-xl bg-white p-3" style={{ border: `1px solid ${T.border}` }}><label className="mb-1 flex items-center gap-2 text-xs font-bold" style={{ color: T.warning }}><AlertCircle size={14} />事前に用意・実施してほしいこと</label><textarea value={arr(section.preparationItems).join("\n")} onChange={e => updateSection(si, "preparationItems", splitCurriculumList(e.target.value))} rows={2} placeholder={"1行に1つ入力 例:\n研修開始前にAWSアカウントへログインできることを確認する"} className="w-full resize-none rounded-xl px-3 py-2 text-sm outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary }} /></div>
-                            <div className="mt-3 rounded-xl bg-white p-3" style={{ border: `1px solid ${T.border}` }}><div className="mb-2 flex items-center justify-between gap-2"><div className="flex items-center gap-2 text-sm font-bold" style={{ color: T.textPrimary }}><Briefcase size={15} />大項目の演習</div><Btn size="sm" kind="ghost" icon={Plus} onClick={() => addSectionExercise(si)}>演習を追加</Btn></div>
-                              <div className="mb-3 rounded-xl p-3" style={{ background: T.accentSubtle }}><div className="mb-1 flex items-center gap-1.5 text-xs font-bold" style={{ color: T.accentHover }}><Sparkles size={13} />AIに演習案を依頼</div><div className="flex flex-col gap-2 sm:flex-row"><textarea value={aiExercisePrompts[`section:${section.id}`] || ""} onChange={e => setAiExercisePrompts(state => ({ ...state, [`section:${section.id}`]: e.target.value }))} rows={2} placeholder="例：AWS初心者がチームで構成図を作り、発表する演習を3つ考えて" className="min-w-0 flex-1 resize-none rounded-xl bg-white px-3 py-2 text-sm outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary }} /><Btn icon={Sparkles} disabled={!String(aiExercisePrompts[`section:${section.id}`] || "").trim() || aiExerciseBusy[`section:${section.id}`]} onClick={() => generateAiExercises(`section:${section.id}`, { scopeType: "section", sectionTitle: section.title, learningContext: buildLearningContext({ section, lessons: [], materialsById }) }, generated => updateSection(si, "exercises", [...arr(section.exercises), ...generated]))}>{aiExerciseBusy[`section:${section.id}`] ? "生成中…" : "AIで作る"}</Btn></div>{aiExerciseErrors[`section:${section.id}`] && <p className="mt-2 text-xs" style={{ color: T.danger }}>{aiExerciseErrors[`section:${section.id}`]}</p>}</div>
-                              {arr(section.exercises).length === 0 ? <div className="rounded-lg px-3 py-2 text-xs" style={{ background: T.bgBase, color: T.textMuted }}>演習はまだありません。</div> : <div className="space-y-2">{arr(section.exercises).map((exercise, ei) => <div key={exercise.id || ei} className="rounded-xl p-3" style={{ background: T.bgBase }}><div className="grid gap-2 md:grid-cols-[1fr_140px_110px_auto]"><input value={exercise.title || ""} onChange={e => updateSectionExercise(si, ei, "title", e.target.value)} placeholder="演習名" className="rounded-xl bg-white px-3 py-2 text-sm font-semibold outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary }} /><select value={exercise.type || "hands_on"} onChange={e => updateSectionExercise(si, ei, "type", e.target.value)} className="rounded-xl bg-white px-3 py-2 text-sm outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary }}><option value="hands_on">実技</option><option value="individual">個人演習</option><option value="team">チーム演習</option><option value="submission">提出課題</option></select><input type="number" min="0" value={exercise.estimatedMinutes ?? ""} onChange={e => updateSectionExercise(si, ei, "estimatedMinutes", e.target.value === "" ? "" : Number(e.target.value))} placeholder="目安（分）" className="rounded-xl bg-white px-3 py-2 text-sm outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary }} /><button onClick={() => removeSectionExercise(si, ei)} aria-label="演習を削除" style={{ color: T.danger }}><Trash2 size={16} /></button></div><div className="mt-2 grid gap-2 md:grid-cols-2"><textarea value={exercise.instructions || ""} onChange={e => updateSectionExercise(si, ei, "instructions", e.target.value)} rows={2} placeholder="問題・取り組む内容・手順" className="resize-none rounded-xl bg-white px-3 py-2 text-sm outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary }} /><textarea value={exercise.completionCriteria || ""} onChange={e => updateSectionExercise(si, ei, "completionCriteria", e.target.value)} rows={2} placeholder="完了条件・提出物" className="resize-none rounded-xl bg-white px-3 py-2 text-sm outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary }} /></div><textarea value={exercise.answerExample || ""} onChange={e => updateSectionExercise(si, ei, "answerExample", e.target.value)} rows={2} placeholder="解答例・確認ポイント（受講生はボタンを押すまで非表示）" className="mt-2 w-full resize-none rounded-xl bg-white px-3 py-2 text-sm outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary }} /></div>)}</div>}
-                            </div>
-                            {arr(section.materialIds).length > 0 && <div className="mt-3 flex flex-wrap gap-1.5">{arr(section.materialIds).map(mid => materialsById[mid] && <span key={mid} className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs" style={{ background: T.accentSubtle, color: T.accentHover }}><button onClick={() => openMaterialById(mid)} className="inline-flex items-center gap-1"><FileText size={11} />{materialsById[mid].title}</button><button onClick={() => updateSection(si, "materialIds", arr(section.materialIds).filter(id => id !== mid))}><X size={11} /></button></span>)}</div>}
-                            <select value="" onChange={e => { const id=e.target.value; if(id && !arr(section.materialIds).includes(id)) updateSection(si, "materialIds", [...arr(section.materialIds), id]); e.target.value=""; }} className="mt-2 w-full rounded-xl bg-white px-3 py-2 text-xs outline-none" style={{ border: `1px solid ${T.border}`, color: T.textMuted }}><option value="">＋ 資料を追加</option>{materials.filter(m => !arr(section.materialIds).includes(m.materialId)).map(m => <option key={m.materialId} value={m.materialId}>{m.title}</option>)}</select>
-                            <div className="mt-3 flex flex-wrap items-center gap-2 rounded-xl bg-white px-3 py-2.5" style={{ border: `1px solid ${T.border}` }}><ClipboardCheck size={14} /><span className="text-xs font-bold">確認テスト</span>{linkedTests(section, {}, {}).length ? linkedTests(section, {}, {}).map(test => <Badge key={test.testId || test.id} tone={test.status === "published" ? "green" : "muted"}>{test.title}</Badge>) : <span className="text-xs" style={{ color: T.textMuted }}>未設定</span>}<button type="button" onClick={() => go?.("tests")} className="ml-auto text-xs font-semibold" style={{ color: T.accentHover }}>テスト管理へ <ChevronRight size={13} className="inline" /></button></div>
-                          </div>
-                        ) : <>
-                        <div className="rounded-xl bg-white p-3" style={{ border: `1px solid ${T.border}` }}>
-                          <div className="flex items-center gap-2 text-sm font-bold" style={{ color: T.textPrimary }}><FileText size={15} style={{ color: T.accent }} />大項目「{section.title || `大項目${si + 1}`}」の資料</div>
-                          <p className="mt-1 text-xs" style={{ color: T.textMuted }}>この大項目全体で使う資料です。小項目専用の補足資料は各Lesson側に追加できます。</p>
-                          {arr(section.materialIds).length > 0 && <div className="mt-2 flex flex-wrap gap-1.5">{arr(section.materialIds).map(mid => materialsById[mid] && <span key={mid} className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs" style={{ background: T.accentSubtle, color: T.accentHover }}><button onClick={() => openMaterialById(mid)} className="inline-flex items-center gap-1"><FileText size={11} />{materialsById[mid].title}</button><button onClick={() => updateSection(si, "materialIds", arr(section.materialIds).filter(id => id !== mid))} aria-label="大項目から資料を外す"><X size={11} /></button></span>)}</div>}
-                          <select value="" onChange={e => { const id = e.target.value; if (id && !arr(section.materialIds).includes(id)) updateSection(si, "materialIds", [...arr(section.materialIds), id]); e.target.value = ""; }} className="mt-2 w-full rounded-xl px-3 py-2 text-xs outline-none" style={{ border: `1px solid ${T.border}`, color: T.textMuted, background: T.bgSurface }}><option value="">＋ 大項目に資料を追加</option>{materials.filter(m => !arr(section.materialIds).includes(m.materialId)).map(m => <option key={m.materialId} value={m.materialId}>{m.title}</option>)}</select>
-                        </div>
-                        {arr(section.chapters).map((chapter, ci) => (
-                          <div key={chapter.id || ci} className="rounded-xl p-3" style={{ background: T.bgBase, border: `1px solid ${T.border}` }}>
-                            <div className="grid gap-2 md:grid-cols-[1fr_1.5fr_auto]">
-                              <input value={chapter.title || ""} onChange={e => updateChapter(si, ci, "title", e.target.value)} placeholder="中項目 例: はじめてのAWS" className="rounded-lg px-3 py-2 text-sm font-semibold outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary }} />
-                              <input value={chapter.description || ""} onChange={e => updateChapter(si, ci, "description", e.target.value)} placeholder="中項目の説明" className="rounded-xl px-3 py-2 text-sm outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary }} />
-                              <button onClick={() => removeChapter(si, ci)} className="rounded-lg px-3 py-2 text-xs font-semibold" style={{ color: T.danger, border: `1px solid ${T.border}`, background: "#fff" }}>中項目削除</button>
-                            </div>
-                            <div className="mt-3 space-y-3">
-                              {arr(chapter.lessons).map((lesson, li) => (
-                                <div key={lesson.id || li} className="rounded-xl bg-white p-3" style={{ border: `1px solid ${T.border}` }}>
-                                  <div className="grid gap-2 md:grid-cols-[1.3fr_1fr_1fr_auto]">
-                                    <input value={lesson.title || ""} onChange={e => updateLesson(si, ci, li, "title", e.target.value)} placeholder="小項目 例: Lesson1 EC2とは" className="rounded-lg px-3 py-2 text-sm font-semibold outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary }} />
-                                    <input type="date" value={lesson.startDate || ""} onChange={e => updateLesson(si, ci, li, "startDate", e.target.value)} className="rounded-xl px-3 py-2 text-sm outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary }} />
-                                    <input type="date" value={lesson.endDate || ""} onChange={e => updateLesson(si, ci, li, "endDate", e.target.value)} className="rounded-xl px-3 py-2 text-sm outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary }} />
-                                    <button onClick={() => removeLesson(si, ci, li)} className="rounded-lg px-3 py-2 text-xs font-semibold" style={{ color: T.danger, border: `1px solid ${T.border}` }}>削除</button>
-                                  </div>
-                                  <div className="mt-2 grid gap-2 md:grid-cols-2">
-                                    <textarea value={lesson.content || ""} onChange={e => updateLesson(si, ci, li, "content", e.target.value)} rows={2} placeholder="学習内容" className="resize-none rounded-xl px-3 py-2 text-sm outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary }} />
-                                    <textarea value={lesson.memo || ""} onChange={e => updateLesson(si, ci, li, "memo", e.target.value)} rows={2} placeholder="講義メモ" className="resize-none rounded-xl px-3 py-2 text-sm outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary }} />
-                                  </div>
-                                  <div className="mt-2 rounded-xl p-3" style={{ background: T.accentSubtle }}>
-                                    <label className="mb-1 flex items-center gap-2 text-xs font-bold" style={{ color: T.accentHover }}><Target size={14} />この単元の学習目標</label>
-                                    <textarea value={arr(lesson.learningGoals).join("\n")} onChange={e => updateLesson(si, ci, li, "learningGoals", e.target.value.split("\n").map(v => v.trim()).filter(Boolean))} rows={2} placeholder={"1行に1つ入力 例:\n基本構文を使って処理を実装できる"} className="w-full resize-none rounded-xl bg-white px-3 py-2 text-sm outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary }} />
-                                  </div>
-                                  <div className="mt-2 rounded-xl p-3" style={{ background: T.warningSubtle, border: `1px solid ${T.border}` }}><label className="mb-1 flex items-center gap-2 text-xs font-bold" style={{ color: T.warning }}><AlertCircle size={14} />このLessonまでに用意・実施してほしいこと</label><textarea value={arr(lesson.preparationItems).join("\n")} onChange={e => updateLesson(si, ci, li, "preparationItems", splitCurriculumList(e.target.value))} rows={2} placeholder={"1行に1つ入力 例:\nVS CodeとJava 21をインストールする"} className="w-full resize-none rounded-xl bg-white px-3 py-2 text-sm outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary }} /></div>
-                                  <div className="mt-2 grid gap-2 md:grid-cols-2">
-                                    <input value={arr(lesson.skills).join(", ")} onChange={e => updateLesson(si, ci, li, "skills", e.target.value.split(",").map(v => v.trim()).filter(Boolean))} placeholder="身につくスキル（カンマ区切り）" className="rounded-xl px-3 py-2 text-sm outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary }} />
-                                    <input value={lesson.durationLabel || ""} onChange={e => updateLesson(si, ci, li, "durationLabel", e.target.value)} placeholder="期間表示（例：3日目）" className="rounded-xl px-3 py-2 text-sm outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary }} />
-                                  </div>
-                                  <div className="mt-3 rounded-xl p-3" style={{ border: `1px solid ${T.border}` }}>
-                                    <div className="mb-2 flex items-center justify-between gap-3"><div><div className="flex items-center gap-2 text-sm font-bold" style={{ color: T.textPrimary }}><Briefcase size={15} />演習</div><p className="mt-0.5 text-xs" style={{ color: T.textMuted }}>知識を使う課題と、完了の基準を設定します。</p></div><Btn size="sm" kind="ghost" icon={Plus} onClick={() => addExercise(si, ci, li)}>演習を追加</Btn></div>
-                                    <div className="mb-3 rounded-xl p-3" style={{ background: T.accentSubtle }}><div className="mb-1 flex items-center gap-1.5 text-xs font-bold" style={{ color: T.accentHover }}><Sparkles size={13} />AIに演習案を依頼</div><div className="flex flex-col gap-2 sm:flex-row"><textarea value={aiExercisePrompts[`lesson:${lesson.id}`] || ""} onChange={e => setAiExercisePrompts(state => ({ ...state, [`lesson:${lesson.id}`]: e.target.value }))} rows={2} placeholder="例：この単元の理解を確認できる、初心者向けの実技演習を3つ考えて" className="min-w-0 flex-1 resize-none rounded-xl bg-white px-3 py-2 text-sm outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary }} /><Btn icon={Sparkles} disabled={!String(aiExercisePrompts[`lesson:${lesson.id}`] || "").trim() || aiExerciseBusy[`lesson:${lesson.id}`]} onClick={() => generateAiExercises(`lesson:${lesson.id}`, { scopeType: "lesson", sectionTitle: section.title, chapterTitle: chapter.title, lessonTitle: lesson.title, learningContext: buildLearningContext({ section, chapter, lessons: [lesson], materialsById }) }, generated => updateLesson(si, ci, li, "exercises", [...arr(lesson.exercises), ...generated]))}>{aiExerciseBusy[`lesson:${lesson.id}`] ? "生成中…" : "AIで作る"}</Btn></div>{aiExerciseErrors[`lesson:${lesson.id}`] && <p className="mt-2 text-xs" style={{ color: T.danger }}>{aiExerciseErrors[`lesson:${lesson.id}`]}</p>}</div>
-                                    {arr(lesson.exercises).length === 0 ? <div className="rounded-lg px-3 py-2 text-xs" style={{ background: T.bgBase, color: T.textMuted }}>演習はまだありません。</div> : <div className="space-y-2">{arr(lesson.exercises).map((exercise, ei) => (
-                                      <div key={exercise.id || ei} className="rounded-xl p-3" style={{ background: T.bgBase }}>
-                                        <div className="grid gap-2 md:grid-cols-[1fr_140px_110px_auto]">
-                                          <input value={exercise.title || ""} onChange={e => updateExercise(si, ci, li, ei, "title", e.target.value)} placeholder="演習名" className="rounded-xl bg-white px-3 py-2 text-sm font-semibold outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary }} />
-                                          <select value={exercise.type || "hands_on"} onChange={e => updateExercise(si, ci, li, ei, "type", e.target.value)} className="rounded-xl bg-white px-3 py-2 text-sm outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary }}><option value="hands_on">実技</option><option value="individual">個人演習</option><option value="team">チーム演習</option><option value="submission">提出課題</option></select>
-                                          <input type="number" min="0" value={exercise.estimatedMinutes ?? ""} onChange={e => updateExercise(si, ci, li, ei, "estimatedMinutes", e.target.value === "" ? "" : Number(e.target.value))} placeholder="目安（分）" className="rounded-xl bg-white px-3 py-2 text-sm outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary }} />
-                                          <button onClick={() => removeExercise(si, ci, li, ei)} className="rounded-lg px-2 py-2" aria-label="演習を削除" style={{ color: T.danger }}><Trash2 size={16} /></button>
-                                        </div>
-                                        <div className="mt-2 grid gap-2 md:grid-cols-2"><textarea value={exercise.instructions || ""} onChange={e => updateExercise(si, ci, li, ei, "instructions", e.target.value)} rows={2} placeholder="問題・取り組む内容・手順" className="resize-none rounded-xl bg-white px-3 py-2 text-sm outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary }} /><textarea value={exercise.completionCriteria || ""} onChange={e => updateExercise(si, ci, li, ei, "completionCriteria", e.target.value)} rows={2} placeholder="完了条件・提出物" className="resize-none rounded-xl bg-white px-3 py-2 text-sm outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary }} /></div><textarea value={exercise.answerExample || ""} onChange={e => updateExercise(si, ci, li, ei, "answerExample", e.target.value)} rows={2} placeholder="解答例・確認ポイント（受講生はボタンを押すまで非表示）" className="mt-2 w-full resize-none rounded-xl bg-white px-3 py-2 text-sm outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary }} />
-                                      </div>
-                                    ))}</div>}
-                                  </div>
-                                  {sessMids(lesson).length > 0 && <div className="mt-2 flex flex-wrap gap-1.5">{sessMids(lesson).map(mid => materialsById[mid] && <span key={mid} className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs" style={{ background: T.accentSubtle, color: T.accentHover }}><button onClick={() => openMaterialById(mid)} className="inline-flex items-center gap-1"><FileText size={11} />{materialsById[mid].title}</button><button onClick={() => removeMaterial(si, ci, li, mid)}><X size={11} /></button></span>)}</div>}
-                                  <select value="" onChange={e => { addMaterial(si, ci, li, e.target.value); e.target.value = ""; }} className="mt-2 w-full rounded-xl px-3 py-2 text-xs outline-none" style={{ border: `1px solid ${T.border}`, color: T.textMuted, background: T.bgSurface }}>
-                                    <option value="">＋ 資料を追加（任意・複数可）</option>
-                                    {materials.filter(m => !sessMids(lesson).includes(m.materialId)).map(m => <option key={m.materialId} value={m.materialId}>{m.title}</option>)}
-                                  </select>
-                                  <div className="mt-3 rounded-xl px-3 py-2.5" style={{ background: T.bgBase }}><div className="flex flex-wrap items-center justify-between gap-2"><div className="flex flex-wrap items-center gap-2"><span className="flex items-center gap-1.5 text-xs font-bold" style={{ color: T.textSecondary }}><ClipboardCheck size={14} />確認テスト</span>{linkedTests(section, chapter, lesson).length ? linkedTests(section, chapter, lesson).map(test => <Badge key={test.testId || test.id} tone={test.status === "published" ? "green" : "muted"}>{test.title}</Badge>) : <span className="text-xs" style={{ color: T.textMuted }}>未設定</span>}</div><button type="button" onClick={() => go?.("tests")} className="text-xs font-semibold" style={{ color: T.accentHover }}>テスト管理へ <ChevronRight size={13} className="inline" /></button></div></div>
-                                </div>
-                              ))}
-                              <button onClick={() => addLesson(si, ci)} className="flex w-full items-center justify-center gap-2 rounded-xl py-2 text-xs font-semibold" style={{ border: `1.5px dashed ${T.border}`, color: T.accent }}><Plus size={14} />小項目を追加</button>
-                            </div>
-                          </div>
-                        ))}
-                        <button onClick={() => addChapter(si)} className="flex w-full items-center justify-center gap-2 rounded-xl py-2.5 text-sm font-semibold" style={{ border: `1.5px dashed ${T.border}`, color: T.accent }}><Plus size={15} />中項目を追加</button>
-                        </>}
-                        </>)}
-                      </div>
-                    ) : (
-                      <div>
-                        <button type="button" aria-expanded={!!expandedCurriculumSections[curriculumSectionKey(section, si)]} onClick={() => { const key = curriculumSectionKey(section, si); setExpandedCurriculumSections(state => ({ ...state, [key]: !state[key] })); }} className="flex w-full items-start gap-3 px-4 py-4 text-left sm:px-5">
-                          <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl text-sm font-bold" style={{ color: T.accentHover, background: T.accentSubtle }}>{String(si + 1).padStart(2, "0")}</span>
-                          <span className="min-w-0 flex-1">
-                            <span className="flex flex-wrap items-center gap-2">
-                              <span className="text-[11px] font-bold tracking-wide" style={{ color: T.accentHover }}>大項目 {si + 1}</span>
-                              <CurriculumDateBadge range={curriculumSectionDateRange(section)} />
-                              {section.durationLabel && <Badge tone="muted">{section.durationLabel}</Badge>}
-                              {curriculumSectionIncludesDate(section, todayKey) && <Badge tone="cyan">今日</Badge>}
-                            </span>
-                            <span className="mt-1 block text-base font-bold sm:text-lg" style={{ color: T.textPrimary }}>{section.title || "大項目未設定"}</span>
-                            <span className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-xs font-semibold" style={{ color: T.textMuted }}>
-                              <span><BookOpen size={13} className="mr-1 inline" />単元 {curriculumSectionOverview(section).units}件</span>
-                              <span><FileText size={13} className="mr-1 inline" />資料 {curriculumSectionOverview(section).materials}件</span>
-                              <span><Briefcase size={13} className="mr-1 inline" />演習 {curriculumSectionOverview(section).exercises}件</span>
-                              <span><ClipboardCheck size={13} className="mr-1 inline" />テスト {curriculumSectionOverview(section).tests}件</span>
-                            </span>
-                          </span>
-                          <span className="mt-1 inline-flex shrink-0 items-center gap-1 text-xs font-bold" style={{ color: T.accentHover }}>{expandedCurriculumSections[curriculumSectionKey(section, si)] ? "閉じる" : "開く"}{expandedCurriculumSections[curriculumSectionKey(section, si)] ? <ChevronUp size={17} /> : <ChevronDown size={17} />}</span>
-                        </button>
-                        {!!expandedCurriculumSections[curriculumSectionKey(section, si)] && <div className="border-t p-4 sm:p-5" style={{ borderColor: T.border, background: T.bgSurface }}>
-                          {(section.description || arr(section.materialIds).length > 0) && <div className="rounded-xl p-4" style={{ background: T.bgBase, border: `1px solid ${T.border}` }}>
-                            {section.description && <p className="whitespace-pre-line text-sm leading-6" style={{ color: T.textSecondary }}>{section.description}</p>}
-                            {arr(section.materialIds).length > 0 && <div className={section.description ? "mt-3" : ""}><div className="mb-2 flex items-center gap-1.5 text-xs font-bold" style={{ color: T.accentHover }}><FileText size={13} />この大項目の資料</div><div className="flex flex-wrap gap-2">{arr(section.materialIds).map(mid => materialsById[mid] && <button key={mid} type="button" onClick={() => openMaterialById(mid)} className="inline-flex items-center gap-2 rounded-xl bg-white px-3 py-2 text-sm font-semibold shadow-sm" style={{ color: T.textPrimary, border: `1px solid ${T.border}` }}><FileText size={14} style={{ color: T.accent }} />{materialsById[mid].title}<ChevronRight size={13} style={{ color: T.accent }} /></button>)}</div></div>}
-                          </div>}
-                        {section.unitMode === "section" ? <div className="mt-3 rounded-xl p-4" style={{ background: T.bgBase }}>
-                          <div className="flex flex-wrap items-start justify-between gap-2">{section.content && <p className="text-sm" style={{ color: T.textSecondary }}>{section.content}</p>}<div className="flex gap-2">{section.durationLabel && <Badge tone="muted">{section.durationLabel}</Badge>}{section.startDate && <Badge tone="cyan">{section.startDate}{section.endDate && section.endDate !== section.startDate ? `〜${section.endDate}` : ""}</Badge>}</div></div>
-                          {arr(section.learningGoals).length > 0 && <div className="mt-3 rounded-xl p-3" style={{ background: T.accentSubtle }}><div className="mb-1 flex items-center gap-1.5 text-xs font-bold" style={{ color: T.accentHover }}><Target size={13} />学習目標</div><ul className="space-y-1">{arr(section.learningGoals).map((goal, gi) => <li key={gi} className="flex gap-2 text-sm" style={{ color: T.textSecondary }}><CheckCircle2 size={14} className="mt-0.5 shrink-0" style={{ color: T.accent }} />{goal}</li>)}</ul></div>}
-                          {arr(section.preparationItems).length > 0 && <div className="mt-3 rounded-xl p-3" style={{ background: T.warningSubtle }}><div className="mb-1.5 flex items-center gap-1.5 text-xs font-bold" style={{ color: T.warning }}><AlertCircle size={13} />事前に用意・実施すること</div><ul className="space-y-1">{arr(section.preparationItems).map((item, pi) => <li key={pi} className="flex gap-2 text-sm" style={{ color: T.textSecondary }}><Circle size={13} className="mt-1 shrink-0" style={{ color: T.warning }} />{item}</li>)}</ul></div>}
-                          {renderReadOnlyExercises(section.exercises, `section:${section.id}`, T.bgSurface)}
-                          <div className="mt-3 flex flex-wrap items-center gap-2 border-t pt-3" style={{ borderColor: T.border }}><FileText size={13} /><span className="text-xs" style={{ color: T.textMuted }}>資料 {arr(section.materialIds).length}件</span><ClipboardCheck size={13} className="ml-2" /><span className="text-xs" style={{ color: T.textMuted }}>確認テスト {linkedTests(section, {}, {}).length}件</span>{linkedTests(section, {}, {}).map(test => <Badge key={test.testId || test.id} tone={test.status === "published" ? "green" : "muted"}>{test.title}</Badge>)}{linkedTests(section, {}, {}).length > 0 && <button type="button" onClick={() => go?.("tests")} className="ml-auto inline-flex items-center gap-1 text-xs font-bold" style={{ color: T.accentHover }}>テストへ<ChevronRight size={13} /></button>}</div>
-                        </div> : <div className="mt-3 space-y-3">{arr(section.chapters).map(chapter => (
-                          <div key={chapter.id} className="rounded-xl p-3" style={{ background: T.bgBase }}>
-                            <div className="flex flex-wrap items-center gap-2">
-                              <div className="font-semibold" style={{ color: T.textPrimary }}>{chapter.title || "中項目未設定"}</div>
-                              <CurriculumDateBadge range={curriculumDateRangeOf(arr(chapter.lessons))} />
-                            </div>
-                            {arr(chapter.lessons).map(lesson => (
-                              <div key={lesson.id} className="mt-2 rounded-lg p-3" style={curriculumItemIncludesDate(lesson, todayKey)
-                                ? { background: T.accentSubtle, border: `1px solid ${T.accent}`, borderLeft: `4px solid ${T.accent}` }
-                                : { background: "#fff", border: `1px solid ${T.border}` }}>
-                                <div className="flex flex-wrap items-start justify-between gap-2"><div className="flex flex-wrap items-center gap-2"><div className="text-sm font-bold" style={{ color: T.textPrimary }}>{lesson.title || "小項目未設定"}</div><CurriculumDateBadge range={curriculumDateRangeOf([lesson])} />{curriculumItemIncludesDate(lesson, todayKey) && <Badge tone="cyan">今日</Badge>}</div>{lesson.durationLabel && <Badge tone="muted">{lesson.durationLabel}</Badge>}</div>
-                                {lesson.content && <p className="mt-1 text-sm" style={{ color: T.textSecondary }}>{lesson.content}</p>}
-                                {arr(lesson.learningGoals).length > 0 && <div className="mt-3 rounded-xl p-3" style={{ background: T.accentSubtle }}><div className="mb-1 flex items-center gap-1.5 text-xs font-bold" style={{ color: T.accentHover }}><Target size={13} />学習目標</div><ul className="space-y-1">{arr(lesson.learningGoals).map((goal, gi) => <li key={gi} className="flex gap-2 text-sm" style={{ color: T.textSecondary }}><CheckCircle2 size={14} className="mt-0.5 shrink-0" style={{ color: T.accent }} />{goal}</li>)}</ul></div>}
-                                {arr(lesson.preparationItems).length > 0 && <div className="mt-3 rounded-xl p-3" style={{ background: T.warningSubtle }}><div className="mb-1.5 flex items-center gap-1.5 text-xs font-bold" style={{ color: T.warning }}><AlertCircle size={13} />このLessonまでに用意・実施すること</div><ul className="space-y-1">{arr(lesson.preparationItems).map((item, pi) => <li key={pi} className="flex gap-2 text-sm" style={{ color: T.textSecondary }}><Circle size={13} className="mt-1 shrink-0" style={{ color: T.warning }} />{item}</li>)}</ul></div>}
-                                {renderReadOnlyExercises(lesson.exercises, `lesson:${lesson.id}`, T.bgBase)}
-                                {arr(lesson.skills).length > 0 && <div className="mt-2 flex flex-wrap gap-1.5">{arr(lesson.skills).map(skill => <Badge key={skill} tone="cyan">{skill}</Badge>)}</div>}
-                                <div className="mt-3 flex flex-wrap items-center gap-2 border-t pt-3" style={{ borderColor: T.border }}><FileText size={13} style={{ color: T.textMuted }} /><span className="text-xs" style={{ color: T.textMuted }}>資料 {sessMids(lesson).length}件</span><ClipboardCheck size={13} className="ml-2" style={{ color: T.textMuted }} /><span className="text-xs" style={{ color: T.textMuted }}>確認テスト {linkedTests(section, chapter, lesson).length}件</span>{linkedTests(section, chapter, lesson).map(test => <Badge key={test.testId || test.id} tone={test.status === "published" ? "green" : "muted"}>{test.title}</Badge>)}{linkedTests(section, chapter, lesson).length > 0 && <button type="button" onClick={() => go?.("tests")} className="ml-auto inline-flex items-center gap-1 text-xs font-bold" style={{ color: T.accentHover }}>テストへ<ChevronRight size={13} /></button>}</div>
-                              </div>
-                            ))}
-                          </div>
-                        ))}</div>}
-                        </div>}
-                      </div>
-                    )}
-                  </Card>
-                ))}
-                {canEdit && <button onClick={addSection} className="flex w-full items-center justify-center gap-2 rounded-xl py-3 text-sm font-semibold" style={{ border: `1.5px dashed ${T.border}`, color: T.accent }}><Plus size={16} />大項目を追加</button>}
+              <div className="grid items-start gap-4 xl:grid-cols-[280px_minmax(0,1fr)]">
+                {renderCurriculumToc()}
+                <div ref={curriculumDetailRef} className="min-w-0 scroll-mt-4 [&_input]:min-w-0 [&_select]:min-w-0 [&_textarea]:min-w-0">
+                  {canEdit ? renderCurriculumEditor(activeCurriculumKey)
+                    : activeCurriculumUnit ? renderCurriculumUnit(activeCurriculumUnit)
+                    : <Card><EmptyState title="まだ単元がありません" desc="講師がカリキュラムを準備中です" /></Card>}
+                </div>
               </div>
             )}
         </>
