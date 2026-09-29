@@ -938,6 +938,7 @@ function Curriculum({ role, go, goProduct, done = {}, goals = [] }) {
   const [expandedCurriculumSections, setExpandedCurriculumSections] = useState({});
   const [selectedCurriculumKey, setSelectedCurriculumKey] = useState("");
   const [revealedExerciseAnswers, setRevealedExerciseAnswers] = useState({});
+  const [openExercises, setOpenExercises] = useState({});
   const [importPreview, setImportPreview] = useState(null);
   const [importingCurriculum, setImportingCurriculum] = useState(false);
   const curriculumImportRef = useRef(null);
@@ -1132,11 +1133,18 @@ function Curriculum({ role, go, goProduct, done = {}, goals = [] }) {
     return <div className="space-y-2">{arr(exercises).map((exercise, ei) => {
         const answerKey = `${key}:${exercise.id || ei}`;
         const answerVisible = !!revealedExerciseAnswers[answerKey];
-        return <div key={exercise.id || ei} className="rounded-xl bg-white p-3" style={{ border: `1px solid ${T.border}` }}>
-          <div className="flex flex-wrap items-center gap-2"><span className="text-sm font-bold" style={{ color: T.textPrimary }}>{exercise.title || `演習${ei + 1}`}</span><Badge tone="cyan">{exerciseTypeLabel(exercise.type)}</Badge>{exercise.estimatedMinutes !== "" && <Badge tone="muted">目安 {exercise.estimatedMinutes}分</Badge>}</div>
+        const open = !!openExercises[answerKey];
+        return <div key={exercise.id || ei} className="rounded-xl bg-white" style={{ border: `1px solid ${open ? T.accent : T.border}` }}>
+          <button type="button" aria-expanded={open} onClick={() => setOpenExercises(state => ({ ...state, [answerKey]: !state[answerKey] }))} className="flex w-full flex-wrap items-center gap-2 px-3 py-2.5 text-left">
+            <span className="min-w-0 flex-1 text-sm font-bold" style={{ color: T.textPrimary }}>{exercise.title || `演習${ei + 1}`}</span>
+            <Badge tone="cyan">{exerciseTypeLabel(exercise.type)}</Badge>{exercise.estimatedMinutes !== "" && <Badge tone="muted">目安 {exercise.estimatedMinutes}分</Badge>}
+            {open ? <ChevronUp size={16} style={{ color: T.accent }} /> : <ChevronDown size={16} style={{ color: T.textMuted }} />}
+          </button>
+          {open && <div className="border-t px-3 pb-3" style={{ borderColor: T.border }}>
           {exercise.instructions && <div className="mt-2"><div className="text-[11px] font-bold" style={{ color: T.textMuted }}>問題・取り組む内容</div><p className="mt-1 whitespace-pre-line break-words text-sm leading-6" style={{ color: T.textSecondary }}>{formatExerciseDisplayText(exercise.instructions)}</p></div>}
           {exercise.completionCriteria && <p className="mt-2 whitespace-pre-line break-words border-t pt-2 text-xs leading-5" style={{ borderColor: T.border, color: T.textMuted }}><span className="font-semibold">完了条件</span>{"\n"}{formatExerciseDisplayText(exercise.completionCriteria)}</p>}
           {exercise.answerExample && <div className="mt-3"><button type="button" onClick={() => setRevealedExerciseAnswers(state => ({ ...state, [answerKey]: !state[answerKey] }))} className="inline-flex items-center gap-1.5 text-xs font-bold" style={{ color: T.accentHover }}>{answerVisible ? <Eye size={13} /> : <Lock size={13} />}{answerVisible ? "解答例を閉じる" : "解いた後に解答例を確認"}</button>{answerVisible && <div className="mt-2 rounded-xl p-3" style={{ background: T.successSubtle, color: T.textSecondary }}><div className="mb-1 text-xs font-bold" style={{ color: T.success }}>解答例・確認ポイント</div><p className="whitespace-pre-line break-words text-sm leading-6">{formatExerciseDisplayText(exercise.answerExample)}</p></div>}</div>}
+          </div>}
         </div>;
     })}</div>;
   }
@@ -1295,13 +1303,14 @@ function Curriculum({ role, go, goProduct, done = {}, goals = [] }) {
           {body && <p className="mt-3 whitespace-pre-line text-sm leading-6" style={{ color: T.textSecondary }}>{body}</p>}
           {empty && <p className="mt-3 text-sm" style={{ color: T.textMuted }}>講師が準備中です。</p>}
         </div>
-        {goals.length > 0 && block(<Target size={15} style={{ color: T.accent }} />, "学習目標", <ul className="space-y-1">{goals.map((goal, gi) => <li key={gi} className="flex gap-2 text-sm" style={{ color: T.textPrimary }}><CheckCircle2 size={14} className="mt-1 shrink-0" style={{ color: T.accent }} />{goal}</li>)}</ul>)}
-        {prep.length > 0 && block(<AlertCircle size={15} style={{ color: T.warning }} />, "事前に用意・実施すること", <ul className="space-y-1">{prep.map((item, pi) => <li key={pi} className="flex gap-2 text-sm" style={{ color: T.textPrimary }}><Circle size={13} className="mt-1 shrink-0" style={{ color: T.warning }} />{item}</li>)}</ul>)}
-        {exercises.length > 0 && block(<Briefcase size={15} style={{ color: T.accent }} />, "演習", renderExerciseList(exercises, `${scope}:${lesson.id}`), `${exercises.length}件`)}
+        {/* 資料はいちばん上（2026-09-29 ユーザー指定）。演習は量が多いので1件ずつ開く */}
         {(ownMids.length > 0 || sectionMids.length > 0) && block(<FileText size={15} style={{ color: T.accent }} />, "資料", <div className="space-y-3">
           {ownMids.length > 0 && <div className="flex flex-wrap gap-2">{ownMids.map(materialButton)}</div>}
           {sectionMids.length > 0 && <div><div className="mb-1.5 text-[11px] font-bold" style={{ color: T.textMuted }}>{section.title || "大項目"} 全体の資料</div><div className="flex flex-wrap gap-2">{sectionMids.map(materialButton)}</div></div>}
         </div>)}
+        {goals.length > 0 && block(<Target size={15} style={{ color: T.accent }} />, "学習目標", <ul className="space-y-1">{goals.map((goal, gi) => <li key={gi} className="flex gap-2 text-sm" style={{ color: T.textPrimary }}><CheckCircle2 size={14} className="mt-1 shrink-0" style={{ color: T.accent }} />{goal}</li>)}</ul>)}
+        {prep.length > 0 && block(<AlertCircle size={15} style={{ color: T.warning }} />, "事前に用意・実施すること", <ul className="space-y-1">{prep.map((item, pi) => <li key={pi} className="flex gap-2 text-sm" style={{ color: T.textPrimary }}><Circle size={13} className="mt-1 shrink-0" style={{ color: T.warning }} />{item}</li>)}</ul>)}
+        {exercises.length > 0 && block(<Briefcase size={15} style={{ color: T.accent }} />, "演習", renderExerciseList(exercises, `${scope}:${lesson.id}`), `${exercises.length}件`)}
         {unitTests.length > 0 && block(<ClipboardCheck size={15} style={{ color: T.accent }} />, "確認テスト", <div className="flex flex-wrap items-center gap-2">
           {unitTests.map(test => <Badge key={test.testId || test.id} tone={test.status === "published" ? "green" : "muted"}>{test.title}</Badge>)}
           <div className="ml-auto"><Btn size="sm" onClick={() => go?.("tests")}>テストへ</Btn></div>
