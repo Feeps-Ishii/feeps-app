@@ -7,8 +7,6 @@ import InstructorWorkspace from "../workspace/InstructorWorkspace.jsx";
 const NotesView = React.lazy(() => import("./NotesView.jsx"));
 // 研修資料。PDFビューアを抱えるので、開いた人だけが読み込むように分ける（2026-09-18）
 const LibraryView = React.lazy(() => import("./LibraryView.jsx"));
-// 研修スキル（受講生本人）。2026-09-28 にスキル・成長のProductから移した（ADR 0023）
-const TrainingSkills = React.lazy(() => import("./TrainingSkills.jsx"));
 import { PrismErrorRetryCard, SkeletonRows } from "../../components/common";
 import {
   Attendance, ClientHome, Curriculum, ElearningView, GoalsView, Karte, Reports,
@@ -49,15 +47,6 @@ export default function TrainingProduct({
   if (view === "goals" && role === "trainee" && taskDataState !== "ready") return <div className="p-4">{taskDataState === "error" ? <PrismErrorRetryCard message="目標・タスクを取得できませんでした。データ保護のため、編集を停止しています。" onRetry={onTaskRetry} /> : <SkeletonRows rows={5} />}</div>;
   if (view === "goals") return <GoalsView role={role} done={taskDone} taskSaveState={taskSaveState} toggle={toggle} goals={goals} setGoals={setGoals} go={go} goProduct={goProduct} goSub={goSub} openKarte={setKarte} />;
   if (view === "elearning") return <ElearningView go={go} />;
-  if (view === "skills") {
-    if (role !== "trainee") return null;
-    if (taskDataState !== "ready") return <div className="p-4">{taskDataState === "error" ? <PrismErrorRetryCard message="目標・タスクを取得できませんでした。" onRetry={onTaskRetry} /> : <SkeletonRows rows={5} />}</div>;
-    return (
-      <React.Suspense fallback={<div className="p-4"><SkeletonRows rows={4} /></div>}>
-        <TrainingSkills done={taskDone} goals={goals} go={go} />
-      </React.Suspense>
-    );
-  }
   /* 研修資料はフォルダ管理へ置き換えた（2026-09-18）。PDFはこれまでの教材ビューアで開くので、
      手書き・ノートの使い勝手は変わらない。旧画面の Materials は TrainingComponents に
      残してあるが、ここからは呼ばない。カリキュラムからの資料ひも付けは

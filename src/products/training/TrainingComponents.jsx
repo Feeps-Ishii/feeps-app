@@ -775,8 +775,8 @@ function GoalsView({ role, done, taskSaveState, toggle, goals, setGoals, go, goP
           </div>
         ))}</div> : <div className="rounded-xl p-4 text-sm" style={adminPanelStyle}>今日のタスクは未設定です。日報で今日の目標を追加するとここに表示されます。</div>}
         <div className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-xl p-3" style={{ background: T.accentSubtle }}>
-          <p className="text-xs leading-relaxed" style={{ color: T.textMuted }}>達成したタスクとテストの結果は、研修スキルにまとまります。</p>
-          <div className="flex gap-2"><Btn size="sm" kind="ghost" icon={NotebookPen} onClick={() => go && go("reports")}>日報へ</Btn><Btn size="sm" icon={GitBranch} onClick={() => go && go("skills")}>研修スキルへ</Btn></div>
+          <p className="text-xs leading-relaxed" style={{ color: T.textMuted }}>今日のタスクは日報で追加できます。</p>
+          <div className="flex gap-2"><Btn size="sm" kind="ghost" icon={NotebookPen} onClick={() => go && go("reports")}>日報へ</Btn></div>
         </div>
       </Card>
 
@@ -833,9 +833,6 @@ function GoalsView({ role, done, taskSaveState, toggle, goals, setGoals, go, goP
           <div className="space-y-2 text-sm">
             <div className="flex justify-between rounded-xl px-3 py-2" style={{ background: T.bgBase }}><span style={{ color: T.textMuted }}>今日のタスク</span><b style={{ color: T.textPrimary }}>{completedTodayTasks}/{todayTasks.length}</b></div>
             <div className="flex justify-between rounded-xl px-3 py-2" style={{ background: T.bgBase }}><span style={{ color: T.textMuted }}>長期目標</span><b style={{ color: T.textPrimary }}>{gp.length}件</b></div>
-          </div>
-          <div className="mt-4 grid gap-2">
-            <Btn kind="soft" icon={GitBranch} onClick={() => go?.("skills")}>研修スキルへ</Btn>
           </div>
         </Card>
       </div>
@@ -943,7 +940,6 @@ function CourseGoalsBar({ goals, done, go, role }) {
         </div>
         <div className="flex flex-wrap gap-2">
           <Btn kind="ghost" size="sm" icon={Target} onClick={() => go?.("goals")}>目標とタスク</Btn>
-          {role === "trainee" && <Btn kind="ghost" size="sm" icon={GitBranch} onClick={() => go?.("skills")}>研修スキルで見る</Btn>}
         </div>
       </div>
       <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">

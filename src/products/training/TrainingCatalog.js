@@ -70,12 +70,13 @@ const QBANK = {
 // （毎日 → 研修 → 自分用・連絡）。
 // 2026-09-28（同日）: スキル・成長のProductは外し、受講生の「研修スキル」（skills）だけを自分用へ移した。
 // 案件用スキルシート・資格・バッジ・成長履歴・成長の街・受講生スキルシートは一旦なし（ユーザー決定、ADR 0023）。
+// 2026-09-29: 研修スキルも一旦なし（ユーザー決定）。受講生の自分用はノートと目標とタスクだけ。
 const NAV = {
   trainee: [
     { sec: null, items: [["home", "ホーム", LayoutDashboard]] },
     { sec: "毎日", items: [["reports", "日報", NotebookPen], ["attendance", "勤怠", Clock]] },
     { sec: "研修", items: [["curriculum", "カリキュラム", Calendar], ["tests", "テスト", ClipboardCheck], ["materials", "研修資料", FileText]] },
-    { sec: "自分用", items: [["notes", "ノート", PenLine], ["goals", "目標とタスク", Target], ["skills", "研修スキル", GraduationCap]] },
+    { sec: "自分用", items: [["notes", "ノート", PenLine], ["goals", "目標とタスク", Target]] },
   ],
   instructor: [
     { sec: null, items: [["home", "ホーム", LayoutDashboard]] },

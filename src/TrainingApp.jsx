@@ -156,6 +156,7 @@ const PRODUCTS = [
   // サイドバーからこれまで通り受講生スキルシートへ入れる。
   // 2026-09-28: スキル・成長は一旦なし（ユーザー決定、ADR 0023）。受講生の「研修スキル」だけを
   // 研修管理のサイドバー（skills）へ移した。**消さずに roles を空にしてある**（成長の街などは後で戻す）。
+  // 2026-09-29: 研修スキル（skills）も一旦外した（ユーザー決定）。
   { key: "talent",    label: "スキル・成長",   icon: TrendingUp,    color: PRODUCT_ACCENT.talent.accent, roles: [], modes: ["training"] },
   // 2026-07-14 Home緊急修正: 講師は案件管理を業務上使わないためHome/上部タブ/サイドバー/
   // Global Rail/モバイルドロワーから除外（PRODUCTSが全Product表示の正本を兼ねる）。
@@ -380,10 +381,10 @@ function openNotificationTarget(n, { go, goProduct, goSub }) {
     window.location.href = "/lab.html#/home";
     return;
   }
-  // 2026-09-28: スキル・成長は外した。研修スキルは研修管理の中（受講生本人だけ。ほかは go が home へ落とす）
+  // 2026-09-28: スキル・成長は外した。2026-09-29 研修スキルも外したので、目標とタスクで開く
   if (path.includes("/talent")) {
     goProduct("training", { preserveTarget: true });
-    go("skills");
+    go("goals");
     return;
   }
   if (path.includes("/training")) {
