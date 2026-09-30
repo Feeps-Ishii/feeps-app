@@ -237,6 +237,10 @@ export function AnnouncementBoard({ go, role, max = 3 }) {
   const live = (posted || []).filter(a => periodState(a) === "live");
   const scheduled = (posted || []).filter(a => periodState(a) === "before");
 
+  // 見るだけの人（受講生・企業担当）は、出すものが無ければ枠ごと出さない。
+  // 空の枠と下の余白だけが残り、ホームの上に隙間ができていた（2026-09-30）
+  if (!canPost && state !== "error" && shown.length === 0) return null;
+
   return (
     <div className="mb-4 flex flex-col gap-2">
       {state === "error" && (
