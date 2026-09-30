@@ -5085,7 +5085,9 @@ function Reports({ role, userProfile }) {
           setEditingReportDate(targetDate);
           setReportEditState(targetReport ? "edit" : targetDate === todayStr() ? "today" : "create");
           setReportWorkdaysState(initialCourseId ? "loading" : "ready");
-          setReportFieldsState(initialCourseId ? "loading" : "ready");
+          // 日報項目の状態は、項目を読む effect（settingsCourseId）だけが決める。
+          // ここで "loading" に戻すと、項目の読み込みが先に終わっていてコースも同じとき、
+          // effect が再実行されず読み込み中のまま止まっていた（2026-09-30 修正）
           setReportDataState("ready");
         })
         .catch(() => {
