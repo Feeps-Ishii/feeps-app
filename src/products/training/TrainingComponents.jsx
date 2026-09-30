@@ -11,6 +11,7 @@ import { homeDateLabel } from "./useTraining.js";
 import { flattenLessons, isWrittenNote } from "./notesLessons.js";
 import { toCourseGoalsPayload } from "./courseGoals.js";
 import { extractPdfPageTexts, describeExtraction } from "./pdfText.js";
+import { homeSnapshotKey, readHomeSnapshot, writeHomeSnapshot } from "../../utils/common/homeSnapshot.js";
 // ノートは react-markdown を使うので、教材の横に出すぶんも開いた人だけが読み込むようにする
 const LessonNoteDock = React.lazy(() => import("./LessonNoteDock.jsx"));
 // 教材ビューアは pdfjs-dist を使うので、開いた人だけが読み込む
@@ -112,26 +113,33 @@ function formatTrainingDate(iso) {
 }
 
 function TraineeHome({ go, goProduct, goSub, done, taskDataState, onTaskRetry, taskSaveState, toggle, goals }) {
-  const [thHome, setThHome] = useState({
+  const thToday = todayStr();
+  // 前回の表示を先に出し、裏で最新に差し替える（utils/common/homeSnapshot.js）。
+  // 最新が全部そろって、取れなかったものが無いときだけ保存する
+  const thSnapKey = homeSnapshotKey("trainee", thToday);
+  const [thSnap] = useState(() => readHomeSnapshot(thSnapKey));
+  const thHasDataRef = useRef(!!thSnap?.home);
+  const thLessonShownRef = useRef(thSnap?.lessonState === "ready");
+  const thFreshRef = useRef({ home: false, lesson: false });
+  const [thHome, setThHome] = useState(() => thSnap?.home || {
     dashboard: null,
     courses: [],
     reports: [],
     attendance: [],
   });
-  const [thDailyNote, setThDailyNote] = useState(null);
-  const [thDailyNoteCourse, setThDailyNoteCourse] = useState(null);
-  const [thTodayCurriculum, setThTodayCurriculum] = useState(null);
-  const [thDailyLessonState, setThDailyLessonState] = useState("loading");
-  const [thLoading, setThLoading] = useState(true);
+  const [thDailyNote, setThDailyNote] = useState(() => thSnap?.dailyNote ?? null);
+  const [thDailyNoteCourse, setThDailyNoteCourse] = useState(() => thSnap?.dailyNoteCourse ?? null);
+  const [thTodayCurriculum, setThTodayCurriculum] = useState(() => thSnap?.todayCurriculum ?? null);
+  const [thDailyLessonState, setThDailyLessonState] = useState(() => (thSnap?.lessonState === "ready" ? "ready" : "loading"));
+  const [thLoading, setThLoading] = useState(() => !thSnap?.home);
   const [thErr, setThErr] = useState("");
   const [thReloadKey, setThReloadKey] = useState(0);
-  const [thAvailability, setThAvailability] = useState({ dashboard: false, courses: false, reports: false, attendance: false });
-  const thToday = todayStr();
+  const [thAvailability, setThAvailability] = useState(() => thSnap?.availability || { dashboard: false, courses: false, reports: false, attendance: false });
   const taskDataReady = taskDataState === "ready";
 
   useEffect(() => {
     let alive = true;
-    setThLoading(true);
+    setThLoading(!thHasDataRef.current);
     setThErr("");
     Promise.allSettled([
       apiGet(`/dashboard/trainee?date=${thToday}`),
@@ -157,6 +165,8 @@ function TraineeHome({ go, goProduct, goSub, done, taskDataState, onTaskRetry, t
         reports: Array.isArray(valueAt(2, [])) ? valueAt(2, []) : [],
         attendance: Array.isArray(valueAt(3, [])) ? valueAt(3, []) : [],
       });
+      thHasDataRef.current = true;
+      thFreshRef.current.home = failed === 0 && dashboardWarnings.length === 0;
       if (failed > 0 || dashboardWarnings.length > 0) {
         const count = failed + dashboardWarnings.length;
         setThErr(`一部の最新状態を確認できませんでした（${count}件）。未提出・完了とは判定せず、再読み込みで確認できます。`);
@@ -196,9 +206,10 @@ function TraineeHome({ go, goProduct, goSub, done, taskDataState, onTaskRetry, t
       setThDailyNoteCourse(null);
       setThTodayCurriculum(null);
       setThDailyLessonState(thAvailability.courses ? "ready" : "error");
+      thFreshRef.current.lesson = !!thAvailability.courses;
       return () => { alive = false; };
     }
-    setThDailyLessonState("loading");
+    if (!thLessonShownRef.current) setThDailyLessonState("loading");
     Promise.allSettled([
       apiGet(`/courses/${courseId}/daily-note?date=${thToday}`),
       getTodayCurriculum(courseId, thToday).then(item => ({ item })),
@@ -210,12 +221,16 @@ function TraineeHome({ go, goProduct, goSub, done, taskDataState, onTaskRetry, t
           setThTodayCurriculum(null);
           setThDailyNoteCourse(thPrimaryCourse);
           setThDailyLessonState("error");
+          thLessonShownRef.current = false;
+          thFreshRef.current.lesson = false;
           return;
         }
         setThDailyNote(noteResult.value || null);
         setThTodayCurriculum(todayResult.value?.item || null);
         setThDailyNoteCourse(thPrimaryCourse);
         setThDailyLessonState("ready");
+        thLessonShownRef.current = true;
+        thFreshRef.current.lesson = true;
       })
       .catch(() => {
         if (!alive) return;
@@ -226,6 +241,15 @@ function TraineeHome({ go, goProduct, goSub, done, taskDataState, onTaskRetry, t
       });
     return () => { alive = false; };
   }, [thPrimaryCourse?.courseId, thToday, thAvailability.courses, thReloadKey]);
+  // 最新がそろったら保存（前回の表示のまま保存し直さない）
+  useEffect(() => {
+    if (thLoading || thErr || thDailyLessonState !== "ready") return;
+    if (!thFreshRef.current.home || !thFreshRef.current.lesson) return;
+    writeHomeSnapshot(thSnapKey, {
+      home: thHome, availability: thAvailability, dailyNote: thDailyNote,
+      dailyNoteCourse: thDailyNoteCourse, todayCurriculum: thTodayCurriculum, lessonState: "ready",
+    });
+  }, [thSnapKey, thLoading, thErr, thDailyLessonState, thHome, thAvailability, thDailyNote, thDailyNoteCourse, thTodayCurriculum]);
   const thHasDailyAnnouncement = !!String(thDailyNote?.announcement || "").trim();
   const thLessonTitle = curriculumDisplayTitle(thTodayCurriculum) || thDailyNote?.lessonTitle || "";
   const thLessonContent = thTodayCurriculum?.content || "";
@@ -6325,16 +6349,20 @@ function Karte({ trainee, back, role }) {
 
 /* ===== 企業担当者ホーム ===== */
 function ClientHome({ openKarte, go, goProduct }) {
-  const [clientTrainees, setClientTrainees] = useState([]);
-  const [clientLoading, setClientLoading] = useState(true);
-  const [clientErr, setClientErr] = useState("");
-  const [clientCompanyName, setClientCompanyName] = useState("");
-  const [clientDash, setClientDash] = useState(null);
-  const [clientReloadKey, setClientReloadKey] = useState(0);
   const clientDate = todayStr();
+  // 前回の表示を先に出し、裏で最新に差し替える（utils/common/homeSnapshot.js）
+  const clientSnapKey = homeSnapshotKey("client", clientDate);
+  const [clientSnap] = useState(() => readHomeSnapshot(clientSnapKey));
+  const clientHasDataRef = useRef(!!clientSnap);
+  const [clientTrainees, setClientTrainees] = useState(() => Array.isArray(clientSnap?.trainees) ? clientSnap.trainees : []);
+  const [clientLoading, setClientLoading] = useState(!clientSnap);
+  const [clientErr, setClientErr] = useState("");
+  const [clientCompanyName, setClientCompanyName] = useState(() => clientSnap?.companyName || "");
+  const [clientDash, setClientDash] = useState(() => clientSnap?.dash || null);
+  const [clientReloadKey, setClientReloadKey] = useState(0);
   useEffect(() => {
     let alive = true;
-    setClientLoading(true); setClientErr("");
+    setClientLoading(!clientHasDataRef.current); setClientErr("");
     // 2026-09-10 ホーム作り直し: 本日の出欠・日報・この先の予定・研修の進みはすべて
     // /dashboard/client が返すため、/courses と /reports の重複取得はやめた。
     Promise.all([
@@ -6356,8 +6384,11 @@ function ClientHome({ openKarte, go, goProduct }) {
         setClientTrainees(visibleTrainees);
         setClientDash(dash);
         // /companies はclient権限では自社のみ返る（common.mjs）。企業名表示のため保持する。
-        setClientCompanyName(Array.isArray(companies) && companies[0]?.name || "");
+        const companyName = Array.isArray(companies) && companies[0]?.name || "";
+        setClientCompanyName(companyName);
+        clientHasDataRef.current = !!dash;
         if (!dash) setClientErr("本日の状況を取得できませんでした。未提出や欠席とは判定せず、再取得で確認できます。");
+        else writeHomeSnapshot(clientSnapKey, { trainees: visibleTrainees, dash, companyName });
       })
       .catch(e => alive && setClientErr("自社受講生情報の取得に失敗しました: " + (e?.errorMessage || e?.message || e)))
       .finally(() => alive && setClientLoading(false));

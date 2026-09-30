@@ -1,4 +1,6 @@
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { homeSnapshotKey, readHomeSnapshot, writeHomeSnapshot } from "../../utils/common/homeSnapshot.js";
+import { todayStr } from "../training/useTraining.js";
 import {
   ArrowUpRight, BookOpen, CalendarDays, ClipboardCheck,
   Clock, FileText, GraduationCap, Megaphone, NotebookPen, RefreshCw, Save
@@ -217,19 +219,24 @@ function NoticeCard({ courses, date, onSaved }) {
 }
 
 export default function InstructorWorkspace({ go, displayName = "講師" }) {
-  const [data, setData] = useState(null);
-  const [loading, setLoading] = useState(true);
+  // 前回の表示を先に出し、裏で最新に差し替える（utils/common/homeSnapshot.js）
+  const snapKey = homeSnapshotKey("instructor", todayStr());
+  const [data, setData] = useState(() => readHomeSnapshot(snapKey));
+  const hasDataRef = useRef(data != null);
+  const [loading, setLoading] = useState(data == null);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState("");
   const [lastUpdated, setLastUpdated] = useState("");
 
   const load = useCallback(async ({ silent = false } = {}) => {
-    if (silent) setRefreshing(true);
+    if (silent || hasDataRef.current) setRefreshing(true);
     else setLoading(true);
     setError("");
     try {
       const res = await apiGet("/dashboard/instructor");
       setData(res || null);
+      hasDataRef.current = res != null;
+      if (res) writeHomeSnapshot(snapKey, res);
       setLastUpdated(new Date().toISOString());
     } catch (e) {
       const message = e?.status === 403
@@ -237,11 +244,12 @@ export default function InstructorWorkspace({ go, displayName = "講師" }) {
         : "講師Workspaceの取得に失敗しました。時間をおいて再度お試しください。";
       setError(`${message}${e?.errorMessage ? `（${e.errorMessage}）` : ""}`);
       setData(null);
+      hasDataRef.current = false;
     } finally {
       setLoading(false);
       setRefreshing(false);
     }
-  }, []);
+  }, [snapKey]);
 
   useEffect(() => { load(); }, [load]);
 

@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { fetchAuthSession } from "aws-amplify/auth";
 import { apiGet, apiPut, apiPost } from "../../api.js";
 import {
@@ -10,6 +10,7 @@ import {
 import { EmptyState } from "../training/TrainingComponents.jsx";
 import { homeDateLabel, todayStr } from "../training/useTraining.js";
 import { getActiveCourseId, setActiveCourseId } from "../../utils/common/courseContext.js";
+import { homeSnapshotKey, readHomeSnapshot, writeHomeSnapshot } from "../../utils/common/homeSnapshot.js";
 import {
   ClipboardCheck, Clock, NotebookPen, Users,
   Building2, BookOpen, GraduationCap, Search,
@@ -53,20 +54,28 @@ function ratioPill(done, total, { warnBelow = 1 } = {}) {
    事実だけを並べ、手を打つべきものは「要対応」に集める。判定の決めごとを増やすほど
    出てくる人が変わって信用されなくなる、というのが4ロール共通の方針。 */
 function AdminHome({ go, goProduct, openRisk }) {
-  const [data, setData] = useState(null);
-  const [loading, setLoading] = useState(true);
+  const date = todayStr();
+  // 前回の表示を先に出し、裏で最新に差し替える（utils/common/homeSnapshot.js）
+  const snapKey = homeSnapshotKey("admin", date);
+  const [data, setData] = useState(() => readHomeSnapshot(snapKey));
+  const hasDataRef = useRef(data != null);
+  const [loading, setLoading] = useState(data == null);
   const [err, setErr] = useState("");
   const [reloadKey, setReloadKey] = useState(0);
-  const date = todayStr();
 
   useEffect(() => {
     let alive = true;
-    setLoading(true); setErr("");
+    setLoading(!hasDataRef.current); setErr("");
     // /dashboard/admin（全コース×全受講生の未解消異常＋テスト結果）は重いためホームでは呼ばない
     // 方針を維持し（2026-08-17）、今日の状況だけを見る軽い /dashboard/admin-overview を使う。
     apiGet(`/dashboard/admin-overview?date=${date}`)
-      .then(res => { if (alive) setData(res || null); })
-      .catch(e => { if (alive) { setData(null); setErr("本日の状況を取得できませんでした：" + (e?.errorMessage || e?.message || e)); } })
+      .then(res => {
+        if (!alive) return;
+        setData(res || null);
+        hasDataRef.current = res != null;
+        if (res) writeHomeSnapshot(snapKey, res);
+      })
+      .catch(e => { if (alive) { setData(null); hasDataRef.current = false; setErr("本日の状況を取得できませんでした：" + (e?.errorMessage || e?.message || e)); } })
       .finally(() => alive && setLoading(false));
     return () => { alive = false; };
   }, [date, reloadKey]);

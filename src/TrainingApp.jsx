@@ -1,4 +1,5 @@
 import React, { useState, useMemo, useEffect, useLayoutEffect, useCallback, useRef, lazy, Suspense } from "react";
+import { clearHomeSnapshots } from "./utils/common/homeSnapshot.js";
 import { signIn, signOut, getCurrentUser, confirmSignIn, fetchAuthSession } from "aws-amplify/auth";
 import { apiGet, apiPut, apiPost, setViewRoleOverride } from "./api.js";
 import { ANALYTICS_NAV } from "./products/analytics/AnalyticsCatalog.js";
@@ -1378,6 +1379,8 @@ export default function App() {
   }
   async function logout() {
     clearActivity();
+    // ホームの「前回の表示」（このブラウザに保存）を消す。共用の端末で次の人に見せないため
+    clearHomeSnapshots();
     try { await signOut(); } catch (e) {}
     resetNavigationHistorySession();
     clearTrainingTargetContext();
