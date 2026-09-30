@@ -173,10 +173,11 @@ export function setLibraryTarget({ courseId, nodeId } = {}) {
     else window.sessionStorage.removeItem(LIBRARY_TARGET_KEY);
   } catch { /* sessionStorageが使えない環境では研修資料の先頭を開く */ }
 }
-export function takeLibraryTarget() {
+// remove=false は読むだけ（開けたあとで setLibraryTarget({}) で消す。読み込みが2回走っても取りこぼさない）
+export function takeLibraryTarget(remove = true) {
   try {
     const raw = window.sessionStorage.getItem(LIBRARY_TARGET_KEY);
-    window.sessionStorage.removeItem(LIBRARY_TARGET_KEY);
+    if (remove) window.sessionStorage.removeItem(LIBRARY_TARGET_KEY);
     const t = raw ? JSON.parse(raw) : null;
     const c = safeTargetValue(t?.courseId), n = safeTargetValue(t?.nodeId);
     return c && n ? { courseId: c, nodeId: n } : null;

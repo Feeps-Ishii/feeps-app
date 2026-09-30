@@ -12,7 +12,7 @@ import {
   BookOpen, ChevronRight, Copy, Download, Eye, FileText, Folder, FolderPlus, Globe, HardDrive, Link2, Lock,
   MoreHorizontal, Pencil, Plus, Rows3, Trash2, Upload, Users, X,
 } from "lucide-react";
-import { getActiveCourseId, setActiveCourseId, takeLibraryTarget } from "../../utils/common/courseContext.js";
+import { getActiveCourseId, setActiveCourseId, setLibraryTarget, takeLibraryTarget } from "../../utils/common/courseContext.js";
 
 /* 研修資料をフォルダで整理する（2026-09-18 打合せ）。
    これまではコース直下のフラットな一覧だったので、章立てや演習ごとにまとめられなかった。
@@ -128,7 +128,7 @@ export default function LibraryView({ role }) {
     // 受講生だけ所属コース。企業担当は /courses 側で自社分に絞られる（既存画面と同じ）
     const pick = role === "trainee" ? "/me/courses" : "/courses";
     // カリキュラムのフォルダのカードから来たときは、そのフォルダを開く
-    const target = takeLibraryTarget();
+    const target = takeLibraryTarget(false);
     apiGet(pick)
       .then(list => {
         if (!alive) return;
@@ -137,6 +137,7 @@ export default function LibraryView({ role }) {
         const preferred = target?.courseId || getActiveCourseId();
         const first = arr.some(c => c.courseId === preferred) ? preferred : (arr[0]?.courseId || "");
         setCourseId(first);
+        if (target) setLibraryTarget({});   // 使ったら消す（次に研修資料を開いたときに同じ場所へ飛ばない）
         if (first) {
           setSpaceId(`course#${first}`);
           setPath(target?.courseId === first ? [ROOT, target.nodeId] : [ROOT]);
@@ -485,9 +486,10 @@ export default function LibraryView({ role }) {
         <span className="min-w-0 flex-1 truncate">{label}</span>
       </button>
     );
-    const row = (n, active, onClick) => {
+    // 件数はその置き場の中身で数える（共有・運営だけのフォルダをコースのデータで数えない）
+    const row = (n, active, onClick, spaceNodes) => {
       const shortcut = n.type === "shortcut";
-      const count = shortcut ? n.targetFiles : (side.course?.nodes || data?.nodes || []).filter(x => x.parentId === n.nodeId).length;
+      const count = shortcut ? n.targetFiles : (spaceNodes || []).filter(x => x.parentId === n.nodeId).length;
       return (
         <button key={n.nodeId} type="button" onClick={onClick}
           className="grid w-full grid-cols-[16px_minmax(0,1fr)_auto] items-center gap-2 rounded-lg px-2.5 py-1.5 text-left text-[13px]"
@@ -506,7 +508,7 @@ export default function LibraryView({ role }) {
         {courseId && head("course", BookOpen, "#339CFF", spaceLabel(courseSpace, courses), () => openAt(courseSpace, [ROOT]), spaceId === courseSpace)}
         {courseTop.map(n => row(n,
           n.type === "shortcut" ? (spaceId === "shared" && (inShortcut ? anchorId === n.targetNodeId : safePath.includes(n.targetNodeId))) : (spaceId === courseSpace && firstLevel === n.nodeId),
-          () => (n.type === "shortcut" ? openShortcut(n) : openAt(courseSpace, [ROOT, n.nodeId]))))}
+          () => (n.type === "shortcut" ? openShortcut(n) : openAt(courseSpace, [ROOT, n.nodeId])), side.course?.nodes))}
         {courseId && side.course && !courseTop.length && <div className="px-3 py-1 text-xs" style={{ color: T.textMuted }}>フォルダはまだありません</div>}
         {role === "trainee" && <>
           <div className="mx-2.5 my-1.5 h-px" style={{ background: T.border }} />
@@ -515,10 +517,10 @@ export default function LibraryView({ role }) {
         {staff && <>
           <div className="mx-2.5 my-1.5 h-px" style={{ background: T.border }} />
           {head("shared", Globe, "#3AB9B1", "共有（全社）", () => openAt("shared", [ROOT]), spaceId === "shared" && !firstLevel)}
-          {sharedTop.map(n => row(n, spaceId === "shared" && firstLevel === n.nodeId, () => openAt("shared", [ROOT, n.nodeId])))}
+          {sharedTop.map(n => row(n, spaceId === "shared" && firstLevel === n.nodeId, () => openAt("shared", [ROOT, n.nodeId]), side.shared?.nodes))}
           <div className="mx-2.5 my-1.5 h-px" style={{ background: T.border }} />
           {head("ops", Lock, "#B07C2E", "運営だけ", () => openAt("ops", [ROOT]), spaceId === "ops" && !firstLevel)}
-          {opsTop.map(n => row(n, spaceId === "ops" && firstLevel === n.nodeId, () => openAt("ops", [ROOT, n.nodeId])))}
+          {opsTop.map(n => row(n, spaceId === "ops" && firstLevel === n.nodeId, () => openAt("ops", [ROOT, n.nodeId]), side.ops?.nodes))}
         </>}
       </Card>
     );
@@ -1008,7 +1010,7 @@ function VisibilityOverview({ courses, initialCourseId, onOpen }) {
       {rows && <>
         <div className="mb-3 flex flex-wrap items-center gap-2">
           {[["", "すべて", rows.length], ...VIS_ORDER.map(k => [k, null, counts[k] || 0])].map(([k, label, n]) => (
-            <button key={k || "all"} type="button" onClick={() => setFilter(k)}
+            <button key={`vis-${k || "*"}`} type="button" onClick={() => setFilter(k)}
               className="inline-flex items-center gap-2 rounded-full py-1 pl-3 pr-2 text-sm font-bold"
               style={{ background: T.bgSurface, border: `1px solid ${filter === k ? T.textPrimary : T.border}`, boxShadow: filter === k ? `inset 0 0 0 1px ${T.textPrimary}` : undefined, color: T.textPrimary }}>
               {label || <VisBadge k={k} />}<span className="text-xs tabular-nums" style={{ color: T.textMuted }}>{n}</span>
