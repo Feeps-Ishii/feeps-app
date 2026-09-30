@@ -319,7 +319,7 @@ function safeHistoryDate(value) {
 
 function normalizeAppRoute(candidate = {}, role = "trainee") {
   const requestedProduct = safeHistoryText(candidate.product, 32);
-  const product = PRODUCTS.some(item => item.key === requestedProduct && item.roles.includes(role)) ? requestedProduct : "home";
+  const product = PRODUCTS.some(item => item.key === requestedProduct && item.roles.includes(role)) ? requestedProduct : "training";
   const allowedTrainingViews = navViewSet(role);
   const requestedView = safeHistoryText(candidate.view, 64);
   const view = product === "training" && allowedTrainingViews.has(requestedView) ? requestedView : "home";
@@ -742,7 +742,14 @@ function QuickAdd({ onPick }) {
 }
 
 /* ===== ルート ===== */
-function SideNav({ groups, view, karte, go, badges = {}, collapsed = false, pa = PRODUCT_ACCENT.training }) {
+// 紺のサイドバーで、ジャンル（見出し）ごとの箱に付ける色の印（2026-09-30 サイドバー整理）
+const SIDE_GROUP_TONE = {
+  "毎日": "#3AB9B1", "研修": "#339CFF", "自分用": "#9B79EC", "連絡": "#F3883B",
+  "全体": "#3AB9B1", "自社": "#F3883B", "研修の様子": "#339CFF",
+  "助成金管理": "#C9A227", "分析": "#EB77B1", "契約": "#5D7BF0", "運営": "#5D7BF0",
+};
+// dark=true は PC の紺のサイドバー。ジャンルごとに箱で囲む。スマホのドロワーは従来どおり白地
+function SideNav({ groups, view, karte, go, badges = {}, collapsed = false, pa = PRODUCT_ACCENT.training, dark = false }) {
   const containerRef = useRef(null);
   const [pill, setPill] = useState(null);
 
@@ -752,10 +759,11 @@ function SideNav({ groups, view, karte, go, badges = {}, collapsed = false, pa =
     const measure = () => {
       const activeEl = container.querySelector('[data-nav-active="true"]');
       if (!activeEl) { setPill(prev => (prev === null ? prev : null)); return; }
-      const next = { top: activeEl.offsetTop, height: activeEl.offsetHeight };
+      // 箱の中の項目は、箱の内側の幅に合わせる（offsetTop は箱ではなく container 基準）
+      const next = { top: activeEl.offsetTop, height: activeEl.offsetHeight, boxed: !!activeEl.closest('[data-nav-box="true"]') };
       // Calling setPill with a brand-new object for unchanged measurements would
       // re-trigger the layout effect indefinitely (React error #185).
-      setPill(prev => (prev && prev.top === next.top && prev.height === next.height) ? prev : next);
+      setPill(prev => (prev && prev.top === next.top && prev.height === next.height && prev.boxed === next.boxed) ? prev : next);
     };
     measure();
     if (typeof ResizeObserver === "undefined") return undefined;
@@ -766,33 +774,41 @@ function SideNav({ groups, view, karte, go, badges = {}, collapsed = false, pa =
 
   return (
     <div ref={containerRef} className="relative">
-      {pill && <span className="feeps-sidebar-pill absolute rounded-xl" style={{ left: 0, right: 0, top: pill.top, height: pill.height, background: pa.subtle, border: `1px solid ${pa.accent}30` }} />}
-      {groups.map((g, gi) => (
-        <div key={gi} className={gi > 0 ? (collapsed ? "mt-2" : "mt-6") : ""}>
+      {pill && <span className="feeps-sidebar-pill absolute rounded-xl" style={dark
+        ? { left: pill.boxed ? 6 : 0, right: pill.boxed ? 6 : 0, top: pill.top, height: pill.height, background: "rgba(51,156,255,.16)", boxShadow: "inset 3px 0 0 #339CFF" }
+        : { left: 0, right: 0, top: pill.top, height: pill.height, background: pa.subtle, border: `1px solid ${pa.accent}30` }} />}
+      {groups.map((g, gi) => {
+        const box = dark && !collapsed && g.sec;
+        return (
+        <div key={gi} data-nav-box={box ? "true" : undefined} className={gi > 0 ? (collapsed ? "mt-2" : dark ? "mt-2.5" : "mt-6") : ""}
+          style={box ? { background: "rgba(255,255,255,.035)", border: "1px solid rgba(255,255,255,.07)", borderRadius: 14, padding: "2px 5px 5px" } : undefined}>
           {g.sec && (collapsed
-            ? <div className="relative z-[1] mx-2 mb-2 h-px" style={{ background: T.border }} />
-            : <div className="relative z-[1] mb-1.5 px-3 text-[11px] font-bold uppercase" style={{ color: T.textMuted, letterSpacing: "0.08em" }}>{g.sec}</div>)}
+            ? <div className="relative z-[1] mx-2 mb-2 h-px" style={{ background: dark ? "rgba(255,255,255,.12)" : T.border }} />
+            : dark
+              ? <div className="relative z-[1] flex items-center gap-2 px-2.5 pb-1 pt-2 text-[11.5px] font-bold" style={{ color: "#D5DCEA", letterSpacing: "0.06em" }}><span className="h-2 w-2 shrink-0 rounded-[3px]" style={{ background: SIDE_GROUP_TONE[g.sec] || "#8F9AB2" }} />{g.sec}</div>
+              : <div className="relative z-[1] mb-1.5 px-3 text-[11px] font-bold uppercase" style={{ color: T.textMuted, letterSpacing: "0.08em" }}>{g.sec}</div>)}
           {/* 4要素目は任意の装飾。chip（グラデ地のアイコン）を渡した項目だけ、業務項目と
               見た目を変える。今は「成長の街」だけが使う（2026-09-16）。 */}
           {g.items.map(([k, lab, I, opt]) => { const active = view === k && !karte; const b = badges[k];
             return (
               <button key={k} onClick={() => go(k)} title={collapsed ? (b ? `${lab}（未対応の通知 ${b}件）` : lab) : (b ? `未対応の通知 ${b}件` : undefined)} data-nav-active={active ? "true" : undefined} aria-current={active ? "page" : undefined}
-                className={"relative z-[1] mb-1 flex min-h-[44px] w-full items-center rounded-xl transition-colors " + (collapsed ? "justify-center px-0" : "gap-3 px-3") + (active ? "" : " hover:bg-black/[.04]")}
-                style={{ color: active ? T.textPrimary : T.textSecondary, fontWeight: active ? 600 : 500 }}>
+                className={"relative z-[1] flex w-full items-center rounded-xl transition-colors " + (dark ? "mb-0.5 min-h-[40px] " : "mb-1 min-h-[44px] ") + (collapsed ? "justify-center px-0" : "gap-3 px-3") + (active ? "" : dark ? " hover:bg-white/[.06]" : " hover:bg-black/[.04]")}
+                style={{ color: active ? (dark ? "#FFFFFF" : T.textPrimary) : (dark ? "#B7C0D5" : T.textSecondary), fontWeight: active ? 600 : 500 }}>
                 <span className="relative inline-flex shrink-0">
                   {opt?.chip
                     ? <span className="flex h-[26px] w-[26px] items-center justify-center rounded-lg text-white"
                         style={{ background: opt.chip, boxShadow: `0 1px 3px ${opt.shadow || "rgba(0,0,0,.18)"}` }}><I size={15} /></span>
-                    : <I size={18} style={{ color: active ? pa.accent : T.textMuted }} />}
-                  {collapsed && b ? <span className="absolute -right-1 -top-1 h-1.5 w-1.5 rounded-full" style={{ background: T.accent }} /> : null}
+                    : <I size={18} style={{ color: active ? (dark ? "#6FB8FF" : pa.accent) : (dark ? "#8F9AB2" : T.textMuted) }} />}
+                  {collapsed && b ? <span className="absolute -right-1 -top-1 h-1.5 w-1.5 rounded-full" style={{ background: dark ? "#339CFF" : T.accent }} /> : null}
                 </span>
                 {!collapsed && <span className="flex-1 truncate text-left text-sm" style={opt?.tint && !active ? { color: opt.tint, fontWeight: 600 } : undefined}>{lab}</span>}
-                {!collapsed && b ? <span title={`未対応の通知 ${b}件`} aria-label={`未対応の通知 ${b}件`} className="flex h-5 items-center justify-center rounded-full px-1.5 text-xs font-bold text-white" style={{ background: T.accent, minWidth: 20, fontVariantNumeric: "tabular-nums" }}>{b}</span> : null}
+                {!collapsed && b ? <span title={`未対応の通知 ${b}件`} aria-label={`未対応の通知 ${b}件`} className="flex h-5 items-center justify-center rounded-full px-1.5 text-xs font-bold text-white" style={{ background: dark ? "#339CFF" : T.accent, minWidth: 20, fontVariantNumeric: "tabular-nums" }}>{b}</span> : null}
               </button>
             );
           })}
         </div>
-      ))}
+        );
+      })}
     </div>
   );
 }
@@ -962,7 +978,8 @@ export default function App() {
     return ROLES[storedRole] ? storedRole : "trainee";
   });
   const [view, setView] = useState(() => storageGet("feeps.view", "home"));
-  const [product, setProduct] = useState(() => storageGet("feeps.product", "home"));
+  // 2026-09-30: 左の帯と一緒に総合ホームの入口もなくしたので、保存値が "home" でも研修から始める
+  const [product, setProduct] = useState(() => { const saved = storageGet("feeps.product", "training"); return saved === "home" ? "training" : saved; });
   const [subView, setSubView] = useState(() => storageGet("feeps.subView", "home"));
   // 研修管理/学習の2モード分離（ADR 0013-0016、2026-08-13 Phase1-B）。role/product等と同じ
   // localStorage単純キーパターンで永続化する。有効な値かはuserProfile読み込み後のuseEffectで補正。
@@ -1708,7 +1725,9 @@ export default function App() {
   // モード別レール配色（モード分離Step1）。研修管理=ブルー/学習=ティール。個々のProductの
   // アクセント色(pa)とは別に、GlobalRailの選択中アイテムだけこのモード色で統一する。
   const modePa = PRODUCT_ACCENT[viewMode] || PRODUCT_ACCENT.training;
-  const shellOffset = isHomeProduct ? 72 : 72 + (sidebarCollapsed ? T.sidebarWidthCollapsed : T.sidebarWidth);
+  // 2026-09-30: 左端の帯（GlobalRail）をやめ、紺のサイドバー1本に。機能の切り替えはサイドバー上のタイル
+  const shellOffset = isHomeProduct ? 0 : (sidebarCollapsed ? T.sidebarWidthCollapsed : T.sidebarWidth);
+  const RAIL_SHORT = { training: "研修", analytics: "分析", grants: "助成金", company: "企業", learning: "学習", talent: "成長", matching: "案件" };
 
   return (
     <div className="app-root feeps-nova-shell flex min-h-screen flex-col lg:h-screen lg:overflow-hidden lg:overflow-x-hidden" style={{
@@ -1722,9 +1741,6 @@ export default function App() {
       "--nova-glass": NOVA.glass, "--nova-shadow-sm": NOVA.shadowSm,
       "--nova-shadow-md": NOVA.shadowMd, "--nova-brand": NOVA.gradBrand,
     }}>
-      <GlobalRail products={availableProducts} active={product} onSelect={goProduct} onOpenPalette={() => setPaletteOpen(true)}
-        modes={modeSwitchVisible ? modeTabs.map(m => m.key) : []} viewMode={viewMode}
-        onSelectMode={m => { setViewMode(m); resetToModeLanding(m); }} />
       {/* ヘッダー固定表示化(2026-08-16)。sticky top-0だけでは効かなかった原因: ルートdivに
           overflow-x-hidden（lg未満でも常時適用）があると、CSS仕様上overflow-yがvisibleのまま
           だと自動的にauto扱いへ格上げされ、ルートdiv自身が「スクロールコンテナ」になる。
@@ -1766,6 +1782,7 @@ export default function App() {
           <div className="ml-auto flex min-w-0 shrink-0 items-center justify-end gap-1.5">
             {role === "instructor" && !isHomeProduct && <QuickAdd onPick={go} />}
             <TenolabLink />
+            <button type="button" onClick={() => setPaletteOpen(true)} aria-label="検索・移動を開く" title="検索・移動" className="feeps-icon-button"><Search size={18} /></button>
             <button type="button" onClick={() => setHelpGuideOpen(true)} aria-label="使い方を開く" title="使い方" className="feeps-icon-button"><HelpCircle size={18} /></button>
             {demoMenu}{notifBellDesktop}{userActionsTail}
           </div>
@@ -1773,39 +1790,54 @@ export default function App() {
       </div>
 
       <div className="feeps-shell-body flex max-w-full flex-1 overflow-x-hidden lg:min-h-0" style={{ "--shell-offset": `${shellOffset}px` }}>
-        {!isHomeProduct && <aside className={"feeps-context-rail feeps-sidebar hidden shrink-0 lg:flex lg:flex-col" + (sidebarCollapsed ? " is-collapsed" : "")} style={{ left: 72, width: sidebarCollapsed ? T.sidebarWidthCollapsed : T.sidebarWidth }}>
+        {!isHomeProduct && <aside className={"feeps-context-rail feeps-sidebar hidden shrink-0 lg:flex lg:flex-col" + (sidebarCollapsed ? " is-collapsed" : "")} style={{ left: 0, width: sidebarCollapsed ? T.sidebarWidthCollapsed : T.sidebarWidth }}>
           <div className={"feeps-context-head flex items-center " + (sidebarCollapsed ? "justify-center px-2" : "gap-3 px-3.5")}>
-            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl" style={{ background: pa.subtle, border: `1px solid ${pa.accent}40` }} title={sidebarCollapsed ? currentProduct.label : undefined}>
-              <currentProduct.icon size={20} style={{ color: pa.deep }} />
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl" style={{ background: NOVA.gradAccent }} title={sidebarCollapsed ? currentProduct.label : undefined}>
+              <currentProduct.icon size={20} style={{ color: "#fff" }} />
             </div>
             {!sidebarCollapsed && (
               <div className="min-w-0">
-                <div className="truncate text-[11px] font-semibold" style={{ color: T.textMuted }}>Feeps One</div>
-                <div className="truncate text-sm font-bold" style={{ color: T.textPrimary }}>{currentProduct.label}</div>
+                <div className="truncate text-[11px] font-semibold" style={{ color: "#8F9AB2" }}>Feeps One</div>
+                <div className="truncate text-sm font-bold" style={{ color: "#fff" }}>{currentProduct.label}</div>
               </div>
             )}
           </div>
-          <nav className={"min-h-0 flex-1 overflow-y-auto " + (sidebarCollapsed ? "p-2" : "p-3")} aria-label={`${currentProduct.label}メニュー`}><SideNav groups={nav} view={activeView} karte={karte} go={product === "training" ? go : goSub} badges={navBadges} collapsed={sidebarCollapsed} pa={pa} /></nav>
+          {/* 機能が2つ以上ある役割（企業担当・管理者）だけ。開かなくても全部見えるように常に並べる */}
+          {availableProducts.length > 1 && (
+            <div className={"grid gap-1.5 " + (sidebarCollapsed ? "px-2 pt-2" : "px-3 pt-3")} style={sidebarCollapsed ? undefined : { gridTemplateColumns: `repeat(${Math.min(availableProducts.length, 4)}, minmax(0, 1fr))` }} role="navigation" aria-label="機能の切り替え">
+              {availableProducts.map(p => {
+                const on = product === p.key;
+                return (
+                  <button key={p.key} type="button" onClick={() => goProduct(p.key)} title={p.label} aria-current={on ? "page" : undefined}
+                    className="flex flex-col items-center justify-center gap-0.5 rounded-xl px-0.5 py-2 text-[11px] font-bold transition-colors hover:text-white"
+                    style={{ color: on ? "#fff" : "#B7C0D5", background: on ? "rgba(51,156,255,.18)" : NOVA.railElevated, border: `1px solid ${on ? "#339CFF" : "rgba(255,255,255,.08)"}` }}>
+                    <p.icon size={17} style={{ color: on ? "#6FB8FF" : undefined }} />
+                    {!sidebarCollapsed && <span className="max-w-full truncate">{RAIL_SHORT[p.key] || p.label}</span>}
+                  </button>
+                );
+              })}
+            </div>
+          )}
+          <nav className={"min-h-0 flex-1 overflow-y-auto " + (sidebarCollapsed ? "p-2" : "p-3")} aria-label={`${currentProduct.label}メニュー`}><SideNav groups={nav} view={activeView} karte={karte} go={product === "training" ? go : goSub} badges={navBadges} collapsed={sidebarCollapsed} pa={pa} dark /></nav>
           <button type="button" onClick={toggleSidebar} title={sidebarCollapsed ? "サイドバーを展開" : "サイドバーを折りたたむ"} aria-label={sidebarCollapsed ? "サイドバーを展開" : "サイドバーを折りたたむ"}
-            className={"feeps-context-toggle mx-2 mb-1 flex items-center rounded-xl py-2 text-xs font-semibold transition " + (sidebarCollapsed ? "justify-center" : "gap-2 px-3")}
-            style={{ color: T.textMuted }}>
+            className={"feeps-context-toggle mx-2 mb-1 flex items-center rounded-xl py-2 text-xs font-semibold transition " + (sidebarCollapsed ? "justify-center" : "gap-2 px-3")}>
             {sidebarCollapsed ? <ChevronRight size={16} /> : <><ChevronLeft size={16} />折りたたむ</>}
           </button>
           <div className={sidebarCollapsed ? "p-2" : "p-3"}>
             {sidebarCollapsed ? (
-              <button type="button" onClick={() => setSidebarUserOpen(v => !v)} title={displayName} className="flex w-full justify-center rounded-xl p-2 transition hover:bg-black/5">
+              <button type="button" onClick={() => setSidebarUserOpen(v => !v)} title={displayName} className="flex w-full justify-center rounded-xl p-2 transition hover:bg-white/5">
                 <span className="inline-flex rounded-full p-[2px]" style={{ background: `conic-gradient(from 0deg, ${(PRODUCT_ACCENT[product] || PRODUCT_ACCENT.training).accent}, ${T.aiAccent}, ${(PRODUCT_ACCENT[product] || PRODUCT_ACCENT.training).accent})` }}>
                   <Avatar name={displayName} size={28} />
                 </span>
               </button>
             ) : (
-              <div className="relative rounded-xl p-2.5" style={{ background: NOVA.railGlass, border: `1px solid ${NOVA.line}` }}>
-                <button type="button" onClick={() => setSidebarUserOpen(v => !v)} className="flex min-w-0 w-full items-center gap-2 rounded-lg p-0.5 transition hover:bg-black/5">
+              <div className="relative rounded-xl p-2.5" style={{ background: "rgba(255,255,255,.05)", border: "1px solid rgba(255,255,255,.08)" }}>
+                <button type="button" onClick={() => setSidebarUserOpen(v => !v)} className="flex min-w-0 w-full items-center gap-2 rounded-lg p-0.5 transition hover:bg-white/5">
                   <span className="inline-flex shrink-0 rounded-full p-[2px]" style={{ background: `conic-gradient(from 0deg, ${(PRODUCT_ACCENT[product] || PRODUCT_ACCENT.training).accent}, ${T.aiAccent}, ${(PRODUCT_ACCENT[product] || PRODUCT_ACCENT.training).accent})` }}>
                     <Avatar name={displayName} size={32} />
                   </span>
-                  <div className="min-w-0 flex-1 text-left"><div className="truncate text-sm font-semibold" style={{ color: T.textPrimary }}>{displayName}</div><div className="truncate text-xs" style={{ color: T.textMuted }}>{me.label}</div></div>
-                  <ChevronDown size={14} className="shrink-0" style={{ color: T.textMuted }} />
+                  <div className="min-w-0 flex-1 text-left"><div className="truncate text-sm font-semibold" style={{ color: "#fff" }}>{displayName}</div><div className="truncate text-xs" style={{ color: "#8F9AB2" }}>{me.label}</div></div>
+                  <ChevronDown size={14} className="shrink-0" style={{ color: "#8F9AB2" }} />
                 </button>
                 {sidebarUserOpen && (<>
                   <div className="fixed inset-0" style={{ zIndex: Z.dropdown - 1 }} onClick={() => setSidebarUserOpen(false)} />

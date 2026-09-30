@@ -388,26 +388,26 @@ body.feeps-modal-open .feeps-main-scroll { overflow: hidden !important; }
   inset-block: 0;
   z-index: 15;
   overflow: hidden;
-  border-right: 1px solid var(--nova-line);
-  background: color-mix(in srgb, var(--nova-card) 92%, transparent);
-  box-shadow: 8px 0 26px color-mix(in srgb, var(--nova-rail) 5%, transparent);
-  -webkit-backdrop-filter: blur(20px) saturate(115%);
-  backdrop-filter: blur(20px) saturate(115%);
+  /* 2026-09-30: 左端の帯をやめ、このサイドバーを紺に（帯と同じ色） */
+  color: var(--nova-on-dark);
+  background: var(--nova-rail);
+  box-shadow: 12px 0 30px color-mix(in srgb, var(--nova-rail) 14%, transparent);
   animation: feepsContextRailIn .18s cubic-bezier(.2,.8,.2,1);
 }
 @keyframes feepsContextRailIn {
   from { opacity: .72; transform: translate3d(-12px, 0, 0); }
   to { opacity: 1; transform: none; }
 }
-.feeps-context-head { min-height: 72px; border-bottom: 1px solid var(--nova-line); }
-.feeps-context-rail nav { scrollbar-color: color-mix(in srgb, var(--nova-muted) 28%, transparent) transparent; }
+.feeps-context-head { min-height: 72px; border-bottom: 1px solid rgba(255,255,255,.08); }
+.feeps-context-rail nav { scrollbar-color: rgba(255,255,255,.18) transparent; }
+.feeps-context-rail nav::-webkit-scrollbar-thumb { background: rgba(255,255,255,.18); }
 .feeps-context-toggle {
   min-height: 42px;
-  color: var(--nova-muted);
-  border: 1px solid var(--nova-line);
-  background: var(--nova-card);
+  color: #8F9AB2;
+  border: 1px solid rgba(255,255,255,.08);
+  background: transparent;
 }
-.feeps-context-toggle:hover { color: var(--nova-ink); background: var(--nova-soft); }
+.feeps-context-toggle:hover { color: #fff; background: rgba(255,255,255,.06); }
 .feeps-context-rail > div:last-child { padding-bottom: 12px; }
 .feeps-topbar {
   position: relative;
