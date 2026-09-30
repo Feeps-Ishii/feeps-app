@@ -9,9 +9,10 @@ import {
   addMaterialToCurriculumTarget, normalizeCurriculumSections, sessionsFromSections,
 } from "./TrainingComponents.jsx";
 import {
-  ChevronRight, Download, FileText, Folder, FolderPlus, HardDrive, MoreHorizontal, Pencil, Plus,
-  Trash2, Upload, Users,
+  BookOpen, ChevronRight, Copy, Download, Eye, FileText, Folder, FolderPlus, Globe, HardDrive, Link2, Lock,
+  MoreHorizontal, Pencil, Plus, Rows3, Trash2, Upload, Users, X,
 } from "lucide-react";
+import { getActiveCourseId, setActiveCourseId, takeLibraryTarget } from "../../utils/common/courseContext.js";
 
 /* 研修資料をフォルダで整理する（2026-09-18 打合せ）。
    これまではコース直下のフラットな一覧だったので、章立てや演習ごとにまとめられなかった。
@@ -58,17 +59,55 @@ function describeAcl(acl, courseName, groupNames) {
   return `${where}の${who.join("・")}が見られます。管理者はいつでも見られます。` +
     (acl.roles?.trainee ? (acl.traineeWrite ? "受講生もここに置けます。" : "受講生は見るだけです。") : "");
 }
-function aclChip(acl) {
+/* 見え方の印（2026-09-30）。どの画面でも同じ4種類の言葉と色にそろえる。
+   講師・管理者はいつでも見られるので、印は「受講生・企業担当にどう見えるか」だけで決める */
+const VIS = {
+  all: { tone: "green", label: "受講生に見える", icon: Eye },
+  client: { tone: "cyan", label: "企業担当にも見える", icon: Users },
+  group: { tone: "cyan", label: "チームだけ", icon: Users },
+  staff: { tone: "amber", label: "講師・運営だけ", icon: Lock },
+};
+const VIS_ORDER = ["all", "client", "group", "staff"];
+function visKey(acl) {
   const r = acl?.roles || {};
-  if (r.trainee) return { tone: "green", label: "受講生まで" };
-  if (r.client) return { tone: "cyan", label: "企業担当まで" };
-  if (r.instructor) return { tone: "amber", label: "講師のみ" };
-  return { tone: "red", label: "管理者のみ" };
+  if (r.trainee && acl?.scope === "groups") return "group";
+  if (r.client) return "client";
+  if (r.trainee) return "all";
+  return "staff";
+}
+// ショートカットは、コース側の指定と行き先の指定の狭い方
+function nodeVisKey(n) {
+  const own = visKey(n?.acl);
+  if (n?.type !== "shortcut" || !n?.targetAcl) return own;
+  const target = visKey(n.targetAcl);
+  return VIS_ORDER.indexOf(target) > VIS_ORDER.indexOf(own) ? target : own;
+}
+function VisBadge({ k }) {
+  const v = VIS[k] || VIS.staff;
+  const Icon = v.icon;
+  return <Badge tone={v.tone}><span className="inline-flex items-center gap-1"><Icon size={11} />{v.label}</span></Badge>;
+}
+function spaceLabel(spaceId, courses) {
+  if (spaceId === "shared") return "共有（全社）";
+  if (spaceId === "ops") return "運営だけ";
+  if (spaceId === PERSONAL || String(spaceId).startsWith("user#")) return "マイフォルダ";
+  const id = String(spaceId).replace(/^course#/, "");
+  return courses.find(c => c.courseId === id)?.name || "コース";
 }
 
 export default function LibraryView({ role }) {
+  const staff = role === "admin" || role === "instructor";
   const [courses, setCourses] = useState([]);
+  const [courseId, setCourseId] = useState("");
   const [spaceId, setSpaceId] = useState("");
+  /* 受講生・企業担当が共有（全社）を開くのは、コースのショートカット経由だけ。
+     via はそのコースの置き場、anchor はショートカット先（そこより上は見せない） */
+  const [via, setVia] = useState("");
+  const [anchorId, setAnchorId] = useState(ROOT);
+  const [side, setSide] = useState({ course: null, shared: null, ops: null });
+  const [links, setLinks] = useState(null);      // 共有フォルダを使っているコース（講師・管理者）
+  const [useFolder, setUseFolder] = useState(null); // { node, mode: "link"|"copy" }
+  const [overview, setOverview] = useState(false);
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState("");
@@ -88,33 +127,87 @@ export default function LibraryView({ role }) {
     let alive = true;
     // 受講生だけ所属コース。企業担当は /courses 側で自社分に絞られる（既存画面と同じ）
     const pick = role === "trainee" ? "/me/courses" : "/courses";
+    // カリキュラムのフォルダのカードから来たときは、そのフォルダを開く
+    const target = takeLibraryTarget();
     apiGet(pick)
       .then(list => {
         if (!alive) return;
-        const arr = Array.isArray(list) ? list : [];
+        const arr = (Array.isArray(list) ? list : []).filter(c => c?.courseId);
         setCourses(arr);
-        setSpaceId(prev => prev || (arr[0]?.courseId ? `course#${arr[0].courseId}` : "shared"));
+        const preferred = target?.courseId || getActiveCourseId();
+        const first = arr.some(c => c.courseId === preferred) ? preferred : (arr[0]?.courseId || "");
+        setCourseId(first);
+        if (first) {
+          setSpaceId(`course#${first}`);
+          setPath(target?.courseId === first ? [ROOT, target.nodeId] : [ROOT]);
+          if (target?.courseId === first) pendingTargetRef.current = target.nodeId;
+        } else setSpaceId(staff ? "shared" : "");
       })
-      .catch(() => { if (alive) { setCourses([]); setSpaceId(prev => prev || "shared"); } });
+      .catch(() => { if (alive) { setCourses([]); setSpaceId(staff ? "shared" : ""); } });
     return () => { alive = false; };
   }, [role]);
 
-  const load = useCallback(async (keepPath) => {
-    if (!spaceId) return;
+  const pendingTargetRef = useRef("");
+  const viaQuery = via ? `&via=${encodeURIComponent(via)}` : "";
+  const load = useCallback(async () => {
+    if (!spaceId) { setLoading(false); return; }
     setLoading(true); setErr("");
     try {
-      const r = await apiGet(`/library?spaceId=${encodeURIComponent(spaceId)}`);
+      const r = await apiGet(`/library?spaceId=${encodeURIComponent(spaceId)}${via ? `&via=${encodeURIComponent(via)}` : ""}`);
       setData(r);
-      if (!keepPath) setPath([ROOT]);
     } catch (e) {
       setData(null);
-      setErr(e?.message || "教材フォルダを読み込めませんでした。");
+      setErr(e?.errorMessage || e?.message || "教材フォルダを読み込めませんでした。");
     } finally {
       setLoading(false);
     }
-  }, [spaceId]);
+  }, [spaceId, via]);
 
-  useEffect(() => { load(false); }, [load]);
+  useEffect(() => { load(); }, [load]);
+
+  /* 左の一覧用。選んでいるコースの置き場と、講師・管理者は共有（全社）・運営だけも読む */
+  const loadSide = useCallback(async () => {
+    const get = sid => apiGet(`/library?spaceId=${encodeURIComponent(sid)}`).catch(() => null);
+    const [course, shared, ops] = await Promise.all([
+      courseId ? get(`course#${courseId}`) : Promise.resolve(null),
+      staff ? get("shared") : Promise.resolve(null),
+      staff ? get("ops") : Promise.resolve(null),
+    ]);
+    setSide({ course, shared, ops });
+    if (staff) {
+      apiGet("/library/links?spaceId=shared").then(r => setLinks(r?.links || {})).catch(() => setLinks(null));
+    }
+  }, [courseId, staff]);
+  useEffect(() => { loadSide(); }, [loadSide]);
+
+  /* どこかを開く。space を変えるときは path も一緒に決める（読み込み後に先頭へ戻さない） */
+  function openAt(nextSpace, nextPath, nextVia = "", nextAnchor = ROOT) {
+    setOverview(false);
+    setVia(nextVia);
+    setAnchorId(nextAnchor);
+    setSpaceId(nextSpace);
+    setPath(nextPath && nextPath.length ? nextPath : [nextAnchor]);
+    setMenuFor(null); setNotice(""); setActionErr("");
+  }
+  function chainTo(nodes, id) {
+    const byIdLocal = new Map((nodes || []).map(n => [n.nodeId, n]));
+    const out = [];
+    let cur = byIdLocal.get(id);
+    const guard = new Set();
+    while (cur && !guard.has(cur.nodeId)) { guard.add(cur.nodeId); out.unshift(cur.nodeId); cur = cur.parentId ? byIdLocal.get(cur.parentId) : null; }
+    return out.length ? out : [ROOT];
+  }
+  // ショートカットを開く。講師・管理者は共有（全社）の本来の場所で、受講生・企業担当はショートカット先から
+  function openShortcut(n) {
+    if (!n?.targetNodeId) return;
+    if (staff) openAt("shared", chainTo(side.shared?.nodes, n.targetNodeId));
+    else openAt("shared", [n.targetNodeId], `course#${courseId}`, n.targetNodeId);
+  }
+  function selectCourse(id) {
+    setCourseId(id);
+    setActiveCourseId(id);
+    openAt(`course#${id}`, [ROOT]);
+  }
 
   // グループはコース単位。公開範囲でチームを選ぶときに要る
   const courseIdOfSpace = spaceId.startsWith("course#") ? spaceId.slice("course#".length) : "";
@@ -169,6 +262,14 @@ export default function LibraryView({ role }) {
     return m;
   }, [data]);
 
+  useEffect(() => {
+    const id = pendingTargetRef.current;
+    if (!id || !data || spaceId !== `course#${courseId}`) return;
+    const n = (data.nodes || []).find(x => x.nodeId === id);
+    pendingTargetRef.current = "";
+    if (n?.type === "shortcut") openShortcut(n);
+  }, [data]); // eslint-disable-line react-hooks/exhaustive-deps
+
   // 見えないフォルダに居座らないよう、辿れるところまで戻す
   const safePath = useMemo(() => {
     const out = [];
@@ -176,8 +277,8 @@ export default function LibraryView({ role }) {
       if (!byId.has(id)) break;
       out.push(id);
     }
-    return out.length ? out : [ROOT];
-  }, [path, byId]);
+    return out.length ? out : [anchorId];
+  }, [path, byId, anchorId]);
 
   const currentId = safePath[safePath.length - 1];
   const current = byId.get(currentId);
@@ -188,7 +289,7 @@ export default function LibraryView({ role }) {
   }, [data, currentId]);
 
   const courseName = useMemo(() => {
-    if (!spaceId.startsWith("course#")) return "";
+    if (!spaceId.startsWith("course#")) return spaceId === "shared" ? "全コース" : "";
     const id = spaceId.slice("course#".length);
     return courses.find(c => c.courseId === id)?.name || "";
   }, [spaceId, courses]);
@@ -213,7 +314,8 @@ export default function LibraryView({ role }) {
     setBusy(label); setNotice(""); setActionErr("");
     try {
       await fn();
-      await load(true);
+      await load();
+      loadSide();
     } catch (e) {
       setActionErr(e?.errorMessage || e?.message || "うまくいきませんでした。");
     } finally {
@@ -238,13 +340,15 @@ export default function LibraryView({ role }) {
 
   function remove(n) {
     const kids = (data?.nodes || []).filter(x => x.parentId === n.nodeId).length;
-    const warn = n.type === "folder" && kids
-      ? `「${n.name}」を中身ごと消します。よろしいですか。`
-      : `「${n.name}」を消します。よろしいですか。`;
+    const warn = n.type === "shortcut"
+      ? `「${n.targetName || n.name}」のショートカットを外します（共有（全社）の元のフォルダは消えません）。よろしいですか。`
+      : n.type === "folder" && kids
+        ? `「${n.name}」を中身ごと消します。よろしいですか。`
+        : `「${n.name}」を消します。よろしいですか。`;
     if (!window.confirm(warn)) return;
     run("delete", async () => {
       await apiDelete(`/library/nodes/${encodeURIComponent(n.nodeId)}?spaceId=${encodeURIComponent(spaceId)}`);
-      setNotice(`「${n.name}」を消しました。`);
+      setNotice(n.type === "shortcut" ? `「${n.targetName || n.name}」の紐づけを外しました。元のフォルダはそのままです。` : `「${n.name}」を消しました。`);
     });
   }
 
@@ -262,16 +366,16 @@ export default function LibraryView({ role }) {
     if (!forceDownload && courseIdOfSpace && n.materialId && isPdf(n)) {
       setViewing(n);
       // 開いたぶんは通信量に入るので、メーターを追いつかせる
-      load(true);
+      load();
       return;
     }
     try {
       const r = await apiGet(
-        `/library/download?spaceId=${encodeURIComponent(spaceId)}&nodeId=${encodeURIComponent(n.nodeId)}`
+        `/library/download?spaceId=${encodeURIComponent(spaceId)}&nodeId=${encodeURIComponent(n.nodeId)}${viaQuery}`
         + (forceDownload ? "&mode=download" : "")
       );
       window.open(r.url, "_blank", "noopener");
-      load(true);
+      load();
     } catch (e) {
       setActionErr(e?.errorMessage || e?.message || "ファイルを開けませんでした。");
     }
@@ -338,6 +442,25 @@ export default function LibraryView({ role }) {
     });
   }
 
+  function placeFolderInCourses(node, mode, courseIds) {
+    setUseFolder(null);
+    run("use", async () => {
+      const r = await apiPost(mode === "copy" ? "/library/copy-folder" : "/library/link-folder", { spaceId: "shared", nodeId: node.nodeId, courseIds });
+      const done = (r.placed || []).length, already = (r.skipped || []).length;
+      setNotice(
+        (done ? `「${node.name}」を${done}件のコースで使えるようにしました（${mode === "copy" ? "コピー" : "ショートカット"}）。` : "")
+        + (already ? `${already}件はすでに${mode === "copy" ? "コピー済み" : "紐づいて"}いました。` : "")
+      );
+    });
+  }
+  function unlinkShortcut(courseIdOfLink, shortcutNodeId, name) {
+    if (!window.confirm(`「${name}」の紐づけを外します（元のフォルダは消えません）。よろしいですか。`)) return;
+    run("unlink", async () => {
+      await apiDelete(`/library/nodes/${encodeURIComponent(shortcutNodeId)}?spaceId=${encodeURIComponent(`course#${courseIdOfLink}`)}`);
+      setNotice(`「${name}」の紐づけを外しました。`);
+    });
+  }
+
   async function openUsage() {
     setUsageOpen(true);
     setUsage(null);
@@ -348,36 +471,97 @@ export default function LibraryView({ role }) {
     }
   }
 
-  if (loading && !data) {
-    return <div><SectionHead title="研修資料" desc="読み込んでいます" /><SkeletonRows rows={6} /></div>;
+  // 左の一覧：選んでいるコース（受講生はマイフォルダも）、講師・管理者は共有（全社）と運営だけ
+  const topOf = d => (d?.nodes || [])
+    .filter(n => n.parentId === ROOT && (n.type === "folder" || n.type === "shortcut"))
+    .sort((a, b) => (a.type === b.type ? (a.targetName || a.name).localeCompare(b.targetName || b.name, "ja") : a.type === "folder" ? -1 : 1));
+  const firstLevel = safePath[1] || "";
+  function renderTree() {
+    const head = (key, Icon, color, label, onClick, active) => (
+      <button key={key} type="button" onClick={onClick}
+        className="flex w-full items-center gap-2 rounded-lg px-2.5 pb-1 pt-2.5 text-left text-xs font-bold"
+        style={{ color: active ? T.textPrimary : T.textMuted }}>
+        <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-md text-white" style={{ background: color }}><Icon size={12} /></span>
+        <span className="min-w-0 flex-1 truncate">{label}</span>
+      </button>
+    );
+    const row = (n, active, onClick) => {
+      const shortcut = n.type === "shortcut";
+      const count = shortcut ? n.targetFiles : (side.course?.nodes || data?.nodes || []).filter(x => x.parentId === n.nodeId).length;
+      return (
+        <button key={n.nodeId} type="button" onClick={onClick}
+          className="grid w-full grid-cols-[16px_minmax(0,1fr)_auto] items-center gap-2 rounded-lg px-2.5 py-1.5 text-left text-[13px]"
+          style={active ? { background: T.accentSubtle, color: T.textPrimary, fontWeight: 700, boxShadow: `inset 3px 0 0 ${T.accent}` } : { color: T.textSecondary }}>
+          {shortcut ? <Link2 size={14} style={{ color: T.accent }} /> : <Folder size={14} style={{ color: T.textMuted }} />}
+          <span className="truncate">{shortcut ? (n.targetName || n.name) : n.name}</span>
+          <span className="text-[11px] tabular-nums" style={{ color: T.textMuted }}>{Number.isFinite(count) ? count : ""}</span>
+        </button>
+      );
+    };
+    const courseSpace = courseId ? `course#${courseId}` : "";
+    const sharedTop = topOf(side.shared), opsTop = topOf(side.ops), courseTop = topOf(side.course);
+    const inShortcut = spaceId === "shared" && (via || !staff);
+    return (
+      <Card className="p-2 xl:sticky xl:top-4">
+        {courseId && head("course", BookOpen, "#339CFF", spaceLabel(courseSpace, courses), () => openAt(courseSpace, [ROOT]), spaceId === courseSpace)}
+        {courseTop.map(n => row(n,
+          n.type === "shortcut" ? (spaceId === "shared" && (inShortcut ? anchorId === n.targetNodeId : safePath.includes(n.targetNodeId))) : (spaceId === courseSpace && firstLevel === n.nodeId),
+          () => (n.type === "shortcut" ? openShortcut(n) : openAt(courseSpace, [ROOT, n.nodeId]))))}
+        {courseId && side.course && !courseTop.length && <div className="px-3 py-1 text-xs" style={{ color: T.textMuted }}>フォルダはまだありません</div>}
+        {role === "trainee" && <>
+          <div className="mx-2.5 my-1.5 h-px" style={{ background: T.border }} />
+          {head("me", Folder, "#9B79EC", "マイフォルダ", () => openAt(PERSONAL, [ROOT]), spaceId === PERSONAL)}
+        </>}
+        {staff && <>
+          <div className="mx-2.5 my-1.5 h-px" style={{ background: T.border }} />
+          {head("shared", Globe, "#3AB9B1", "共有（全社）", () => openAt("shared", [ROOT]), spaceId === "shared" && !firstLevel)}
+          {sharedTop.map(n => row(n, spaceId === "shared" && firstLevel === n.nodeId, () => openAt("shared", [ROOT, n.nodeId])))}
+          <div className="mx-2.5 my-1.5 h-px" style={{ background: T.border }} />
+          {head("ops", Lock, "#B07C2E", "運営だけ", () => openAt("ops", [ROOT]), spaceId === "ops" && !firstLevel)}
+          {opsTop.map(n => row(n, spaceId === "ops" && firstLevel === n.nodeId, () => openAt("ops", [ROOT, n.nodeId])))}
+        </>}
+      </Card>
+    );
   }
+
+  const currentLinks = spaceId === "shared" && staff && current && current.nodeId !== ROOT && current.type === "folder" ? (links?.[current.nodeId] || { shortcuts: [], copies: [] }) : null;
+  const courseNameOf = id => courses.find(c => c.courseId === id)?.name || id;
 
   return (
     <div onClick={() => setMenuFor(null)}>
       <SectionHead
         title="研修資料"
-        desc="コース教材と全社の共有ライブラリを、フォルダで整理します。公開範囲はフォルダごとに決められます。"
         action={
           <div className="flex flex-wrap items-center gap-2">
+            {staff && (
+              <Btn kind={overview ? "primary" : "ghost"} icon={overview ? Folder : Rows3} onClick={() => setOverview(v => !v)}>
+                {overview ? "フォルダに戻る" : "見え方の一覧"}
+              </Btn>
+            )}
             {role === "admin" && (
               <Btn kind="ghost" icon={HardDrive} onClick={openUsage}>容量と費用</Btn>
             )}
-            <select
-              value={spaceId}
-              onChange={e => setSpaceId(e.target.value)}
-              aria-label="置き場"
-              className="rounded-xl px-3 py-2 text-sm outline-none"
-              style={{ border: `1px solid ${T.border}`, color: T.textPrimary, background: T.bgSurface }}
-            >
-              {courses.map(c => <option key={c.courseId} value={`course#${c.courseId}`}>{c.name || c.courseId}</option>)}
-              <option value="shared">共有ライブラリ（全社）</option>
-              {role === "trainee" && <option value={PERSONAL}>マイフォルダ（自分だけ）</option>}
-            </select>
           </div>
         }
       />
+      {!overview && courses.length > 0 && <CourseBar courses={courses} value={courseId} onChange={selectCourse} />}
 
-      {err && <PrismErrorRetryCard message={err} onRetry={() => load(true)} />}
+      {overview ? (
+        <VisibilityOverview
+          courses={courses}
+          initialCourseId={courseId}
+          onOpen={(sid, nodeId, node) => {
+            if (node?.type === "shortcut") { if (sid !== `course#${courseId}`) setCourseId(sid.replace(/^course#/, "")); openShortcut(node); }
+            else openAt(sid, [ROOT, nodeId]);
+          }}
+        />
+      ) : (
+      <div className="grid items-start gap-4 xl:grid-cols-[260px_minmax(0,1fr)]">
+      {renderTree()}
+      <div className="min-w-0">
+      {err && <PrismErrorRetryCard message={err} onRetry={() => load()} />}
+      {loading && !data && <Card className="mb-4 p-4"><SkeletonRows rows={5} /></Card>}
+      {data && <>
 
       <Card className="mb-4">
         {/* パンくずと操作 */}
@@ -432,11 +616,43 @@ export default function LibraryView({ role }) {
         {/* このフォルダの公開範囲 */}
         {current && (
           <div className="flex flex-wrap items-center gap-2 px-4 py-2.5 text-xs" style={{ background: T.bgBase, color: T.textMuted }}>
-            <Users size={13} />
+            <VisBadge k={visKey(current.acl)} />
             <span>{describeAcl(current.acl, courseName, groupNames)}</span>
             {current.canWrite && (
-              <Btn kind="ghost" size="sm" onClick={() => setAclTarget(current)}>公開範囲を変える</Btn>
+              <Btn kind="ghost" size="sm" onClick={() => setAclTarget(current)}>見える人を変える</Btn>
             )}
+          </div>
+        )}
+
+        {/* 共有（全社）のフォルダ：コースで使う・使っているコース（講師・管理者） */}
+        {currentLinks && (
+          <div className="grid gap-2 px-4 py-3" style={{ borderTop: `1px solid ${T.border}` }}>
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="text-xs font-bold" style={{ color: T.textSecondary }}>このフォルダを使っているコース</span>
+              <div className="ml-auto flex flex-wrap gap-2">
+                <Btn size="sm" icon={Link2} onClick={() => setUseFolder({ node: current, mode: "link" })}>コースに紐づける</Btn>
+                <Btn size="sm" kind="ghost" icon={Copy} onClick={() => setUseFolder({ node: current, mode: "copy" })}>コースへコピー</Btn>
+              </div>
+            </div>
+            {!currentLinks.shortcuts.length && !currentLinks.copies.length && (
+              <div className="text-xs" style={{ color: T.textMuted }}>まだどのコースにも紐づいていません</div>
+            )}
+            {currentLinks.shortcuts.map(l => (
+              <div key={l.nodeId} className="flex flex-wrap items-center gap-2 rounded-xl px-3 py-2 text-sm" style={{ border: `1px solid ${T.border}` }}>
+                <Link2 size={14} style={{ color: T.accent }} />
+                <span className="min-w-0 flex-1 truncate font-semibold" style={{ color: T.textPrimary }}>{courseNameOf(l.courseId)}</span>
+                <Badge tone="cyan">ショートカット</Badge>
+                <Btn size="sm" kind="ghost" onClick={() => unlinkShortcut(l.courseId, l.nodeId, current.name)}>外す</Btn>
+              </div>
+            ))}
+            {currentLinks.copies.map(l => (
+              <div key={l.nodeId} className="flex flex-wrap items-center gap-2 rounded-xl px-3 py-2 text-sm" style={{ border: `1px solid ${T.border}` }}>
+                <Copy size={14} style={{ color: T.textMuted }} />
+                <span className="min-w-0 flex-1 truncate font-semibold" style={{ color: T.textPrimary }}>{courseNameOf(l.courseId)}</span>
+                <Badge tone="muted">コピー{l.createdAt ? ` ${fmtDate(l.createdAt)}` : ""}</Badge>
+                <Btn size="sm" kind="ghost" onClick={() => { setCourseId(l.courseId); openAt(`course#${l.courseId}`, [ROOT, l.nodeId]); }}>開く</Btn>
+              </div>
+            ))}
           </div>
         )}
 
@@ -507,9 +723,9 @@ export default function LibraryView({ role }) {
               </thead>
               <tbody>
                 {children.map(n => {
-                  const chip = aclChip(n.acl);
-                  const size = n.type === "folder" ? folderSize(n.nodeId) : n.sizeBytes;
-                  const kids = (data?.nodes || []).filter(x => x.parentId === n.nodeId).length;
+                  const shortcut = n.type === "shortcut";
+                  const size = n.type === "folder" ? folderSize(n.nodeId) : shortcut ? 0 : n.sizeBytes;
+                  const kids = shortcut ? (n.targetFiles || 0) : (data?.nodes || []).filter(x => x.parentId === n.nodeId).length;
                   return (
                     <tr
                       key={n.nodeId}
@@ -522,26 +738,26 @@ export default function LibraryView({ role }) {
                       <td className="px-4 py-2.5">
                         <button
                           type="button"
-                          onClick={() => (n.type === "folder" ? setPath([...safePath, n.nodeId]) : openFile(n))}
+                          onClick={() => (shortcut ? openShortcut(n) : n.type === "folder" ? setPath([...safePath, n.nodeId]) : openFile(n))}
                           className="flex min-w-0 items-center gap-2.5 text-left text-sm font-semibold"
                           style={{ color: T.textPrimary }}
                         >
                           <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md"
-                            style={{ background: n.type === "folder" ? T.accentSubtle : T.bgBase, color: n.type === "folder" ? T.accentHover : T.textMuted }}>
-                            {n.type === "folder" ? <Folder size={13} /> : <FileText size={13} />}
+                            style={{ background: n.type === "file" ? T.bgBase : T.accentSubtle, color: n.type === "file" ? T.textMuted : T.accentHover }}>
+                            {shortcut ? <Link2 size={13} /> : n.type === "folder" ? <Folder size={13} /> : <FileText size={13} />}
                           </span>
-                          <span className="truncate">{n.name}</span>
-                          {n.type === "folder" && <span className="text-[11px] font-normal" style={{ color: T.textMuted }}>{kids}件</span>}
+                          <span className="truncate">{shortcut ? (n.targetName || n.name) : n.name}</span>
+                          {n.type !== "file" && <span className="text-[11px] font-normal" style={{ color: T.textMuted }}>{kids}件</span>}
+                          {shortcut && <span className="text-[11px] font-semibold" style={{ color: T.accentHover }}>共有（全社）</span>}
                         </button>
                       </td>
                       <td className="px-4 py-2.5">
-                        <Badge tone={chip.tone}>{chip.label}</Badge>
+                        <VisBadge k={nodeVisKey(n)} />
                         {n.acl?.scope === "groups" && (
                           <span className="ml-1.5 text-[11px]" style={{ color: T.accentHover }}>
                             {(n.acl.groups || []).map(g => groupNames[g]).filter(Boolean).join("・") || "グループ指定"}
                           </span>
                         )}
-                        {n.acl?.scope === "org" && <span className="ml-1.5 text-[11px]" style={{ color: T.textMuted }}>全コース</span>}
                         {n.acl?.traineeWrite && n.acl?.roles?.trainee && (
                           <span className="ml-1.5 text-[11px]" style={{ color: T.textMuted }}>受講生も置ける</span>
                         )}
@@ -580,6 +796,10 @@ export default function LibraryView({ role }) {
           このコースのフォルダが多くなりすぎています。整理してください。
         </Card>
       )}
+      </>}
+      </div>
+      </div>
+      )}
 
       {/* 行のメニュー。**表の外に出す**（overflow-x-auto の中だと下が切れる） */}
       {menuFor && (() => {
@@ -590,14 +810,20 @@ export default function LibraryView({ role }) {
             {n.type === "file" && (
               <MenuItem icon={Download} label="ダウンロード" onClick={() => { setMenuFor(null); openFile(n, true); }} />
             )}
-            {n.type === "file" && spaceId === "shared" && role !== "trainee" && role !== "client" && (
+            {n.type === "file" && spaceId === "shared" && staff && (
               <MenuItem icon={FolderPlus} label="コースに置く" onClick={() => { setMenuFor(null); setLinkFile(n); }} />
+            )}
+            {n.type === "folder" && spaceId === "shared" && staff && (
+              <>
+                <MenuItem icon={Link2} label="コースに紐づける" onClick={() => { setMenuFor(null); setUseFolder({ node: n, mode: "link" }); }} />
+                <MenuItem icon={Copy} label="コースへコピー" onClick={() => { setMenuFor(null); setUseFolder({ node: n, mode: "copy" }); }} />
+              </>
             )}
             {n.canWrite ? (
               <>
-                <MenuItem icon={Users} label="公開範囲を変える" onClick={() => { setMenuFor(null); setAclTarget(n); }} />
-                <MenuItem icon={Pencil} label="名前を変える" onClick={() => { setMenuFor(null); rename(n); }} />
-                <MenuItem icon={Trash2} label="削除" danger onClick={() => { setMenuFor(null); remove(n); }} />
+                <MenuItem icon={Users} label="見える人を変える" onClick={() => { setMenuFor(null); setAclTarget(n); }} />
+                {n.type !== "shortcut" && <MenuItem icon={Pencil} label="名前を変える" onClick={() => { setMenuFor(null); rename(n); }} />}
+                <MenuItem icon={n.type === "shortcut" ? X : Trash2} label={n.type === "shortcut" ? "紐づけを外す" : "削除"} danger onClick={() => { setMenuFor(null); remove(n); }} />
               </>
             ) : (
               <div className="px-2.5 py-2 text-[11px]" style={{ color: T.textMuted }}>
@@ -619,6 +845,17 @@ export default function LibraryView({ role }) {
 
       {usageOpen && (
         <UsageModal data={usage} onClose={() => setUsageOpen(false)} />
+      )}
+
+      {useFolder && (
+        <UseFolderModal
+          node={useFolder.node}
+          initialMode={useFolder.mode}
+          courses={courses}
+          linked={links?.[useFolder.node.nodeId]}
+          onClose={() => setUseFolder(null)}
+          onSubmit={(mode, ids) => placeFolderInCourses(useFolder.node, mode, ids)}
+        />
       )}
 
       {viewing && (
@@ -654,6 +891,151 @@ export default function LibraryView({ role }) {
           }}
         />
       )}
+    </div>
+  );
+}
+
+/* コースの選択（2026-09-30）。どの役割でも研修資料の上の同じ場所に置く。1コースなら名前だけ */
+function CourseBar({ courses, value, onChange, withAll = false }) {
+  if (courses.length <= 1 && !withAll) {
+    return (
+      <div className="mb-4 flex items-center gap-3 rounded-2xl px-4 py-2.5" style={{ background: T.bgSurface, border: `1px solid ${T.border}` }}>
+        <span className="text-xs font-bold" style={{ color: T.textMuted }}>コース</span>
+        <span className="inline-flex items-center gap-2 text-sm font-bold" style={{ color: T.textPrimary }}><BookOpen size={15} style={{ color: T.accent }} />{courses[0]?.name || "—"}</span>
+      </div>
+    );
+  }
+  const items = withAll ? [{ courseId: "all", name: "すべて" }, ...courses] : courses;
+  return (
+    <div className="mb-4 flex flex-wrap items-center gap-3 rounded-2xl px-3 py-2" style={{ background: T.bgSurface, border: `1px solid ${T.border}` }}>
+      <span className="pl-1 text-xs font-bold" style={{ color: T.textMuted }}>コース</span>
+      <div className="flex flex-wrap gap-1" role="tablist" aria-label="コース">
+        {items.map(c => {
+          const on = c.courseId === value;
+          return (
+            <button key={c.courseId} type="button" role="tab" aria-selected={on} onClick={() => onChange(c.courseId)}
+              className="rounded-lg px-3.5 py-1.5 text-sm font-bold transition-colors"
+              style={on ? { background: T.accentSubtle, color: T.accentHover, boxShadow: `inset 0 0 0 1px ${T.accent}40` } : { color: T.textSecondary }}>
+              {c.name || c.courseId}
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+/* 共有（全社）のフォルダをコースで使う。ショートカットは元を直せば全コースに反映、コピーはコース用に複製 */
+function UseFolderModal({ node, initialMode, courses, linked, onClose, onSubmit }) {
+  const [mode, setMode] = useState(initialMode || "link");
+  const [picked, setPicked] = useState([]);
+  const already = new Set(((mode === "copy" ? linked?.copies : linked?.shortcuts) || []).map(x => x.courseId));
+  const toggle = id => setPicked(xs => xs.includes(id) ? xs.filter(x => x !== id) : [...xs, id]);
+  const options = [
+    ["link", Link2, "ショートカット", "元を1か所で直せば、全コースに反映"],
+    ["copy", Copy, "コピー", "コース用に複製。元とは別に直せる"],
+  ];
+  return (
+    <Modal title={`「${node.name}」をコースで使う`} onClose={onClose}
+      footer={<><Btn kind="ghost" onClick={onClose}>やめる</Btn><Btn icon={mode === "copy" ? Copy : Link2} disabled={!picked.length} onClick={() => onSubmit(mode, picked)}>{mode === "copy" ? "コピーする" : "紐づける"}</Btn></>}>
+      <div className="grid gap-4">
+        <div className="grid gap-2 sm:grid-cols-2">
+          {options.map(([key, Icon, label, desc]) => (
+            <button key={key} type="button" onClick={() => setMode(key)} className="grid gap-1 rounded-xl px-3.5 py-3 text-left"
+              style={{ border: `1.5px solid ${mode === key ? T.accent : T.border}`, background: mode === key ? T.accentSubtle : T.bgSurface }}>
+              <span className="flex items-center gap-2 text-sm font-bold" style={{ color: T.textPrimary }}><Icon size={15} />{label}</span>
+              <span className="text-xs" style={{ color: T.textSecondary }}>{desc}</span>
+            </button>
+          ))}
+        </div>
+        <div className="grid gap-1.5">
+          <div className="text-xs font-bold" style={{ color: T.textSecondary }}>使うコース</div>
+          {courses.length === 0 && <div className="text-xs" style={{ color: T.textMuted }}>選べるコースがありません</div>}
+          {courses.map(c => {
+            const done = already.has(c.courseId);
+            return (
+              <label key={c.courseId} className="flex items-center gap-2.5 rounded-xl px-3 py-2 text-sm" style={{ border: `1px solid ${T.border}`, opacity: done ? 0.6 : 1 }}>
+                <input type="checkbox" disabled={done} checked={done || picked.includes(c.courseId)} onChange={() => toggle(c.courseId)} style={{ accentColor: T.accent }} />
+                <span className="min-w-0 flex-1 truncate" style={{ color: T.textPrimary }}>{c.name || c.courseId}</span>
+                {done && <Badge tone="cyan">{mode === "copy" ? "コピー済み" : "紐づけ済み"}</Badge>}
+              </label>
+            );
+          })}
+        </div>
+      </div>
+    </Modal>
+  );
+}
+
+/* 見え方の一覧（2026-09-30）。役割×フォルダの表にせず、見え方ごとにまとめる。
+   講師・管理者はいつでも見られるので列にしない。選んだコースで使うフォルダと、運営だけのフォルダを出す */
+function VisibilityOverview({ courses, initialCourseId, onOpen }) {
+  const [courseSel, setCourseSel] = useState(initialCourseId || "all");
+  const [filter, setFilter] = useState("");
+  const [rows, setRows] = useState(null);
+  const [error, setError] = useState("");
+  useEffect(() => {
+    let alive = true;
+    setRows(null); setError("");
+    const targets = courseSel === "all" ? courses.map(c => c.courseId) : [courseSel];
+    Promise.all([
+      ...targets.map(id => apiGet(`/library?spaceId=${encodeURIComponent(`course#${id}`)}`).then(d => ({ sid: `course#${id}`, place: courses.find(c => c.courseId === id)?.name || id, d }))),
+      apiGet("/library?spaceId=ops").then(d => ({ sid: "ops", place: "運営だけ", d })),
+    ]).then(list => {
+      if (!alive) return;
+      const out = [];
+      list.forEach(({ sid, place, d }) => (d?.nodes || []).forEach(n => {
+        if (n.nodeId === ROOT || (n.type !== "folder" && n.type !== "shortcut")) return;
+        const parent = (d.nodes || []).find(x => x.nodeId === n.parentId);
+        out.push({
+          key: `${sid}:${n.nodeId}`, sid, node: n, place: n.type === "shortcut" ? `${place} ・ 共有（全社）` : place,
+          name: n.type === "shortcut" ? (n.targetName || n.name) : (parent && parent.nodeId !== ROOT ? `${parent.name} ／ ${n.name}` : n.name),
+          k: nodeVisKey(n), shortcut: n.type === "shortcut",
+        });
+      }));
+      setRows(out);
+    }).catch(e => { if (alive) setError(e?.errorMessage || e?.message || "一覧を読み込めませんでした。"); });
+    return () => { alive = false; };
+  }, [courseSel, courses]);
+
+  const counts = {};
+  (rows || []).forEach(r => { counts[r.k] = (counts[r.k] || 0) + 1; });
+  return (
+    <div>
+      <CourseBar courses={courses} value={courseSel} onChange={setCourseSel} withAll />
+      {error && <PrismErrorRetryCard message={error} onRetry={() => setCourseSel(v => v)} />}
+      {!rows && !error && <Card className="p-4"><SkeletonRows rows={5} /></Card>}
+      {rows && <>
+        <div className="mb-3 flex flex-wrap items-center gap-2">
+          {[["", "すべて", rows.length], ...VIS_ORDER.map(k => [k, null, counts[k] || 0])].map(([k, label, n]) => (
+            <button key={k || "all"} type="button" onClick={() => setFilter(k)}
+              className="inline-flex items-center gap-2 rounded-full py-1 pl-3 pr-2 text-sm font-bold"
+              style={{ background: T.bgSurface, border: `1px solid ${filter === k ? T.textPrimary : T.border}`, boxShadow: filter === k ? `inset 0 0 0 1px ${T.textPrimary}` : undefined, color: T.textPrimary }}>
+              {label || <VisBadge k={k} />}<span className="text-xs tabular-nums" style={{ color: T.textMuted }}>{n}</span>
+            </button>
+          ))}
+        </div>
+        <div className="mb-3 flex items-center gap-1.5 text-xs" style={{ color: T.textMuted }}><Lock size={12} />講師・管理者は、すべてのフォルダを見られます</div>
+        <div className="grid gap-3">
+          {VIS_ORDER.filter(k => !filter || filter === k).map(k => {
+            const list = rows.filter(r => r.k === k);
+            if (!list.length) return null;
+            return (
+              <Card key={k} className="overflow-hidden p-0">
+                <div className="flex items-center gap-2 px-4 pb-2 pt-3"><VisBadge k={k} /><span className="text-xs font-bold tabular-nums" style={{ color: T.textMuted }}>{list.length}</span></div>
+                {list.map(r => (
+                  <div key={r.key} className="grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-3 px-4 py-2.5" style={{ borderTop: `1px solid ${T.border}` }}>
+                    <span className="flex h-8 w-8 items-center justify-center rounded-lg" style={{ background: T.bgBase, color: r.shortcut ? T.accent : T.textMuted }}>{r.shortcut ? <Link2 size={15} /> : <Folder size={15} />}</span>
+                    <div className="min-w-0"><div className="truncate text-sm font-bold" style={{ color: T.textPrimary }}>{r.name}</div><div className="truncate text-xs" style={{ color: T.textMuted }}>{r.place}</div></div>
+                    <Btn size="sm" kind="ghost" onClick={() => onOpen(r.sid, r.node.nodeId, r.node)}>開く</Btn>
+                  </div>
+                ))}
+              </Card>
+            );
+          })}
+          {!rows.length && <Card className="p-4 text-sm" style={{ color: T.textMuted }}>フォルダはまだありません</Card>}
+        </div>
+      </>}
     </div>
   );
 }

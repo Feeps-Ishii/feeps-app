@@ -162,3 +162,23 @@ export function getTrainingTargetContext(view, { consume = true } = {}) {
     return null;
   }
 }
+
+/* 研修資料で開くフォルダ（2026-09-30）。カリキュラムのフォルダのカードから研修資料へ移るときに使う。
+   { courseId, nodeId } … nodeId はコースの置き場のフォルダかショートカット。1回読んだら消す */
+const LIBRARY_TARGET_KEY = "feeps.libraryTarget";
+export function setLibraryTarget({ courseId, nodeId } = {}) {
+  const c = safeTargetValue(courseId), n = safeTargetValue(nodeId);
+  try {
+    if (c && n) window.sessionStorage.setItem(LIBRARY_TARGET_KEY, JSON.stringify({ courseId: c, nodeId: n }));
+    else window.sessionStorage.removeItem(LIBRARY_TARGET_KEY);
+  } catch { /* sessionStorageが使えない環境では研修資料の先頭を開く */ }
+}
+export function takeLibraryTarget() {
+  try {
+    const raw = window.sessionStorage.getItem(LIBRARY_TARGET_KEY);
+    window.sessionStorage.removeItem(LIBRARY_TARGET_KEY);
+    const t = raw ? JSON.parse(raw) : null;
+    const c = safeTargetValue(t?.courseId), n = safeTargetValue(t?.nodeId);
+    return c && n ? { courseId: c, nodeId: n } : null;
+  } catch { return null; }
+}
