@@ -222,3 +222,24 @@ export function takeCurriculumReturn(remove = true) {
     return c && k ? { courseId: c, unitKey: k } : null;
   } catch { return null; }
 }
+
+/* テストの一覧で目立たせるテスト（2026-10-01）。カリキュラムの確認テストから一覧へ移るときに使う。
+   テストはテストの一覧で選んで受ける（ユーザー指定）。読むだけにして、使ったあとで {} で消す */
+const TEST_FOCUS_KEY = "feeps.testFocus";
+export function setTestFocus({ courseId, testId } = {}) {
+  const c = safeTargetValue(courseId), t = safeTargetValue(testId);
+  if (c) setActiveCourseId(c);
+  try {
+    if (t) window.sessionStorage.setItem(TEST_FOCUS_KEY, JSON.stringify({ courseId: c, testId: t }));
+    else window.sessionStorage.removeItem(TEST_FOCUS_KEY);
+  } catch { /* sessionStorageが使えない環境では一覧の先頭を出す */ }
+}
+export function takeTestFocus(remove = true) {
+  try {
+    const raw = window.sessionStorage.getItem(TEST_FOCUS_KEY);
+    if (remove) window.sessionStorage.removeItem(TEST_FOCUS_KEY);
+    const t = raw ? JSON.parse(raw) : null;
+    const testId = safeTargetValue(t?.testId);
+    return testId ? { courseId: safeTargetValue(t?.courseId), testId } : null;
+  } catch { return null; }
+}
