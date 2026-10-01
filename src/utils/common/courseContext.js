@@ -183,3 +183,42 @@ export function takeLibraryTarget(remove = true) {
     return c && n ? { courseId: c, nodeId: n } : null;
   } catch { return null; }
 }
+
+/* カリキュラムとテストの行き来（2026-10-01）。
+   テストへ：{ courseId, scopeId, title, mode: "ai"|"manual" }（単元で作る）／{ courseId, testId, results }（なおす・結果）
+   カリキュラムへ戻る：{ courseId, unitKey }（テストを閉じたら元の単元を開く）。どちらも読むだけにして、使ったあとで {} で消す */
+const TEST_BUILD_TARGET_KEY = "feeps.testBuildTarget";
+export function setTestBuildTarget({ courseId, scopeId, title, mode, testId, results } = {}) {
+  const t = { courseId: safeTargetValue(courseId), scopeId: safeTargetValue(scopeId), title: safeTargetValue(title, 200), mode: mode === "ai" ? "ai" : "manual", testId: safeTargetValue(testId), results: !!results };
+  try {
+    if (t.courseId && (t.scopeId || t.testId)) window.sessionStorage.setItem(TEST_BUILD_TARGET_KEY, JSON.stringify(t));
+    else window.sessionStorage.removeItem(TEST_BUILD_TARGET_KEY);
+  } catch { /* sessionStorageが使えない環境ではテストの一覧を開く */ }
+}
+export function takeTestBuildTarget(remove = true) {
+  try {
+    const raw = window.sessionStorage.getItem(TEST_BUILD_TARGET_KEY);
+    if (remove) window.sessionStorage.removeItem(TEST_BUILD_TARGET_KEY);
+    const t = raw ? JSON.parse(raw) : null;
+    const courseId = safeTargetValue(t?.courseId), scopeId = safeTargetValue(t?.scopeId), testId = safeTargetValue(t?.testId);
+    if (!courseId || !(scopeId || testId)) return null;
+    return { courseId, scopeId, testId, title: safeTargetValue(t?.title, 200), mode: t?.mode === "ai" ? "ai" : "manual", results: !!t?.results };
+  } catch { return null; }
+}
+const CURRICULUM_RETURN_KEY = "feeps.curriculumReturn";
+export function setCurriculumReturn({ courseId, unitKey } = {}) {
+  const c = safeTargetValue(courseId), k = safeTargetValue(unitKey, 64);
+  try {
+    if (c && k) window.sessionStorage.setItem(CURRICULUM_RETURN_KEY, JSON.stringify({ courseId: c, unitKey: k }));
+    else window.sessionStorage.removeItem(CURRICULUM_RETURN_KEY);
+  } catch { /* sessionStorageが使えない環境では今日の単元を開く */ }
+}
+export function takeCurriculumReturn(remove = true) {
+  try {
+    const raw = window.sessionStorage.getItem(CURRICULUM_RETURN_KEY);
+    if (remove) window.sessionStorage.removeItem(CURRICULUM_RETURN_KEY);
+    const t = raw ? JSON.parse(raw) : null;
+    const c = safeTargetValue(t?.courseId), k = safeTargetValue(t?.unitKey, 64);
+    return c && k ? { courseId: c, unitKey: k } : null;
+  } catch { return null; }
+}

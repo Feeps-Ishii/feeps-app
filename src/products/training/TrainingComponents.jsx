@@ -18,7 +18,7 @@ const LessonNoteDock = React.lazy(() => import("./LessonNoteDock.jsx"));
 const MaterialViewer = React.lazy(() => import("./MaterialViewer.jsx"));
 import SubmissionCalendar from "./SubmissionCalendar.jsx";
 import SubmissionList from "./SubmissionList.jsx";
-import { clearTraineeTestDraft, clearTrainingTargetContext, getActiveCourseId, getTraineeTestDraft, getTrainingTargetContext, setActiveCourseId, setLibraryTarget, setTraineeTestDraft, setTrainingTargetContext } from "../../utils/common/courseContext.js";
+import { clearTraineeTestDraft, clearTrainingTargetContext, getActiveCourseId, getTraineeTestDraft, getTrainingTargetContext, setActiveCourseId, setCurriculumReturn, setLibraryTarget, setTestBuildTarget, setTraineeTestDraft, setTrainingTargetContext, takeCurriculumReturn, takeTestBuildTarget } from "../../utils/common/courseContext.js";
 import {
   FileText, ClipboardCheck, Clock, NotebookPen, Users,
   Building2, BookOpen, PenLine, Search, Upload, Download,
@@ -945,6 +945,124 @@ function curriculumMonthDay(value) {
   return `${Number(m)}/${Number(d)}`;
 }
 
+/* 単元の中の確認テスト（2026-10-01）。受講生はその場で受け、講師・管理者はその単元で作る・なおす・結果を見る。
+   テストのタブと同じテストを指す（つなぎ先はテストの sectionId / chapterId / lessonId） */
+function summarizeTestRows(rows) {
+  const list = arr(rows);
+  const scores = list.map(r => Number(r.officialScore ?? r.teacherScore ?? r.score)).filter(Number.isFinite);
+  return {
+    taken: list.length,
+    avg: scores.length ? Math.round(scores.reduce((a, b) => a + b, 0) / scores.length) : null,
+    low: scores.filter(v => v < 70).length,
+    review: list.filter(r => !r.reviewedAt && (Number(r.needsReview) > 0 || Object.values(r.answers || {}).some(a => a?.needsReview))).length,
+  };
+}
+function curriculumUnitScope(section, chapter, lesson, scope) {
+  if (scope === "section") {
+    return { scopeId: `section:${section.id}`, title: section.title || "", fields: { scopeType: "section", sectionId: section.id || "", sectionTitle: section.title || "", chapterId: "", chapterTitle: "", lessonId: "", lessonTitle: "" } };
+  }
+  return { scopeId: `lesson:${section.id}:${chapter.id}:${lesson.id}`, title: lesson.title || "", fields: { scopeType: "lesson", sectionId: section.id || "", sectionTitle: section.title || "", chapterId: chapter.id || "", chapterTitle: chapter.title || "", lessonId: lesson.id || "", lessonTitle: lesson.title || "" } };
+}
+function testScopeRank(test) {
+  return test?.lessonId ? 0 : test?.chapterId ? 1 : test?.sectionId ? 2 : 3;
+}
+function testScopeIdOf(test) {
+  if (!test) return "";
+  if (test.lessonId) return `lesson:${test.sectionId}:${test.chapterId}:${test.lessonId}`;
+  if (test.chapterId) return `chapter:${test.sectionId}:${test.chapterId}`;
+  if (test.sectionId) return `section:${test.sectionId}`;
+  return "";
+}
+function CurriculumUnitTests({ mode, tests, results, courseTests = [], onTake, onBuild, onEdit, onResults, onLink }) {
+  const staff = mode === "staff";
+  const [stats, setStats] = useState({});
+  const [linkBusy, setLinkBusy] = useState(false);
+  const [linkErr, setLinkErr] = useState("");
+  const idsKey = tests.map(testIdOf).join("|");
+  useEffect(() => {
+    if (!staff || !tests.length) return undefined;
+    let alive = true;
+    Promise.all(tests.map(t => apiGet(`/tests/${testIdOf(t)}/results`)
+      .then(rows => [testIdOf(t), summarizeTestRows(rows)])
+      .catch(() => [testIdOf(t), null])))
+      .then(pairs => { if (alive) setStats(Object.fromEntries(pairs)); });
+    return () => { alive = false; };
+  }, [staff, idsKey]);
+  const icon = <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl text-white" style={{ background: NOVA.gradAccent }}><ClipboardCheck size={18} /></span>;
+  const rowStyle = { border: `1px solid ${T.border}`, background: `linear-gradient(135deg, ${T.accentSubtle}, #fff)` };
+  if (!staff) {
+    return <div className="space-y-2">{tests.map(test => {
+      const t = normalizeTest(test);
+      const id = testIdOf(test);
+      const r = results ? results[id] : undefined;
+      const score = r ? Number(r.officialScore ?? r.score) : null;
+      const hasQ = testQuestionsOf(test).length > 0;
+      const canSeeResult = !!(r && getTraineeTestDraft(id)?.result);
+      const status = results == null ? <Badge tone="muted">結果を確認できません</Badge>
+        : !r ? <Badge tone="amber">未受験</Badge>
+        : Number(r.needsReview) > 0 && !r.reviewedAt ? <Badge tone="muted">採点待ち</Badge>
+        : <Badge tone={score >= 70 ? "green" : "red"}>{score}点</Badge>;
+      return (
+        <div key={id} className="grid grid-cols-[auto_minmax(0,1fr)] items-center gap-3 rounded-xl px-3.5 py-3 sm:grid-cols-[auto_minmax(0,1fr)_auto]" style={rowStyle}>
+          {icon}
+          <div className="min-w-0">
+            <div className="truncate text-sm font-bold" style={{ color: T.textPrimary }}>{t.title}</div>
+            <div className="mt-0.5 flex flex-wrap items-center gap-1.5 text-xs" style={{ color: T.textMuted }}><span>{t.q}問</span><span>・</span><span>{t.limit}</span>{status}</div>
+          </div>
+          <div className="col-span-2 flex flex-wrap justify-end gap-2 sm:col-span-1">
+            {!hasQ ? <Btn size="sm" kind="ghost" disabled>設問なし</Btn>
+              : results == null ? null
+              : !r ? <Btn size="sm" icon={PlayCircle} onClick={() => onTake(test, false)}>受ける</Btn>
+              : <>{canSeeResult && <Btn size="sm" kind="ghost" onClick={() => onTake(test, false)}>結果</Btn>}<Btn size="sm" kind="ghost" icon={RefreshCw} onClick={() => onTake(test, true)}>もう一度</Btn></>}
+          </div>
+        </div>
+      );
+    })}</div>;
+  }
+  const candidates = courseTests;   // 呼び出し側で「この単元につないでいないもの」に絞る（コース全体のテストもつなぎ直せる）
+  async function link(id) {
+    const test = candidates.find(t => testIdOf(t) === id);
+    if (!test || linkBusy) return;
+    setLinkBusy(true); setLinkErr("");
+    try { await onLink(test); }
+    catch (e) { setLinkErr("つなげませんでした：" + (e?.errorMessage || e?.message || e)); }
+    finally { setLinkBusy(false); }
+  }
+  return (
+    <div className="space-y-2">
+      {tests.map(test => {
+        const t = normalizeTest(test);
+        const id = testIdOf(test);
+        const s = stats[id];
+        const line = s === undefined ? "結果を読み込み中…" : s === null ? "結果を確認できません"
+          : !s.taken ? "まだ受験はありません"
+          : [`受験 ${s.taken}人`, s.avg != null && `平均 ${s.avg}点`, s.low > 0 && `70点未満 ${s.low}人`, s.review > 0 && `採点待ち ${s.review}件`].filter(Boolean).join(" ・ ");
+        return (
+          <div key={id} className="grid grid-cols-[auto_minmax(0,1fr)] items-center gap-3 rounded-xl px-3.5 py-3 sm:grid-cols-[auto_minmax(0,1fr)_auto]" style={rowStyle}>
+            {icon}
+            <div className="min-w-0">
+              <div className="flex flex-wrap items-center gap-1.5"><span className="truncate text-sm font-bold" style={{ color: T.textPrimary }}>{t.title}</span><Badge tone={test.status === "published" ? "green" : "muted"}>{test.status === "published" ? "公開中" : "下書き"}</Badge><span className="text-xs" style={{ color: T.textMuted }}>{t.q}問</span></div>
+              <div className="mt-0.5 text-xs tabular-nums" style={{ color: s?.review > 0 || s?.low > 0 ? T.warning : T.textMuted }}>{line}</div>
+            </div>
+            <div className="col-span-2 flex flex-wrap justify-end gap-2 sm:col-span-1">
+              <Btn size="sm" kind="ghost" icon={Pencil} onClick={() => onEdit(test)}>なおす</Btn>
+              <Btn size="sm" kind="ghost" disabled={!s?.taken} onClick={() => onResults(test)}>結果</Btn>
+            </div>
+          </div>
+        );
+      })}
+      <div className="flex flex-wrap items-center gap-2">
+        <Btn size="sm" icon={Sparkles} onClick={() => onBuild("ai")}>AIで作る</Btn>
+        <Btn size="sm" kind="ghost" icon={Pencil} onClick={() => onBuild("manual")}>自分で作る</Btn>
+        {candidates.length > 0 && <select value="" disabled={linkBusy} onChange={e => link(e.target.value)} aria-label="作ってあるテストをつなぐ" className="min-w-0 max-w-full rounded-xl bg-white px-3 py-1.5 text-xs outline-none" style={{ border: `1px solid ${T.border}`, color: T.textMuted }}>
+          <option value="">{linkBusy ? "つないでいます…" : "＋ 作ってあるテストをつなぐ"}</option>
+          {candidates.map(t => <option key={testIdOf(t)} value={testIdOf(t)}>{t.title}（{t.lessonTitle || t.chapterTitle || t.sectionTitle || "コース全体"}）</option>)}
+        </select>}
+      </div>
+      {linkErr && <p className="text-xs" style={{ color: T.danger }}>{linkErr}</p>}
+    </div>
+  );
+}
 function Curriculum({ role, go, goProduct, done = {}, goals = [] }) {
   const [courses, setCourses] = useState([]);
   const [currentUserId, setCurrentUserId] = useState("");
@@ -967,6 +1085,11 @@ function Curriculum({ role, go, goProduct, done = {}, goals = [] }) {
   const [importPreview, setImportPreview] = useState(null);
   const [importingCurriculum, setImportingCurriculum] = useState(false);
   const curriculumImportRef = useRef(null);
+  // カリキュラムの中でテストを受ける・作る（2026-10-01）
+  const [myTestResults, setMyTestResults] = useState({});   // 受講生：testId → 自分の結果。null は確認できない
+  const [takingTest, setTakingTest] = useState(null);
+  const [curriculumReturn] = useState(() => takeCurriculumReturn(false));
+  const savedSectionsRef = useRef("");
   const materialsById = useMemo(() => Object.fromEntries(materials.map(m => [m.materialId, m])), [materials]);
   const selectedCourse = useMemo(() => courses.find(c => c.courseId === courseId) || null, [courses, courseId]);
   const canEdit = role === "admin" || (role === "instructor" && Array.isArray(selectedCourse?.instructorIds) && selectedCourse.instructorIds.includes(currentUserId));
@@ -994,8 +1117,11 @@ function Curriculum({ role, go, goProduct, done = {}, goals = [] }) {
       .then(item => {
         const next = normalizeCurriculumSections(item);
         setSections(next);
-        // 開いたときは今日の単元（無ければ次の単元）を選んでおく
-        const key = curriculumDefaultUnitKey(curriculumUnitList(next), localDateKey());
+        savedSectionsRef.current = JSON.stringify(next);
+        // 開いたときは今日の単元（無ければ次の単元）。テストから戻ったときは元の単元
+        const back = curriculumReturn?.courseId === courseId ? curriculumReturn.unitKey : "";
+        if (back) setCurriculumReturn({});
+        const key = back || curriculumDefaultUnitKey(curriculumUnitList(next), localDateKey());
         setSelectedCurriculumKey(key);
         setExpandedCurriculumSections(key ? { [key.split(":")[1]]: true } : {});
       })
@@ -1003,6 +1129,8 @@ function Curriculum({ role, go, goProduct, done = {}, goals = [] }) {
       .finally(() => setLoading(false));
     apiGet(`/materials?courseId=${courseId}`).then(l => setMaterials(l || [])).catch(() => setMaterials([]));
     apiGet(`/tests?courseId=${courseId}`).then(l => setTests((l || []).filter(test => test.status !== "archived"))).catch(() => setTests([]));
+    setTakingTest(null);
+    if (role === "trainee") apiGet("/tests/me").then(rows => setMyTestResults(Object.fromEntries(arr(rows).map(r => [String(r.testId), r])))).catch(() => setMyTestResults(null));
     // 研修資料のフォルダ（編集で「フォルダをつなぐ」に使う）。受講生・企業担当は読まない
     if (role === "admin" || role === "instructor") {
       apiGet(`/library?spaceId=${encodeURIComponent(`course#${courseId}`)}`)
@@ -1047,9 +1175,41 @@ function Curriculum({ role, go, goProduct, done = {}, goals = [] }) {
     try {
       const payload = { sections, sessions: sessionsFromSections(sections) };
       await apiPut(`/courses/${courseId}/curriculum`, payload);
+      savedSectionsRef.current = JSON.stringify(sections);
       setMsg("保存しました。"); setTimeout(() => setMsg(""), 2000);
     }
     catch (e) { setErr("保存に失敗しました：" + (e?.message || e)); } finally { setBusy(false); }
+  }
+  /* 単元からテストへ（2026-10-01）。作る・なおす・結果はテストの画面で開き、閉じたら同じ単元へ戻る */
+  function openTestsFromUnit(target) {
+    if (canEdit && savedSectionsRef.current && JSON.stringify(sections) !== savedSectionsRef.current
+      && !window.confirm("保存していないカリキュラムの変更があります。保存せずにテストへ移りますか？")) return;
+    setCurriculumReturn({ courseId, unitKey: activeCurriculumKey });
+    setTestBuildTarget({ courseId, ...target });
+    go?.("tests");
+  }
+  async function linkTestToUnit(test, fields) {
+    const id = testIdOf(test);
+    const updated = await apiPut(`/tests/${id}`, fields);
+    setTests(list => list.map(t => testIdOf(t) === id ? { ...t, ...fields, ...(updated && typeof updated === "object" && updated.testId ? updated : {}) } : t));
+  }
+  async function saveMyTestResult(test, result) {
+    const id = testIdOf(test);
+    const { score, total, answers, needsReview, weakAreas } = result || {};
+    await apiPut(`/tests/${id}/results/me`, { score, total, answers, needsReview, weakAreas });
+    setMyTestResults(map => map ? { ...map, [id]: { ...(map[id] || {}), testId: id, score, officialScore: score, needsReview: needsReview || 0, reviewedAt: "" } } : map);
+    emitNotificationRefresh();
+  }
+  function unitTestMark(own) {
+    if (!own.length) return <span />;
+    if (role !== "trainee") return <span className="inline-flex items-center gap-0.5 text-[10px] font-bold tabular-nums" style={{ color: T.textMuted }}><ClipboardCheck size={12} />{own.length}</span>;
+    if (!myTestResults) return <span />;
+    const rows = own.map(t => myTestResults[testIdOf(t)]);
+    const chip = (text, bg, color) => <span className="rounded-full px-1.5 text-[10px] font-bold" style={{ background: bg, color }}>{text}</span>;
+    if (rows.some(r => !r)) return chip("テスト", T.warningSubtle, T.warning);
+    if (rows.some(r => Number(r.needsReview) > 0 && !r.reviewedAt)) return chip("採点待ち", T.bgBase, T.textMuted);
+    if (rows.some(r => Number(r.officialScore ?? r.score) < 70)) return chip("再受験", T.dangerSubtle, T.danger);
+    return <span className="inline-flex" style={{ color: T.success }}><ClipboardCheck size={13} /></span>;
   }
   async function openMaterialById(id) {
     const tab = window.open("", "_blank");
@@ -1220,7 +1380,7 @@ function Curriculum({ role, go, goProduct, done = {}, goals = [] }) {
     if (test.chapterId) return test.chapterId === chapter.id;
     if (test.sectionId) return test.sectionId === section.id;
     return test.scopeType === "course" || (!test.scopeType && !test.lessonId && !test.chapterId && !test.sectionId);
-  });
+  }).sort((a, b) => testScopeRank(a) - testScopeRank(b));   // その単元のテストを先に、コース全体のものを後に（2026-10-01）
   const todayKey = localDateKey();
   const curriculumUnits = useMemo(() => curriculumUnitList(sections), [sections]);
   const defaultCurriculumKey = useMemo(() => curriculumDefaultUnitKey(curriculumUnits, todayKey), [curriculumUnits, todayKey]);
@@ -1238,6 +1398,7 @@ function Curriculum({ role, go, goProduct, done = {}, goals = [] }) {
   const curriculumDetailRef = useRef(null);
   function selectCurriculumItem(key, keepScroll = false) {
     if (!key) return;
+    setTakingTest(null);
     setSelectedCurriculumKey(key);
     const si = key.split(":")[1];
     setExpandedCurriculumSections(state => ({ ...state, [si]: true }));
@@ -1294,7 +1455,7 @@ function Curriculum({ role, go, goProduct, done = {}, goals = [] }) {
                 <span className="h-2 w-2 shrink-0 rounded-full" style={{ background: dot }} />
                 <span className="min-w-0 flex-1 truncate">{section.title || "大項目未設定"}</span>
                 {single
-                  ? <span className="text-[11px] font-medium tabular-nums" style={{ color: hasToday ? T.accent : T.textMuted }}>{hasToday ? "今日" : curriculumMonthDay(section.startDate)}</span>
+                  ? <>{unitTestMark(tests.filter(t => !t.lessonId && !t.chapterId && t.sectionId && t.sectionId === section.id))}<span className="text-[11px] font-medium tabular-nums" style={{ color: hasToday ? T.accent : T.textMuted }}>{hasToday ? "今日" : curriculumMonthDay(section.startDate)}</span></>
                   : <><span className="text-[11px] font-medium tabular-nums" style={{ color: T.textMuted }}>{doneCount}/{units.length}</span>{open ? <ChevronUp size={14} style={{ color: T.textMuted }} /> : <ChevronDown size={14} style={{ color: T.textMuted }} />}</>}
               </button>
               {open && !single && (
@@ -1310,10 +1471,11 @@ function Curriculum({ role, go, goProduct, done = {}, goals = [] }) {
                         const active = activeCurriculumKey === key;
                         return (
                           <button key={lesson.id || li} type="button" onClick={() => selectCurriculumItem(key)}
-                            className="grid w-full grid-cols-[16px_minmax(0,1fr)_auto] items-center gap-2 rounded-lg py-1.5 pl-6 pr-2.5 text-left text-[13px]"
+                            className="grid w-full grid-cols-[16px_minmax(0,1fr)_auto_auto] items-center gap-2 rounded-lg py-1.5 pl-6 pr-2.5 text-left text-[13px]"
                             style={active ? { background: T.accentSubtle, color: T.textPrimary, fontWeight: 700, boxShadow: `inset 3px 0 0 ${T.accent}` } : { color: T.textSecondary }}>
                             <span className="flex h-4 w-4 items-center justify-center rounded-full" style={state === "done" ? { background: T.success, color: "#fff" } : { border: `${state === "today" ? 2 : 1.5}px solid ${state === "today" ? T.accent : T.border}` }}>{state === "done" && <Check size={10} strokeWidth={3.5} />}</span>
                             <span className="truncate">{lesson.title || "小項目未設定"}</span>
+                            {unitTestMark(tests.filter(t => t.lessonId && t.lessonId === lesson.id))}
                             <span className="text-[11px] tabular-nums" style={{ color: state === "today" ? T.accent : T.textMuted, fontWeight: state === "today" ? 700 : 400 }}>{state === "today" ? "今日" : curriculumMonthDay(lesson.startDate)}</span>
                           </button>
                         );
@@ -1335,6 +1497,9 @@ function Curriculum({ role, go, goProduct, done = {}, goals = [] }) {
   /* 右：受講生（見るだけ）。選んだ単元の中身だけを出す。 */
   function renderCurriculumUnit(unit) {
     const { section, chapter, lesson, scope } = unit;
+    if (takingTest) {
+      return <div className="min-w-0"><TestTaking inline test={takingTest} back={() => { setTakingTest(null); curriculumDetailRef.current?.scrollIntoView({ block: "start" }); }} onDone={result => saveMyTestResult(takingTest, result)} go={go} /></div>;
+    }
     const state = curriculumUnitState(lesson, todayKey);
     const at = curriculumUnits.findIndex(u => u.key === unit.key);
     const prev = curriculumUnits[at - 1];
@@ -1388,15 +1553,29 @@ function Curriculum({ role, go, goProduct, done = {}, goals = [] }) {
         {goals.length > 0 && block(<Target size={15} style={{ color: T.accent }} />, "学習目標", <ul className="space-y-1">{goals.map((goal, gi) => <li key={gi} className="flex gap-2 text-sm" style={{ color: T.textPrimary }}><CheckCircle2 size={14} className="mt-1 shrink-0" style={{ color: T.accent }} />{goal}</li>)}</ul>)}
         {prep.length > 0 && block(<AlertCircle size={15} style={{ color: T.warning }} />, "事前に用意・実施すること", <ul className="space-y-1">{prep.map((item, pi) => <li key={pi} className="flex gap-2 text-sm" style={{ color: T.textPrimary }}><Circle size={13} className="mt-1 shrink-0" style={{ color: T.warning }} />{item}</li>)}</ul>)}
         {exercises.length > 0 && block(<Briefcase size={15} style={{ color: T.accent }} />, "演習", renderExerciseList(exercises, `${scope}:${lesson.id}`), `${exercises.length}件`)}
-        {unitTests.length > 0 && block(<ClipboardCheck size={15} style={{ color: T.accent }} />, "確認テスト", <div className="flex flex-wrap items-center gap-2">
-          {unitTests.map(test => <Badge key={test.testId || test.id} tone={test.status === "published" ? "green" : "muted"}>{test.title}</Badge>)}
-          <div className="ml-auto"><Btn size="sm" onClick={() => go?.("tests")}>テストへ</Btn></div>
-        </div>)}
+        {unitTests.length > 0 && block(<ClipboardCheck size={15} style={{ color: T.accent }} />, "確認テスト",
+          <CurriculumUnitTests mode="trainee" tests={unitTests} results={myTestResults}
+            onTake={(test, retake) => { if (retake) clearTraineeTestDraft(testIdOf(test)); setTakingTest(normalizeTest(test)); curriculumDetailRef.current?.scrollIntoView({ block: "start" }); }} />)}
         <div className="flex items-center justify-between gap-2 border-t px-5 py-3" style={{ borderColor: T.border, background: T.bgBase }}>
           <Btn size="sm" kind="ghost" icon={ChevronLeft} disabled={!prev} onClick={() => prev && selectCurriculumItem(prev.key)}>前の単元</Btn>
           <Btn size="sm" kind="ghost" disabled={!next} onClick={() => next && selectCurriculumItem(next.key)}>次の単元<ChevronRight size={14} className="ml-1 inline" /></Btn>
         </div>
       </Card>
+    );
+  }
+
+  function renderUnitTestEditor(section, chapter, lesson, scope, className) {
+    const unitScope = curriculumUnitScope(section, chapter, lesson, scope);
+    const own = scope === "section" ? linkedTests(section, {}, {}) : linkedTests(section, chapter, lesson);
+    return (
+      <div className={`rounded-xl p-3 ${className}`} style={{ border: `1px solid ${T.border}` }}>
+        <div className="mb-2 flex items-center gap-2 text-sm font-bold" style={{ color: T.textPrimary }}><ClipboardCheck size={15} />確認テスト</div>
+        <CurriculumUnitTests mode="staff" tests={own} courseTests={tests.filter(t => testScopeIdOf(t) !== unitScope.scopeId)}
+          onBuild={mode => openTestsFromUnit({ scopeId: unitScope.scopeId, title: unitScope.title, mode })}
+          onEdit={test => openTestsFromUnit({ testId: testIdOf(test) })}
+          onResults={test => openTestsFromUnit({ testId: testIdOf(test), results: true })}
+          onLink={test => linkTestToUnit(test, unitScope.fields)} />
+      </div>
     );
   }
 
@@ -1429,7 +1608,7 @@ function Curriculum({ role, go, goProduct, done = {}, goals = [] }) {
               {arr(section.materialIds).length > 0 && <div className="mt-3 flex flex-wrap gap-1.5">{arr(section.materialIds).map(mid => materialsById[mid] && <span key={mid} className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs" style={{ background: T.accentSubtle, color: T.accentHover }}><button onClick={() => openMaterialById(mid)} className="inline-flex items-center gap-1"><FileText size={11} />{materialsById[mid].title}</button><button onClick={() => updateSection(si, "materialIds", arr(section.materialIds).filter(id => id !== mid))}><X size={11} /></button></span>)}</div>}
               <select value="" onChange={e => { const id=e.target.value; if(id && !arr(section.materialIds).includes(id)) updateSection(si, "materialIds", [...arr(section.materialIds), id]); e.target.value=""; }} className="mt-2 w-full rounded-xl bg-white px-3 py-2 text-xs outline-none" style={{ border: `1px solid ${T.border}`, color: T.textMuted }}><option value="">＋ 資料を追加</option>{materials.filter(m => !arr(section.materialIds).includes(m.materialId)).map(m => <option key={m.materialId} value={m.materialId}>{m.title}</option>)}</select>
               {renderFolderPicker(section.folderLinks, next => updateSection(si, "folderLinks", next))}
-              <div className="mt-3 flex flex-wrap items-center gap-2 rounded-xl bg-white px-3 py-2.5" style={{ border: `1px solid ${T.border}` }}><ClipboardCheck size={14} /><span className="text-xs font-bold">確認テスト</span>{linkedTests(section, {}, {}).length ? linkedTests(section, {}, {}).map(test => <Badge key={test.testId || test.id} tone={test.status === "published" ? "green" : "muted"}>{test.title}</Badge>) : <span className="text-xs" style={{ color: T.textMuted }}>未設定</span>}<button type="button" onClick={() => go?.("tests")} className="ml-auto text-xs font-semibold" style={{ color: T.accentHover }}>テスト管理へ <ChevronRight size={13} className="inline" /></button></div>
+              {renderUnitTestEditor(section, null, null, "section", "mt-3 bg-white")}
             </div>
           ) : (
             <div className="rounded-xl bg-white p-3" style={{ border: `1px solid ${T.border}` }}>
@@ -1503,7 +1682,7 @@ function Curriculum({ role, go, goProduct, done = {}, goals = [] }) {
         {materials.filter(m => !sessMids(lesson).includes(m.materialId)).map(m => <option key={m.materialId} value={m.materialId}>{m.title}</option>)}
         </select>
         {renderFolderPicker(lesson.folderLinks, next => updateLesson(si, ci, li, "folderLinks", next))}
-        <div className="mt-3 rounded-xl px-3 py-2.5" style={{ background: T.bgBase }}><div className="flex flex-wrap items-center justify-between gap-2"><div className="flex flex-wrap items-center gap-2"><span className="flex items-center gap-1.5 text-xs font-bold" style={{ color: T.textSecondary }}><ClipboardCheck size={14} />確認テスト</span>{linkedTests(section, chapter, lesson).length ? linkedTests(section, chapter, lesson).map(test => <Badge key={test.testId || test.id} tone={test.status === "published" ? "green" : "muted"}>{test.title}</Badge>) : <span className="text-xs" style={{ color: T.textMuted }}>未設定</span>}</div><button type="button" onClick={() => go?.("tests")} className="text-xs font-semibold" style={{ color: T.accentHover }}>テスト管理へ <ChevronRight size={13} className="inline" /></button></div></div>
+        {renderUnitTestEditor(section, chapter, lesson, "lesson", "mt-3")}
       </Card>
     );
   }
@@ -1801,6 +1980,20 @@ function Tests({ role, go }) {
   const [testSort, setTestSort] = useState("priority");
   const canManage = role === "instructor" || role === "admin";
   const canViewResults = canManage || role === "client";
+  // カリキュラムの単元から来たとき（2026-10-01）。作る・なおす・結果を開き、閉じたらカリキュラムの同じ単元へ戻る
+  const [unitHandoff] = useState(() => canManage ? takeTestBuildTarget(false) : null);
+  const unitHandoffDoneRef = useRef(false);
+  const fromCurriculumRef = useRef(false);
+  const [buildScope, setBuildScope] = useState(null);
+  function backToCurriculum() {
+    if (!fromCurriculumRef.current) return;
+    fromCurriculumRef.current = false;
+    go?.("curriculum");
+  }
+  function closeResults() {
+    setResults(null);
+    backToCurriculum();
+  }
   const opsFilter = useOpsFilter(canViewResults, { resolveCompanyCourses: true });
   const instructorAssignedCourseIds = useMemo(() => new Set(
     opsFilter.courses
@@ -1928,6 +2121,22 @@ function Tests({ role, go }) {
   useEffect(() => {
     loadTests();
   }, [role]);
+  useEffect(() => {
+    if (!unitHandoff || unitHandoffDoneRef.current || testLoadState !== "ready") return;
+    unitHandoffDoneRef.current = true;
+    setTestBuildTarget({});
+    if (unitHandoff.testId) {
+      const t = tests.find(x => testIdOf(x) === unitHandoff.testId);
+      if (!t) return;
+      fromCurriculumRef.current = true;
+      if (unitHandoff.results) { showResults(t); return; }
+      setEditingTest(t); setDuplicateTest(false); setBuildMode("manual"); setBuilding(true);
+      return;
+    }
+    fromCurriculumRef.current = true;
+    setBuildScope({ courseId: unitHandoff.courseId, scopeId: unitHandoff.scopeId, title: unitHandoff.title });
+    setEditingTest(null); setDuplicateTest(false); setBuildMode(unitHandoff.mode); setBuilding(true);
+  }, [unitHandoff, testLoadState, tests]);
 
   async function handleDone(result) {
     const score = typeof result === "number" ? result : result?.score;
@@ -2044,7 +2253,7 @@ function Tests({ role, go }) {
   }
 
   if (taking) return <TestTaking test={taking} preview={takingPreview} back={closeTaking} onDone={handleDone} go={go} />;
-  if (building) return <TestBuilder mode={buildMode} back={() => { setBuilding(false); setEditingTest(null); setDuplicateTest(false); }} focus={buildFocus} student={buildStudent} onSaved={loadTests} initialTest={editingTest} duplicate={duplicateTest} />;
+  if (building) return <TestBuilder mode={buildMode} initialScope={buildScope} back={() => { setBuilding(false); setEditingTest(null); setDuplicateTest(false); setBuildScope(null); backToCurriculum(); }} focus={buildFocus} student={buildStudent} onSaved={loadTests} initialTest={editingTest} duplicate={duplicateTest} />;
   if (testLoadState === "loading") {
     return <div><SectionHead title="テスト" desc={role === "trainee" ? "受験結果と公開テストを確認しています" : "公開テストと受験結果を確認しています"} /><Card className="p-5"><SkeletonRows rows={5} /></Card></div>;
   }
@@ -2209,11 +2418,11 @@ function Tests({ role, go }) {
         </div>
       )}
       {results && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: "rgba(0,0,0,.4)" }} onClick={() => setResults(null)}>
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: "rgba(0,0,0,.4)" }} onClick={closeResults}>
           <div className="w-full max-w-md rounded-2xl p-5" style={{ background: "#fff", border: `1px solid ${T.border}` }} onClick={e => e.stopPropagation()}>
             <div className="mb-3 flex items-center justify-between gap-3">
               <h3 className="font-bold leading-snug" style={{ color: T.textPrimary }}>{results.test.title} の結果</h3>
-              <button onClick={() => setResults(null)} aria-label="閉じる"><X size={18} style={{ color: T.textMuted }} /></button>
+              <button onClick={closeResults} aria-label="閉じる"><X size={18} style={{ color: T.textMuted }} /></button>
             </div>
             {results.rows === null ? <SkeletonRows rows={3} />
               : results.err ? <div className="text-xs" style={{ color: T.danger }}>{results.err}</div>
@@ -2269,18 +2478,18 @@ function Tests({ role, go }) {
     </div>
   );
 }
-function TestBuilder({ back, focus, student, onSaved, initialTest = null, duplicate = false, mode = "ai" }) {
+function TestBuilder({ back, focus, student, onSaved, initialTest = null, duplicate = false, mode = "ai", initialScope = null }) {
   const aiMode = mode === "ai";
   const initialQuestions = testQuestionsOf(initialTest);
-  const [name, setName] = useState(initialTest ? `${initialTest.title || "テスト"}${duplicate ? " コピー" : ""}` : student ? `${student}さん向け 補強テスト（${focus}）` : focus ? `${focus} 補強テスト` : "オブジェクト指向 確認テスト");
+  const [name, setName] = useState(initialTest ? `${initialTest.title || "テスト"}${duplicate ? " コピー" : ""}` : student ? `${student}さん向け 補強テスト（${focus}）` : focus ? `${focus} 補強テスト` : initialScope?.title ? `${initialScope.title} 確認テスト` : "オブジェクト指向 確認テスト");
   const [scope, setScope] = useState(initialTest?.description || "");
-  const [courseId, setCourseId] = useState(initialTest?.courseId || "");
+  const [courseId, setCourseId] = useState(initialTest?.courseId || initialScope?.courseId || "");
   /* 2026-09-16 打合せ:
      - テストは**コースに紐づけずに作れる**。あとから複数コースへ紐づける
      - 問題は**コースの教材（PDF）の本文**から作れる。設問には戻り先のページを持たせる */
   const [linkedCourseIds, setLinkedCourseIds] = useState(() => {
     if (Array.isArray(initialTest?.courseIds)) return initialTest.courseIds.filter(Boolean);
-    return initialTest?.courseId ? [initialTest.courseId] : [];
+    return initialTest?.courseId ? [initialTest.courseId] : initialScope?.courseId ? [initialScope.courseId] : [];
   });
   const [materials, setMaterials] = useState([]);
   const [materialId, setMaterialId] = useState("");
@@ -2295,6 +2504,8 @@ function TestBuilder({ back, focus, student, onSaved, initialTest = null, duplic
   const [curriculumId, setCurriculumId] = useState("");
   const [curriculumLoading, setCurriculumLoading] = useState(false);
   const [curriculumErr, setCurriculumErr] = useState("");
+  // 開いたときに選んでおく単元（単元から作るとき・つないであるテストをなおすとき。2026-10-01）
+  const pendingScopeRef = useRef(initialScope?.scopeId || testScopeIdOf(initialTest));
   const [type, setType] = useState(initialTest?.type || "quiz");
   const [limitMinutes, setLimitMinutes] = useState(initialTest?.limitMinutes ?? 20);
   const [topics, setTopics] = useState(() => {
@@ -2371,6 +2582,10 @@ function TestBuilder({ back, focus, student, onSaved, initialTest = null, duplic
         const options = flattenCurriculumScopes(sections);
         setCurriculumSections(sections);
         setCurriculumItems(options);
+        if (pendingScopeRef.current && options.some(o => o.id === pendingScopeRef.current)) {
+          setCurriculumId(pendingScopeRef.current);
+          pendingScopeRef.current = "";
+        }
         if (!options.length) setCurriculumErr("このコースにはカリキュラムが登録されていません。");
       })
       .catch(e => { console.warn("test builder curriculum failed", { courseId, error: e }); setCurriculumSections([]); setCurriculumItems([]); setCurriculumErr("カリキュラムを取得できませんでした。"); })
@@ -2739,7 +2954,9 @@ function TestBuilder({ back, focus, student, onSaved, initialTest = null, duplic
       sourceMaterialId: q.sourceMaterialId || "",
       sourcePage: Number(q.sourcePage) || 0,
     }));
-    const scopeMeta = selectedScope || (courseId ? { scopeType: "course", label: selectedCourse?.name || "コース全体" } : {});
+    // 単元の一覧を読めなかったときは、つないである単元を消さない（2026-10-01）
+    const keepScope = !curriculumItems.length && initialTest?.scopeType && initialTest.scopeType !== "course" ? initialTest : null;
+    const scopeMeta = selectedScope || keepScope || (courseId ? { scopeType: "course", label: selectedCourse?.name || "コース全体" } : {});
     try {
       const payload = {
         title: name.trim(),
@@ -2790,6 +3007,7 @@ function TestBuilder({ back, focus, student, onSaved, initialTest = null, duplic
           <Field label="作るときの参照コース"><select value={courseId} onChange={e => setCourseId(e.target.value)} className="w-full rounded-xl px-3 py-2.5 text-sm outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary }}><option value="">未指定</option>{courses.map(c => <option key={courseKey(c)} value={courseKey(c)}>{c.name || c.title || courseKey(c)}</option>)}</select></Field>
           <Field label="制限時間"><input type="number" min="0" value={limitMinutes} onChange={e => setLimitMinutes(e.target.value)} className="w-full rounded-xl px-3 py-2.5 text-sm outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary }} /></Field>
         </div>
+        {courseId && curriculumItems.length > 0 && <div className="mt-3"><Field label="カリキュラムの単元"><select value={curriculumId} onChange={e => setCurriculumId(e.target.value)} className="w-full rounded-xl px-3 py-2.5 text-sm outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary }}><option value="">コース全体</option>{curriculumItems.map((item, i) => <option key={curriculumKey(item, i)} value={curriculumKey(item, i)}>{item.label}</option>)}</select></Field></div>}
 
         {/* 出す先。**作る場所と出す場所を分ける**ので、1つのテストを複数コースで使える（2026-09-16 打合せ） */}
         <div className="mt-4 rounded-xl p-3" style={{ background: T.bgBase }}>
@@ -3061,7 +3279,9 @@ function testAnswerProvided(question, value) {
   const isChoice = question?.type === "choice" || question?.type === "trueFalse" || !question?.type;
   return isChoice ? Number.isInteger(value) : String(value ?? "").trim().length > 0;
 }
-function TestTaking({ test, back, onDone, preview = false, go }) {
+function TestTaking({ test, back, onDone, preview = false, go, inline = false }) {
+  // inline：カリキュラムの単元の中で受ける（2026-10-01）。テストのタブの開き先は書き換えない
+  const backLabel = inline ? "単元に戻る" : "テスト一覧へ";
   const questions = testQuestionsOf(test);
   const total = questions.length;
   const [restoredDraft] = useState(() => preview ? null : getTraineeTestDraft(testIdOf(test)));
@@ -3105,7 +3325,7 @@ function TestTaking({ test, back, onDone, preview = false, go }) {
         if (onDone && !preview) await onDone(pendingSubmission.payload);
         if (!preview) {
           setTraineeTestDraft({ testId: testIdOf(test), answers: ans, result: pendingSubmission.result });
-          setTrainingTargetContext({ view: "tests", courseId: test.courseId, testId: testIdOf(test), mode: "result" });
+          if (!inline) setTrainingTargetContext({ view: "tests", courseId: test.courseId, testId: testIdOf(test), mode: "result" });
         }
         setResult(pendingSubmission.result);
         setPendingSubmission(null);
@@ -3173,7 +3393,7 @@ function TestTaking({ test, back, onDone, preview = false, go }) {
       if (onDone && !preview) await onDone(persistencePayload);
       if (!preview) {
         setTraineeTestDraft({ testId: testIdOf(test), answers: ans, result: nextResult });
-        setTrainingTargetContext({ view: "tests", courseId: test.courseId, testId: testIdOf(test), mode: "result" });
+        if (!inline) setTrainingTargetContext({ view: "tests", courseId: test.courseId, testId: testIdOf(test), mode: "result" });
       }
       setResult(nextResult);
     } catch (e) {
@@ -3226,7 +3446,7 @@ function TestTaking({ test, back, onDone, preview = false, go }) {
   if (!total) {
     return (
       <div>
-        <Btn kind="ghost" size="sm" icon={ChevronLeft} onClick={back}>テスト一覧へ</Btn>
+        <Btn kind="ghost" size="sm" icon={ChevronLeft} onClick={back}>{backLabel}</Btn>
         <Card className="mt-6 p-6"><EmptyState title="設問がありません" desc="このテストにはまだ設問が登録されていません。公開前に設問を追加してください。" /></Card>
       </div>
     );
@@ -3235,7 +3455,7 @@ function TestTaking({ test, back, onDone, preview = false, go }) {
     const pass = result.score >= 70;
     return (
       <div>
-        <div className="flex flex-wrap items-center justify-between gap-2"><Btn kind="ghost" size="sm" icon={ChevronLeft} onClick={back}>テスト一覧へ</Btn>{!preview && <Badge tone="green">結果を保存しました</Badge>}</div>
+        <div className="flex flex-wrap items-center justify-between gap-2"><Btn kind="ghost" size="sm" icon={ChevronLeft} onClick={back}>{backLabel}</Btn>{!preview && <Badge tone="green">結果を保存しました</Badge>}</div>
         {/* **幅は他画面と同じ横いっぱい。** 中央に細く寄せると読むところが狭くなり、
             解説と再挑戦が縦に伸びて見づらかった（2026-09-18） */}
         <Card className="mt-6 overflow-hidden">
@@ -3299,7 +3519,7 @@ function TestTaking({ test, back, onDone, preview = false, go }) {
                 );
               })}
             </div>
-            <div className="mt-5 flex justify-center gap-2"><Btn kind="ghost" onClick={() => { clearTraineeTestDraft(testIdOf(test)); if (!preview) setTrainingTargetContext({ view: "tests", courseId: test.courseId, testId: testIdOf(test), mode: "taking" }); setAns({}); setResult(null); }}>もう一度</Btn><Btn onClick={back}>テスト一覧へ</Btn></div>
+            <div className="mt-5 flex justify-center gap-2"><Btn kind="ghost" onClick={() => { clearTraineeTestDraft(testIdOf(test)); if (!preview && !inline) setTrainingTargetContext({ view: "tests", courseId: test.courseId, testId: testIdOf(test), mode: "taking" }); setAns({}); setResult(null); }}>もう一度</Btn><Btn onClick={back}>{backLabel}</Btn></div>
           </div>
         </Card>
       </div>
