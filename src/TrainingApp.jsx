@@ -1771,7 +1771,6 @@ export default function App() {
           <div className="ml-auto flex items-center gap-1">
             {modeSwitch}
             <TenolabLink compact />
-              <button type="button" onClick={() => setHelpGuideOpen(true)} aria-label="使い方を開く" title="使い方" className="feeps-icon-button"><HelpCircle size={18} /></button>
             {notifBellMobile}
           </div>
         </div>
@@ -1784,10 +1783,9 @@ export default function App() {
           {modeSwitch}
           <div className="ml-auto flex min-w-0 shrink-0 items-center justify-end gap-1.5">
             {role === "instructor" && !isHomeProduct && <QuickAdd onPick={go} />}
+            {/* 2026-10-01: 検索・使い方のボタンは外した（あまり使わない）。表示ロールの切り替えは管理者だけ */}
             <TenolabLink />
-            <button type="button" onClick={() => setPaletteOpen(true)} aria-label="検索・移動を開く" title="検索・移動" className="feeps-icon-button"><Search size={18} /></button>
-            <button type="button" onClick={() => setHelpGuideOpen(true)} aria-label="使い方を開く" title="使い方" className="feeps-icon-button"><HelpCircle size={18} /></button>
-            {demoMenu}{notifBellDesktop}{userActionsTail}
+            {isAdminUser && demoMenu}{notifBellDesktop}{userActionsTail}
           </div>
         </div>
       </div>
