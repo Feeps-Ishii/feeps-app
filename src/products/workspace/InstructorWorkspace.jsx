@@ -402,7 +402,7 @@ export default function InstructorWorkspace({ go, displayName = "講師" }) {
               </TrainingHomePanel>
               <TrainingHomePanel title="授業の準備" meta={`本日の単元 ${todayLessonCount}件`}>
                 <TrainingHomePanelRow icon={CalendarDays} tone={hasLessonPrep ? "accent" : "warn"} label="カリキュラム・教材" sub={hasLessonPrep ? "教材・テストの準備状況を確認できます" : "本日は研修実施日ではありません"} actionLabel="開く" onAction={() => go("curriculum")} />
-                <TrainingHomePanelRow icon={FileText} tone="neutral" label="研修資料" sub="配布物の登録・差し替えができます" actionLabel="開く" onAction={() => go("materials")} />
+                <TrainingHomePanelRow icon={FileText} tone="neutral" label="ファイル管理" sub="配布物の登録・差し替えができます" actionLabel="開く" onAction={() => go("materials")} />
                 <TrainingHomePanelRow icon={ClipboardCheck} tone="neutral" label="テスト" sub="出題と採点の状況を確認できます" actionLabel="開く" onAction={() => go("tests")} />
               </TrainingHomePanel>
             </div>

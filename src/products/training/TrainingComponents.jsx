@@ -318,7 +318,7 @@ function TraineeHome({ go, goProduct, goSub, done, taskDataState, onTaskRetry, t
         : thUnavailableTasks.length > 0
           ? "未提出や完了とは決めずに表示しています。再読み込みして最新状態を確認してください。"
           : "おつかれさまです。次の学習内容も確認できます。";
-  const thHeroPrimaryLabel = thPendingTasks.length ? (thTaskCopy[thPendingTasks[0].key]?.cta || "開く") : thUnavailableTasks.length ? "再読み込み" : thNoTrainingToday ? "研修資料を見る" : "カリキュラム";
+  const thHeroPrimaryLabel = thPendingTasks.length ? (thTaskCopy[thPendingTasks[0].key]?.cta || "開く") : thUnavailableTasks.length ? "再読み込み" : thNoTrainingToday ? "ファイル管理を開く" : "カリキュラム";
   const thHeroPrimaryOnClick = () => thPendingTasks.length ? go(thPendingTasks[0].to) : thUnavailableTasks.length ? setThReloadKey(value => value + 1) : thNoTrainingToday ? go("materials") : go("curriculum");
   const thHeroSecondaryLabel = thNoTrainingToday ? "次回の内容" : "今日の内容";
   const thHeroGradient = thNoTrainingToday ? PRISM.gradHero : `linear-gradient(120deg, ${PRODUCT_ACCENT.training.deep}, ${PRODUCT_ACCENT.training.accent})`;
@@ -1186,7 +1186,7 @@ function Curriculum({ role, go, goProduct, done = {}, goals = [] }) {
         ))}</div>}
         <select value="" onChange={e => { const f = libraryFolders.find(x => x.nodeId === e.target.value); if (f) onChange([...current, { nodeId: f.nodeId, name: f.name }]); e.target.value = ""; }}
           disabled={!options.length} className="w-full rounded-xl px-3 py-2 text-xs outline-none" style={{ border: `1px solid ${T.border}`, color: T.textMuted, background: T.bgSurface }}>
-          <option value="">{libraryFolders.length ? "＋ 研修資料のフォルダをつなぐ" : "研修資料にフォルダがありません"}</option>
+          <option value="">{libraryFolders.length ? "＋ ファイル管理のフォルダをつなぐ" : "ファイル管理にフォルダがありません"}</option>
           {options.map(f => <option key={f.nodeId} value={f.nodeId}>{f.label}</option>)}
         </select>
       </div>
@@ -1378,7 +1378,7 @@ function Curriculum({ role, go, goProduct, done = {}, goals = [] }) {
               className="grid w-full grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-3 rounded-xl px-3.5 py-3 text-left"
               style={{ border: `1px solid ${T.border}`, background: `linear-gradient(135deg, ${T.accentSubtle}, #fff)` }}>
               <span className="flex h-9 w-9 items-center justify-center rounded-xl text-white" style={{ background: NOVA.gradAccent }}><Folder size={17} /></span>
-              <span className="min-w-0"><span className="block truncate text-sm font-bold" style={{ color: T.textPrimary }}>{f.name || "フォルダ"}</span><span className="block text-xs" style={{ color: T.textMuted }}>研修資料のフォルダ</span></span>
+              <span className="min-w-0"><span className="block truncate text-sm font-bold" style={{ color: T.textPrimary }}>{f.name || "フォルダ"}</span><span className="block text-xs" style={{ color: T.textMuted }}>ファイル管理のフォルダ</span></span>
               <span className="inline-flex items-center gap-1 text-xs font-bold" style={{ color: T.accentHover }}>開く<ChevronRight size={14} /></span>
             </button>
           ))}
@@ -6576,7 +6576,7 @@ function ClientHome({ openKarte, go, goProduct }) {
           </TrainingHomePanel>
           <TrainingHomePanel title="手続き・記録">
             <TrainingHomePanelRow icon={Briefcase} tone="warn" label="助成金管理" sub="申請書類の状況を確認できます" actionLabel="開く" onAction={() => goProduct && goProduct("grants")} />
-            <TrainingHomePanelRow icon={FileText} tone="neutral" label="研修資料" sub="配布された資料を確認できます" actionLabel="開く" onAction={() => go && go("materials")} />
+            <TrainingHomePanelRow icon={FileText} tone="neutral" label="ファイル管理" sub="配布された資料を確認できます" actionLabel="開く" onAction={() => go && go("materials")} />
           </TrainingHomePanel>
         </div>
       </div>
@@ -6608,7 +6608,7 @@ function ElearningView({ go }) {
           <div className="mb-3 flex items-center gap-2"><BookOpen size={18} style={{ color: T.accent }} /><h3 className="font-bold" style={{ color: T.textPrimary }}>Eラーニング教材</h3></div>
           <div className="rounded-xl p-4 text-sm leading-relaxed" style={adminPanelStyle}>Eラーニング教材は今後追加予定です。動画、テキスト、単元ごとの進捗をここで確認できるようにします。</div>
           <div className="mt-4 flex flex-wrap gap-2">
-            <Btn kind="ghost" icon={FileText} onClick={() => go("materials")}>研修資料を見る</Btn>
+            <Btn kind="ghost" icon={FileText} onClick={() => go("materials")}>ファイル管理を開く</Btn>
             <Btn kind="soft" icon={Target} onClick={() => go("goals")}>目標とタスクへ</Btn>
           </div>
         </Card>
@@ -6859,7 +6859,7 @@ function ReadOnlyCourses({ role, go }) {
                 </div>
                 <div className="flex flex-wrap gap-2">
                   <Btn kind="soft" size="sm" icon={Calendar} onClick={() => go?.("curriculum")}>カリキュラム</Btn>
-                  <Btn kind="ghost" size="sm" icon={FileText} onClick={() => go?.("materials")}>研修資料</Btn>
+                  <Btn kind="ghost" size="sm" icon={FileText} onClick={() => go?.("materials")}>ファイル管理</Btn>
                   <Btn kind="ghost" size="sm" icon={NotebookPen} onClick={() => go?.("reports")}>日報</Btn>
                   <Btn kind="ghost" size="sm" icon={Clock} onClick={() => go?.("attendance")}>勤怠</Btn>
                   <Btn kind="ghost" size="sm" icon={ClipboardCheck} onClick={() => go?.("tests")}>テスト</Btn>
@@ -6870,7 +6870,7 @@ function ReadOnlyCourses({ role, go }) {
           ))}
           {role !== "trainee" && <>
             {detailLoading ? <Card><SkeletonRows rows={4} /></Card> : <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4"><Stat icon={Users} label="所属受講生" value={`${trainees.length}名`} /><Stat icon={NotebookPen} label="本日の日報未保存" value={`${missingReports}名`} tone={missingReports ? "amber" : "green"} /><Stat icon={Clock} label="本日の勤怠未登録" value={`${missingAttendance}名`} tone={missingAttendance ? "amber" : "green"} /><Stat icon={Calendar} label="今月の研修日" value={`${workdays.trainingDaysCount || 0}日`} tone="cyan" /></div>}
-            <Card className="p-5"><div className="mb-3"><h3 className="font-bold" style={{ color: T.textPrimary }}>このコースで行うこと</h3><p className="text-xs" style={{ color: T.textMuted }}>{role === "client" ? "コース選択を保ったまま、確認したい画面へ移動します。" : "コース選択を保ったまま、必要な管理画面へ移動します。"}</p></div><div className="flex flex-wrap gap-2"><Btn kind="soft" size="sm" icon={Calendar} onClick={() => go?.("curriculum")}>カリキュラム</Btn><Btn kind="ghost" size="sm" icon={NotebookPen} onClick={() => go?.("reports")}>日報</Btn><Btn kind="ghost" size="sm" icon={Clock} onClick={() => go?.("attendance")}>勤怠</Btn><Btn kind="ghost" size="sm" icon={ClipboardCheck} onClick={() => go?.("tests")}>テスト</Btn><Btn kind="ghost" size="sm" icon={FileText} onClick={() => go?.("materials")}>研修資料</Btn><Btn kind="ghost" size="sm" icon={Users} onClick={() => go?.("trainees")}>受講生</Btn></div></Card>
+            <Card className="p-5"><div className="mb-3"><h3 className="font-bold" style={{ color: T.textPrimary }}>このコースで行うこと</h3><p className="text-xs" style={{ color: T.textMuted }}>{role === "client" ? "コース選択を保ったまま、確認したい画面へ移動します。" : "コース選択を保ったまま、必要な管理画面へ移動します。"}</p></div><div className="flex flex-wrap gap-2"><Btn kind="soft" size="sm" icon={Calendar} onClick={() => go?.("curriculum")}>カリキュラム</Btn><Btn kind="ghost" size="sm" icon={NotebookPen} onClick={() => go?.("reports")}>日報</Btn><Btn kind="ghost" size="sm" icon={Clock} onClick={() => go?.("attendance")}>勤怠</Btn><Btn kind="ghost" size="sm" icon={ClipboardCheck} onClick={() => go?.("tests")}>テスト</Btn><Btn kind="ghost" size="sm" icon={FileText} onClick={() => go?.("materials")}>ファイル管理</Btn><Btn kind="ghost" size="sm" icon={Users} onClick={() => go?.("trainees")}>受講生</Btn></div></Card>
             <Card className="overflow-hidden"><div className="flex items-center justify-between gap-2 p-4" style={{ borderBottom: `1px solid ${T.border}` }}><div><h3 className="font-bold" style={{ color: T.textPrimary }}>所属受講生</h3><p className="text-xs" style={{ color: T.textMuted }}>選択コースに所属する受講生</p></div><Badge tone="cyan">{traineeIds.size}名</Badge></div>{detailLoading ? <SkeletonRows rows={3} /> : trainees.length === 0 ? <div className="px-4 py-8 text-center text-sm" style={{ color: T.textMuted }}>所属受講生はいません。</div> : <div className="grid gap-2 p-4 md:grid-cols-2">{trainees.slice(0, 8).map(student => <div key={student.userId || student.id} className="flex items-center gap-2 rounded-xl p-3" style={{ background: T.bgBase }}><Avatar name={student.name || student.email} size={32} /><div className="min-w-0"><div className="truncate text-sm font-semibold" style={{ color: T.textPrimary }}>{student.name || "氏名未設定"}</div><div className="truncate text-xs" style={{ color: T.textMuted }}>{student.email || student.userId}</div></div></div>)}</div>}</Card>
           </>}
         </div>}

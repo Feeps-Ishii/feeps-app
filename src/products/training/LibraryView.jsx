@@ -440,7 +440,7 @@ export default function LibraryView({ role }) {
       setNotice(
         (done ? `「${node.name}」を${done}件のコースに置きました。` : "")
         + (already ? `${already}件はすでに置かれていました。` : "")
-        + (done ? "各コースの研修資料とテスト作成から使えます。" : "")
+        + (done ? "各コースのファイル管理とテスト作成から使えます。" : "")
       );
     });
   }
@@ -532,7 +532,7 @@ export default function LibraryView({ role }) {
   return (
     <div onClick={() => setMenuFor(null)}>
       <SectionHead
-        title="研修資料"
+        title="ファイル管理"
         action={
           <div className="flex flex-wrap items-center gap-2">
             {staff && (
@@ -1148,7 +1148,7 @@ function PlaceToCoursesModal({ node, courses, onClose, onPlace }) {
   return (
     <Modal
       title="コースに置く"
-      desc={`「${node.name}」を、選んだコースの研修資料に置きます`}
+      desc={`「${node.name}」を、選んだコースのフォルダに置きます`}
       onClose={onClose}
       footer={
         <div className="flex justify-end gap-2">

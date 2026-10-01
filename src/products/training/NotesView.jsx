@@ -281,7 +281,7 @@ function NotesHowTo() {
     try { localStorage.setItem(HOWTO_KEY, "1"); } catch { /* 保存できなくても使い方は出せる */ }
   };
   const ITEMS = [
-    { icon: PenLine, title: "教材を見ながら書く", desc: "研修資料でPDFを「読む」と、右にノートが並びます。ページごとにも、単元ぜんぶにも書けます。" },
+    { icon: PenLine, title: "教材を見ながら書く", desc: "ファイル管理でPDFを「読む」と、右にノートが並びます。ページごとにも、単元ぜんぶにも書けます。" },
     { icon: HelpCircle, title: "分からないところに印を付ける", desc: "「わからない」を付けておくと、あとでその印だけを絞り込めます。質問するときの材料になります。" },
     { icon: ListChecks, title: "日報にそのまま入れる", desc: "日報の下に「この日のノート」が出ます。書き写さずに、選んで入れるだけで済みます。" },
   ];

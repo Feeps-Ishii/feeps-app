@@ -873,7 +873,7 @@ function AdminCourses({ go }) {
       </div>}
       <Card className="mb-5 p-4">
         <div className="mb-3"><h3 className="font-bold" style={{ color: T.textPrimary }}>このコースの運用メニュー</h3><p className="text-xs" style={{ color: T.textMuted }}>選択中のコースを引き継いで、各管理画面を開きます。</p></div>
-        <div className="flex flex-wrap gap-2"><Btn kind="soft" size="sm" icon={Calendar} onClick={() => go?.("curriculum")}>カリキュラム</Btn><Btn kind="ghost" size="sm" icon={NotebookPen} onClick={() => go?.("reports")}>日報</Btn><Btn kind="ghost" size="sm" icon={Clock} onClick={() => go?.("attendance")}>勤怠</Btn><Btn kind="ghost" size="sm" icon={ClipboardCheck} onClick={() => go?.("tests")}>テスト</Btn><Btn kind="ghost" size="sm" icon={FileSpreadsheet} onClick={() => go?.("materials")}>研修資料</Btn><Btn kind="ghost" size="sm" icon={Users} onClick={() => go?.("trainees")}>受講生</Btn></div>
+        <div className="flex flex-wrap gap-2"><Btn kind="soft" size="sm" icon={Calendar} onClick={() => go?.("curriculum")}>カリキュラム</Btn><Btn kind="ghost" size="sm" icon={NotebookPen} onClick={() => go?.("reports")}>日報</Btn><Btn kind="ghost" size="sm" icon={Clock} onClick={() => go?.("attendance")}>勤怠</Btn><Btn kind="ghost" size="sm" icon={ClipboardCheck} onClick={() => go?.("tests")}>テスト</Btn><Btn kind="ghost" size="sm" icon={FileSpreadsheet} onClick={() => go?.("materials")}>ファイル管理</Btn><Btn kind="ghost" size="sm" icon={Users} onClick={() => go?.("trainees")}>受講生</Btn></div>
       </Card>
       <div className="space-y-5">
         <Card className="p-5">
