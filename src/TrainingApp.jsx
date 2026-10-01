@@ -1667,7 +1667,8 @@ export default function App() {
       </button>
       {notifOpen && (<>
         <div className="fixed inset-0" style={{ zIndex: Z.dropdown - 1 }} onClick={() => setNotifOpen(false)} />
-        <div className="feeps-glass-panel absolute right-0 top-full mt-2 w-80 max-w-[90vw] overflow-hidden" style={{ zIndex: Z.dropdown, borderRadius: 16 }}>
+        {/* 2026-10-01: 半透明（ガラス）だと後ろの大きな見出しが透けて読みにくいので、白地にする */}
+        <div className="absolute right-0 top-full mt-2 w-80 max-w-[90vw] overflow-hidden" style={{ zIndex: Z.dropdown, borderRadius: 16, background: T.bgSurface, border: `1px solid ${T.border}`, boxShadow: NOVA.shadowMd }}>
           <div className="flex items-center justify-between px-4 py-3">
             <span className="text-sm font-bold" style={{ color: T.textPrimary }}>通知</span>
             <button type="button" onClick={markAllNotificationsRead} className="text-xs font-semibold transition hover:opacity-70" style={{ color: T.accent }}>すべて既読にする</button>

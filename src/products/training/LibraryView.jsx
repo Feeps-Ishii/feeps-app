@@ -95,7 +95,7 @@ function spaceLabel(spaceId, courses) {
   return courses.find(c => c.courseId === id)?.name || "コース";
 }
 
-export default function LibraryView({ role }) {
+export default function LibraryView({ role, go }) {
   const staff = role === "admin" || role === "instructor";
   const [courses, setCourses] = useState([]);
   const [courseId, setCourseId] = useState("");
@@ -597,7 +597,7 @@ export default function LibraryView({ role }) {
                 コースを初めて開いたときに自動で取り込まれるので、押す場面が無い。
                 取りこぼしたときの手動実行は POST /library/migrate が残してある */}
             {staff && courseIdOfSpace && (
-              <Btn size="sm" kind="ghost" icon={Users} onClick={() => setGroupsOpen(true)}>グループ</Btn>
+              <Btn size="sm" kind="ghost" icon={Users} onClick={() => (go ? go("teams") : setGroupsOpen(true))}>チーム</Btn>
             )}
             {mayWriteHere && <Btn size="sm" icon={Plus} onClick={newFolder} disabled={!!busy}>フォルダ</Btn>}
             {mayWriteHere && linkOptions.length > 0 && (

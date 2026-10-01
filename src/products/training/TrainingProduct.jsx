@@ -7,6 +7,8 @@ import InstructorWorkspace from "../workspace/InstructorWorkspace.jsx";
 const NotesView = React.lazy(() => import("./NotesView.jsx"));
 // 研修資料。PDFビューアを抱えるので、開いた人だけが読み込むように分ける（2026-09-18）
 const LibraryView = React.lazy(() => import("./LibraryView.jsx"));
+// チーム（2026-10-01）。開いた人だけが読み込む
+const TeamsView = React.lazy(() => import("./TeamsView.jsx"));
 import { PrismErrorRetryCard, SkeletonRows } from "../../components/common";
 import {
   Attendance, ClientHome, Curriculum, ElearningView, GoalsView, Karte, Reports,
@@ -54,7 +56,7 @@ export default function TrainingProduct({
   if (view === "materials") {
     return (
       <React.Suspense fallback={<div className="p-4"><SkeletonRows rows={5} /></div>}>
-        <LibraryView role={role} />
+        <LibraryView role={role} go={go} />
       </React.Suspense>
     );
   }
@@ -68,6 +70,14 @@ export default function TrainingProduct({
     );
   }
   if (view === "tests") return <Tests role={role} go={go} />;
+  if (view === "teams") {
+    if (role === "client") return null;
+    return (
+      <React.Suspense fallback={<div className="p-4"><SkeletonRows rows={5} /></div>}>
+        <TeamsView role={role} go={go} />
+      </React.Suspense>
+    );
+  }
   if (view === "attendance") return <Attendance role={role} userProfile={userProfile} />;
   if (view === "reports") return <Reports role={role} userProfile={userProfile} />;
   if (view === "trainees") return <TraineeList role={role} openKarte={setKarte} go={go} />;
