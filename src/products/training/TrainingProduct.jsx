@@ -9,6 +9,8 @@ const NotesView = React.lazy(() => import("./NotesView.jsx"));
 const LibraryView = React.lazy(() => import("./LibraryView.jsx"));
 // チーム（2026-10-01）。開いた人だけが読み込む
 const TeamsView = React.lazy(() => import("./TeamsView.jsx"));
+// 席替え（2026-10-02）。講師・管理者だけ
+const SeatingView = React.lazy(() => import("./SeatingView.jsx"));
 import { PrismErrorRetryCard, SkeletonRows } from "../../components/common";
 import {
   Attendance, ClientHome, Curriculum, ElearningView, GoalsView, Karte, Reports,
@@ -70,6 +72,14 @@ export default function TrainingProduct({
     );
   }
   if (view === "tests") return <Tests role={role} go={go} />;
+  if (view === "seating") {
+    if (role !== "admin" && role !== "instructor") return null;
+    return (
+      <React.Suspense fallback={<div className="p-4"><SkeletonRows rows={5} /></div>}>
+        <SeatingView role={role} />
+      </React.Suspense>
+    );
+  }
   if (view === "teams") {
     if (role === "client") return null;
     return (
