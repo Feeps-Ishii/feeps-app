@@ -95,7 +95,9 @@ function spaceLabel(spaceId, courses) {
   return courses.find(c => c.courseId === id)?.name || "コース";
 }
 
-export default function LibraryView({ role, go }) {
+/* scope：チームのページに埋め込むとき（2026-10-01）。{ courseId, nodeId } のフォルダから上へは行けず、
+   コースの切り替え・左の一覧・見出しは出さない。ファイル管理の画面としては今までどおり全部を選べる */
+export default function LibraryView({ role, go, scope = null }) {
   const staff = role === "admin" || role === "instructor";
   const [courses, setCourses] = useState([]);
   const [courseId, setCourseId] = useState("");
@@ -130,6 +132,13 @@ export default function LibraryView({ role, go }) {
   const fileInput = useRef(null);
 
   useEffect(() => {
+    if (scope?.courseId && scope?.nodeId) {
+      setCourseId(scope.courseId);
+      setSpaceId(`course#${scope.courseId}`);
+      setAnchorId(scope.nodeId);
+      setPath([scope.nodeId]);
+      return undefined;
+    }
     let alive = true;
     // 受講生だけ所属コース。企業担当は /courses 側で自社分に絞られる（既存画面と同じ）
     const pick = role === "trainee" ? "/me/courses" : "/courses";
@@ -152,7 +161,7 @@ export default function LibraryView({ role, go }) {
       })
       .catch(() => { if (alive) { setCourses([]); setSpaceId(staff ? "shared" : ""); } });
     return () => { alive = false; };
-  }, [role]);
+  }, [role, scope?.courseId, scope?.nodeId]);
 
   const pendingTargetRef = useRef("");
   const viaQuery = via ? `&via=${encodeURIComponent(via)}` : "";
@@ -174,6 +183,7 @@ export default function LibraryView({ role, go }) {
 
   /* 左の一覧用。選んでいるコースの置き場と、講師・管理者は共有（全社）・運営だけも読む */
   const loadSide = useCallback(async () => {
+    if (scope) return;   // チームのページでは左の一覧を出さない
     const get = sid => apiGet(`/library?spaceId=${encodeURIComponent(sid)}`).catch(() => null);
     const [course, shared, ops] = await Promise.all([
       courseId ? get(`course#${courseId}`) : Promise.resolve(null),
@@ -184,7 +194,7 @@ export default function LibraryView({ role, go }) {
     if (staff) {
       apiGet("/library/links?spaceId=shared").then(r => setLinks(r?.links || {})).catch(() => setLinks(null));
     }
-  }, [courseId, staff]);
+  }, [courseId, staff, !!scope]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => { loadSide(); }, [loadSide]);
 
   /* どこかを開く。space を変えるときは path も一緒に決める（読み込み後に先頭へ戻さない） */
@@ -535,7 +545,7 @@ export default function LibraryView({ role, go }) {
 
   return (
     <div onClick={() => setMenuFor(null)}>
-      <SectionHead
+      {!scope && <SectionHead
         title="ファイル管理"
         action={
           <div className="flex flex-wrap items-center gap-2">
@@ -549,8 +559,8 @@ export default function LibraryView({ role, go }) {
             )}
           </div>
         }
-      />
-      {!overview && courses.length > 0 && <CourseBar courses={courses} value={courseId} onChange={selectCourse} />}
+      />}
+      {!scope && !overview && courses.length > 0 && <CourseBar courses={courses} value={courseId} onChange={selectCourse} />}
 
       {overview ? (
         <VisibilityOverview
@@ -562,8 +572,8 @@ export default function LibraryView({ role, go }) {
           }}
         />
       ) : (
-      <div className="grid items-start gap-4 xl:grid-cols-[260px_minmax(0,1fr)]">
-      {renderTree()}
+      <div className={scope ? "grid items-start gap-4" : "grid items-start gap-4 xl:grid-cols-[260px_minmax(0,1fr)]"}>
+      {!scope && renderTree()}
       <div className="min-w-0">
       {err && <PrismErrorRetryCard message={err} onRetry={() => load()} />}
       {loading && !data && <Card className="mb-4 p-4"><SkeletonRows rows={5} /></Card>}

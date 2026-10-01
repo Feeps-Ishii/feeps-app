@@ -9,6 +9,8 @@ import {
 
 // 共有ボード（Excalidraw）は重いので、ボードを開いた人だけが読み込む
 const TeamBoard = React.lazy(() => import("./TeamBoard.jsx"));
+// チームのフォルダはファイル管理の画面をこのフォルダだけに絞って使う（2026-10-01）
+const LibraryView = React.lazy(() => import("./LibraryView.jsx"));
 
 /* チーム（2026-10-01 ユーザー決定。CHANGELOG 185）。サイドバーの研修に「チーム」。
    - 受講生：自分のチームのページ（やること・フォルダ・メンバー）。チームは作れない
@@ -98,7 +100,7 @@ export default function TeamsView({ role, go }) {
             {mine.map(t => <button key={t.teamId} type="button" onClick={() => setOpenId(t.teamId)} className="inline-flex items-center gap-2 rounded-full py-1 pl-1 pr-3 text-sm font-bold" style={{ background: current.teamId === t.teamId ? T.accentSubtle : "#fff", border: `1px solid ${current.teamId === t.teamId ? T.accent : T.border}`, color: T.textPrimary }}><Emblem team={t} size={24} />{t.name}</button>)}
           </div>
         )}
-        <TeamRoom key={current.teamId} team={current} me={data.me} nameOf={nameOf} isStaff={false} go={go} />
+        <TeamRoom key={current.teamId} team={current} me={data.me} nameOf={nameOf} isStaff={false} role={role} go={go} />
       </div>
     );
   }
@@ -118,7 +120,7 @@ export default function TeamsView({ role, go }) {
             : <Btn size="sm" icon={LogIn} onClick={() => act(() => apiPost(`/teams/${encodeURIComponent(t.teamId)}/join`, { courseId: t.courseId }), `${t.name}に入りました。`)}>このチームに入る</Btn>}
           {t.canManage && <Btn size="sm" kind="ghost" icon={Users} onClick={() => setMembersOf(t.teamId)}>メンバー管理</Btn>}
         </div>
-        <TeamRoom key={t.teamId} team={t} me={data.me} nameOf={nameOf} isStaff go={go} />
+        <TeamRoom key={t.teamId} team={t} me={data.me} nameOf={nameOf} isStaff role={role} go={go} />
         {membersOf && team(membersOf) && <MembersModal team={team(membersOf)} course={data.courses.find(c => c.courseId === team(membersOf).courseId)} teams={teams} trainees={trainees[team(membersOf).courseId]} nameOf={nameOf} me={data.me} isAdmin={role === "admin"} onPut={putTeam} act={act} onClose={() => setMembersOf("")} onDeleted={() => { setMembersOf(""); setScr("list"); }} />}
       </div>
     );
@@ -384,7 +386,7 @@ function AssignBoard({ course, teams, trainees, nameOf, onPut, act, onBack, onCr
 }
 
 /* ---------- チームのページ ---------- */
-function TeamRoom({ team, me, nameOf, isStaff, go }) {
+function TeamRoom({ team, me, nameOf, isStaff, role, go }) {
   const [tab, setTab] = useState("chat");
   const [exercises, setExercises] = useState([]);
   // 今日のカリキュラムのチーム演習（あれば帯で出す）
@@ -433,7 +435,7 @@ function TeamRoom({ team, me, nameOf, isStaff, go }) {
       {tab === "chat" && <ChatTab team={team} me={me} nameOf={nameOf} />}
       {tab === "board" && team.settings?.board && <React.Suspense fallback={<Card className="p-4"><SkeletonRows rows={4} /></Card>}><TeamBoard team={team} nameOf={nameOf} /></React.Suspense>}
       {tab === "todo" && <TodoTab team={team} me={me} nameOf={nameOf} />}
-      {tab === "files" && <FilesTab team={team} isStaff={isStaff} go={go} />}
+      {tab === "files" && <FilesTab team={team} role={role} go={go} />}
       {tab === "members" && <Card className="p-4">
         <div className="mb-1 text-xs font-bold" style={{ color: T.textMuted }}>メンバー {team.members.length}</div>
         {team.members.map(id => <div key={id} className="flex items-center gap-2.5 py-1.5" style={{ borderTop: `1px solid ${T.border}` }}><Face name={nameOf(id)} size={32} ring={false} /><span className="flex-1 text-sm font-semibold" style={{ color: T.textPrimary }}>{nameOf(id)}{id === me ? "（自分）" : ""}</span>{team.leader === id ? <Badge tone="amber"><Crown size={12} />リーダー</Badge> : <Badge tone="muted">メンバー</Badge>}</div>)}
@@ -592,39 +594,15 @@ function TodoTab({ team, me, nameOf }) {
   );
 }
 
-function FilesTab({ team, isStaff, go }) {
-  const [nodes, setNodes] = useState(null);
-  const [err, setErr] = useState("");
-  const load = useCallback(async () => {
-    try { const d = await apiGet(`/library?spaceId=${encodeURIComponent(`course#${team.courseId}`)}`); setNodes(Array.isArray(d?.nodes) ? d.nodes : []); setErr(""); }
-    catch (e) { setErr(errText(e, "フォルダを読み込めませんでした。")); }
-  }, [team.courseId]);
-  useEffect(() => { load(); }, [load]);
+function FilesTab({ team, role, go }) {
   function openInLibrary() { setLibraryTarget({ courseId: team.courseId, nodeId: team.folderNodeId }); go?.("materials"); }
   if (!team.folderNodeId) return <Card><EmptyState title="このチームのフォルダはありません" desc="" /></Card>;
-  if (nodes == null) return err ? <PrismErrorRetryCard message={err} onRetry={load} /> : <Card className="p-4"><SkeletonRows rows={3} /></Card>;
-  const kids = nodes.filter(n => n.parentId === team.folderNodeId).sort((a, b) => (a.type === "folder" ? 0 : 1) - (b.type === "folder" ? 0 : 1) || String(a.name).localeCompare(String(b.name), "ja"));
   return (
-    <Card className="overflow-hidden p-0">
-      <div className="flex flex-wrap items-center gap-2 px-4 py-3" style={{ borderBottom: `1px solid ${T.border}` }}>
-        <b className="text-sm" style={{ color: T.textPrimary }}>{team.name}のフォルダ</b>
-        {isStaff && <Badge tone="cyan"><Users size={12} />{team.name}だけ</Badge>}
-        <span className="ml-auto"><Btn size="sm" icon={Folder} onClick={openInLibrary}>ファイル管理で開く</Btn></span>
-      </div>
-      {kids.length === 0 ? <div className="px-4 py-6 text-sm" style={{ color: T.textMuted }}>まだ何もありません</div> : (
-        <div className="overflow-x-auto">
-          <table className="w-full min-w-[480px] border-collapse text-sm">
-            <thead><tr>{["名前", "サイズ", "更新"].map(h => <th key={h} className={"px-4 py-2 text-left text-[11px] font-bold" + (h === "サイズ" ? " text-right" : "")} style={{ color: T.textMuted, borderBottom: `1px solid ${T.border}` }}>{h}</th>)}</tr></thead>
-            <tbody>{kids.map(n => (
-              <tr key={n.nodeId} style={{ borderBottom: `1px solid ${T.border}` }}>
-                <td className="px-4 py-2.5"><button type="button" onClick={openInLibrary} className="inline-flex items-center gap-2 text-left font-semibold" style={{ color: T.textPrimary }}><span className="inline-flex h-6 w-6 items-center justify-center rounded-md" style={{ background: n.type === "file" ? T.bgBase : T.accentSubtle, color: n.type === "file" ? T.textMuted : T.accentHover }}>{n.type === "file" ? <FileText size={13} /> : <Folder size={13} />}</span>{n.name}</button></td>
-                <td className="px-4 py-2.5 text-right text-xs tabular-nums" style={{ color: T.textSecondary }}>{n.type === "file" ? fmtSize(n.sizeBytes) : "—"}</td>
-                <td className="px-4 py-2.5 text-xs" style={{ color: T.textSecondary }}>{fmtDay(n.updatedAt)}</td>
-              </tr>
-            ))}</tbody>
-          </table>
-        </div>
-      )}
-    </Card>
+    <div className="grid gap-2">
+      <div className="flex justify-end"><Btn size="sm" kind="ghost" icon={Folder} onClick={openInLibrary}>ファイル管理で開く</Btn></div>
+      <React.Suspense fallback={<Card className="p-4"><SkeletonRows rows={4} /></Card>}>
+        <LibraryView role={role} go={go} scope={{ courseId: team.courseId, nodeId: team.folderNodeId }} />
+      </React.Suspense>
+    </div>
   );
 }

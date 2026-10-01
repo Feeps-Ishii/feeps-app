@@ -964,6 +964,17 @@ function curriculumUnitScope(section, chapter, lesson, scope) {
   }
   return { scopeId: `lesson:${section.id}:${chapter.id}:${lesson.id}`, title: lesson.title || "", fields: { scopeType: "lesson", sectionId: section.id || "", sectionTitle: section.title || "", chapterId: chapter.id || "", chapterTitle: chapter.title || "", lessonId: lesson.id || "", lessonTitle: lesson.title || "" } };
 }
+/* テストのコースごとの単元（2026-10-01）。courseScopes に無ければ、先頭のコースだけこれまでの項目を使う */
+const TEST_SCOPE_KEYS = ["scopeType", "sectionId", "sectionTitle", "chapterId", "chapterTitle", "lessonId", "lessonTitle"];
+function testCourseIdList(test) {
+  return Array.isArray(test?.courseIds) && test.courseIds.length ? test.courseIds.filter(Boolean) : (test?.courseId ? [test.courseId] : []);
+}
+function testScopeForCourse(test, courseId) {
+  const map = test?.courseScopes && typeof test.courseScopes === "object" ? test.courseScopes : {};
+  if (map[courseId]) return map[courseId];
+  if (test?.courseId === courseId) return Object.fromEntries(TEST_SCOPE_KEYS.map(k => [k, test[k] || ""]));
+  return { scopeType: "course", sectionId: "", sectionTitle: "", chapterId: "", chapterTitle: "", lessonId: "", lessonTitle: "" };
+}
 function testScopeRank(test) {
   return test?.lessonId ? 0 : test?.chapterId ? 1 : test?.sectionId ? 2 : 3;
 }
@@ -1186,8 +1197,8 @@ function Curriculum({ role, go, goProduct, done = {}, goals = [] }) {
   }
   async function linkTestToUnit(test, fields) {
     const id = testIdOf(test);
-    const updated = await apiPut(`/tests/${id}`, fields);
-    setTests(list => list.map(t => testIdOf(t) === id ? { ...t, ...fields, ...(updated && typeof updated === "object" && updated.testId ? updated : {}) } : t));
+    const updated = await apiPut(`/tests/${id}`, { courseScopes: { [courseId]: fields } });
+    setTests(list => list.map(t => testIdOf(t) === id ? { ...t, ...(updated && typeof updated === "object" && updated.testId ? updated : {}), ...fields } : t));
   }
   function unitTestMark(own) {
     if (!own.length) return <span />;
@@ -1994,7 +2005,10 @@ function Tests({ role, go }) {
   const canEditTest = (test) => {
     if (role === "admin") return true;
     if (role !== "instructor") return false;
-    return !!test?.courseId && instructorAssignedCourseIds.has(test.courseId);
+    const ids = testCourseIdList(test);
+    // 2026-10-01: コースに出していないテストは作った本人が触れる（コース・単元に紐づけるため）
+    if (!ids.length) return !test?.createdBy || test.createdBy === opsFilter.currentUserId;
+    return ids.some(id => instructorAssignedCourseIds.has(id));
   };
   const canGradeResults = role === "admin" || (role === "instructor" && instructorAssignedCourseIds.size > 0);
   // 受講生カードのコース名表示用（opsFilterはtraineeでは無効のため自分のコースだけ取得）
@@ -2181,9 +2195,21 @@ function Tests({ role, go }) {
       emitNotificationRefresh();
     } catch (e) { setTestErr("テスト状態の更新に失敗しました。"); }
   }
+  const [assignScopes, setAssignScopes] = useState({});      // courseId → 単元の id（flattenCurriculumScopes の id。空はコース全体）
+  const [assignCurricula, setAssignCurricula] = useState({});  // courseId → 単元の候補（null は読めなかった）
+  const canAssignCourse = id => role === "admin" || instructorAssignedCourseIds.has(id);
+  function loadAssignCurriculum(id) {
+    if (assignCurricula[id] !== undefined) return;
+    setAssignCurricula(m => ({ ...m, [id]: "loading" }));
+    apiGet(`/courses/${encodeURIComponent(id)}/curriculum`)
+      .then(data => setAssignCurricula(m => ({ ...m, [id]: flattenCurriculumScopes(normalizeCurriculumSections(data)) })))
+      .catch(() => setAssignCurricula(m => ({ ...m, [id]: null })));
+  }
   function openAssign(t) {
-    const ids = Array.isArray(t.courseIds) ? t.courseIds.filter(Boolean) : (t.courseId ? [t.courseId] : []);
+    const ids = testCourseIdList(t);
     setAssignIds(ids);
+    setAssignScopes(Object.fromEntries(ids.map(id => [id, testScopeIdOf(testScopeForCourse(t, id))])));
+    ids.filter(canAssignCourse).forEach(loadAssignCurriculum);
     setAssignErr("");
     setAssignTest(t);
   }
@@ -2192,7 +2218,12 @@ function Tests({ role, go }) {
     setAssignBusy(true);
     setAssignErr("");
     try {
-      await apiPut(`/tests/${testIdOf(assignTest)}`, { courseIds: assignIds });
+      const courseScopes = {};
+      assignIds.filter(canAssignCourse).forEach(id => {
+        const opt = Array.isArray(assignCurricula[id]) ? assignCurricula[id].find(o => o.id === assignScopes[id]) : null;
+        courseScopes[id] = opt ? Object.fromEntries(TEST_SCOPE_KEYS.map(k => [k, opt[k] || ""])) : null;
+      });
+      await apiPut(`/tests/${testIdOf(assignTest)}`, { courseIds: assignIds, courseScopes });
       await loadTests();
       emitNotificationRefresh();
       setAssignTest(null);
@@ -2375,7 +2406,7 @@ function Tests({ role, go }) {
             <div className="flex flex-wrap justify-end gap-1.5">
               {canEditTest(t) && <Btn kind="ghost" size="sm" icon={Pencil} onClick={() => { setEditingTest(t); setDuplicateTest(false); setBuildMode("manual"); setBuilding(true); }}>編集</Btn>}
               {canEditTest(t) && <Btn kind="ghost" size="sm" icon={Plus} onClick={() => { setEditingTest(t); setDuplicateTest(true); setBuildMode("manual"); setBuilding(true); }}>複製</Btn>}
-              {canEditTest(t) && <Btn kind="ghost" size="sm" icon={BookOpen} onClick={() => openAssign(t)}>コースに出す</Btn>}
+              {canEditTest(t) && <Btn kind="ghost" size="sm" icon={BookOpen} onClick={() => openAssign(t)}>コース・単元</Btn>}
               {canManage && <Btn kind="ghost" size="sm" icon={Eye} onClick={() => { setTaking(t); setTakingPreview(true); }}>プレビュー</Btn>}
               {canManage && <Btn kind="ghost" size="sm" icon={PlayCircle} onClick={() => { setTaking(t); setTakingPreview(true); }}>試し受験</Btn>}
               {canEditTest(t) && <Btn kind="ghost" size="sm" icon={t.status === "published" ? Lock : Send} onClick={() => updateTestStatus(t, t.status === "published" ? "draft" : "published")}>{t.status === "published" ? "非公開" : "公開"}</Btn>}
@@ -2387,27 +2418,44 @@ function Tests({ role, go }) {
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: "rgba(0,0,0,.4)" }} onClick={() => !assignBusy && setAssignTest(null)}>
           <div className="w-full max-w-lg rounded-2xl p-5" style={{ background: "#fff", border: `1px solid ${T.border}` }} onClick={e => e.stopPropagation()}>
             <div className="mb-1 flex items-start justify-between gap-3">
-              <h3 className="font-bold leading-snug" style={{ color: T.textPrimary }}>「{assignTest.title}」を出すコース</h3>
+              <h3 className="font-bold leading-snug" style={{ color: T.textPrimary }}>「{assignTest.title}」を出すコースと単元</h3>
               <button onClick={() => !assignBusy && setAssignTest(null)} aria-label="閉じる"><X size={18} style={{ color: T.textMuted }} /></button>
             </div>
             <p className="mb-3 text-xs leading-relaxed" style={{ color: T.textMuted }}>
-              チェックしたコースの受講生に出ます。複数のコースで同じテストを使えます。チェックを全部外すと、どこにも出ません（作りかけとして残ります）。
+              チェックしたコースの受講生に出ます。1つのテストを複数のコースで使えます。コースごとに、つなぐ単元を選べます。
             </p>
-            <div className="max-h-[46vh] space-y-1.5 overflow-y-auto">
-              {opsFilter.courses.map(c => {
+            <div className="max-h-[52vh] space-y-1.5 overflow-y-auto">
+              {/* 講師は担当コースだけ。担当外のコースに出ているぶんは、変えられないものとして並べる（2026-10-01） */}
+              {[...opsFilter.courses.filter(c => canAssignCourse(c.courseId)), ...opsFilter.courses.filter(c => !canAssignCourse(c.courseId) && assignIds.includes(c.courseId))].map(c => {
                 const id = c.courseId;
                 const on = assignIds.includes(id);
+                const editable = canAssignCourse(id);
+                const opts = assignCurricula[id];
                 return (
-                  <button key={id} type="button"
-                    onClick={() => setAssignIds(prev => on ? prev.filter(x => x !== id) : [...prev, id])}
-                    className="flex w-full items-center gap-2 rounded-xl px-3 py-2.5 text-left text-sm font-semibold"
-                    style={{ background: on ? T.accentSubtle : T.bgBase, color: on ? T.accentHover : T.textSecondary, border: `1px solid ${on ? T.accent : T.border}` }}>
-                    {on ? <CheckCircle2 size={15} /> : <Circle size={15} />}
-                    <span className="min-w-0 flex-1 truncate">{c.name || id}</span>
-                  </button>
+                  <div key={id} className="rounded-xl" style={{ background: on ? T.accentSubtle : T.bgBase, border: `1px solid ${on ? T.accent : T.border}` }}>
+                    <button type="button" disabled={!editable}
+                      onClick={() => { setAssignIds(prev => on ? prev.filter(x => x !== id) : [...prev, id]); if (!on) loadAssignCurriculum(id); }}
+                      className="flex w-full items-center gap-2 px-3 py-2.5 text-left text-sm font-semibold disabled:cursor-default"
+                      style={{ color: on ? T.accentHover : T.textSecondary }}>
+                      {on ? <CheckCircle2 size={15} /> : <Circle size={15} />}
+                      <span className="min-w-0 flex-1 truncate">{c.name || id}</span>
+                      {!editable && <span className="text-[11px] font-bold" style={{ color: T.textMuted }}>担当外（変えられません）</span>}
+                    </button>
+                    {on && editable && (
+                      <div className="px-3 pb-2.5">
+                        {opts === "loading" || opts === undefined ? <span className="text-xs" style={{ color: T.textMuted }}>単元を読み込み中…</span>
+                          : opts === null ? <span className="text-xs" style={{ color: T.warning }}>カリキュラムを読み込めませんでした（コース全体に出します）</span>
+                          : <select value={assignScopes[id] || ""} onChange={e => setAssignScopes(m => ({ ...m, [id]: e.target.value }))} aria-label={`${c.name || id}の単元`}
+                              className="w-full rounded-lg bg-white px-2.5 py-2 text-xs outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary }}>
+                              <option value="">コース全体</option>
+                              {opts.map(o => <option key={o.id} value={o.id}>{o.label}</option>)}
+                            </select>}
+                      </div>
+                    )}
+                  </div>
                 );
               })}
-              {!opsFilter.courses.length && <div className="py-6 text-center text-sm" style={{ color: T.textMuted }}>担当コースがありません。</div>}
+              {!opsFilter.courses.some(c => canAssignCourse(c.courseId)) && <div className="py-6 text-center text-sm" style={{ color: T.textMuted }}>担当コースがありません。</div>}
             </div>
             {assignErr && <div className="mt-3 rounded-lg px-3 py-2 text-xs" style={{ background: T.dangerSubtle, color: T.danger }}>{assignErr}</div>}
             <div className="mt-4 flex items-center justify-between gap-2">
@@ -2458,7 +2506,9 @@ function Tests({ role, go }) {
       )}
     </div>
   );}
-  const selectedCourseTests = selectedTestCourseId ? tests.filter(test => !test.courseId || test.courseId === selectedTestCourseId) : tests;
+  const selectedCourseTests = selectedTestCourseId
+    ? tests.filter(test => !testCourseIdList(test).length || testCourseIdList(test).includes(selectedTestCourseId)).map(test => ({ ...test, ...testScopeForCourse(test, selectedTestCourseId), courseId: selectedTestCourseId }))
+    : tests;
   const traineeTestGroups = groupTestScopesBySection(groupTestsByCurriculum(selectedCourseTests, t => myCourseNames[t.courseId], testCurricula));
   const orderedTraineeTests = traineeTestGroups.flatMap(group => group.tests);
   const completedTestCount = orderedTraineeTests.filter(test => test.status === "graded").length;
@@ -2975,11 +3025,15 @@ function TestBuilder({ back, focus, student, onSaved, initialTest = null, duplic
         chapterTitle: scopeMeta.chapterTitle || "",
         lessonId: scopeMeta.lessonId || "",
         lessonTitle: scopeMeta.lessonTitle || "",
+        // コースごとの単元（2026-10-01）。参照コースに出すときは、そのコースのぶんとして持つ
+        ...(courseId && linkedCourseIds.includes(courseId) ? { courseScopes: { [courseId]: selectedScope ? Object.fromEntries(TEST_SCOPE_KEYS.map(k => [k, selectedScope[k] || ""])) : null } } : {}),
         type,
         limitMinutes: Number(limitMinutes) || 0,
         questions,
         status,
       };
+      // これまでの1組の単元項目は「先頭のコース」のぶん。参照コースが先頭でなければ触らない（ほかのコースの単元を壊さない）
+      if (linkedCourseIds.length && linkedCourseIds[0] !== courseId) TEST_SCOPE_KEYS.forEach(k => { delete payload[k]; });
       if (initialTest && !duplicate) await apiPut(`/tests/${testIdOf(initialTest)}`, payload);
       else await apiPost("/tests", payload);
       emitNotificationRefresh();
