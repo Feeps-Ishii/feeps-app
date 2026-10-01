@@ -9,8 +9,8 @@ import {
   addMaterialToCurriculumTarget, normalizeCurriculumSections, sessionsFromSections,
 } from "./TrainingComponents.jsx";
 import {
-  BookOpen, ChevronRight, Copy, Download, Eye, FileText, Folder, FolderPlus, Globe, HardDrive, Link2, Lock,
-  MoreHorizontal, Pencil, Plus, Rows3, Trash2, Upload, Users, X,
+  BookOpen, ChevronRight, Copy, Download, Eye, FileText, Folder, FolderPlus, Globe, HardDrive, HelpCircle, Link2, Lock,
+  MoreHorizontal, Pencil, Plus, Rows3, Trash2, Upload, UserPlus, Users, X,
 } from "lucide-react";
 import { getActiveCourseId, setActiveCourseId, setLibraryTarget, takeLibraryTarget } from "../../utils/common/courseContext.js";
 
@@ -108,6 +108,8 @@ export default function LibraryView({ role }) {
   const [links, setLinks] = useState(null);      // 共有フォルダを使っているコース（講師・管理者）
   const [useFolder, setUseFolder] = useState(null); // { node, mode: "link"|"copy" }
   const [overview, setOverview] = useState(false);
+  const [groupsOpen, setGroupsOpen] = useState(false);   // コース内のグループ（講師・管理者）
+  const [quotaHelp, setQuotaHelp] = useState(false);
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState("");
@@ -510,10 +512,8 @@ export default function LibraryView({ role }) {
           n.type === "shortcut" ? (spaceId === "shared" && (inShortcut ? anchorId === n.targetNodeId : safePath.includes(n.targetNodeId))) : (spaceId === courseSpace && firstLevel === n.nodeId),
           () => (n.type === "shortcut" ? openShortcut(n) : openAt(courseSpace, [ROOT, n.nodeId])), side.course?.nodes))}
         {courseId && side.course && !courseTop.length && <div className="px-3 py-1 text-xs" style={{ color: T.textMuted }}>フォルダはまだありません</div>}
-        {role === "trainee" && <>
-          <div className="mx-2.5 my-1.5 h-px" style={{ background: T.border }} />
-          {head("me", Folder, "#9B79EC", "マイフォルダ", () => openAt(PERSONAL, [ROOT]), spaceId === PERSONAL)}
-        </>}
+        <div className="mx-2.5 my-1.5 h-px" style={{ background: T.border }} />
+        {head("me", Folder, "#9B79EC", "マイフォルダ", () => openAt(PERSONAL, [ROOT]), spaceId === PERSONAL)}
         {staff && <>
           <div className="mx-2.5 my-1.5 h-px" style={{ background: T.border }} />
           {head("shared", Globe, "#3AB9B1", "共有（全社）", () => openAt("shared", [ROOT]), spaceId === "shared" && !firstLevel)}
@@ -592,8 +592,10 @@ export default function LibraryView({ role }) {
             {/* 「既存の資料を取り込む」ボタンは置かない（2026-09-18）。
                 コースを初めて開いたときに自動で取り込まれるので、押す場面が無い。
                 取りこぼしたときの手動実行は POST /library/migrate が残してある */}
-            <Btn size="sm" icon={Plus} onClick={newFolder} disabled={!mayWriteHere || !!busy}
-              title={mayWriteHere ? "" : "このフォルダに作る権限がありません。"}>フォルダ</Btn>
+            {staff && courseIdOfSpace && (
+              <Btn size="sm" kind="ghost" icon={Users} onClick={() => setGroupsOpen(true)}>グループ</Btn>
+            )}
+            {mayWriteHere && <Btn size="sm" icon={Plus} onClick={newFolder} disabled={!!busy}>フォルダ</Btn>}
             {mayWriteHere && linkOptions.length > 0 && (
               <select
                 value={linkTarget}
@@ -607,10 +609,11 @@ export default function LibraryView({ role }) {
                 {linkOptions.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
               </select>
             )}
-            <Btn kind="primary" size="sm" icon={Upload} onClick={pickFiles} disabled={!mayWriteHere || !!busy}
-              title={mayWriteHere ? "" : "このフォルダに置く権限がありません。"}>
-              {busy === "upload" ? "アップロード中…" : "アップロード"}
-            </Btn>
+            {mayWriteHere && (
+              <Btn kind="primary" size="sm" icon={Upload} onClick={pickFiles} disabled={!!busy}>
+                {busy === "upload" ? "アップロード中…" : "アップロード"}
+              </Btn>
+            )}
             <input ref={fileInput} type="file" multiple hidden onChange={onFiles} />
           </div>
         </div>
@@ -658,46 +661,40 @@ export default function LibraryView({ role }) {
           </div>
         )}
 
-        {/* 今月のダウンロード。**上限に達すると開けなくなる**ので、先に見せておく */}
-        {data?.transfer?.capBytes > 0 && (
-          <div className="px-4 py-2.5" style={{ background: T.bgBase, borderTop: `1px solid ${T.border}` }}>
-            <div className="flex items-center justify-between text-xs" style={{ color: T.textSecondary }}>
-              <span>今月のダウンロード</span>
-              <span className="tabular-nums">{fmtSize(data.transfer.usedBytes)} / {fmtSize(data.transfer.capBytes)}</span>
+        {/* マイフォルダの残り（2026-10-01）。上限はマイフォルダだけ。研修の資料には上限なし */}
+        {(data?.quotaBytes > 0 || data?.transfer?.capBytes > 0) && (() => {
+          const MB = 1024 * 1024;
+          const left = Math.max(0, (data.quotaBytes || 0) - (data.usedBytes || 0));
+          const dlLeft = Math.max(0, (data.transfer?.capBytes || 0) - (data.transfer?.usedBytes || 0));
+          const meter = (label, used, cap, warnAt) => (
+            <div>
+              <div className="flex items-center justify-between text-xs" style={{ color: T.textSecondary }}>
+                <span>{label}</span>
+                <span className="tabular-nums">残り {fmtSize(Math.max(0, cap - used))} <span style={{ color: T.textMuted }}>/ {fmtSize(cap)}</span></span>
+              </div>
+              <div className="mt-1 h-2 overflow-hidden rounded-full" style={{ background: T.border }}>
+                <div className="h-full rounded-full" style={{ width: `${Math.min(100, (used / cap) * 100).toFixed(1)}%`, background: used > cap * warnAt ? T.warning : T.accent }} />
+              </div>
             </div>
-            <div className="mt-1.5 h-2 overflow-hidden rounded-full" style={{ background: T.border }}>
-              <div className="h-full rounded-full"
-                style={{
-                  width: `${Math.min(100, (data.transfer.usedBytes / data.transfer.capBytes) * 100).toFixed(1)}%`,
-                  background: data.transfer.usedBytes > data.transfer.capBytes * 0.8 ? T.warning : T.accent,
-                }} />
+          );
+          return (
+            <div className="grid gap-2.5 px-4 py-3" style={{ background: T.bgBase, borderTop: `1px solid ${T.border}` }}>
+              <div className="flex items-center gap-2">
+                <span className="text-xs font-bold" style={{ color: T.textSecondary }}>マイフォルダの残り</span>
+                <button type="button" onClick={() => setQuotaHelp(v => !v)} aria-expanded={quotaHelp} aria-label="使うとどれくらい減るか" className="rounded-full" style={{ color: quotaHelp ? T.accent : T.textMuted }}><HelpCircle size={15} /></button>
+              </div>
+              {data.quotaBytes > 0 && meter("保存できる量", data.usedBytes || 0, data.quotaBytes, 0.9)}
+              {data.transfer?.capBytes > 0 && meter("今月のダウンロード", data.transfer.usedBytes || 0, data.transfer.capBytes, 0.8)}
+              {quotaHelp && (
+                <div className="grid gap-1 rounded-xl px-3 py-2.5 text-xs leading-5" style={{ background: T.bgSurface, border: `1px solid ${T.border}`, color: T.textSecondary }}>
+                  <div><b style={{ color: T.textPrimary }}>保存</b>：置いたファイルの大きさだけ減ります。残りで PDF（5MB）なら約 {Math.floor(left / (5 * MB)).toLocaleString()} 個、動画（100MB）なら約 {Math.floor(left / (100 * MB)).toLocaleString()} 本。消せば戻ります。</div>
+                  <div><b style={{ color: T.textPrimary }}>ダウンロード</b>：開くたび・落とすたびに、そのファイルの大きさだけ減ります。残りで PDF（5MB）なら約 {Math.floor(dlLeft / (5 * MB)).toLocaleString()} 回。毎月1日に戻ります。</div>
+                  <div style={{ color: T.textMuted }}>コースや共有（全社）の研修資料には上限はありません。</div>
+                </div>
+              )}
             </div>
-            <div className="mt-1 text-[11px]" style={{ color: T.textMuted }}>
-              資料の取り出しにも通信料がかかるため、月ごとの上限があります。
-              上限に達すると、来月まで新しく開けません。
-            </div>
-          </div>
-        )}
-
-        {/* 個人フォルダの残り。**超えるアップロードは通らない**ので、先に見せておく */}
-        {data?.quotaBytes > 0 && (
-          <div className="px-4 py-2.5" style={{ background: T.bgBase }}>
-            <div className="flex items-center justify-between text-xs" style={{ color: T.textSecondary }}>
-              <span>マイフォルダの使用量</span>
-              <span className="tabular-nums">{fmtSize(data.usedBytes)} / {fmtSize(data.quotaBytes)}</span>
-            </div>
-            <div className="mt-1.5 h-2 overflow-hidden rounded-full" style={{ background: T.border }}>
-              <div className="h-full rounded-full"
-                style={{
-                  width: `${Math.min(100, (data.usedBytes / data.quotaBytes) * 100).toFixed(1)}%`,
-                  background: data.usedBytes > data.quotaBytes * 0.9 ? T.danger : T.accent,
-                }} />
-            </div>
-            <div className="mt-1 text-[11px]" style={{ color: T.textMuted }}>
-              上限まで {fmtSize(Math.max(0, data.quotaBytes - data.usedBytes))}。超えるアップロードは通りません。
-            </div>
-          </div>
-        )}
+          );
+        })()}
 
         {notice && (
           <div className="px-4 py-2 text-xs font-semibold" style={{ background: T.successSubtle, color: T.success }}>{notice}</div>
@@ -849,6 +846,14 @@ export default function LibraryView({ role }) {
         <UsageModal data={usage} onClose={() => setUsageOpen(false)} />
       )}
 
+      {groupsOpen && courseIdOfSpace && (
+        <GroupsModal
+          courseId={courseIdOfSpace}
+          courseName={courseName}
+          onClose={() => { setGroupsOpen(false); loadGroups(); }}
+        />
+      )}
+
       {useFolder && (
         <UseFolderModal
           node={useFolder.node}
@@ -894,6 +899,99 @@ export default function LibraryView({ role }) {
         />
       )}
     </div>
+  );
+}
+
+/* コース内のグループ（2026-10-01）。講師・管理者が名前を付けて作り、コースの受講生を割り当てる。
+   フォルダの「見える人を変える」でグループを選ぶと、そのグループの人だけが見られる（チーム開発演習など） */
+function GroupsModal({ courseId, courseName, onClose }) {
+  const [groups, setGroups] = useState(null);
+  const [trainees, setTrainees] = useState([]);
+  const [selected, setSelected] = useState("");
+  const [draft, setDraft] = useState([]);
+  const [name, setName] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState("");
+  const load = useCallback(async () => {
+    try {
+      const [g, t] = await Promise.all([
+        apiGet(`/library/groups?courseId=${encodeURIComponent(courseId)}`),
+        apiGet(`/courses/${encodeURIComponent(courseId)}/trainees`).catch(() => []),
+      ]);
+      const list = Array.isArray(g?.groups) ? g.groups : [];
+      setGroups(list);
+      setTrainees(Array.isArray(t) ? t : []);
+      return list;
+    } catch (e) { setMsg(e?.errorMessage || e?.message || "グループを読み込めませんでした。"); setGroups([]); return []; }
+  }, [courseId]);
+  useEffect(() => { load(); }, [load]);
+  const current = (groups || []).find(g => g.groupId === selected);
+  useEffect(() => { setDraft(current?.members || []); }, [current?.groupId]); // eslint-disable-line react-hooks/exhaustive-deps
+  async function act(fn, done) {
+    setBusy(true); setMsg("");
+    try { await fn(); const list = await load(); done?.(list); }
+    catch (e) { setMsg(e?.errorMessage || e?.message || "うまくいきませんでした。"); }
+    finally { setBusy(false); }
+  }
+  const nameOf = id => { const t = trainees.find(x => x.userId === id); return t?.name || t?.email || "（コース外の人）"; };
+  return (
+    <Modal title={`${courseName || "このコース"}のグループ`} onClose={onClose}>
+      <div className="grid gap-4">
+        <div className="flex flex-wrap gap-2">
+          <input value={name} onChange={e => setName(e.target.value)} placeholder="グループ名（例：Aグループ）" aria-label="グループ名"
+            className="min-w-0 flex-1 rounded-xl px-3 py-2 text-sm outline-none" style={{ border: `1px solid ${T.border}` }} />
+          <Btn icon={Plus} disabled={!name.trim() || busy} onClick={() => act(
+            () => apiPost("/library/groups", { courseId, name: name.trim() }).then(g => { setSelected(g.groupId); }),
+            () => setName(""))}>作る</Btn>
+        </div>
+        {groups === null ? <SkeletonRows rows={3} /> : (
+          <div className="grid gap-3 sm:grid-cols-[200px_minmax(0,1fr)]">
+            <div className="grid content-start gap-1">
+              {groups.length === 0 && <div className="text-xs" style={{ color: T.textMuted }}>グループはまだありません</div>}
+              {groups.map(g => (
+                <button key={g.groupId} type="button" onClick={() => setSelected(g.groupId)}
+                  className="flex items-center gap-2 rounded-lg px-3 py-2 text-left text-sm"
+                  style={selected === g.groupId ? { background: T.accentSubtle, color: T.textPrimary, fontWeight: 700 } : { color: T.textSecondary }}>
+                  <Users size={14} /><span className="min-w-0 flex-1 truncate">{g.name}</span>
+                  <span className="text-[11px] tabular-nums" style={{ color: T.textMuted }}>{g.memberCount}人</span>
+                </button>
+              ))}
+            </div>
+            <div className="min-w-0">
+              {!current ? <div className="rounded-xl px-3 py-6 text-center text-xs" style={{ color: T.textMuted, border: `1px dashed ${T.border}` }}>左でグループを選ぶと、メンバーを割り当てられます</div> : (
+                <div className="grid gap-2">
+                  <div className="flex items-center gap-2 text-sm font-bold" style={{ color: T.textPrimary }}><UserPlus size={15} />{current.name} のメンバー</div>
+                  <div className="grid max-h-72 gap-1 overflow-y-auto">
+                    {trainees.length === 0 && <div className="text-xs" style={{ color: T.textMuted }}>このコースの受講生がいません</div>}
+                    {trainees.map(t => (
+                      <label key={t.userId} className="flex items-center gap-2.5 rounded-lg px-3 py-1.5 text-sm" style={{ border: `1px solid ${T.border}` }}>
+                        <input type="checkbox" checked={draft.includes(t.userId)} style={{ accentColor: T.accent }}
+                          onChange={() => setDraft(d => d.includes(t.userId) ? d.filter(x => x !== t.userId) : [...d, t.userId])} />
+                        <span className="min-w-0 flex-1 truncate" style={{ color: T.textPrimary }}>{t.name || t.email || t.userId}</span>
+                      </label>
+                    ))}
+                    {draft.filter(id => !trainees.some(t => t.userId === id)).map(id => (
+                      <div key={id} className="px-3 text-xs" style={{ color: T.textMuted }}>{nameOf(id)}（講師など）</div>
+                    ))}
+                  </div>
+                  <div className="flex flex-wrap justify-between gap-2">
+                    <Btn kind="ghost" size="sm" icon={Trash2} disabled={busy} onClick={() => {
+                      if (!window.confirm(`「${current.name}」を消します。このグループだけに見せていたフォルダは、誰にも見えなくなります（管理者は見られます）。`)) return;
+                      act(() => apiDelete(`/library/groups/${encodeURIComponent(current.groupId)}?courseId=${encodeURIComponent(courseId)}`), () => setSelected(""));
+                    }}>グループを消す</Btn>
+                    <Btn size="sm" disabled={busy} onClick={() => act(
+                      () => apiPut(`/library/groups/${encodeURIComponent(current.groupId)}`, { courseId, members: draft }),
+                      () => setMsg(`「${current.name}」のメンバーを保存しました。`))}>メンバーを保存</Btn>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+        {msg && <div className="rounded-lg px-3 py-2 text-xs font-semibold" style={{ background: T.bgBase, color: T.textSecondary }}>{msg}</div>}
+        <div className="text-xs" style={{ color: T.textMuted }}>フォルダの「見える人を変える」でグループを選ぶと、そのグループの人だけが見られます。</div>
+      </div>
+    </Modal>
   );
 }
 
