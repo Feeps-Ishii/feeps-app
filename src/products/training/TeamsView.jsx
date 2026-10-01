@@ -1,18 +1,21 @@
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { apiDelete, apiGet, apiPost, apiPut } from "../../api.js";
 import { T, NOVA, Card, Btn, Badge, Modal, EmptyState, SectionHead, SkeletonRows, PrismErrorRetryCard } from "../../components/common";
 import { setLibraryTarget } from "../../utils/common/courseContext.js";
 import { normalizeCurriculumSections } from "./TrainingComponents.jsx";
 import {
-  Briefcase, Check, ChevronLeft, ChevronRight, Crown, Eye, FileText, Folder, ListTodo, LogIn, LogOut, Plus, Search, Shuffle, Trash2, Users, X, Columns3,
+  Briefcase, Check, ChevronLeft, ChevronRight, Crown, Eye, FileText, Folder, ListTodo, LogIn, LogOut, MessageSquare, PenTool, Plus, Search, Send, Shuffle, Trash2, Users, X, Columns3,
 } from "lucide-react";
+
+// 共有ボード（Excalidraw）は重いので、ボードを開いた人だけが読み込む
+const TeamBoard = React.lazy(() => import("./TeamBoard.jsx"));
 
 /* チーム（2026-10-01 ユーザー決定。CHANGELOG 185）。サイドバーの研修に「チーム」。
    - 受講生：自分のチームのページ（やること・フォルダ・メンバー）。チームは作れない
    - 講師（担当コースだけ）・管理者（すべて）：チームの一覧、入る・抜ける、メンバー管理、割り当て表、チームの設定
    - 既定は1人1チーム。コースごとに「1人で複数チームに入れる」にできる
    - チームのフォルダはファイル管理の「チーム」フォルダの下にあり、どちらからも開ける
-   チャット・共有ボードは次の段階（②③）で足す。 */
+   チャット（②）は数秒ごとに新着を読む。自分の発言は右に出す。共有ボード（③）は TeamBoard.jsx。 */
 const TEAM_COLORS = ["#E07A5F", "#3D8A63", "#7454C7", "#B07C2E", "#2E86AB", "#D1495B", "#00798C", "#5C946E"];
 const teamColor = t => TEAM_COLORS[(Number(t?.color) || 0) % TEAM_COLORS.length];
 const errText = (e, fallback) => e?.errorMessage || e?.message || fallback;
@@ -382,7 +385,7 @@ function AssignBoard({ course, teams, trainees, nameOf, onPut, act, onBack, onCr
 
 /* ---------- チームのページ ---------- */
 function TeamRoom({ team, me, nameOf, isStaff, go }) {
-  const [tab, setTab] = useState("todo");
+  const [tab, setTab] = useState("chat");
   const [exercises, setExercises] = useState([]);
   // 今日のカリキュラムのチーム演習（あれば帯で出す）
   useEffect(() => {
@@ -399,7 +402,7 @@ function TeamRoom({ team, me, nameOf, isStaff, go }) {
     }).catch(() => {});
     return () => { alive = false; };
   }, [team.courseId]);
-  const tabs = [["todo", ListTodo, "やること"], ["files", Folder, "フォルダ"], ["members", Users, "メンバー"]];
+  const tabs = [["chat", MessageSquare, "チャット"], ...(team.settings?.board ? [["board", PenTool, "ボード"]] : []), ["todo", ListTodo, "やること"], ["files", Folder, "フォルダ"], ["members", Users, "メンバー"]];
   return (
     <div className="grid gap-3">
       <Card className="overflow-hidden p-0">
@@ -427,6 +430,8 @@ function TeamRoom({ team, me, nameOf, isStaff, go }) {
           <Btn size="sm" kind="ghost" onClick={() => go?.("curriculum")}>演習を開く<ChevronRight size={14} className="ml-1 inline" /></Btn>
         </div>
       ))}
+      {tab === "chat" && <ChatTab team={team} me={me} nameOf={nameOf} />}
+      {tab === "board" && team.settings?.board && <React.Suspense fallback={<Card className="p-4"><SkeletonRows rows={4} /></Card>}><TeamBoard team={team} nameOf={nameOf} /></React.Suspense>}
       {tab === "todo" && <TodoTab team={team} me={me} nameOf={nameOf} />}
       {tab === "files" && <FilesTab team={team} isStaff={isStaff} go={go} />}
       {tab === "members" && <Card className="p-4">
@@ -436,6 +441,111 @@ function TeamRoom({ team, me, nameOf, isStaff, go }) {
         {team.staff.length === 0 ? <div className="text-sm" style={{ color: T.textMuted }}>いません</div> : team.staff.map(id => <div key={id} className="flex items-center gap-2.5 py-1.5" style={{ borderTop: `1px solid ${T.border}` }}><Face name={nameOf(id)} size={32} ring={false} /><span className="flex-1 text-sm font-semibold" style={{ color: T.textPrimary }}>{nameOf(id)}{id === me ? "（自分）" : ""}</span></div>)}
       </Card>}
     </div>
+  );
+}
+
+/* ---------- チャット（②） ---------- */
+const CHAT_POLL_MS = 4000;
+const hm = iso => { const d = new Date(iso); return Number.isNaN(d.getTime()) ? "" : `${d.getHours()}:${String(d.getMinutes()).padStart(2, "0")}`; };
+const dayLabel = iso => { const d = new Date(iso); if (Number.isNaN(d.getTime())) return ""; const t = new Date(); const same = (a, b) => a.toDateString() === b.toDateString(); const y = new Date(t); y.setDate(t.getDate() - 1); return same(d, t) ? "今日" : same(d, y) ? "昨日" : `${d.getMonth() + 1}月${d.getDate()}日`; };
+function ChatTab({ team, me, nameOf }) {
+  const [msgs, setMsgs] = useState(null);
+  const [canPost, setCanPost] = useState(false);
+  const [err, setErr] = useState("");
+  const [text, setText] = useState("");
+  const [sending, setSending] = useState(false);
+  const listRef = useRef(null);
+  const cursorRef = useRef("");
+  const stickRef = useRef(true);
+  const base = `/teams/${encodeURIComponent(team.teamId)}/messages`;
+  const cq = `courseId=${encodeURIComponent(team.courseId)}`;
+  const addMsgs = useCallback(list => {
+    if (!list.length) return;
+    cursorRef.current = list[list.length - 1].id > cursorRef.current ? list[list.length - 1].id : cursorRef.current;
+    setMsgs(cur => { const seen = new Set((cur || []).map(m => m.id)); return [...(cur || []), ...list.filter(m => !seen.has(m.id))]; });
+  }, []);
+  const load = useCallback(async () => {
+    try {
+      const d = await apiGet(`${base}?${cq}`);
+      const list = Array.isArray(d?.messages) ? d.messages : [];
+      cursorRef.current = list.length ? list[list.length - 1].id : "";
+      setMsgs(list); setCanPost(!!d?.canPost); setErr("");
+    } catch (e) { setErr(errText(e, "チャットを読み込めませんでした。")); }
+  }, [base, cq]);
+  useEffect(() => { load(); }, [load]);
+  // 新着を数秒ごとに読む（見えているときだけ）
+  useEffect(() => {
+    if (msgs == null) return undefined;
+    const id = window.setInterval(async () => {
+      if (document.visibilityState !== "visible") return;
+      try {
+        const d = await apiGet(`${base}?${cq}${cursorRef.current ? `&after=${encodeURIComponent(cursorRef.current)}` : ""}`);
+        addMsgs(Array.isArray(d?.messages) ? d.messages : []);
+      } catch { /* 次の回で読み直す */ }
+    }, CHAT_POLL_MS);
+    return () => window.clearInterval(id);
+  }, [msgs == null, base, cq, addMsgs]); // eslint-disable-line react-hooks/exhaustive-deps
+  // 下を見ているときだけ、新着で下へ送る
+  useEffect(() => { const el = listRef.current; if (el && stickRef.current) el.scrollTop = el.scrollHeight; }, [msgs]);
+  async function send() {
+    const v = text.trim();
+    if (!v || sending) return;
+    setSending(true); setErr("");
+    try { const m = await apiPost(base, { courseId: team.courseId, text: v }); setText(""); stickRef.current = true; addMsgs([m]); }
+    catch (e) { setErr(errText(e, "送れませんでした。")); }
+    finally { setSending(false); }
+  }
+  async function remove(m) {
+    if (!window.confirm("この発言を消しますか？")) return;
+    try { await apiDelete(`${base}?${cq}&id=${encodeURIComponent(m.id)}`); setMsgs(cur => (cur || []).map(x => (x.id === m.id ? { ...x, deleted: true, text: "" } : x))); }
+    catch (e) { setErr(errText(e, "消せませんでした。")); }
+  }
+  if (msgs == null) return err ? <PrismErrorRetryCard message={err} onRetry={load} /> : <Card className="p-4"><SkeletonRows rows={4} /></Card>;
+  let lastDay = "";
+  return (
+    <Card className="flex flex-col overflow-hidden p-0" style={{ height: "min(620px, 70vh)" }}>
+      <div ref={listRef} onScroll={e => { const el = e.currentTarget; stickRef.current = el.scrollHeight - el.scrollTop - el.clientHeight < 60; }} className="flex-1 overflow-y-auto px-4 py-3">
+        {msgs.length === 0 && <div className="py-10 text-center text-sm" style={{ color: T.textMuted }}>まだ発言はありません</div>}
+        {msgs.map(m => {
+          const day = dayLabel(m.createdAt);
+          const sep = day !== lastDay ? <div className="my-2 flex justify-center"><span className="rounded-full px-2.5 text-[11px]" style={{ background: T.bgBase, color: T.textMuted }}>{day}</span></div> : null;
+          lastDay = day;
+          const mine = m.by === me;
+          return (
+            <React.Fragment key={m.id}>
+              {sep}
+              {mine ? (
+                <div className="group my-1.5 flex justify-end gap-2">
+                  <div className="flex max-w-[78%] flex-col items-end">
+                    <div className="whitespace-pre-wrap break-words rounded-2xl rounded-tr-md px-3 py-2 text-sm" style={m.deleted ? { background: T.bgBase, color: T.textMuted } : { background: T.accent, color: "#fff" }}>{m.deleted ? "この発言は消されました" : m.text}</div>
+                    <div className="mt-0.5 flex items-center gap-2 text-[11px]" style={{ color: T.textMuted }}>{!m.deleted && <button type="button" onClick={() => remove(m)} className="opacity-0 transition group-hover:opacity-100 focus:opacity-100" style={{ color: T.textMuted }}>消す</button>}{hm(m.createdAt)}</div>
+                  </div>
+                </div>
+              ) : (
+                <div className="my-1.5 flex gap-2">
+                  <Face name={nameOf(m.by)} size={30} ring={false} />
+                  <div className="flex max-w-[78%] flex-col items-start">
+                    <div className="text-xs font-bold" style={{ color: T.textSecondary }}>{nameOf(m.by)}<span className="ml-1.5 font-normal" style={{ color: T.textMuted }}>{hm(m.createdAt)}</span></div>
+                    <div className="mt-0.5 whitespace-pre-wrap break-words rounded-2xl rounded-tl-md px-3 py-2 text-sm" style={{ background: m.deleted ? T.bgBase : "#fff", border: `1px solid ${T.border}`, color: m.deleted ? T.textMuted : T.textPrimary }}>{m.deleted ? "この発言は消されました" : m.text}</div>
+                  </div>
+                </div>
+              )}
+            </React.Fragment>
+          );
+        })}
+      </div>
+      {err && <div className="px-4 pb-1 text-xs" style={{ color: T.danger }}>{err}</div>}
+      {canPost ? (
+        <div className="flex items-end gap-2 px-3 py-2.5" style={{ borderTop: `1px solid ${T.border}` }}>
+          <textarea value={text} onChange={e => setText(e.target.value)} rows={1} maxLength={2000} placeholder={`${team.name} に送る`} aria-label="メッセージ"
+            onKeyDown={e => { if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) { e.preventDefault(); send(); } }}
+            className="max-h-32 min-h-[40px] min-w-0 flex-1 resize-none rounded-xl px-3 py-2 text-sm outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary }} />
+          <Btn icon={Send} disabled={!text.trim() || sending} onClick={send}>送る</Btn>
+        </div>
+      ) : (
+        <div className="flex items-center justify-center gap-2 px-3 py-3 text-sm" style={{ borderTop: `1px solid ${T.border}`, color: T.textMuted }}><Eye size={15} />見るだけ</div>
+      )}
+    </Card>
   );
 }
 
