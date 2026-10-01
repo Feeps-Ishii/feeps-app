@@ -100,6 +100,10 @@ export default function LibraryView({ role }) {
   const [courses, setCourses] = useState([]);
   const [courseId, setCourseId] = useState("");
   const [spaceId, setSpaceId] = useState("");
+  /* 見え方の印・説明・変更は講師・管理者だけ（2026-10-01）。受講生・企業担当には見えるものしか出ないので印は要らない。
+     マイフォルダは本人だけなので出さない */
+  const isPersonalSpace = spaceId === PERSONAL || String(spaceId).startsWith("user#");
+  const showVis = staff && !isPersonalSpace;
   /* 受講生・企業担当が共有（全社）を開くのは、コースのショートカット経由だけ。
      via はそのコースの置き場、anchor はショートカット先（そこより上は見せない） */
   const [via, setVia] = useState("");
@@ -331,7 +335,7 @@ export default function LibraryView({ role }) {
     if (!name || !name.trim()) return;
     run("folder", async () => {
       await apiPost("/library/folders", { spaceId, parentId: currentId, name: name.trim() });
-      setNotice(`「${name.trim()}」を作りました。公開範囲は入れ先から引き継ぎます。`);
+      setNotice(`「${name.trim()}」を作りました。${showVis ? "公開範囲は入れ先から引き継ぎます。" : ""}`);
     });
   }
 
@@ -619,7 +623,7 @@ export default function LibraryView({ role }) {
         </div>
 
         {/* このフォルダの公開範囲 */}
-        {current && (
+        {current && showVis && (
           <div className="flex flex-wrap items-center gap-2 px-4 py-2.5 text-xs" style={{ background: T.bgBase, color: T.textMuted }}>
             <VisBadge k={visKey(current.acl)} />
             <span>{describeAcl(current.acl, courseName, groupNames)}</span>
@@ -714,8 +718,8 @@ export default function LibraryView({ role }) {
             <table className="w-full min-w-[520px] border-collapse">
               <thead>
                 <tr>
-                  {["名前", "公開範囲", "サイズ", "更新", ""].map((h, i) => (
-                    <th key={h || i} className={"px-4 py-2 text-left text-[11px] font-bold" + (i === 2 ? " text-right" : "")}
+                  {(showVis ? ["名前", "公開範囲", "サイズ", "更新", ""] : ["名前", "サイズ", "更新", ""]).map((h, i) => (
+                    <th key={h || i} className={"px-4 py-2 text-left text-[11px] font-bold" + (h === "サイズ" ? " text-right" : "")}
                       style={{ color: T.textMuted, borderBottom: `1px solid ${T.border}` }}>{h}</th>
                   ))}
                 </tr>
@@ -750,7 +754,7 @@ export default function LibraryView({ role }) {
                           {shortcut && <span className="text-[11px] font-semibold" style={{ color: T.accentHover }}>共有（全社）</span>}
                         </button>
                       </td>
-                      <td className="px-4 py-2.5">
+                      {showVis && <td className="px-4 py-2.5">
                         <VisBadge k={nodeVisKey(n)} />
                         {n.acl?.scope === "groups" && (
                           <span className="ml-1.5 text-[11px]" style={{ color: T.accentHover }}>
@@ -760,7 +764,7 @@ export default function LibraryView({ role }) {
                         {n.acl?.traineeWrite && n.acl?.roles?.trainee && (
                           <span className="ml-1.5 text-[11px]" style={{ color: T.textMuted }}>受講生も置ける</span>
                         )}
-                      </td>
+                      </td>}
                       <td className="px-4 py-2.5 text-right text-xs tabular-nums" style={{ color: T.textSecondary }}>{fmtSize(size)}</td>
                       <td className="px-4 py-2.5 text-xs tabular-nums" style={{ color: T.textMuted }}>{fmtDate(n.updatedAt)}</td>
                       <td className="px-2 py-2.5 text-right">
@@ -820,7 +824,7 @@ export default function LibraryView({ role }) {
             )}
             {n.canWrite ? (
               <>
-                <MenuItem icon={Users} label="見える人を変える" onClick={() => { setMenuFor(null); setAclTarget(n); }} />
+                {showVis && <MenuItem icon={Users} label="見える人を変える" onClick={() => { setMenuFor(null); setAclTarget(n); }} />}
                 {n.type !== "shortcut" && <MenuItem icon={Pencil} label="名前を変える" onClick={() => { setMenuFor(null); rename(n); }} />}
                 <MenuItem icon={n.type === "shortcut" ? X : Trash2} label={n.type === "shortcut" ? "紐づけを外す" : "削除"} danger onClick={() => { setMenuFor(null); remove(n); }} />
               </>
