@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { apiGet, apiPost, apiPut } from "../../api.js";
 import { T, Card, Btn, Badge, EmptyState, SectionHead, SkeletonRows, PrismErrorRetryCard } from "../../components/common";
 import { getActiveCourseId, setActiveCourseId } from "../../utils/common/courseContext.js";
@@ -208,7 +209,8 @@ function SeatingBoard({ data, courseId, onReload, setData }) {
   const dragRef = useRef(null);
   const dragSeatRef = useRef(null);
   const [scale, setScale] = useState(1);
-  const keepLocalRef = useRef(false);   // 保存で回を作ったときは、画面の席をそのまま残す
+  const keepLocalRef = useRef(false);
+  const ptRef = useRef(null);         // 最後に押した場所（説明のカードをその横に出す）   // 保存で回を作ったときは、画面の席をそのまま残す
 
   // 前回の机：この回より前の、確定した回のうち最後のもの
   const prev = useMemo(() => {
@@ -324,10 +326,15 @@ function SeatingBoard({ data, courseId, onReload, setData }) {
     if (rs) {
       snapshot();
       if (rs.dataset.rs === "room") dragRef.current = { kind: "room", w0: layout.room.w, h0: layout.room.h, p0 };
-      else { const f = layout.fx.find(x => x.id === sel?.id); dragRef.current = { kind: "fx", id: f.id, w0: f.w, h0: f.h, p0 }; }
+      else {
+        // 選んでいる机・設備の右辺（e）・下辺（s）・右下（se）をドラッグして大きさを変える
+        const isDesk = sel?.type === "d", o = isDesk ? layout.desks.find(x => x.id === sel.id) : layout.fx.find(x => x.id === sel?.id);
+        if (!o) return;
+        dragRef.current = { kind: "size", dir: rs.dataset.rs, isDesk, id: o.id, w0: o.w, h0: o.h, p0 };
+      }
       e.preventDefault(); e.currentTarget.setPointerCapture?.(e.pointerId); return;
     }
-    if (!el) { setSel({ type: "room" }); return; }
+    if (!el) { setSel(null); return; }
     const isDesk = !!el.dataset.desk, id = el.dataset.desk || el.dataset.fx;
     const obj = isDesk ? layout.desks.find(d => d.id === id) : layout.fx.find(f => f.id === id);
     setSel({ type: isDesk ? "d" : "f", id });
@@ -341,7 +348,11 @@ function SeatingBoard({ data, courseId, onReload, setData }) {
     setLayout(l => {
       const n = { ...l, room: { ...l.room }, desks: l.desks.map(d => ({ ...d })), fx: l.fx.map(f => ({ ...f })) };
       if (g.kind === "room") { n.room.w = Math.max(500, Math.min(3000, snap(g.w0 + p.x - g.p0.x))); n.room.h = Math.max(300, Math.min(1600, snap(g.h0 + p.y - g.p0.y))); }
-      if (g.kind === "fx") { const f = n.fx.find(x => x.id === g.id); f.w = Math.max(10, snap(g.w0 + p.x - g.p0.x)); f.h = Math.max(10, snap(g.h0 + p.y - g.p0.y)); }
+      if (g.kind === "size") {
+        const o = g.isDesk ? n.desks.find(d => d.id === g.id) : n.fx.find(f => f.id === g.id), min = g.isDesk ? 30 : 10;
+        if (g.dir.includes("e")) o.w = Math.max(min, Math.min(n.room.w - o.x, snap(g.w0 + p.x - g.p0.x)));
+        if (g.dir.includes("s")) o.h = Math.max(min, Math.min(n.room.h - o.y, snap(g.h0 + p.y - g.p0.y)));
+      }
       if (g.kind === "move") { const o = g.isDesk ? n.desks.find(d => d.id === g.id) : n.fx.find(f => f.id === g.id); o.x = Math.max(0, Math.min(n.room.w - o.w, snap(p.x - g.dx))); o.y = Math.max(0, Math.min(n.room.h - o.h, snap(p.y - g.dy))); g.moved = true; }
       return n;
     });
@@ -397,6 +408,12 @@ function SeatingBoard({ data, courseId, onReload, setData }) {
 
   /* ---- 描く ---- */
   const hlSeats = new Set(pending ? pending.moves.flatMap(m => [m.from, m.to]) : []);
+  const handle = { position: "absolute", background: T.accent, border: "2px solid #fff", boxShadow: "0 1px 4px rgba(0,0,0,.25)", borderRadius: 4, zIndex: 6 };
+  const sizeHandles = <>
+    <span data-rs="e" title="ドラッグで幅を変える" style={{ ...handle, right: -9, top: "50%", width: 12, height: 26, marginTop: -13, cursor: "ew-resize" }} />
+    <span data-rs="s" title="ドラッグで奥行きを変える" style={{ ...handle, bottom: -9, left: "50%", width: 26, height: 12, marginLeft: -13, cursor: "ns-resize" }} />
+    <span data-rs="se" title="ドラッグで大きさを変える" style={{ ...handle, right: -10, bottom: -10, width: 18, height: 18, cursor: "nwse-resize" }} />
+  </>;
   function renderRoom(forPrint) {
     const ed = edit && !forPrint;
     return (
@@ -406,7 +423,7 @@ function SeatingBoard({ data, courseId, onReload, setData }) {
         {layout.fx.map(f => {
           const on = ed && sel?.type === "f" && sel.id === f.id;
           return <div key={f.id} data-fx={f.id} className="absolute grid place-items-center bg-white text-xs" style={{ left: f.x, top: f.y, width: f.w, height: f.h, border: "1.5px solid #1A1C1F", zIndex: 2, writingMode: f.h > f.w * 1.4 ? "vertical-rl" : undefined, cursor: ed ? "move" : "default", outline: on ? `2.5px solid ${T.accent}` : ed ? `1px dashed ${T.accent}` : "none", outlineOffset: on ? 3 : 0 }}>
-            {f.t}{on && <span data-rs="fx" className="absolute h-3.5 w-3.5 rounded" style={{ right: -7, bottom: -7, background: T.accent, border: "2px solid #fff", cursor: "nwse-resize" }} />}
+            {f.t}{on && sizeHandles}
           </div>;
         })}
         {layout.desks.map(d => {
@@ -414,7 +431,7 @@ function SeatingBoard({ data, courseId, onReload, setData }) {
           const on = !forPrint && sel?.type === "d" && sel.id === d.id;
           return <div key={d.id} data-desk={d.id} onClick={() => !edit && setSel({ type: "d", id: d.id })} className="absolute grid place-items-center bg-white text-[15px] font-medium"
             style={{ left: d.x, top: d.y, width: d.w, height: d.h, border: `2.5px solid ${on && !ed ? T.accent : "#1A1C1F"}`, background: on && !ed ? T.accentSubtle : "#fff", zIndex: 3, cursor: ed ? "move" : "pointer", outline: ed ? (on ? `2.5px solid ${T.accent}` : `2px dashed ${T.accent}`) : "none", outlineOffset: 3 }}>
-            {d.id}{again > 0 && !forPrint && <span className="absolute grid h-[18px] w-[18px] place-items-center rounded-full text-[11px] font-bold text-white" style={{ top: -9, right: -9, background: T.danger }} title="前回と同じ机の人">{again}</span>}
+            {d.id}{ed && on && sizeHandles}{again > 0 && !forPrint && <span className="absolute grid h-[18px] w-[18px] place-items-center rounded-full text-[11px] font-bold text-white" style={{ top: -9, right: -9, background: T.danger }} title="前回と同じ机の人">{again}</span>}
           </div>;
         })}
         {layout.desks.map(d => seatsOf(d).map(s => {
@@ -441,7 +458,7 @@ function SeatingBoard({ data, courseId, onReload, setData }) {
 
   const curRoundLabel = round ? `${round.title}${round.status === "confirmed" ? "（確定）" : "（下書き）"}` : "まだ回がありません";
   return (
-    <div className="grid gap-3">
+    <div className="grid gap-3" onPointerDownCapture={e => { if (e.target.closest?.("[data-seat-card]")) return; const r = (e.target.closest?.("[data-desk],[title],span") || e.target).getBoundingClientRect(); ptRef.current = { l: r.left, r: r.right, y: r.top }; }}>
       <style>{`@media print{@page{size:A4 landscape;margin:8mm} body *{visibility:hidden !important} #seating-print,#seating-print *{visibility:visible !important} #seating-print{display:block !important;position:absolute;left:0;top:0}}`}</style>
       <details open={howto} onToggle={e => setHowto(e.currentTarget.open)} className="rounded-2xl bg-white px-4 py-3" style={{ border: `1px solid ${T.border}` }}>
         <summary className="cursor-pointer text-sm font-bold" style={{ color: T.textPrimary }}>使い方</summary>
@@ -487,6 +504,9 @@ function SeatingBoard({ data, courseId, onReload, setData }) {
             {FX_KINDS.map(k => <button key={k[0]} type="button" onClick={() => addFx(k)} className="rounded-lg bg-white px-2.5 py-1 text-xs font-bold" style={{ border: `1px dashed ${T.border}` }}>{k[0]}</button>)}
           </div>
         )}
+        {/* 編集中は、選んだ机・設備（何も選んでいなければ教室）の設定を教室の上の1行に出す（教室を隠さない） */}
+        {edit && <Drawer bar sel={sel && (sel.type === "d" || sel.type === "f") ? sel : { type: "room" }} setSel={setSel} edit layout={layout} assign={assign} pins={pins} byId={byId} prev={prev}
+          changeLayout={changeLayout} copySel={copySel} delSel={delSel} cleanAssignTo={cleanAssignTo} togglePin={() => {}} />}
         <div ref={wrapRef} className="overflow-hidden p-2.5">
           <div style={{ width: (layout.room.w + 6) * scale, height: (layout.room.h + 6) * scale }}>
             <div style={{ transform: `scale(${scale})`, transformOrigin: "0 0" }}>{renderRoom(false)}</div>
@@ -500,7 +520,7 @@ function SeatingBoard({ data, courseId, onReload, setData }) {
         {online.length > 0 && <><span className="basis-full" /><b className="mr-1 inline-flex items-center gap-1 text-sm" style={{ color: T.textPrimary }}><Wifi size={14} />オンライン参加</b>{online.map(p => <span key={p.id} onClick={() => setSel({ type: "p", id: p.id })} className="cursor-pointer rounded-full bg-white px-2.5 py-0.5 text-[13px]" style={{ border: `1px solid ${T.border}` }}>{p.name}</span>)}</>}
       </Card>
 
-      {sel && <Drawer sel={sel} setSel={setSel} edit={edit} layout={layout} assign={assign} pins={pins} byId={byId} prev={prev}
+      {sel && !edit && <Drawer at={ptRef.current} sel={sel} setSel={setSel} edit={false} layout={layout} assign={assign} pins={pins} byId={byId} prev={prev}
         changeLayout={changeLayout} copySel={copySel} delSel={delSel} cleanAssignTo={cleanAssignTo}
         togglePin={pid => changeAssign(a => a, p => { if (p[pid]) delete p[pid]; else { const s = Object.keys(assign).find(k => assign[k] === pid); if (s) p[pid] = s; } return p; })} />}
 
@@ -541,37 +561,62 @@ function AskBox({ chat, busy, onAsk, onApply, onReject }) {
   );
 }
 
-function Drawer({ sel, setSel, edit, layout, assign, pins, byId, prev, changeLayout, copySel, delSel, cleanAssignTo, togglePin }) {
-  const shell = (title, sub, children) => (
-    <aside className="fixed bottom-0 right-0 top-0 z-50 flex w-full max-w-[360px] flex-col bg-white shadow-2xl" style={{ borderLeft: `1px solid ${T.border}` }} aria-label={title}>
-      <div className="flex items-center gap-2 px-4 py-3" style={{ borderBottom: `1px solid ${T.border}` }}>
-        <div className="min-w-0"><div className="text-[11px]" style={{ color: T.textMuted }}>{sub}</div><b className="text-base" style={{ color: T.textPrimary }}>{title}</b></div>
+// 説明のカードは押した場所の横に小さく出す（右に入らなければ左。画面からはみ出さない）
+function cardPos(at) {
+  const vw = window.innerWidth, vh = window.innerHeight, w = Math.min(300, vw - 32), h = Math.min(400, vh - 96);
+  if (!at || vw < 640) return { left: 16, right: 16, bottom: 16, maxHeight: Math.min(360, vh - 96) };
+  let left = at.r + 12;
+  if (left + w > vw - 16) left = Math.max(16, at.l - w - 12);
+  const top = Math.max(72, Math.min(at.y - 8, vh - h - 16));
+  return { left, top, width: w, maxHeight: h };
+}
+
+function Drawer({ bar, at, sel, setSel, edit, layout, assign, pins, byId, prev, changeLayout, copySel, delSel, cleanAssignTo, togglePin }) {
+  const boxRef = useRef(null);
+  // 浮いているカードは、外を押したら閉じる（机・名前を押した場合は、その内容で開き直る）
+  useEffect(() => {
+    if (bar) return undefined;
+    const onDown = e => { if (boxRef.current && !boxRef.current.contains(e.target)) setSel(null); };
+    document.addEventListener("pointerdown", onDown, true);
+    return () => document.removeEventListener("pointerdown", onDown, true);
+  }, [bar, setSel]);
+  const shell = (title, sub, children) => bar ? (
+    <div className="flex flex-wrap items-center gap-x-4 gap-y-2 px-3 py-2 text-sm" style={{ borderBottom: `1px solid ${T.border}`, background: T.bgBase }} aria-label={title}>
+      <b className="text-sm" style={{ color: T.textPrimary }}>{title}{sub && <small className="ml-1.5 font-normal" style={{ color: T.textMuted }}>{sub}</small>}</b>
+      {children}
+    </div>
+  ) : (
+    createPortal(<aside ref={boxRef} data-seat-card className="fixed z-50 flex flex-col rounded-2xl bg-white shadow-2xl" style={{ ...cardPos(at), border: `1px solid ${T.border}` }} aria-label={title}>
+      <div className="flex items-center gap-2 px-3.5 py-2" style={{ borderBottom: `1px solid ${T.border}` }}>
+        <div className="min-w-0"><div className="text-[11px]" style={{ color: T.textMuted }}>{sub}</div><b className="text-[15px]" style={{ color: T.textPrimary }}>{title}</b></div>
         <button type="button" onClick={() => setSel(null)} aria-label="閉じる" className="ml-auto" style={{ color: T.textMuted }}><X size={18} /></button>
       </div>
-      <div className="grid content-start gap-3 overflow-y-auto px-4 py-3 text-sm">{children}</div>
-    </aside>
+      <div className="grid content-start gap-2.5 overflow-y-auto px-3.5 py-2.5 text-sm">{children}</div>
+    </aside>, document.body)
   );
+  const lab = "flex items-center gap-1.5 text-xs font-bold";
   const tools = kind => <div className="flex flex-wrap gap-1.5"><Btn size="sm" kind="ghost" onClick={copySel}>コピー（Ctrl+D）</Btn><Btn size="sm" kind="ghost" onClick={delSel}>削除（Delete）</Btn>{kind === "f" && <Btn size="sm" kind="ghost" onClick={() => changeLayout(n => { const f = n.fx.find(x => x.id === sel.id); const w = f.w; f.w = f.h; f.h = w; })}>縦横を入れ替え</Btn>}</div>;
-  const numIn = (value, onChange, label, min = 10) => <input type="number" min={min} step={10} value={value} onChange={e => onChange(Math.max(min, Number(e.target.value) || min))} aria-label={label} className="w-20 rounded-lg px-2 py-1 outline-none" style={{ border: `1px solid ${T.border}` }} />;
-  if (sel.type === "room") return shell("教室の広さ", "", <div className="flex items-center gap-2">{numIn(layout.room.w, v => changeLayout(n => { n.room.w = Math.min(3000, Math.max(500, v)); }), "幅", 500)}×{numIn(layout.room.h, v => changeLayout(n => { n.room.h = Math.min(1600, Math.max(300, v)); }), "高さ", 300)}</div>);
+  const numIn = (value, onChange, label, min = 10) => <input type="number" min={min} step={10} value={value} onChange={e => onChange(Math.max(min, Number(e.target.value) || min))} aria-label={label} className="w-[72px] rounded-lg bg-white px-2 py-1 font-normal outline-none" style={{ border: `1px solid ${T.border}` }} />;
+  if (sel.type === "room") return shell("教室の広さ", "", <div className={lab} style={{ color: T.textSecondary }}>{numIn(layout.room.w, v => changeLayout(n => { n.room.w = Math.min(3000, Math.max(500, v)); }), "幅", 500)}×{numIn(layout.room.h, v => changeLayout(n => { n.room.h = Math.min(1600, Math.max(300, v)); }), "高さ", 300)}</div>);
   if (sel.type === "f") {
     const f = layout.fx.find(x => x.id === sel.id); if (!f) return null;
-    return shell("設備", f.t, <>
-      <label className="grid gap-1 text-xs font-bold" style={{ color: T.textSecondary }}>名前<input defaultValue={f.t} onBlur={e => changeLayout(n => { n.fx.find(x => x.id === f.id).t = e.target.value.trim() || "設備"; })} className="rounded-lg px-2 py-1 text-sm font-normal outline-none" style={{ border: `1px solid ${T.border}` }} /></label>
-      <div className="flex items-center gap-2 text-xs font-bold" style={{ color: T.textSecondary }}>大きさ {numIn(f.w, v => changeLayout(n => { n.fx.find(x => x.id === f.id).w = v; }), "幅")}×{numIn(f.h, v => changeLayout(n => { n.fx.find(x => x.id === f.id).h = v; }), "高さ")}</div>
+    return shell("設備", "", <>
+      <label className={lab} style={{ color: T.textSecondary }}>名前<input key={f.id} defaultValue={f.t} onBlur={e => changeLayout(n => { n.fx.find(x => x.id === f.id).t = e.target.value.trim() || "設備"; })} className="w-32 rounded-lg bg-white px-2 py-1 text-sm font-normal outline-none" style={{ border: `1px solid ${T.border}` }} /></label>
+      <div className={lab} style={{ color: T.textSecondary }}>大きさ {numIn(f.w, v => changeLayout(n => { n.fx.find(x => x.id === f.id).w = v; }), "幅")}×{numIn(f.h, v => changeLayout(n => { n.fx.find(x => x.id === f.id).h = v; }), "高さ")}</div>
       {tools("f")}
     </>);
   }
   if (sel.type === "d") {
     const d = layout.desks.find(x => x.id === sel.id); if (!d) return null;
     const st = deskStats(d, assign, byId, prev);
-    const seatsCtl = <div className="flex flex-wrap gap-2 text-xs">{[["L", "左"], ["R", "右"], ["T", "上"], ["B", "下"]].map(([k, l]) => <label key={k}>{l} <select value={d[k]} onChange={e => { let next; changeLayout(n => { const x = n.desks.find(y => y.id === d.id); x[k] = Number(e.target.value); fitDesk(x); next = n.desks; }); setTimeout(() => cleanAssignTo(next), 0); }} className="rounded-lg px-1.5 py-0.5" style={{ border: `1px solid ${T.border}` }}>{[0, 1, 2, 3, 4, 5, 6].map(n => <option key={n}>{n}</option>)}</select></label>)}</div>;
+    const seatsCtl = <div className="flex flex-wrap gap-2 text-xs">{[["L", "左"], ["R", "右"], ["T", "上"], ["B", "下"]].map(([k, l]) => <label key={k}>{l} <select value={d[k]} onChange={e => { let next; changeLayout(n => { const x = n.desks.find(y => y.id === d.id); x[k] = Number(e.target.value); fitDesk(x); next = n.desks; }); setTimeout(() => cleanAssignTo(next), 0); }} className="rounded-lg bg-white px-1.5 py-0.5" style={{ border: `1px solid ${T.border}` }}>{[0, 1, 2, 3, 4, 5, 6].map(n => <option key={n}>{n}</option>)}</select></label>)}</div>;
     if (edit) {
       const seatOpts = seatsOf(d).map(s => s.id);
       return shell(`机 ${d.id}`, `${d.L + d.R + d.T + d.B}席`, <>
-        <label className="grid gap-1 text-xs font-bold" style={{ color: T.textSecondary }}>机の名前<input defaultValue={d.id} maxLength={3} onBlur={e => { const v = e.target.value.trim(); if (!v || v === d.id || layout.desks.some(x => x.id === v)) return; changeLayout(n => { const x = n.desks.find(y => y.id === d.id); x.id = v; if (x.teacher) x.teacher = v + x.teacher.slice(d.id.length); }); setSel({ type: "d", id: v }); }} className="rounded-lg px-2 py-1 text-sm font-normal outline-none" style={{ border: `1px solid ${T.border}` }} /></label>
-        <div className="grid gap-1 text-xs font-bold" style={{ color: T.textSecondary }}>席の数{seatsCtl}</div>
-        <label className="grid gap-1 text-xs font-bold" style={{ color: T.textSecondary }}>講師の席<select value={d.teacher || ""} onChange={e => changeLayout(n => { n.desks.find(y => y.id === d.id).teacher = e.target.value; })} className="rounded-lg px-2 py-1 text-sm font-normal" style={{ border: `1px solid ${T.border}` }}><option value="">なし</option>{seatOpts.map(s => <option key={s} value={s}>{s}</option>)}</select></label>
+        <label className={lab} style={{ color: T.textSecondary }}>名前<input key={d.id} defaultValue={d.id} maxLength={3} onBlur={e => { const v = e.target.value.trim(); if (!v || v === d.id || layout.desks.some(x => x.id === v)) return; changeLayout(n => { const x = n.desks.find(y => y.id === d.id); x.id = v; if (x.teacher) x.teacher = v + x.teacher.slice(d.id.length); }); setSel({ type: "d", id: v }); }} className="w-14 rounded-lg bg-white px-2 py-1 text-sm font-normal outline-none" style={{ border: `1px solid ${T.border}` }} /></label>
+        <div className={lab} style={{ color: T.textSecondary }}>席{seatsCtl}</div>
+        <div className={lab} style={{ color: T.textSecondary }}>大きさ {numIn(d.w, v => changeLayout(n => { n.desks.find(x => x.id === d.id).w = v; }), "幅", 30)}×{numIn(d.h, v => changeLayout(n => { n.desks.find(x => x.id === d.id).h = v; }), "奥行き", 30)}</div>
+        <label className={lab} style={{ color: T.textSecondary }}>講師の席<select value={d.teacher || ""} onChange={e => changeLayout(n => { n.desks.find(y => y.id === d.id).teacher = e.target.value; })} className="rounded-lg bg-white px-2 py-1 text-sm font-normal" style={{ border: `1px solid ${T.border}` }}><option value="">なし</option>{seatOpts.map(s => <option key={s} value={s}>{s}</option>)}</select></label>
         {tools("d")}
       </>);
     }
