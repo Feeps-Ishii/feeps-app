@@ -8,6 +8,7 @@ import { TALENT_NAV } from "./products/talent/TalentCatalog.js";
 import { GRANTS_NAV } from "./products/grants/GrantsCatalog.js";
 import FeepsOneHome from "./products/home/FeepsOneHome.jsx";
 import TrainingProduct from "./products/training/TrainingProduct.jsx";
+import ChatNotifier from "./products/training/ChatNotifier.jsx";
 import Login from "./products/auth/Login.jsx";
 import { MfaSuggestionDialog, MfaSettingsCard, useMfaStatus } from "./products/auth/MfaSetup.jsx";
 import { TermsAgreementDialog, needsTermsAgreement, TERMS_VERSION } from "./components/common/TermsConsent.jsx";
@@ -1425,6 +1426,10 @@ export default function App() {
     if (options.forceRemount) setTrainingNavigationVersion(version => version + 1);
     setDrawerOpen(false);
   }
+  function openTeamsFromChat() {
+    if (product !== "training") goProduct("training");
+    go("teams");
+  }
   function goProduct(p, options = {}) {
     // 2026-09-16: Productが「いまのモードには無いが、入れる別のモードにはある」ときは
     // モードごと連れて行く。スキルを独立モードへ切り出したことで、研修管理のホームから
@@ -1772,6 +1777,7 @@ export default function App() {
           <div className="ml-auto flex items-center gap-1">
             {modeSwitch}
             <TenolabLink compact />
+            <ChatNotifier role={role} compact onOpenTeams={openTeamsFromChat} />
             {notifBellMobile}
           </div>
         </div>
@@ -1786,6 +1792,8 @@ export default function App() {
             {role === "instructor" && !isHomeProduct && <QuickAdd onPick={go} />}
             {/* 2026-10-01: 検索・使い方のボタンは外した（あまり使わない）。表示ロールの切り替えは管理者だけ */}
             <TenolabLink />
+            {/* 2026-10-02: チームのチャットの新着（ヘッダーの件数と右上の通知） */}
+            <ChatNotifier role={role} toasts onOpenTeams={openTeamsFromChat} />
             {isAdminUser && demoMenu}{notifBellDesktop}{userActionsTail}
           </div>
         </div>

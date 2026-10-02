@@ -3,6 +3,7 @@ import { apiDelete, apiGet, apiPost, apiPut } from "../../api.js";
 import { T, NOVA, Card, Btn, Badge, Modal, EmptyState, SectionHead, SkeletonRows, PrismErrorRetryCard } from "../../components/common";
 import { setLibraryTarget } from "../../utils/common/courseContext.js";
 import { normalizeCurriculumSections } from "./TrainingComponents.jsx";
+import { markTeamChatRead, setOpenChatTeam, takeTeamChatFocus } from "./ChatNotifier.jsx";
 import {
   Briefcase, Check, ChevronLeft, ChevronRight, Crown, Eye, FileText, Folder, ListTodo, LogIn, LogOut, MessageSquare, PenTool, Plus, Search, Send, Shuffle, Trash2, Users, X, Columns3,
 } from "lucide-react";
@@ -45,6 +46,7 @@ export default function TeamsView({ role, go }) {
   const [membersOf, setMembersOf] = useState("");
   const [creating, setCreating] = useState("");
   const [msg, setMsg] = useState("");
+  const [chatFocus, setChatFocus] = useState(0);
 
   const load = useCallback(async () => {
     setLoadErr("");
@@ -55,6 +57,18 @@ export default function TeamsView({ role, go }) {
     } catch (e) { setLoadErr(errText(e, "チームを読み込めませんでした。")); return null; }
   }, []);
   useEffect(() => { load(); }, [load]);
+  // チャットの新着通知から開いたとき：そのチームのチャットを開く
+  useEffect(() => {
+    if (!data) return undefined;
+    const apply = () => {
+      const id = takeTeamChatFocus();
+      if (!id || !data.teams.some(t => t.teamId === id)) return;
+      setOpenId(id); if (isStaff) setScr("room"); setChatFocus(n => n + 1);
+    };
+    apply();
+    window.addEventListener("feeps:team-chat-focus", apply);
+    return () => window.removeEventListener("feeps:team-chat-focus", apply);
+  }, [data, isStaff]);
   // 講師・管理者：コースの受講生（未所属の数・メンバーを足す候補・割り当て表）
   useEffect(() => {
     if (!isStaff || !data?.courses?.length) return;
@@ -100,7 +114,7 @@ export default function TeamsView({ role, go }) {
             {mine.map(t => <button key={t.teamId} type="button" onClick={() => setOpenId(t.teamId)} className="inline-flex items-center gap-2 rounded-full py-1 pl-1 pr-3 text-sm font-bold" style={{ background: current.teamId === t.teamId ? T.accentSubtle : "#fff", border: `1px solid ${current.teamId === t.teamId ? T.accent : T.border}`, color: T.textPrimary }}><Emblem team={t} size={24} />{t.name}</button>)}
           </div>
         )}
-        <TeamRoom key={current.teamId} team={current} me={data.me} nameOf={nameOf} isStaff={false} role={role} go={go} />
+        <TeamRoom key={current.teamId} team={current} me={data.me} nameOf={nameOf} isStaff={false} role={role} go={go} chatFocus={chatFocus} />
       </div>
     );
   }
@@ -120,7 +134,7 @@ export default function TeamsView({ role, go }) {
             : <Btn size="sm" icon={LogIn} onClick={() => act(() => apiPost(`/teams/${encodeURIComponent(t.teamId)}/join`, { courseId: t.courseId }), `${t.name}に入りました。`)}>このチームに入る</Btn>}
           {t.canManage && <Btn size="sm" kind="ghost" icon={Users} onClick={() => setMembersOf(t.teamId)}>メンバー管理</Btn>}
         </div>
-        <TeamRoom key={t.teamId} team={t} me={data.me} nameOf={nameOf} isStaff role={role} go={go} />
+        <TeamRoom key={t.teamId} team={t} me={data.me} nameOf={nameOf} isStaff role={role} go={go} chatFocus={chatFocus} />
         {membersOf && team(membersOf) && <MembersModal team={team(membersOf)} course={data.courses.find(c => c.courseId === team(membersOf).courseId)} teams={teams} trainees={trainees[team(membersOf).courseId]} nameOf={nameOf} me={data.me} isAdmin={role === "admin"} onPut={putTeam} act={act} onClose={() => setMembersOf("")} onDeleted={() => { setMembersOf(""); setScr("list"); }} />}
       </div>
     );
@@ -386,8 +400,9 @@ function AssignBoard({ course, teams, trainees, nameOf, onPut, act, onBack, onCr
 }
 
 /* ---------- チームのページ ---------- */
-function TeamRoom({ team, me, nameOf, isStaff, role, go }) {
+function TeamRoom({ team, me, nameOf, isStaff, role, go, chatFocus }) {
   const [tab, setTab] = useState("chat");
+  useEffect(() => { if (chatFocus) setTab("chat"); }, [chatFocus]);
   const [exercises, setExercises] = useState([]);
   // 今日のカリキュラムのチーム演習（あれば帯で出す）
   useEffect(() => {
@@ -461,6 +476,15 @@ function ChatTab({ team, me, nameOf }) {
   const stickRef = useRef(true);
   const base = `/teams/${encodeURIComponent(team.teamId)}/messages`;
   const cq = `courseId=${encodeURIComponent(team.courseId)}`;
+  const markedRef = useRef("");
+  // 開いている間はこのチームを新着通知に数えない。読んだところまで既読にする
+  useEffect(() => { setOpenChatTeam(team.teamId); return () => setOpenChatTeam(""); }, [team.teamId]);
+  useEffect(() => {
+    const last = msgs?.length ? msgs[msgs.length - 1].id : "";
+    if (msgs == null || document.visibilityState !== "visible" || (last && last === markedRef.current)) return;
+    markedRef.current = last || "-";
+    markTeamChatRead(team, last);
+  }, [msgs, team]);
   const addMsgs = useCallback(list => {
     if (!list.length) return;
     cursorRef.current = list[list.length - 1].id > cursorRef.current ? list[list.length - 1].id : cursorRef.current;
