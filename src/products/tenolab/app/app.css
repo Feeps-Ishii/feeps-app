@@ -1,0 +1,61 @@
+/* テノラボ（コース型）の CSS の入口。
+   - course.css：アプリのモックの見た目（自動生成。.tl-course に閉じ込め）
+   - entry.css：入口のモックの見た目（自動生成。.tl-entry に閉じ込め）
+   - 元のEラーニングの画面部品（レッスン・総合テスト）は Tailwind のクラスで書かれているので、
+     Tailwind を初期化（preflight）なしで読み込み、.tl-legacy の中だけに小さな初期化を当てる。
+   層の順：theme < tenolab（モック）< legacy（.tl-legacy の初期化）< components（feeps-*）< utilities（Tailwind）
+   → 元の部品の中では Tailwind が勝ち、テノラボの画面には Tailwind のクラスが無いので影響しない。 */
+@layer theme, tenolab, legacy, components, utilities;
+@import "tailwindcss/theme.css" layer(theme);
+@import "tailwindcss/utilities.css" layer(utilities);
+@import "../../../styles/feeps-shared.css" layer(components);
+@import "./course.css" layer(tenolab);
+@import "../entry/entry.css" layer(tenolab);
+
+@layer tenolab {
+  /* ナビと右上のメニューは、画面の切り替えを URL（#/…）にしたので <a> で出す。見た目はモックの button と同じ */
+  .tl-course .nav a { white-space: nowrap; border: 0; background: none; padding: 6px 12px; border-radius: 8px; font-weight: 700; color: var(--ink2); text-decoration: none; font-size: 15px; }
+  .tl-course .nav a[aria-current="page"] { background: var(--ink); color: var(--paper); }
+  .tl-course .um-menu a { display: block; text-align: left; padding: 8px 10px; border-radius: 8px; font-size: 14px; color: var(--ink); text-decoration: none; }
+  .tl-course .um-menu a:hover { background: var(--soft); }
+  @media (max-width: 900px) { .tl-course .nav a { padding: 6px 8px; font-size: 13px; } }
+  .tl-course .chip.warn { background: var(--marker-soft); border-color: var(--marker-deep); color: #7A5A00; }
+  .tl-course [hidden] { display: none !important; }
+  /* 講師・管理者のメニュー（モックには無いので、同じ部品の組み合わせで作る） */
+  .tl-course .mcard { padding: 18px 20px; display: grid; gap: 12px; margin-bottom: 14px; }
+  .tl-course .mgrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 12px 14px; align-items: start; }
+  .tl-course .mfield { display: grid; gap: 4px; font-size: 12.5px; font-weight: 700; color: var(--ink2); }
+  .tl-course .mfield input, .tl-course .mfield select, .tl-course .mfield textarea, .tl-course .mtest input {
+    font: inherit; font-weight: 400; font-size: 14px; color: var(--ink); background: var(--card);
+    border: 1px solid #CDD1C7; border-radius: 8px; padding: 7px 10px; width: 100%; min-width: 0;
+  }
+  .tl-course .mfield input[type="color"] { padding: 2px; height: 36px; }
+  .tl-course .mfield input[type="checkbox"], .tl-course .mtopic input[type="checkbox"] { width: auto; }
+  .tl-course .mfield textarea { resize: vertical; }
+  .tl-course .mono { font-family: var(--mono) !important; font-size: 13px !important; }
+  .tl-course .mtest { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 2fr) auto; gap: 8px; align-items: center; }
+  .tl-course .mtest:has(input:nth-of-type(3)) { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) minmax(0, 1fr) auto; }
+  .tl-course .mactions { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-top: 6px; }
+  .tl-course .mtopic { padding: 14px 16px; display: grid; grid-template-columns: 48px minmax(0, 1fr) auto; gap: 14px; align-items: start; }
+  .tl-course .drow:has(.chip:last-child) { grid-template-columns: 36px minmax(0, 1fr) auto; }
+  @media (max-width: 700px) {
+    .tl-course .mtest, .tl-course .mtest:has(input:nth-of-type(3)) { grid-template-columns: 1fr; }
+    .tl-course .mtopic { grid-template-columns: 1fr; }
+  }
+  /* 読み込み前の画面（ログインの確かめ中など） */
+  .tl-boot { min-height: 100vh; display: grid; place-items: center; font-family: "Zen Kaku Gothic New", system-ui, sans-serif; color: #767D8C; background: #FBFBF7; }
+}
+
+@layer legacy {
+  /* 元のEラーニングの画面部品の中だけ、Tailwind の preflight 相当に戻す（テノラボの button・h1 などの見た目を外す） */
+  .tl-legacy { font-family: "Noto Sans JP", "Zen Kaku Gothic New", system-ui, sans-serif; color: #1a1c1f; line-height: 1.5; }
+  .tl-legacy *, .tl-legacy ::before, .tl-legacy ::after { box-sizing: border-box; border: 0 solid; margin: 0; padding: 0; }
+  .tl-legacy h1, .tl-legacy h2, .tl-legacy h3, .tl-legacy h4 { font-size: inherit; font-weight: inherit; }
+  .tl-legacy ol, .tl-legacy ul { list-style: none; }
+  .tl-legacy img, .tl-legacy svg, .tl-legacy video { display: block; vertical-align: middle; max-width: 100%; }
+  .tl-legacy button, .tl-legacy input, .tl-legacy select, .tl-legacy textarea { font: inherit; color: inherit; background-color: transparent; border-radius: 0; }
+  .tl-legacy button { cursor: pointer; }
+  .tl-legacy a { color: inherit; text-decoration: inherit; }
+  .tl-legacy table { border-collapse: collapse; }
+  .tl-legacy pre, .tl-legacy code { font-family: "JetBrains Mono", ui-monospace, monospace; }
+}

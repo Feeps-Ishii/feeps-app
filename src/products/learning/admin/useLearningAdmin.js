@@ -38,6 +38,11 @@ function normalizeCourse(course) {
     // Feeps公式コース(2026-08-21): Feepsが用意して各社へ展開する教材かどうか。設定はadminのみ。
     official: course.official === true,
     finalTestEnabled: course.finalTestEnabled !== false,
+    // テノラボ（ADR 0024）：単元・サムネイル・Premium
+    topic: course.topic || "",
+    thumb: course.thumb && typeof course.thumb === "object" ? course.thumb : null,
+    premium: course.premium === true,
+    premiumOwn: course.premiumOwn === true,
     // 公開後にレッスン・問題をいじった時刻と、最後に公開した時刻（未反映の変更の判定に使う）
     contentUpdatedAt: course.contentUpdatedAt || null,
     publishedAt: course.publishedAt || null,
@@ -106,6 +111,9 @@ function toCoursePayload(form) {
     // Feeps公式コース: Backend側でadmin以外は無視して既存値を維持する。
     official: Boolean(form.official),
     finalTestEnabled: form.finalTestEnabled !== false,
+    topic: form.topic || "",
+    thumb: form.thumbKind ? { kind: form.thumbKind, ...(form.thumbKind === "out" ? { out: String(form.thumbOutText || "").split("\n").map(s => s.trim()).filter(Boolean).slice(0, 4) } : {}) } : null,
+    premiumOwn: Boolean(form.premiumOwn),
     updatedAt: new Date().toISOString(),
   };
 }
@@ -129,6 +137,9 @@ function toCourseApiPayload(course) {
     targetCompanyIds: Array.isArray(course.targetCompanyIds) ? course.targetCompanyIds : [],
     official: course.official === true,
     finalTestEnabled: course.finalTestEnabled !== false,
+    topic: course.topic || "",
+    thumb: course.thumb || null,
+    premiumOwn: course.premiumOwn === true,
   };
 }
 
@@ -148,6 +159,10 @@ export function courseToForm(course) {
     targetCompanyIds: Array.isArray(course.targetCompanyIds) ? course.targetCompanyIds : [],
     official: course.official === true,
     finalTestEnabled: course.finalTestEnabled !== false,
+    topic: course.topic || "",
+    thumbKind: course.thumb?.kind || "",
+    thumbOutText: Array.isArray(course.thumb?.out) ? course.thumb.out.join("\n") : "",
+    premiumOwn: course.premiumOwn === true,
   };
 }
 

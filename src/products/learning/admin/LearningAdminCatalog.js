@@ -41,6 +41,11 @@ export const EMPTY_COURSE_FORM = {
   official: false,
   // 総合テストの有無(2026-08-21)。既定は「行う」。
   finalTestEnabled: true,
+  // テノラボ（ADR 0024）：単元と一覧のサムネイル。premiumOwn はコースそのものを Premium にする（管理者のみ）
+  topic: "",
+  thumbKind: "",
+  thumbOutText: "",
+  premiumOwn: false,
 };
 
 export const COURSE_VISIBILITY_SCOPE_OPTIONS = [

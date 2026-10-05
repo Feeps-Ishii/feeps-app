@@ -1,248 +1,216 @@
-import React, { useCallback, useEffect, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { fetchAuthSession, getCurrentUser, signOut } from "aws-amplify/auth";
 import { apiGet } from "../../api.js";
-import MountedHtml from "./MountedHtml.jsx";
-import { LANDING_HTML } from "./landing/landingMarkup.js";
-import { mountLanding } from "./landing/mountLanding.js";
-import { COURSE_MAP_HTML } from "./coursemap/courseMapMarkup.js";
-import { mountCourseMap } from "./coursemap/mountCourseMap.js";
-import LoginPage from "./screens/LoginPage.jsx";
-import HomePage from "./screens/HomePage.jsx";
-import LabPage from "./screens/LabPage.jsx";
-import StudioPage from "./studio/StudioPage.jsx";
-import { useTenolabCourse, useTenolabProgress } from "./useTenolab.js";
-import { COURSE_ID, courseProgress } from "./tenolabData.js";
 import { roleOf, isStaffRole } from "./role.js";
-import "./tenolab.css";
+import { ENTRY_HTML } from "./entry/entryMarkup.js";
+import { mountEntry } from "./entry/mountEntry.js";
+import { entryAuth } from "./entry/entryAuth.js";
+import { useLearning } from "../learning/useLearning.js";
+import Shell from "./app/Shell.jsx";
+import { Home, ListPage, TopicPage } from "./app/Browse.jsx";
+import { CourseDetail, FinalTestPage, LessonPage } from "./app/CoursePages.jsx";
+import DrillPage from "./app/DrillPage.jsx";
+import CasePage from "./app/CasePage.jsx";
+import ManagePage from "./app/manage/ManagePage.jsx";
+import { LoadError, Loading } from "./app/ui.jsx";
+import { submitInquiry, useCases, useDrills, useLabProgress, useMe, useTopics } from "./app/data.js";
+import { caseModels, courseModels, drillModels } from "./app/model.js";
+import "./app/app.css";
 
-/* テノラボ（体験型Eラーニング）の本体。LMS（TrainingApp）とは別の入口 lab.html で開く（ADR 0022）。
+/* テノラボ（コース型、ADR 0024）の本体。LMS（TrainingApp）とは別の入口 lab.html で開く。
    CloudFront に SPA のフォールバックが無いので、画面は URL の # の後ろで切り替える。
-     #/            入口
-     #/login       ログイン
-     #/try         登録なしで1単元（記録は残らない）
-     #/home #/find #/devlab #/cloud #/made   ホーム（タブ）
-     #/courses/dash        コースマップ
-     #/units/dash/u2       単元（体験ラボ）
-     #/studio …            単元づくり（講師・管理者。#/studio/dash/u2/try で受講生として試す） */
-const HOME_TABS = ["home", "find", "devlab", "cloud", "made"];
+     #/  #/login  #/try  #/quote          入口（モック tenolab-entry.html をそのまま載せる）
+     #/home  #/topics/{id}                 ホーム・単元
+     #/courses  #/drills  #/cases          一覧
+     #/courses/{id}[/lessons/{lid}[/{slide}] | /test | /result]
+     #/drills/{id}  #/cases/{id}
+     #/manage/…                            講師・管理者 */
+const ENTRY = new Set(["", "login", "try", "quote"]);
 
 function parseHash() {
   const h = (window.location.hash || "").replace(/^#\/?/, "");
-  const p = h.split("/").filter(Boolean);
-  if (!p.length) return { page: "lp" };
-  if (p[0] === "login") return { page: "login" };
-  if (p[0] === "try") return { page: "lab", courseId: COURSE_ID, unitId: "u2", trial: true };
-  if (HOME_TABS.includes(p[0])) return { page: "home", tab: p[0] };
-  if (p[0] === "courses" && p[1]) return { page: "map", courseId: p[1] };
-  if (p[0] === "units" && p[1] && p[2]) return { page: "lab", courseId: p[1], unitId: p[2] };
-  if (p[0] === "studio") {
-    if (p[1] && p[2] && p[3] === "try") return { page: "lab", courseId: p[1], unitId: p[2], preview: true };
-    return { page: "studio", courseId: p[1] || null, unitId: p[2] || null };
-  }
-  return { page: "lp" };
+  const p = h.split("/").filter(Boolean).map(decodeURIComponent);
+  if (!p.length || ENTRY.has(p[0])) return { page: "entry", view: p[0] || "" };
+  if (p[0] === "home") return { page: "home" };
+  if (p[0] === "topics" && p[1]) return { page: "topic", id: p[1] };
+  if (p[0] === "courses" && !p[1]) return { page: "list", kind: "courses" };
+  if (p[0] === "courses" && p[2] === "lessons" && p[3]) return { page: "lesson", id: p[1], lessonId: p[3], slideId: p[4] || null };
+  if (p[0] === "courses" && (p[2] === "test" || p[2] === "result")) return { page: "test", id: p[1], mode: p[2] };
+  if (p[0] === "courses") return { page: "course", id: p[1] };
+  if (p[0] === "drills" && p[1]) return { page: "drill", id: p[1] };
+  if (p[0] === "drills") return { page: "list", kind: "drills" };
+  if (p[0] === "cases" && p[1]) return { page: "case", id: p[1] };
+  if (p[0] === "cases") return { page: "list", kind: "cases" };
+  if (p[0] === "manage") return { page: "manage", rest: p.slice(1) };
+  return { page: "entry", view: "", anchor: p[0] };   // #how のようなページ内リンク
 }
-
-function setHash(h) {
-  if (window.location.hash !== h) window.location.hash = h;
-}
+const SECTION = { home: "home", topic: "home", list: null, course: "courses", lesson: "courses", test: "courses", drill: "drills", case: "cases" };
 
 export default function TenolabApp() {
   const [route, setRoute] = useState(parseHash);
-  const [auth, setAuth] = useState({ state: "loading", name: "", role: "" }); // loading | in | out
-  const [pendingClear, setPendingClear] = useState(false);
-  const [trialSnap, setTrialSnap] = useState(null);
-  const [modal, setModal] = useState(null);
-  const [toast, setToast] = useState("");
-  const progress = useTenolabProgress(auth.state === "in");
-  // 見本のコースの公開中の単元（遊べる単元を決める）。ログイン前は同梱の見本
-  const dash = useTenolabCourse(COURSE_ID, auth.state === "in");
-  const playable = (dash.state === "ready" ? dash.units.map(u => u.id) : ["u2"]);
-  const staff = isStaffRole(auth.role);
+  const [auth, setAuth] = useState({ state: "loading", name: "", email: "", role: "" }); // loading | in | out
 
   useEffect(() => {
-    const onHash = () => { setRoute(parseHash()); window.scrollTo(0, 0); };
+    const onHash = () => {
+      const r = parseHash();
+      setRoute(r);
+      if (!r.anchor) window.scrollTo(0, 0);
+    };
     window.addEventListener("hashchange", onHash);
     return () => window.removeEventListener("hashchange", onHash);
   }, []);
 
-  useEffect(() => {
-    if (!toast) return undefined;
-    const t = setTimeout(() => setToast(""), 4200);
-    return () => clearTimeout(t);
-  }, [toast]);
-
   const loadUser = useCallback(async () => {
     try {
       const u = await getCurrentUser();
-      let name = (u?.signInDetails?.loginId || "").split("@")[0] || "";
+      const email = u?.signInDetails?.loginId || "";
+      let name = email.split("@")[0] || "";
       try {
         const p = await apiGet("/profile/me");
         if (p?.name) name = p.name;
       } catch (e) {
-        // 名前が取れなくてもログインは続ける（メールの前半で呼ぶ）
-        console.warn("tenolab profile load failed", e);
+        console.warn("tenolab profile load failed", e);   // 名前が取れなくてもログインは続ける
       }
       let role = "trainee";
-      try {
-        const s = await fetchAuthSession();
-        role = roleOf(s?.tokens?.idToken?.payload || {});
-      } catch (e) {
-        console.warn("tenolab role load failed", e);
-      }
-      setAuth({ state: "in", name: name || "あなた", role });
+      try { role = roleOf((await fetchAuthSession())?.tokens?.idToken?.payload || {}); } catch (e) { console.warn("tenolab role load failed", e); }
+      setAuth({ state: "in", name: name || "あなた", email, role });
       return true;
     } catch (e) {
-      setAuth({ state: "out", name: "", role: "" });
+      setAuth({ state: "out", name: "", email: "", role: "" });
       return false;
     }
   }, []);
-
   useEffect(() => { loadUser(); }, [loadUser]);
 
-  const go = useCallback((to) => {
-    setModal(null);
-    if (to === "lp") return setHash("#/");
-    if (to === "login") return setHash("#/login");
-    if (to === "try") return setHash("#/try");
-    if (to === "home") return setHash("#/home");
-    if (HOME_TABS.includes(to)) return setHash("#/" + to);
-    if (to === "cleared") return route.preview ? setHash(`#/studio/${route.courseId}/${route.unitId}`) : onCleared();
-    if (to === "studio") return setHash("#/studio");
-    if (to === "studio-back") return setHash(route.courseId && route.unitId ? `#/studio/${route.courseId}/${route.unitId}` : "#/studio");
-    const [kind, a, b] = String(to).split(":");
-    if (kind === "course") return setHash("#/courses/" + a);
-    if (kind === "unit") {
-      if (auth.state !== "in") return setHash("#/try");
-      return setHash(`#/units/${a}/${b}`);
-    }
-    return undefined;
-  }, [auth.state, route.preview, route.courseId, route.unitId]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  function onCleared() {
-    if (auth.state === "in") {
-      setHash(`#/courses/${COURSE_ID}`);
-      setToast("単元2 クリア！ アプリに「人数・合計・平均・最高点」が出るようになりました");
-      return;
-    }
-    setModal("trialClear");
-  }
-
-  async function onLoggedIn() {
-    const ok = await loadUser();
-    if (!ok) return;
-    if (pendingClear) {
-      setPendingClear(false);
-      // おためしでクリアした分を、ログインしたこのときに保存する
-      if (trialSnap) {
-        try {
-          await progress.save(COURSE_ID, "u2", trialSnap);
-          setTrialSnap(null);
-          setToast("記録を残しました。単元2はクリア済みです");
-          setHash(`#/courses/${COURSE_ID}`);
-        } catch (e) {
-          console.warn("tenolab trial save failed", e);
-          setToast("おためしの記録を保存できませんでした。単元2を開いて、もう一度クリアしてください");
-          setHash(`#/units/${COURSE_ID}/u2`);
-        }
-        return;
-      }
-      setHash(`#/units/${COURSE_ID}/u2`);
-      return;
-    }
-    setHash("#/home");
-  }
+  // ログインが要る画面は、ログインしていなければログインへ。ログイン画面はログイン済みならホームへ
+  useEffect(() => {
+    if (auth.state === "out" && route.page !== "entry") window.location.hash = "#/login";
+    if (auth.state === "in" && route.page === "entry" && route.view === "login") window.location.hash = "#/home";
+  }, [auth.state, route.page, route.view]);
 
   async function logout() {
     try { await signOut(); } catch (e) { /* 抜けられなくても入口へ戻す */ }
-    setAuth({ state: "out", name: "", role: "" });
-    setHash("#/");
-    setToast("ログアウトしました");
+    setAuth({ state: "out", name: "", email: "", role: "" });
+    window.location.hash = "#/";
   }
 
-  // ログインが要る画面
-  const needsLogin = route.page === "home" || route.page === "map" || route.page === "studio" || (route.page === "lab" && !route.trial);
+  if (route.page === "entry") {
+    return <EntryHost onLoggedIn={async () => { if (await loadUser()) window.location.hash = "#/home"; }} />;
+  }
+  if (auth.state !== "in") return <div className="tl-boot" role="status">読み込んでいます…</div>;
+  return <App route={route} auth={auth} onLogout={logout} />;
+}
+
+/* 入口（紹介・ログイン・Java体験・お見積り）。モックの HTML と動きをそのまま載せる */
+function EntryHost({ onLoggedIn }) {
+  const ref = useRef(null);
+  const loggedIn = useRef(onLoggedIn);
+  loggedIn.current = onLoggedIn;
   useEffect(() => {
-    if (auth.state === "out" && needsLogin) {
-      if (route.page === "map") return; // コースマップは、ログインしていなくても見せる（入口から来る）
-      setHash("#/login");
+    const root = ref.current;
+    root.innerHTML = ENTRY_HTML;
+    // ページ内リンク（#how など）は、画面の切り替えと区別してスクロールにする
+    const onClick = e => {
+      const a = e.target.closest?.('a[href^="#"]');
+      if (!a || !root.contains(a)) return;
+      const href = a.getAttribute("href");
+      if (href.startsWith("#/") || href === "#") return;
+      e.preventDefault();
+      const el = document.getElementById(href.slice(1));
+      const reduced = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
+      if (el) el.scrollIntoView({ behavior: reduced ? "auto" : "smooth", block: "start" });
+      else window.scrollTo({ top: 0, behavior: reduced ? "auto" : "smooth" });
+    };
+    root.addEventListener("click", onClick, true);
+    let destroy = null;
+    try {
+      destroy = mountEntry(root, { auth: entryAuth, onLoggedIn: () => loggedIn.current(), submitInquiry });
+    } catch (e) {
+      console.error("tenolab entry mount failed", e);
     }
-    if (auth.state === "in" && route.page === "login") setHash("#/home");
-  }, [auth.state, needsLogin, route.page]);
+    return () => {
+      root.removeEventListener("click", onClick, true);
+      if (typeof destroy === "function") destroy();
+      root.innerHTML = "";
+    };
+  }, []);
+  return <div ref={ref} className="tl-entry" />;
+}
+
+/* ログイン後 */
+function App({ route, auth, onLogout }) {
+  const staff = isStaffRole(auth.role);
+  const lrn = useLearning(auth.role);
+  const me = useMe(true);
+  const topicsQ = useTopics(true);
+  const drillsQ = useDrills(true);
+  const casesQ = useCases(true);
+  const progress = useLabProgress(true);
+  const [views, setViews] = useState({ courses: {}, drills: {}, cases: {} });
+  // 「戻る」用に、アプリの中で開いた画面を覚えておく（外から直接来たときは、決まった画面へ戻す）
+  const prevHashes = useRef([]);
+  const lastHash = useRef(window.location.hash);
+  const goingBack = useRef(false);
+  useEffect(() => {
+    const onHash = () => {
+      if (goingBack.current) goingBack.current = false;
+      else { prevHashes.current.push(lastHash.current); if (prevHashes.current.length > 50) prevHashes.current.shift(); }
+      lastHash.current = window.location.hash;
+    };
+    window.addEventListener("hashchange", onHash);
+    return () => window.removeEventListener("hashchange", onHash);
+  }, []);
+
+  const premium = !!me.data?.premium || staff;
+  const topics = topicsQ.data || [];
+  const rawCases = casesQ.data || [];
+  const courses = useMemo(() => courseModels(lrn, topics, rawCases, premium), [lrn, topics, rawCases, premium]);
+  const drills = useMemo(() => drillModels(drillsQ.data, topics, progress, premium), [drillsQ.data, topics, progress, premium]);
+  const cases = useMemo(() => caseModels(rawCases, topics, courses, premium), [rawCases, topics, courses, premium]);
+
+  // 続きから：最後に開いたレッスン（修了していないコース）
+  const resume = useMemo(() => {
+    const entries = Object.entries(lrn.progress || {}).filter(([id, p]) => p?.lastLessonId && lrn.courseById(id) && lrn.getCourseState(id).status !== "completed");
+    entries.sort((a, b) => String(b[1].lastAccessedAt || "").localeCompare(String(a[1].lastAccessedAt || "")));
+    const [cid, p] = entries[0] || [];
+    if (!cid) return null;
+    const course = lrn.courseById(cid);
+    const lesson = lrn.lessonsForCourse(cid).find(l => l.id === p.lastLessonId) || null;
+    return { course, lesson, label: "レッスンの続きから", href: `#/courses/${cid}/lessons/${p.lastLessonId}` };
+  }, [lrn]);
+
+  const go = useCallback(href => { if (window.location.hash !== href) window.location.hash = href; }, []);
+  const back = useCallback(fallback => {
+    if (prevHashes.current.length) { prevHashes.current.pop(); goingBack.current = true; window.history.back(); }
+    else go(fallback);
+  }, [go]);
+
+  const ctx = { lrn, topics, courses, drills, cases, premium, staff, go, back, progress, resume };
+  const loading = [topicsQ, me].some(q => q.state === "loading") || lrn.courseCatalogState === "loading";
+  const failed = [topicsQ, me].find(q => q.state === "error");
 
   let page;
-  if (auth.state === "loading" && route.page !== "lp" && !route.trial) {
-    page = <div className="tl-app"><div className="wrap"><p className="wk-note" role="status" style={{ padding: "40px 0" }}>読み込んでいます…</p></div></div>;
-  } else if (route.page === "login") {
-    page = <LoginPage onLoggedIn={onLoggedIn} onGo={go} pendingClear={pendingClear} />;
-  } else if (route.page === "home") {
-    page = <HomePage tab={route.tab} onTab={t => setHash("#/" + t)} onGo={go} name={auth.name} staff={staff} playable={playable}
-      progressState={progress.state} items={progress.items} onRetry={progress.reload} onLogout={logout} />;
-  } else if (route.page === "studio" || (route.page === "lab" && route.preview)) {
-    if (!staff) {
-      page = <div className="tl-app"><div className="wrap hb"><div className="info" role="alert">単元づくりは講師と管理者だけが使えます。</div>
-        <div><a className="btn btn-sec" href="#/home">ホームへ</a></div></div></div>;
-    } else if (route.page === "lab") {
-      page = <LabPage courseId={route.courseId} unitId={route.unitId} preview onGo={go} />;
-    } else {
-      page = <StudioPage courseId={route.courseId} unitId={route.unitId} role={auth.role} name={auth.name} onGo={go} setToast={setToast} />;
-    }
-  } else if (route.page === "map") {
-    if (auth.state === "in" && progress.state === "loading") page = <Loading />;
-    else if (auth.state === "in" && progress.state === "error") page = <LoadError onRetry={progress.reload} />;
-    else {
-      const pr = courseProgress(progress.items, route.courseId);
-      page = <MountedHtml className="tl-map" html={COURSE_MAP_HTML} mount={mountCourseMap}
-        opts={{ done: pr.done, loggedIn: auth.state === "in", playable: playable.map(id => Number(id.replace(/^u/, ""))) }} onGo={go}
-        mountKey={`${pr.done}/${auth.state}/${playable.join(",")}`} />;
-    }
-  } else if (route.page === "lab") {
-    if (!route.trial && progress.state === "loading") page = <Loading />;
-    else if (!route.trial && progress.state === "error") page = <LoadError onRetry={progress.reload} />;
-    else {
-      const saved = (progress.items || []).find(x => x.courseId === route.courseId && x.unitId === route.unitId) || null;
-      page = <LabPage courseId={route.courseId} unitId={route.unitId} trial={!!route.trial} saved={saved}
-        onSave={progress.save} onGo={go} onTrialProgress={setTrialSnap} />;
-    }
-  } else {
-    page = <MountedHtml className="tl-lp" html={LANDING_HTML} mount={mountLanding}
-      opts={{ loggedIn: auth.state === "in" }} onGo={go} mountKey={auth.state} />;
+  if (route.page === "manage") page = staff ? <ManagePage ctx={ctx} rest={route.rest} role={auth.role} /> : <p className="muted" style={{ paddingTop: 24 }}>このメニューは講師と管理者だけが使えます。</p>;
+  else if (failed) page = <LoadError onRetry={() => { topicsQ.reload(); me.reload(); }} />;
+  else if (loading) page = <Loading />;
+  else if (lrn.courseCatalogState === "error" && ["home", "topic", "list", "course"].includes(route.page) && route.kind !== "drills" && route.kind !== "cases") page = <LoadError onRetry={() => window.location.reload()} what="コースを読み込めませんでした" />;
+  else if (route.page === "home") page = <><Home ctx={ctx} />{(drillsQ.state === "error" || casesQ.state === "error" || progress.state === "error") && <LoadError onRetry={() => { drillsQ.reload(); casesQ.reload(); progress.reload(); }} what="演習・案件体験を読み込めませんでした" />}</>;
+  else if (route.page === "topic") page = <TopicPage ctx={ctx} topicId={route.id} />;
+  else if (route.page === "list") {
+    const q = route.kind === "drills" ? drillsQ : route.kind === "cases" ? casesQ : null;
+    page = q?.state === "error" ? <LoadError onRetry={q.reload} />
+      : q?.state === "loading" ? <Loading />
+        : <ListPage ctx={ctx} kind={route.kind} view={views[route.kind]} setView={v => setViews(s => ({ ...s, [route.kind]: v }))} />;
   }
+  else if (route.page === "course") page = <CourseDetail ctx={ctx} courseId={route.id} />;
+  else if (route.page === "lesson") page = <LessonPage ctx={ctx} courseId={route.id} lessonId={route.lessonId} slideId={route.slideId} />;
+  else if (route.page === "test") page = <FinalTestPage ctx={ctx} courseId={route.id} mode={route.mode} />;
+  else if (route.page === "drill") page = <DrillPage ctx={ctx} id={route.id} />;
+  else if (route.page === "case") page = <CasePage ctx={ctx} id={route.id} />;
 
   return (
-    <>
+    <Shell section={route.page === "list" ? route.kind : SECTION[route.page]} name={auth.name} email={auth.email} role={auth.role} staff={staff} onLogout={onLogout}>
       {page}
-      <div className="tl-app">
-        {modal === "trialClear" && (
-          <div className="modal" onClick={e => { if (e.target === e.currentTarget) setModal(null); }}>
-            <div className="mo" role="dialog" aria-modal="true" aria-labelledby="tlClearT">
-              <button className="mo-x" type="button" aria-label="閉じる" onClick={() => setModal(null)}>×</button>
-              <div className="mo-in">
-                <h2 id="tlClearT"><span className="mk">単元2 クリア！</span></h2>
-                <p>配列・ループ・平均・最高点まで、自分の手で動かしました。ログインすると、ここからの記録と書いたコードが残り、単元3へ進めます。</p>
-                <ul className="mo-list"><li>書いたコードが保存されます</li><li>コースマップのアプリに、今回の4行が加わります</li><li>次は「関数にまとめる」（約20分）</li></ul>
-                <div className="mo-a">
-                  <button className="btn btn-pri" type="button" onClick={() => { setPendingClear(true); go("login"); }}>ログインして続ける</button>
-                  <button className="lnk" type="button" onClick={() => setModal(null)}>あとで</button>
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
-        {toast && <div className="toast" role="status">{toast}</div>}
-      </div>
-    </>
-  );
-}
-
-function Loading() {
-  return <div className="tl-app"><div className="wrap"><p className="wk-note" role="status" style={{ padding: "40px 0" }}>記録を読み込んでいます…</p></div></div>;
-}
-
-function LoadError({ onRetry }) {
-  return (
-    <div className="tl-app"><div className="wrap hb">
-      <div className="info" role="alert">記録を読み込めませんでした。通信状況を確かめて、もう一度読み込んでください。進み具合は消えていません。</div>
-      <div><button className="btn btn-sec" type="button" onClick={onRetry}>もう一度読み込む</button></div>
-    </div></div>
+    </Shell>
   );
 }

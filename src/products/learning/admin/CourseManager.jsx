@@ -1,4 +1,5 @@
-import React, { useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
+import { apiGet } from "../../../api.js";
 import { AlertCircle, BadgeCheck, BookOpen, Clock, Eye, EyeOff, FileUp, RefreshCw, History, ListChecks, Loader2, Pencil, Plus, PlayCircle, Save, Search, Sparkles, Tag, Trash2, X } from "lucide-react";
 import { Badge, Btn, Card, EmptyState, Field, SectionHead, SkeletonRows, Stat, fieldStyle, T, PRODUCT_ACCENT } from "../../../components/common";
 import { COURSE_CATEGORY_OPTIONS, COURSE_COLOR_OPTIONS, COURSE_LEVEL_OPTIONS, COURSE_VISIBILITY_SCOPE_OPTIONS, EMPTY_COURSE_FORM } from "./LearningAdminCatalog.js";
@@ -25,6 +26,43 @@ export function VisibilityBadges({ course, companies, companiesError }) {
       {shown.map(id => <Badge key={id} tone="cyan">{nameFor(id)}</Badge>)}
       {extra > 0 && <Badge tone="muted">+{extra}社</Badge>}
     </>
+  );
+}
+
+/* テノラボ（ADR 0024）：単元・一覧のサムネイル・Premium。単元の一覧はテノラボの API から読む */
+const THUMB_OPTIONS = [["", "なし（単元の色）"], ["out", "実行結果（数行の出力）"], ["web-center", "Web：中央に置く"], ["web-2col", "Web：2列"], ["table", "表"], ["git", "Git"], ["aws", "AWS構成"], ["chart", "グラフ"], ["form", "フォーム"], ["filter", "絞り込み"], ["mobile", "スマートフォン"], ["bars", "棒グラフ"]];
+function TenolabCourseFields({ form, set, canEditPremium }) {
+  const [topics, setTopics] = useState(null);
+  useEffect(() => {
+    let alive = true;
+    apiGet("/tenolab/topics").then(r => { if (alive) setTopics(Array.isArray(r?.topics) ? r.topics : []); }).catch(() => { if (alive) setTopics([]); });
+    return () => { alive = false; };
+  }, []);
+  return (
+    <div className="grid gap-3 md:grid-cols-2">
+      <Field label="単元（テノラボ）">
+        <select style={fieldStyle} value={form.topic || ""} onChange={e => set("topic", e.target.value)}>
+          <option value="">未設定（その他）</option>
+          {(topics || []).map(t => <option key={t.id} value={t.id}>{t.name}{t.premium ? "（Premium）" : ""}</option>)}
+          {form.topic && topics && !topics.some(t => t.id === form.topic) && <option value={form.topic}>{form.topic}</option>}
+        </select>
+      </Field>
+      <Field label="一覧のサムネイル">
+        <select style={fieldStyle} value={form.thumbKind || ""} onChange={e => set("thumbKind", e.target.value)}>
+          {THUMB_OPTIONS.map(([v, l]) => <option key={v} value={v}>{l}</option>)}
+        </select>
+      </Field>
+      {form.thumbKind === "out" && (
+        <Field label="実行結果の行（1行ずつ・4行まで）">
+          <textarea style={{ ...fieldStyle, minHeight: 72, fontFamily: "monospace" }} value={form.thumbOutText || ""} onChange={e => set("thumbOutText", e.target.value)} placeholder={"> total([120, 80, 300])\n500"} />
+        </Field>
+      )}
+      {canEditPremium && (
+        <Field label="Premium">
+          <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={!!form.premiumOwn} onChange={e => set("premiumOwn", e.target.checked)} />このコースをPremiumにする（単元がPremiumなら自動でPremium）</label>
+        </Field>
+      )}
+    </div>
   );
 }
 
@@ -86,6 +124,7 @@ export function CourseForm({ mode, form, onChange, onSubmit, onCancel, canEditVi
             </div>
           </Field>
         </div>
+        <TenolabCourseFields form={form} set={set} canEditPremium={canEditVisibility} />
         <Field label="説明">
           <textarea style={{ ...fieldStyle, minHeight: 92 }} value={form.desc} onChange={e => set("desc", e.target.value)} placeholder="コースで学ぶ内容を入力" />
         </Field>
