@@ -162,7 +162,19 @@ export function AwsEnvPanel({ scenario, start = "blank", task, onGraded, readOnl
     } finally { setBusy(""); }
   }
   const startEnv = () => act("start", async () => { await cloud.start(scenario); setGraded(null); await load(); });
-  const openConsole = () => act("console", async () => { const r = await cloud.console(); setReopen(false); if (r?.url) window.open(r.url, "_blank", "noopener"); });
+  // 押したその場で窓を開いておき、URL が届いたら移す（待ってから開くとポップアップとして止められるため）
+  const openConsole = () => {
+    const w = window.open("about:blank", "_blank");
+    act("console", async () => {
+      try {
+        const r = await cloud.console();
+        setReopen(false);
+        const u = r?.consoleUrl || r?.url;
+        if (u && w) { w.opener = null; w.location.href = u; } else if (u) window.open(u, "_blank", "noopener");
+        else if (w) w.close();
+      } catch (e) { if (w) w.close(); throw e; }
+    });
+  };
   const grade = () => act("grade", async () => {
     const r = await cloud.check(scenario);
     setGraded(r);
