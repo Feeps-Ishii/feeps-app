@@ -56,9 +56,10 @@ export function DrillCard({ d, premium, go }) {
 }
 
 const CASE_STATE = {
-  submitted: ["提出済み ・ 確認待ち", ""],
+  submitted: ["採点できず ・ もう一度提出", "warn"],
   returned: ["やり直し", "warn"],
-  approved: ["OK", "done"],
+  approved: ["合格", "done"],
+  skipped: ["先に進んだ", ""],
   doing: ["取り組み中", ""],
 };
 export function CaseCard({ x, premium, go }) {

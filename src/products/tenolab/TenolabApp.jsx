@@ -11,7 +11,7 @@ import { Home, ListPage, TopicPage } from "./app/Browse.jsx";
 import { CourseDetail, FinalTestPage, LessonPage } from "./app/CoursePages.jsx";
 import DrillPage from "./app/DrillPage.jsx";
 import CasePage from "./app/CasePage.jsx";
-import ManagePage from "./app/manage/ManagePage.jsx";
+import ManagePage, { ADMIN_NAV, adminSection } from "./app/manage/ManagePage.jsx";
 import { LoadError, Loading } from "./app/ui.jsx";
 import { submitInquiry, useCases, useDrills, useLabProgress, useMe, useTopics } from "./app/data.js";
 import { caseModels, courseModels, drillModels } from "./app/model.js";
@@ -24,7 +24,8 @@ import "./app/app.css";
      #/courses  #/drills  #/cases          一覧
      #/courses/{id}[/lessons/{lid}[/{slide}] | /test | /result]
      #/drills/{id}  #/cases/{id}
-     #/manage/…                            講師・管理者 */
+     #/manage/…                            管理の画面（管理者だけ。ログインすると、管理者はここから始まる）
+   「研修のみ」の契約の企業の人（/tenolab/me の elearning が false）は、ログアウトしてログインの画面に戻す（ADR 0025） */
 const ENTRY = new Set(["", "login", "try", "quote"]);
 
 function parseHash() {
@@ -44,11 +45,14 @@ function parseHash() {
   if (p[0] === "manage") return { page: "manage", rest: p.slice(1) };
   return { page: "entry", view: "", anchor: p[0] };   // #how のようなページ内リンク
 }
+const NO_ELEARNING = "テノラボを使える契約がありません。研修のご担当者にお問い合わせください。";
+const startHash = role => (role === "admin" ? "#/manage" : "#/home");
 const SECTION = { home: "home", topic: "home", list: null, course: "courses", lesson: "courses", test: "courses", drill: "drills", case: "cases" };
 
 export default function TenolabApp() {
   const [route, setRoute] = useState(parseHash);
   const [auth, setAuth] = useState({ state: "loading", name: "", email: "", role: "" }); // loading | in | out
+  const [loginError, setLoginError] = useState("");
 
   useEffect(() => {
     const onHash = () => {
@@ -74,10 +78,10 @@ export default function TenolabApp() {
       let role = "trainee";
       try { role = roleOf((await fetchAuthSession())?.tokens?.idToken?.payload || {}); } catch (e) { console.warn("tenolab role load failed", e); }
       setAuth({ state: "in", name: name || "あなた", email, role });
-      return true;
+      return role;
     } catch (e) {
       setAuth({ state: "out", name: "", email: "", role: "" });
-      return false;
+      return null;
     }
   }, []);
   useEffect(() => { loadUser(); }, [loadUser]);
@@ -85,24 +89,39 @@ export default function TenolabApp() {
   // ログインが要る画面は、ログインしていなければログインへ。ログイン画面はログイン済みならホームへ
   useEffect(() => {
     if (auth.state === "out" && route.page !== "entry") window.location.hash = "#/login";
-    if (auth.state === "in" && route.page === "entry" && route.view === "login") window.location.hash = "#/home";
-  }, [auth.state, route.page, route.view]);
+    if (auth.state === "in" && route.page === "entry" && route.view === "login") window.location.hash = startHash(auth.role);
+  }, [auth.state, auth.role, route.page, route.view]);
 
-  async function logout() {
+  async function logout(message) {
     try { await signOut(); } catch (e) { /* 抜けられなくても入口へ戻す */ }
     setAuth({ state: "out", name: "", email: "", role: "" });
-    window.location.hash = "#/";
+    setLoginError(typeof message === "string" ? message : "");
+    window.location.hash = typeof message === "string" ? "#/login" : "#/";
+  }
+  // ログインしたら、テノラボを使える契約かを確かめる。使えなければ、ログインの画面に文言を返す
+  async function onLoggedIn() {
+    const role = await loadUser();
+    if (!role) return "";
+    const me = await apiGet("/tenolab/me").catch(() => null);
+    if (me && me.elearning === false) {
+      try { await signOut(); } catch (e) { /* 抜けられなくてもログインの画面のまま */ }
+      setAuth({ state: "out", name: "", email: "", role: "" });
+      return NO_ELEARNING;
+    }
+    setLoginError("");
+    window.location.hash = startHash(role);
+    return "";
   }
 
   if (route.page === "entry") {
-    return <EntryHost onLoggedIn={async () => { if (await loadUser()) window.location.hash = "#/home"; }} />;
+    return <EntryHost key={loginError} loginError={route.view === "login" ? loginError : ""} onLoggedIn={onLoggedIn} />;
   }
   if (auth.state !== "in") return <div className="tl-boot" role="status">読み込んでいます…</div>;
   return <App route={route} auth={auth} onLogout={logout} />;
 }
 
 /* 入口（紹介・ログイン・Java体験・お見積り）。モックの HTML と動きをそのまま載せる */
-function EntryHost({ onLoggedIn }) {
+function EntryHost({ onLoggedIn, loginError }) {
   const ref = useRef(null);
   const loggedIn = useRef(onLoggedIn);
   loggedIn.current = onLoggedIn;
@@ -124,7 +143,7 @@ function EntryHost({ onLoggedIn }) {
     root.addEventListener("click", onClick, true);
     let destroy = null;
     try {
-      destroy = mountEntry(root, { auth: entryAuth, onLoggedIn: () => loggedIn.current(), submitInquiry });
+      destroy = mountEntry(root, { auth: entryAuth, onLoggedIn: () => loggedIn.current(), submitInquiry, loginError });
     } catch (e) {
       console.error("tenolab entry mount failed", e);
     }
@@ -140,6 +159,7 @@ function EntryHost({ onLoggedIn }) {
 /* ログイン後 */
 function App({ route, auth, onLogout }) {
   const staff = isStaffRole(auth.role);
+  const admin = auth.role === "admin";
   const lrn = useLearning(auth.role);
   const me = useMe(true);
   const topicsQ = useTopics(true);
@@ -187,10 +207,23 @@ function App({ route, auth, onLogout }) {
 
   const ctx = { lrn, topics, courses, drills, cases, premium, staff, go, back, progress, resume };
   const loading = [topicsQ, me].some(q => q.state === "loading") || lrn.courseCatalogState === "loading";
+  // 「研修のみ」の契約の人は入れない（ログイン済みのまま開いたときもここで戻す）
+  const blocked = me.data && me.data.elearning === false && !staff;
+  useEffect(() => { if (blocked) onLogout(NO_ELEARNING); }, [blocked]); // eslint-disable-line react-hooks/exhaustive-deps
   const failed = [topicsQ, me].find(q => q.state === "error");
 
+  if (blocked) return <div className="tl-boot" role="status">読み込んでいます…</div>;
+  // 管理の画面（管理者だけ）は黒い帯の外枠
+  if (route.page === "manage" && admin) {
+    return (
+      <Shell variant="admin" nav={ADMIN_NAV} section={adminSection(route.rest)} name={auth.name} email={auth.email} role={auth.role} admin onLogout={onLogout}>
+        {failed ? <LoadError onRetry={() => { topicsQ.reload(); me.reload(); }} /> : loading ? <Loading /> : <ManagePage ctx={ctx} rest={route.rest} />}
+      </Shell>
+    );
+  }
+
   let page;
-  if (route.page === "manage") page = staff ? <ManagePage ctx={ctx} rest={route.rest} role={auth.role} /> : <p className="muted" style={{ paddingTop: 24 }}>このメニューは講師と管理者だけが使えます。</p>;
+  if (route.page === "manage") page = <p className="muted" style={{ paddingTop: 24 }}>この画面は管理者だけが使えます。</p>;
   else if (failed) page = <LoadError onRetry={() => { topicsQ.reload(); me.reload(); }} />;
   else if (loading) page = <Loading />;
   else if (lrn.courseCatalogState === "error" && ["home", "topic", "list", "course"].includes(route.page) && route.kind !== "drills" && route.kind !== "cases") page = <LoadError onRetry={() => window.location.reload()} what="コースを読み込めませんでした" />;
@@ -209,7 +242,7 @@ function App({ route, auth, onLogout }) {
   else if (route.page === "case") page = <CasePage ctx={ctx} id={route.id} />;
 
   return (
-    <Shell section={route.page === "list" ? route.kind : SECTION[route.page]} name={auth.name} email={auth.email} role={auth.role} staff={staff} onLogout={onLogout}>
+    <Shell section={route.page === "list" ? route.kind : SECTION[route.page]} name={auth.name} email={auth.email} role={auth.role} admin={admin} onLogout={() => onLogout()}>
       {page}
     </Shell>
   );

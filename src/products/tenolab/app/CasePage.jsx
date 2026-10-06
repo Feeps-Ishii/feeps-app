@@ -4,11 +4,19 @@ import { Back, Ic, LoadError, Loading, PremTag } from "./ui.jsx";
 import { Editor } from "./Workbench.jsx";
 import { AwsEnvPanel } from "./DrillPage.jsx";
 import { FILE_NAME, runCode } from "./runtime.js";
-import { submitCase, useCase } from "./data.js";
+import { skipCase, submitCase, useCase } from "./data.js";
+import GradeView from "./GradeView.jsx";
 import { START_OF } from "./model.js";
 
-/* 案件体験（モックの casePage）。依頼を読む → 作る → テスト → 提出 → レビュー（AIの講評のあと講師が確認） */
-const STEPS = ["依頼を読む", "作る", "テスト", "提出", "レビュー"];
+/* 案件体験（モックの casePage）。依頼を読む → 作る → テスト → 提出 → 採点（AIが基準で採点して、その場で合否。ADR 0025）
+   やり直しが決まった回数たまると「先に進む」が出る（合格とは別の「先に進んだ」として残る） */
+const STEPS = ["依頼を読む", "作る", "テスト", "提出", "採点"];
+const VERDICT = {
+  approved: ["合格", "ok"],
+  returned: ["やり直し", "ng"],
+  skipped: ["先に進みました", "warn"],
+  submitted: ["採点できませんでした", "warn", "もう一度提出すると、採点し直します"],
+};
 
 export default function CasePage({ ctx, id }) {
   const { back, go, cases, premium, progress } = ctx;
@@ -37,7 +45,8 @@ export default function CasePage({ ctx, id }) {
 function CaseWork({ item, premium, back, progress, onSubmitted }) {
   const rec = item.progress || progress.caseOf(item.id) || {};
   const status = rec.status || "";
-  const locked = status === "submitted" || status === "approved";
+  // 合格したら書き換えない。やり直し・先に進んだ・採点できなかったときは、直してもう一度提出できる
+  const locked = status === "approved";
   const [code, setCode] = useState(rec.code ?? item.starterCode ?? "");
   const [run, setRun] = useState(null);
   const [busy, setBusy] = useState("");
@@ -47,7 +56,8 @@ function CaseWork({ item, premium, back, progress, onSubmitted }) {
   const tests = item.tests || [];
   const isAws = item.runtime === "aws";
   const passAll = !!run && !run.error && run.results.length > 0 && run.results.every(r => r.ok);
-  const stepNow = status === "approved" ? 5 : locked ? 4 : passAll ? 3 : 1;
+  const stepNow = status === "approved" || status === "skipped" ? 5 : status ? 4 : passAll ? 3 : 1;
+  const rubric = item.rubric || [];
   const t = item.ticket || {};
 
   async function doRun() {
@@ -64,14 +74,26 @@ function CaseWork({ item, premium, back, progress, onSubmitted }) {
     if (busy || !passAll) return;
     setBusy("submit"); setErr("");
     try {
-      const res = await submitCase(item.id, { code, testResults: run.results.map(r => ({ name: r.name, ok: r.ok })) });
-      progress.upsert(res?.item);
+      await submitCase(item.id, { code, testResults: run.results.map(r => ({ name: r.name, ok: r.ok })) });
+      progress.reload();
       onSubmitted();
     } catch (e) {
-      setErr(e?.status === 409 ? "すでに提出済みです。画面を読み込み直してください。" : "提出できませんでした。通信状況を確かめて、もう一度提出してください。");
+      setErr(e?.status === 409 ? "この案件体験はもう合格しています。画面を読み込み直してください。" : "提出できませんでした。通信状況を確かめて、もう一度提出してください。");
     } finally { setBusy(""); }
   }
-  const results = run?.results || (locked && Array.isArray(rec.testResults) ? rec.testResults : null);
+  async function skip() {
+    if (busy || !window.confirm("合格を待たずに、先に進みます。あとからもう一度提出して合格することもできます。")) return;
+    setBusy("skip"); setErr("");
+    try {
+      await skipCase(item.id);
+      progress.reload();
+      onSubmitted();
+    } catch (e) {
+      setErr(e?.errorMessage || "先に進めませんでした。もう一度お試しください。");
+    } finally { setBusy(""); }
+  }
+  const results = run?.results || (status && Array.isArray(rec.testResults) ? rec.testResults : null);
+  const v = VERDICT[status];
 
   return (
     <>
@@ -85,7 +107,7 @@ function CaseWork({ item, premium, back, progress, onSubmitted }) {
       <div className="case-wrap">
         <div style={{ display: "grid", gap: 16, alignContent: "start" }}>
           <section className="card ticket">
-            <div className="row">{t.id && <span className="id">TICKET {t.id}</span>}<span className="chip">担当：あなた</span><span className="chip">レビュー：講師</span></div>
+            <div className="row">{t.id && <span className="id">TICKET {t.id}</span>}<span className="chip">担当：あなた</span><span className="chip">採点：AI</span></div>
             {t.client && <span className="muted" style={{ fontSize: 13 }}>{t.client}</span>}
             {t.background && <p className="muted" style={{ margin: 0, fontSize: 14, whiteSpace: "pre-wrap" }}>{t.background}</p>}
             {Array.isArray(t.scope) && t.scope.length > 0 && (
@@ -94,6 +116,10 @@ function CaseWork({ item, premium, back, progress, onSubmitted }) {
             )}
             <div><div className="eyebrow" style={{ marginBottom: 6 }}>受け入れ条件</div>
               <ul className="checks">{tests.map((x, i) => { const ok = results?.[i]?.ok; return <li key={i} className={ok ? "ok" : ""}><i>{ok ? "✓" : ""}</i>{x.name}</li>; })}</ul></div>
+            {rubric.length > 0 && (
+              <div><div className="eyebrow" style={{ marginBottom: 6 }}>採点で見るところ</div>
+                <ul className="checks">{rubric.map((r, i) => { const g = rec.grade?.results?.[i]; return <li key={i} className={g?.met ? "ok" : ""}><i>{g?.met ? "✓" : ""}</i>{r.text}{r.must && <span className="chip warn" style={{ marginLeft: 6 }}>必須</span>}</li>; })}</ul></div>
+            )}
           </section>
           {t.notes && <section className="card flat" style={{ padding: "16px 18px", display: "grid", gap: 8 }}><div className="eyebrow">参考</div><p style={{ margin: 0, fontSize: 14, color: "var(--ink2)", whiteSpace: "pre-wrap" }}>{t.notes}</p></section>}
         </div>
@@ -107,7 +133,7 @@ function CaseWork({ item, premium, back, progress, onSubmitted }) {
               <div className="run">
                 <button className="btn" type="button" onClick={doRun} disabled={locked || !!busy}><Ic id="play" />{busy === "run" ? "実行しています…" : "テストを実行"}</button>
                 {item.hint && <button className="btn ghost" type="button" onClick={() => setHint(true)} disabled={locked}>ヒント</button>}
-                <button className="btn dark" type="button" onClick={submit} disabled={!passAll || locked || !!busy} style={{ marginLeft: "auto" }}>{busy === "submit" ? "提出しています…" : "提出する"}</button>
+                <button className="btn dark" type="button" onClick={submit} disabled={!passAll || locked || !!busy} style={{ marginLeft: "auto" }}>{busy === "submit" ? "採点しています…" : "提出する"}</button>
               </div>
             </div>
           )}
@@ -118,18 +144,20 @@ function CaseWork({ item, premium, back, progress, onSubmitted }) {
             {run && run.out?.length > 0 && <pre className="code" style={{ margin: 0, maxHeight: 160, overflow: "auto" }}>{run.out.join("\n")}</pre>}
             <div className="tests">{(tests.length ? tests : (results || [])).map((x, i) => { const v = results?.[i]; return <div key={i} className={v ? (v.ok ? "ok" : "ng") : ""}>{v ? (v.ok ? "✓" : "✗") : "・"} {x.name}</div>; })}</div>
             {hint && item.hint && <div className="hint">{item.hint}</div>}
-            {isAws && passAll && !locked && <button className="btn dark" type="button" onClick={submit} disabled={!!busy} style={{ justifySelf: "start" }}>{busy === "submit" ? "提出しています…" : "提出する"}</button>}
+            {isAws && passAll && !locked && <button className="btn dark" type="button" onClick={submit} disabled={!!busy} style={{ justifySelf: "start" }}>{busy === "submit" ? "採点しています…" : "提出する"}</button>}
           </section>
           {err && <div className="verdict ng" role="alert">{err}</div>}
-          {(locked || status === "returned") && (
+          {v && (
             <section className="card review">
-              <div className="row"><span className="eyebrow">レビュー</span><span className={`chip ${status === "approved" ? "done" : ""}`}><Ic id="check" />受け入れ条件 {(rec.testResults || []).filter(x => x.ok).length} / {(rec.testResults || []).length}</span></div>
-              {rec.aiReview && <div className="rv"><div className="who">AI</div><div className="bubble" style={{ whiteSpace: "pre-wrap" }}>{rec.aiReview}</div></div>}
-              <div className="rv"><div className="who" style={{ background: "var(--marker)" }}>講</div><div className="bubble" style={{ whiteSpace: "pre-wrap" }}>
-                {status === "submitted" ? "講師の確認待ちです。確認が終わると、案件体験の記録に残ります。"
-                  : status === "approved" ? (rec.review?.comment || "確認しました。OKです。")
-                    : (rec.review?.comment ? `やり直し：${rec.review.comment}` : "やり直しになりました。直してもう一度提出してください。")}
-              </div></div>
+              <GradeView label={v[0]} tone={v[1]} sub={v[2] || (rec.attempts ? `${rec.attempts}回目の提出` : "")} results={rec.grade?.results} review={rec.aiReview}>
+                {rec.review?.comment && <div className="rv"><div className="who" style={{ background: "var(--marker)" }}>管</div><div className="bubble" style={{ whiteSpace: "pre-wrap" }}>{rec.review.comment}</div></div>}
+                {rec.canSkip && (
+                  <div className="row" style={{ gap: 10 }}>
+                    <button type="button" className="btn ghost" onClick={skip} disabled={!!busy}>{busy === "skip" ? "進めています…" : "先に進む"}</button>
+                    <span className="muted" style={{ fontSize: 13 }}>やり直し {rec.fails}回</span>
+                  </div>
+                )}
+              </GradeView>
             </section>
           )}
         </div>

@@ -24,7 +24,8 @@ function useGet(path, { enabled = true, pick = x => x } = {}) {
 
 // 自分の契約（Premium かどうか）とロール
 export function useMe(enabled) {
-  return useGet("/tenolab/me", { enabled, pick: r => ({ plan: r?.plan || "basic", premium: !!r?.premium, role: r?.role || "trainee" }) });
+  // elearning：false は「研修のみ」の契約の企業の人（テノラボには入れない）。返ってこないときは入れる
+  return useGet("/tenolab/me", { enabled, pick: r => ({ plan: r?.plan || "basic", premium: !!r?.premium, role: r?.role || "trainee", elearning: r?.elearning !== false }) });
 }
 
 export function useTopics(enabled) {
@@ -70,6 +71,7 @@ export function useLabProgress(enabled) {
 }
 
 export const submitCase = (id, body) => apiPost(`/tenolab/cases/${encodeURIComponent(id)}/submit`, body);
+export const skipCase = id => apiPost(`/tenolab/cases/${encodeURIComponent(id)}/skip`, {});
 export const getDrillAnswer = id => apiGet(`/tenolab/drills/${encodeURIComponent(id)}/answer`);
 export const submitInquiry = body => apiPost("/tenolab/inquiries", body);
 
@@ -80,8 +82,10 @@ export const manage = {
   save: (kind, id, body) => apiPut(`/tenolab/manage/${kind}/${encodeURIComponent(id)}`, body),
   publish: (kind, id) => apiPost(`/tenolab/manage/${kind}/${encodeURIComponent(id)}/publish`, {}),
   remove: (kind, id) => apiDelete(`/tenolab/manage/${kind}/${encodeURIComponent(id)}`),
-  submissions: status => apiGet(`/tenolab/manage/submissions?status=${encodeURIComponent(status || "submitted")}`),
+  submissions: ({ status = "all", caseId = "" } = {}) => apiGet(`/tenolab/manage/submissions?status=${encodeURIComponent(status)}${caseId ? `&caseId=${encodeURIComponent(caseId)}` : ""}`),
   review: (userId, caseId, body) => apiPut(`/tenolab/manage/submissions/${encodeURIComponent(userId)}/${encodeURIComponent(caseId)}`, body),
+  gradeTest: (id, body) => apiPost(`/tenolab/manage/cases/${encodeURIComponent(id)}/grade-test`, body),
+  rubricDraft: (id, body) => apiPost(`/tenolab/manage/cases/${encodeURIComponent(id)}/rubric-draft`, body),
   saveTopics: topics => apiPut("/tenolab/topics", { topics }),
 };
 

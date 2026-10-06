@@ -47,6 +47,84 @@
   .tl-course > main { flex: 1 0 auto; width: 100%; }
   .tl-foot { border-top: 1px solid var(--line); background: var(--card); color: var(--muted); font-size: 12.5px; }
   .tl-foot .wrap { display: flex; align-items: center; gap: 16px; padding-block: 16px; }
+  /* 管理の画面（モック tenolab-admin.html）。帯を黒にして受講生の画面と見分ける */
+  .tl-course .bar.admin { background: var(--ink); color: var(--paper); border-bottom-color: var(--ink); backdrop-filter: none; }
+  .tl-course .bar.admin .logo b { color: var(--ink); background: var(--marker); padding: 0 2px; border-radius: 2px; }
+  .tl-course .bar.admin .mode { font-family: var(--mono); font-size: 10.5px; letter-spacing: .16em; color: var(--marker); border: 1px solid rgba(255, 225, 77, .5); border-radius: 4px; padding: 1px 6px; white-space: nowrap; }
+  .tl-course .bar.admin .nav a { color: #C9CCD6; }
+  .tl-course .bar.admin .nav a[aria-current="page"] { background: var(--paper); color: var(--ink); }
+  .tl-course .bar.admin .um-btn { background: transparent; border-color: #3A3F4B; color: var(--paper); }
+  .tl-course .nav a .n { display: inline-grid; place-items: center; min-width: 18px; height: 18px; border-radius: 9px; background: var(--marker); color: var(--ink); font-size: 11px; margin-left: 4px; padding: 0 5px; font-family: var(--mono); }
+  .tl-course .me .switch { font-size: 13px; color: var(--ink2); text-decoration: underline; text-underline-offset: 3px; white-space: nowrap; }
+  .tl-course .bar.admin .me .switch { color: #C9CCD6; }
+  .tl-course .mttl { display: flex; align-items: flex-end; gap: 14px; flex-wrap: wrap; margin: 4px 0 18px; }
+  .tl-course .mttl .r { margin-left: auto; display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+  .tl-course .is-admin .tabs-h, .tl-course.is-admin .tabs-h { max-width: 100%; overflow-x: auto; }
+  .tl-course .msel { font: inherit; font-size: 13.5px; border: 1px solid #CDD1C7; border-radius: 8px; padding: 6px 10px; background: var(--card); max-width: 100%; }
+  .tl-course .kpi { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; }
+  .tl-course .kpi > * { text-align: left; padding: 14px 18px; display: grid; gap: 2px; border: 1px solid var(--line); background: var(--card); border-radius: 14px; box-shadow: var(--shadow, 0 1px 2px rgba(21,23,28,.04)); font: inherit; color: inherit; }
+  .tl-course .kpi button { cursor: pointer; }
+  .tl-course .kpi button:hover { border-color: var(--ink); }
+  .tl-course .kpi .hot { border-color: var(--marker-deep); background: #FFFDF0; }
+  .tl-course .kpi .lab { font-weight: 700; font-size: 13.5px; }
+  .tl-course .kpi .big { font-family: var(--mono); font-size: 30px; font-weight: 600; line-height: 1.15; white-space: nowrap; }
+  .tl-course .kpi .big small { font-size: 13px; font-family: inherit; color: var(--muted); margin-left: 3px; }
+  .tl-course .kpi .sub { font-size: 12px; color: var(--muted); }
+  .tl-course .mtwo { display: grid; grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr); gap: 16px; margin-top: 16px; align-items: start; }
+  .tl-course .msec { padding: 16px 18px; display: grid; gap: 12px; align-content: start; }
+  .tl-course .msec h2 { font-size: 16px; margin: 0; }
+  .tl-course .todo, .tl-course .feed { list-style: none; margin: 0; padding: 0; display: grid; }
+  .tl-course .todo li { display: flex; gap: 10px; align-items: center; justify-content: space-between; padding: 9px 0; border-bottom: 1px solid var(--line); font-size: 14px; }
+  .tl-course .feed li { display: grid; grid-template-columns: 92px minmax(0, 1fr) auto; gap: 10px; align-items: center; padding: 7px 0; border-bottom: 1px solid var(--line); font-size: 13.5px; }
+  .tl-course .feed li .num { font-size: 11.5px; color: var(--muted); }
+  .tl-course .todo li:last-child, .tl-course .feed li:last-child { border-bottom: 0; }
+  .tl-course .make { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: 14px; align-items: center; padding: 14px 16px; background: var(--ink); color: var(--paper); border-radius: 14px; }
+  .tl-course .make .ic { width: 40px; height: 40px; border-radius: 11px; background: var(--marker); color: var(--ink); display: grid; place-items: center; font-family: var(--display); font-size: 18px; }
+  .tl-course .make span span { color: #B9BDC8; font-size: 12.5px; }
+  .tl-course .drow.mrow { display: flex; align-items: center; gap: 12px; }
+  .tl-course .drow.mrow > span:nth-child(2) { flex: 1; min-width: 0; }
+  /* AI採点 */
+  .tl-course .mgrade { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.15fr); gap: 16px; align-items: start; }
+  .tl-course .mtbl { width: 100%; border-collapse: collapse; font-size: 14px; }
+  .tl-course .mtbl th { font-size: 11.5px; color: var(--muted); text-align: left; font-weight: 700; padding: 8px 10px; border-bottom: 1px solid var(--line); white-space: nowrap; }
+  .tl-course .mtbl td { padding: 10px; border-bottom: 1px solid var(--line); vertical-align: middle; }
+  .tl-course .mtbl tbody tr { cursor: pointer; }
+  .tl-course .mtbl tbody tr:hover td { background: #FAFAF6; }
+  .tl-course .mtbl tbody tr.sel td { background: #FFFDF0; }
+  .tl-course .mtbl tbody tr:last-child td { border-bottom: 0; }
+  .tl-course .mtbl .rt { text-align: right; }
+  .tl-course .tblwrap { overflow-x: auto; }
+  .tl-course .grade-view { display: grid; gap: 12px; }
+  .tl-course .gverdict { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; padding: 10px 14px; border-radius: 12px; background: var(--soft); }
+  .tl-course .gverdict b { font-family: var(--display); font-weight: 400; font-size: 20px; }
+  .tl-course .gverdict span { font-size: 13px; color: var(--ink2); }
+  .tl-course .gverdict.ok { background: var(--mint-soft); } .tl-course .gverdict.ok b { color: #0B6B50; }
+  .tl-course .gverdict.ng { background: var(--red-soft); } .tl-course .gverdict.ng b { color: #A2342A; }
+  .tl-course .gverdict.warn { background: var(--marker-soft); } .tl-course .gverdict.warn b { color: #7A5A00; }
+  .tl-course .crit { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+  .tl-course .crit li { display: grid; grid-template-columns: 22px minmax(0, 1fr); gap: 8px; font-size: 14px; }
+  .tl-course .crit .mk { width: 22px; height: 22px; border-radius: 6px; display: grid; place-items: center; font-weight: 700; font-size: 13px; }
+  .tl-course .crit .y { background: var(--mint-soft); color: #0B6B50; }
+  .tl-course .crit .n { background: var(--red-soft); color: #A2342A; }
+  .tl-course .crit .p { background: var(--soft); color: var(--muted); }
+  .tl-course .crit small { display: block; color: var(--ink2); font-size: 12.5px; }
+  .tl-course .chip.ng { background: var(--red-soft); border-color: #F1C4BE; color: #A2342A; }
+  /* 採点の基準の編集 */
+  .tl-course .mrule { border: 1px solid var(--line); border-radius: 12px; padding: 10px 12px; display: grid; gap: 8px; }
+  .tl-course .mrule.must { border-color: var(--ink); }
+  .tl-course .mrule input:not([type="checkbox"]) { font: inherit; font-size: 14px; border: 1px solid #CDD1C7; border-radius: 8px; padding: 6px 10px; background: var(--card); width: 100%; min-width: 0; }
+  .tl-course .mrule > .row input:not([type="checkbox"]) { flex: 1; }
+  .tl-course .mrule-ex { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+  .tl-course .mrule-ex input:first-child { background: var(--mint-soft) !important; }
+  .tl-course .mrule-ex input:last-child { background: var(--red-soft) !important; }
+  .tl-course .mtry { display: grid; gap: 10px; border-top: 1px dashed var(--line); padding-top: 12px; }
+  .tl-course .mtry textarea { font-family: var(--mono); font-size: 13px; border: 1px solid #CDD1C7; border-radius: 8px; padding: 8px 10px; width: 100%; resize: vertical; }
+  @media (max-width: 980px) {
+    .tl-course .kpi { grid-template-columns: 1fr; }
+    .tl-course .mtwo, .tl-course .mgrade { grid-template-columns: 1fr; }
+    .tl-course .bar.admin .mode { display: none; }
+  }
+  @media (max-width: 700px) { .tl-course .mrule-ex { grid-template-columns: 1fr; } .tl-course .feed li { grid-template-columns: 1fr auto; } .tl-course .feed li .num { grid-column: 1 / -1; } }
   /* 読み込み前の画面（ログインの確かめ中など） */
   .tl-boot { min-height: 100vh; display: grid; place-items: center; font-family: "Zen Kaku Gothic New", system-ui, sans-serif; color: #767D8C; background: #FBFBF7; }
 }

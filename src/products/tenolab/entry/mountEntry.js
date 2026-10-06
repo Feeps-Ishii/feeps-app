@@ -3,7 +3,9 @@
    - 画面の切り替えはアプリの URL（#/ #/login #/try #/quote）で行い、hashchange で show() する
    - ログインは本番の認証（OPTS.auth）、お見積りは本番の API（OPTS.submitInquiry）
    - 外すときに、window のリスナー・監視・タイマー・自動再生を止める（CLEANUP）
-   OPTS = { auth, onLoggedIn, submitInquiry } */
+   - ログインのあとで入れない人（研修のみの契約）には、onLoggedIn が文言を返し、ログインの画面に出す。
+     はじめから出す文言は OPTS.loginError
+   OPTS = { auth, onLoggedIn, submitInquiry, loginError } */
 export function mountEntry(root, OPTS) {
 OPTS = OPTS || {};
 const CLEANUP = [];
@@ -234,7 +236,12 @@ const mailOk = v => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v.trim());
 // 認証の次の段階へ。done ならアプリに知らせる（ホームへ）
 function afterAuth(r) {
   if (!r) return;
-  if (r.next === "done") { OPTS.onLoggedIn && OPTS.onLoggedIn(); return; }
+  if (r.next === "done") {
+    Promise.resolve(OPTS.onLoggedIn && OPTS.onLoggedIn()).then(msg => {
+      if (typeof msg === "string" && msg) { loginGo("login"); fail(stepEl("login"), msg); }
+    });
+    return;
+  }
   loginGo(r.next);
   if (r.next === "totpSetup") {
     const box = document.getElementById("l-qr");
@@ -390,6 +397,8 @@ qform.addEventListener("submit", e => {
     document.getElementById("q-err").textContent = "送れませんでした。通信状況を確かめて、もう一度送ってください。";
   }).finally(() => { sendBtn.removeAttribute("aria-busy"); sendBtn.innerHTML = sendLabel; });
 });
+
+if (OPTS.loginError && !loginView.hidden) fail(stepEl("login"), OPTS.loginError);
 
 return () => { CLEANUP.forEach(f => { try { f(); } catch (e) { /* 片付けの失敗は無視 */ } }); };
 }

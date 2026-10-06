@@ -1,7 +1,9 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { manage } from "../data.js";
 import { THUMB_KINDS, Thumb } from "../ui.jsx";
 import { TryPanel } from "../Workbench.jsx";
+import GradeView from "../GradeView.jsx";
+import { TRY_KEY } from "./parts.jsx";
 
 /* 演習・案件体験の編集（下書き → 試す → 公開）。kind は "drills" | "cases" */
 const RUNTIMES = {
@@ -19,7 +21,87 @@ const TEST_HELP = {
 };
 const blank = kind => kind === "drills"
   ? { title: "", topic: "", runtime: "js", level: "やさしい", minutes: 10, task: "", hint: "", starterCode: "", answerCode: "", tests: [{ name: "", expr: "" }], premium: false, order: 0, thumb: null }
-  : { title: "", topic: "", runtime: "js", summary: "", hours: 2, needCourseId: "", ticket: { id: "", client: "", background: "", scope: [""], notes: "" }, starterCode: "", tests: [{ name: "", expr: "" }], premium: false, order: 0, thumb: null };
+  : { title: "", topic: "", runtime: "js", summary: "", hours: 2, needCourseId: "", ticket: { id: "", client: "", background: "", scope: [""], notes: "" }, starterCode: "", answerCode: "", tests: [{ name: "", expr: "" }], rubric: [], skipAfter: 2, premium: false, order: 0, thumb: null };
+const SKIP_AFTER = [[1, "やり直し1回から"], [2, "やり直し2回から"], [3, "やり直し3回から"], [0, "出さない"]];
+
+/* 採点の基準（AI採点）。必須をすべて満たせば合格。見る点は講評だけに使う */
+function RubricEditor({ item, set, id, hasCode }) {
+  const rubric = item.rubric || [];
+  const [busy, setBusy] = useState("");
+  const [msg, setMsg] = useState("");
+  // AI採点の画面の「この提出で基準を試す」から来たときは、そのコードを入れておく
+  const [code, setCode] = useState(() => {
+    try {
+      const v = JSON.parse(sessionStorage.getItem(TRY_KEY) || "null");
+      if (v && v.caseId === id) { sessionStorage.removeItem(TRY_KEY); return String(v.code || ""); }
+    } catch (e) { /* 読めなければ空のまま */ }
+    return null;
+  });
+  const [result, setResult] = useState(null);
+  const box = useRef(null);
+  useEffect(() => { if (code != null) box.current?.scrollIntoView({ block: "center" }); }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  const setRow = (i, k, v) => set("rubric", rubric.map((r, j) => (j === i ? { ...r, [k]: v } : r)));
+  const caseId = /^[a-z0-9][a-z0-9-]{0,39}$/.test(id) ? id : "new";
+  async function draft() {
+    if (rubric.length && !window.confirm("いまの基準を、AIが作った基準に置き換えます。よろしいですか？")) return;
+    setBusy("draft"); setMsg("");
+    try { const r = await manage.rubricDraft(caseId, { case: item }); set("rubric", r.rubric || []); }
+    catch (e) { setMsg(e?.errorMessage || "AIが基準を作れませんでした。"); }
+    finally { setBusy(""); }
+  }
+  async function test() {
+    setBusy("test"); setMsg(""); setResult(null);
+    try { setResult(await manage.gradeTest(caseId, { case: item, code })); }
+    catch (e) { setMsg(e?.errorMessage || "採点できませんでした。"); }
+    finally { setBusy(""); }
+  }
+  return (
+    <section className="card mcard">
+      <div className="row" style={{ gap: 8 }}>
+        <div className="eyebrow">採点の基準（AI採点）</div>
+        <button type="button" className="btn ghost" style={{ marginLeft: "auto" }} onClick={draft} disabled={!!busy}>{busy === "draft" ? "作っています…" : "AIで基準を作る"}</button>
+      </div>
+      <div className="mgrid">
+        <Field label="合格">
+          <span style={{ fontSize: 14, fontWeight: 400 }}>受け入れ条件がすべて通る ＋ 必須の基準をすべて満たす</span>
+        </Field>
+        <Field label="「先に進む」を出す">
+          <select value={item.skipAfter ?? 2} onChange={e => set("skipAfter", Number(e.target.value))}>{SKIP_AFTER.map(([v, l]) => <option key={v} value={v}>{l}</option>)}</select>
+        </Field>
+      </div>
+      {rubric.map((r, i) => (
+        <div key={i} className={`mrule ${r.must ? "must" : ""}`}>
+          <div className="row" style={{ gap: 8 }}>
+            <input value={r.text} onChange={e => setRow(i, "text", e.target.value)} placeholder="見ること（例：入力ごとに、どこを直せばいいか分かるメッセージを出す）" aria-label={`基準${i + 1}`} />
+            <label className="row" style={{ gap: 4, fontSize: 13, fontWeight: 700, whiteSpace: "nowrap" }}><input type="checkbox" checked={!!r.must} onChange={e => setRow(i, "must", e.target.checked)} />必須</label>
+            <button type="button" className="btn ghost" onClick={() => set("rubric", rubric.filter((_, j) => j !== i))} aria-label={`基準${i + 1}を消す`}>消す</button>
+          </div>
+          <div className="mrule-ex">
+            <input value={r.ok || ""} onChange={e => setRow(i, "ok", e.target.value)} placeholder="OKの例" aria-label={`基準${i + 1}のOKの例`} />
+            <input value={r.ng || ""} onChange={e => setRow(i, "ng", e.target.value)} placeholder="NGの例" aria-label={`基準${i + 1}のNGの例`} />
+          </div>
+        </div>
+      ))}
+      <button type="button" className="btn ghost" style={{ justifySelf: "start" }} onClick={() => set("rubric", [...rubric, { text: "", must: false, ok: "", ng: "" }])} disabled={rubric.length >= 10}>基準を足す</button>
+
+      {hasCode && (
+        <div className="mtry" ref={box}>
+          <div className="row" style={{ gap: 8 }}>
+            <b style={{ fontSize: 14 }}>基準を試す</b>
+            <button type="button" className="btn ghost" style={{ marginLeft: "auto" }} onClick={() => { setCode(item.answerCode || ""); setResult(null); }}>お手本で</button>
+            <button type="button" className="btn ghost" onClick={() => { setCode(item.starterCode || ""); setResult(null); }}>はじめのコードで</button>
+          </div>
+          {code != null && <>
+            <textarea className="mono" rows={8} value={code} onChange={e => setCode(e.target.value)} aria-label="試すコード" />
+            <button type="button" className="btn" style={{ justifySelf: "start" }} onClick={test} disabled={!!busy || !code.trim()}>{busy === "test" ? "採点しています…" : "AIで採点してみる"}</button>
+          </>}
+          {result && <GradeView label={result.pass ? "合格" : "やり直し"} tone={result.pass ? "ok" : "ng"} results={result.results} review={result.review} />}
+        </div>
+      )}
+      {msg && <div className="verdict ng" role="alert">{msg}</div>}
+    </section>
+  );
+}
 
 function Field({ label, children, wide }) {
   return <label className="mfield" style={wide ? { gridColumn: "1 / -1" } : undefined}><span>{label}</span>{children}</label>;
@@ -169,6 +251,7 @@ export default function ItemEditor({ kind, id, isNew, topics, courses, go }) {
           {item.runtime === "sql" && <Field label="テーブルを作るSQL（実行の前に毎回流します）" wide><textarea className="mono" rows={5} value={item.sqlSetup || ""} onChange={e => set("sqlSetup", e.target.value)} /></Field>}
           {hasCode && <Field label="はじめのコード" wide><textarea className="mono" rows={8} value={item.starterCode} onChange={e => set("starterCode", e.target.value)} /></Field>}
           {hasCode && kind === "drills" && <Field label="お手本（何回か実行したあと受講生が見られます）" wide><textarea className="mono" rows={8} value={item.answerCode} onChange={e => set("answerCode", e.target.value)} /></Field>}
+          {hasCode && kind === "cases" && <Field label="お手本（受講生には見せません。AI採点の参考）" wide><textarea className="mono" rows={8} value={item.answerCode || ""} onChange={e => set("answerCode", e.target.value)} /></Field>}
         </div>
       </section>
 
@@ -188,6 +271,8 @@ export default function ItemEditor({ kind, id, isNew, topics, courses, go }) {
           <button type="button" className="btn ghost" onClick={() => set("tests", [...item.tests, { name: "" }])} style={{ justifySelf: "start" }}>テストを足す</button>
         </section>
       )}
+
+      {kind === "cases" && <RubricEditor item={item} set={set} id={id || newId.trim() || "new"} hasCode={hasCode} />}
 
       {hasCode && (
         <section className="card mcard">
