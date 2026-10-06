@@ -204,7 +204,7 @@ function AiAssistBox({ activeSlide, ai, onRevise, onAddSlides, onApply, onDiscar
       ) : (
         <>
           <p className="text-[11px] leading-relaxed" style={{ color: C.muted }}>
-            例:「もっと初心者向けにして」「最後に並び替え問題を追加」「穴埋め問題を1枚追加」など。選択中のスライドを修正するか、新しいスライドを追加するかを下のボタンで選べます。
+            例:「もっと初心者向けにして」「最後に並び替え問題を追加」「穴埋め問題を1枚追加」「Javaのコードを書く演習を追加」「CSSで見た目を直す演習を追加」など。選択中のスライドを修正するか、新しいスライドを追加するかを下のボタンで選べます。
           </p>
           <textarea
             value={ai.requestText}
