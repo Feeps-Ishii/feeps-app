@@ -1,6 +1,6 @@
 /* 教材づくり（チャットで作る）が使うAPI。コースまわりは既存の /learning/admin/* をそのまま使う。 */
 import pdfjsWorkerUrl from "pdfjs-dist/build/pdf.worker.min.mjs?url";
-import { apiGet, apiPost, apiPut } from "../../../../api.js";
+import { apiDelete, apiGet, apiPost, apiPut } from "../../../../api.js";
 
 const PAGE_SCALE = 1.6;
 const UPLOAD_CONCURRENCY = 3;
@@ -117,3 +117,11 @@ export async function runJob(path, body, timeoutMs = 330000) {
 export const studioJob = body => runJob("/tenolab/studio/jobs", body);
 export const finalTestJob = body => runJob("/learning/admin/ai-lesson-designer/final-test/generate", body);
 export const saveQuestion = q => apiPost("/learning/admin/quiz-questions", q);
+
+// 作ったあとのレッスンの組み替え（スライドは作り直さない）
+export const restructure = body => apiPost("/tenolab/studio/restructure", body);
+export const createLesson = (courseId, l) => apiPost(`/learning/admin/courses/${encodeURIComponent(courseId)}/lessons`, {
+  title: l.title, type: l.type || "text", summary: l.summary || "", duration: l.duration || "", order: Number(l.order || 0),
+  status: "published", published: true, deleted: false, points: [], body: "", questions: [], goal: l.goal || "", teacherMemo: "", slides: l.slides || [],
+});
+export const deleteLesson = (courseId, lessonId) => apiDelete(`/learning/admin/courses/${encodeURIComponent(courseId)}/lessons/${encodeURIComponent(lessonId)}`);

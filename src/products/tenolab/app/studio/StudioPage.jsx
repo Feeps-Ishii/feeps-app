@@ -83,20 +83,38 @@ export default function StudioPage({ ctx, rest }) {
     say("me", label);
     run(act, label);
   }
+  // AIが作業している間も送れる。送ったものは、今の作業が終わってから順に扱う（2026-10-07 ユーザー指摘：説明を書いている間に構成を直せなかった）
+  const pending = useRef([]);
   function onSend(e) {
     e.preventDefault();
     const v = text.trim();
-    if (!v || sref.current.busy) return;
+    if (!v) return;
     setText("");
     say("me", v);
+    if (sref.current.busy) {
+      pending.current.push(v);
+      say("ai", "受け取りました。今の作業が終わったら、続けて直します。");
+      return;
+    }
     freeText(v);
   }
-  function freeText(v) {
+  // 作業が終わったところで、待っている指示を1つずつ扱う
+  async function drainPending() {
+    while (pending.current.length && !sref.current.busy) {
+      const v = pending.current.shift();
+      await freeText(v);
+    }
+  }
+  const STRUCT_RE = /レッスン|lesson|構成|分け|まとめ|ずれ|ズレ|はじめに|名前|タイトル|章/i;
+  const EXER_RE = /演習|クイズ|問題|コード|入れて|挟/;
+  async function freeText(v) {
     const s = sref.current;
     if (!s.flow) { run(/演習/.test(v) && !/コース/.test(v) ? "drill" : /案件/.test(v) ? "case" : "course"); return; }
     if (s.flow === "course") {
-      if (s.step === 2) { doReplan(v); return; }
-      if (s.step === 3) { doExercise(s.retrying && s.proposal ? `${s.lastInstruction}。${v}` : v); return; }
+      if (s.step === 2) { await doReplan(v); return; }
+      // 演習の段階でも、レッスンの分け方は言葉で直せる（スライドは作り直さない）
+      if (s.step === 3 && STRUCT_RE.test(v) && !EXER_RE.test(v)) { await doRestructure(v); return; }
+      if (s.step === 3) { await doExercise(s.retrying && s.proposal ? `${s.lastInstruction}。${v}` : v); return; }
       ai(s.step <= 1 ? "この段階では、右の画面とボタンで進めてください。" : "公開の前の確認です。右の画面で単元と難易度を選んで、公開してください。");
       return;
     }
@@ -218,6 +236,7 @@ export default function StudioPage({ ctx, rest }) {
     setTyping(false);
     await ai(`内容から、**${st.plan.lessons.length}つのレッスン**に分けました。各スライドの説明はノートをもとに書きます。\nレッスンの分け方を変えたいときは、言葉で指示してください。`,
       [["この構成でいい", "toExercise", true], ...(st.plan.lessons.length > 1 ? [["レッスン1と2をまとめて", "say"]] : [])], 200);
+    await drainPending();
   }
   async function doReplan(instruction) {
     const s = sref.current;
@@ -227,6 +246,7 @@ export default function StudioPage({ ctx, rest }) {
       set({ busy: "", plan: { ...s.plan, lessons: r.lessons } });
       setTyping(false);
       await ai(`${r.reply || "直しました。"}\n**${r.lessons.length}つのレッスン**です。`, [["この構成でいい", "toExercise", true]], 0);
+      await drainPending();
     } catch (e) { await fail(e, [["この構成でいい", "toExercise", true]]); }
   }
 
@@ -246,7 +266,44 @@ export default function StudioPage({ ctx, rest }) {
     const s = sref.current;
     const titles = (s.lessons || []).flatMap(l => l.slides.filter(x => x.kind === "image").map(x => x.title)).filter(t => t && t.length <= 14);
     const sample = titles[Math.floor(titles.length * 0.6)] || "";
-    await ai(body, [...(sample ? [[`${sample}のところにコード演習を入れて`, "say", true]] : []), ["各レッスンの最後に確認クイズを1問ずつ", "say"], ["演習はこれで十分", "toPublish"]], 0);
+    await ai(`${body}
+レッスンの分け方を直したいときも、言葉で指示してください。`, [...(sample ? [[`${sample}のところにコード演習を入れて`, "say", true]] : []), ["各レッスンの最後に確認クイズを1問ずつ", "say"], ["演習はこれで十分", "toPublish"]], 0);
+    await drainPending();
+  }
+  // 作ったあとのレッスンの分け方を直す。スライドはそのまま、どのレッスンに入れるかと名前だけを変える
+  async function doRestructure(instruction) {
+    const s = sref.current;
+    set({ busy: "restructure" }); setTyping(true);
+    try {
+      const r = await A.restructure({ instruction, lessons: s.lessons.map(l => ({ lessonId: l.id, title: l.title, slides: l.slides.map(x => ({ id: x.id, title: x.title, page: x.content?.sourcePage })) })) });
+      const slideById = new Map(s.lessons.flatMap(l => l.slides.map(x => [x.id, x])));
+      const ownerOf = new Map(s.lessons.flatMap(l => l.slides.map(x => [x.id, l])));
+      const used = new Set();
+      const next = [];
+      for (let i = 0; i < r.lessons.length; i += 1) {
+        const g = r.lessons[i];
+        const slides = g.slideIds.map(id => slideById.get(id)).filter(Boolean).map((x, k) => ({ ...x, order: k }));
+        // いちばん多くのスライドを持っていた元のレッスンを使い回す（無ければ新しく作る）
+        const counts = new Map();
+        g.slideIds.forEach(id => { const o = ownerOf.get(id); if (o && !used.has(o.id)) counts.set(o, (counts.get(o) || 0) + 1); });
+        const base = [...counts.entries()].sort((a, b) => b[1] - a[1])[0]?.[0];
+        if (base) {
+          used.add(base.id);
+          const l = { ...base, title: g.title, slides, order: i };
+          await A.saveLesson(s.courseId, l);
+          next.push(l);
+        } else {
+          const res = await A.createLesson(s.courseId, { title: g.title, type: s.lessons[0]?.type, slides, order: i });
+          next.push(normLesson(res.lesson || {}, i));
+        }
+      }
+      for (const l of s.lessons) if (!used.has(l.id)) await A.deleteLesson(s.courseId, l.id);
+      set({ busy: "", lessons: next, proposal: null });
+      setTyping(false);
+      await ai(`${r.reply || "直しました。"}
+**${next.length}つのレッスン**です。`, [["演習はこれで十分", "toPublish", true]], 0);
+      await drainPending();
+    } catch (e) { await fail(e); }
   }
   async function loadLessons(courseId) {
     const [items, courses] = await Promise.all([A.getLessons(courseId), A.listCourses()]);
@@ -454,7 +511,7 @@ export default function StudioPage({ ctx, rest }) {
     : s.busy.startsWith("upload:") ? `ページを準備しています（${s.busy.slice(7)}）`
       : s.busy === "plan" ? "内容を読んで、レッスンに分けています…"
         : s.busy.startsWith("generate:") ? `スライドの説明を書いています（レッスン ${s.busy.slice(9)}）`
-          : { exercise: "演習を作っています…", draft: "案を作っています…", final: "総合テストを作っています…", replan: "構成を直しています…", publish: "公開しています…", save: "入れています…" }[s.busy] || "";
+          : { exercise: "演習を作っています…", restructure: "レッスンの分け方を直しています…", draft: "案を作っています…", final: "総合テストを作っています…", replan: "構成を直しています…", publish: "公開しています…", save: "入れています…" }[s.busy] || "";
 
   return (
     <div className="tl-studio">
@@ -480,7 +537,7 @@ export default function StudioPage({ ctx, rest }) {
           </div>
           <form className="compose" onSubmit={onSend}>
             <textarea id="studio-say" rows={1} value={text} placeholder="AIに指示する" aria-label="AIへの指示" onChange={e => setText(e.target.value)} onKeyDown={e => { if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) { e.preventDefault(); onSend(e); } }} />
-            <button className="btn" type="submit" disabled={!!s.busy}>送る</button>
+            <button className="btn" type="submit">送る</button>
           </form>
         </section>
         <main className="work" aria-label="作っている教材">
