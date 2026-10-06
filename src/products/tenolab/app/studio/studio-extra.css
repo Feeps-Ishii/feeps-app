@@ -17,3 +17,5 @@
 .tl-studio .res { white-space: normal; }
 @media (max-width: 860px) { .tl-studio { height: auto; min-height: 100vh; } }
 @media (prefers-reduced-motion: reduce) { .tl-studio .fixbar .spin { animation: none; } }
+.tl-studio .addtopic { display: inline-flex; gap: 6px; align-items: center; flex-wrap: wrap; }
+.tl-studio .addtopic input { font: inherit; font-size: 13.5px; border: 1px solid #CDD1C7; border-radius: 8px; padding: 2px 8px; background: var(--card); min-width: 0; width: 220px; max-width: 100%; }

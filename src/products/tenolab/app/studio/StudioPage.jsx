@@ -40,7 +40,29 @@ const EMPTY = {
 };
 
 export default function StudioPage({ ctx, rest }) {
-  const { topics, lrn } = ctx;
+  const { topics: baseTopics, lrn } = ctx;
+  // 公開のときに足した単元（画面を読み込み直すまでは、ここで持つ）
+  const [extraTopics, setExtraTopics] = useState([]);
+  const topics = [...baseTopics, ...extraTopics.filter(t => !baseTopics.some(b => b.id === t.id))];
+  async function addTopic(name) {
+    const n = String(name || "").trim().slice(0, 40);
+    if (!n) return "";
+    const same = topics.find(t => t.name === n);
+    if (same) { set({ topic: same.id }); return same.id; }
+    const PALETTE = [["#2457E6", "#E8EEFD"], ["#11966F", "#E3F5EE"], ["#D9483B", "#FBE9E7"], ["#7454C7", "#F0ECFD"], ["#C46F12", "#FFF1E2"], ["#B88A00", "#FFF7C2"]];
+    const [color, soft] = PALETTE[topics.length % PALETTE.length];
+    const t = { id: `t${Date.now().toString(36)}`, name: n, sub: "", desc: "", color, soft, icon: "code", premium: false, order: topics.length + 1 };
+    try {
+      await manage.saveTopics([...topics.map((x, i) => ({ ...x, order: x.order ?? i + 1 })), t]);
+      setExtraTopics(x => [...x, t]);
+      set({ topic: t.id });
+      await ai(`単元「${n}」を足しました。`, [], 0);
+      return t.id;
+    } catch (e) {
+      await ai(e?.errorMessage || "単元を足せませんでした。もう一度お試しください。", [], 0);
+      return "";
+    }
+  }
   const [st, setSt] = useState(EMPTY);
   const [msgs, setMsgs] = useState([]);
   const [typing, setTyping] = useState(false);
@@ -545,7 +567,7 @@ export default function StudioPage({ ctx, rest }) {
             : <>
               <Steps flow={s.flow} step={s.step} />
               {busyText && <div className="fixbar" role="status"><span className="spin" aria-hidden="true" />{busyText}</div>}
-              {s.flow === "course" && <CourseWork s={s} thumbs={thumbs} bump={bump} topics={topics} pptxIn={pptxIn} pdfIn={pdfIn} pickFile={pickFile} moveNote={moveNote} toggleSkip={toggleSkip} applyShift={() => { say("me", "ずれを直す"); applyShift(); }} act={(a, label) => { say("me", label); run(a); }} setTopic={v => set({ topic: v })} setLevel={v => set({ level: v })} />}
+              {s.flow === "course" && <CourseWork s={s} thumbs={thumbs} bump={bump} topics={topics} pptxIn={pptxIn} pdfIn={pdfIn} pickFile={pickFile} moveNote={moveNote} toggleSkip={toggleSkip} applyShift={() => { say("me", "ずれを直す"); applyShift(); }} act={(a, label) => { say("me", label); run(a); }} setTopic={v => set({ topic: v })} addTopic={addTopic} setLevel={v => set({ level: v })} />}
               {s.flow !== "course" && <DraftWork s={s} kind={s.flow} topics={topics} courses={lrn.catalog || []} act={(a, label) => { say("me", label); run(a); }} />}
             </>}
           <iframe ref={frame} title="確かめ用" sandbox="allow-same-origin" style={{ position: "absolute", width: 1, height: 1, opacity: 0, pointerEvents: "none", border: 0 }} aria-hidden="true" tabIndex={-1} />
@@ -584,7 +606,9 @@ function Page({ src, materialId, title, thumbs, bump, cover }) {
   return <div className={`slide ${cover ? "cover" : ""}`}><span className="t">{title || ""}</span><span className="l" style={{ width: "90%" }} /><span className="l" style={{ width: "76%" }} /></div>;
 }
 
-function CourseWork({ s, thumbs, bump, topics, pptxIn, pdfIn, pickFile, moveNote, toggleSkip, applyShift, act, setTopic, setLevel }) {
+function CourseWork({ s, thumbs, bump, topics, pptxIn, pdfIn, pickFile, moveNote, toggleSkip, applyShift, act, setTopic, addTopic, setLevel }) {
+  const [adding, setAdding] = useState(false);
+  const [newTopic, setNewTopic] = useState("");
   const pageUrl = n => s.pages.find(p => p.page === n)?.url;
   const matOf = n => s.uploaded.find(u => u.page === n)?.materialId;
   if (s.step === 0) {
@@ -687,7 +711,13 @@ function CourseWork({ s, thumbs, bump, topics, pptxIn, pdfIn, pickFile, moveNote
           <li><i className={noCap ? "warn" : ""}>{noCap ? "!" : "✓"}</i>{noCap ? `説明の無いスライドが${noCap}枚あります` : "すべてのスライドに説明がある"}</li>
           {codes.length > 0 && <li><i>✓</i>コード演習のお手本が動いた（{codes.length}つ）</li>}
           <li><i className={s.topic ? "" : "warn"}>{s.topic ? "✓" : "!"}</i>
-            <label>単元：<select id="studio-topic" value={s.topic} onChange={e => setTopic(e.target.value)}><option value="">選んでください</option>{topics.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}</select></label>
+            {adding ? (
+              <span className="addtopic">単元：<input id="studio-new-topic" value={newTopic} placeholder="新しい単元の名前（例：Python）" maxLength={40} onChange={e => setNewTopic(e.target.value)} onKeyDown={e => { if (e.key === "Enter" && !e.nativeEvent.isComposing) { e.preventDefault(); addTopic(newTopic).then(id => { if (id) { setAdding(false); setNewTopic(""); } }); } }} />
+                <button className="btn sm" type="button" disabled={!newTopic.trim()} onClick={() => addTopic(newTopic).then(id => { if (id) { setAdding(false); setNewTopic(""); } })}>足す</button>
+                <button className="btn ghost sm" type="button" onClick={() => { setAdding(false); setNewTopic(""); }}>やめる</button></span>
+            ) : (
+              <label>単元：<select id="studio-topic" value={s.topic} onChange={e => { if (e.target.value === "__new") setAdding(true); else setTopic(e.target.value); }}><option value="">選んでください</option>{topics.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}<option value="__new">＋ 単元を足す</option></select></label>
+            )}
             <label> ・ 難易度：<select id="studio-level" value={s.level} onChange={e => setLevel(e.target.value)}>{LEVELS.map(l => <option key={l}>{l}</option>)}</select></label>
           </li>
           <li><i className={s.finalCount ? "" : "warn"}>{s.finalCount ? "✓" : "!"}</i>{s.finalCount ? `総合テスト ${s.finalCount}問` : <>総合テストがまだありません <button className="btn ghost sm" type="button" disabled={!!s.busy} onClick={() => act("finalTest", "総合テストを作る")}>総合テストを作る</button></>}</li>
