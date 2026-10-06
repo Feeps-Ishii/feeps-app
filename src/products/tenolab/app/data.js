@@ -89,6 +89,13 @@ export const manage = {
   saveTopics: topics => apiPut("/tenolab/topics", { topics }),
 };
 
+/* 管理者：企業と契約・使用料・お見積り依頼（ADR 0025 §5） */
+export const admin = {
+  overview: month => apiGet(`/tenolab/admin/overview${month ? `?month=${encodeURIComponent(month)}` : ""}`),
+  saveCompany: (companyId, body) => apiPut(`/tenolab/admin/companies/${encodeURIComponent(companyId)}`, body),
+  inquiries: () => apiGet("/tenolab/admin/inquiries"),
+};
+
 /* AWS（本物の環境） */
 export const cloud = {
   session: () => apiGet("/cloudlab/session"),

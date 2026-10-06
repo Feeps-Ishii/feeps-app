@@ -4,15 +4,17 @@ import { Ic, TOPIC_ICONS, TopicIcon } from "../ui.jsx";
 import ItemEditor from "./ItemEditor.jsx";
 import AdminHome from "./AdminHome.jsx";
 import Grading from "./Grading.jsx";
+import Companies from "./Companies.jsx";
 import { Title } from "./parts.jsx";
 
 /* 管理の画面（#/manage/…、管理者だけ。モック tenolab-admin.html、2026-10-06〜）
      #/manage                         ホーム
+     #/manage/companies[/{companyId}] 企業と契約
      #/manage/courses|drills|cases[/{id}|/_new]  教材
      #/manage/grading[/{caseId}]      AI採点（旧 #/manage/submissions もここ）
      #/manage/topics                  単元
    外枠（黒い帯のヘッダー）は TenolabApp が Shell variant="admin" で付ける */
-export const ADMIN_NAV = [["home", "ホーム", "#/manage"], ["materials", "教材", "#/manage/courses"], ["grading", "AI採点", "#/manage/grading"], ["topics", "単元", "#/manage/topics"]];
+export const ADMIN_NAV = [["home", "ホーム", "#/manage"], ["companies", "企業と契約", "#/manage/companies"], ["materials", "教材", "#/manage/courses"], ["grading", "AI採点", "#/manage/grading"], ["topics", "単元", "#/manage/topics"]];
 const MATERIAL_TABS = [["courses", "コース"], ["drills", "演習"], ["cases", "案件体験"]];
 
 export function adminSection(rest) {
@@ -30,6 +32,7 @@ export default function ManagePage({ ctx, rest }) {
   const courses = (lrn.catalog || []).map(c => ({ id: c.id, title: c.title }));
   const section = adminSection(rest);
   if (section === "home") return <AdminHome go={go} />;
+  if (section === "companies") return <Companies go={go} companyId={id ? decodeURIComponent(id) : ""} />;
   if (section === "grading") return <Grading go={go} caseId={tab === "grading" ? id || "" : ""} />;
   if (section === "topics") return <><Title eyebrow="TOPICS" title="単元" /><TopicsEditor topics={topics} /></>;
   if (section !== "materials") return <p className="muted">この画面はありません。</p>;

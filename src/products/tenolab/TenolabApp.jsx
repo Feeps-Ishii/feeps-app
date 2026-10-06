@@ -98,16 +98,16 @@ export default function TenolabApp() {
     setLoginError(typeof message === "string" ? message : "");
     window.location.hash = typeof message === "string" ? "#/login" : "#/";
   }
-  // ログインしたら、テノラボを使える契約かを確かめる。使えなければ、ログインの画面に文言を返す
+  // ログインしたら、先にテノラボを使える契約かを確かめる（ログイン済みにしてから確かめると、
+  // いったんホームへ移ってからログインに戻り、ログインの画面が作り直されてしまう）。使えなければ文言を返す
   async function onLoggedIn() {
-    const role = await loadUser();
-    if (!role) return "";
     const me = await apiGet("/tenolab/me").catch(() => null);
     if (me && me.elearning === false) {
       try { await signOut(); } catch (e) { /* 抜けられなくてもログインの画面のまま */ }
-      setAuth({ state: "out", name: "", email: "", role: "" });
       return NO_ELEARNING;
     }
+    const role = await loadUser();
+    if (!role) return "";
     setLoginError("");
     window.location.hash = startHash(role);
     return "";

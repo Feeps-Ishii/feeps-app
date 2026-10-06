@@ -238,7 +238,8 @@ function afterAuth(r) {
   if (!r) return;
   if (r.next === "done") {
     Promise.resolve(OPTS.onLoggedIn && OPTS.onLoggedIn()).then(msg => {
-      if (typeof msg === "string" && msg) { loginGo("login"); fail(stepEl("login"), msg); }
+      // 画面を離れていたら（ログインできてホームへ移ったなど）何もしない
+      if (typeof msg === "string" && msg && LF.isConnected) { loginGo("login"); fail(stepEl("login"), msg); }
     });
     return;
   }
