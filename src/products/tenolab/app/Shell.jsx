@@ -41,6 +41,7 @@ export default function Shell({ section, name, email, role, staff, onLogout, chi
         </div>
       </header>
       <main className="wrap" id="app">{children}</main>
+      <footer className="tl-foot"><div className="wrap"><span className="logo" style={{ fontSize: 15 }}>テノ<b>ラボ</b></span><span>© {new Date().getFullYear()} Feeps</span></div></footer>
     </div>
   );
 }

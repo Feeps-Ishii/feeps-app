@@ -42,6 +42,11 @@
     .tl-course .mtest, .tl-course .mtest:has(input:nth-of-type(3)) { grid-template-columns: 1fr; }
     .tl-course .mtopic { grid-template-columns: 1fr; }
   }
+  /* 中身が短い画面でも、方眼の背景が下まで続くように。いちばん下にはコピーライトだけ */
+  .tl-course { min-height: 100vh; display: flex; flex-direction: column; }
+  .tl-course > main { flex: 1 0 auto; width: 100%; }
+  .tl-foot { border-top: 1px solid var(--line); background: var(--card); color: var(--muted); font-size: 12.5px; }
+  .tl-foot .wrap { display: flex; align-items: center; gap: 16px; padding-block: 16px; }
   /* 読み込み前の画面（ログインの確かめ中など） */
   .tl-boot { min-height: 100vh; display: grid; place-items: center; font-family: "Zen Kaku Gothic New", system-ui, sans-serif; color: #767D8C; background: #FBFBF7; }
 }

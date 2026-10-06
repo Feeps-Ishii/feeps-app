@@ -39,7 +39,7 @@ export function drillModels(drills, topics, progress, premium) {
 }
 // AWS の演習の始める状態はシナリオで決まる（まっさら／用意済み／障害あり）
 export const START_OF = { vpc: "blank", vpcec2: "blank", elb: "ready", asg: "ready", cw: "ready", recover: "trouble" };
-const AWS_THUMB = { vpc: { ec2: 0 }, vpcec2: { ec2: 1 }, elb: { ec2: 2, elb: true }, asg: { ec2: 3, elb: true, asg: true }, cw: {}, recover: { ec2: 1, fixed: true } };
+const AWS_THUMB = { vpc: { ec2: 0 }, vpcec2: { ec2: 1 }, elb: { ec2: 2, elb: true }, asg: { ec2: 4, elb: true, asg: true }, cw: {}, recover: { ec2: 1, fixed: true } };
 
 // 案件体験（公開中 + 自分の状態）。open = 挑戦できる（前提のコースを修了した）
 export function caseModels(cases, topics, courses, premium) {
