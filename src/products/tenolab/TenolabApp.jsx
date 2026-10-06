@@ -12,6 +12,7 @@ import { CourseDetail, FinalTestPage, LessonPage } from "./app/CoursePages.jsx";
 import DrillPage from "./app/DrillPage.jsx";
 import CasePage from "./app/CasePage.jsx";
 import ManagePage, { ADMIN_NAV, adminSection } from "./app/manage/ManagePage.jsx";
+import ClientPages, { CLIENT_NAV, clientSection } from "./app/company/CompanyPages.jsx";
 import { LoadError, Loading } from "./app/ui.jsx";
 import { submitInquiry, useCases, useDrills, useLabProgress, useMe, useTopics } from "./app/data.js";
 import { caseModels, courseModels, drillModels } from "./app/model.js";
@@ -25,6 +26,7 @@ import "./app/app.css";
      #/courses/{id}[/lessons/{lid}[/{slide}] | /test | /result]
      #/drills/{id}  #/cases/{id}
      #/manage/…                            管理の画面（管理者だけ。ログインすると、管理者はここから始まる）
+     #/company/…                           企業担当者の画面（自社の社員の習得状況・スキル・契約。企業担当者はここから始まる）
    「研修のみ」の契約の企業の人（/tenolab/me の elearning が false）は、ログアウトしてログインの画面に戻す（ADR 0025） */
 const ENTRY = new Set(["", "login", "try", "quote"]);
 
@@ -43,10 +45,11 @@ function parseHash() {
   if (p[0] === "cases" && p[1]) return { page: "case", id: p[1] };
   if (p[0] === "cases") return { page: "list", kind: "cases" };
   if (p[0] === "manage") return { page: "manage", rest: p.slice(1) };
+  if (p[0] === "company") return { page: "company", rest: p.slice(1) };
   return { page: "entry", view: "", anchor: p[0] };   // #how のようなページ内リンク
 }
 const NO_ELEARNING = "テノラボを使える契約がありません。研修のご担当者にお問い合わせください。";
-const startHash = role => (role === "admin" ? "#/manage" : "#/home");
+const startHash = role => (role === "admin" ? "#/manage" : role === "client" ? "#/company" : "#/home");
 const SECTION = { home: "home", topic: "home", list: null, course: "courses", lesson: "courses", test: "courses", drill: "drills", case: "cases" };
 
 export default function TenolabApp() {
@@ -160,6 +163,7 @@ function EntryHost({ onLoggedIn, loginError }) {
 function App({ route, auth, onLogout }) {
   const staff = isStaffRole(auth.role);
   const admin = auth.role === "admin";
+  const client = auth.role === "client";
   const lrn = useLearning(auth.role);
   const me = useMe(true);
   const topicsQ = useTopics(true);
@@ -216,14 +220,24 @@ function App({ route, auth, onLogout }) {
   // 管理の画面（管理者だけ）は黒い帯の外枠
   if (route.page === "manage" && admin) {
     return (
-      <Shell variant="admin" nav={ADMIN_NAV} section={adminSection(route.rest)} name={auth.name} email={auth.email} role={auth.role} admin onLogout={onLogout}>
+      <Shell variant="admin" nav={ADMIN_NAV} section={adminSection(route.rest)} name={auth.name} email={auth.email} role={auth.role} switchLink={["#/home", "受講生の画面で見る"]} onLogout={onLogout}>
         {failed ? <LoadError onRetry={() => { topicsQ.reload(); me.reload(); }} /> : loading ? <Loading /> : <ManagePage ctx={ctx} rest={route.rest} />}
       </Shell>
     );
   }
 
+  // 企業担当者の画面（企業担当者と、確かめたい管理者）
+  if (route.page === "company" && (client || admin)) {
+    return (
+      <Shell variant="client" nav={CLIENT_NAV} section={clientSection(route.rest)} name={auth.name} email={auth.email} role={auth.role} switchLink={client ? ["#/home", "教材を見る"] : ["#/manage", "管理の画面"]} onLogout={onLogout}>
+        <ClientPages rest={route.rest} go={go} />
+      </Shell>
+    );
+  }
+
   let page;
-  if (route.page === "manage") page = <p className="muted" style={{ paddingTop: 24 }}>この画面は管理者だけが使えます。</p>;
+  if (route.page === "company") page = <p className="muted" style={{ paddingTop: 24 }}>この画面は企業担当者だけが使えます。</p>;
+  else if (route.page === "manage") page = <p className="muted" style={{ paddingTop: 24 }}>この画面は管理者だけが使えます。</p>;
   else if (failed) page = <LoadError onRetry={() => { topicsQ.reload(); me.reload(); }} />;
   else if (loading) page = <Loading />;
   else if (lrn.courseCatalogState === "error" && ["home", "topic", "list", "course"].includes(route.page) && route.kind !== "drills" && route.kind !== "cases") page = <LoadError onRetry={() => window.location.reload()} what="コースを読み込めませんでした" />;
@@ -242,7 +256,7 @@ function App({ route, auth, onLogout }) {
   else if (route.page === "case") page = <CasePage ctx={ctx} id={route.id} />;
 
   return (
-    <Shell section={route.page === "list" ? route.kind : SECTION[route.page]} name={auth.name} email={auth.email} role={auth.role} admin={admin} onLogout={() => onLogout()}>
+    <Shell section={route.page === "list" ? route.kind : SECTION[route.page]} name={auth.name} email={auth.email} role={auth.role} switchLink={admin ? ["#/manage", "管理の画面"] : client ? ["#/company", "企業の画面"] : null} onLogout={() => onLogout()}>
       {page}
     </Shell>
   );

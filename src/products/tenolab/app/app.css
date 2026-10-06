@@ -108,6 +108,34 @@
   .tl-course .sw input:disabled { opacity: .5; cursor: not-allowed; }
   .tl-course .mfield input:disabled, .tl-course .mfield select:disabled { background: var(--soft); color: var(--muted); }
   @media (prefers-reduced-motion: reduce) { .tl-course .sw input, .tl-course .sw input::after { transition: none; } }
+  /* 企業担当者の画面・受講状況（スキル） */
+  .tl-course .mttl .h1 .mark { background: linear-gradient(transparent 60%, var(--marker) 60%, var(--marker) 90%, transparent 90%); }
+  /* .heat・.lv はモックの別の部品（コース画面）で使っているので、別の名前にする */
+  .tl-course .skheat td.skc { text-align: center; padding: 6px 4px; }
+  .tl-course .skheat td.skc span { display: grid; place-items: center; width: 100%; min-width: 44px; height: 30px; border-radius: 7px; font-family: var(--mono); font-size: 12px; font-weight: 600; }
+  .tl-course .lv0 { background: var(--soft); color: #A8ADB8; }
+  .tl-course .lv1 { background: var(--marker-soft); color: #7A5A00; }
+  .tl-course .lv2 { background: var(--marker); color: var(--ink); }
+  .tl-course .lv3 { background: var(--marker-deep); color: var(--ink); }
+  .tl-course .lv4 { background: var(--ink); color: var(--marker); }
+  .tl-course .legend i.lv0, .tl-course .legend i.lv1, .tl-course .legend i.lv2, .tl-course .legend i.lv3, .tl-course .legend i.lv4 { display: inline-block; }
+  .tl-course .person { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.2fr); gap: 16px; align-items: start; }
+  .tl-course .radar { width: 100%; max-width: 320px; justify-self: center; }
+  .tl-course .fit { display: grid; gap: 10px; }
+  .tl-course .fit article { border: 1px solid var(--line); border-radius: 12px; padding: 12px 14px; display: grid; gap: 6px; }
+  .tl-course .fit article.top { border-color: var(--ink); box-shadow: 0 0 0 2px var(--marker); }
+  .tl-course .fit h3 { font-size: 15px; display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin: 0; }
+  .tl-course .fit p { font-size: 13.5px; color: var(--ink2); margin: 0; }
+  .tl-course .ev { display: flex; flex-wrap: wrap; gap: 4px; }
+  .tl-course .fitrow { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; text-align: left; border: 1px solid var(--line); border-radius: 12px; padding: 10px 12px; background: var(--card); font: inherit; color: inherit; cursor: pointer; }
+  .tl-course .fitrow:hover { border-color: var(--ink); }
+  .tl-course .ai-tag { font-family: var(--mono); font-size: 10.5px; letter-spacing: .12em; color: var(--blue); border: 1px solid #BCCBF6; border-radius: 4px; padding: 0 5px; }
+  .tl-course .tl { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+  .tl-course .tl li { display: grid; grid-template-columns: 72px minmax(0, 1fr) auto; gap: 10px; font-size: 13.5px; align-items: center; }
+  .tl-course .tl li > span:first-child { font-family: var(--mono); font-size: 11.5px; color: var(--muted); }
+  .tl-course .tabs-h button .num { font-size: 11px; opacity: .7; margin-left: 2px; }
+  @media (max-width: 980px) { .tl-course .person { grid-template-columns: 1fr; } }
+  @media (max-width: 520px) { .tl-course .tl li { grid-template-columns: 1fr auto; } .tl-course .tl li > span:first-child { grid-column: 1 / -1; } }
   /* AI採点 */
   .tl-course .mgrade { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.15fr); gap: 16px; align-items: start; }
   .tl-course .mtbl { width: 100%; border-collapse: collapse; font-size: 14px; }

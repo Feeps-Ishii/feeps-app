@@ -96,6 +96,13 @@ export const admin = {
   inquiries: () => apiGet("/tenolab/admin/inquiries"),
 };
 
+/* 企業担当者の画面・管理者の受講状況（ADR 0025 §5） */
+export const company = {
+  get: companyId => apiGet(`/tenolab/company${companyId ? `?companyId=${encodeURIComponent(companyId)}` : ""}`),
+  learner: userId => apiGet(`/tenolab/company/learners/${encodeURIComponent(userId)}`),
+  insight: userId => apiPost(`/tenolab/company/learners/${encodeURIComponent(userId)}/insight`, {}),
+};
+
 /* AWS（本物の環境） */
 export const cloud = {
   session: () => apiGet("/cloudlab/session"),
