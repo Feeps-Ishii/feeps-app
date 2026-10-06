@@ -1,0 +1,19 @@
+/* 教材づくり：モック（studio.css）に無い、本物のデータを出すための少しの足し */
+.tl-studio { height: 100vh; min-height: 0; }
+.tl-studio button { font: inherit; color: inherit; cursor: pointer; }
+.tl-studio button:disabled { cursor: default; opacity: .55; }
+.tl-studio a { color: inherit; }
+.tl-studio .drop { cursor: pointer; font: inherit; }
+.tl-studio .drop:hover { border-color: var(--ink); }
+.tl-studio .slide.img { padding: 0; background: #fff; }
+.tl-studio .slide.img img { width: 100%; height: 100%; object-fit: contain; display: block; }
+.tl-studio .arow .st .chip { cursor: pointer; }
+.tl-studio .fixbar .spin { width: 14px; height: 14px; border-radius: 50%; border: 2px solid var(--marker-deep); border-top-color: transparent; animation: tlspin .8s linear infinite; flex: none; }
+@keyframes tlspin { to { transform: rotate(360deg); } }
+.tl-studio .checks i.warn { background: var(--marker-deep); color: var(--ink); }
+.tl-studio .checks li { flex-wrap: wrap; }
+.tl-studio .checks select { font: inherit; font-size: 13.5px; border: 1px solid #CDD1C7; border-radius: 8px; padding: 2px 8px; background: var(--card); }
+.tl-studio .ed pre { white-space: pre; }
+.tl-studio .res { white-space: normal; }
+@media (max-width: 860px) { .tl-studio { height: auto; min-height: 100vh; } }
+@media (prefers-reduced-motion: reduce) { .tl-studio .fixbar .spin { animation: none; } }

@@ -6,13 +6,14 @@ import AdminHome from "./AdminHome.jsx";
 import Grading from "./Grading.jsx";
 import Companies from "./Companies.jsx";
 import { AdminLearners } from "../company/CompanyPages.jsx";
+import CourseList from "./CourseList.jsx";
 import { Title } from "./parts.jsx";
 
 /* 管理の画面（#/manage/…、管理者だけ。モック tenolab-admin.html、2026-10-06〜）
      #/manage                         ホーム
      #/manage/companies[/{companyId}] 企業と契約
      #/manage/learners[/{userId}]     受講状況（企業担当者の画面と同じ部品）
-     #/manage/courses|drills|cases[/{id}|/_new]  教材
+     #/manage/courses|drills|cases[/{id}|/_new]  教材（コースは一覧とプレビュー。#/manage/courses/legacy は元の管理画面＝細かく直す）
      #/manage/grading[/{caseId}]      AI採点（旧 #/manage/submissions もここ）
      #/manage/topics                  単元
    外枠（黒い帯のヘッダー）は TenolabApp が Shell variant="admin" で付ける */
@@ -40,7 +41,7 @@ export default function ManagePage({ ctx, rest }) {
   if (section === "topics") return <><Title eyebrow="TOPICS" title="単元" /><TopicsEditor topics={topics} /></>;
   if (section !== "materials") return <p className="muted">この画面はありません。</p>;
   let body;
-  if (tab === "courses") body = <CourseAdmin />;
+  if (tab === "courses") body = id === "legacy" ? <CourseAdmin go={go} /> : <CourseList topics={topics} go={go} />;
   else if (id) body = <ItemEditor key={`${tab}/${id}`} kind={tab} id={id === "_new" ? "" : id} isNew={id === "_new"} topics={topics} courses={courses} go={go} />;
   else body = <ItemList kind={tab} topics={topics} go={go} />;
   return (
@@ -57,10 +58,10 @@ export default function ManagePage({ ctx, rest }) {
 }
 
 /* コース：元のEラーニングの管理画面（Tailwind の見た目のまま iframe で載せる） */
-function CourseAdmin() {
+function CourseAdmin({ go }) {
   return (
     <div style={{ display: "grid", gap: 8 }}>
-      <span className="muted" style={{ fontSize: 13 }}>コースの設定・レッスン・スライド・問題・AIでの作成はここで行います。「単元」と「一覧のサムネイル」はコースの設定にあります。</span>
+      <button type="button" className="back" onClick={() => go("#/manage/courses")}>← 教材</button>
       <iframe title="コースの管理" src="/lab-embed.html#learning-admin" style={{ width: "100%", height: "calc(100vh - 220px)", minHeight: 600, border: "1px solid var(--line)", borderRadius: 12, background: "#fff" }} />
     </div>
   );

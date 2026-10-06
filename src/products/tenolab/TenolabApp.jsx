@@ -13,6 +13,7 @@ import DrillPage from "./app/DrillPage.jsx";
 import CasePage from "./app/CasePage.jsx";
 import ManagePage, { ADMIN_NAV, adminSection } from "./app/manage/ManagePage.jsx";
 import ClientPages, { CLIENT_NAV, clientSection } from "./app/company/CompanyPages.jsx";
+import StudioPage from "./app/studio/StudioPage.jsx";
 import { LoadError, Loading } from "./app/ui.jsx";
 import { submitInquiry, useCases, useDrills, useLabProgress, useMe, useTopics } from "./app/data.js";
 import { caseModels, courseModels, drillModels } from "./app/model.js";
@@ -27,6 +28,7 @@ import "./app/app.css";
      #/drills/{id}  #/cases/{id}
      #/manage/…                            管理の画面（管理者だけ。ログインすると、管理者はここから始まる）
      #/company/…                           企業担当者の画面（自社の社員の習得状況・スキル・契約。企業担当者はここから始まる）
+     #/studio[/course/{courseId}]           教材づくり（AIとチャットで作る。管理者だけ。外枠はモックどおり専用）
    「研修のみ」の契約の企業の人（/tenolab/me の elearning が false）は、ログアウトしてログインの画面に戻す（ADR 0025） */
 const ENTRY = new Set(["", "login", "try", "quote"]);
 
@@ -46,6 +48,7 @@ function parseHash() {
   if (p[0] === "cases") return { page: "list", kind: "cases" };
   if (p[0] === "manage") return { page: "manage", rest: p.slice(1) };
   if (p[0] === "company") return { page: "company", rest: p.slice(1) };
+  if (p[0] === "studio") return { page: "studio", rest: p.slice(1) };
   return { page: "entry", view: "", anchor: p[0] };   // #how のようなページ内リンク
 }
 const NO_ELEARNING = "テノラボを使える契約がありません。研修のご担当者にお問い合わせください。";
@@ -226,6 +229,10 @@ function App({ route, auth, onLogout }) {
     );
   }
 
+  // 教材づくり（管理者だけ）。外枠（ヘッダー）は画面の中に持つ
+  if (route.page === "studio" && admin) {
+    return failed ? <LoadError onRetry={() => { topicsQ.reload(); me.reload(); }} /> : loading ? <div className="tl-boot" role="status">読み込んでいます…</div> : <StudioPage key={route.rest.join("/")} ctx={ctx} rest={route.rest} />;
+  }
   // 企業担当者の画面（企業担当者と、確かめたい管理者）
   if (route.page === "company" && (client || admin)) {
     return (
