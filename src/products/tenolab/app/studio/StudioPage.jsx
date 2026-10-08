@@ -4,6 +4,7 @@ import { runCode, FILE_NAME } from "../runtime.js";
 import { readPptxSlides } from "./pptx.js";
 import { initialMapping, rowStatus, shiftSuggestion, shifted, autoSkip } from "./align.js";
 import * as A from "./api.js";
+import { SlideRenderer } from "../../../learning/ElSlideLessonView.jsx";
 import "./studio.css";
 import "./studio-extra.css";
 
@@ -18,9 +19,18 @@ const LEVELS = ["入門", "初級", "中級", "上級"];
 const SAVE_KEY = "tl-studio";
 const EX_LABEL = { code_run: "コード演習", web_run: "HTML/CSSの演習" };
 const exLabel = s => EX_LABEL[s.kind] || "確認クイズ";
+// 右の帯での呼び名（解説はクイズと見分けがつくように）
+const KIND_LABEL = { quiz: "確認クイズ", concept: "解説", summary: "まとめ", compare: "比べる表", diagram: "図", fill_blank: "穴埋め", ordering_puzzle: "並べ替え", selection_task: "選ぶ問題", interactive_form: "入力の練習", code_run: "コード演習", web_run: "HTML/CSSの演習" };
+const kindLabel = s => KIND_LABEL[s.kind] || "演習";
 const isExercise = s => s && !["image", "summary", "concept", "video", "pdf", "_cover", "_divider"].includes(s.kind);
 const newId = p => `${p}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`;
 const itemId = p => `${p}${Date.now().toString(36)}`;
+const findSlide = (s, sel) => (s.lessons || []).find(l => l.id === sel?.lessonId)?.slides.find(x => x.id === sel?.slideId) || null;
+// AIに渡す、スライドの中身の要約（解説をクイズに変えるときの材料）
+const slideText = x => {
+  const c = x.content || {}, q = x.interaction || {};
+  return [c.body, q.question || c.question || c.prompt, Array.isArray(c.points) ? c.points.join(" / ") : "", x.caption].filter(Boolean).join(" ").slice(0, 400);
+};
 
 // 「**太字**」だけを太字にする（AIの吹き出し）
 function rich(text) {
@@ -35,6 +45,8 @@ const EMPTY = {
   // コース
   pdf: null, pptx: null, pages: [], slides: [], noteSrc: [], skip: [], courseId: "", importId: "", uploaded: [], plan: null, lessons: null, course: null,
   inserted: [], justInserted: null, topic: "", level: "入門", finalCount: null,
+  sel: null, // 右で選んだ演習 { lessonId, slideId }。選んでいる間のチャットは、その1つへの指示
+
   // 演習・案件体験
   draft: null, check: null,
 };
@@ -135,8 +147,9 @@ export default function StudioPage({ ctx, rest }) {
     if (s.flow === "course") {
       if (s.step === 2) { await doReplan(v); return; }
       // 演習の段階でも、レッスンの分け方は言葉で直せる（スライドは作り直さない）
+      if (s.step === 3 && s.sel && !s.proposal) { await doExercise(v, s.sel); return; }
       if (s.step === 3 && STRUCT_RE.test(v) && !EXER_RE.test(v)) { await doRestructure(v); return; }
-      if (s.step === 3) { await doExercise(s.retrying && s.proposal ? `${s.lastInstruction}。${v}` : v); return; }
+      if (s.step === 3) { await doExercise(s.retrying && s.proposal ? `${s.lastInstruction}。${v}` : v, s.retrying ? s.lastSel : null); return; }
       ai(s.step <= 1 ? "この段階では、右の画面とボタンで進めてください。" : "公開の前の確認です。右の画面で単元と難易度を選んで、公開してください。");
       return;
     }
@@ -164,6 +177,8 @@ export default function StudioPage({ ctx, rest }) {
       if (act === "toPlan") { await toPlan(); return; }
       if (act === "toExercise") { await toExercise(); return; }
       if (act === "accept") { await acceptProposal(); return; }
+      if (act === "delSel") { await deleteSelected(); return; }
+      if (act === "closeSel") { set({ sel: null }); return; }
       if (act === "retry") { set({ retrying: true }); await ai("どこを直しますか？（例：もう少しやさしく／出力を変えて）"); return; }
       if (act === "drop") { set({ proposal: null, retrying: false }); await ai("やめました。ほかに入れたい演習があれば指示してください。", [["演習はこれで十分", "toPublish", true]]); return; }
       if (act === "toPublish") { await toPublish(); return; }
@@ -334,21 +349,27 @@ export default function StudioPage({ ctx, rest }) {
     set({ lessons, course, topic: course?.topic || sref.current.topic || "", level: course?.level || "入門" });
     return lessons;
   }
-  async function doExercise(instruction) {
+  async function doExercise(instruction, sel = null) {
     const s = sref.current;
-    set({ busy: "exercise", proposal: null, retrying: false, lastInstruction: instruction }); setTyping(true);
+    const target = sel && findSlide(s, sel);
+    set({ busy: "exercise", proposal: null, retrying: false, lastInstruction: instruction, lastSel: target ? sel : null }); setTyping(true);
     try {
       const r = await A.studioJob({
         kind: "exercise", courseTitle: s.course?.title || "", instruction,
-        lessons: s.lessons.map(l => ({ lessonId: l.id, title: l.title, summary: l.summary, goal: l.goal, slides: l.slides.map(x => ({ id: x.id, kind: x.kind, title: x.title, page: x.content?.sourcePage })) })),
+        lessons: s.lessons.map(l => ({ lessonId: l.id, title: l.title, summary: l.summary, goal: l.goal, slides: l.slides.map(x => ({ id: x.id, kind: x.kind, title: x.title, page: x.content?.sourcePage, text: x.kind === "image" ? undefined : slideText(x) })) })),
+        edit: target ? { lessonId: sel.lessonId, slide: target } : undefined,
       });
       const proposals = r.proposals || [];
       set({ busy: "", proposal: proposals });
       setTyping(false);
-      if (proposals.length === 1) {
+      if (target && proposals.length === 1) {
+        await ai(`「${String(target.title || "").slice(0, 20)}」を直した案です。`, [], 0);
+      } else if (proposals.every(p => p.replaceSlideId)) {
+        await ai(`**${proposals.length}つ**を${kindLabel(proposals[0].slides[0] || {})}に変える案です。`, [], 0);
+      } else if (proposals.length === 1) {
         const p = proposals[0], ex = p.slides[0];
         const expect = ex.kind === "code_run" ? ex.content?.expect : "";
-        await ai(`**${p.afterPage ? `p.${p.afterPage}` : p.lessonTitle}「${p.afterTitle}」の後**に、${exLabel(ex)}を1つ挟みます。${expect ? `\nお手本を実際に動かして、正解の出力は「${expect.split("\n").slice(0, 3).join(" / ").slice(0, 48)}${expect.split("\n").length > 3 ? " …" : ""}」にしました。` : ""}`, [], 0);
+        await ai(`**${p.afterPage ? `p.${p.afterPage}` : p.lessonTitle}「${p.afterTitle}」の後**に、${kindLabel(ex)}を1つ挟みます。${expect ? `\nお手本を実際に動かして、正解の出力は「${expect.split("\n").slice(0, 3).join(" / ").slice(0, 48)}${expect.split("\n").length > 3 ? " …" : ""}」にしました。` : ""}`, [], 0);
       } else {
         await ai(`**${proposals.length}か所**に入れる案です。`, [], 0);
       }
@@ -365,16 +386,33 @@ export default function StudioPage({ ctx, rest }) {
       if (!l) continue;
       const at = l.slides.findIndex(x => x.id === p.afterSlideId);
       const fresh = p.slides.map(x => ({ ...x, id: newId("slide-ai"), status: "published" }));
-      l.slides.splice(at < 0 ? l.slides.length : at + 1, 0, ...fresh);
+      // 置きかえ（選んだ演習を直した・解説をクイズに変えた）は、元の位置に入れて元を外す
+      const replace = p.replaceSlideId && at >= 0 && l.slides[at]?.id === p.replaceSlideId;
+      if (replace) l.slides.splice(at, 1, ...fresh);
+      else l.slides.splice(at < 0 ? l.slides.length : at + 1, 0, ...fresh);
       l.slides = l.slides.map((x, i) => ({ ...x, order: i }));
       added.push(...fresh.map(x => x.id));
       l.dirty = true;
     }
     for (const l of lessons.filter(x => x.dirty)) { await A.saveLesson(s.courseId, l); delete l.dirty; }
     const one = s.proposal.length === 1 ? s.proposal[0] : null;
-    set({ busy: "", lessons, proposal: null, inserted: [...s.inserted, ...added], justInserted: added[0] || null });
-    await ai(one ? `${one.afterPage ? `p.${one.afterPage}` : `「${one.afterTitle}」`} の後に入れました。ほかにも入れますか？` : `${added.length}つ入れました。`,
+    const replaced = s.proposal.filter(p => p.replaceSlideId).length;
+    set({ busy: "", lessons, proposal: null, inserted: [...s.inserted, ...added], justInserted: added[0] || null, sel: s.sel && one?.replaceSlideId ? { lessonId: one.lessonId, slideId: added[0] } : s.sel });
+    if (replaced) { await ai(`${replaced}つ置きかえました。`, [["演習はこれで十分", "toPublish", true]], 0); return; }
+    await ai(one ?`${one.afterPage ? `p.${one.afterPage}` : `「${one.afterTitle}」`} の後に入れました。ほかにも入れますか？` : `${added.length}つ入れました。`,
       [["各レッスンの最後に確認クイズを1問ずつ", "say"], ["演習はこれで十分", "toPublish", true]], 0);
+  }
+
+  // 右で選んだ演習を外す（資料のページは外せない）
+  async function deleteSelected() {
+    const s = sref.current;
+    const x = findSlide(s, s.sel);
+    if (!x || x.kind === "image") return;
+    set({ busy: "save" });
+    const lessons = s.lessons.map(l => (l.id === s.sel.lessonId ? { ...l, slides: l.slides.filter(y => y.id !== x.id).map((y, i) => ({ ...y, order: i })) } : l));
+    await A.saveLesson(s.courseId, lessons.find(l => l.id === s.sel.lessonId));
+    set({ busy: "", lessons, sel: null, inserted: s.inserted.filter(id => id !== x.id) });
+    await ai(`「${String(x.title || exLabel(x)).slice(0, 20)}」を外しました。`, [], 0);
   }
 
   /* ---------- コース：公開 ---------- */
@@ -567,7 +605,7 @@ export default function StudioPage({ ctx, rest }) {
             : <>
               <Steps flow={s.flow} step={s.step} />
               {busyText && <div className="fixbar" role="status"><span className="spin" aria-hidden="true" />{busyText}</div>}
-              {s.flow === "course" && <CourseWork s={s} thumbs={thumbs} bump={bump} topics={topics} pptxIn={pptxIn} pdfIn={pdfIn} pickFile={pickFile} moveNote={moveNote} toggleSkip={toggleSkip} applyShift={() => { say("me", "ずれを直す"); applyShift(); }} act={(a, label) => { say("me", label); run(a); }} setTopic={v => set({ topic: v })} addTopic={addTopic} setLevel={v => set({ level: v })} />}
+              {s.flow === "course" && <CourseWork s={s} thumbs={thumbs} bump={bump} topics={topics} pptxIn={pptxIn} pdfIn={pdfIn} pickFile={pickFile} moveNote={moveNote} toggleSkip={toggleSkip} applyShift={() => { say("me", "ずれを直す"); applyShift(); }} act={(a, label) => { say("me", label); run(a); }} select={sel => set({ sel })} setTopic={v => set({ topic: v })} addTopic={addTopic} setLevel={v => set({ level: v })} />}
               {s.flow !== "course" && <DraftWork s={s} kind={s.flow} topics={topics} courses={lrn.catalog || []} act={(a, label) => { say("me", label); run(a); }} />}
             </>}
           <iframe ref={frame} title="確かめ用" sandbox="allow-same-origin" style={{ position: "absolute", width: 1, height: 1, opacity: 0, pointerEvents: "none", border: 0 }} aria-hidden="true" tabIndex={-1} />
@@ -606,7 +644,7 @@ function Page({ src, materialId, title, thumbs, bump, cover }) {
   return <div className={`slide ${cover ? "cover" : ""}`}><span className="t">{title || ""}</span><span className="l" style={{ width: "90%" }} /><span className="l" style={{ width: "76%" }} /></div>;
 }
 
-function CourseWork({ s, thumbs, bump, topics, pptxIn, pdfIn, pickFile, moveNote, toggleSkip, applyShift, act, setTopic, addTopic, setLevel }) {
+function CourseWork({ s, thumbs, bump, topics, pptxIn, pdfIn, pickFile, moveNote, toggleSkip, applyShift, act, select, setTopic, addTopic, setLevel }) {
   const [adding, setAdding] = useState(false);
   const [newTopic, setNewTopic] = useState("");
   const pageUrl = n => s.pages.find(p => p.page === n)?.url;
@@ -674,7 +712,8 @@ function CourseWork({ s, thumbs, bump, topics, pptxIn, pdfIn, pickFile, moveNote
     const exCount = s.lessons.reduce((a, l) => a + l.slides.filter(isExercise).length, 0);
     return (
       <>
-        {proposals.length > 0 && <Proposal proposals={proposals} act={act} />}
+        {proposals.length > 0 && <Proposal proposals={proposals} act={act} replacing={!!proposals[0]?.replaceSlideId} />}
+        {!proposals.length && s.sel && findSlide(s, s.sel) && <Selected x={findSlide(s, s.sel)} busy={!!s.busy} act={act} />}
         <section className="panel">
           <div className="ph"><h2>演習を入れる</h2><span className="r"><span className="chip">レッスン {s.lessons.length}</span><span className="chip">スライド {s.lessons.reduce((a, l) => a + l.slides.filter(x => x.kind === "image").length, 0)}</span><span className={`chip ${exCount ? "ok" : ""}`}>演習 {exCount}</span></span></div>
           <div className="lessons">{s.lessons.map((L, li) => (
@@ -682,9 +721,9 @@ function CourseWork({ s, thumbs, bump, topics, pptxIn, pdfIn, pickFile, moveNote
               <div className="strip">{L.slides.map(x => (
                 <React.Fragment key={x.id}>
                   {x.kind === "image" ? <div className="s"><Page materialId={x.content?.materialId} title={x.title} thumbs={thumbs} bump={bump} /><small>{x.content?.sourcePage ? `p.${x.content.sourcePage}` : ""}</small></div>
-                    : x.kind === "summary" ? <div className="ex">まとめ</div>
-                      : isExercise(x) ? <div className={`ex ${x.kind === "code_run" || x.kind === "web_run" ? "code" : ""} ${s.justInserted === x.id || s.inserted.includes(x.id) ? "new" : ""}`}>{x.kind === "code_run" || x.kind === "web_run" ? "▶ " : ""}{exLabel(x)}<br />{String(x.title || "").slice(0, 12)}</div>
-                        : <div className="ex">{String(x.title || "").slice(0, 12)}</div>}
+                    : <button type="button" aria-pressed={s.sel?.slideId === x.id} onClick={() => select(s.sel?.slideId === x.id ? null : { lessonId: L.id, slideId: x.id })}
+                      className={`ex exbtn ${x.kind === "code_run" || x.kind === "web_run" ? "code" : ""} ${s.justInserted === x.id || s.inserted.includes(x.id) ? "new" : ""} ${s.sel?.slideId === x.id ? "on" : ""}`}>
+                      <span>{x.kind === "code_run" || x.kind === "web_run" ? "▶ " : ""}{kindLabel(x)}<br />{String(x.title || "").slice(0, 12)}</span></button>}
                   {proposals.some(p => p.afterSlideId === x.id) && <div className="ins">ここに入る</div>}
                 </React.Fragment>
               ))}</div>
@@ -728,18 +767,38 @@ function CourseWork({ s, thumbs, bump, topics, pptxIn, pdfIn, pickFile, moveNote
   return null;
 }
 
-function Proposal({ proposals, act }) {
+// 受講生に見える形のまま（答えても記録はしない）
+function SlidePreview({ x }) {
+  return <div className="sprev"><div className="tl-legacy"><SlideRenderer slide={x} accent="#2457E6" lrn={{}} index={0} total={1} /></div></div>;
+}
+
+// 右で選んだ演習：受講生の見え方・外す。直したいことは左のチャットに書く
+function Selected({ x, busy, act }) {
+  return (
+    <section className="prop sel"><div className="top"><span className="chip">選択中</span><b>{kindLabel(x)}「{String(x.title || "").slice(0, 24)}」</b></div><div className="body">
+      <SlidePreview x={x} key={x.id} />
+      <div className="acts"><span className="hint">直すことを左に書く</span><button className="btn ghost" type="button" disabled={busy} onClick={() => act("delSel", "外す")}>外す</button><button className="btn ghost" type="button" onClick={() => act("closeSel", "閉じる")}>閉じる</button></div>
+    </div></section>
+  );
+}
+
+function Proposal({ proposals, act, replacing }) {
+  const [open, setOpen] = useState(0);
+  const ok = replacing ? "置きかえる" : "入れる";
   if (proposals.length > 1) {
     return (
-      <section className="prop"><div className="top"><span className="chip warn">AIの案</span><b>{proposals.length}か所に{exLabel(proposals[0].slides[0])}</b></div><div className="body">
-        <div className="qlist">{proposals.map((p, i) => <div key={i}><span>{p.afterPage ? `p.${p.afterPage}の後` : p.lessonTitle.slice(0, 8)}</span>{p.slides[0]?.interaction?.question || p.slides[0]?.content?.question || p.slides[0]?.title}</div>)}</div>
-        <div className="acts"><button className="btn" type="button" onClick={() => act("accept", "入れる")}>入れる</button><button className="btn ghost" type="button" onClick={() => act("retry", "直して")}>直して</button><button className="btn ghost" type="button" onClick={() => act("drop", "やめる")}>やめる</button></div>
+      <section className="prop"><div className="top"><span className="chip warn">AIの案</span><b>{proposals.length}か所に{kindLabel(proposals[0].slides[0] || {})}</b></div><div className="body">
+        <div className="qlist">{proposals.map((p, i) => <button type="button" key={i} className={`qrow ${open === i ? "on" : ""}`} aria-expanded={open === i} onClick={() => setOpen(open === i ? -1 : i)}><span>{p.replaceSlideId ? `「${String(p.afterTitle).slice(0, 8)}」を` : p.afterPage ? `p.${p.afterPage}の後` : p.lessonTitle.slice(0, 8)}</span>{p.slides[0]?.interaction?.question || p.slides[0]?.content?.question || p.slides[0]?.title}</button>)}</div>
+        {open >= 0 && proposals[open]?.slides[0] && <SlidePreview x={proposals[open].slides[0]} key={open} />}
+        <div className="acts"><button className="btn" type="button" onClick={() => act("accept", ok)}>{ok}</button><button className="btn ghost" type="button" onClick={() => act("retry", "直して")}>直して</button><button className="btn ghost" type="button" onClick={() => act("drop", "やめる")}>やめる</button></div>
       </div></section>
     );
   }
   const p = proposals[0], x = p.slides[0] || {}, c = x.content || {};
   return (
-    <section className="prop"><div className="top"><span className="chip warn">AIの案</span><b>{p.afterPage ? `p.${p.afterPage}` : ""}「{p.afterTitle}」の後に{exLabel(x)}</b>{x.kind === "code_run" && <span className="chip ok">✓ お手本が動いた</span>}</div><div className="body">
+    <section className="prop"><div className="top"><span className="chip warn">AIの案</span><b>{replacing ? `「${p.afterTitle}」を${kindLabel(x)}に` : `${p.afterPage ? `p.${p.afterPage}` : ""}「${p.afterTitle}」の後に${kindLabel(x)}`}</b>{x.kind === "code_run" && <span className="chip ok">✓ お手本が動いた</span>}
+      <span className="vtabs" role="group" aria-label="表示"><button type="button" aria-pressed={open !== 1} onClick={() => setOpen(0)}>中身</button><button type="button" aria-pressed={open === 1} onClick={() => setOpen(1)}>受講生の見え方</button></span></div><div className="body">
+      {open === 1 ? <SlidePreview x={x} /> : <>
       {(c.task || x.caption) && <p style={{ fontSize: 14, color: "var(--ink2)" }}>{c.task || x.caption}</p>}
       {x.kind === "code_run" && <div className="ed"><div className="tabs"><span>{c.filename || "Main.java"}</span><span>はじめのコード</span></div><pre>{c.source}</pre><div className="res">✓ お手本の出力：{String(c.expect || "").split("\n").slice(0, 4).join(" / ")}{String(c.expect || "").split("\n").length > 4 ? " …" : ""}</div></div>}
       {x.kind === "web_run" && <>
@@ -747,7 +806,8 @@ function Proposal({ proposals, act }) {
         <div className="qlist">{(c.checks || []).map((k, i) => <div key={i}><span>確かめる</span>{k.label}</div>)}</div>
       </>}
       {!EX_LABEL[x.kind] && (() => { const q = x.interaction || {}; const choices = q.choices || c.choices; return <div className="qlist"><div><span>問題</span>{q.question || c.question || c.prompt || x.title}</div>{Array.isArray(choices) && choices.map((ch, i) => <div key={i}><span>{i === q.answerIndex ? "✓ 正解" : i + 1}</span>{typeof ch === "string" ? ch : ch?.text || ""}</div>)}</div>; })()}
-      <div className="acts"><button className="btn" type="button" onClick={() => act("accept", "入れる")}>入れる</button><button className="btn ghost" type="button" onClick={() => act("retry", "直して")}>直して</button><button className="btn ghost" type="button" onClick={() => act("drop", "やめる")}>やめる</button></div>
+      </>}
+      <div className="acts"><button className="btn" type="button" onClick={() => act("accept", ok)}>{ok}</button><button className="btn ghost" type="button" onClick={() => act("retry", "直して")}>直して</button><button className="btn ghost" type="button" onClick={() => act("drop", "やめる")}>やめる</button></div>
     </div></section>
   );
 }

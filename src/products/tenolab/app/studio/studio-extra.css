@@ -19,3 +19,18 @@
 @media (prefers-reduced-motion: reduce) { .tl-studio .fixbar .spin { animation: none; } }
 .tl-studio .addtopic { display: inline-flex; gap: 6px; align-items: center; flex-wrap: wrap; }
 .tl-studio .addtopic input { font: inherit; font-size: 13.5px; border: 1px solid #CDD1C7; border-radius: 8px; padding: 2px 8px; background: var(--card); min-width: 0; width: 220px; max-width: 100%; }
+/* 演習：右の帯の演習を選ぶ・受講生の見え方（2026-10-09） */
+.tl-studio .strip .ex.exbtn { font: inherit; font-size: 11px; font-weight: 700; color: inherit; cursor: pointer; }
+.tl-studio .strip .ex.code.exbtn { color: var(--marker); }
+.tl-studio .strip .ex.exbtn:hover { box-shadow: 0 0 0 3px rgba(36,87,230,.18); }
+.tl-studio .strip .ex.on { outline: 3px solid var(--blue); outline-offset: 2px; }
+.tl-studio .prop.sel { border-color: var(--blue); }
+.tl-studio .prop.sel .top { background: #E8EEFD; }
+.tl-studio .prop .hint { margin-right: auto; font-size: 12.5px; color: var(--muted); align-self: center; }
+.tl-studio .vtabs { margin-left: auto; display: inline-flex; border: 1px solid #CDD1C7; border-radius: 8px; overflow: hidden; background: var(--card); }
+.tl-studio .vtabs button { border: 0; background: none; font: inherit; font-size: 12.5px; padding: 3px 10px; cursor: pointer; color: var(--ink2); }
+.tl-studio .vtabs button[aria-pressed="true"] { background: var(--ink); color: #fff; }
+.tl-studio .qlist .qrow { display: grid; grid-template-columns: 72px minmax(0,1fr); gap: 10px; font: inherit; font-size: 13.5px; text-align: left; border: 1px solid var(--line); border-radius: 8px; padding: 6px 10px; background: var(--card); cursor: pointer; color: inherit; }
+.tl-studio .qlist .qrow.on { border-color: var(--ink); background: var(--marker-soft); }
+.tl-studio .sprev { border: 1px solid var(--line); border-radius: 12px; background: var(--paper, #FBFBF7); padding: 14px; max-height: 460px; overflow: auto; }
+.tl-studio .strip .ex.exbtn > span { width: 100%; }
