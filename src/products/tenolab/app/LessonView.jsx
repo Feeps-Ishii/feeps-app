@@ -11,6 +11,9 @@ const HIDE_KINDS = new Set(["summary", "_cover", "_divider"]);
 const isExercise = s => s && !["image", "concept", "video", "pdf", "figure", "table", "compare", "chapter", "agenda", "hook", "steps", "columns", "work"].includes(s.kind);
 const urlCache = new Map();
 const labelOf = (s, i) => s?.navLabel || s?.title || `ページ ${i + 1}`;
+// AIが作った説明に「&lt;」のような文字参照が混ざることがある。画面ではふつうの文字に戻す
+const ENT = { "&lt;": "<", "&gt;": ">", "&amp;": "&", "&quot;": '"', "&#39;": "'", "&apos;": "'", "&nbsp;": " " };
+const decode = t => String(t || "").replace(/&(lt|gt|amp|quot|#39|apos|nbsp);/g, m => ENT[m] || m);
 
 function useSlideUrl(lrn, materialId) {
   const [url, setUrl] = useState(materialId ? urlCache.get(materialId) || "" : "");
@@ -118,7 +121,7 @@ export default function LessonView({ ctx, course, lesson, lessons, slideId }) {
     );
   }
   const last = i === total - 1;
-  const caption = slide.caption || slide.content?.caption || "";
+  const caption = decode(slide.caption || slide.content?.caption || "");
 
   return (
     <div className="lsn">
@@ -136,14 +139,15 @@ export default function LessonView({ ctx, course, lesson, lessons, slideId }) {
         <nav className="lsn-pages" aria-label="このレッスンのページ">
           {slides.map((s, k) => (
             <button key={s.id} type="button" aria-current={k === i} className={k < i ? "done" : ""} onClick={() => setI(k)}>
-              <span className="n">{k < i ? "✓" : k + 1}</span><Thumb lrn={lrn} slide={s} /><span className="t">{labelOf(s, k)}</span>
+              <span className="n">{k < i ? "✓" : k + 1}</span><Thumb lrn={lrn} slide={s} /><span className="t">{decode(labelOf(s, k))}</span>
             </button>
           ))}
         </nav>
-        <main className="lsn-stage">
-          <Page key={slide.id} lrn={lrn} slide={slide} course={course} lesson={lesson} index={i} total={total} lastRatio={lastRatio} onRatio={setLastRatio} />
+        {/* main 要素にはテノラボ全体の上下の余白が付くので、section にする（真ん中だけ下にずれていた） */}
+        <section className="lsn-stage">
+          <div className="lsn-fwrap"><Page key={slide.id} lrn={lrn} slide={slide} course={course} lesson={lesson} index={i} total={total} lastRatio={lastRatio} onRatio={setLastRatio} /></div>
           {caption && <div className="lsn-cap">{caption}</div>}
-        </main>
+        </section>
         {chatOpen && <LessonChat course={course} lesson={lesson} slide={slide} index={i} onClose={() => setChatOpen(false)} />}
       </div>
 
@@ -187,7 +191,7 @@ function LessonChat({ course, lesson, slide, index, onClose }) {
   }
   return (
     <aside className="lsn-chat" aria-label="AIに聞く">
-      <div className="ch"><b>AIに聞く</b><span className="ctx">p.{index + 1}「{slide.title || slide.navLabel || ""}」について</span><button type="button" onClick={onClose} aria-label="閉じる">×</button></div>
+      <div className="ch"><b>AIに聞く</b><span className="ctx">p.{index + 1}「{decode(slide.title || slide.navLabel || "")}」について</span><button type="button" onClick={onClose} aria-label="閉じる">×</button></div>
       <div className="log" ref={logRef} aria-live="polite">
         {msgs.map((m, k) => (
           <div key={k} className={`msg ${m.who === "me" ? "me" : ""}`}>

@@ -137,8 +137,9 @@
   @media (max-width: 980px) { .tl-course .person { grid-template-columns: 1fr; } }
   @media (max-width: 520px) { .tl-course .tl li { grid-template-columns: 1fr auto; } .tl-course .tl li > span:first-child { grid-column: 1 / -1; } }
   /* レッスン画面（モック tenolab-lesson.html）。main.wrap の幅を広げて3列にする */
-  .tl-course > main:has(> .lsn) { max-width: 1440px; }
-  .tl-course .lsn { --chatw: 360px; padding-bottom: 84px; }
+  .tl-course > main:has(> .lsn) { max-width: 1440px; padding-block: 14px 0; }
+  /* 3列（ページ一覧・スライド・AI）は同じ高さ。画面の高さからヘッダー・見出し・下の帯のぶんを引く */
+  .tl-course .lsn { --chatw: 360px; --lh: max(420px, calc(100vh - 218px)); padding-bottom: 84px; }
   .tl-course .lsn-head { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin: 4px 0 12px; }
   .tl-course .lsn-head .back { margin: 0; }
   .tl-course .lsn-sel { display: flex; align-items: center; gap: 8px; border: 1px solid var(--line); background: var(--card); border-radius: 10px; padding: 4px 6px 4px 10px; min-width: 0; }
@@ -146,11 +147,11 @@
   .tl-course .lsn-head .r { margin-left: auto; display: flex; gap: 8px; align-items: center; }
   .tl-course .lsn-prog { width: 160px; height: 6px; border-radius: 99px; background: var(--soft); overflow: hidden; display: block; }
   .tl-course .lsn-prog i { display: block; height: 100%; background: var(--mint); }
-  .tl-course .lsn-layout { display: grid; grid-template-columns: 220px minmax(0, 1fr) var(--chatw); gap: 18px; align-items: start; }
+  .tl-course .lsn-layout { display: grid; grid-template-columns: 220px minmax(0, 1fr) var(--chatw); gap: 18px; align-items: stretch; height: var(--lh); }
   .tl-course .lsn-layout.no-chat { grid-template-columns: 220px minmax(0, 1fr); }
   .tl-course .lsn-layout.focus { grid-template-columns: minmax(0, 1fr); }
   .tl-course .lsn-layout.focus .lsn-pages { display: none; }
-  .tl-course .lsn-pages { position: sticky; top: 76px; max-height: calc(100vh - 250px); overflow-y: auto; display: grid; gap: 4px; padding: 4px 4px 12px; }
+  .tl-course .lsn-pages { height: 100%; min-height: 0; overflow-y: auto; display: grid; gap: 4px; padding: 4px 4px 12px; }
   .tl-course .lsn-pages button { display: grid; grid-template-columns: 22px 64px minmax(0, 1fr); gap: 8px; align-items: center; text-align: left; border: 1px solid transparent; background: none; border-radius: 10px; padding: 5px 6px; font-size: 13px; cursor: pointer; color: inherit; }
   .tl-course .lsn-pages button:hover { background: var(--card); border-color: var(--line); }
   .tl-course .lsn-pages button[aria-current="true"] { background: var(--card); border-color: var(--ink); box-shadow: 0 0 0 2px var(--marker); }
@@ -160,15 +161,16 @@
   .tl-course .lsn-thumb { aspect-ratio: 16 / 9; border-radius: 4px; border: 1px solid var(--line); overflow: hidden; background: #fff; display: block; }
   .tl-course .lsn-thumb img { width: 100%; height: 100%; object-fit: contain; display: block; }
   .tl-course .lsn-thumb.ex { background: var(--ide); border-color: var(--ide); display: grid; place-items: center; color: var(--marker); font-family: var(--mono); font-size: 9px; font-weight: 600; }
-  .tl-course .lsn-stage { display: grid; gap: 12px; min-width: 0; }
+  .tl-course .lsn-stage { display: flex; flex-direction: column; gap: 12px; min-width: 0; min-height: 0; height: 100%; }
+  /* ページの置き場。この箱の幅と高さの両方に収まる大きさで、資料の比率のまま出す */
+  .tl-course .lsn-fwrap { flex: 1 1 auto; min-height: 0; container-type: size; display: grid; place-items: center; }
   /* 枠は資料のページの比率（--r ＝ 横÷縦）。ページ全体が画面に入る大きさまでにする（上のヘッダー・下の帯のぶんを引く） */
-  .tl-course .lsn-frame { --r: 1.7778; position: relative; aspect-ratio: var(--r); width: min(100%, max(360px, calc((100vh - 275px) * var(--r)))); margin-inline: auto; border-radius: 12px; border: 1px solid var(--line); background: #fff; box-shadow: var(--shadow, 0 1px 2px rgba(21,23,28,.04)); overflow: hidden; display: grid; place-items: center; }
+  .tl-course .lsn-frame { --r: 1.7778; position: relative; aspect-ratio: var(--r); width: min(100cqw, calc(100cqh * var(--r))); border-radius: 12px; border: 1px solid var(--line); background: #fff; box-shadow: var(--shadow, 0 1px 2px rgba(21,23,28,.04)); overflow: hidden; display: grid; place-items: center; }
   .tl-course .lsn-frame img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; display: block; }
-  .tl-course .lsn-layout.focus .lsn-frame { width: min(100%, max(360px, calc((100vh - 255px) * var(--r)))); }
-  .tl-course .lsn-frame.free { aspect-ratio: auto; width: 100%; min-height: min(56vw, 520px); place-items: stretch; overflow: visible; }
+  .tl-course .lsn-frame.free { aspect-ratio: auto; width: 100%; height: 100%; place-items: stretch; overflow: auto; }
   .tl-course .lsn-legacy { padding: 22px 26px; min-width: 0; }
   .tl-course .lsn-wait { color: var(--muted); font-size: 13px; }
-  .tl-course .lsn-cap { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 14px 18px; font-size: 15px; color: var(--ink2); line-height: 1.85; white-space: pre-wrap; }
+  .tl-course .lsn-cap { flex: 0 1 auto; max-height: 32%; overflow-y: auto; background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 14px 18px; font-size: 15px; color: var(--ink2); line-height: 1.85; white-space: pre-wrap; }
   .tl-course .lsn-empty { padding: 24px 0; }
   .tl-course .lsn-dock { position: fixed; left: 50%; bottom: 18px; transform: translateX(-50%); z-index: 30; display: flex; align-items: center; gap: 6px; padding: 6px; border-radius: 16px; background: var(--ink); color: var(--paper); box-shadow: 0 10px 30px rgba(21, 23, 28, .25); }
   .tl-course .lsn-dock button { border: 0; background: none; color: var(--paper); border-radius: 11px; padding: 8px 14px; font: inherit; font-weight: 700; font-size: 14px; white-space: nowrap; display: inline-flex; gap: 6px; align-items: center; cursor: pointer; }
@@ -179,7 +181,7 @@
   .tl-course .lsn-dock button:disabled { opacity: .35; cursor: default; background: none; }
   .tl-course .lsn-dock .pos { font-family: var(--mono); font-size: 13px; padding: 0 10px; min-width: 74px; text-align: center; color: #C9CCD6; }
   .tl-course .lsn-dock .sep { width: 1px; height: 22px; background: #3A3F4B; margin: 0 2px; }
-  .tl-course .lsn-chat { position: sticky; top: 76px; height: calc(100vh - 250px); min-height: 380px; display: grid; grid-template-rows: auto minmax(0, 1fr) auto auto; background: var(--card); border: 1px solid var(--line); border-radius: 14px; overflow: hidden; }
+  .tl-course .lsn-chat { height: 100%; min-height: 0; display: grid; grid-template-rows: auto minmax(0, 1fr) auto auto; background: var(--card); border: 1px solid var(--line); border-radius: 14px; overflow: hidden; }
   .tl-course .lsn-chat .ch { display: flex; align-items: center; gap: 8px; padding: 10px 12px; border-bottom: 1px solid var(--line); min-width: 0; }
   .tl-course .lsn-chat .ch b { font-size: 14px; white-space: nowrap; }
   .tl-course .lsn-chat .ch .ctx { font-size: 12px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
@@ -206,7 +208,12 @@
     .tl-course .lsn-pages { display: none; }
   }
   @media (max-width: 820px) {
-    .tl-course .lsn-layout, .tl-course .lsn-layout.no-chat { grid-template-columns: minmax(0, 1fr); }
+    .tl-course .lsn-layout, .tl-course .lsn-layout.no-chat { grid-template-columns: minmax(0, 1fr); height: auto; }
+    .tl-course .lsn-stage { height: auto; }
+    .tl-course .lsn-fwrap { container-type: inline-size; }
+    .tl-course .lsn-frame { width: 100%; }
+    .tl-course .lsn-frame.free { height: auto; }
+    .tl-course .lsn-cap { max-height: none; }
     .tl-course .lsn-chat { position: fixed; left: 8px; right: 8px; bottom: 76px; top: auto; height: 62vh; min-height: 0; z-index: 25; box-shadow: 0 10px 30px rgba(21, 23, 28, .2); }
     .tl-course .lsn-dock { left: 8px; right: 8px; transform: none; justify-content: space-between; bottom: 10px; }
     .tl-course .lsn-dock .lbl { display: none; }

@@ -16,6 +16,9 @@ function useSlideUrl(materialId) {
   }, [materialId]);
   return url;
 }
+// AIが作った説明に混ざる「&lt;」などをふつうの文字に戻す
+const ENT = { "&lt;": "<", "&gt;": ">", "&amp;": "&", "&quot;": '"', "&#39;": "'", "&apos;": "'", "&nbsp;": " " };
+const decode = t => String(t || "").replace(/&(lt|gt|amp|quot|#39|apos|nbsp);/g, m => ENT[m] || m);
 const isEx = x => x && !["image", "summary", "concept", "video", "pdf", "_cover", "_divider"].includes(x.kind);
 function stateOf(c) {
   if (!c.published) return ["下書き", ""];
@@ -105,7 +108,7 @@ function Preview({ course, topicName, go, onChanged }) {
             : <div className="pslide-t"><b>{slide ? (isEx(slide) ? (slide.kind === "code_run" ? "やってみよう" : slide.title) : slide.title) : ""}</b>{slide && isEx(slide) && <span>{slide.content?.task || slide.interaction?.question || slide.content?.question || ""}</span>}</div>}
         </div>
         <div className="pages">{slides.map((x, i) => <button key={x.id || i} type="button" className={isEx(x) ? "ex" : ""} aria-current={i === si} onClick={() => setSi(i)}>{isEx(x) ? "演習" : x.content?.sourcePage ? `p.${x.content.sourcePage}` : i + 1}</button>)}</div>
-        {slide && (slide.caption || slide.content?.caption) && <div className="note">{slide.caption || slide.content?.caption}</div>}
+        {slide && (slide.caption || slide.content?.caption) && <div className="note">{decode(slide.caption || slide.content?.caption)}</div>}
         <ul className="lessons">{lessons.map((l, i) => (
           <li key={l.id || l.lessonId}><button type="button" className={`clrow ${i === li ? "on" : ""}`} onClick={() => { setLi(i); setSi(0); }}>
             <span className="n">{i + 1}</span>{l.title}<span className="chip" style={{ marginLeft: "auto" }}>{(l.slides || []).filter(x => !isEx(x)).length}枚{(l.slides || []).some(isEx) ? ` ・ 演習${(l.slides || []).filter(isEx).length}` : ""}</span>
