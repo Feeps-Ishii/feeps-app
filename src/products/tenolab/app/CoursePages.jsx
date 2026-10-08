@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { Back, Ic, LoadError, Loading, durationHours, durationLabel } from "./ui.jsx";
-import { ElFinalTestView, ElLessonView } from "../../learning/LearningComponents.jsx";
+import { ElFinalTestView } from "../../learning/LearningComponents.jsx";
+import LessonView from "./LessonView.jsx";
 
 /* コース詳細・レッスン・総合テスト（元の Feeps One のEラーニング）。
    コース詳細はモック（tenolab-course.html の course）の見た目で作り直した。
@@ -170,7 +171,7 @@ export function CourseDetail({ ctx, courseId }) {
   );
 }
 
-/* レッスン（元の画面部品） */
+/* レッスン（モック tenolab-lesson.html。資料のページそのまま・ついてくる操作の帯・いつもいるAIチャット） */
 export function LessonPage({ ctx, courseId, lessonId, slideId }) {
   const { lrn, courses, go } = ctx;
   const model = courses.find(c => c.id === courseId);
@@ -183,14 +184,7 @@ export function LessonPage({ ctx, courseId, lessonId, slideId }) {
     if (state === "loading") return <Loading what="レッスンを読み込んでいます…" />;
     return <><Back onClick={() => go(`#/courses/${courseId}`)}>← コース詳細へ</Back><LoadError onRetry={() => lrn.refreshCourseLessons(courseId)} what="レッスンを読み込めませんでした" /></>;
   }
-  return (
-    <div className="tl-legacy">
-      <ElLessonView course={course} lesson={lesson} lrn={lrn} lessons={lessons} initialSlideId={slideId || null}
-        onBack={() => go(`#/courses/${courseId}`)}
-        onNavigate={(ls, sid) => { lrn.touchLesson(courseId, ls.id); go(`#/courses/${courseId}/lessons/${ls.id}${sid ? `/${sid}` : ""}`); }}
-        onComplete={(cid, lid) => lrn.completeLesson(cid, lid)} />
-    </div>
-  );
+  return <LessonView ctx={ctx} course={course} lesson={lesson} lessons={lessons} slideId={slideId || null} />;
 }
 
 /* 総合テスト（元の画面部品） */
