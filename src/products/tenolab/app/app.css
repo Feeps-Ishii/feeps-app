@@ -161,9 +161,11 @@
   .tl-course .lsn-thumb img { width: 100%; height: 100%; object-fit: contain; display: block; }
   .tl-course .lsn-thumb.ex { background: var(--ide); border-color: var(--ide); display: grid; place-items: center; color: var(--marker); font-family: var(--mono); font-size: 9px; font-weight: 600; }
   .tl-course .lsn-stage { display: grid; gap: 12px; min-width: 0; }
-  .tl-course .lsn-frame { aspect-ratio: 16 / 9; width: 100%; border-radius: 12px; border: 1px solid var(--line); background: #fff; box-shadow: var(--shadow, 0 1px 2px rgba(21,23,28,.04)); overflow: hidden; display: grid; place-items: center; }
-  .tl-course .lsn-frame img { width: 100%; height: 100%; object-fit: contain; display: block; }
-  .tl-course .lsn-frame.free { aspect-ratio: auto; min-height: min(56vw, 520px); place-items: stretch; overflow: visible; }
+  /* 枠は資料のページの比率（--r ＝ 横÷縦）。ページ全体が画面に入る大きさまでにする（上のヘッダー・下の帯のぶんを引く） */
+  .tl-course .lsn-frame { --r: 1.7778; position: relative; aspect-ratio: var(--r); width: min(100%, max(360px, calc((100vh - 275px) * var(--r)))); margin-inline: auto; border-radius: 12px; border: 1px solid var(--line); background: #fff; box-shadow: var(--shadow, 0 1px 2px rgba(21,23,28,.04)); overflow: hidden; display: grid; place-items: center; }
+  .tl-course .lsn-frame img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; display: block; }
+  .tl-course .lsn-layout.focus .lsn-frame { width: min(100%, max(360px, calc((100vh - 255px) * var(--r)))); }
+  .tl-course .lsn-frame.free { aspect-ratio: auto; width: 100%; min-height: min(56vw, 520px); place-items: stretch; overflow: visible; }
   .tl-course .lsn-legacy { padding: 22px 26px; min-width: 0; }
   .tl-course .lsn-wait { color: var(--muted); font-size: 13px; }
   .tl-course .lsn-cap { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 14px 18px; font-size: 15px; color: var(--ink2); line-height: 1.85; white-space: pre-wrap; }

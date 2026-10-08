@@ -30,10 +30,22 @@ function Thumb({ lrn, slide }) {
   return <span className="lsn-thumb">{url ? <img src={url} alt="" loading="lazy" /> : null}</span>;
 }
 
-function Page({ lrn, slide, course, lesson, index, total }) {
-  const url = useSlideUrl(lrn, slide.kind === "image" ? slide.content?.materialId : "");
+// 資料のページの縦横比（4:3・16:9 など）は、読み込んだ画像の大きさから決める。決まるまでは前のページの比率
+const ratioCache = new Map();
+function Page({ lrn, slide, course, lesson, index, total, lastRatio, onRatio }) {
+  const materialId = slide.kind === "image" ? slide.content?.materialId : "";
+  const url = useSlideUrl(lrn, materialId);
+  const [ratio, setRatio] = useState(() => ratioCache.get(materialId) || lastRatio || 16 / 9);
   if (slide.kind === "image") {
-    return <div className="lsn-frame">{url ? <img src={url} alt={slide.content?.alt || slide.title || ""} /> : <span className="lsn-wait">読み込んでいます…</span>}</div>;
+    const onLoad = e => {
+      const { naturalWidth: w, naturalHeight: h } = e.currentTarget;
+      if (w && h) { const r = w / h; ratioCache.set(materialId, r); setRatio(r); onRatio?.(r); }
+    };
+    return (
+      <div className="lsn-frame" style={{ "--r": ratio }}>
+        {url ? <img src={url} alt={slide.content?.alt || slide.title || ""} onLoad={onLoad} /> : <span className="lsn-wait">読み込んでいます…</span>}
+      </div>
+    );
   }
   // 演習やそのほかの版面は、元の部品をそのまま同じ枠の中に
   return (
@@ -56,6 +68,7 @@ export default function LessonView({ ctx, course, lesson, lessons, slideId }) {
   const [i, setI] = useState(startAt);
   const [chatOpen, setChatOpen] = useState(() => (typeof window !== "undefined" ? window.innerWidth > 820 : true));
   const [focus, setFocus] = useState(false);
+  const [lastRatio, setLastRatio] = useState(16 / 9);
   const li = lessons.findIndex(l => l.id === lesson.id);
   const slide = slides[i];
   const total = slides.length;
@@ -128,7 +141,7 @@ export default function LessonView({ ctx, course, lesson, lessons, slideId }) {
           ))}
         </nav>
         <main className="lsn-stage">
-          <Page key={slide.id} lrn={lrn} slide={slide} course={course} lesson={lesson} index={i} total={total} />
+          <Page key={slide.id} lrn={lrn} slide={slide} course={course} lesson={lesson} index={i} total={total} lastRatio={lastRatio} onRatio={setLastRatio} />
           {caption && <div className="lsn-cap">{caption}</div>}
         </main>
         {chatOpen && <LessonChat course={course} lesson={lesson} slide={slide} index={i} onClose={() => setChatOpen(false)} />}
