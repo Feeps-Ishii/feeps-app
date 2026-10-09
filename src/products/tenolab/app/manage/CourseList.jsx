@@ -64,14 +64,37 @@ export default function CourseList({ topics, go }) {
               </table></div>
             ) : <p className="muted" style={{ padding: 12 }}>まだありません。「AIと作る」から作れます。</p>}
           </section>
-          {course && <Preview key={course.id} course={course} topicName={topicName(course.topic)} go={go} onChanged={load} />}
+          {course && <Preview key={course.id} course={course} topics={topics} go={go} onChanged={load} />}
         </div>
       )}
     </>
   );
 }
 
-function Preview({ course, topicName, go, onChanged }) {
+// 単元（ジャンル）はあとから変えられる。受講生の一覧にはすぐ出る（公開し直しは要らない）
+function TopicPick({ course, topics, onChanged }) {
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState("");
+  async function change(topic) {
+    setBusy(true); setErr("");
+    try { await A.saveCourse({ ...course, topic }); onChanged(); }
+    catch (e) { setErr(e?.errorMessage || "変えられませんでした。"); }
+    finally { setBusy(false); }
+  }
+  return (
+    <span className="muted" style={{ fontSize: 12.5, display: "inline-flex", gap: 6, alignItems: "center", flexWrap: "wrap" }}>
+      <label htmlFor={`topic-${course.id}`}>単元</label>
+      <select id={`topic-${course.id}`} value={topics.some(t => t.id === course.topic) ? course.topic : ""} disabled={busy} onChange={e => change(e.target.value)}>
+        <option value="">その他</option>
+        {topics.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
+      </select>
+      <span>・ {course.level || "入門"}</span>
+      {err && <span role="alert" style={{ color: "var(--red)" }}>{err}</span>}
+    </span>
+  );
+}
+
+function Preview({ course, topics, go, onChanged }) {
   const [lessons, setLessons] = useState(null);
   const [li, setLi] = useState(0);
   const [si, setSi] = useState(0);
@@ -101,7 +124,7 @@ function Preview({ course, topicName, go, onChanged }) {
     <section className="card msec prev">
       <div className="row"><span className="eyebrow">PREVIEW</span><span className={`chip ${s[1]}`} style={{ marginLeft: "auto" }}>{s[0]}</span></div>
       <h2 style={{ fontSize: 19, margin: 0 }}>{course.title}</h2>
-      <span className="muted" style={{ fontSize: 12.5 }}>{topicName} ・ {course.level || "入門"}</span>
+      <TopicPick course={course} topics={topics} onChanged={onChanged} />
       {lessons == null ? <p className="muted">読み込んでいます…</p> : !lessons.length ? <p className="muted">レッスンがまだありません。</p> : <>
         <div className={`pslide ${slide && isEx(slide) ? "ex" : ""}`}>
           {slide?.kind === "image" && url ? <img src={url} alt={slide.title || ""} />
