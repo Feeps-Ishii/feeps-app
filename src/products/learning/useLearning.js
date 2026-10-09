@@ -46,6 +46,10 @@ export function useLearning(role = "trainee") {
       official: course.official === true,
       // 総合テストの有無(2026-08-21)。未設定の既存コースは「あり」。
       finalTestEnabled: course.finalTestEnabled !== false,
+      // テノラボの単元・サムネイル・有料（2026-10-09）。ここで落としていたため、受講生側ではどのコースも「その他」になっていた
+      topic: course.topic || "",
+      thumb: course.thumb || null,
+      premium: course.premium === true,
     };
   }
   function getLearnerCatalog() {

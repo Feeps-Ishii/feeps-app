@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { apiPost } from "../../../api.js";
 import { SlideRenderer } from "../../learning/ElSlideLessonView.jsx";
+import ExerciseBench, { BENCH_KINDS } from "./exercise/Bench.jsx";
 
 /* レッスン画面（モック tenolab-lesson.html、2026-10-08）
    パワポ＋PDFから作ったコースを、資料のページそのままで見せる。足したスライド（表紙・中扉・自動のまとめ）は出さない。
@@ -72,6 +73,10 @@ export default function LessonView({ ctx, course, lesson, lessons, slideId }) {
   const [chatOpen, setChatOpen] = useState(() => (typeof window !== "undefined" ? window.innerWidth > 820 : true));
   const [focus, setFocus] = useState(false);
   const [lastRatio, setLastRatio] = useState(16 / 9);
+  // 演習の作業台から受け取る「いまのコードと結果」（右のAIが一緒に見る）
+  const exCtx = useRef(null);
+  const [exSees, setExSees] = useState("");
+  const chatAsk = useRef(null);
   const li = lessons.findIndex(l => l.id === lesson.id);
   const slide = slides[i];
   const total = slides.length;
@@ -122,6 +127,9 @@ export default function LessonView({ ctx, course, lesson, lessons, slideId }) {
   }
   const last = i === total - 1;
   const caption = decode(slide.caption || slide.content?.caption || "");
+  // コードの演習は、言語ごとの作業台。左のページ一覧を細くして広く使う
+  const bench = BENCH_KINDS.has(slide.kind);
+  const askFromBench = q => { setChatOpen(true); setFocus(false); setTimeout(() => chatAsk.current?.(q), 0); };
 
   return (
     <div className="lsn">
@@ -135,7 +143,7 @@ export default function LessonView({ ctx, course, lesson, lessons, slideId }) {
         <div className="r"><span className="chip">{i + 1} / {total}ページ</span><span className="lsn-prog"><i style={{ width: `${(i + 1) / total * 100}%` }} /></span></div>
       </div>
 
-      <div className={`lsn-layout ${chatOpen ? "" : "no-chat"} ${focus ? "focus" : ""}`}>
+      <div className={`lsn-layout ${chatOpen ? "" : "no-chat"} ${focus ? "focus" : ""} ${bench ? "ex" : ""}`}>
         <nav className="lsn-pages" aria-label="このレッスンのページ">
           {slides.map((s, k) => (
             <button key={s.id} type="button" aria-current={k === i} className={k < i ? "done" : ""} onClick={() => setI(k)}>
@@ -144,11 +152,17 @@ export default function LessonView({ ctx, course, lesson, lessons, slideId }) {
           ))}
         </nav>
         {/* main 要素にはテノラボ全体の上下の余白が付くので、section にする（真ん中だけ下にずれていた） */}
-        <section className="lsn-stage">
-          <div className="lsn-fwrap"><Page key={slide.id} lrn={lrn} slide={slide} course={course} lesson={lesson} index={i} total={total} lastRatio={lastRatio} onRatio={setLastRatio} /></div>
-          {caption && <div className="lsn-cap">{caption}</div>}
-        </section>
-        {chatOpen && <LessonChat course={course} lesson={lesson} slide={slide} index={i} onClose={() => setChatOpen(false)} />}
+        {bench ? (
+          <section className="lsn-stage ex">
+            <ExerciseBench key={slide.id} slide={slide} lrn={lrn} course={course} lesson={lesson} onContext={c => { exCtx.current = c; setExSees(c.language); }} onAsk={askFromBench} />
+          </section>
+        ) : (
+          <section className="lsn-stage">
+            <div className="lsn-fwrap"><Page key={slide.id} lrn={lrn} slide={slide} course={course} lesson={lesson} index={i} total={total} lastRatio={lastRatio} onRatio={setLastRatio} /></div>
+            {caption && <div className="lsn-cap">{caption}</div>}
+          </section>
+        )}
+        {chatOpen && <LessonChat course={course} lesson={lesson} slide={slide} index={i} onClose={() => setChatOpen(false)} exCtx={bench ? exCtx : null} sees={bench ? exSees : ""} askRef={chatAsk} />}
       </div>
 
       <div className="lsn-dock" role="toolbar" aria-label="ページの操作">
@@ -163,35 +177,47 @@ export default function LessonView({ ctx, course, lesson, lessons, slideId }) {
   );
 }
 
-/* いつも横にいるAIチャット。今のページについて答える（既存の POST /learning/slides/ask） */
-function LessonChat({ course, lesson, slide, index, onClose }) {
+// 演習のページで、AIが一緒に見ているもの（単語の印で出す）
+const SEES = { java: ["ページ", "コード", "出力"], web: ["ページ", "HTML", "CSS", "表示"] };
+const EX_SUGG = { java: ["この書き方で合ってる？", "ヒントだけほしい", "エラーの意味は？"], web: ["思ったとおりに見えないのはなぜ？", "どこを見ればいい？", "ヒントだけほしい"] };
+
+/* いつも横にいるAIチャット。今のページについて答える（既存の POST /learning/slides/ask）。
+   コードの演習のページでは、書いているコードと結果も一緒に送る（既存の POST /learning/exercises/{java|web}/ask。答えのコードは返さない） */
+function LessonChat({ course, lesson, slide, index, onClose, exCtx, sees, askRef }) {
   const [msgs, setMsgs] = useState([{ who: "ai", text: "このページで分からないところがあれば、いつでも聞いてください。" }]);
   const [sugg, setSugg] = useState(FIRST_SUGG);
   const [text, setText] = useState("");
   const [busy, setBusy] = useState(false);
   const logRef = useRef(null);
   const hist = useRef([]);
+  const busyRef = useRef(false);
   useEffect(() => { const el = logRef.current; if (el) el.scrollTop = el.scrollHeight; }, [msgs, busy]);
-  useEffect(() => { setSugg(FIRST_SUGG); }, [slide.id]);
+  useEffect(() => { setSugg(sees ? EX_SUGG[sees] || FIRST_SUGG : FIRST_SUGG); }, [slide.id, sees]);
+  useEffect(() => { if (askRef) askRef.current = ask; });
   async function ask(q) {
     const v = String(q || "").trim();
-    if (!v || busy) return;
+    if (!v || busyRef.current) return;
+    busyRef.current = true;
     setText("");
     setMsgs(m => [...m, { who: "me", text: v }]);
     setBusy(true);
     try {
-      const res = await apiPost("/learning/slides/ask", { courseId: course.id, lessonId: lesson.id, slideId: slide.id, question: v, history: hist.current.slice(-4) });
+      const c = exCtx?.current;
+      const res = c
+        ? await apiPost(`/learning/exercises/${c.language === "web" ? "web" : "java"}/ask`, { courseId: course.id, lessonId: lesson.id, slideId: slide.id, source: c.source, files: c.files, output: c.output, compiled: c.compiled, question: v, history: hist.current.slice(-4) })
+        : await apiPost("/learning/slides/ask", { courseId: course.id, lessonId: lesson.id, slideId: slide.id, question: v, history: hist.current.slice(-4) });
       const a = res?.answer || "うまく答えられませんでした。聞き方を変えてみてください。";
       hist.current.push({ role: "user", text: v }, { role: "assistant", text: a });
       setMsgs(m => [...m, { who: "ai", text: a }]);
-      setSugg(Array.isArray(res?.followUps) && res.followUps.length ? res.followUps : FIRST_SUGG);
+      setSugg(Array.isArray(res?.followUps) && res.followUps.length ? res.followUps : sees ? EX_SUGG[sees] || FIRST_SUGG : FIRST_SUGG);
     } catch (e) {
       setMsgs(m => [...m, { who: "ai", text: e?.errorMessage || "回答を作れませんでした。時間をおいてお試しください。" }]);
-    } finally { setBusy(false); }
+    } finally { busyRef.current = false; setBusy(false); }
   }
   return (
-    <aside className="lsn-chat" aria-label="AIに聞く">
+    <aside className={`lsn-chat ${sees && SEES[sees] ? "has-sees" : ""}`} aria-label="AIに聞く">
       <div className="ch"><b>AIに聞く</b><span className="ctx">p.{index + 1}「{decode(slide.title || slide.navLabel || "")}」について</span><button type="button" onClick={onClose} aria-label="閉じる">×</button></div>
+      {sees && SEES[sees] && <div className="sees" aria-label="AIが見ているもの">{SEES[sees].map(s => <span key={s}>{s}</span>)}</div>}
       <div className="log" ref={logRef} aria-live="polite">
         {msgs.map((m, k) => (
           <div key={k} className={`msg ${m.who === "me" ? "me" : ""}`}>
