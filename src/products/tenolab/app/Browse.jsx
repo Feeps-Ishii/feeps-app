@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import { Back, Carousel, Ic, PremTag, TopicIcon } from "./ui.jsx";
 import { ActiveCases, CaseCard, CourseCard, DrillCard } from "./cards.jsx";
+import { NoticeBanner, NoticeCard } from "./notices/Notices.jsx";
 import { byTopic } from "./model.js";
 import { OTHER_TOPIC } from "./ui.jsx";
 
@@ -20,9 +21,10 @@ function topicsWith(topics, ...lists) {
 }
 
 export function Home({ ctx }) {
-  const { topics, courses, drills, cases, premium, go, resume } = ctx;
+  const { topics, courses, drills, cases, premium, go, resume, notices } = ctx;
   return (
     <>
+      <NoticeBanner notices={notices} />
       {resume && (
         <section className="card resume">
           <div style={{ display: "grid", gap: 8 }}>
@@ -64,6 +66,7 @@ export function Home({ ctx }) {
         <button type="button" className="card shortcut" onClick={() => go("#/drills")}><Ic id="code" /><span><b>演習一覧</b><div className="muted" style={{ fontSize: 12 }}>{drills.length}問</div></span><span className="go">→</span></button>
         <button type="button" className="card shortcut" onClick={() => go("#/cases")}><Ic id="case" /><span><b>案件体験</b><div className="muted" style={{ fontSize: 12 }}>{cases.length}件</div></span><span className="go">→</span></button>
       </div>
+      <NoticeCard notices={notices} className="at-bottom" />
     </>
   );
 }

@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from "react";
 import { ICON_SPRITE } from "./ui.jsx";
 import { DevHubLogo } from "../../../components/common/DevHubMark.jsx";
+import { NoticeBell } from "./notices/Notices.jsx";
 
 /* ログイン後の外枠（モックの header.bar）。右上に名前とメニュー。
    受講生の画面：ホーム／コース一覧／演習一覧／案件体験。
@@ -9,7 +10,7 @@ import { DevHubLogo } from "../../../components/common/DevHubMark.jsx";
 export const LEARNER_NAV = [["home", "ホーム", "#/home"], ["courses", "コース一覧", "#/courses"], ["drills", "演習一覧", "#/drills"], ["cases", "案件体験", "#/cases"]];
 const ROLE_LABEL = { admin: "管理者", instructor: "講師", client: "企業担当者", trainee: "受講生" };
 
-export default function Shell({ section, name, email, role, switchLink, onLogout, children, variant = "learner", nav = LEARNER_NAV }) {
+export default function Shell({ section, name, email, role, switchLink, onLogout, children, variant = "learner", nav = LEARNER_NAV, notices }) {
   const [open, setOpen] = useState(false);
   const um = useRef(null), btn = useRef(null);
   const isAdminView = variant === "admin" || variant === "client";
@@ -33,6 +34,7 @@ export default function Shell({ section, name, email, role, switchLink, onLogout
           </nav>
           <div className="me">
             {switchLink && <a className="switch" href={switchLink[0]}>{switchLink[1]}</a>}
+            {notices && variant !== "admin" && <NoticeBell notices={notices} dark={isAdminView} />}
             <div className="um" ref={um}>
               <button type="button" className="um-btn" aria-haspopup="menu" aria-expanded={open} ref={btn} onClick={e => { e.stopPropagation(); setOpen(o => !o); }}>
                 <span className="um-name"><b>{name}</b><small>{ROLE_LABEL[role] || "受講生"}</small></span>

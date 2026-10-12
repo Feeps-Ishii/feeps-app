@@ -15,7 +15,8 @@ import ManagePage, { ADMIN_NAV, adminSection } from "./app/manage/ManagePage.jsx
 import ClientPages, { CLIENT_NAV, clientSection } from "./app/company/CompanyPages.jsx";
 import StudioPage from "./app/studio/StudioPage.jsx";
 import { LoadError, Loading } from "./app/ui.jsx";
-import { submitInquiry, useCases, useDrills, useLabProgress, useMe, useTopics } from "./app/data.js";
+import { submitInquiry, useCases, useDrills, useLabProgress, useMe, useTopics, useNotices, markNoticeRead } from "./app/data.js";
+import { NoticeDrawer } from "./app/notices/Notices.jsx";
 import { caseModels, courseModels, drillModels } from "./app/model.js";
 import "./app/app.css";
 
@@ -173,6 +174,21 @@ function App({ route, auth, onLogout }) {
   const drillsQ = useDrills(true);
   const casesQ = useCases(true);
   const progress = useLabProgress(true);
+  const noticesQ = useNotices(true);
+  const [noticeDrawer, setNoticeDrawer] = useState(null);   // null | { id }
+  const noticeItems = noticesQ.data || [];
+  const notices = useMemo(() => ({
+    items: noticeItems,
+    drawer: noticeDrawer,
+    open: id => {
+      setNoticeDrawer({ id: id || null });
+      if (id && noticeItems.some(n => n.id === id && !n.read)) {
+        noticesQ.setData(list => (list || []).map(n => (n.id === id ? { ...n, read: true } : n)));
+        markNoticeRead(id).catch(() => {});
+      }
+    },
+    close: () => setNoticeDrawer(null),
+  }), [noticeItems, noticeDrawer]); // eslint-disable-line react-hooks/exhaustive-deps
   const [views, setViews] = useState({ courses: {}, drills: {}, cases: {} });
   // 「戻る」用に、アプリの中で開いた画面を覚えておく（外から直接来たときは、決まった画面へ戻す）
   const prevHashes = useRef([]);
@@ -212,7 +228,8 @@ function App({ route, auth, onLogout }) {
     else go(fallback);
   }, [go]);
 
-  const ctx = { lrn, topics, courses, drills, cases, premium, staff, go, back, progress, resume, reloadCases: casesQ.reload };
+  const ctx = { lrn, topics, courses, drills, cases, premium, staff, go, back, progress, resume, reloadCases: casesQ.reload, notices };
+  const noticeDrawerEl = <NoticeDrawer notices={notices} courseTitle={id => lrn.courseById?.(id)?.title || ""} onCourse={id => go(`#/courses/${id}`)} />;
   const loading = [topicsQ, me].some(q => q.state === "loading") || lrn.courseCatalogState === "loading";
   // 「研修のみ」の契約の人は入れない（ログイン済みのまま開いたときもここで戻す）
   const blocked = me.data && me.data.elearning === false && !staff;
@@ -236,8 +253,9 @@ function App({ route, auth, onLogout }) {
   // 企業担当者の画面（企業担当者と、確かめたい管理者）
   if (route.page === "company" && (client || admin)) {
     return (
-      <Shell variant="client" nav={CLIENT_NAV} section={clientSection(route.rest)} name={auth.name} email={auth.email} role={auth.role} switchLink={client ? ["#/home", "教材を見る"] : ["#/manage", "管理の画面"]} onLogout={onLogout}>
-        <ClientPages rest={route.rest} go={go} />
+      <Shell variant="client" nav={CLIENT_NAV} section={clientSection(route.rest)} name={auth.name} email={auth.email} role={auth.role} switchLink={client ? ["#/home", "教材を見る"] : ["#/manage", "管理の画面"]} onLogout={onLogout} notices={notices}>
+        <ClientPages rest={route.rest} go={go} notices={notices} />
+        {noticeDrawerEl}
       </Shell>
     );
   }
@@ -263,8 +281,9 @@ function App({ route, auth, onLogout }) {
   else if (route.page === "case") page = <CasePage ctx={ctx} id={route.id} />;
 
   return (
-    <Shell section={route.page === "list" ? route.kind : SECTION[route.page]} name={auth.name} email={auth.email} role={auth.role} switchLink={admin ? ["#/manage", "管理の画面"] : client ? ["#/company", "企業の画面"] : null} onLogout={() => onLogout()}>
+    <Shell section={route.page === "list" ? route.kind : SECTION[route.page]} name={auth.name} email={auth.email} role={auth.role} switchLink={admin ? ["#/manage", "管理の画面"] : client ? ["#/company", "企業の画面"] : null} onLogout={() => onLogout()} notices={notices}>
       {page}
+      {noticeDrawerEl}
     </Shell>
   );
 }

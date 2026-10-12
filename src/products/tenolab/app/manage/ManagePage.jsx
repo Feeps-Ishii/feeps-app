@@ -8,6 +8,7 @@ import Companies from "./Companies.jsx";
 import { AdminLearners } from "../company/CompanyPages.jsx";
 import CourseList from "./CourseList.jsx";
 import { Title } from "./parts.jsx";
+import NoticesAdmin from "./NoticesAdmin.jsx";
 
 /* 管理の画面（#/manage/…、管理者だけ。モック tenolab-admin.html、2026-10-06〜）
      #/manage                         ホーム
@@ -17,7 +18,7 @@ import { Title } from "./parts.jsx";
      #/manage/grading[/{caseId}]      AI採点（旧 #/manage/submissions もここ）
      #/manage/topics                  単元
    外枠（黒い帯のヘッダー）は TenolabApp が Shell variant="admin" で付ける */
-export const ADMIN_NAV = [["home", "ホーム", "#/manage"], ["companies", "企業と契約", "#/manage/companies"], ["learners", "受講状況", "#/manage/learners"], ["materials", "教材", "#/manage/courses"], ["grading", "AI採点", "#/manage/grading"], ["topics", "単元", "#/manage/topics"]];
+export const ADMIN_NAV = [["home", "ホーム", "#/manage"], ["companies", "企業と契約", "#/manage/companies"], ["learners", "受講状況", "#/manage/learners"], ["materials", "教材", "#/manage/courses"], ["grading", "AI採点", "#/manage/grading"], ["notices", "お知らせ", "#/manage/notices"], ["topics", "単元", "#/manage/topics"]];
 const MATERIAL_TABS = [["courses", "コース"], ["drills", "演習"], ["cases", "案件体験"]];
 
 export function adminSection(rest) {
@@ -39,6 +40,7 @@ export default function ManagePage({ ctx, rest }) {
   if (section === "companies") return <Companies go={go} companyId={id ? decodeURIComponent(id) : ""} />;
   if (section === "grading") return <Grading go={go} caseId={tab === "grading" ? id || "" : ""} />;
   if (section === "topics") return <><Title eyebrow="TOPICS" title="単元" /><TopicsEditor topics={topics} /></>;
+  if (section === "notices") return <NoticesAdmin courses={courses} />;
   if (section !== "materials") return <p className="muted">この画面はありません。</p>;
   let body;
   if (tab === "courses") body = id === "legacy" ? <CourseAdmin go={go} /> : <CourseList topics={topics} go={go} />;

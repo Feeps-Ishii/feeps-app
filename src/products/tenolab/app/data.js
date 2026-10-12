@@ -79,6 +79,12 @@ export const sendCaseChat = (id, body) => apiPost(`/tenolab/cases/${encodeURICom
 export const getDrillAnswer = id => apiGet(`/tenolab/drills/${encodeURIComponent(id)}/answer`);
 export const submitInquiry = body => apiPost("/tenolab/inquiries", body);
 
+/* お知らせ（2026-10-13）。自分に出すもの（公開・期間内・相手・企業）と既読 */
+export function useNotices(enabled) {
+  return useGet("/tenolab/notices", { enabled, pick: r => (Array.isArray(r?.items) ? r.items : []) });
+}
+export const markNoticeRead = id => apiPost(`/tenolab/notices/${encodeURIComponent(id)}/read`, {});
+
 /* 講師・管理者 */
 export const manage = {
   list: kind => apiGet(`/tenolab/manage/${kind}`),
@@ -90,6 +96,9 @@ export const manage = {
   review: (userId, caseId, body) => apiPut(`/tenolab/manage/submissions/${encodeURIComponent(userId)}/${encodeURIComponent(caseId)}`, body),
   gradeTest: (id, body) => apiPost(`/tenolab/manage/cases/${encodeURIComponent(id)}/grade-test`, body),
   rubricDraft: (id, body) => apiPost(`/tenolab/manage/cases/${encodeURIComponent(id)}/rubric-draft`, body),
+  notices: () => apiGet("/tenolab/manage/notices"),
+  saveNotice: (id, notice) => apiPut(`/tenolab/manage/notices/${encodeURIComponent(id)}`, { notice }),
+  removeNotice: id => apiDelete(`/tenolab/manage/notices/${encodeURIComponent(id)}`),
   assignments: id => apiGet(`/tenolab/manage/cases/${encodeURIComponent(id)}/assign`),
   assign: (id, body) => apiPut(`/tenolab/manage/cases/${encodeURIComponent(id)}/assign`, body),
   saveTopics: topics => apiPut("/tenolab/topics", { topics }),

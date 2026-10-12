@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useState } from "react";
 import { company } from "../data.js";
 import { Title, PLAN_LABEL, fmtTime } from "../manage/parts.jsx";
+import { NoticeBanner, NoticeCard } from "../notices/Notices.jsx";
 
 /* 企業担当者の画面と、管理者の受講状況（モック tenolab-admin.html の clientHome・learners・person。ADR 0025 §5）
    企業担当者：#/company（ホーム）・#/company/learners[/{userId}]（社員）・#/company/contract（契約）
@@ -32,20 +33,20 @@ function shownTopics(topics, learners) {
 }
 
 /* ---------- 企業担当者のルート ---------- */
-export default function ClientPages({ rest, go }) {
+export default function ClientPages({ rest, go, notices }) {
   const section = clientSection(rest);
   if (section === "learners" && rest[1]) return <LearnerDetail userId={decodeURIComponent(rest[1])} go={go} backHref="#/company/learners" backLabel="社員" />;
-  return <ClientBody section={section} go={go} />;
+  return <ClientBody section={section} go={go} notices={notices} />;
 }
 
-function ClientBody({ section, go }) {
+function ClientBody({ section, go, notices }) {
   const q = useCompany("");
   if (q.state === "loading" && !q.data) return <p className="muted">読み込んでいます…</p>;
   if (q.state === "error") return <Fail onRetry={q.reload} />;
   const d = q.data;
   if (section === "contract") return <Contract d={d} />;
   if (section === "learners") return <><Title eyebrow={d.company?.name || ""} title="社員" /><LearnersBlock d={d} go={go} base="#/company/learners" /></>;
-  return <ClientHome d={d} go={go} />;
+  return <><NoticeBanner notices={notices} /><ClientHome d={d} go={go} /><NoticeCard notices={notices} className="at-bottom" /></>;
 }
 
 function ClientHome({ d, go }) {
