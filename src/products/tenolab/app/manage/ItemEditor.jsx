@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from "react";
-import { manage } from "../data.js";
+import { company, manage } from "../data.js";
 import { THUMB_KINDS, Thumb } from "../ui.jsx";
 import { TryPanel } from "../Workbench.jsx";
 import GradeView from "../GradeView.jsx";
@@ -8,7 +8,7 @@ import { TRY_KEY } from "./parts.jsx";
 /* 演習・案件体験の編集（下書き → 試す → 公開）。kind は "drills" | "cases" */
 const RUNTIMES = {
   drills: [["js", "JavaScript"], ["web", "HTML / CSS"], ["java", "Java"], ["sql", "SQL"], ["check", "チェック（Gitなど）"], ["aws", "AWS（本物の環境）"]],
-  cases: [["js", "JavaScript"], ["web", "HTML / CSS"], ["java", "Java"], ["sql", "SQL"], ["aws", "AWS（本物の環境）"]],
+  cases: [["servlet", "Java Servlet（画面つき）"], ["js", "JavaScript"], ["web", "HTML / CSS"], ["java", "Java"], ["sql", "SQL"], ["aws", "AWS（本物の環境）"]],
 };
 const SCENARIOS = [["vpc", "VPCだけを作る（まっさら）"], ["vpcec2", "VPCとEC2でWebサーバー（まっさら）"], ["elb", "ELBを足す（用意済み）"], ["asg", "Auto Scaling（用意済み）"], ["cw", "CloudWatchで異常に気づく（用意済み）"], ["recover", "止まったWebサーバーを復旧（障害あり）"]];
 const LEVELS = ["やさしい", "ふつう", "むずかしい"], AWS_LEVELS = ["基礎", "応用", "運用"];
@@ -18,10 +18,11 @@ const TEST_HELP = {
   java: "標準出力が「出てほしい出力」と同じならOK（前後の空白は無視）。",
   sql: "受講生のSQLの結果が、答え合わせのSQLの結果と同じならOK。",
   check: "受講生が自分で確かめて付けるチェックです。",
+  servlet: "フォームの値（name=value&… 同じ name は何回でも）で Servlet を動かし、画面に出た文字に「出てほしい文字」（1行に1つ）がすべて含まれればOK（空白は無視）。",
 };
 const blank = kind => kind === "drills"
   ? { title: "", topic: "", runtime: "js", level: "やさしい", minutes: 10, task: "", hint: "", starterCode: "", answerCode: "", tests: [{ name: "", expr: "" }], premium: false, order: 0, thumb: null }
-  : { title: "", topic: "", runtime: "js", summary: "", hours: 2, needCourseId: "", ticket: { id: "", client: "", background: "", scope: [""], notes: "" }, starterCode: "", answerCode: "", tests: [{ name: "", expr: "" }], rubric: [], skipAfter: 2, premium: false, order: 0, thumb: null };
+  : { title: "", topic: "", runtime: "js", summary: "", hours: 2, needCourseId: "", ticket: { id: "", kind: "feat", client: "", background: "", scope: [""], done: [], notes: "", comments: [] }, spec: { rules: [], fields: [] }, starterCode: "", answerCode: "", tests: [{ name: "", expr: "" }], rubric: [], skipAfter: 2, premium: false, order: 0, thumb: null };
 const SKIP_AFTER = [[1, "やり直し1回から"], [2, "やり直し2回から"], [3, "やり直し3回から"], [0, "出さない"]];
 
 /* 採点の基準（AI採点）。必須をすべて満たせば合格。見る点は講評だけに使う */
@@ -103,6 +104,66 @@ function RubricEditor({ item, set, id, hasCode }) {
   );
 }
 
+const PEOPLE = [["client", "お客さま"], ["pm", "PM"], ["lead", "リーダー"]];
+
+/* 受講生への割り当て（期限は任意）。企業を選んで受講生を選ぶ（GET /tenolab/company の受講生一覧を使う） */
+function AssignPanel({ id }) {
+  const [companies, setCompanies] = useState(null);
+  const [co, setCo] = useState("");
+  const [learners, setLearners] = useState([]);
+  const [picked, setPicked] = useState({});
+  const [due, setDue] = useState("");
+  const [current, setCurrent] = useState([]);
+  const [msg, setMsg] = useState({ kind: "", text: "" });
+  const [busy, setBusy] = useState(false);
+  const load = () => manage.assignments(id).then(r => setCurrent(r.items || [])).catch(() => setCurrent(null));
+  useEffect(() => { company.get("").then(r => setCompanies(r.companies || [])).catch(() => setCompanies([])); load(); }, [id]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { setLearners([]); setPicked({}); if (co) company.get(co).then(r => setLearners(r.learners || [])).catch(() => setLearners([])); }, [co]);
+  const names = Object.fromEntries(learners.map(l => [l.userId, l.name]));
+  async function save(remove, userIds) {
+    setBusy(true); setMsg({ kind: "", text: "" });
+    try {
+      await manage.assign(id, { userIds, dueAt: remove ? "" : due, remove });
+      setMsg({ kind: "ok", text: remove ? "割り当てを外しました。" : `${userIds.length}人に割り当てました。` });
+      setPicked({}); load();
+    } catch (e) { setMsg({ kind: "ng", text: e?.errorMessage || "割り当てられませんでした。" }); }
+    finally { setBusy(false); }
+  }
+  const ids = Object.keys(picked).filter(k => picked[k]);
+  return (
+    <section className="card mcard">
+      <div className="eyebrow">受講生に割り当てる</div>
+      <div className="mgrid">
+        <Field label="企業">
+          <select value={co} onChange={e => setCo(e.target.value)}>
+            <option value="">選んでください</option>
+            {(companies || []).map(c => <option key={c.id || c.companyId} value={c.id || c.companyId}>{c.name}</option>)}
+          </select>
+        </Field>
+        <Field label="期限（空なら期限なし）"><input type="date" value={due} onChange={e => setDue(e.target.value)} /></Field>
+      </div>
+      {co && (learners.length ? (
+        <div className="row" style={{ gap: 6, flexWrap: "wrap" }}>
+          {learners.map(l => <label key={l.userId} className="chip" style={{ cursor: "pointer", padding: "2px 10px" }}><input type="checkbox" checked={!!picked[l.userId]} onChange={e => setPicked({ ...picked, [l.userId]: e.target.checked })} />{l.name || l.userId}</label>)}
+        </div>
+      ) : <p className="muted" style={{ margin: 0, fontSize: 13 }}>受講生がいません</p>)}
+      <button type="button" className="btn" style={{ justifySelf: "start" }} disabled={busy || !ids.length} onClick={() => save(false, ids)}>{busy ? "割り当てています…" : `${ids.length ? `${ids.length}人に` : ""}割り当てる`}</button>
+      {current === null ? <p className="muted" style={{ margin: 0, fontSize: 13 }}>いまの割り当てを確認できません</p> : current.length > 0 && (
+        <div style={{ display: "grid", gap: 4 }}>
+          <span className="eyebrow">割り当て中</span>
+          {current.map(a => (
+            <div key={a.userId} className="row" style={{ gap: 8, fontSize: 13.5 }}>
+              <span>{names[a.userId] || a.userId}</span>{a.dueAt ? <span className="chip warn">期限 {a.dueAt}</span> : <span className="chip">期限なし</span>}
+              <button type="button" className="btn ghost" style={{ marginLeft: "auto", padding: "2px 10px" }} disabled={busy} onClick={() => save(true, [a.userId])}>外す</button>
+            </div>
+          ))}
+        </div>
+      )}
+      {msg.text && <div className={`verdict ${msg.kind}`} role={msg.kind === "ng" ? "alert" : "status"}>{msg.text}</div>}
+    </section>
+  );
+}
+
 function Field({ label, children, wide }) {
   return <label className="mfield" style={wide ? { gridColumn: "1 / -1" } : undefined}><span>{label}</span>{children}</label>;
 }
@@ -131,6 +192,9 @@ export default function ItemEditor({ kind, id, isNew, topics, courses, go }) {
 
   const set = (k, v) => setItem(x => ({ ...x, [k]: v }));
   const setTicket = (k, v) => setItem(x => ({ ...x, ticket: { ...x.ticket, [k]: v } }));
+  const setSpec = (k, v) => setItem(x => ({ ...x, spec: { ...(x.spec || { rules: [], fields: [] }), [k]: v } }));
+  const setServlet = (k, v) => setItem(x => ({ ...x, servlet: { method: "post", path: "/", filePath: "", pageName: "index.html", pageHtml: "", ...(x.servlet || {}), [k]: v } }));
+  const isServlet = item.runtime === "servlet";
   const setTest = (i, k, v) => setItem(x => ({ ...x, tests: x.tests.map((t, j) => (j === i ? { ...t, [k]: v } : t)) }));
   const isAws = item.runtime === "aws";
   const hasCode = !isAws && item.runtime !== "check";
@@ -235,10 +299,51 @@ export default function ItemEditor({ kind, id, isNew, topics, courses, go }) {
           <div className="mgrid">
             <Field label="概要（一覧に出る1〜2文）" wide><input value={item.summary} onChange={e => set("summary", e.target.value)} /></Field>
             <Field label="チケット番号"><input value={item.ticket?.id || ""} onChange={e => setTicket("id", e.target.value)} placeholder="#RSV-142" /></Field>
+            <Field label="種類"><select value={item.ticket?.kind || "feat"} onChange={e => setTicket("kind", e.target.value)}><option value="feat">機能追加</option><option value="bug">不具合</option><option value="mod">改修</option></select></Field>
             <Field label="依頼元"><input value={item.ticket?.client || ""} onChange={e => setTicket("client", e.target.value)} placeholder="飲食店グループの予約サイト" /></Field>
             <Field label="背景" wide><textarea rows={3} value={item.ticket?.background || ""} onChange={e => setTicket("background", e.target.value)} /></Field>
             <Field label="今回担当する範囲（1行に1つ）" wide><textarea rows={3} value={(item.ticket?.scope || []).join("\n")} onChange={e => setTicket("scope", e.target.value.split("\n"))} /></Field>
+            <Field label="完了条件（1行に1つ）" wide><textarea rows={3} value={(item.ticket?.done || []).join("\n")} onChange={e => setTicket("done", e.target.value.split("\n"))} /></Field>
             <Field label="参考（任意）" wide><textarea rows={2} value={item.ticket?.notes || ""} onChange={e => setTicket("notes", e.target.value)} /></Field>
+          </div>
+          <div className="eyebrow">チケットのコメント（関係者のひと言・任意）</div>
+          {(item.ticket?.comments || []).map((c, i) => (
+            <div key={i} className="mtest">
+              <select value={c.who} onChange={e => setTicket("comments", item.ticket.comments.map((x, j) => (j === i ? { ...x, who: e.target.value } : x)))}>{PEOPLE.map(([v, l]) => <option key={v} value={v}>{l}</option>)}</select>
+              <input value={c.text} onChange={e => setTicket("comments", item.ticket.comments.map((x, j) => (j === i ? { ...x, text: e.target.value } : x)))} placeholder="端数は全部切り捨てでお願いします" />
+              <button type="button" className="btn ghost" onClick={() => setTicket("comments", item.ticket.comments.filter((_, j) => j !== i))}>消す</button>
+            </div>
+          ))}
+          <button type="button" className="btn ghost" style={{ justifySelf: "start" }} disabled={(item.ticket?.comments || []).length >= 6} onClick={() => setTicket("comments", [...(item.ticket?.comments || []), { who: "client", text: "" }])}>コメントを足す</button>
+        </section>
+      )}
+
+      {kind === "cases" && !isAws && (
+        <section className="card mcard">
+          <div className="eyebrow">仕様書（任意）</div>
+          <div className="mgrid">
+            <Field label="ルール（1行に1つ。例：合計数量 ≧ 10 → 小計の5%を割引）" wide><textarea rows={4} value={(item.spec?.rules || []).join("\n")} onChange={e => setSpec("rules", e.target.value.split("\n"))} /></Field>
+          </div>
+          <div className="eyebrow">項目（表）</div>
+          {(item.spec?.fields || []).map((f, i) => (
+            <div key={i} className="mtest" style={{ gridTemplateColumns: "1fr 1fr 1fr 1fr auto" }}>
+              {["label", "name", "type", "empty"].map(k => <input key={k} value={f[k] || ""} placeholder={{ label: "項目", name: "name", type: "型", empty: "空のとき" }[k]} onChange={e => setSpec("fields", item.spec.fields.map((x, j) => (j === i ? { ...x, [k]: e.target.value } : x)))} />)}
+              <button type="button" className="btn ghost" onClick={() => setSpec("fields", item.spec.fields.filter((_, j) => j !== i))}>消す</button>
+            </div>
+          ))}
+          <button type="button" className="btn ghost" style={{ justifySelf: "start" }} onClick={() => setSpec("fields", [...(item.spec?.fields || []), { label: "", name: "", type: "", empty: "" }])}>項目を足す</button>
+        </section>
+      )}
+
+      {kind === "cases" && isServlet && (
+        <section className="card mcard">
+          <div className="eyebrow">Servlet</div>
+          <div className="mgrid">
+            <Field label="呼ぶメソッド"><select value={item.servlet?.method || "post"} onChange={e => setServlet("method", e.target.value)}><option value="post">POST（doPost）</option><option value="get">GET（doGet）</option></select></Field>
+            <Field label="URL（@WebServlet の値）"><input className="mono" value={item.servlet?.path || ""} onChange={e => setServlet("path", e.target.value)} placeholder="/EstimateServlet" /></Field>
+            <Field label="ファイルの場所（表示用）"><input className="mono" value={item.servlet?.filePath || ""} onChange={e => setServlet("filePath", e.target.value)} placeholder="src/main/java/jp/minato/estimate/" /></Field>
+            <Field label="画面のファイル名"><input className="mono" value={item.servlet?.pageName || ""} onChange={e => setServlet("pageName", e.target.value)} placeholder="estimate.html" /></Field>
+            <Field label="画面（form を含む HTML。動作確認で送信すると Servlet が動きます）" wide><textarea className="mono" rows={8} value={item.servlet?.pageHtml || ""} onChange={e => setServlet("pageHtml", e.target.value)} /></Field>
           </div>
         </section>
       )}
@@ -265,6 +370,7 @@ export default function ItemEditor({ kind, id, isNew, topics, courses, go }) {
               {(item.runtime === "js" || item.runtime === "web") && <input className="mono" value={t.expr || ""} onChange={e => setTest(i, "expr", e.target.value)} placeholder="式" />}
               {item.runtime === "java" && <><input className="mono" value={t.stdin || ""} onChange={e => setTest(i, "stdin", e.target.value)} placeholder="入力（任意）" /><input className="mono" value={t.expect || ""} onChange={e => setTest(i, "expect", e.target.value)} placeholder="出てほしい出力" /></>}
               {item.runtime === "sql" && <input className="mono" value={t.query || ""} onChange={e => setTest(i, "query", e.target.value)} placeholder="答え合わせのSQL" />}
+              {isServlet && <><input className="mono" value={t.params || ""} onChange={e => setTest(i, "params", e.target.value)} placeholder="price=480&count=3" /><textarea className="mono" rows={2} value={t.expect || ""} onChange={e => setTest(i, "expect", e.target.value)} placeholder={"出てほしい文字（1行に1つ）\n合計：1584円"} /></>}
               <button type="button" className="btn ghost" onClick={() => set("tests", item.tests.filter((_, j) => j !== i))}>消す</button>
             </div>
           ))}
@@ -273,8 +379,9 @@ export default function ItemEditor({ kind, id, isNew, topics, courses, go }) {
       )}
 
       {kind === "cases" && <RubricEditor item={item} set={set} id={id || newId.trim() || "new"} hasCode={hasCode} />}
+      {kind === "cases" && !isNew && meta.published && <AssignPanel id={id} />}
 
-      {hasCode && (
+      {hasCode && !isServlet && (
         <section className="card mcard">
           <div className="row"><div className="eyebrow">試す</div><span className="muted" style={{ fontSize: 13 }}>保存しなくても、ここで動かして確かめられます</span>
             <button type="button" className="btn ghost" style={{ marginLeft: "auto" }} onClick={() => setTryCode(item.starterCode)}>はじめのコードで</button>

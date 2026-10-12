@@ -7,6 +7,7 @@ import { FILE_NAME, runCode } from "./runtime.js";
 import { skipCase, submitCase, useCase } from "./data.js";
 import GradeView from "./GradeView.jsx";
 import { START_OF } from "./model.js";
+import CaseFlow from "./case/CaseFlow.jsx";
 
 /* 案件体験（モックの casePage）。依頼を読む → 作る → テスト → 提出 → 採点（AIが基準で採点して、その場で合否。ADR 0025）
    やり直しが決まった回数たまると「先に進む」が出る（合格とは別の「先に進んだ」として残る） */
@@ -22,7 +23,8 @@ export default function CasePage({ ctx, id }) {
   const { back, go, cases, premium, progress } = ctx;
   const c = useCase(id);
   const listItem = cases.find(x => x.id === id);
-  if (c.state === "loading") return <Loading />;
+  // 読み直し（提出のあと）では画面を作り直さない。最初の読み込みのときだけ「読み込み中」
+  if (c.state === "loading" && (!c.data || c.data.id !== id)) return <Loading />;
   if (c.state === "error" && c.status === 403) {
     // 鍵がかかっているときは、一覧の情報で概要だけ見せる
     return (
@@ -39,6 +41,8 @@ export default function CasePage({ ctx, id }) {
   }
   if (c.state === "error" && c.status === 404) return <><Back onClick={() => back("#/cases")} /><p className="muted">この案件体験は見つかりませんでした。</p></>;
   if (c.state === "error" || !c.data) return <><Back onClick={() => back("#/cases")} /><LoadError onRetry={c.reload} what="案件体験を読み込めませんでした" /></>;
+  // AWS 以外は、実際の案件の流れの画面（case/CaseFlow.jsx、2026-10-13）
+  if (c.data.runtime !== "aws") return <CaseFlow key={id} item={{ ...c.data, premium: listItem?.premium ?? c.data.premium }} premium={premium} back={back} progress={progress} onReload={c.reload} />;
   return <CaseWork item={{ ...c.data, premium: listItem?.premium ?? c.data.premium }} premium={premium} back={back} progress={progress} onSubmitted={c.reload} />;
 }
 

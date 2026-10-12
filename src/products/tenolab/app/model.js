@@ -53,6 +53,10 @@ export function caseModels(cases, topics, courses, premium) {
       open: x.open ?? (x.locked === false || !!need?.completed),
       status: x.progress?.status || "",
       needTitle: need?.title || "",
+      // 管理者から割り当てられた案件（期限は割り当てで付いたときだけ）
+      assigned: !!x.progress?.assignedAt,
+      dueAt: x.progress?.dueAt || "",
+      accepted: !!x.progress?.acceptedAt,
     };
   });
 }

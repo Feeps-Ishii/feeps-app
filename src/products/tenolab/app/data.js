@@ -72,6 +72,10 @@ export function useLabProgress(enabled) {
 
 export const submitCase = (id, body) => apiPost(`/tenolab/cases/${encodeURIComponent(id)}/submit`, body);
 export const skipCase = id => apiPost(`/tenolab/cases/${encodeURIComponent(id)}/skip`, {});
+// 案件の流れ（2026-10-13）：引き受ける・Servlet を動かす・PM／リーダー／お客さま（AI）に送る
+export const acceptCase = (id, estimate) => apiPost(`/tenolab/cases/${encodeURIComponent(id)}/accept`, { estimate });
+export const runCaseServlet = (id, body) => apiPost(`/tenolab/cases/${encodeURIComponent(id)}/run`, body);
+export const sendCaseChat = (id, body) => apiPost(`/tenolab/cases/${encodeURIComponent(id)}/chat`, body);
 export const getDrillAnswer = id => apiGet(`/tenolab/drills/${encodeURIComponent(id)}/answer`);
 export const submitInquiry = body => apiPost("/tenolab/inquiries", body);
 
@@ -86,6 +90,8 @@ export const manage = {
   review: (userId, caseId, body) => apiPut(`/tenolab/manage/submissions/${encodeURIComponent(userId)}/${encodeURIComponent(caseId)}`, body),
   gradeTest: (id, body) => apiPost(`/tenolab/manage/cases/${encodeURIComponent(id)}/grade-test`, body),
   rubricDraft: (id, body) => apiPost(`/tenolab/manage/cases/${encodeURIComponent(id)}/rubric-draft`, body),
+  assignments: id => apiGet(`/tenolab/manage/cases/${encodeURIComponent(id)}/assign`),
+  assign: (id, body) => apiPut(`/tenolab/manage/cases/${encodeURIComponent(id)}/assign`, body),
   saveTopics: topics => apiPut("/tenolab/topics", { topics }),
 };
 

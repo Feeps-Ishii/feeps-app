@@ -58,9 +58,14 @@ export function DrillCard({ d, premium, go }) {
 const CASE_STATE = {
   submitted: ["採点できず ・ もう一度提出", "warn"],
   returned: ["やり直し", "warn"],
-  approved: ["合格", "done"],
+  approved: ["マージ済み", "done"],
   skipped: ["先に進んだ", ""],
-  doing: ["取り組み中", ""],
+  doing: ["対応中", ""],
+};
+// 期限（YYYY-MM-DD）を「10/24（金）」に
+const dueText = d => {
+  const t = new Date(String(d).length === 10 ? `${d}T00:00:00` : d);
+  return Number.isNaN(t.getTime()) ? d : `${t.getMonth() + 1}/${t.getDate()}（${"日月火水木金土"[t.getDay()]}）`;
 };
 export function CaseCard({ x, premium, go }) {
   const t = x.topicObj;
@@ -81,15 +86,17 @@ export function CaseCard({ x, premium, go }) {
       <div className="thumb-wrap"><Thumb item={x} /></div>
       <div className="row">
         <span className="eyebrow" style={{ color: t.color }}>{t.name}</span><PremTag item={x} premium={premium} />
-        {st ? <span className={`chip ${st[1]}`}>{x.status === "approved" && <Ic id="check" />}{st[0]}</span>
+        {st ? <span className={`chip ${st[1]}`}>{x.status === "approved" && <Ic id="check" />}{x.status === "approved" && x.runtime === "aws" ? "合格" : st[0]}</span>
           : x.open ? <span className="chip case"><Ic id="case" />受講できます</span>
             : <span className="chip"><Ic id="lock" />{x.needTitle ? `${x.needTitle}を修了すると` : "コースを修了すると"}</span>}
       </div>
       <h3 style={{ fontWeight: 700, fontSize: 16 }}>{x.title}</h3>
       <p className="muted" style={{ margin: 0, fontSize: 13.5 }}>{x.summary}</p>
       <div className="row" style={{ gap: 6 }}>
+        {x.assigned && <span className="chip warn">管理者から</span>}
+        {x.dueAt && x.status !== "approved" && <span className="chip warn">期限 {dueText(x.dueAt)}</span>}
         {x.hours ? <span className="chip">目安 {x.hours}時間</span> : null}
-        <button className="btn ghost" type="button" onClick={() => go(`#/cases/${x.id}`)} style={{ marginLeft: "auto", padding: "5px 12px" }}>詳細を見る →</button>
+        <button className="btn ghost" type="button" onClick={() => go(`#/cases/${x.id}`)} style={{ marginLeft: "auto", padding: "5px 12px" }}>{x.status && x.status !== "approved" ? "続きから →" : x.status === "approved" ? "ふりかえり →" : "始める →"}</button>
       </div>
     </div>
   );
