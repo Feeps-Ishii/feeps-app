@@ -115,13 +115,15 @@ function AdminHome({ go, goProduct, openRisk }) {
 
       {/* 2026-10-12（ユーザー指定）：数字のカードの列は出さない（受講生の「いま抱えているもの」と同じく） */}
 
+      {/* 2026-10-12（ユーザー指定）：空のときの一文は出さない。中身が無いパネルは出さない（取れなかったときは出す） */}
+      {(loading || companies.length > 0 || availability.courses === false) && (
       <PrismCard className="overflow-hidden p-0">
         <div className="flex flex-wrap items-center justify-between gap-2 px-4 pt-4 sm:px-5">
           <h3 className="text-[13.5px] font-bold" style={{ color: PRISM.ink }}>企業ごとの状況</h3>
         </div>
         <div className="mt-2 px-1 pb-1 sm:px-2">
           {loading ? <div className="p-4"><SkeletonRows rows={4} /></div> : !companies.length ? (
-            <div className="p-4"><EmptyState title="表示できる企業がありません" desc={availability.courses === false ? "コース情報を取得できませんでした。" : "コースを作成すると、ここに企業ごとの状況が出ます。"} /></div>
+            <div className="p-4"><EmptyState title="コース情報を確認できません" /></div>
           ) : (
             <PrismTable columns={["企業 ／ コース", "本日", "出欠", "日報", "講師の確認", "設定"]}>
               {companies.map(company => {
@@ -162,12 +164,12 @@ function AdminHome({ go, goProduct, openRisk }) {
           )}
         </div>
       </PrismCard>
+      )}
 
-      <div className="grid gap-3 lg:grid-cols-[minmax(0,1.35fr)_minmax(0,1fr)]">
+      <div className={`grid gap-3 ${loading || actions.length ? "lg:grid-cols-[minmax(0,1.35fr)_minmax(0,1fr)]" : ""}`}>
+        {(loading || actions.length > 0) && (
         <TrainingHomePanel title="要対応">
-          {loading ? <SkeletonRows rows={3} /> : !actions.length ? (
-            <div className="py-2 text-[12.5px]" style={{ color: PRISM.sub }}>いま手を打つものはありません。</div>
-          ) : actions.slice(0, 5).map((item, i) => (
+          {loading ? <SkeletonRows rows={3} /> : actions.slice(0, 5).map((item, i) => (
             <TrainingHomePanelRow key={`${item.courseId}:${item.code}:${i}`} icon={AlertCircle}
               tone={item.severity === "critical" ? "bad" : "warn"}
               label={`${item.label}（${item.companyName || "企業未設定"}）`}
@@ -176,19 +178,20 @@ function AdminHome({ go, goProduct, openRisk }) {
               onAction={() => { if (item.courseId) setActiveCourseId(item.courseId); go && go(item.code === "instructor_unassigned" ? "courses" : "curriculum"); }} />
           ))}
         </TrainingHomePanel>
+        )}
 
         <div className="flex min-w-0 flex-col gap-3">
+          {(loading || upcoming.length > 0 || availability.schedule === false) && (
           <TrainingHomePanel title="この先の予定">
             {loading ? <SkeletonRows rows={2} /> : !upcoming.length ? (
-              <div className="py-2 text-[12.5px]" style={{ color: PRISM.sub }}>
-                {availability.schedule === false ? "この先の日程を確認できませんでした。" : "この先の研修日は登録されていません。"}
-              </div>
+              <div className="py-2 text-[12.5px]" style={{ color: PRISM.sub }}>この先の日程を確認できませんでした。</div>
             ) : upcoming.map(item => (
               <TrainingHomePanelRow key={`${item.date}:${item.courseName}`} icon={Calendar} tone="accent"
                 label={homeDateLabel(item.date)} sub={`${item.companyName} ・ ${item.courseName}`}
                 actionLabel="開く" onAction={() => go && go("curriculum")} />
             ))}
           </TrainingHomePanel>
+          )}
           <TrainingHomePanel title="管理">
             <TrainingHomePanelRow icon={Users} tone="teal" label="受講生・企業マスタ" actionLabel="開く" onAction={() => go && go("users")} />
             <TrainingHomePanelRow icon={AlertCircle} tone="accent" label="要フォロー受講生の確認" actionLabel="開く" onAction={openRisk || (() => go && go("users"))} />

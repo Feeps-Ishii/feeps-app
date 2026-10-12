@@ -389,9 +389,9 @@ function TraineeHome({ go, goProduct, goSub, done, taskDataState, onTaskRetry, t
                 次の研修は <b style={{ color: PRISM.ink }}>{formatTrainingDate(thNextTrainingDay.date) || thNextTrainingDay.date}
                 {thNextTrainingDay.lessonTitle ? ` ${thNextTrainingDay.lessonTitle}` : ""}</b> です。
               </p>
-            )) : thDailyLessonState === "loading" ? null : (
+            )) : thDailyLessonState === "loading" || !thLessonTitle ? null : (
               <p className="mt-3.5 text-[12.5px] leading-[1.8]" style={{ color: PRISM.sub }}>
-                <b className="text-[13.5px]" style={{ color: PRISM.ink }}>{thLessonTitle || "今日の単元は未設定です"}</b>
+                <b className="text-[13.5px]" style={{ color: PRISM.ink }}>{thLessonTitle}</b>
                 {thLessonContent && <><br />{thLessonContent}</>}
               </p>
             ))}
@@ -6779,13 +6779,13 @@ function ClientHome({ openKarte, go, goProduct }) {
 
       {/* 2026-10-12（ユーザー指定）：数字のカードの列は出さない（受講生の「いま抱えているもの」と同じく） */}
 
-      <div className="grid gap-3 lg:grid-cols-[minmax(0,1.35fr)_minmax(0,1fr)]">
+      {/* 2026-10-12（ユーザー指定）：空のときの一文は出さない。研修がない日は出欠・日報のパネルごと出さない（取れなかったときは出す） */}
+      <div className={`grid gap-3 ${(clientLoading || !clientDash || clientIsTrainingDay) ? "lg:grid-cols-[minmax(0,1.35fr)_minmax(0,1fr)]" : ""}`}>
+        {(clientLoading || !clientDash || clientIsTrainingDay) && (
         <div className="flex min-w-0 flex-col gap-3">
           <TrainingHomePanel title="本日の出欠" meta={clientIsTrainingDay ? `${clientAttendanceOk} / ${clientTodayTrainees.length}名 出勤済み` : ""}>
             {clientLoading ? <SkeletonRows rows={2} /> : !clientDash ? (
               <div className="py-2 text-[12.5px]" style={{ color: PRISM.sub }}>出欠を確認できませんでした。</div>
-            ) : !clientIsTrainingDay ? (
-              <div className="py-2 text-[12.5px]" style={{ color: PRISM.sub }}>本日は研修日ではないため、出欠の対象がありません。</div>
             ) : !clientAttendanceIssues.length ? (
               <TrainingHomePanelRow icon={CheckCircle2} tone="ok" label="全員の打刻が揃っています" sub={`${clientTodayTrainees.length}名`} actionLabel="一覧" onAction={() => go && go("attendance")} />
             ) : (
@@ -6795,7 +6795,7 @@ function ClientHome({ openKarte, go, goProduct }) {
                     label={clientName(t)} sub={clientAttendanceLabel(t)} actionLabel="状況" onAction={() => openKarte && openKarte({ userId: t.traineeId, name: t.name })} />
                 ))}
                 {clientAttendanceOk > 0 && (
-                  <TrainingHomePanelRow icon={CheckCircle2} tone="ok" label={`ほか${clientAttendanceOk}名は出勤済み`} sub="打刻された時刻は勤怠で確認できます" actionLabel="一覧" onAction={() => go && go("attendance")} />
+                  <TrainingHomePanelRow icon={CheckCircle2} tone="ok" label={`ほか${clientAttendanceOk}名は出勤済み`} actionLabel="一覧" onAction={() => go && go("attendance")} />
                 )}
               </>
             )}
@@ -6804,54 +6804,38 @@ function ClientHome({ openKarte, go, goProduct }) {
           <TrainingHomePanel title="日報の提出" meta={clientIsTrainingDay ? `${clientDate.replace(/-/g, "/")}分` : ""}>
             {clientLoading ? <SkeletonRows rows={2} /> : !clientDash ? (
               <div className="py-2 text-[12.5px]" style={{ color: PRISM.sub }}>日報の提出状況を確認できませんでした。</div>
-            ) : !clientIsTrainingDay ? (
-              <div className="py-2 text-[12.5px]" style={{ color: PRISM.sub }}>本日は研修日ではないため、日報の対象がありません。</div>
             ) : (
               <>
                 <TrainingHomePanelRow icon={NotebookPen} tone={clientReportPending.length ? "warn" : "ok"}
                   label={`提出 ${clientReportSubmitted}名 ／ 未提出 ${clientReportPending.length}名`}
                   sub={clientReportPending.length ? clientReportPending.slice(0, 3).map(clientName).join("・") + (clientReportPending.length > 3 ? " ほか" : "") : "全員が提出しています"}
                   actionLabel="日報" onAction={() => go && go("reports")} />
-                <TrainingHomePanelRow icon={BookOpen} tone="ai" label="研修の内容" sub="今日どんな単元を進めているかを確認できます" actionLabel="確認" onAction={() => go && go("curriculum")} />
+                <TrainingHomePanelRow icon={BookOpen} tone="ai" label="研修の内容" actionLabel="確認" onAction={() => go && go("curriculum")} />
               </>
             )}
           </TrainingHomePanel>
         </div>
+        )}
 
         <div className="flex min-w-0 flex-col gap-3">
+          {(clientLoading || clientUpcoming.length > 0 || !clientUpcomingAvailable) && (
           <TrainingHomePanel title="この先の予定">
             {clientLoading ? <SkeletonRows rows={2} /> : !clientUpcoming.length ? (
-              <div className="py-2 text-[12.5px]" style={{ color: PRISM.sub }}>
-                {clientUpcomingAvailable ? "この先の研修日はまだ登録されていません。" : "この先の日程を確認できませんでした。"}
-              </div>
+              <div className="py-2 text-[12.5px]" style={{ color: PRISM.sub }}>この先の日程を確認できませんでした。</div>
             ) : clientUpcoming.map(item => (
               <TrainingHomePanelRow key={`${item.date}:${item.courseId}`} icon={Calendar} tone="accent"
-                label={homeDateLabel(item.date)} sub={item.title || item.courseName || "内容はカリキュラムで確認できます"}
+                label={homeDateLabel(item.date)} sub={item.title || item.courseName || ""}
                 actionLabel="開く" onAction={() => go && go("curriculum")} />
             ))}
           </TrainingHomePanel>
+          )}
           <TrainingHomePanel title="手続き・記録">
-            <TrainingHomePanelRow icon={Briefcase} tone="warn" label="助成金管理" sub="申請書類の状況を確認できます" actionLabel="開く" onAction={() => goProduct && goProduct("grants")} />
-            <TrainingHomePanelRow icon={FileText} tone="neutral" label="ファイル管理" sub="配布された資料を確認できます" actionLabel="開く" onAction={() => go && go("materials")} />
+            <TrainingHomePanelRow icon={Briefcase} tone="warn" label="助成金管理" actionLabel="開く" onAction={() => goProduct && goProduct("grants")} />
+            <TrainingHomePanelRow icon={FileText} tone="neutral" label="ファイル管理" actionLabel="開く" onAction={() => go && go("materials")} />
           </TrainingHomePanel>
         </div>
       </div>
 
-      {!clientLoading && !clientIsTrainingDay && (
-        <PrismCard className="flex flex-wrap items-center justify-between gap-4 p-5">
-          <div className="min-w-[240px] flex-1">
-            <div className="text-[13.5px] font-bold" style={{ color: PRISM.ink }}>研修がない日に確認できること</div>
-            <p className="mt-1.5 text-[12.5px] leading-relaxed" style={{ color: PRISM.sub }}>
-              これまでの日報や勤怠の記録、カリキュラムの進み具合が確認できます。
-            </p>
-            <div className="mt-3 flex flex-wrap gap-2">
-              <Btn size="sm" kind="soft" onClick={() => go && go("reports")}>これまでの日報</Btn>
-              <Btn size="sm" kind="ghost" onClick={() => go && go("curriculum")}>カリキュラム</Btn>
-            </div>
-          </div>
-          <div className="hidden shrink-0 md:block" aria-hidden="true"><ClientHomeIllustration /></div>
-        </PrismCard>
-      )}
     </PrismPage>
   );
 }
