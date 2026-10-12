@@ -84,11 +84,19 @@ function CasePreview({ x }) {
 }
 
 /* 対応中の案件（ホーム・案件体験の一覧の上。2026-10-13）。
-   対応中・修正依頼・レビューできなかった案件と、管理者から割り当てられてまだ始めていない案件。期限のあるものを期限の近い順、ほかは新しく触った順 */
+   対応中・修正依頼・レビューできなかった案件と、管理者から割り当てられてまだ始めていない案件。
+   期限が近い（3日以内・過ぎた）ものだけ先に期限の順で、ほかは最後に触った順（いちばん最近のものを上に） */
+const NEAR_MS = 3 * 24 * 3600 * 1000;
+const dueNear = d => { if (!d) return false; const t = Date.parse(String(d).length === 10 ? `${d}T23:59:59` : d); return Number.isFinite(t) && t - Date.now() <= NEAR_MS; };
 const ACTIVE = { doing: ["対応中", ""], returned: ["修正依頼", "warn"], submitted: ["レビュー待ち", "warn"] };
 export function activeCases(cases) {
   return (cases || []).filter(x => !x.locked && (ACTIVE[x.status] || (x.assigned && !x.status)))
-    .sort((a, b) => (a.dueAt ? 0 : 1) - (b.dueAt ? 0 : 1) || String(a.dueAt || "").localeCompare(String(b.dueAt || "")) || String(b.progress?.updatedAt || "").localeCompare(String(a.progress?.updatedAt || "")));
+    .sort((a, b) => {
+      const na = dueNear(a.dueAt), nb = dueNear(b.dueAt);
+      if (na !== nb) return na ? -1 : 1;
+      if (na) return String(a.dueAt).localeCompare(String(b.dueAt));
+      return String(b.progress?.updatedAt || b.progress?.assignedAt || "").localeCompare(String(a.progress?.updatedAt || a.progress?.assignedAt || ""));
+    });
 }
 export function ActiveCases({ cases, go, title = "対応中の案件" }) {
   const list = activeCases(cases);
