@@ -42,7 +42,7 @@ export default function CasePage({ ctx, id }) {
   if (c.state === "error" && c.status === 404) return <><Back onClick={() => back("#/cases")} /><p className="muted">この案件体験は見つかりませんでした。</p></>;
   if (c.state === "error" || !c.data) return <><Back onClick={() => back("#/cases")} /><LoadError onRetry={c.reload} what="案件体験を読み込めませんでした" /></>;
   // AWS 以外は、実際の案件の流れの画面（case/CaseFlow.jsx、2026-10-13）
-  if (c.data.runtime !== "aws") return <CaseFlow key={id} item={{ ...c.data, premium: listItem?.premium ?? c.data.premium }} premium={premium} back={back} progress={progress} onReload={c.reload} />;
+  if (c.data.runtime !== "aws") return <CaseFlow key={id} item={{ ...c.data, premium: listItem?.premium ?? c.data.premium }} premium={premium} back={back} progress={progress} onReload={async () => { ctx.reloadCases?.(); await c.reload(); }} />;
   return <CaseWork item={{ ...c.data, premium: listItem?.premium ?? c.data.premium }} premium={premium} back={back} progress={progress} onSubmitted={c.reload} />;
 }
 

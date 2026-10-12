@@ -212,7 +212,7 @@ function App({ route, auth, onLogout }) {
     else go(fallback);
   }, [go]);
 
-  const ctx = { lrn, topics, courses, drills, cases, premium, staff, go, back, progress, resume };
+  const ctx = { lrn, topics, courses, drills, cases, premium, staff, go, back, progress, resume, reloadCases: casesQ.reload };
   const loading = [topicsQ, me].some(q => q.state === "loading") || lrn.courseCatalogState === "loading";
   // 「研修のみ」の契約の人は入れない（ログイン済みのまま開いたときもここで戻す）
   const blocked = me.data && me.data.elearning === false && !staff;
@@ -253,7 +253,7 @@ function App({ route, auth, onLogout }) {
   else if (route.page === "list") {
     const q = route.kind === "drills" ? drillsQ : route.kind === "cases" ? casesQ : null;
     page = q?.state === "error" ? <LoadError onRetry={q.reload} />
-      : q?.state === "loading" ? <Loading />
+      : q?.state === "loading" && !q.data ? <Loading />
         : <ListPage ctx={ctx} kind={route.kind} view={views[route.kind]} setView={v => setViews(s => ({ ...s, [route.kind]: v }))} />;
   }
   else if (route.page === "course") page = <CourseDetail ctx={ctx} courseId={route.id} />;

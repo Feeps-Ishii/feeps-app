@@ -83,6 +83,37 @@ function CasePreview({ x }) {
   );
 }
 
+/* 対応中の案件（ホーム・案件体験の一覧の上。2026-10-13）。
+   対応中・修正依頼・レビューできなかった案件と、管理者から割り当てられてまだ始めていない案件。期限のあるものを期限の近い順、ほかは新しく触った順 */
+const ACTIVE = { doing: ["対応中", ""], returned: ["修正依頼", "warn"], submitted: ["レビュー待ち", "warn"] };
+export function activeCases(cases) {
+  return (cases || []).filter(x => !x.locked && (ACTIVE[x.status] || (x.assigned && !x.status)))
+    .sort((a, b) => (a.dueAt ? 0 : 1) - (b.dueAt ? 0 : 1) || String(a.dueAt || "").localeCompare(String(b.dueAt || "")) || String(b.progress?.updatedAt || "").localeCompare(String(a.progress?.updatedAt || "")));
+}
+export function ActiveCases({ cases, go, title = "対応中の案件" }) {
+  const list = activeCases(cases);
+  if (!list.length) return null;
+  return (
+    <section className="ac-wrap" aria-label={title}>
+      <div className="sec-h" style={{ marginTop: 0 }}><h2 className="h2">{title}</h2><span className="tally">{list.length}件</span></div>
+      <div className="ac-list">
+        {list.map(x => {
+          const st = ACTIVE[x.status] || ["割り当て", "warn"];
+          const t = x.ticket || {};
+          return (
+            <button key={x.id} type="button" className="card ac-row" onClick={() => go(`#/cases/${x.id}`)}>
+              <span className="ac-id">{t.id || "CASE"}</span>
+              <span className="ac-main"><b>{x.title}</b>
+                <span className="ac-meta"><span className={`chip ${st[1]}`}>{st[0]}</span>{x.assigned && <span className="chip warn">管理者から</span>}{x.dueAt && <span className="chip warn">期限 {dueText(x.dueAt)}</span>}</span></span>
+              <span className="ac-go">続きから →</span>
+            </button>
+          );
+        })}
+      </div>
+    </section>
+  );
+}
+
 const CASE_STATE = {
   submitted: ["採点できず ・ もう一度提出", "warn"],
   returned: ["やり直し", "warn"],

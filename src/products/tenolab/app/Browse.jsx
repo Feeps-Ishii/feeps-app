@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import { Back, Carousel, Ic, PremTag, TopicIcon } from "./ui.jsx";
-import { CaseCard, CourseCard, DrillCard } from "./cards.jsx";
+import { ActiveCases, CaseCard, CourseCard, DrillCard } from "./cards.jsx";
 import { byTopic } from "./model.js";
 import { OTHER_TOPIC } from "./ui.jsx";
 
@@ -33,6 +33,7 @@ export function Home({ ctx }) {
           <button className="btn" type="button" onClick={() => go(resume.href)}><Ic id="play" />続きから学ぶ</button>
         </section>
       )}
+      <ActiveCases cases={cases} go={go} />
       <div className="sec-h"><h2 className="h2">単元から選ぶ</h2></div>
       <div className="topics">
         {topicsWithOther(topics, courses, drills, cases).map(t => {
@@ -144,6 +145,7 @@ export function ListPage({ ctx, kind, view, setView }) {
           <div className="tabs-h" role="tablist" aria-label="並べ方">{[["topic", "単元別"], ["flat", "すべて"]].map(([k, l]) => <button key={k} type="button" role="tab" aria-selected={(view.mode || "topic") === k} onClick={() => setView({ ...view, mode: k })}>{l}</button>)}</div>
         </span>
       </div>
+      {kind === "cases" && <ActiveCases cases={all} go={go} />}
       {flat ? (
         <>
           <div className="filters" role="group" aria-label="単元で絞り込む">

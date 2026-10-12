@@ -165,6 +165,7 @@ export default function CaseFlow({ item, premium, back, progress, onReload }) {
       setAccepted(true); setTo("lead");
       setStep(idx("ticket"));
       progress?.reload?.();
+      onReload();
     } catch (e) { setErr(e?.errorMessage || "引き受けられませんでした。もう一度お試しください。"); }
     finally { setBusy(""); }
   }
