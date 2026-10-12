@@ -175,7 +175,6 @@ export default function SubmissionCalendar({ courses = [], reports = [], attenda
     <PrismCard className="px-5 pb-5 pt-4">
       <div className="mb-2.5 flex flex-wrap items-center gap-2">
         <span className="text-[13.5px] font-bold" style={{ color: PRISM.ink }}>提出カレンダー</span>
-        <span className="text-[11.5px]" style={{ color: PRISM.mut }}>勤怠と日報を出せているか</span>
         <div className="ml-auto flex items-center gap-1">
           <Btn size="sm" kind="ghost" aria-label="前の月" onClick={() => setMonth(m => shiftMonth(m, -1))}><ChevronLeft size={14} /></Btn>
           <span className="px-1 text-[12.5px] font-bold tabular-nums" style={{ color: PRISM.ink }}>{monthLabel(month)}</span>

@@ -350,19 +350,14 @@ function TraineeHome({ go, goProduct, goSub, done, taskDataState, onTaskRetry, t
         : (card.key === "attendance" ? "未登録" : "未提出"),
   }));
 
-  // 研修がない日の「いま抱えているもの」。**0件のものは並べない**（無いものの説明に場所を使わない）。
-  const thOpenItems = [];
-  if (thUnsubmittedTestCount > 0) thOpenItems.push({ key: "tests", tone: "warn", value: thUnsubmittedTestCount, unit: "件", label: "未提出の研修テスト" });
-  if (thLatestReportHasComment) thOpenItems.push({ key: "comment", tone: "accent", value: 1, unit: "件", label: "講師コメントが届いています" });
-  if (thSubmittedReportCount > 0) thOpenItems.push({ key: "reports", tone: "ok", value: thSubmittedReportCount, unit: "件", label: "これまでに提出した日報" });
-
   return (
     <PrismPage className="max-w-full overflow-x-hidden" style={{ gap: 16 }}>
       {/* 2026-08-24 リデザイン（承認モック: mock/training-home 案A「状況ボード」）。
           左＝今日の状態と次の一手、右＝いま抱えているもの。研修日／研修がない日で
           同じ骨格を使い、中身だけ入れ替える。 */}
       <PrismCard className="overflow-hidden p-0">
-        <div className="grid lg:grid-cols-[1fr_330px]">
+        {/* 2026-10-12（ユーザー指定）：右の「いま抱えているもの」は出さない。右の列は研修日の「今日の必須」だけ */}
+        <div className={`grid ${!thLoading && !thNoTrainingToday ? "lg:grid-cols-[1fr_330px]" : ""}`}>
           <div className="min-w-0 p-6 sm:px-7">
             <div className="flex flex-wrap items-center gap-2">
               <span
@@ -409,26 +404,13 @@ function TraineeHome({ go, goProduct, goSub, done, taskDataState, onTaskRetry, t
             )}
           </div>
 
-          {/* 右：今日の必須（研修日）／いま抱えているもの（研修がない日） */}
+          {/* 右：今日の必須（研修日だけ） */}
+          {!thLoading && !thNoTrainingToday && (
           <div
             className="border-t p-6 sm:px-7 lg:border-l lg:border-t-0"
             style={{ borderColor: PRISM.line, background: `linear-gradient(160deg, ${PRISM.accentSubtle} 0%, ${PRISM.surface} 62%)` }}
           >
-            {thLoading ? <SkeletonRows rows={3} /> : thNoTrainingToday ? (
-              <>
-                <div className="text-[11.5px] font-extrabold" style={{ color: PRISM.mut, letterSpacing: "0.04em" }}>いま抱えているもの</div>
-                <div className="mt-3 grid gap-2">
-                  {thOpenItems.length ? thOpenItems.map(item => (
-                    <StatusBoardStat key={item.key} tone={item.tone} value={item.value} unit={item.unit} label={item.label} />
-                  )) : (
-                    <div className="rounded-[14px] px-[15px] py-4 text-[12.5px] leading-relaxed" style={{ background: PRISM.surface, color: PRISM.sub }}>
-                      残っているものはありません。
-                    </div>
-                  )}
-                </div>
-              </>
-            ) : (
-              <>
+            <>
                 <div className="text-[11.5px] font-extrabold" style={{ color: PRISM.mut, letterSpacing: "0.04em" }}>今日の必須</div>
                 <div className="mt-3.5 flex items-baseline gap-2">
                   <span className="text-[40px] font-extrabold leading-none tabular-nums" style={{ color: PRISM.accent, letterSpacing: "-0.04em" }}>
@@ -461,8 +443,8 @@ function TraineeHome({ go, goProduct, goSub, done, taskDataState, onTaskRetry, t
                   </div>
                 )}
               </>
-            )}
           </div>
+          )}
         </div>
       </PrismCard>
 
@@ -6795,16 +6777,7 @@ function ClientHome({ openKarte, go, goProduct }) {
 
       {clientErr && <PrismErrorRetryCard message={clientErr} onRetry={() => setClientReloadKey(v => v + 1)} />}
 
-      <div className="grid gap-3 sm:grid-cols-3">
-        <PrismKpiCard icon={Users} tone="accent" label="自社の受講生" value={clientTrainees.length} unit="名"
-          detail={clientIsTrainingDay ? `本日研修中 ${clientTodayTrainees.length}名` : "本日は研修日ではありません"} />
-        <PrismKpiCard icon={Clock} tone={clientAttendanceIssues.length ? "warn" : "ok"} label="本日の出勤"
-          value={clientIsTrainingDay ? clientAttendanceOk : "—"} unit={clientIsTrainingDay ? `/ ${clientTodayTrainees.length}名` : ""}
-          detail={clientIsTrainingDay ? (clientAttendanceIssues.length ? `打刻がない方が${clientAttendanceIssues.length}名います` : "全員の打刻が揃っています") : "本日は対象がありません"} />
-        <PrismKpiCard icon={Calendar} tone="teal" label="研修の進み"
-          value={clientProgressAvailable ? clientProgress.done : "—"} unit={clientProgressAvailable ? `/ ${clientProgress.total}日` : ""}
-          detail={clientProgressAvailable ? `全体の${Math.round((clientProgress.done / clientProgress.total) * 100)}%が終わりました` : "研修日程を確認できません"} />
-      </div>
+      {/* 2026-10-12（ユーザー指定）：数字のカードの列は出さない（受講生の「いま抱えているもの」と同じく） */}
 
       <div className="grid gap-3 lg:grid-cols-[minmax(0,1.35fr)_minmax(0,1fr)]">
         <div className="flex min-w-0 flex-col gap-3">

@@ -320,17 +320,7 @@ export default function InstructorWorkspace({ go, displayName = "講師" }) {
         <div className="grid gap-5 lg:grid-cols-2"><PrismCard><SkeletonCards count={3} /></PrismCard><PrismCard><SkeletonRows rows={4} /></PrismCard></div>
       ) : !error && (
         <>
-          <div className="grid gap-3 sm:grid-cols-3">
-            <PrismKpiCard icon={GraduationCap} tone="accent" label="担当している受講生" value={activeStudentCount} unit="名"
-              detail={assignedCourseCount ? `担当コース ${assignedCourseCount}件` : "担当コースがありません"} />
-            <PrismKpiCard icon={NotebookPen} tone={reportPending.length ? "warn" : "ok"} label="本日の日報提出"
-              value={attendanceAvailable && todayAttendance.length ? todayAttendance.length - reportPending.length : "—"}
-              unit={attendanceAvailable && todayAttendance.length ? `/ ${todayAttendance.length}名` : ""}
-              detail={!attendanceAvailable ? "本日は研修なし" : !todayAttendance.length ? "対象の受講生がいません" : reportPending.length ? `未提出が${reportPending.length}名います` : "全員が提出しています"} />
-            <PrismKpiCard icon={Clock} tone={notClockedIn.length ? "bad" : "ok"} label="本日まだ未打刻"
-              value={attendanceAvailable ? notClockedIn.length : "—"} unit="名"
-              detail={attendanceAvailable ? (todayAttendance.length ? `本日の対象 ${todayAttendance.length}名` : "対象の受講生がいません") : "本日は研修なし"} />
-          </div>
+          {/* 2026-10-12（ユーザー指定）：数字のカードの列は出さない（受講生の「いま抱えているもの」と同じく） */}
 
           {/* お知らせ登録(NoticeCard)は他に入力手段が無いため残す */}
           <NoticeCard courses={courseBlocks} date={date} onSaved={() => load({ silent: true })} />

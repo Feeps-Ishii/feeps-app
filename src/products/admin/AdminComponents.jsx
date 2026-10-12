@@ -113,17 +113,7 @@ function AdminHome({ go, goProduct, openRisk }) {
         <PrismErrorRetryCard message="研修カレンダーを取得できませんでした。本日が研修日かどうかを判定できないため、出欠・日報は「確認できません」と表示しています。" onRetry={() => setReloadKey(v => v + 1)} />
       )}
 
-      <div className="grid gap-3 sm:grid-cols-3">
-        <PrismKpiCard icon={Building2} tone="accent" label="本日研修あり"
-          value={loading ? "—" : trainingCount ?? "—"} unit={summary.companyCount != null ? `/ ${summary.companyCount}社` : ""}
-          detail={loading ? "" : summary.companyCount != null ? `登録されている企業 ${summary.companyCount}社` : "企業数を確認できません"} />
-        <PrismKpiCard icon={Users} tone={summary.presentCount != null && summary.studentCount != null && summary.presentCount < summary.studentCount ? "warn" : "ok"} label="本日出勤"
-          value={loading ? "—" : summary.presentCount ?? "—"} unit={summary.studentCount != null ? `/ ${summary.studentCount}名` : ""}
-          detail={loading ? "" : summary.presentCount == null ? "打刻を確認できません" : "研修日の企業に在籍している受講生です"} />
-        <PrismKpiCard icon={AlertCircle} tone={actionCount ? "bad" : "ok"} label="要対応"
-          value={loading ? "—" : actionCount ?? "—"} unit="件"
-          detail={loading ? "" : actionCount ? "放っておくと研修が止まります" : "いま手を打つものはありません"} />
-      </div>
+      {/* 2026-10-12（ユーザー指定）：数字のカードの列は出さない（受講生の「いま抱えているもの」と同じく） */}
 
       <PrismCard className="overflow-hidden p-0">
         <div className="flex flex-wrap items-center justify-between gap-2 px-4 pt-4 sm:px-5">
