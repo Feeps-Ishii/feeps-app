@@ -15,6 +15,7 @@ import { TermsAgreementDialog, needsTermsAgreement, TERMS_VERSION } from "./comp
 import { LegalPageView } from "./components/common/LegalPages.jsx";
 import TenolabLink from "./components/common/TenolabLink.jsx";
 import { Card, Badge, Btn, Avatar, Stat, SectionHead, T, NOVA, PRISM, PRISM_PRODUCT_GRAD, BrandMark, PRODUCT_ACCENT, ROLE_ACCENT, Z, PageLoading, EmptyState as CommonEmptyState, SkeletonRows, HelpGuideModal } from "./components/common";
+import { learningHref } from "./components/common/appLinks.js";
 import { HELP_GUIDE_CONTENT } from "./products/home/helpGuideContent.js";
 import { GOALS, GOAL_ICON_MAP, NAV, ROLES } from "./products/training/TrainingCatalog.js";
 import { navViewSet, statusKind, testIdOf, todayStr } from "./products/training/useTraining.js";
@@ -380,7 +381,7 @@ function openNotificationTarget(n, { go, goProduct, goSub }) {
   const path = parsed?.pathname || targetUrl;
   // 2026-09-28: 学習はLMSから外してテノラボへ移した。学習の通知はテノラボで開く
   if (path.includes("/learning")) {
-    window.location.href = "/lab.html#/home";
+    window.location.href = learningHref("#/home");
     return;
   }
   // 2026-09-28: スキル・成長は外した。2026-09-29 研修スキルも外したので、目標とタスクで開く

@@ -1,12 +1,13 @@
 import React from "react";
 import { DevHubMark } from "./DevHubMark.jsx";
+import { learningHref } from "./appLinks.js";
 
 // ヘッダーに置く、DevHub Learning（体験型Eラーニング。別アプリ lab.html）への入口（2026-09-27〜）。
 // 2026-10-01: ロゴだけではEラーニングと伝わらないので「Eラーニングはこちら」を添える（スマホは「Eラーニング」）
 // 2026-10-12: テノラボ → DevHub Learning（マークはハブ B1）。白地・墨の線・影の札はそのまま
 export default function TenolabLink({ compact = false }) {
   return (
-    <a href="/lab.html#/home" aria-label="Eラーニング（DevHub Learning）を開く" title="Eラーニング（DevHub Learning）を開く"
+    <a href={learningHref("#/home")} aria-label="Eラーニング（DevHub Learning）を開く" title="Eラーニング（DevHub Learning）を開く"
       className="inline-flex shrink-0 items-center gap-2 no-underline transition hover:-translate-y-px"
       style={{ color: "#15171C" }}>
       <span className={compact ? "hidden min-[400px]:inline text-[10px] font-bold" : "text-xs font-bold"} style={{ color: "#535D6E" }}>{compact ? "Eラーニング" : "Eラーニングはこちら"}</span>
