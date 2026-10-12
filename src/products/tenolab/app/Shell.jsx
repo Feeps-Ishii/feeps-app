@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState } from "react";
 import { ICON_SPRITE } from "./ui.jsx";
+import { DevHubLogo } from "../../../components/common/DevHubMark.jsx";
 
 /* ログイン後の外枠（モックの header.bar）。右上に名前とメニュー。
    受講生の画面：ホーム／コース一覧／演習一覧／案件体験。
@@ -25,7 +26,7 @@ export default function Shell({ section, name, email, role, switchLink, onLogout
       <span dangerouslySetInnerHTML={{ __html: ICON_SPRITE }} />
       <header className={`bar ${isAdminView ? "admin" : ""}`}>
         <div className="wrap">
-          <a className="logo" href={variant === "admin" ? "#/manage" : variant === "client" ? "#/company" : "#/home"} style={{ textDecoration: "none", color: "inherit" }}>テノ<b>ラボ</b>{!isAdminView && <small>TENO LAB</small>}</a>
+          <a className="logo" href={variant === "admin" ? "#/manage" : variant === "client" ? "#/company" : "#/home"} style={{ textDecoration: "none", color: "inherit" }}><DevHubLogo product="lrn" size={30} dark={isAdminView} /></a>
           {isAdminView && <span className="mode">{variant === "client" ? "CLIENT" : "ADMIN"}</span>}
           <nav className="nav" aria-label="画面">
             {nav.map(([k, label, href, count]) => <a key={k} href={href} aria-current={section === k ? "page" : undefined} className="navlink">{label}{count ? <span className="n">{count}</span> : null}</a>)}
@@ -46,7 +47,7 @@ export default function Shell({ section, name, email, role, switchLink, onLogout
         </div>
       </header>
       <main className="wrap" id="app">{children}</main>
-      <footer className="tl-foot"><div className="wrap"><span className="logo" style={{ fontSize: 15 }}>テノ<b>ラボ</b></span><span>© {new Date().getFullYear()} Feeps</span></div></footer>
+      <footer className="tl-foot"><div className="wrap"><DevHubLogo product="lrn" size={22} /><span>© {new Date().getFullYear()} Feeps</span></div></footer>
     </div>
   );
 }

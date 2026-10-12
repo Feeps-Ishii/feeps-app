@@ -31,7 +31,7 @@ function EmbedApp() {
   }, []);
 
   if (role === null) return <p style={{ padding: 24, fontSize: 14 }}>読み込んでいます…</p>;
-  if (role === "out") return <p style={{ padding: 24, fontSize: 14 }}>ログインが切れています。テノラボの画面でログインし直してください。</p>;
+  if (role === "out") return <p style={{ padding: 24, fontSize: 14 }}>ログインが切れています。DevHub Learning の画面でログインし直してください。</p>;
 
   let body;
   if (which === "learning-admin" && isStaffRole(role)) body = <LearningAdminProduct role={role} />;

@@ -113,7 +113,7 @@ export function AwsCostDashboard() {
 
   return (
     <div>
-      <SectionHead title="AWS利用料金" desc="Feeps One で発生しているAWS料金の合計（Project=FeepsOne タグ付きリソース + Bedrock + Cost Explorer API）を確認します（最大24時間遅延）" />
+      <SectionHead title="AWS利用料金" desc="DevHub で発生しているAWS料金の合計（Project=FeepsOne タグ付きリソース + Bedrock + Cost Explorer API）を確認します（最大24時間遅延）" />
       {err && <div className="mb-4 rounded-lg px-3 py-2 text-xs" style={{ background: T.dangerSubtle, color: T.danger }}>{err}</div>}
       {data && !data.tagEnabled && data.tagNote && (
         <div className="mb-4 rounded-lg px-4 py-3 text-sm" style={{ background: T.warningSubtle, color: T.warning }}>
@@ -233,7 +233,7 @@ export function AwsCostDashboard() {
       <div className="mt-8 border-t pt-6" style={{ borderColor: T.border }}>
         <div className="mb-4">
           <h3 className="text-base font-bold" style={{ color: T.textPrimary }}>使用リソースの棚卸し</h3>
-          <p className="text-xs" style={{ color: T.textMuted }}>Feeps One が利用しているAWSサービスとリソースの一覧です（棚卸し日: {AWS_RESOURCE_INVENTORY_DATE}）</p>
+          <p className="text-xs" style={{ color: T.textMuted }}>DevHub が利用しているAWSサービスとリソースの一覧です（棚卸し日: {AWS_RESOURCE_INVENTORY_DATE}）</p>
         </div>
         <Card>
           <div className="overflow-x-auto">
@@ -264,7 +264,7 @@ export function AwsCostDashboard() {
       </div>
       <div className="mt-8 border-t pt-6" style={{ borderColor: T.border }}>
         <div className="mb-4">
-          <h3 className="text-base font-bold" style={{ color: T.textPrimary }}>Feeps One AI利用料金</h3>
+          <h3 className="text-base font-bold" style={{ color: T.textPrimary }}>DevHub AI利用料金</h3>
           <p className="text-xs" style={{ color: T.textMuted }}>アプリ内 Bedrock 呼び出しログから集計（推定値）</p>
         </div>
         {aiErr && <div className="mb-4 rounded-lg px-3 py-2 text-xs" style={{ background: T.dangerSubtle, color: T.danger }}>{aiErr}</div>}

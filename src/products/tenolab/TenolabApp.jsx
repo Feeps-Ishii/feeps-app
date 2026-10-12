@@ -51,7 +51,7 @@ function parseHash() {
   if (p[0] === "studio") return { page: "studio", rest: p.slice(1) };
   return { page: "entry", view: "", anchor: p[0] };   // #how のようなページ内リンク
 }
-const NO_ELEARNING = "テノラボを使える契約がありません。研修のご担当者にお問い合わせください。";
+const NO_ELEARNING = "DevHub Learning を使える契約がありません。研修のご担当者にお問い合わせください。";
 const startHash = role => (role === "admin" ? "#/manage" : role === "client" ? "#/company" : "#/home");
 const SECTION = { home: "home", topic: "home", list: null, course: "courses", lesson: "courses", test: "courses", drill: "drills", case: "cases" };
 

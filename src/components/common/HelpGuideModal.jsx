@@ -8,7 +8,7 @@ import { NOVA, PRODUCT_ACCENT } from "./theme.js";
 // （componentsがproducts配下のデータへ依存しないため）。
 export default function HelpGuideModal({ products, onClose }) {
   return (
-    <Modal title="Feeps One の使い方" desc="今のあなたが使える機能を、かんたんに紹介します。" onClose={onClose} size="md">
+    <Modal title="DevHub LMS の使い方" desc="今のあなたが使える機能を、かんたんに紹介します。" onClose={onClose} size="md">
       <div className="flex flex-col gap-3">
         {products.map(({ key, label, icon: Icon, desc }) => {
           const pa = PRODUCT_ACCENT[key] || PRODUCT_ACCENT.training;

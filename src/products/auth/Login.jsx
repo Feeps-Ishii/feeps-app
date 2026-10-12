@@ -258,7 +258,7 @@ function ForgotPasswordFlow({ onBack }) {
         </div>
         <div className="feeps-auth-heading">
           <h2 style={{ color: PRISM.ink }}>パスワードを変更しました</h2>
-          <p style={{ color: PRISM.sub }}>新しいパスワードでFeeps Oneをご利用いただけます。</p>
+          <p style={{ color: PRISM.sub }}>新しいパスワードでDevHub LMS をご利用いただけます。</p>
         </div>
         <button type="button" onClick={onBack} className={`${ctaClass} mt-7`} style={ctaStyle}>
           <LogIn size={17} aria-hidden="true" />ログイン画面へ戻る
@@ -380,7 +380,7 @@ export default function Login({ onLogin }) {
     if (step === "CONTINUE_SIGN_IN_WITH_TOTP_SETUP") {
       const details = result.nextStep.totpSetupDetails;
       let uri = "";
-      try { uri = details?.getSetupUri?.("Feeps One", email.trim())?.toString() || ""; } catch (e) { uri = ""; }
+      try { uri = details?.getSetupUri?.("DevHub LMS", email.trim())?.toString() || ""; } catch (e) { uri = ""; }
       setTotpSetup({ sharedSecret: details?.sharedSecret || "", uri });
       setNeedNewPw(false); setErr(""); setMfaStep("setup");
       return;
@@ -491,7 +491,7 @@ export default function Login({ onLogin }) {
             <div className="feeps-auth-view w-full">
               <AuthMeta step="AUTH · 02" />
               <div className="feeps-auth-heading">
-                <h2 style={{ color: PRISM.ink }}>Feeps Oneへようこそ</h2>
+                <h2 style={{ color: PRISM.ink }}>DevHub LMS へようこそ</h2>
                 <p style={{ color: PRISM.sub }}>最初に、ご自身のパスワードを設定してください。</p>
               </div>
               <div className="feeps-auth-form">

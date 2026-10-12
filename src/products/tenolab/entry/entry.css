@@ -510,3 +510,10 @@
 @media (prefers-reduced-motion:reduce){
 .tl-entry *, .tl-entry{animation:none !important; transition:none !important}
 }
+.tl-entry .dh{display:inline-flex; align-items:center; gap:.38em; font-family:"Bricolage Grotesque","Zen Kaku Gothic New",system-ui,sans-serif; letter-spacing:-.035em; color:var(--ink); text-decoration:none}
+.tl-entry .dh svg{width:1.42em; height:1.42em; flex:none; display:block}
+.tl-entry .dh .dhw{font-weight:400; line-height:1; white-space:nowrap}
+.tl-entry .dh .dhw i{font-style:normal; font-weight:800}
+.tl-entry .dh .dhw em{font-style:normal; font-weight:700; color:#B98F00}
+.tl-entry .login-logo.dh{align-items:center}
+.tl-entry .login-logo.dh small{display:block; font-family:"Bricolage Grotesque",system-ui,sans-serif; font-size:.36em; letter-spacing:.02em; color:var(--muted); margin:6px 0 0}

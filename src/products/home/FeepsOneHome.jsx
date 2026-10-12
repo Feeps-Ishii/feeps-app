@@ -106,7 +106,7 @@ const ROLE_PORTAL_COPY = {
   },
   admin: {
     eyebrow: "ADMIN COMMAND PORTAL",
-    title: "Feeps One全体を、ここから動かす。",
+    title: "DevHub LMS 全体を、ここから動かす。",
     description: "研修運営、学習、スキル、案件、分析。すべての機能と今日の状況を、ひとつの入口に集約しました。",
   },
 };

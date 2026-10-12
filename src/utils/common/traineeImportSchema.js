@@ -87,7 +87,7 @@ export async function downloadTraineeImportTemplate({ courses = [] } = {}) {
   const sheet = XLSX.utils.json_to_sheet([exampleRow, ...blankRows], { header: headers });
   sheet["!cols"] = headers.map(h => ({ wch: Math.max(14, Math.min(30, h.length * 2 + 8)) }));
   const guideRows = [
-    ["Feeps One 社員（受講生）一括登録テンプレート"],
+    ["DevHub LMS 社員（受講生）一括登録テンプレート"],
     ["入力方法", "1行目は項目名、2行目は記入例です（そのまま残しても内容が不正なため自動的にスキップされ、登録されません）。3行目以降に1名1行で入力してください。"],
     ...TRAINEE_IMPORT_COLUMNS.map(c => [c.header, `${c.required ? "必須" : "任意"}。${columnFormatNote(c)}`]),
     ["登録可能なコース名", courses.length ? courses.map(c => c.name).filter(Boolean).join(" / ") : "（現在割り当て可能なコースがありません。コース未割当のまま登録できます）"],

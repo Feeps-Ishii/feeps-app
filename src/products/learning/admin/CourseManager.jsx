@@ -40,7 +40,7 @@ function TenolabCourseFields({ form, set, canEditPremium }) {
   }, []);
   return (
     <div className="grid gap-3 md:grid-cols-2">
-      <Field label="単元（テノラボ）">
+      <Field label="単元（DevHub Learning）">
         <select style={fieldStyle} value={form.topic || ""} onChange={e => set("topic", e.target.value)}>
           <option value="">未設定（その他）</option>
           {(topics || []).map(t => <option key={t.id} value={t.id}>{t.name}{t.premium ? "（Premium）" : ""}</option>)}

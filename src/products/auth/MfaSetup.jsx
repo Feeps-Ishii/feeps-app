@@ -9,7 +9,7 @@ import { T } from "../../components/common/theme.js";
 // 検証の呼び先はフローによって違う（サインイン中は confirmSignIn、ログイン後は verifyTOTPSetup）ため、
 // 実際の検証処理は onVerify で受け取る。
 
-const ISSUER = "Feeps One";
+const ISSUER = "DevHub LMS";
 
 export const CODE_INPUT_PROPS = {
   inputMode: "numeric",

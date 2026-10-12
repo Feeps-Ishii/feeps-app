@@ -75,7 +75,7 @@ export function CourseDetail({ ctx, courseId }) {
           <div className="row" style={{ gap: 6 }}>
             {topic && <span className="htag">{topic.name}</span>}
             {course.level && <span className="htag">{course.level}</span>}
-            {course.official && <span className="htag">テノラボ公式</span>}
+            {course.official && <span className="htag">公式</span>}
             {exerciseCount > 0 && <span className="htag on">演習あり</span>}
             {finalTestEnabled && summary?.available && <span className="htag on">総合テストあり</span>}
             {caseNext && <span className="htag on"><Ic id="case" />案件体験あり</span>}

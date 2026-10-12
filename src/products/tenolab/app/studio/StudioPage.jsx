@@ -5,6 +5,7 @@ import { readPptxSlides } from "./pptx.js";
 import { initialMapping, rowStatus, shiftSuggestion, shifted, autoSkip } from "./align.js";
 import * as A from "./api.js";
 import { SlideRenderer } from "../../../learning/ElSlideLessonView.jsx";
+import { DevHubLogo } from "../../../../components/common/DevHubMark.jsx";
 import "./studio.css";
 import "./studio-extra.css";
 
@@ -576,7 +577,7 @@ export default function StudioPage({ ctx, rest }) {
   return (
     <div className="tl-studio">
       <header className="bar"><div className="in">
-        <a className="logo" href="#/manage" style={{ textDecoration: "none", color: "inherit" }}>テノ<b>ラボ</b></a>
+        <a className="logo" href="#/manage" style={{ textDecoration: "none", color: "inherit" }}><DevHubLogo product="lrn" size={28} /></a>
         <span className="crumb">教材づくり</span>
         <span className="me"><a href="#/manage/courses" style={{ color: "inherit" }}>管理の画面</a>　管理者　<button className="btn ghost sm" type="button" onClick={restart}>最初から</button></span>
       </div></header>

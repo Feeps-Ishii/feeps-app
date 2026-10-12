@@ -87,7 +87,7 @@ export function TermsAgreementDialog({ onAgreed, onSignOut }) {
           <h2 id="terms-dialog-title" className="text-base font-bold" style={{ color: T.textPrimary }}>ご利用にあたっての確認</h2>
         </div>
         <p className="text-sm leading-relaxed" style={{ color: T.textSecondary }}>
-          Feeps One をお使いいただくにあたり、利用規約とプライバシーポリシーへの同意をお願いしています。内容はリンクからご確認ください。
+          DevHub LMS をお使いいただくにあたり、利用規約とプライバシーポリシーへの同意をお願いしています。内容はリンクからご確認ください。
         </p>
         <div className="mt-4"><TermsCheckbox checked={checked} onChange={setChecked} /></div>
         {error && <div className="mt-3 rounded-xl px-3 py-2 text-sm font-semibold" style={{ background: T.dangerSubtle, color: T.danger }} role="alert">{error}</div>}

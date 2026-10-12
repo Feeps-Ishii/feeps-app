@@ -36,7 +36,7 @@ const ILLUS = {"study": "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3d
 const GRAD = `linear-gradient(135deg, ${T.accent} 0%, #5B8CFF 100%)`;
 const DOTS = "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='22' height='22'%3E%3Ccircle cx='1.6' cy='1.6' r='1.4' fill='%23ffffff' fill-opacity='0.16'/%3E%3C/svg%3E\")";
 const FOOTER = "Copyright © 2025 Feeps Inc. All Rights Reserved.";
-const BRAND = { name: "Feeps One", tagline: "研修管理クラウド" };
+const BRAND = { name: "DevHub LMS", tagline: "研修管理クラウド" };
 /* ===== UI プリミティブ ===== */
 function Ring({ value, size = 96, stroke = 9, color = T.accent, track = T.border, children }) {
   const r = (size - stroke) / 2, c = 2 * Math.PI * r, off = c * (1 - value / 100);
@@ -1285,7 +1285,7 @@ function Curriculum({ role, go, goProduct, done = {}, goals = [] }) {
       const sheet = XLSX.utils.json_to_sheet(rows, { header: CURRICULUM_EXCEL_HEADERS });
       sheet["!cols"] = CURRICULUM_EXCEL_HEADERS.map(header => ({ wch: Math.max(14, Math.min(34, header.length * 2 + 8)) }));
       const guide = XLSX.utils.aoa_to_sheet([
-        ["Feeps One カリキュラム一括登録テンプレート"],
+        ["DevHub LMS カリキュラム一括登録テンプレート"],
         ["入力方法", "同じ大項目・中項目・Lessonは同じ名称で複数行入力できます。演習を複数登録するときは行を分けてください。"],
         ["構成", "中・小項目 / 大項目単元 のどちらかを入力します。"],
         ["複数項目", "学習目標・事前準備はセル内改行、または | 区切りで入力できます。"],

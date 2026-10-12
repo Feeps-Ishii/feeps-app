@@ -80,7 +80,7 @@ const ILLUS = {"study": "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3d
 const GRAD = NOVA.gradAccent;
 const DOTS = "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='22' height='22'%3E%3Ccircle cx='1.6' cy='1.6' r='1.4' fill='%23ffffff' fill-opacity='0.16'/%3E%3C/svg%3E\")";
 const FOOTER = "Copyright © 2025 Feeps Inc. All Rights Reserved.";
-const BRAND = { name: "Feeps One", tagline: "研修管理クラウド" };
+const BRAND = { name: "DevHub LMS", tagline: "研修管理クラウド" };
 /* ===== UI プリミティブ ===== */
 function Ring({ value, size = 96, stroke = 9, color = T.accent, track = T.border, children }) {
   const r = (size - stroke) / 2, c = 2 * Math.PI * r, off = c * (1 - value / 100);
@@ -641,7 +641,7 @@ function GlobalRail({ products, active, onSelect, onOpenPalette, modes = [], vie
   const showProducts = railProducts.length > 0;
   return (
     <aside className="feeps-global-rail hidden lg:flex" aria-label="モード・プロダクトナビゲーション">
-      <button type="button" onClick={() => onSelect("home")} aria-label="Feeps One Homeへ戻る" className="feeps-global-brand">
+      <button type="button" onClick={() => onSelect("home")} aria-label="DevHub LMS のホームへ戻る" className="feeps-global-brand">
         <BrandMark size={44} />
       </button>
       {showModes && (
@@ -1608,7 +1608,7 @@ export default function App() {
   // Shared header pieces, reused by both the mobile 2-row bar (lg:hidden, unchanged
   // from pre-Floating-Canvas layout) and the desktop single 60px bar (hidden lg:flex).
   const brandLogo = (
-    <button type="button" onClick={() => goProduct("home")} aria-label="Feeps One Homeへ戻る" className="flex min-w-0 shrink-0 items-center gap-2 rounded-xl px-1 py-1 transition hover:bg-black/5">
+    <button type="button" onClick={() => goProduct("home")} aria-label="DevHub LMS のホームへ戻る" className="flex min-w-0 shrink-0 items-center gap-2 rounded-xl px-1 py-1 transition hover:bg-black/5">
       <BrandMark size={30} withWordmark wordmarkSize={15} />
     </button>
   );
@@ -1767,10 +1767,10 @@ export default function App() {
         {/* モバイル: 下部タブを使わず、Productと画面を同じドロワーで切り替える。 */}
         <div className="feeps-mobile-topbar flex w-full max-w-full items-center gap-2 overflow-x-hidden px-3 lg:hidden">
           <button ref={drawerTriggerRef} type="button" onClick={() => setDrawerOpen(true)} aria-label="ナビゲーションを開く" aria-expanded={drawerOpen} className="feeps-icon-button"><Menu size={20} /></button>
-          <button type="button" onClick={() => goProduct("home")} aria-label="Feeps One Homeへ戻る" className="flex min-w-0 items-center gap-2 rounded-xl p-1">
+          <button type="button" onClick={() => goProduct("home")} aria-label="DevHub LMS のホームへ戻る" className="flex min-w-0 items-center gap-2 rounded-xl p-1">
             <BrandMark size={32} />
             <div className="min-w-0 text-left">
-              <div className="truncate text-sm font-bold">{isHomeProduct ? "Feeps One" : currentProduct.label}</div>
+              <div className="truncate text-sm font-bold">{isHomeProduct ? "DevHub LMS" : currentProduct.label}</div>
               <div className="truncate text-[10px] font-semibold" style={{ color: T.textMuted }}>{isHomeProduct ? "すべての機能" : viewTitle}</div>
             </div>
           </button>
@@ -1807,7 +1807,7 @@ export default function App() {
             </div>
             {!sidebarCollapsed && (
               <div className="min-w-0">
-                <div className="truncate text-[11px] font-semibold" style={{ color: "#8F9AB2" }}>Feeps One</div>
+                <div className="truncate text-[11px] font-semibold" style={{ color: "#8F9AB2" }}>DevHub LMS</div>
                 <div className="truncate text-sm font-bold" style={{ color: "#fff" }}>{currentProduct.label}</div>
               </div>
             )}
