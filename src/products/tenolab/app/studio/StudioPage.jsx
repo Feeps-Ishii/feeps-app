@@ -22,7 +22,9 @@ const EX_LABEL = { code_run: "コード演習", web_run: "HTML/CSSの演習" };
 const exLabel = s => EX_LABEL[s.kind] || "確認クイズ";
 // 右の帯での呼び名（解説はクイズと見分けがつくように）
 const KIND_LABEL = { quiz: "確認クイズ", concept: "解説", summary: "まとめ", compare: "比べる表", diagram: "図", fill_blank: "穴埋め", ordering_puzzle: "並べ替え", selection_task: "選ぶ問題", interactive_form: "入力の練習", code_run: "コード演習", web_run: "HTML/CSSの演習" };
-const kindLabel = s => KIND_LABEL[s.kind] || "演習";
+// サンプルを動かす演習（はじめのコード＝お手本）は、コード演習と見分ける（2026-10-13）
+const isSampleRun = s => s?.kind === "code_run" && !!s.content?.answer && s.content.source === s.content.answer;
+const kindLabel = s => (isSampleRun(s) ? "サンプルを動かす" : KIND_LABEL[s.kind] || "演習");
 const isExercise = s => s && !["image", "summary", "concept", "video", "pdf", "_cover", "_divider"].includes(s.kind);
 const newId = p => `${p}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`;
 const itemId = p => `${p}${Date.now().toString(36)}`;
@@ -357,7 +359,7 @@ export default function StudioPage({ ctx, rest }) {
     try {
       const r = await A.studioJob({
         kind: "exercise", courseTitle: s.course?.title || "", instruction,
-        lessons: s.lessons.map(l => ({ lessonId: l.id, title: l.title, summary: l.summary, goal: l.goal, slides: l.slides.map(x => ({ id: x.id, kind: x.kind, title: x.title, page: x.content?.sourcePage, text: x.kind === "image" ? undefined : slideText(x) })) })),
+        lessons: s.lessons.map(l => ({ lessonId: l.id, title: l.title, summary: l.summary, goal: l.goal, slides: l.slides.map(x => ({ id: x.id, kind: x.kind, title: x.title, page: x.content?.sourcePage, text: x.kind === "image" ? (x.content?.pageText || undefined) : slideText(x) })) })),
         edit: target ? { lessonId: sel.lessonId, slide: target } : undefined,
       });
       const proposals = r.proposals || [];
