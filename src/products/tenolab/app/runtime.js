@@ -1,4 +1,5 @@
 import { apiPost } from "../../../api.js";
+import { runJsPage } from "./exercise/jsRunner.js";
 
 /* 演習・案件体験のコードを動かして、テスト（受け入れ条件）を判定する。
    結果は { out: string[], error: string, results: [{ name, ok }] }。
@@ -127,12 +128,24 @@ export async function runJava(code, tests = []) {
   return { out: String(first?.stdout || "").split("\n").slice(0, 200), error: err, results };
 }
 
+// HTML＋JavaScript：画面から切り離した枠で動かし、式は枠の中で確かめる（exercise/jsRunner.js）
+export async function runJsWeb(code, tests = []) {
+  const r = await runJsPage({ html: code, js: "", checks: tests.length ? tests.map(t => t.expr) : null });
+  const err = r.logs.find(l => l.t === "error");
+  return {
+    out: r.logs.map(l => (l.t === "alert" ? `[alert] ${l.s}` : l.t === "error" ? `エラー: ${l.s}${l.line ? `（${l.line}行目）` : ""}` : l.s)).slice(0, 200),
+    error: err ? `${err.s}${err.line ? `（${err.line}行目）` : ""}` : r.timedOut && tests.length ? "時間がかかりすぎています。終わらないくり返しになっていないか確かめてください。" : "",
+    results: tests.map((t, k) => ({ name: t.name, ok: !!r.results?.[k]?.ok, ...(r.results?.[k]?.error ? { error: r.results[k].error } : {}) })),
+  };
+}
+
 export async function runCode(runtime, code, tests, { frame, sqlSetup } = {}) {
   if (runtime === "js") return runJs(code, tests);
+  if (runtime === "jsweb") return runJsWeb(code, tests);
   if (runtime === "web") return runWeb(code, tests, frame);
   if (runtime === "sql") return runSql(code, tests, sqlSetup);
   if (runtime === "java") return runJava(code, tests);
   return { out: [], error: "", results: [] };
 }
 
-export const FILE_NAME = { js: "main.js", web: "index.html", sql: "query.sql", java: "Main.java" };
+export const FILE_NAME = { js: "main.js", web: "index.html", jsweb: "index.html", sql: "query.sql", java: "Main.java" };

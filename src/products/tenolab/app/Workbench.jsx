@@ -5,6 +5,7 @@ import JavaEditor from "../../learning/JavaEditor.jsx";
 import WebEditor from "../../learning/WebEditor.jsx";
 import { parseJavacError } from "../../learning/javaEditorSupport.js";
 import "./exercise/drill.css";
+import { buildJsDocument } from "./exercise/jsRunner.js";
 
 /* コードを書いて動かす部品（モックの .try / .ed / .console）。演習と案件体験で使う。 */
 
@@ -40,7 +41,7 @@ export function TryPanel({ item, code, setCode, onResult, onHint, onAnswer, answ
     setBusy(true);
     try {
       const r = await runCode(runtime, code, tests, { frame: frame.current, sqlSetup: item.sqlSetup });
-      setRes(r);
+      setRes({ ...r, at: Date.now() });
       onResult && onResult(r);
     } finally { setBusy(false); }
   }
@@ -72,7 +73,7 @@ export function TryPanel({ item, code, setCode, onResult, onHint, onAnswer, answ
             <div className="tabs"><span className="on">{FILE_NAME.java}</span></div>
             <div className="try-ed"><JavaEditor value={code} onChange={setCode} level={1} onRun={run} diagnostic={res?.error ? (d => (d && d.file === FILE_NAME.java ? d : null))(parseJavacError(res.error)) : null} /></div>
           </>
-        ) : runtime === "web" ? (
+        ) : runtime === "web" || runtime === "jsweb" ? (
           <>
             <div className="tabs"><span className="on">{FILE_NAME.web}</span></div>
             <div className="try-ed"><WebEditor mode="html" value={code} onChange={setCode} level={1} /></div>
@@ -87,6 +88,7 @@ export function TryPanel({ item, code, setCode, onResult, onHint, onAnswer, answ
       <div className="console">
         <span className="eyebrow">実行結果</span>
         {runtime === "web" && <iframe ref={frame} title="表示" sandbox="allow-same-origin" style={{ width: "100%", minHeight: 180, border: "1px solid #262B38", borderRadius: 8, background: "#fff" }} />}
+        {runtime === "jsweb" && res && <iframe key={res.at} title="表示" sandbox="allow-scripts allow-modals allow-forms" srcDoc={buildJsDocument({ html: code })} style={{ width: "100%", minHeight: 180, border: "1px solid #262B38", borderRadius: 8, background: "#fff" }} />}
         {runtime !== "web" && <pre>{res ? (res.error ? `エラー: ${res.error}` : (res.out.join("\n") || "（表示なし）")) : "「実行する」を押すと、ここに結果が出ます"}</pre>}
         {runtime === "web" && res?.error && <pre>{`エラー: ${res.error}`}</pre>}
         {res ? res.results.map((r, i) => <div key={i} className={`verdict ${r.ok ? "ok" : "ng"}`}>{r.ok ? "OK" : "まだ"} ・ {r.name}</div>)

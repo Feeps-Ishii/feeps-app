@@ -7,8 +7,8 @@ import { TRY_KEY } from "./parts.jsx";
 
 /* 演習・案件体験の編集（下書き → 試す → 公開）。kind は "drills" | "cases" */
 const RUNTIMES = {
-  drills: [["js", "JavaScript"], ["web", "HTML / CSS"], ["java", "Java"], ["sql", "SQL"], ["check", "チェック（Gitなど）"], ["aws", "AWS（本物の環境）"]],
-  cases: [["servlet", "Java Servlet（画面つき）"], ["js", "JavaScript"], ["web", "HTML / CSS"], ["java", "Java"], ["sql", "SQL"], ["aws", "AWS（本物の環境）"]],
+  drills: [["js", "JavaScript"], ["jsweb", "HTML＋JavaScript（画面を動かす）"], ["web", "HTML / CSS"], ["java", "Java"], ["sql", "SQL"], ["check", "チェック（Gitなど）"], ["aws", "AWS（本物の環境）"]],
+  cases: [["servlet", "Java Servlet（画面つき）"], ["js", "JavaScript"], ["jsweb", "HTML＋JavaScript（画面を動かす）"], ["web", "HTML / CSS"], ["java", "Java"], ["sql", "SQL"], ["aws", "AWS（本物の環境）"]],
 };
 const SCENARIOS = [["vpc", "VPCだけを作る（まっさら）"], ["vpcec2", "VPCとEC2でWebサーバー（まっさら）"], ["elb", "ELBを足す（用意済み）"], ["asg", "Auto Scaling（用意済み）"], ["cw", "CloudWatchで異常に気づく（用意済み）"], ["recover", "止まったWebサーバーを復旧（障害あり）"]];
 const LEVELS = ["やさしい", "ふつう", "むずかしい"], AWS_LEVELS = ["基礎", "応用", "運用"];
@@ -18,6 +18,7 @@ const TEST_HELP = {
   java: "標準出力が「出てほしい出力」と同じならOK（前後の空白は無視）。",
   sql: "受講生のSQLの結果が、答え合わせのSQLの結果と同じならOK。",
   check: "受講生が自分で確かめて付けるチェックです。",
+  jsweb: "式で確かめます。ページの中で動きます（document・window・__logs＝console.log の出力・__alerts＝alert の文字 が使えます）。例：(document.querySelector('#calc').click(), document.querySelector('#total').textContent === '600円')",
   servlet: "フォームの値（name=value&… 同じ name は何回でも）で Servlet を動かし、画面に出た文字に「出てほしい文字」（1行に1つ）がすべて含まれればOK（空白は無視）。",
 };
 const blank = kind => kind === "drills"
@@ -367,7 +368,7 @@ export default function ItemEditor({ kind, id, isNew, topics, courses, go }) {
           {item.tests.map((t, i) => (
             <div key={i} className="mtest">
               <input value={t.name} onChange={e => setTest(i, "name", e.target.value)} placeholder="名前（受講生に見えます）" />
-              {(item.runtime === "js" || item.runtime === "web") && <input className="mono" value={t.expr || ""} onChange={e => setTest(i, "expr", e.target.value)} placeholder="式" />}
+              {(item.runtime === "js" || item.runtime === "web" || item.runtime === "jsweb") && <input className="mono" value={t.expr || ""} onChange={e => setTest(i, "expr", e.target.value)} placeholder="式" />}
               {item.runtime === "java" && <><input className="mono" value={t.stdin || ""} onChange={e => setTest(i, "stdin", e.target.value)} placeholder="入力（任意）" /><input className="mono" value={t.expect || ""} onChange={e => setTest(i, "expect", e.target.value)} placeholder="出てほしい出力" /></>}
               {item.runtime === "sql" && <input className="mono" value={t.query || ""} onChange={e => setTest(i, "query", e.target.value)} placeholder="答え合わせのSQL" />}
               {isServlet && <><input className="mono" value={t.params || ""} onChange={e => setTest(i, "params", e.target.value)} placeholder="price=480&count=3" /><textarea className="mono" rows={2} value={t.expect || ""} onChange={e => setTest(i, "expect", e.target.value)} placeholder={"出てほしい文字（1行に1つ）\n合計：1584円"} /></>}

@@ -7,6 +7,8 @@ import { Editor } from "../Workbench.jsx";
 import { FILE_NAME, runCode } from "../runtime.js";
 import { acceptCase, runCaseServlet, sendCaseChat, skipCase, submitCase } from "../data.js";
 import { diffStat, hunks, lineDiff } from "./diff.js";
+import WebEditor from "../../../learning/WebEditor.jsx";
+import { buildJsDocument } from "../exercise/jsRunner.js";
 import "./case.css";
 
 /* 案件体験（2026-10-13、モック docs/design/mockups/devhub-learning-2026-10/devhub-case.html）。
@@ -17,7 +19,7 @@ import "./case.css";
    期限は管理者が割り当てたときだけ出す（自分で始めた案件は期限なし）。 */
 
 const KIND = { feat: ["機能追加", "feat"], bug: ["不具合", "bug"], mod: ["改修", "mod"] };
-const RUNTIME_LABEL = { servlet: "Java / Servlet", java: "Java", js: "JavaScript", web: "HTML / CSS", sql: "SQL" };
+const RUNTIME_LABEL = { servlet: "Java / Servlet", java: "Java", js: "JavaScript", jsweb: "HTML＋JavaScript", web: "HTML / CSS", sql: "SQL" };
 const PEOPLE = {
   pm: { n: "PM", av: "PM", c: "#2457E6" },
   lead: { n: "リーダー", av: "L", c: "#11966F" },
@@ -101,7 +103,7 @@ export default function CaseFlow({ item, premium, back, progress, onReload }) {
 
   const STEPS = useMemo(() => [
     ["assign", "アサイン"], ["ticket", "チケット"], ...(hasSpec ? [["spec", "仕様"]] : []), ["code", "実装"],
-    ...(isServlet || item.runtime === "web" ? [["check", "動作確認"]] : []), ["test", "テスト"], ["pr", "プルリク"], ["review", "レビュー"], ["done", "完了"],
+    ...(isServlet || item.runtime === "web" || item.runtime === "jsweb" ? [["check", "動作確認"]] : []), ["test", "テスト"], ["pr", "プルリク"], ["review", "レビュー"], ["done", "完了"],
   ], [hasSpec, isServlet, item.runtime]);
   const idx = id => STEPS.findIndex(s => s[0] === id);
 
@@ -118,6 +120,19 @@ export default function CaseFlow({ item, premium, back, progress, onReload }) {
   const [testRun, setTestRun] = useState(null);       // { code, results: [{ name, ok, got }] }
   const [pr, setPr] = useState(() => rec.pr || { title: `${t.id ? `${t.id} ` : ""}${item.title}`, body: `## 対応したチケット\n${t.id || item.title}\n\n## 変更内容\n- \n\n## 確認したこと\n- テスト仕様書 すべて ○\n\n## 見てほしいところ\n- ` });
   const [chat, setChat] = useState(rec.chat || []);
+  // HTML＋JavaScript の動作確認（見える枠からの console・alert・エラー）
+  const [jsRun, setJsRun] = useState(() => ({ at: Date.now(), token: `cf-${Date.now()}` }));
+  const [jsLogs, setJsLogs] = useState([]);
+  useEffect(() => {
+    if (item.runtime !== "jsweb") return undefined;
+    const on = e => {
+      const m = e.data;
+      if (!m || m.__djs !== jsRun.token || m.t === "done") return;
+      setJsLogs(l => [...l, m.t === "error" && m.d && typeof m.d === "object" ? { t: "error", s: m.d.msg, line: m.d.line || 0 } : { t: m.t, s: String(m.d) }].slice(-200));
+    };
+    window.addEventListener("message", on);
+    return () => window.removeEventListener("message", on);
+  }, [jsRun.token, item.runtime]);
   const [to, setTo] = useState(rec.acceptedAt ? "lead" : "pm");
   const [text, setText] = useState("");
   const [sending, setSending] = useState(false);
@@ -397,15 +412,17 @@ export default function CaseFlow({ item, premium, back, progress, onReload }) {
           {isServlet && sv.pageHtml && <button type="button" className="ftab html" aria-selected={file === "page"} onClick={() => setFile("page")}><i />{sv.pageName || "index.html"}<small>参考</small></button>}
           <span className="sp" />
           <button type="button" className="xbtn sub" onClick={() => { if (window.confirm("はじめのコードに戻します。よろしいですか？")) { setCode(item.starterCode || ""); setCompile(null); } }} disabled={approved}>最初に戻す</button>
-          {(isServlet || item.runtime === "web") && <button type="button" className="xbtn go" onClick={() => setStep(idx("check"))}>{isServlet ? "サーバーで実行" : "表示を確かめる"}</button>}
-          {!isServlet && item.runtime !== "web" && <button type="button" className="xbtn go" onClick={() => setStep(idx("test"))}>テストへ</button>}
+          {(isServlet || item.runtime === "web" || item.runtime === "jsweb") && <button type="button" className="xbtn go" onClick={() => setStep(idx("check"))}>{isServlet ? "サーバーで実行" : item.runtime === "jsweb" ? "動かして確かめる" : "表示を確かめる"}</button>}
+          {!isServlet && item.runtime !== "web" && item.runtime !== "jsweb" && <button type="button" className="xbtn go" onClick={() => setStep(idx("test"))}>テストへ</button>}
         </div>
         {isServlet && sv.filePath && <div className="cf-path mono">{file === "main" ? sv.filePath : "src/main/webapp/"}</div>}
         <div className="cf-ed">
           {file === "page" ? <pre className="cf-ro">{sv.pageHtml}</pre>
             : (isServlet || item.runtime === "java")
               ? <JavaEditor key={`${item.id}-main`} value={code} onChange={approved ? () => {} : setCode} readOnly={approved} diagnostic={diag && diag.file === fileName ? diag : null} level={1} />
-              : <div className="cf-plain"><Editor value={code} onChange={approved ? () => {} : setCode} label={fileName} readOnly={approved} minHeight={360} /></div>}
+              : item.runtime === "web" || item.runtime === "jsweb"
+                ? <WebEditor key={`${item.id}-html`} mode="html" value={code} onChange={approved ? () => {} : setCode} readOnly={approved} level={1} />
+                : <div className="cf-plain"><Editor value={code} onChange={approved ? () => {} : setCode} label={fileName} readOnly={approved} minHeight={360} /></div>}
         </div>
         {compile && <pre className="cf-term e">{compile.error}</pre>}
         <div className="cf-sbar"><span>{RUNTIME_LABEL[item.runtime]}</span><span>{changed ? "● 変更あり" : "変更なし"}</span><span className="sp" /><span>TODO {(code.match(/TODO/g) || []).length}</span></div>
@@ -427,10 +444,19 @@ export default function CaseFlow({ item, premium, back, progress, onReload }) {
                 ? <div className="cf-500"><h3>HTTPステータス 500 – Internal Server Error</h3><p className="mono">{check.error}</p>{check.errorLine ? <p className="mono">at {fileName}:{check.errorLine}</p> : null}</div>
                 : <iframe ref={resFrame} title="結果" srcDoc={`<!doctype html><meta charset="utf-8"><body style="font-family:'Yu Gothic UI',Meiryo,sans-serif;padding:16px">${check.html || ""}</body>`} sandbox="" />)}
             </>
+          ) : item.runtime === "jsweb" ? (
+            <iframe key={jsRun.at} title="表示" srcDoc={buildJsDocument({ html: code, token: jsRun.token })} sandbox="allow-scripts allow-modals allow-forms" />
           ) : (
             <iframe ref={frame} title="表示" srcDoc={code} sandbox="allow-same-origin" />
           )}
         </div>
+        {item.runtime === "jsweb" && (
+          <section className="cf-panel tight">
+            <div className="ph"><span className="eyebrow">コンソール</span><span className="sp" /><button type="button" className="btn ghost" onClick={() => { setJsLogs([]); setJsRun({ at: Date.now(), token: `cf-${Date.now()}` }); }}>読み込み直す</button></div>
+            <pre className="cf-log">{jsLogs.length ? jsLogs.map((l, k) => <span key={k} className={l.t === "error" ? "e" : ""}>{l.t === "alert" ? "⚠ alert: " : l.t === "error" ? "✕ " : "› "}{l.s}{l.line ? `（${l.line}行目）` : ""}{"\n"}</span>) : "（出力なし）"}</pre>
+            {jsLogs.some(l => l.t === "error") && <button type="button" className="btn ghost" style={{ justifySelf: "start" }} onClick={() => openChat("lead", `【やりたいこと】動作確認\n【困っていること】${jsLogs.find(l => l.t === "error").s}\n【自分の考え】`)}>リーダーに聞く</button>}
+          </section>
+        )}
         {isServlet && (
           <section className="cf-panel tight">
             <div className="ph"><span className="eyebrow">Tomcat ログ</span><span className="sp" />{compile ? <span className="chip ng">コンパイルエラー</span> : tlog.length ? <span className="chip ok">起動中</span> : <span className="chip">フォームから送信</span>}

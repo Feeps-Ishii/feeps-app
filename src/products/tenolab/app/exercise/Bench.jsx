@@ -4,6 +4,7 @@ import JavaEditor from "../../../learning/JavaEditor.jsx";
 import WebEditor from "../../../learning/WebEditor.jsx";
 import { parseJavacError } from "../../../learning/javaEditorSupport.js";
 import { previewDocument, runWebChecks } from "../../../learning/webChecks.js";
+import { buildJsDocument, runJsPage, userLineOffset } from "./jsRunner.js";
 import "./bench.css";
 
 /* 演習の作業台（モック tenolab-exercise.html、2026-10-09）。
@@ -13,11 +14,12 @@ import "./bench.css";
    実行・採点・記録は今までと同じ（/learning/exercises/java/run・webChecks・lrn.submitExercise）。
    編集部品（JavaEditor・WebEditor）は LMS と共通のものをそのまま使う。 */
 
-export const BENCH_KINDS = new Set(["code_run", "web_run"]);
-const LANG = { code_run: { name: "Java 21", key: "java" }, web_run: { name: "HTML / CSS", key: "web" } };
+export const BENCH_KINDS = new Set(["code_run", "web_run", "js_run"]);
+const LANG = { code_run: { name: "Java 21", key: "java" }, web_run: { name: "HTML / CSS", key: "web" }, js_run: { name: "JavaScript", key: "js" } };
 const NARROW_W = 390;
 
 export default function ExerciseBench(props) {
+  if (props.slide.kind === "js_run") return <JsBench {...props} />;
   return props.slide.kind === "web_run" ? <WebBench {...props} /> : <JavaBench {...props} />;
 }
 
@@ -206,6 +208,106 @@ function WebBench({ slide, lrn, course, lesson, onContext, onAsk }) {
           </div>
         </div>
         <StatusBar lang={lang} caret={caret} left={results.length ? `確認 ${results.filter(r => r.ok).length} / ${results.length}` : "書くとすぐ反映"} />
+      </section>
+    </div>
+  );
+}
+
+/* ---------- JavaScript（2026-10-13） ----------
+   script.js（と、あれば index.html）を書いて ▶ 実行。右に表示、下にコンソール（console.log・alert・エラー）。
+   確かめること（checks: [{ label, expr }]）は、隠れた枠でもう一度動かして確かめる（ボタンを押した結果なども枠の中で見られる）。
+   受講生のコードは別の起源の枠で動く（exercise/jsRunner.js） */
+function JsBench({ slide, lrn, course, lesson, onContext, onAsk }) {
+  const content = slide.content || {};
+  const lang = LANG.js_run;
+  const hasHtml = !!String(content.html || "").trim();
+  const names = hasHtml ? ["script.js", "index.html"] : ["script.js"];
+  const [files, setFiles] = useState({ "script.js": content.js || "", "index.html": content.html || "" });
+  const [openFile, setOpenFile] = useState("script.js");
+  const [logs, setLogs] = useState([]);
+  const [results, setResults] = useState([]);
+  const [running, setRunning] = useState(false);
+  const [ran, setRan] = useState(false);
+  const [caret, setCaret] = useState({ line: 1, col: 1 });
+  const frame = useRef(null), token = useRef(""), sent = useRef(false), alive = useRef(true);
+  useEffect(() => { alive.current = true; return () => { alive.current = false; }; }, []);
+  const checks = useMemo(() => (Array.isArray(content.checks) ? content.checks.filter(c => c?.expr) : []), [content.checks]);
+  const offset = useMemo(() => userLineOffset(files["index.html"], ""), [files]);
+
+  // 見える枠からの console・alert・エラー
+  useEffect(() => {
+    const on = e => {
+      const m = e.data;
+      if (!m || m.__djs !== token.current || e.source !== frame.current?.contentWindow || m.t === "done") return;
+      const item = m.t === "error" && m.d && typeof m.d === "object" ? { t: "error", s: m.d.msg, line: m.d.line ? Math.max(1, m.d.line - offset) : 0 } : { t: m.t, s: String(m.d) };
+      setLogs(l => [...l, item].slice(-300));
+    };
+    window.addEventListener("message", on);
+    return () => window.removeEventListener("message", on);
+  }, [offset]);
+
+  async function run() {
+    if (running) return;
+    setRunning(true); setLogs([]);
+    token.current = `pv-${Date.now()}`;
+    if (frame.current) frame.current.srcdoc = buildJsDocument({ html: files["index.html"], js: files["script.js"], token: token.current });
+    try {
+      const r = checks.length ? await runJsPage({ html: files["index.html"], js: files["script.js"], checks: checks.map(c => c.expr) }) : null;
+      if (!alive.current) return;
+      const res = checks.map((c, k) => ({ label: c.label, ok: !!r?.results?.[k]?.ok }));
+      setResults(res); setRan(true);
+      const ok = res.length > 0 && res.every(x => x.ok);
+      if (ok && !sent.current && lrn?.submitExercise) {
+        sent.current = true;
+        lrn.submitExercise({ courseId: course.id, lessonId: lesson.id, slideId: slide.id, kind: "js_run", submittedAnswer: files["script.js"], isCorrect: true }).catch(() => {});
+      }
+    } finally { if (alive.current) setRunning(false); }
+  }
+  // 開いたら一度動かす（サンプルはそのまま結果が見える）
+  useEffect(() => { const t = setTimeout(run, 200); return () => clearTimeout(t); }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const done = results.length > 0 && results.every(r => r.ok);
+  const errLog = logs.find(l => l.t === "error");
+  const output = logs.map(l => (l.t === "alert" ? `[alert] ${l.s}` : l.t === "error" ? `エラー: ${l.s}${l.line ? `（${l.line}行目）` : ""}` : l.s)).join("\n");
+  useEffect(() => {
+    onContext?.({ language: "js", source: files["script.js"], files: names.map(n => ({ name: n, content: files[n] })), output, compiled: !errLog, hasResult: ran });
+  }, [files, output, ran]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const update = v => setFiles(p => ({ ...p, [openFile]: v }));
+  const reset = () => { setFiles({ "script.js": content.js || "", "index.html": content.html || "" }); setResults([]); setRan(false); sent.current = false; };
+  return (
+    <div className="xb">
+      <TaskCard slide={slide} content={content} lang={lang} checks={(results.length ? results : checks.map(c => ({ label: c.label }))).map(r => ({ t: r.label, st: !ran ? "" : r.ok ? "ok" : "ng" }))} />
+      <section className="xb-ws web js">
+        <div className="xb-wbar">
+          {names.map(n => <button key={n} type="button" className={`ftab ${n.endsWith(".html") ? "html" : "js"}`} aria-selected={openFile === n} onClick={() => setOpenFile(n)}><i />{n}</button>)}
+          <span className="sp" />
+          <button type="button" className="xb-btn sub" onClick={reset}>最初に戻す</button>
+          <button type="button" className="xb-btn go" onClick={run} disabled={running}>{running ? "実行中…" : "▶ 実行"} <kbd>Ctrl+Enter</kbd></button>
+        </div>
+        <div className="xb-split">
+          <div className="xb-ed">
+            {openFile === "index.html"
+              ? <WebEditor key={`${slide.id}-html`} mode="html" value={files["index.html"]} onChange={update} level={1} onCaret={setCaret} />
+              : <JavaEditor key={`${slide.id}-js`} value={files["script.js"]} onChange={update} level={0} onRun={run} onCaret={setCaret}
+                  diagnostic={errLog?.line ? { file: "script.js", line: errLog.line, col: 0 } : null} />}
+          </div>
+          <div className="xb-pv">
+            <div className="chrome"><span className="dots"><i /><i /><i /></span><span className="url">index.html</span></div>
+            <div className="stagep"><iframe ref={frame} title="動かした結果" sandbox="allow-scripts allow-modals allow-forms" style={{ height: content.previewHeight || 260 }} /></div>
+          </div>
+        </div>
+        <div className="xb-out">
+          <div className="otabs"><button type="button" role="tab" aria-selected="true">コンソール</button><span className="meta">{running ? "実行中…" : ran ? `${logs.length}件` : "まだ動かしていません"}</span></div>
+          <div className="term">
+            {!logs.length && <span className="pr">{ran ? "（出力なし）" : "▶ 実行 で動かします"}</span>}
+            {logs.map((l, k) => <div key={k} className={l.t === "error" ? "e" : l.t === "alert" ? "a" : ""}>{l.t === "alert" ? "⚠ alert: " : l.t === "error" ? "✕ " : "› "}{l.s}{l.line ? `（${l.line}行目）` : ""}</div>)}
+            {ran && !done && checks.length > 0 && (
+              <div><button type="button" className="xb-askai" onClick={() => onAsk?.(errLog ? `${errLog.line ? `${errLog.line}行目の` : ""}エラーの意味は？` : "思ったとおりに動かないのはなぜ？")}>AIに聞く ↗</button></div>
+            )}
+          </div>
+        </div>
+        <StatusBar lang={lang} caret={caret} left={results.length ? `確認 ${results.filter(r => r.ok).length} / ${results.length}` : ""} />
       </section>
     </div>
   );

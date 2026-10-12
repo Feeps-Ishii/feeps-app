@@ -73,3 +73,11 @@
 }
 @media (max-width: 640px) { .xb-diff { grid-template-columns: minmax(0, 1fr); } }
 @media (prefers-reduced-motion: reduce) { .xb-pv .stagep iframe { transition: none; } }
+
+/* JavaScript（JsBench） */
+.xb-wbar .ftab.js i { background: #F2C200; }
+.xb-ws.js .xb-wbar .ftab[aria-selected="true"] { border-bottom-color: #F2C200; }
+.xb-out .term .e { color: #FF8A7A; }
+.xb-out .term .a { color: #FFE14D; }
+.xb-task.js .lang i { background: #F2C200; }
+.xb-sbar.js { background: #5E4B00; }
