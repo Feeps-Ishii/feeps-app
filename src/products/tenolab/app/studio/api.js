@@ -4,7 +4,7 @@ import { apiDelete, apiGet, apiPost, apiPut } from "../../../../api.js";
 
 const PAGE_SCALE = 1.6;
 const UPLOAD_CONCURRENCY = 3;
-export const MAX_PAGES = 120;
+export const MAX_PAGES = 200; // 2026-10-13: 120→200（バックエンドの取り込みも200まで）
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 
 // PDFのページを画像にする（プレビュー用の URL と、上げる用の Blob と、ページの文字）
