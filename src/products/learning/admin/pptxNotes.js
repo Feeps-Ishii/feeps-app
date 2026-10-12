@@ -68,15 +68,27 @@ export async function readZipEntries(file, wantedPattern) {
   return entries;
 }
 
+// ノートのページから「ノート本文」だけを取り出す（2026-10-12）。
+// ノートのページには本文のほかに、ヘッダー（hdr）・フッター（ftr）・日付（dt）・ページ番号（sldNum）・スライドの縮小図（sldImg）の
+// 置き場があり、全部の文字を拾うと「Lesson.1 : Java と Web の基本」「Copyright © …」がノートとして入ってしまっていた。
+// 段落（a:p）の中の文字のかたまり（a:r）は1行につなぐ（これまでは1かたまりずつ改行していた）。フィールド（a:fld、ページ番号など）は読まない。
+const NOTE_SKIP_PH = new Set(["hdr", "ftr", "dt", "sldNum", "sldImg"]);
+export function notesBodyText(doc) {
+  if (!doc || doc.querySelector?.("parsererror")) return "";
+  const paras = [];
+  for (const sp of doc.getElementsByTagName("p:sp")) {
+    const ph = sp.getElementsByTagName("p:ph")[0];
+    if (ph && NOTE_SKIP_PH.has(ph.getAttribute("type") || "")) continue;
+    for (const p of sp.getElementsByTagName("a:p")) {
+      const line = [...p.getElementsByTagName("a:t")].filter(t => t.parentNode?.nodeName !== "a:fld").map(t => t.textContent).join("").trim();
+      paras.push(line);
+    }
+  }
+  return paras.join("\n").replace(/\n{3,}/g, "\n\n").trim();
+}
+
 function extractNoteText(xmlText) {
-  const doc = new DOMParser().parseFromString(xmlText, "application/xml");
-  if (doc.querySelector("parsererror")) return "";
-  return [...doc.getElementsByTagName("a:t")]
-    .map(node => node.textContent.trim())
-    .filter(Boolean)
-    .join("\n")
-    .replace(/\n{3,}/g, "\n\n")
-    .trim();
+  return notesBodyText(new DOMParser().parseFromString(xmlText, "application/xml"));
 }
 
 export async function extractPptxNotesByPage(file) {

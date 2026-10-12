@@ -3,11 +3,18 @@
    N はスライドの並びと一致しないことがある（並べ替え・削除のあと）。さらに**非表示のスライドはPDFに書き出されない**ので、
    そのままだとノートが1枚ずつずれる。ここでは presentation.xml の並びと各スライドの関係ファイルからノートを引き、
    非表示（show="0"）も返す。PDFとの突き合わせは align.js。 */
-import { readZipEntries } from "../../../learning/admin/pptxNotes.js";
+import { readZipEntries, notesBodyText } from "../../../learning/admin/pptxNotes.js";
 
 const parse = text => new DOMParser().parseFromString(text || "", "application/xml");
 const textOf = (doc, { skipFields = false } = {}) => [...doc.getElementsByTagName("a:t")]
   .filter(n => !(skipFields && n.parentNode?.nodeName === "a:fld"))
+  .map(n => n.textContent.trim()).filter(Boolean).join("\n");
+
+// スライドの文字。表（a:tbl）なども含めて全部読み、フッター・日付・ページ番号の置き場の中だけ読まない
+const SLIDE_SKIP_PH = /^(ftr|dt|sldNum)$/;
+const slideText = doc => [...doc.getElementsByTagName("a:t")]
+  .filter(n => n.parentNode?.nodeName !== "a:fld")
+  .filter(n => { let p = n.parentNode; while (p && p.nodeName !== "p:sp") p = p.parentNode; const ph = p?.getElementsByTagName("p:ph")[0]; return !(ph && SLIDE_SKIP_PH.test(ph.getAttribute("type") || "")); })
   .map(n => n.textContent.trim()).filter(Boolean).join("\n");
 
 function relTargets(xml) {
@@ -40,13 +47,17 @@ export async function readPptxSlides(file) {
     const doc = parse(xml);
     const root = doc.documentElement;
     const hidden = root?.getAttribute("show") === "0";
-    const text = textOf(doc, { skipFields: true });
+    // スライドの文字も、フッター・日付・ページ番号の置き場は読まない（2026-10-12）。題はタイトルの置き場から
+    const text = slideText(doc);
+    const titleSp = [...doc.getElementsByTagName("p:sp")].find(sp => /^(title|ctrTitle)$/.test(sp.getElementsByTagName("p:ph")[0]?.getAttribute("type") || ""));
+    // 段落の間・段落の中の改行（a:br）は空白にする（「Lesson.1」と「Java と Web の基本」がくっつかないように）
+    const titleText = titleSp ? [...titleSp.getElementsByTagName("a:p")].map(p => [...p.getElementsByTagName("*")].map(n => (n.nodeName === "a:t" ? n.textContent : n.nodeName === "a:br" ? " " : "")).join("").trim()).filter(Boolean).join(" ").replace(/\s+/g, " ") : "";
     const relsName = name.replace(/slides\/(slide\d+\.xml)$/, "slides/_rels/$1.rels");
     let notes = "";
     for (const r of relTargets(by.get(relsName)).values()) {
-      if (/\/notesSlide$/.test(r.type)) { notes = textOf(parse(by.get(resolve("ppt/slides/", r.target))), { skipFields: true }); break; }
+      if (/\/notesSlide$/.test(r.type)) { notes = notesBodyText(parse(by.get(resolve("ppt/slides/", r.target)))); break; }
     }
-    slides.push({ index: i + 1, hidden, title: text.split("\n")[0] || "", text, notes: notes.replace(/\n{3,}/g, "\n\n").trim() });
+    slides.push({ index: i + 1, hidden, title: titleText || text.split("\n").find(Boolean) || "", text, notes: notes.replace(/\n{3,}/g, "\n\n").trim() });
   });
   return slides;
 }
