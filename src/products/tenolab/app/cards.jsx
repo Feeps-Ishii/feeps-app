@@ -1,5 +1,6 @@
 import React from "react";
 import { Ic, PremTag, StartTag, Thumb, TopicIcon, durationLabel } from "./ui.jsx";
+import "./case/preview.css";
 
 /* 一覧のカード（モックの courseCard / drillCard / caseCard）。
    c / d / x は app/model.js で整えた形（locked・progress・cleared などを含む）。 */
@@ -55,6 +56,33 @@ export function DrillCard({ d, premium, go }) {
   return <button type="button" className={`card ccard ${cleared ? "is-cleared" : ""}`} onClick={() => go(`#/drills/${d.id}`)}>{body}</button>;
 }
 
+/* 案件のイメージ（2026-10-13）。Servlet の案件は、作る画面（フォーム）をそのまま小さく映し、チケットの番号と種類を重ねる。
+   画面の無い案件は、サムネイルが設定されていればそれを、無ければチケットの形で出す */
+const CASE_KIND = { feat: "機能追加", bug: "不具合", mod: "改修" };
+function CasePreview({ x }) {
+  const t = x.ticket || {};
+  const kind = CASE_KIND[t.kind] ? t.kind : "feat";
+  const tag = (t.id || CASE_KIND[kind]) && <span className="cp-tag">{t.id && <b>{t.id}</b>}<i className={`cp-kind ${kind}`}>{CASE_KIND[kind]}</i></span>;
+  if (x.servlet?.pageHtml) {
+    return (
+      <div className="cp" aria-hidden="true">
+        <div className="cp-win">
+          <div className="cp-bar"><i /><i /><i /><span>localhost:8080/{x.servlet.pageName || ""}</span></div>
+          <div className="cp-page"><iframe title="" tabIndex={-1} sandbox="" loading="lazy" scrolling="no" srcDoc={x.servlet.pageHtml} /></div>
+        </div>
+        {tag}
+      </div>
+    );
+  }
+  if (x.thumb) return <Thumb item={x} />;
+  return (
+    <div className="cp ticket" aria-hidden="true">
+      {tag}
+      <div className="cp-flow">{["チケット", "実装", "テスト", "プルリク", "レビュー"].map((s, i) => <React.Fragment key={s}>{i > 0 && <em>→</em>}<span>{s}</span></React.Fragment>)}</div>
+    </div>
+  );
+}
+
 const CASE_STATE = {
   submitted: ["採点できず ・ もう一度提出", "warn"],
   returned: ["やり直し", "warn"],
@@ -72,10 +100,10 @@ export function CaseCard({ x, premium, go }) {
   if (x.locked) {
     return (
       <div className="card case locked" aria-disabled="true">
-        <div className="thumb-wrap"><Thumb item={x} /></div><span className="lockmark"><Ic id="lock" /></span>
+        <div className="thumb-wrap"><CasePreview x={x} /></div><span className="lockmark"><Ic id="lock" /></span>
         <div className="row"><span className="eyebrow" style={{ color: t.color }}>{t.name}</span><PremTag item={x} premium={premium} /></div>
         <h3 style={{ fontWeight: 700, fontSize: 16 }}>{x.title}</h3>
-        <p className="muted" style={{ margin: 0, fontSize: 13.5 }}>{x.summary}</p>
+        <p className="muted" style={{ marginBlock: 0, fontSize: 13.5 }}>{x.summary}</p>
         <div className="row" style={{ gap: 6 }}>{x.hours ? <span className="chip">目安 {x.hours}時間</span> : null}</div>
       </div>
     );
@@ -83,7 +111,7 @@ export function CaseCard({ x, premium, go }) {
   const st = CASE_STATE[x.status];
   return (
     <div className="card case">
-      <div className="thumb-wrap"><Thumb item={x} /></div>
+      <div className="thumb-wrap"><CasePreview x={x} /></div>
       <div className="row">
         <span className="eyebrow" style={{ color: t.color }}>{t.name}</span><PremTag item={x} premium={premium} />
         {st ? <span className={`chip ${st[1]}`}>{x.status === "approved" && <Ic id="check" />}{x.status === "approved" && x.runtime === "aws" ? "合格" : st[0]}</span>
@@ -91,7 +119,7 @@ export function CaseCard({ x, premium, go }) {
             : <span className="chip"><Ic id="lock" />{x.needTitle ? `${x.needTitle}を修了すると` : "コースを修了すると"}</span>}
       </div>
       <h3 style={{ fontWeight: 700, fontSize: 16 }}>{x.title}</h3>
-      <p className="muted" style={{ margin: 0, fontSize: 13.5 }}>{x.summary}</p>
+      <p className="muted" style={{ marginBlock: 0, fontSize: 13.5 }}>{x.summary}</p>
       <div className="row" style={{ gap: 6 }}>
         {x.assigned && <span className="chip warn">管理者から</span>}
         {x.dueAt && x.status !== "approved" && <span className="chip warn">期限 {dueText(x.dueAt)}</span>}

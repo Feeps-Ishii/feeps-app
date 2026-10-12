@@ -1,0 +1,19 @@
+/* 案件体験の一覧のイメージ（cards.jsx の CasePreview）。クラスは cp- で始める */
+.tl-course .cp { position: relative; display: block; width: 100%; aspect-ratio: 320 / 150; overflow: hidden; line-height: 1.4;
+  background-color: #EEF1EA; background-image: linear-gradient(#E3E7DE 1px, transparent 1px), linear-gradient(90deg, #E3E7DE 1px, transparent 1px); background-size: 18px 18px; }
+.tl-course .cp-win { position: absolute; left: 22%; right: 6%; top: 14%; bottom: -12%; background: #fff; border: 1px solid #D9DEE7; border-radius: 10px 10px 0 0; box-shadow: 0 10px 30px rgba(21, 23, 28, .12); display: grid; grid-template-rows: auto minmax(0, 1fr); overflow: hidden; }
+.tl-course .cp-bar { display: flex; align-items: center; gap: 4px; padding: 5px 8px; background: #F6F7FA; border-bottom: 1px solid #E3E6EC; }
+.tl-course .cp-bar i { width: 6px; height: 6px; border-radius: 50%; background: #D3D7DF; flex: none; }
+.tl-course .cp-bar span { margin-left: 6px; font-family: var(--mono); font-size: 9.5px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.tl-course .cp-page { position: relative; overflow: hidden; }
+.tl-course .cp-page iframe { position: absolute; left: 0; top: 0; width: 160%; height: 160%; border: 0; transform: scale(.625); transform-origin: 0 0; pointer-events: none; background: #fff; }
+.tl-course .cp-tag { position: absolute; left: 6%; bottom: 12%; display: inline-flex; align-items: center; gap: 6px; background: var(--ink); color: #fff; border-radius: 8px; padding: 5px 9px; box-shadow: 0 6px 18px rgba(21, 23, 28, .25); }
+.tl-course .cp-tag b { font-family: var(--mono); font-size: 12px; font-weight: 600; color: var(--marker); }
+.tl-course .cp-kind { font-style: normal; font-size: 11px; font-weight: 700; border-radius: 5px; padding: 0 6px; }
+.tl-course .cp-kind.feat { background: #E8EEFD; color: #1C46B8; }
+.tl-course .cp-kind.bug { background: #FBE9E7; color: #A3322A; }
+.tl-course .cp-kind.mod { background: #E3F5EE; color: #0B6B4F; }
+.tl-course .cp.ticket .cp-tag { left: 8%; top: 22%; bottom: auto; }
+.tl-course .cp-flow { position: absolute; left: 8%; right: 8%; bottom: 20%; display: flex; flex-wrap: wrap; gap: 3px; align-items: center; font-size: 11px; font-weight: 700; color: var(--ink2); }
+.tl-course .cp-flow span { background: var(--card); border: 1px solid var(--line); border-radius: 5px; padding: 0 6px; }
+.tl-course .cp-flow em { font-style: normal; color: #B9BEC8; }
