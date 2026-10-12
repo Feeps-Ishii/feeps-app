@@ -87,7 +87,7 @@
 .cf-tbl code { font-family: var(--mono); font-size: .88em; background: var(--soft); border-radius: 4px; padding: 0 4px; }
 .cf-big { font-family: var(--mono); font-size: 20px; }
 .cf-big.ok { color: var(--mint); } .cf-big.ng { color: var(--red); }
-.cf-hidden { position: absolute; width: 1px; height: 1px; opacity: 0; pointer-events: none; }
+.cf-hidden { position: fixed; left: -10000px; top: 0; width: 1024px; height: 768px; border: 0; opacity: 0; pointer-events: none; }
 
 /* ブラウザ（動作確認） */
 .cf-browser { border: 1px solid #D9DEE7; border-radius: 14px; overflow: hidden; background: #E9ECF2; display: grid; }
