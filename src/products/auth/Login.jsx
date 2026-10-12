@@ -1,15 +1,15 @@
 import React, { useState, useRef, useEffect } from "react";
 import { signIn, signOut, confirmSignIn, resetPassword, confirmResetPassword, rememberDevice } from "aws-amplify/auth";
 import {
-  Mail, Lock, Eye, EyeOff, ArrowLeft, CheckCircle2, ShieldCheck, Cloud,
-  CircleHelp, Sparkles, GraduationCap, BookOpenCheck, Radar,
+  Mail, Lock, Eye, EyeOff, ArrowLeft, CheckCircle2, ShieldCheck,
+  Sparkles, GraduationCap, NotebookPen, Clock, Calendar, ClipboardCheck, Users,
   LogIn, Send,
 } from "lucide-react";
 import { T, NOVA, PRISM, BrandMark } from "../../components/common";
 import { StandaloneLegalPage } from "../../components/common/LegalPages.jsx";
 import { TotpSetupPanel, TotpChallengePanel } from "./MfaSetup.jsx";
 import { TermsCheckbox, recordTermsAgreement } from "../../components/common/TermsConsent.jsx";
-import authArt from "../../assets/auth/learning-stack.svg";
+import "./devhubAuth.css";
 
 // Cognito User Pool (ap-northeast-1_QG4KZb06z) の実設定を確認のうえ表示（Phase7-4b）。
 // ハードコードではなく、実際のPasswordPolicy（MinimumLength:8, RequireUppercase/Lowercase/Numbers/Symbols:true）と一致させている。
@@ -42,7 +42,8 @@ const loginFieldVars = {
   "--field-focus-ring": PRISM.accentSubtle,
 };
 
-const ctaStyle = { background: PRISM.gradCta, boxShadow: PRISM.heroShadow };
+// 2026-10-12: DevHub LMS のログイン（D 案）。青一色、押すと沈む
+const ctaStyle = { background: "#1F5FD6", boxShadow: "0 5px 0 #123E96" };
 const ctaClass = "feeps-auth-primary feeps-prism-cta w-full rounded-xl px-4 py-3 text-sm font-bold text-white disabled:opacity-60";
 
 function AuthMeta({ step }) {
@@ -58,84 +59,44 @@ function AuthMeta({ step }) {
   );
 }
 
-// 2026-09-09: 左側を刷新。承認モック: https://claude.ai/code/artifact/bfb02376-ff82-4122-8184-fd3e5192b9ca
-//
-// **言い切りのコピーをやめた。** 「学びがつながり、次の可能性がひらく。」は
-// サービスの中身ではなく「感じ」を言っていて、毎日見ると白々しくなる（ユーザー指摘）。
-// 何ができるかを事実で書き、絵で見せる形にした。
-//
-// 絵は ManyPixels の monochromatic（商用可・帰属表示不要）。**主色が1色**でできているので、
-// そこを置き換えるだけで色味が変わる。ここでは濃い地に載せるため、
-// 主色を明るいティールへ、輪郭などの濃い面を淡いグレーへ寄せた版を使っている
-// （置き換えないと濃い部分が背景に溶けて、絵の形が読めない）。
-//
-// 円軌道と浮遊するチップは廃止。チップは静的な帯にして、絵と役割が重ならないようにした。
-function AuthBrandVisual() {
-  const products = [
-    // 2026-09-28: 学習はLMSから外した（テノラボへ）
-    { label: "研修", icon: GraduationCap },
-    { label: "スキル", icon: Radar },
-  ];
+// 2026-10-12: ログイン画面を一新（モック docs/design/mockups/devhub-lms-2026-10/devhub-login.html の D 案）。
+// 真ん中にロゴと入力のカード。まわりに機能のアイコンが浮かび、点線でカードにつながる（ロゴの「ハブ」）。
+// その奥に、日報・勤怠・カリキュラム・テストの画面のかけらを薄くぼかして敷く（ユーザー指定）。
+// 文章は置かない。狭い画面では背景を出さず、ロゴとカードだけ。
+const ORBIT = [
+  { Icon: GraduationCap, c: "#1F5FD6", x: 15, y: 30 },
+  { Icon: NotebookPen, c: "#2B6BE0", x: 22, y: 74 },
+  { Icon: Clock, c: "#11966F", x: 8, y: 54 },
+  { Icon: Calendar, c: "#6B4FD8", x: 85, y: 26 },
+  { Icon: ClipboardCheck, c: "#D9822B", x: 91, y: 54 },
+  { Icon: Users, c: "#0E8F8A", x: 79, y: 79 },
+];
+function AuthBackdrop() {
   return (
-    <aside className="feeps-auth-brand" style={{ background: NOVA.gradAuth, color: T.darkTextPrimary }}>
-      <div className="feeps-auth-wordmark">
-        <BrandMark size={44} withWordmark wordmarkSize={19} wordmarkColor={T.darkTextPrimary} />
+    <div className="dh-auth-bg" aria-hidden="true">
+      <div className="dh-shot dh-shot-1">
+        <b><span className="dh-ic" style={{ "--c": "#2B6BE0" }}><NotebookPen size={14} /></span>日報</b>
+        {[["#1F5FD6", 4], ["#11966F", 3], ["#D9483B", 0], ["#1F5FD6", 5]].map(([c, lv], i) => (
+          <span key={i} className="dh-row"><i className="dh-av" /><i className="dh-line" /><span className="dh-lv">{[1, 2, 3, 4, 5].map(k => <i key={k} className={k <= lv ? "on" : ""} />)}</span><i className="dh-dot" style={{ background: c }} /></span>
+        ))}
       </div>
-
-      <div className="feeps-auth-brand-copy">
-        {/* 2026-09-09: 「研修も学習も、ひとつのIDで。」から差し替え（ユーザー指示）。
-            **製品名に寄りかからない言い方にする。** Feeps One という名前は変わる可能性があるので、
-            コピー側が名前や「ひとつのID」という言い回しに依存しないようにした。 */}
-        <h1><span style={{ color: PRISM.teal }}>楽しく、</span>効果的かつ効率的に。</h1>
-        {/* 幅を絞りすぎると「残り／ます。」のように割れて、最後の行が数文字だけになる。
-            広めに取ったうえで、文節で折り返す（word-break: auto-phrase）。
-            明示の改行は左右2列で出している間だけ効かせる（CSS側） */}
-        <p style={{ color: T.darkTextSecondary }}>
-          研修管理とスキル管理。
-          <br className="feeps-auth-br" />
-          学んだことは記録として残り、あとから見返せます。
-        </p>
-        <div className="feeps-auth-tags">
-          {products.map(({ label, icon: Icon }) => (
-            <span key={label} className="feeps-auth-tag"><Icon size={15} aria-hidden="true" />{label}</span>
-          ))}
-        </div>
+      <div className="dh-shot dh-shot-2">
+        <b><span className="dh-ic" style={{ "--c": "#6B4FD8" }}><Calendar size={14} /></span>カリキュラム</b>
+        {["09:00", "09:30", "13:00", "14:00", "17:00"].map((t, i) => <span key={t} className={`dh-tl ${i === 1 ? "on" : ""}`}><small>{t}</small><i /><i className="dh-line" /></span>)}
       </div>
-
-      <img className="feeps-auth-art" src={authArt} alt="" aria-hidden="true" />
-
-      <div className="feeps-auth-trust" style={{ color: T.darkTextSecondary }}>
-        <span><ShieldCheck size={15} aria-hidden="true" />安全な認証</span>
-        <span><Cloud size={15} aria-hidden="true" />AWS基盤</span>
-        <span><CircleHelp size={15} aria-hidden="true" />サポート</span>
+      <div className="dh-shot dh-shot-3">
+        <b><span className="dh-ic" style={{ "--c": "#11966F" }}><Clock size={14} /></span>勤怠</b>
+        <span className="dh-week">{["on", "on", "late", "on", "now"].map((k, i) => <i key={i} className={k} />)}</span>
+        <svg width="74" height="74" viewBox="0 0 58 58"><circle cx="29" cy="29" r="23" fill="none" stroke="#EFF3F9" strokeWidth="8" /><circle cx="29" cy="29" r="23" fill="none" stroke="#11966F" strokeWidth="8" strokeLinecap="round" strokeDasharray="128 145" transform="rotate(-90 29 29)" /></svg>
       </div>
-    </aside>
-  );
-}
-
-// 見出しの書体（Zen Old Mincho 900）は**ログイン画面でだけ**読み込む。
-// 日本語のフォントは容量が大きいので、アプリ本体には入れない（承認: 2026-09-09）。
-// display=swap なので、読み込みが終わるまでは標準の書体で出る（文字が消えることはない）。
-const AUTH_FONT_ID = "feeps-auth-font";
-const AUTH_FONT_HREF = "https://fonts.googleapis.com/css2?family=Zen+Old+Mincho:wght@900&display=swap";
-function useAuthDisplayFont() {
-  useEffect(() => {
-    if (document.getElementById(AUTH_FONT_ID)) return;
-    const link = document.createElement("link");
-    link.id = AUTH_FONT_ID;
-    link.rel = "stylesheet";
-    link.href = AUTH_FONT_HREF;
-    document.head.appendChild(link);
-    // 外さない。ログイン後にこの画面へ戻ることがあり、そのたびに読み直すと
-    // 書体が入れ替わって見える（キャッシュに載るので、残しても実害はない）
-  }, []);
-}
-
-function AuthMobileBrand() {
-  return (
-    <div className="feeps-auth-mobile-brand">
-      <BrandMark size={40} withWordmark wordmarkSize={19} />
-      <span style={{ color: PRISM.sub }}>学びと成長を、ひとつにつなぐ。</span>
+      <div className="dh-shot dh-shot-4">
+        <b><span className="dh-ic" style={{ "--c": "#D9822B" }}><ClipboardCheck size={14} /></span>テスト</b>
+        <span className="dh-bars">{[62, 84, 71, 90, 78, 88].map((h, i) => <i key={i} style={{ height: `${h}%` }} />)}</span>
+      </div>
+      <svg className="dh-lines">{ORBIT.map(({ x, y }, i) => <line key={i} x1="50%" y1="50%" x2={`${x}%`} y2={`${y}%`} />)}</svg>
+      {ORBIT.map(({ Icon, c, x, y }, i) => (
+        <span key={i} className="dh-orb" style={{ "--c": c, left: `calc(${x}% - 29px)`, top: `calc(${y}% - 29px)`, animationDelay: `-${i * 0.8}s` }}><Icon size={26} /></span>
+      ))}
     </div>
   );
 }
@@ -340,7 +301,6 @@ function ForgotPasswordFlow({ onBack }) {
 }
 
 export default function Login({ onLogin }) {
-  useAuthDisplayFont();
   const [screen, setScreen] = useState("login"); // "login" | "forgot" | "legal:terms" | "legal:privacy"
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -460,11 +420,11 @@ export default function Login({ onLogin }) {
   }
 
   return (
-    <div className="feeps-auth-shell" style={{ minHeight: "100dvh", background: T.darkBgBase, color: PRISM.ink, "--auth-line": NOVA.line, "--auth-soft": NOVA.soft, "--auth-card": NOVA.card, "--auth-ink": NOVA.ink, "--auth-muted": NOVA.muted, "--auth-on-dark": NOVA.onDark, "--auth-on-dark-muted": NOVA.onDarkMuted, "--auth-accent": NOVA.accent, "--auth-violet": NOVA.violet, "--auth-teal": NOVA.teal, "--auth-shadow": NOVA.shadowMd }}>
-      <AuthBrandVisual />
-      <main className="feeps-auth-panel" style={{ minHeight: "100dvh", background: PRISM.surface }}>
-        <div className="feeps-auth-card">
-          <AuthMobileBrand />
+    <div className="dh-auth" style={{ color: PRISM.ink, "--auth-line": NOVA.line, "--auth-soft": NOVA.soft, "--auth-card": NOVA.card, "--auth-ink": NOVA.ink, "--auth-muted": NOVA.muted, "--auth-accent": NOVA.accent, "--auth-shadow": NOVA.shadowMd }}>
+      <AuthBackdrop />
+      <main className="dh-auth-col">
+        <div className="dh-auth-logo"><BrandMark size={50} withWordmark wordmarkSize={27} /></div>
+        <div className="feeps-auth-card dh-auth-card">
           {screen === "forgot" ? (
             <ForgotPasswordFlow onBack={() => setScreen("login")} />
           ) : mfaStep ? (
@@ -521,7 +481,6 @@ export default function Login({ onLogin }) {
               <div className="feeps-auth-heading">
                 {/* 2026-09-09: 「おかえりなさい」をやめた。毎日見る画面で情緒に寄ると白々しくなる */}
                 <h2 style={{ color: PRISM.ink }}>ログイン</h2>
-                <p style={{ color: PRISM.sub }}>メールアドレスとパスワードを入力してください。</p>
               </div>
               <div className="feeps-auth-form" role="form" aria-label="ログイン">
                 {err && <div className="feeps-auth-alert" style={{ background: PRISM.badSubtle, color: PRISM.ink, borderColor: PRISM.badLine }} role="alert">{err}</div>}
@@ -558,12 +517,12 @@ export default function Login({ onLogin }) {
             </div>
           )}
 
-          <footer className="feeps-auth-foot" style={{ color: PRISM.sub }}>
-            <span>© 2026 Feeps</span>
-            <button type="button" onClick={() => setScreen("legal:terms")}>利用規約</button>
-            <button type="button" onClick={() => setScreen("legal:privacy")}>プライバシーポリシー</button>
-          </footer>
         </div>
+        <footer className="feeps-auth-foot dh-auth-foot" style={{ color: PRISM.sub }}>
+          <button type="button" onClick={() => setScreen("legal:terms")}>利用規約</button>
+          <button type="button" onClick={() => setScreen("legal:privacy")}>プライバシーポリシー</button>
+          <span>© 2026 Feeps</span>
+        </footer>
       </main>
     </div>
   );
