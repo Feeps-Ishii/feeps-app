@@ -1,0 +1,25 @@
+/* 演習（DrillPage）：入力補完つきのエディタと「AIに聞く」（2026-10-13） */
+.tl-course .try-ed { flex: 1; min-height: 260px; display: flex; flex-direction: column; min-width: 0; }
+.tl-course .try-ed > * { flex: 1; }
+.tl-course .drill-ask { margin-top: 14px; padding: 14px 18px; display: grid; gap: 10px; }
+.tl-course .drill-ask .row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.tl-course .drill-ask .sees { display: flex; gap: 6px; flex-wrap: wrap; }
+.tl-course .drill-ask .sees span { display: inline-flex; align-items: center; gap: 4px; font-size: 11.5px; font-weight: 700; color: var(--ink2); background: var(--soft); border-radius: 6px; padding: 1px 8px; }
+.tl-course .drill-ask .sees span::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: var(--mint); }
+.tl-course .drill-ask .log { max-height: 340px; overflow-y: auto; display: flex; flex-direction: column; gap: 10px; }
+.tl-course .drill-ask .msg { display: grid; grid-template-columns: 26px minmax(0, 1fr); gap: 8px; align-items: start; }
+.tl-course .drill-ask .msg.me { grid-template-columns: minmax(0, 1fr); }
+.tl-course .drill-ask .msg .who { width: 26px; height: 26px; border-radius: 8px; background: var(--ink); color: var(--marker); display: grid; place-items: center; font-family: var(--mono); font-size: 10.5px; font-weight: 600; }
+.tl-course .drill-ask .msg .b { background: var(--soft); border-radius: 4px 12px 12px 12px; padding: 8px 11px; font-size: 14px; white-space: pre-wrap; }
+.tl-course .drill-ask .msg.me .b { justify-self: end; background: var(--marker-soft); border: 1px solid var(--marker-deep); border-radius: 12px 4px 12px 12px; max-width: 90%; }
+.tl-course .drill-ask .typing { display: inline-flex; gap: 4px; }
+.tl-course .drill-ask .typing i { width: 6px; height: 6px; border-radius: 50%; background: var(--muted); animation: drblink 1s infinite; }
+.tl-course .drill-ask .typing i:nth-child(2) { animation-delay: .15s; } .tl-course .drill-ask .typing i:nth-child(3) { animation-delay: .3s; }
+@keyframes drblink { 50% { opacity: .25; } }
+.tl-course .drill-ask .sugg { display: flex; flex-wrap: wrap; gap: 6px; }
+.tl-course .drill-ask .sugg button { border: 1px solid #CDD1C7; background: var(--card); border-radius: 999px; padding: 3px 10px; font: inherit; font-size: 12.5px; font-weight: 700; cursor: pointer; }
+.tl-course .drill-ask .sugg button:hover { border-color: var(--ink); }
+.tl-course .drill-ask .compose { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 6px; }
+.tl-course .drill-ask .compose textarea { resize: none; border: 1px solid #CDD1C7; border-radius: 10px; padding: 7px 10px; font: inherit; font-size: 14px; min-height: 40px; max-height: 110px; }
+@media (prefers-reduced-motion: reduce) { .tl-course .drill-ask .typing i { animation: none; } }
+.tl-course .drill-ask .msg .b code { font-family: var(--mono); font-size: .88em; background: #E4E7DE; border-radius: 4px; padding: 0 4px; }

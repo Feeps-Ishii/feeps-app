@@ -1,4 +1,5 @@
 import React, { useEffect, useRef, useState } from "react";
+import { apiPost } from "../../../api.js";
 import { Back, Ic, LoadError, Loading, PremTag, StartTag } from "./ui.jsx";
 import { TryPanel } from "./Workbench.jsx";
 import { cloud, getDrillAnswer, useDrill } from "./data.js";
@@ -27,6 +28,9 @@ function CodeDrill({ item, topic, back, go, rec, progress }) {
   const [answerState, setAnswerState] = useState("");
   const [saveErr, setSaveErr] = useState("");
   const runs = useRef(Number(rec?.runs || 0)), hints = useRef(Number(rec?.hints || 0));
+  const [last, setLast] = useState(null);
+  const askRef = useRef(null);
+  const canAsk = item.runtime === "java" || item.runtime === "web";
   const cleared = rec?.status === "cleared";
 
   async function save(status) {
@@ -39,6 +43,7 @@ function CodeDrill({ item, topic, back, go, rec, progress }) {
     }
   }
   function onResult(r) {
+    setLast(r);
     runs.current += 1;
     const ok = r.results.length > 0 && r.results.every(x => x.ok);
     save(ok ? "cleared" : (cleared ? "cleared" : "doing"));
@@ -66,15 +71,63 @@ function CodeDrill({ item, topic, back, go, rec, progress }) {
         {item.task && <p style={{ whiteSpace: "pre-wrap" }}>{item.task}</p>}
         <TryPanel item={item} code={code} setCode={setCode} onResult={onResult}
           onHint={() => { if (!hint) { hints.current += 1; setHint(true); } }} hintShown={hint}
-          onAnswer={item.hasAnswer ? onAnswer : null} answerState={answerState} />
+          onAnswer={item.hasAnswer ? onAnswer : null} answerState={answerState} onAsk={canAsk ? q => askRef.current?.(q) : null} />
         {saveErr && <div className="verdict ng" role="alert">{saveErr}</div>}
       </div>
+      {canAsk && <DrillAsk item={item} code={code} last={last} askRef={askRef} />}
       {topic && (
         <div className="card flat" style={{ marginTop: 14, padding: "14px 18px", display: "flex", flexWrap: "wrap", gap: 12, alignItems: "center" }}>
           <span className="muted" style={{ fontSize: 13 }}>この演習の単元</span><button type="button" className="btn ghost" onClick={() => go(`#/topics/${topic.id}`)}>{topic.name}</button>
         </div>
       )}
     </>
+  );
+}
+
+/* 演習のコードについて AI に聞く（2026-10-13）。いまのコードと最後の実行結果を一緒に送る。答えのコードは返さない */
+const ASK_SUGG = { java: ["ヒントだけほしい", "この書き方で合ってる？", "エラーの意味は？"], web: ["ヒントだけほしい", "どこを見ればいい？", "思ったとおりに見えないのはなぜ？"] };
+function DrillAsk({ item, code, last, askRef }) {
+  const [msgs, setMsgs] = useState([]);
+  const [sugg, setSugg] = useState(ASK_SUGG[item.runtime] || ASK_SUGG.java);
+  const [text, setText] = useState("");
+  const [busy, setBusy] = useState(false);
+  const hist = useRef([]);
+  const box = useRef(null);
+  const logRef = useRef(null);
+  useEffect(() => { const el = logRef.current; if (el) el.scrollTop = el.scrollHeight; }, [msgs, busy]);
+  async function ask(q) {
+    const v = String(q || "").trim();
+    if (!v || busy) return;
+    setBusy(true); setText("");
+    setMsgs(m => [...m, { who: "me", text: v }]);
+    try {
+      const output = last ? (last.error || (last.out || []).join("\n")) : "";
+      const res = await apiPost(`/tenolab/drills/${encodeURIComponent(item.id)}/ask`, { question: v, source: code, output, compiled: !!last && !last.error, history: hist.current.slice(-4) });
+      const a = res?.answer || "うまく答えられませんでした。聞き方を変えてみてください。";
+      hist.current.push({ role: "user", text: v }, { role: "assistant", text: a });
+      setMsgs(m => [...m, { who: "ai", text: a }]);
+      if (Array.isArray(res?.followUps) && res.followUps.length) setSugg(res.followUps);
+    } catch (e) {
+      setMsgs(m => [...m, { who: "ai", text: e?.errorMessage || "回答を作れませんでした。時間をおいてお試しください。" }]);
+    } finally { setBusy(false); }
+  }
+  useEffect(() => { if (askRef) askRef.current = q => { box.current?.scrollIntoView({ behavior: "smooth", block: "center" }); ask(q); }; });
+  return (
+    <section className="card drill-ask" ref={box} aria-label="AIに聞く">
+      <div className="row"><b>AIに聞く</b><span className="sees"><span>課題</span><span>コード</span><span>実行結果</span></span></div>
+      {msgs.length > 0 && (
+        <div className="log" ref={logRef} aria-live="polite">
+          {msgs.map((m, k) => <div key={k} className={`msg ${m.who === "me" ? "me" : ""}`}>{m.who !== "me" && <span className="who">AI</span>}<div className="b">{String(m.text).split(/(`[^`\n]+`)/).map((t, j) => (/^`[^`\n]+`$/.test(t) ?<code key={j}>{t.slice(1, -1)}</code> : <React.Fragment key={j}>{t}</React.Fragment>))}</div></div>)}
+          {busy && <div className="msg"><span className="who">AI</span><div className="b typing"><i /><i /><i /></div></div>}
+        </div>
+      )}
+      <div className="sugg">{sugg.map(s => <button key={s} type="button" disabled={busy} onClick={() => ask(s)}>{s}</button>)}</div>
+      <form className="compose" onSubmit={e => { e.preventDefault(); ask(text); }}>
+        <textarea rows={1} value={text} placeholder="このコードについて聞く" aria-label="AIへの質問" onChange={e => setText(e.target.value)}
+          onKeyDown={e => { if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) { e.preventDefault(); ask(text); } }} />
+        <button className="btn" type="submit" disabled={busy || !text.trim()}>送る</button>
+      </form>
+    </section>
   );
 }
 

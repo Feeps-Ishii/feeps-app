@@ -1,6 +1,10 @@
 import React, { useRef, useState } from "react";
 import { Ic } from "./ui.jsx";
 import { FILE_NAME, runCode } from "./runtime.js";
+import JavaEditor from "../../learning/JavaEditor.jsx";
+import WebEditor from "../../learning/WebEditor.jsx";
+import { parseJavacError } from "../../learning/javaEditorSupport.js";
+import "./exercise/drill.css";
 
 /* コードを書いて動かす部品（モックの .try / .ed / .console）。演習と案件体験で使う。 */
 
@@ -23,7 +27,7 @@ export function Editor({ value, onChange, label, readOnly, minHeight, tabs }) {
 }
 
 // 演習の「書く → 実行 → 判定」。onResult(result) で結果を親に知らせる（記録の保存は親）
-export function TryPanel({ item, code, setCode, onResult, onHint, onAnswer, answerState, hintShown }) {
+export function TryPanel({ item, code, setCode, onResult, onHint, onAnswer, answerState, hintShown, onAsk }) {
   const [busy, setBusy] = useState(false);
   const [res, setRes] = useState(null);
   const [checks, setChecks] = useState({});
@@ -63,7 +67,17 @@ export function TryPanel({ item, code, setCode, onResult, onHint, onAnswer, answ
   return (
     <div className="try">
       <div className="ed">
-        <Editor value={code} onChange={setCode} label={FILE_NAME[runtime] || "main"} />
+        {runtime === "java" ? (
+          <>
+            <div className="tabs"><span className="on">{FILE_NAME.java}</span></div>
+            <div className="try-ed"><JavaEditor value={code} onChange={setCode} level={1} onRun={run} diagnostic={res?.error ? (d => (d && d.file === FILE_NAME.java ? d : null))(parseJavacError(res.error)) : null} /></div>
+          </>
+        ) : runtime === "web" ? (
+          <>
+            <div className="tabs"><span className="on">{FILE_NAME.web}</span></div>
+            <div className="try-ed"><WebEditor mode="html" value={code} onChange={setCode} level={1} /></div>
+          </>
+        ) : <Editor value={code} onChange={setCode} label={FILE_NAME[runtime] || "main"} />}
         <div className="run">
           <button className="btn" type="button" onClick={run} disabled={busy}><Ic id="play" />{busy ? "実行しています…" : "実行する"}</button>
           {item.hint && <button className="btn ghost" type="button" onClick={onHint}>ヒント</button>}
@@ -78,6 +92,9 @@ export function TryPanel({ item, code, setCode, onResult, onHint, onAnswer, answ
         {res ? res.results.map((r, i) => <div key={i} className={`verdict ${r.ok ? "ok" : "ng"}`}>{r.ok ? "OK" : "まだ"} ・ {r.name}</div>)
           : <div className="verdict wait">確かめること {tests.length}つ</div>}
         {res && res.results.length > 0 && res.results.every(r => r.ok) && <div className="verdict ok">完了しました</div>}
+        {onAsk && res && !(res.results.length > 0 && res.results.every(r => r.ok)) && (
+          <button type="button" className="btn ghost" style={{ justifySelf: "start" }} onClick={() => onAsk(res.error ? ((d => (d?.line ? `${d.line}行目の` : ""))(parseJavacError(res.error)) + "エラーの意味は？") : "出力が期待どおりにならない理由は？")}>AIに聞く ↗</button>
+        )}
         {hintShown && item.hint && <div className="hint">{item.hint}</div>}
         {answerState === "locked" && <div className="hint">お手本は、何回か実行してみたあとに見られます。</div>}
         {answerState === "error" && <div className="hint">お手本を読み込めませんでした。もう一度押してください。</div>}
