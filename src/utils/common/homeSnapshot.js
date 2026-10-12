@@ -9,11 +9,18 @@ const PREFIX = "feeps.homeSnapshot.v1:";
 const MAX_AGE_MS = 12 * 60 * 60 * 1000;
 
 // ログイン中の利用者（Amplify が保存している LastAuthUser）。取れなければ保存しない
+// devhub-lms.com ではログインを Cookie に置く（aws.js、共通ログイン）ので、Cookie も見る
+const LAST_AUTH = /^CognitoIdentityServiceProvider\.[^.]+\.LastAuthUser$/;
 function currentUserKey() {
   try {
+    for (const part of String(document.cookie || "").split(";")) {
+      const i = part.indexOf("=");
+      const k = decodeURIComponent(part.slice(0, i).trim());
+      if (LAST_AUTH.test(k)) return decodeURIComponent(part.slice(i + 1).trim());
+    }
     for (let i = 0; i < localStorage.length; i++) {
       const key = localStorage.key(i);
-      if (key && /^CognitoIdentityServiceProvider\.[^.]+\.LastAuthUser$/.test(key)) return localStorage.getItem(key) || "";
+      if (key && LAST_AUTH.test(key)) return localStorage.getItem(key) || "";
     }
   } catch { /* 読めない環境では使わない */ }
   return "";
