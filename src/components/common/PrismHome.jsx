@@ -42,20 +42,20 @@ export function PrismCapLabel({ children }) {
   return <p className="mb-2.5 text-xs font-bold uppercase" style={{ color: NOVA.muted, letterSpacing: "0.07em" }}>{children}</p>;
 }
 
-export function PrismHomeHeading({ eyebrow, title, description, action, className = "", style = {}, ...rest }) {
+// 2026-10-12（ユーザー指定・全ロール）：見出しの下の説明文は出さない（AIっぽく見えるため）。description は受け取るが表示しない
+export function PrismHomeHeading({ eyebrow, title, description: _description, action, className = "", style = {}, ...rest }) {
   return (
     <div {...rest} className={`flex flex-wrap items-end justify-between gap-4 ${className}`} style={style}>
       <div>
         {eyebrow && <p className="text-[13px] font-semibold" style={{ color: NOVA.muted }}>{eyebrow}</p>}
         <h1 className="mt-1 text-[30px] font-bold sm:text-[34px]" style={{ color: NOVA.ink, letterSpacing: "-0.035em" }}>{title}</h1>
-        {description && <p className="mt-2 max-w-2xl text-sm leading-6" style={{ color: NOVA.muted }}>{description}</p>}
       </div>
       {action}
     </div>
   );
 }
 
-export function PrismHero({ eyebrow, title, description, icon: Icon, actions, children, className = "", style = {}, ...rest }) {
+export function PrismHero({ eyebrow, title, description: _description, icon: Icon, actions, children, className = "", style = {}, ...rest }) {
   return (
     <section {...rest} className={`feeps-hero-in relative overflow-hidden rounded-[18px] p-5 sm:p-7 ${className}`} style={{ color: NOVA.onDark, background: NOVA.gradPortal, border: `1px solid ${NOVA.line}`, boxShadow: NOVA.shadowMd, ...style }}>
       <span className="absolute inset-y-0 left-0 w-1" style={{ background: NOVA.gradAccentTeal }} aria-hidden="true" />
@@ -67,7 +67,6 @@ export function PrismHero({ eyebrow, title, description, icon: Icon, actions, ch
             {eyebrow && <p className="text-xs font-bold tracking-[0.08em]" style={{ color: NOVA.onDark }}>{eyebrow}</p>}
           </div>
           <h1 className="mt-4 text-[30px] font-bold leading-tight sm:text-[34px]" style={{ color: NOVA.onDark, letterSpacing: "-0.035em" }}>{title}</h1>
-          {description && <p className="mt-2 max-w-xl text-sm font-medium leading-6" style={{ color: NOVA.onDark }}>{description}</p>}
         </div>
         {actions && <div className="flex flex-wrap gap-2">{actions}</div>}
       </div>
@@ -88,7 +87,8 @@ export function PrismKpiCard({ icon: Icon, label, value, unit, detail, tone = "a
         <span className="text-[26px] font-bold" style={{ color: NOVA.ink, letterSpacing: "-0.03em", fontVariantNumeric: "tabular-nums" }}>{value ?? "—"}</span>
         {unit && <span className="text-xs font-semibold" style={{ color: NOVA.muted }}>{unit}</span>}
       </div>
-      {detail && <p className="mt-1.5 truncate text-xs" style={{ color: NOVA.muted }}>{detail}</p>}
+      {/* 2026-10-12: 数字の下の説明は出さない。取れなかったとき（「確認できません」）だけ出す */}
+      {detail && /確認できません/.test(String(detail)) && <p className="mt-1.5 truncate text-xs" style={{ color: NOVA.muted }}>{detail}</p>}
     </>
   );
   if (onClick) {
@@ -168,13 +168,12 @@ export function TrainingHomeHero({ kicker, title, description, gradient, actions
 
 // 研修管理Homeの2パネル(mockの.panel/.li相当)。パネル本体はロール別に組み立てるため、
 // ここでは行の見た目だけを共通化する。
-export function TrainingHomePanel({ title, meta, children, className = "" }) {
+export function TrainingHomePanel({ title, meta: _meta, children, className = "" }) {
   return (
     // min-w-0: grid/flexの中で行の中身（nowrapのラベル等）が親を押し広げないようにする
     <PrismCard className={`min-w-0 p-4 sm:p-5 ${className}`}>
       <div className="mb-1 flex min-w-0 items-center justify-between gap-2">
         <h4 className="min-w-0 text-[13.5px] font-bold" style={{ color: NOVA.ink }}>{title}</h4>
-        {meta && <span className="shrink-0 text-[11.5px] font-medium" style={{ color: NOVA.muted }}>{meta}</span>}
       </div>
       <div className="divide-y" style={{ borderColor: NOVA.line }}>{children}</div>
     </PrismCard>

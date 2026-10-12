@@ -46,7 +46,7 @@ export default function PageHeader({ product = "training", label, title, descrip
       <div className="relative">
         {label && <div className="flex items-center gap-2 text-xs font-bold uppercase" style={{ color: NOVA.muted, letterSpacing: "0.12em" }}><span className="h-2 w-2 rounded-full" style={{ background: pa.accent }} />{label}</div>}
         <h2 className="mt-2 break-words text-[30px] font-bold leading-snug sm:text-[34px]" style={{ color: NOVA.ink, letterSpacing: "-0.03em" }}>{title}</h2>
-        {description && <p className="mt-2 max-w-3xl break-words text-sm leading-6" style={{ color: NOVA.muted }}>{description}</p>}
+        {/* 2026-10-12: 説明文は出さない（ユーザー指定） */}
         {(chips.length > 0 || cta) && (
           <div className="mt-5 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
             {chips.length > 0 && (

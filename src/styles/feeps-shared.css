@@ -460,10 +460,12 @@ body.feeps-modal-open .feeps-main-scroll { overflow: hidden !important; }
   margin: 0;
   background: transparent;
 }
+/* 2026-10-12（ユーザー指定）：本体の背景を方眼に（DevHub Learning と同じ考え方、線は青み）。モック devhub-lms-bg.html の A */
 .feeps-nova-shell .feeps-main-scroll {
-  background:
-    radial-gradient(640px 380px at 92% 0, color-mix(in srgb, var(--nova-accent) 6%, transparent), transparent 68%),
-    var(--nova-paper);
+  background-color: var(--nova-paper);
+  background-image: linear-gradient(#E6ECF4 1px, transparent 1px), linear-gradient(90deg, #E6ECF4 1px, transparent 1px);
+  background-size: 28px 28px;
+  background-attachment: local;
 }
 @media (min-width: 1024px) {
   .feeps-shell-body { margin-left: var(--shell-offset); width: calc(100% - var(--shell-offset)); }

@@ -302,25 +302,14 @@ export default function InstructorWorkspace({ go, displayName = "講師" }) {
   const reportPending = todayAttendance.filter(item => item.reportState === "not_submitted");
   const reportSubmitted = todayAttendance.filter(item => item.reportState && item.reportState !== "not_submitted");
 
-  const headingTitle = loading
-    ? "本日の状況を確認しています"
-    : !todayCourses.length
-      ? "本日の担当コースはありません"
-      : !attendanceAvailable || !todayAttendance.length
-        ? `本日は${todayCourses.length}コースの研修日です`
-        : notClockedIn.length || reportPending.length
-          ? `本日は${todayAttendance.length}名が研修中 — 未打刻${notClockedIn.length}名・日報未提出${reportPending.length}名です`
-          : `本日は${todayAttendance.length}名が研修中 — 出欠も日報も揃っています`;
-  const headingDescription = !todayCourses.length
-    ? "担当コースの情報は「コース」から確認できます。研修がない日は教材やテストの準備ができます。"
-    : "出欠と日報は記録をそのまま出しています。気になる方がいれば、その場から個別の画面へ進めます。";
+  // 2026-10-12（ユーザー指定）：見出しは短く、説明文は出さない
+  const headingTitle = "今日の研修";
 
   return (
     <PrismPage>
       <PrismHomeHeading
         eyebrow={`${formatDate(date)} ・ ${displayName}`}
         title={headingTitle}
-        description={headingDescription}
         action={<Btn kind="soft" onClick={() => go("trainees")}>受講生一覧</Btn>}
       />
       {unassigned && <PrismCard className="p-3"><Badge tone="amber">{textOf(data?.scope?.message, "担当コースがありません")}</Badge></PrismCard>}

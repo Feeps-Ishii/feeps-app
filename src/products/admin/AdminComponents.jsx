@@ -97,18 +97,14 @@ function AdminHome({ go, goProduct, openRisk }) {
 
   // 研修カレンダーが取れなければ trainingCount は null。0社（=今日は研修なし）と
   // 混ぜずに「確認できません」と言う。
-  const heading = loading
-    ? "本日の状況を確認しています"
-    : !data
-      ? "本日の状況を確認できません"
-      : `${trainingCount == null ? "本日どこで研修中かを確認できません" : trainingCount === 0 ? "本日研修のある企業はありません" : `本日は${trainingCount}社で研修中`}${actionCount ? ` — 手を打つことが${actionCount}件あります` : trainingCount == null ? "" : " — 手を打つことはありません"}`;
+  // 2026-10-12（ユーザー指定）：見出しは短く。「— 手を打つことはありません」のような言い回しはやめた
+  const heading = "今日の研修";
 
   return (
     <PrismPage>
       <PrismHomeHeading
         eyebrow={`${homeDateLabel(date)} ・ 全社`}
         title={heading}
-        description="企業ごとに、今日ちゃんと回っているかを出しています。数字は出欠・日報という記録そのもので、誰を気にするかは見た方が決められるようにしています。"
         action={actionCount ? <Btn onClick={() => go && go("courses")}>要対応を見る</Btn> : null}
       />
 
@@ -132,7 +128,6 @@ function AdminHome({ go, goProduct, openRisk }) {
       <PrismCard className="overflow-hidden p-0">
         <div className="flex flex-wrap items-center justify-between gap-2 px-4 pt-4 sm:px-5">
           <h3 className="text-[13.5px] font-bold" style={{ color: PRISM.ink }}>企業ごとの状況</h3>
-          <span className="text-[11.5px]" style={{ color: PRISM.mut }}>今日ちゃんと回っているか</span>
         </div>
         <div className="mt-2 px-1 pb-1 sm:px-2">
           {loading ? <div className="p-4"><SkeletonRows rows={4} /></div> : !companies.length ? (
@@ -179,7 +174,7 @@ function AdminHome({ go, goProduct, openRisk }) {
       </PrismCard>
 
       <div className="grid gap-3 lg:grid-cols-[minmax(0,1.35fr)_minmax(0,1fr)]">
-        <TrainingHomePanel title="要対応" meta="放っておくと止まるもの">
+        <TrainingHomePanel title="要対応">
           {loading ? <SkeletonRows rows={3} /> : !actions.length ? (
             <div className="py-2 text-[12.5px]" style={{ color: PRISM.sub }}>いま手を打つものはありません。</div>
           ) : actions.slice(0, 5).map((item, i) => (
@@ -205,9 +200,9 @@ function AdminHome({ go, goProduct, openRisk }) {
             ))}
           </TrainingHomePanel>
           <TrainingHomePanel title="管理">
-            <TrainingHomePanelRow icon={Users} tone="teal" label="受講生・企業マスタ" sub="アカウント・所属・権限を管理します" actionLabel="開く" onAction={() => go && go("users")} />
-            <TrainingHomePanelRow icon={AlertCircle} tone="accent" label="要フォロー受講生の確認" sub="欠席・日報未提出などが続く方を分析画面で確認できます" actionLabel="開く" onAction={openRisk || (() => go && go("users"))} />
-            <TrainingHomePanelRow icon={Briefcase} tone="warn" label="助成金管理" sub="申請書類の状況を確認できます" actionLabel="開く" onAction={() => goProduct && goProduct("grants")} />
+            <TrainingHomePanelRow icon={Users} tone="teal" label="受講生・企業マスタ" actionLabel="開く" onAction={() => go && go("users")} />
+            <TrainingHomePanelRow icon={AlertCircle} tone="accent" label="要フォロー受講生の確認" actionLabel="開く" onAction={openRisk || (() => go && go("users"))} />
+            <TrainingHomePanelRow icon={Briefcase} tone="warn" label="助成金管理" actionLabel="開く" onAction={() => goProduct && goProduct("grants")} />
           </TrainingHomePanel>
         </div>
       </div>

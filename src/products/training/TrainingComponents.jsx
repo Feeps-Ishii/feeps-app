@@ -382,9 +382,10 @@ function TraineeHome({ go, goProduct, goSub, done, taskDataState, onTaskRetry, t
             <h1 className="mt-3.5 text-[26px] font-extrabold leading-[1.28] sm:text-[27px]" style={{ color: PRISM.ink, letterSpacing: "-0.035em" }}>
               {thHeroTitle}
             </h1>
-            <p className="mt-2.5 max-w-[40ch] text-[13.5px] leading-[1.9]" style={{ color: PRISM.sub }}>
-              {thHeroDescription}
-            </p>
+            {/* 2026-10-12（ユーザー指定）：説明文は出さない。日程の設定が要るときの注意だけ残す */}
+            {(thScheduleNeedsSetup || thScheduleConflict) && (
+              <p className="mt-2.5 max-w-[40ch] text-[13.5px] leading-[1.9]" style={{ color: PRISM.sub }}>{thHeroDescription}</p>
+            )}
 
             {/* 2026-09-14 ホーム作り直し: 「今日の単元」を独立カードから上の1枚へ移した。
                 ホームは「その日の内容」と「提出カレンダー」の2枚だけにする。 */}
@@ -6781,27 +6782,14 @@ function ClientHome({ openKarte, go, goProduct }) {
   const clientUpcoming = Array.isArray(clientDash?.upcomingTrainingDays) ? clientDash.upcomingTrainingDays : [];
   const clientUpcomingAvailable = clientDash?.upcomingTrainingDaysAvailable !== false;
 
-  const clientHeadingTitle = clientLoading
-    ? "本日の状況を確認しています"
-    : !clientDash
-      ? "本日の状況を確認できません"
-      : !clientIsTrainingDay
-        ? "本日は研修日ではありません"
-        : clientAttendanceIssues.length || clientReportPending.length
-          ? `本日は${clientTodayTrainees.length}名が研修中 — 出欠${clientAttendanceIssues.length}件・日報${clientReportPending.length}件が未確認です`
-          : `本日は${clientTodayTrainees.length}名が研修中 — 出欠も日報も揃っています`;
-  const clientHeadingDescription = !clientDash
-    ? "最新の状況を取得できませんでした。時間をおいて再度お試しください。"
-    : !clientIsTrainingDay
-      ? "本日は研修の予定がありません。この先の予定と、これまでの記録が確認できます。"
-      : "出欠と日報は記録をそのまま出しています。気になる方がいれば、その場から個別の状況へ進めます。";
+  // 2026-10-12（ユーザー指定）：見出しは短く、説明文は出さない
+  const clientHeadingTitle = "今日の研修";
 
   return (
     <PrismPage>
       <PrismHomeHeading
         eyebrow={`${homeDateLabel(clientDate)} ・ ${clientCompanyName || "自社"}`}
         title={clientHeadingTitle}
-        description={clientHeadingDescription}
         action={<Btn onClick={() => go && go("trainees")}>受講生の状況を見る</Btn>}
       />
 
