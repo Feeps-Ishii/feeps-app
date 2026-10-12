@@ -212,7 +212,7 @@ export default function StudioPage({ ctx, rest }) {
       try { slides = await readPptxSlides(s.pptx); } catch (e) { console.warn("pptx read failed", e); await ai("パワポを読み取れませんでした。PDFだけで進めます。"); }
     }
     const { pages, numPages } = await A.renderPdf(s.pdf, (n, total) => set({ busy: `read:${n}/${total}` }));
-    const noteSrc = initialMapping(pages, slides);
+    const noteSrc = initialMapping(pages, slides, numPages);
     const skip = autoSkip(pages);
     set({ busy: "", pages, slides, noteSrc, skip, step: 1 });
     setTyping(false);

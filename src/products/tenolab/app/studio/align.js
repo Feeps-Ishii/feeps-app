@@ -20,10 +20,13 @@ export function similarity(a, b) {
 }
 
 // 最初の対応。pages: [{ page, text }]、slides: readPptxSlides の結果 → noteSrc: ページごとのスライドの位置（slides の添字。無ければ -1）
-export function initialMapping(pages, slides) {
+// numPages：PDF の全ページ数。上限（120ページ）で途中までしか読まないときも、全体の数が表示中のスライドと同じなら
+// ページ番号どおりに並べる（2026-10-12：167ページの資料で、数が合わず文字の似かたで探して1枚ずつずれていた）
+export function initialMapping(pages, slides, numPages = pages.length) {
   if (!slides.length) return pages.map(() => -1);
   const visible = slides.map((s, i) => (s.hidden ? -1 : i)).filter(i => i >= 0);
   if (visible.length === pages.length) return visible;
+  if (visible.length === numPages) return pages.map(p => visible[(p.page || 0) - 1] ?? -1);
   if (slides.length === pages.length) return slides.map((_, i) => i);
   const out = [];
   let j = 0;
