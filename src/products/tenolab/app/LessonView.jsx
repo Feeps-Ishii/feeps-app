@@ -5,8 +5,8 @@ import ExerciseBench, { BENCH_KINDS } from "./exercise/Bench.jsx";
 
 /* レッスン画面（モック tenolab-lesson.html、2026-10-08）
    パワポ＋PDFから作ったコースを、資料のページそのままで見せる。足したスライド（表紙・中扉・自動のまとめ）は出さない。
-   代わりに、画面でタイトルだけの表紙をコースの最初に出す（2026-10-13、モック devhub-lesson-flow.html）。レッスンの区切りには何も足さない。
-   大きさはそのコースの資料のページと同じ縦横比。保存はしない（slide.id は _cover）。
+   代わりに、画面でタイトルだけの表紙（コースの最初）とレッスンの表紙（各レッスンの最初）を出す（2026-10-13、モック devhub-lesson-flow.html）。
+   大きさはそのコースの資料のページと同じ縦横比。レッスンの表紙は単元の色を淡くした地。保存はしない（slide.id は _cover・_lesson）。
    左：このレッスンのページ／中：16:9 の枠にページ（演習も同じ枠）とその説明／右：いつもいるAIチャット。
    下に、ついてくる操作の帯（前へ・ページ数・次へ・AIに聞く・集中）。← → でもページを動かせる。
    進み具合は今までどおり lrn.touchLesson（最後に開いた）と lrn.completeLesson（最後のページで「次のレッスン」）。 */
@@ -31,7 +31,7 @@ function useSlideUrl(lrn, materialId) {
 }
 
 function Thumb({ lrn, slide }) {
-  if (slide.kind === "_title") return <span className="lsn-thumb tt">表紙</span>;
+  if (slide.kind === "_title") return <span className={`lsn-thumb tt tt-${slide.variant}`} style={{ "--c": slide.color }} aria-hidden="true"><i /></span>;
   const url = useSlideUrl(lrn, slide.kind === "image" ? slide.content?.materialId : "");
   if (isExercise(slide)) return <span className="lsn-thumb ex">{slide.kind === "code_run" || slide.kind === "web_run" || slide.kind === "js_run" || slide.kind === "sql_run" ? "CODE" : "QUIZ"}</span>;
   return <span className="lsn-thumb">{url ? <img src={url} alt="" loading="lazy" /> : null}</span>;
@@ -65,7 +65,7 @@ function Page({ lrn, slide, course, lesson, index, total, lastRatio, onRatio }) 
   );
 }
 
-// 表紙：コース名だけ。縦横比はそのレッスンの最初の資料のページの画像から
+// 表紙・レッスンの表紙：タイトルだけ。縦横比はそのレッスンの最初の資料のページの画像から
 function TitlePage({ lrn, slide, lastRatio }) {
   const url = useSlideUrl(lrn, slide.ratioFrom || "");
   const [ratio, setRatio] = useState(() => ratioCache.get(slide.ratioFrom) || lastRatio || 16 / 9);
@@ -78,8 +78,10 @@ function TitlePage({ lrn, slide, lastRatio }) {
     return () => { alive = false; };
   }, [url, slide.ratioFrom]);
   return (
-    <div className="lsn-frame lsn-title" style={{ "--r": ratio }}>
-      <h1>{slide.title}</h1><i className="rule" aria-hidden="true" /><span className="brand"><b>DevHub</b> Learning</span>
+    <div className={`lsn-frame lsn-title tt-${slide.variant}`} style={{ "--r": ratio, "--c": slide.color }}>
+      {slide.variant === "course"
+        ? <><h1>{slide.title}</h1><i className="rule" aria-hidden="true" /><span className="brand"><b>DevHub</b> Learning</span></>
+        : <><span className="big" aria-hidden="true">{/^\d+$/.test(slide.no) ? slide.no.padStart(2, "0") : slide.no}</span><span className="no">LESSON {slide.no}</span><h2>{slide.title}</h2></>}
     </div>
   );
 }
@@ -94,10 +96,14 @@ export default function LessonView({ ctx, course, lesson, lessons, slideId }) {
       .filter(s => s && !HIDE_KINDS.has(s.kind) && s.status !== "hidden" && s.status !== "draft")
       .sort((a, b) => Number(a.order || 0) - Number(b.order || 0));
     if (!real.length) return real;
-    if (li !== 0) return real;
     const ratioFrom = real.find(s => s.kind === "image")?.content?.materialId || "";
-    return [{ id: "_cover", kind: "_title", ratioFrom, chatSlide: real[0], title: course.title, navLabel: "表紙" }, ...real];
-  }, [lesson, li, course.title]);
+    const color = (ctx.topics || []).find(t => t.id === course.topic)?.color || "#2457E6";
+    const no = String(lesson.title || "").match(/^\s*Lesson\s*\.?\s*([\d-]+)/i)?.[1] || String(li + 1);
+    const head = { id: "_lesson", kind: "_title", variant: "lesson", no, color, ratioFrom, chatSlide: real[0],
+      title: String(lesson.title || "").replace(/^\s*Lesson\s*\.?\s*[\d-]+\s*[.:：、]?\s*/i, "") || lesson.title, navLabel: `Lesson.${no}` };
+    const cover = { id: "_cover", kind: "_title", variant: "course", ratioFrom, chatSlide: real[0], title: course.title, navLabel: "表紙" };
+    return [...(li === 0 ? [cover] : []), head, ...real];
+  }, [lesson, li, course.title, course.topic, ctx.topics]);
   const startAt = Math.max(0, slides.findIndex(s => s.id === slideId));
   const [i, setI] = useState(startAt);
   const [chatOpen, setChatOpen] = useState(() => (typeof window !== "undefined" ? window.innerWidth > 820 : true));

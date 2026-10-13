@@ -334,12 +334,21 @@
   .tl-course .drow.mrow > span.chip:nth-child(2) { flex: none; margin-left: auto; }
 }
 
-/* レッスン画面の表紙（コース名だけ。大きさは資料のページと同じ縦横比。2026-10-13） */
+/* レッスン画面の表紙・レッスンの表紙（タイトルだけ。大きさは資料のページと同じ縦横比。2026-10-13） */
 @layer tenolab {
   .tl-course .lsn-title { container-type: inline-size; border: 0; color: #fff; background: #15171C; text-align: center; align-content: center; justify-items: center; gap: 2.4cqw; padding: 6cqw; }
   .tl-course .lsn-title h1 { margin: 0; font-weight: 700; font-size: 6cqw; line-height: 1.35; text-wrap: balance; }
   .tl-course .lsn-title .rule { width: 8cqw; height: .8cqw; border-radius: 99px; background: var(--marker, #FFE14D); }
   .tl-course .lsn-title .brand { position: absolute; left: 3.6cqw; bottom: 3cqw; font-size: 1.9cqw; color: #9CA1AD; letter-spacing: -.02em; }
   .tl-course .lsn-title .brand b { color: #fff; }
-  .tl-course .lsn-thumb.tt { display: grid; place-items: center; font-size: 10px; font-weight: 700; background: #15171C; color: var(--marker, #FFE14D); border-color: transparent; }
+  /* レッスンの表紙：単元の色を淡くした地に、ふつうの文字色 */
+  .tl-course .lsn-title.tt-lesson { background: color-mix(in srgb, var(--c, #2457E6) 12%, #fff); color: var(--ink, #15171C); border: 1px solid color-mix(in srgb, var(--c, #2457E6) 22%, #fff); }
+  .tl-course .lsn-title .no { font-family: var(--mono); font-size: 1.7cqw; letter-spacing: .24em; color: var(--c, #2457E6); font-weight: 600; position: relative; }
+  .tl-course .lsn-title h2 { margin: 0; font-weight: 700; font-size: 4.8cqw; line-height: 1.35; text-wrap: balance; position: relative; }
+  .tl-course .lsn-title .big { position: absolute; right: 3cqw; bottom: -4cqw; font-family: var(--display, "Bricolage Grotesque"), sans-serif; font-weight: 800; font-size: 28cqw; line-height: 1; color: color-mix(in srgb, var(--c, #2457E6) 10%, transparent); }
+  /* 左の一覧：文字のない小さな見本 */
+  .tl-course .lsn-thumb.tt { display: grid; place-items: center; background: #15171C; border-color: transparent; }
+  .tl-course .lsn-thumb.tt i { width: 26%; height: 3px; border-radius: 2px; background: var(--marker, #FFE14D); }
+  .tl-course .lsn-thumb.tt.tt-lesson { background: color-mix(in srgb, var(--c, #2457E6) 12%, #fff); border-color: color-mix(in srgb, var(--c, #2457E6) 22%, #fff); }
+  .tl-course .lsn-thumb.tt.tt-lesson i { width: 50%; height: 4px; background: color-mix(in srgb, var(--c, #2457E6) 70%, #fff); }
 }
