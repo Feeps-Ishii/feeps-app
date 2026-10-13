@@ -321,3 +321,15 @@
   .tl-legacy table { border-collapse: collapse; }
   .tl-legacy pre, .tl-legacy code { font-family: "JetBrains Mono", ui-monospace, monospace; }
 }
+
+/* 教材の一覧：単元ごとの見出し・一覧から公開（2026-10-13） */
+@layer tenolab {
+  .tl-course .btn.sm { padding: 4px 12px; font-size: 13px; border-radius: 8px; }
+  .tl-course .mgroup { display: grid; gap: 8px; margin-bottom: 10px; }
+  .tl-course .mgroup-h { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; padding: 10px 4px 2px; }
+  .tl-course .mgroup-h > i { width: 10px; height: 10px; border-radius: 3px; flex: none; }
+  .tl-course .mgroup-h h3 { font-size: 15px; margin: 0; }
+  .tl-course .mgroup-h .btn { margin-left: auto; }
+  .tl-course .drow.mrow .mrow-main { display: flex; align-items: center; gap: 12px; flex: 1; min-width: 0; border: 0; background: none; padding: 0; text-align: left; cursor: pointer; font: inherit; color: inherit; }
+  .tl-course .drow.mrow > span.chip:nth-child(2) { flex: none; margin-left: auto; }
+}

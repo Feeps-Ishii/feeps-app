@@ -9,6 +9,7 @@ import { AdminLearners } from "../company/CompanyPages.jsx";
 import CourseList from "./CourseList.jsx";
 import { Title } from "./parts.jsx";
 import NoticesAdmin from "./NoticesAdmin.jsx";
+import { GroupHead, PublishResult, confirmPublish, groupByTopic, needsPublish, publishMany } from "./publishParts.jsx";
 
 /* 管理の画面（#/manage/…、管理者だけ。モック tenolab-admin.html、2026-10-06〜）
      #/manage                         ホーム
@@ -69,30 +70,50 @@ function CourseAdmin({ go }) {
   );
 }
 
+// 演習・案件体験の一覧：単元ごとに分け、一覧から公開・単元ごとにまとめて公開できる（2026-10-13）
 function ItemList({ kind, topics, go }) {
   const noun = kind === "drills" ? "演習" : "案件体験";
   const [st, setSt] = useState({ state: "loading", items: [] });
+  const [busy, setBusy] = useState("");
+  const [res, setRes] = useState(null);
   const load = useCallback(() => {
-    setSt(s => ({ ...s, state: "loading" }));
+    setSt(s => ({ ...s, state: s.items.length ? "ready" : "loading" }));
     manage.list(kind).then(r => setSt({ state: "ready", items: r.items || [] })).catch(() => setSt({ state: "error", items: [] }));
   }, [kind]);
   useEffect(() => { load(); }, [load]);
-  const topicName = id => topics.find(t => t.id === id)?.name || "その他";
+  async function publish(list, key) {
+    if (busy || !list.length || !confirmPublish(list)) return;
+    setBusy(key); setRes(null);
+    const r = await publishMany(list, x => manage.publish(kind, x.id));
+    setBusy(""); setRes(r); load();
+  }
   return (
     <div style={{ display: "grid", gap: 10 }}>
       <div className="row"><button type="button" className="btn" onClick={() => go(`#/manage/${kind}/_new`)}>{noun}を作る</button></div>
+      <PublishResult res={res} onClose={() => setRes(null)} />
       {st.state === "loading" && <p className="muted">読み込んでいます…</p>}
       {st.state === "error" && <div className="card flat" style={{ padding: 16 }} role="alert">読み込めませんでした。 <button type="button" className="btn ghost" onClick={load}>もう一度</button></div>}
       {st.state === "ready" && !st.items.length && <p className="muted">まだありません。</p>}
-      {st.items.map(x => (
-        <button key={x.id} type="button" className="drow mrow" onClick={() => go(`#/manage/${kind}/${x.id}`)}>
-          <span className="di">{x.runtime === "aws" ? "AWS" : <Ic id={kind === "cases" ? "case" : "code"} />}</span>
-          <span style={{ minWidth: 0 }}><b style={{ fontWeight: 600 }}>{x.title || "（名前なし）"}</b>
-            <div className="muted" style={{ fontSize: 12 }}>{topicName(x.topic)} ・ {x.runtime} ・ ID {x.id}</div></span>
-          {kind === "cases" && x.runtime !== "aws" && <span className={`chip ${x.rubricCount ? "" : "warn"}`}>{x.rubricCount ? `基準 ${x.rubricCount}` : "基準なし"}</span>}
-          <span className={`chip ${x.published ? (x.changed ? "warn" : "done") : ""}`}>{x.published ? (x.changed ? "未公開の変更あり" : "公開中") : "下書き"}</span>
-        </button>
-      ))}
+      {groupByTopic(st.items, topics).map(g => {
+        const drafts = g.items.filter(needsPublish);
+        return (
+          <section key={g.topic.id} className="mgroup">
+            <GroupHead topic={g.topic} count={g.items.length} drafts={drafts.length} busy={busy === g.topic.id} onPublishAll={() => publish(drafts, g.topic.id)} />
+            {g.items.map(x => (
+              <div key={x.id} className="drow mrow">
+                <button type="button" className="mrow-main" onClick={() => go(`#/manage/${kind}/${x.id}`)}>
+                  <span className="di">{x.runtime === "aws" ? "AWS" : <Ic id={kind === "cases" ? "case" : "code"} />}</span>
+                  <span style={{ minWidth: 0 }}><b style={{ fontWeight: 600 }}>{x.title || "（名前なし）"}</b>
+                    <div className="muted" style={{ fontSize: 12 }}>{x.runtime} ・ ID {x.id}</div></span>
+                </button>
+                {kind === "cases" && x.runtime !== "aws" && <span className={`chip ${x.rubricCount ? "" : "warn"}`}>{x.rubricCount ? `基準 ${x.rubricCount}` : "基準なし"}</span>}
+                <span className={`chip ${x.published ? (x.changed ? "warn" : "done") : ""}`}>{x.published ? (x.changed ? "未公開の変更あり" : "公開中") : "下書き"}</span>
+                {needsPublish(x) && <button type="button" className="btn sm" disabled={!!busy} onClick={() => publish([x], x.id)}>{busy === x.id ? "公開しています…" : x.published ? "変更を公開" : "公開する"}</button>}
+              </div>
+            ))}
+          </section>
+        );
+      })}
     </div>
   );
 }
