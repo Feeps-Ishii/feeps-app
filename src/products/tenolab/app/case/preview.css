@@ -32,3 +32,8 @@
   .tl-course .ac-row { grid-template-columns: minmax(0, 1fr); gap: 8px; }
   .tl-course .ac-id, .tl-course .ac-go { justify-self: start; }
 }
+
+/* ホームの対応中の案件は2件まで。残りは案件体験の一覧へ（2026-10-13） */
+.tl-course .ac-all { margin-left: auto; border: 0; background: none; font: inherit; font-weight: 700; font-size: 13px; color: var(--blue); cursor: pointer; white-space: nowrap; }
+.tl-course .ac-more { border: 1px dashed #CDD1C7; background: transparent; border-radius: 12px; padding: 10px 16px; font: inherit; font-weight: 700; font-size: 14px; color: var(--ink2); cursor: pointer; text-align: center; }
+.tl-course .ac-more:hover { border-color: var(--ink); color: var(--ink); }

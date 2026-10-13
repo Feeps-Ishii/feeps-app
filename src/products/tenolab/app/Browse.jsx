@@ -35,7 +35,7 @@ export function Home({ ctx }) {
           <button className="btn" type="button" onClick={() => go(resume.href)}><Ic id="play" />続きから学ぶ</button>
         </section>
       )}
-      <ActiveCases cases={cases} go={go} />
+      <ActiveCases cases={cases} go={go} limit={2} />
       <div className="sec-h"><h2 className="h2">単元から選ぶ</h2></div>
       <div className="topics">
         {topicsWithOther(topics, courses, drills, cases).map(t => {

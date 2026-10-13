@@ -119,12 +119,15 @@ export function activeCases(cases) {
       return String(b.progress?.updatedAt || b.progress?.assignedAt || "").localeCompare(String(a.progress?.updatedAt || a.progress?.assignedAt || ""));
     });
 }
-export function ActiveCases({ cases, go, title = "対応中の案件" }) {
-  const list = activeCases(cases);
-  if (!list.length) return null;
+// limit を渡すと、その件数だけ出して残りは「ほか N 件」で案件体験の一覧へ（ホーム用。2026-10-13）
+export function ActiveCases({ cases, go, title = "対応中の案件", limit = 0 }) {
+  const all = activeCases(cases);
+  if (!all.length) return null;
+  const list = limit ? all.slice(0, limit) : all;
+  const rest = all.length - list.length;
   return (
     <section className="ac-wrap" aria-label={title}>
-      <div className="sec-h" style={{ marginTop: 0 }}><h2 className="h2">{title}</h2><span className="tally">{list.length}件</span></div>
+      <div className="sec-h" style={{ marginTop: 0 }}><h2 className="h2">{title}</h2><span className="tally">{all.length}件</span>{rest > 0 && <button type="button" className="ac-all" onClick={() => go("#/cases")}>すべて見る →</button>}</div>
       <div className="ac-list">
         {list.map(x => {
           const st = ACTIVE[x.status] || ["割り当て", "warn"];
@@ -138,6 +141,7 @@ export function ActiveCases({ cases, go, title = "対応中の案件" }) {
             </button>
           );
         })}
+        {rest > 0 && <button type="button" className="ac-more" onClick={() => go("#/cases")}>ほか {rest} 件の対応中の案件 →</button>}
       </div>
     </section>
   );
