@@ -11,6 +11,7 @@ import WebEditor from "../../../learning/WebEditor.jsx";
 import { buildJsDocument } from "../exercise/jsRunner.js";
 import { SqlGrid, SqlTables, useSqlTables } from "../exercise/SqlParts.jsx";
 import { sqlWords } from "../exercise/sqlRunner.js";
+import { CaseOverview, HearingBoard, HearingSummary } from "./Overview.jsx";
 import "./case.css";
 
 /* 案件体験（2026-10-13、モック docs/design/mockups/devhub-learning-2026-10/devhub-case.html）。
@@ -18,7 +19,10 @@ import "./case.css";
    右のチャットは PM・リーダー・お客さま（AI が演じる。POST /tenolab/cases/{id}/chat）。
    Servlet の案件は、実行・テストともサーバーで本物の Java を動かす（POST …/run）。それ以外は今までどおり画面の中で動かす。
    レビューは提出（POST …/submit）で AI が行い、行ごとのコメントと採点の基準の結果が返る。
-   期限は管理者が割り当てたときだけ出す（自分で始めた案件は期限なし）。 */
+   期限は管理者が割り当てたときだけ出す（自分で始めた案件は期限なし）。
+   最初の画面は概要（V字のどこに参画するか・立場・仕様の要点・実装方針。case/Overview.jsx）。
+   進め方（project.mode）が「聞き出して提案」の案件は、チケットのあとにヒアリング（お客さまに聞き出して提案する）、
+   「聞き出し済み」の案件は、ヒアリングの結果のまとめと会話を見る工程が入る（2026-10-13）。 */
 
 const KIND = { feat: ["機能追加", "feat"], bug: ["不具合", "bug"], mod: ["改修", "mod"] };
 const RUNTIME_LABEL = { servlet: "Java / Servlet", java: "Java", js: "JavaScript", jsweb: "HTML＋JavaScript", web: "HTML / CSS", sql: "SQL" };
@@ -99,13 +103,16 @@ export default function CaseFlow({ item, premium, back, progress, onReload }) {
   const status = rec.status || "";
   const approved = status === "approved";
   const reviewed = status === "returned" || status === "submitted" || status === "skipped" || approved;
+  const pj = item.project || {};
+  const mode = pj.mode || "fixed";
+  const hasHear = mode !== "fixed" && (pj.hearing || []).length > 0;
   const hasSpec = (item.spec?.rules || []).length > 0 || (item.spec?.fields || []).length > 0 || (isServlet && sv.pageHtml);
   const fileName = isServlet ? `${(String(rec.code || item.starterCode || "").match(/public\s+(?:final\s+)?class\s+(\w+)/) || [])[1] || "Main"}.java` : FILE_NAME[item.runtime] || "main";
 
   const STEPS = useMemo(() => [
-    ["assign", "アサイン"], ["ticket", "チケット"], ...(hasSpec ? [["spec", "仕様"]] : []), ["code", "実装"],
+    ["assign", "アサイン"], ["ticket", "チケット"], ...(hasHear ? [["hear", "ヒアリング"]] : []), ...(hasSpec ? [["spec", "仕様"]] : []), ["code", "実装"],
     ...(isServlet || item.runtime === "web" || item.runtime === "jsweb" || item.runtime === "sql" ? [["check", "動作確認"]] : []), ["test", "テスト"], ["pr", "プルリク"], ["review", "レビュー"], ["done", "完了"],
-  ], [hasSpec, isServlet, item.runtime]);
+  ], [hasHear, hasSpec, isServlet, item.runtime]);
   const idx = id => STEPS.findIndex(s => s[0] === id);
 
   const [accepted, setAccepted] = useState(!!rec.acceptedAt);
@@ -120,6 +127,7 @@ export default function CaseFlow({ item, premium, back, progress, onReload }) {
   const [testRun, setTestRun] = useState(null);       // { code, results: [{ name, ok, got }] }
   const [pr, setPr] = useState(() => rec.pr || { title: `${t.id ? `${t.id} ` : ""}${item.title}`, body: `## 対応したチケット\n${t.id || item.title}\n\n## 変更内容\n- \n\n## 確認したこと\n- テスト仕様書 すべて ○\n\n## 見てほしいところ\n- ` });
   const [chat, setChat] = useState(rec.chat || []);
+  const [hearing, setHearing] = useState(rec.hearing || null);
   // HTML＋JavaScript の動作確認（見える枠からの console・alert・エラー）
   // SQL：動作確認で流した結果と、流したあとのテーブルの中身
   const [sqlRun, setSqlRun] = useState(null);
@@ -169,6 +177,7 @@ export default function CaseFlow({ item, premium, back, progress, onReload }) {
     if (id === "assign") return accepted ? "done" : "wait";
     if (!accepted) return "";
     if (id === "ticket" || id === "spec") return "done";
+    if (id === "hear") return mode === "done" || hearing?.done ? "done" : "wait";
     if (id === "code") return changed ? "done" : "";
     if (id === "check") return check ? "done" : "";
     if (id === "test") return testsOk || reviewed ? "done" : testRun ? "wait" : "";
@@ -271,7 +280,7 @@ export default function CaseFlow({ item, premium, back, progress, onReload }) {
     finally { if (alive.current) setBusy(""); }
   }
 
-  async function send(message, dest = to) {
+  async function send(message, dest = to, extra = {}) {
     const v = String(message || "").trim();
     if (!v || sending) return;
     setSending(true); setChatErr(""); setText("");
@@ -279,8 +288,9 @@ export default function CaseFlow({ item, premium, back, progress, onReload }) {
     setChat(c => [...c, optimistic]);
     try {
       const last = check?.error ? `${check.error}${check.errorLine ? `（${check.errorLine}行目）` : ""}` : compile?.error ? compile.error.slice(0, 800) : "";
-      const r = await sendCaseChat(item.id, { to: dest, message: v, step: STEPS[step]?.[1], code: dest === "client" ? "" : code, tests: (testRun?.results || []).map(x => ({ name: x.name, ok: x.ok })), run: last });
+      const r = await sendCaseChat(item.id, { to: dest, message: v, step: STEPS[step]?.[1], code: dest === "client" ? "" : code, tests: (testRun?.results || []).map(x => ({ name: x.name, ok: x.ok })), run: last, ...extra });
       setChat(c => [...c.filter(x => x !== optimistic), ...(r?.messages || [])]);
+      if (r?.hearing) setHearing(r.hearing);
     } catch (e) {
       setChat(c => c.filter(x => x !== optimistic));
       setText(v);
@@ -298,10 +308,12 @@ export default function CaseFlow({ item, premium, back, progress, onReload }) {
   const seed = [
     { who: "pm", text: `@あなた ${item.title} をお願いしたいです。${rec.dueAt ? `期限は ${dueLabel(rec.dueAt)} です。` : "空いた時間に進めてください。"}` },
     ...(accepted ? [{ who: "lead", text: "わからないところは早めに聞いてください。宛先を選んで送れます。" }] : []),
+    ...(accepted && (mode === "ask" || mode === "turn") && pj.request ? [{ who: "client", text: pj.request }] : []),
   ];
   const SUGG = {
     assign: [["pm", "どれくらいの作業量を想定していますか？"], ["pm", "レビューはどなたですか？"]],
     ticket: [["client", "この内容で決まっていないところを確認したいです"], ["lead", "どのファイルを触ればいいですか？"]],
+    hear: mode === "done" ? [["client", "決まった方針で進めます"], ["pm", "進捗：仕様にまとめます"]] : [["client", "いちばん困っていることは何ですか？"], ["client", "いつ頃までに必要ですか？"]],
     spec: [["client", "空の入力はどう扱いますか？"], ["lead", "どのファイルを触ればいいですか？"]],
     code: [["lead", "どこから手を付ければいいですか？"], ["pm", "進捗：実装中です"]],
     check: [["lead", "このエラーの意味を教えてください"], ["pm", "進捗：動作確認中です"]],
@@ -357,21 +369,27 @@ export default function CaseFlow({ item, premium, back, progress, onReload }) {
   let view = null;
   if (cur === "assign") {
     view = (
-      <section className="cf-panel">
-        <div className="ph"><span className={`kind ${KIND[t.kind]?.[1] || "feat"}`}>{KIND[t.kind]?.[0] || "機能追加"}</span>{t.id && <span className="chip">{t.id}</span>}<span className="sp" />
-          {accepted ? <span className="chip ok">アサイン済み</span> : <span className="chip warn">{rec.assignedAt ? "管理者から割り当て" : "依頼が来ています"}</span>}</div>
-        <div className="cf-kick">
-          <div className="cf-col">
-            <div className="cf-cm"><Av who="pm" /><div><div className="who">PM<span className="aitag">AI</span></div><p>{item.summary || item.title}</p></div></div>
-            <div className="ph">
-              {accepted ? <><span className="sp" /><button type="button" className="btn" onClick={() => setStep(idx("ticket"))}>チケットへ</button></>
-                : <><button type="button" className="btn ghost" onClick={() => openChat("pm")}>PMに質問</button><span className="sp" /><button type="button" className="btn dark" onClick={accept} disabled={!!busy}>{busy === "accept" ? "引き受けています…" : "引き受ける"}</button></>}
-            </div>
-          </div>
+      <CaseOverview item={item} side={
+        <section className="cf-panel cfo-take">
+          <div className="ph"><span className={`kind ${KIND[t.kind]?.[1] || "feat"}`}>{KIND[t.kind]?.[0] || "機能追加"}</span>{t.id && <span className="chip">{t.id}</span>}<span className="sp" />
+            {accepted ? <span className="chip ok">アサイン済み</span> : <span className="chip warn">{rec.assignedAt ? "管理者から割り当て" : "依頼が来ています"}</span>}</div>
+          <div className="cf-cm"><Av who="pm" /><div><div className="who">PM<span className="aitag">AI</span></div><p>{item.summary || item.title}</p></div></div>
           {props}
-        </div>
-      </section>
+          <div className="ph">
+            {accepted ? <><span className="sp" /><button type="button" className="btn" onClick={() => setStep(idx("ticket"))}>チケットへ</button></>
+              : <><button type="button" className="btn ghost" onClick={() => openChat("pm")}>PMに質問</button><span className="sp" /><button type="button" className="btn dark" onClick={accept} disabled={!!busy}>{busy === "accept" ? "引き受けています…" : "引き受ける"}</button></>}
+          </div>
+        </section>
+      } />
     );
+  } else if (cur === "hear") {
+    const nextId = STEPS[idx("hear") + 1]?.[0] || "code";
+    view = mode === "done"
+      ? <HearingSummary item={item} onNext={() => setStep(idx(nextId))} nextLabel={nextId === "spec" ? "仕様へ" : "実装へ"} />
+      : <HearingBoard item={item} hearing={hearing} sending={sending}
+          onAsk={q => { setTo("client"); setChatOpen(true); send(q, "client"); }}
+          onPropose={v => { setTo("client"); setChatOpen(true); send(v, "client", { proposal: true }); }}
+          onNext={() => setStep(idx(nextId))} />;
   } else if (cur === "ticket") {
     view = (
       <section className="cf-panel">

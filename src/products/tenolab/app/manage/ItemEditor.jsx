@@ -1,3 +1,4 @@
+import { AwsStepsField, ProjectFields } from "./ProjectFields.jsx";
 import React, { useEffect, useRef, useState } from "react";
 import { company, manage } from "../data.js";
 import { THUMB_KINDS, Thumb } from "../ui.jsx";
@@ -274,7 +275,7 @@ export default function ItemEditor({ kind, id, isNew, topics, courses, go }) {
               </select>
             </Field>
           </>}
-          {isAws && <Field label="AWSのシナリオ"><select value={item.aws?.scenario || ""} onChange={e => set("aws", { scenario: e.target.value })}><option value="">選んでください</option>{SCENARIOS.map(([v, l]) => <option key={v} value={v}>{l}</option>)}</select></Field>}
+          {isAws && <Field label="AWSのシナリオ"><select value={item.aws?.scenario || ""} onChange={e => set("aws", { ...(item.aws || {}), scenario: e.target.value })}><option value="">選んでください</option>{SCENARIOS.map(([v, l]) => <option key={v} value={v}>{l}</option>)}</select></Field>}
           <Field label="並び順（小さいほど前）"><input type="number" min="0" value={item.order} onChange={e => set("order", Number(e.target.value))} /></Field>
           <Field label="Premium"><span className="row" style={{ gap: 6 }}><input type="checkbox" checked={!!item.premium} onChange={e => set("premium", e.target.checked)} />Premiumの人だけ（AWSと、Premiumの単元は自動でPremium）</span></Field>
         </div>
@@ -318,6 +319,9 @@ export default function ItemEditor({ kind, id, isNew, topics, courses, go }) {
           <button type="button" className="btn ghost" style={{ justifySelf: "start" }} disabled={(item.ticket?.comments || []).length >= 6} onClick={() => setTicket("comments", [...(item.ticket?.comments || []), { who: "client", text: "" }])}>コメントを足す</button>
         </section>
       )}
+
+      {kind === "cases" && <ProjectFields project={item.project} onChange={v => set("project", v)} Field={Field} />}
+      {isAws && <AwsStepsField steps={item.aws?.steps} onChange={v => set("aws", { ...(item.aws || {}), steps: v })} Field={Field} />}
 
       {kind === "cases" && !isAws && (
         <section className="card mcard">

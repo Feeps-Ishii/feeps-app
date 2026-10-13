@@ -1,0 +1,88 @@
+/* AWS の演習の手順（AwsGuide.jsx。2026-10-13）。クラスは ag- で始める */
+.ag { display: grid; gap: 10px; }
+.ag-head { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.ag-seg { display: flex; background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 3px; gap: 2px; }
+.ag-seg button { border: 0; background: none; border-radius: 8px; padding: 3px 11px; font: inherit; font-weight: 700; font-size: 13px; color: var(--ink2); white-space: nowrap; cursor: pointer; }
+.ag-seg button[aria-pressed="true"] { background: var(--ink); color: var(--paper, #fff); }
+.ag-pos { margin-left: auto; font-size: 12px; color: var(--muted); }
+.ag .btn.sm { padding: 4px 12px; font-size: 13px; border-radius: 8px; }
+
+.ag-steps { display: grid; gap: 8px; }
+.ag-st { border: 1px solid var(--line); border-radius: 12px; background: var(--card); overflow: hidden; }
+.ag-st.cur { border: 2px solid var(--ink); }
+.ag-sh { width: 100%; display: grid; grid-template-columns: 30px minmax(0, 1fr) auto; gap: 10px; align-items: center; padding: 10px 14px; border: 0; background: none; text-align: left; font: inherit; cursor: pointer; color: inherit; }
+.ag-sh .n, .ag-bi .n { width: 26px; height: 26px; border-radius: 50%; display: grid; place-items: center; font-family: var(--mono); font-size: 12px; font-weight: 700; border: 1.5px solid #CDD1C7; color: var(--muted); }
+.ag-st.done .ag-sh .n, .ag-bi.done .n { background: var(--mint, #11966F); border-color: var(--mint, #11966F); color: #fff; }
+.ag-st.cur .ag-sh .n { background: var(--marker, #FFE14D); border-color: var(--ink); color: var(--ink); }
+.ag-sh .t { font-weight: 700; font-size: 14.5px; }
+.ag-st.done .ag-sh .t { color: var(--muted); }
+.ag-body { padding: 0 16px 16px 54px; display: grid; gap: 12px; }
+.ag-ops { list-style: none; margin: 0; padding: 0; display: grid; gap: 14px; }
+.ag-ops > li { display: grid; grid-template-columns: 26px minmax(0, 1fr); gap: 10px; align-items: start; }
+.ag-ops > li > b { width: 24px; height: 24px; border-radius: 7px; background: var(--ink); color: var(--paper, #fff); display: grid; place-items: center; font-family: var(--mono); font-size: 12px; }
+.ag-ops > li > div { display: grid; gap: 8px; min-width: 0; }
+.ag-ops p { margin: 0; font-size: 15px; line-height: 1.75; }
+.ag-ops p em, .ag-stuck em { font-style: normal; font-weight: 700; background: var(--marker-soft, #FFF7C2); border-radius: 4px; padding: 0 4px; }
+.ag-vals { border: 1px solid var(--line); border-radius: 10px; overflow: hidden; font-size: 13.5px; }
+.ag-vals > div { display: grid; grid-template-columns: 160px minmax(0, 1fr) auto; gap: 10px; align-items: center; padding: 6px 12px; border-bottom: 1px solid var(--line); }
+.ag-vals > div:last-child { border-bottom: 0; }
+.ag-vals b { font-weight: 500; color: var(--muted); font-size: 12.5px; }
+.ag-vals code { white-space: pre-wrap; }
+.ag-vals code, .ag-bi code { font-family: var(--mono); font-size: 12.5px; background: var(--soft, #F2F3EE); border-radius: 5px; padding: 1px 7px; justify-self: start; word-break: break-all; }
+.ag-vals button { border: 1px solid var(--line); background: var(--card); border-radius: 6px; font: inherit; font-size: 11.5px; padding: 1px 8px; cursor: pointer; }
+.ag-stuck { font-size: 13.5px; color: var(--ink2); background: var(--soft, #F2F3EE); border-radius: 10px; padding: 8px 12px; }
+.ag-stuck summary { cursor: pointer; font-weight: 700; }
+.ag-verify { display: grid; gap: 6px; border-top: 1px dashed var(--line); padding-top: 12px; justify-items: start; }
+.ag-vres { font-size: 13.5px; border-radius: 8px; padding: 6px 10px; display: grid; gap: 2px; width: 100%; }
+.ag-vres.ok { background: var(--mint-soft, #E3F5EE); color: #0B4F3A; }
+.ag-vres.ng { background: var(--red-soft, #FBE9E7); color: #8C2A20; }
+.ag-vres.wait { background: var(--soft, #F2F3EE); color: var(--muted); }
+.ag-acts { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+
+.ag-brief { display: grid; gap: 8px; }
+.ag-bi { display: grid; grid-template-columns: 30px minmax(0, 1fr) auto; gap: 10px; align-items: start; border: 1px solid var(--line); border-radius: 12px; background: var(--card); padding: 10px 14px; }
+.ag-bi h3 { font-size: 14.5px; margin: 0; }
+.ag-bi ul { list-style: none; margin: 4px 0 0; padding: 0; display: flex; flex-wrap: wrap; gap: 4px 14px; font-size: 13.5px; color: var(--ink2); }
+.ag-bi .ag-vres { margin-top: 6px; }
+
+/* 画面の見本（AWS のコンソール風の絵） */
+.ag-shot { border: 1px solid #CDD1C7; border-radius: 10px; overflow: hidden; background: #fff; position: relative; font-size: 11px; color: #16191F; box-shadow: 0 2px 10px rgba(21, 23, 28, .06); max-width: 620px; }
+.ag-top { background: #232F3E; color: #fff; display: flex; align-items: center; gap: 10px; padding: 5px 10px; }
+.ag-srch { flex: 1; max-width: 280px; background: #ffffff1a; border: 1px solid #ffffff33; border-radius: 4px; padding: 1px 8px; color: #C9D1DB; position: relative; }
+.ag-srch.hl { background: #fff; color: #16191F; }
+.ag-rg { margin-left: auto; color: #C9D1DB; }
+.ag-crumb { padding: 5px 12px; color: #0972D3; border-bottom: 1px solid #E9EBED; font-size: 10.5px; }
+.ag-main { display: grid; grid-template-columns: 130px minmax(0, 1fr); min-height: 150px; }
+.ag-side { background: #FAFAFA; border-right: 1px solid #E9EBED; padding: 8px; display: grid; gap: 3px; align-content: start; color: #414D5C; }
+.ag-side > span { position: relative; }
+.ag-side .on { color: #0972D3; font-weight: 700; }
+.ag-list { padding: 12px 14px; display: grid; gap: 10px; align-content: start; }
+.ag-list .lh { display: flex; align-items: center; gap: 10px; }
+.ag-list h4, .ag-form h4 { margin: 0; font-size: 13px; }
+.ag-list .row { height: 20px; border-bottom: 1px solid #E9EBED; }
+.ag-form { padding: 12px 14px 12px 40px; display: grid; gap: 10px; align-content: start; }
+.ag-fl { display: grid; gap: 2px; }
+.ag-fl span { color: #414D5C; font-weight: 700; font-size: 10.5px; }
+.ag-fl i { display: block; min-height: 22px; border: 1px solid #8C8C94; border-radius: 4px; font-style: normal; padding: 2px 7px; font-family: var(--mono); }
+.ag-radio { display: flex; gap: 14px; flex-wrap: wrap; }
+.ag-radio b { display: inline-block; width: 10px; height: 10px; border-radius: 50%; border: 1.5px solid #8C8C94; margin-right: 4px; vertical-align: -1px; }
+.ag-radio b.on { border: 3.5px solid #0972D3; }
+.ag-go { background: #FF9900; color: #16191F; font-weight: 700; border-radius: 14px; padding: 3px 14px; white-space: nowrap; }
+.ag-dd { position: absolute; top: 28px; left: 90px; width: min(280px, 70%); background: #fff; border: 1px solid #D1D5DB; border-radius: 6px; box-shadow: 0 6px 18px rgba(0, 0, 0, .15); padding: 4px; display: grid; z-index: 1; }
+.ag-dd > span { padding: 4px 8px; border-radius: 4px; position: relative; display: block; }
+.ag-dd small { display: block; color: #5F6B7A; font-size: 10px; }
+.ag-shot .hl { position: relative; outline: 2.5px solid #D9483B; outline-offset: 3px; border-radius: 4px; }
+.ag-form > .hl { display: grid; }
+.ag-shot .go-w { justify-self: end; }
+.ag-mark { position: absolute; left: -30px; top: 50%; transform: translateY(-50%); width: 20px; height: 20px; border-radius: 50%; background: #D9483B; color: #fff; font-weight: 800; font-size: 11px; display: grid; place-items: center; box-shadow: 0 0 0 2px #fff; z-index: 2; }
+.ag-srch .ag-mark, .ag-dd .ag-mark, .ag-list .ag-mark { left: auto; right: -30px; }
+.ag-side .ag-mark { left: auto; right: -4px; }
+.ag-shot .go-w .ag-mark { left: -12px; right: auto; top: -12px; transform: none; }
+
+@media (max-width: 640px) {
+  .ag-body { padding: 0 12px 14px; }
+  .ag-vals > div { grid-template-columns: minmax(0, 1fr) auto; }
+  .ag-vals b { grid-column: 1 / -1; }
+  .ag-main { grid-template-columns: minmax(0, 1fr); }
+  .ag-side { display: none; }
+}

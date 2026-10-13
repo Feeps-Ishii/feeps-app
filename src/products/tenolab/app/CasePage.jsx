@@ -129,7 +129,7 @@ function CaseWork({ item, premium, back, progress, onSubmitted }) {
         </div>
         <div style={{ display: "grid", gap: 16, alignContent: "start" }}>
           {isAws ? (
-            <AwsEnvPanel scenario={item.aws?.scenario} start={START_OF[item.aws?.scenario] || "blank"} task={item.task} readOnly={locked}
+            <AwsEnvPanel scenario={item.aws?.scenario} start={START_OF[item.aws?.scenario] || "blank"} task={item.task} steps={item.aws?.steps} readOnly={locked}
               onGraded={r => setRun({ out: [], error: "", results: (r?.checks || []).map(x => ({ name: x.name, ok: !!x.ok })) })} />
           ) : (
             <div className="ed">

@@ -1,3 +1,4 @@
+import AwsGuide from "./aws/AwsGuide.jsx";
 import React, { useEffect, useRef, useState } from "react";
 import { apiPost } from "../../../api.js";
 import { Back, Ic, LoadError, Loading, PremTag, StartTag } from "./ui.jsx";
@@ -157,13 +158,13 @@ function AwsDrill({ item, premium, back, rec, progress }) {
         <div className="row"><PremTag item={item} premium={premium} />{item.level && <span className="chip">{item.level}</span>}{item.minutes ? <span className="chip">約{item.minutes}分</span> : null}<StartTag start={start} />{cleared && <span className="chip done"><Ic id="check" />クリア済み</span>}</div>
         <h1 className="h1">{item.title}</h1>
       </div>
-      <AwsEnvPanel scenario={item.aws?.scenario || item.id} start={start} task={item.task} onGraded={r => { if (r?.allOk) progress.reload(); }} />
+      <AwsEnvPanel scenario={item.aws?.scenario || item.id} start={start} task={item.task} steps={item.aws?.steps} onGraded={r => { if (r?.allOk) progress.reload(); }} />
     </>
   );
 }
 
 /* 本物の環境の操作（用意する・コンソール・採点・作り直す・片付ける）。案件体験でも使う */
-export function AwsEnvPanel({ scenario, start = "blank", task, onGraded, readOnly }) {
+export function AwsEnvPanel({ scenario, start = "blank", task, steps, onGraded, readOnly }) {
   const [sess, setSess] = useState({ state: "loading" });   // loading | none | preparing | ready | other | error
   const [graded, setGraded] = useState(null);
   const [busy, setBusy] = useState("");
@@ -236,6 +237,8 @@ export function AwsEnvPanel({ scenario, start = "blank", task, onGraded, readOnl
   const reset = () => act("reset", async () => { await cloud.stop(); await cloud.start(scenario); setGraded(null); await load(); });
   const stop = () => act("stop", async () => { await cloud.stop(); setGraded(null); await load(); });
   const saveNote = () => act("note", async () => { await cloud.note(scenario, note); });
+  // 手順の「ここまで確かめる」：採点と同じ読み取り。結果は右の採点にも反映する
+  const verifyStep = async () => { const r = await cloud.check(scenario); setGraded(r); onGraded && onGraded(r); return r; };
 
   const names = AWS_CHECK_NAMES[scenario] || [];
   const checks = graded?.checks || names.map((name, i) => ({ id: String(i), name, ok: false, pending: true }));
@@ -263,6 +266,7 @@ export function AwsEnvPanel({ scenario, start = "blank", task, onGraded, readOnl
             {sess.state === "ready" && s?.namePrefix && start !== "blank" && <span className="mute">ALB・Auto Scaling・アラームなどの名前は「{s.namePrefix}」で始めてください</span>}
             {reopen && <span className="ok">✓ VPCを確認しました。続きの操作のため、コンソールを開き直してください</span>}
           </section>
+          {(steps || []).length > 0 && <AwsGuide scenario={scenario} steps={steps} session={s} ready={sess.state === "ready" && !readOnly} verify={verifyStep} />}
           {scenario === "recover" && sess.state === "ready" && (
             <section className="card" style={{ padding: "16px 18px", display: "grid", gap: 8 }}>
               <div className="eyebrow">対応メモ</div>
