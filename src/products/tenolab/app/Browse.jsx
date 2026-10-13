@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import { Back, Carousel, Ic, PremTag, TopicIcon } from "./ui.jsx";
-import { ActiveCases, CaseCard, CourseCard, DrillCard } from "./cards.jsx";
+import { ActiveCases, CaseCard, CourseCard, DrillCard, CourseRow } from "./cards.jsx";
 import { NoticeBanner, NoticeCard } from "./notices/Notices.jsx";
 import { byTopic } from "./model.js";
 import { OTHER_TOPIC } from "./ui.jsx";
@@ -125,6 +125,44 @@ const KIND = {
   cases: { eyebrow: "PROJECTS", title: "案件体験", sub: "実際の案件をもとにした課題", Card: CaseCard, prop: "x", wrap: "cases" },
 };
 const COURSE_TABS = [["all", "すべて"], ["inprogress", "受講中"], ["done", "修了"]];
+
+// キーワード検索（2026-10-13）：名前・概要・単元・レベル・依頼元などに、空白で区切った語がすべて入っているもの
+const norm = s => String(s ?? "").normalize("NFKC").toLowerCase();
+const KIND_WORD = { feat: "機能追加", bug: "不具合", mod: "改修" };
+const searchText = x => norm([x.title, x.summary, x.level, x.topicObj?.name, x.runtime, x.ticket?.client, x.ticket?.id, KIND_WORD[x.ticket?.kind]].join(" "));
+function matchAll(list, q) {
+  const words = norm(q).split(/\s+/).filter(Boolean);
+  return words.length ? list.filter(x => { const t = searchText(x); return words.every(w => t.includes(w)); }) : list;
+}
+
+/* コース一覧の単元別（モック devhub-course-list.html の A 案、2026-10-13）
+   単元ごとのまとまりで2列。コースが3つ以上の単元と、2列で1つ余った単元は横いっぱい（中のコースは横に並べる）。
+   同じ行の単元は同じ高さにそろえる。下に演習・案件体験の数 */
+function CoursePanels({ groups, ctx }) {
+  const { premium, go, drills = [], cases = [] } = ctx;
+  const narrow = groups.filter(g => g.items.length < 3);
+  const lastOdd = narrow.length % 2 ? narrow[narrow.length - 1] : null;
+  return (
+    <div className="cpanels">
+      {groups.map(g => {
+        const t = g.t, n = g.items.length;
+        const wide = n >= 3 || g === lastOdd;
+        const dn = drills.filter(d => d.topic === t.id).length, cn = cases.filter(x => x.topic === t.id).length;
+        return (
+          <section key={t.id} className={`card cpanel ${wide ? "wide" : ""}`} style={{ "--c": t.color, "--n": Math.min(3, Math.max(n, 2)) }}>
+            <div className="cph"><TopicIcon topic={t} size={40} /><div><h2>{t.name}<PremTag item={t} premium={premium} /></h2>{t.desc && <p>{t.desc}</p>}</div>
+              <div className="sum"><b>{n}</b>コース</div></div>
+            <div className="cps">{g.items.map(c => <CourseRow key={c.id} c={c} premium={premium} go={go} />)}</div>
+            {t.id !== OTHER_TOPIC.id && (
+              <div className="cpf"><span>演習 {dn}</span><span>案件体験 {cn}</span>
+                <button type="button" className="more" onClick={() => go(`#/topics/${t.id}`)}>この単元を見る →</button></div>
+            )}
+          </section>
+        );
+      })}
+    </div>
+  );
+}
 // 演習一覧：単元ごとに「クリア済みを隠す」（2026-10-13）。この端末だけに覚える
 const HIDE_KEY = "tl-drills-hide-cleared";
 function useHideCleared() {
@@ -140,10 +178,12 @@ export function ListPage({ ctx, kind, view, setView }) {
   const { topics, premium, go } = ctx;
   const K = KIND[kind];
   const [tab, setTab] = useState("all");
+  const [q, setQ] = useState("");
   const [hide, toggleHide] = useHideCleared();
   const flat = view.mode === "flat";
   let all = ctx[kind];
   if (kind === "courses") all = all.filter(c => tab === "all" || (tab === "done" ? c.completed : c.progress > 0 && !c.completed));
+  all = matchAll(all, q);
   const card = item => <K.Card key={item.id} {...{ [K.prop]: item }} premium={premium} go={go} />;
   const tally = items => kind === "courses" ? <span className="tally">修了 <b>{items.filter(c => c.completed).length}</b> / {items.length}</span>
     : kind === "drills" ? <span className="tally">クリア <b>{items.filter(d => d.cleared).length}</b> / {items.length}</span>
@@ -155,7 +195,8 @@ export function ListPage({ ctx, kind, view, setView }) {
       <div className="sec-h" style={{ marginTop: 0, alignItems: "flex-end" }}>
         <div className="ptitle"><span className="eyebrow">{K.eyebrow}</span><h1 className="h1">{K.title}</h1></div>
         {K.sub && <span className="muted" style={{ fontSize: 13, paddingBottom: 6 }}>{K.sub}</span>}
-        <span style={{ marginLeft: "auto", display: "flex", gap: 8, flexWrap: "wrap" }}>
+        <span style={{ marginLeft: "auto", display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
+          <label className="lsearch"><Ic id="search" /><input type="search" value={q} onChange={e => setQ(e.target.value)} placeholder="キーワードで探す" aria-label={`${K.title}をキーワードで探す`} /></label>
           {kind === "courses" && <div className="tabs-h" role="tablist" aria-label="受講の状態">{COURSE_TABS.map(([k, l]) => <button key={k} type="button" role="tab" aria-selected={tab === k} onClick={() => setTab(k)}>{l}</button>)}</div>}
           <div className="tabs-h" role="tablist" aria-label="並べ方">{[["topic", "単元別"], ["flat", "すべて"]].map(([k, l]) => <button key={k} type="button" role="tab" aria-selected={(view.mode || "topic") === k} onClick={() => setView({ ...view, mode: k })}>{l}</button>)}</div>
         </span>
@@ -169,6 +210,9 @@ export function ListPage({ ctx, kind, view, setView }) {
           </div>
           {filtered.length ? <div className={K.wrap === "car" ? "courses" : K.wrap}>{filtered.map(card)}</div> : <p className="muted">該当するものはありません</p>}
         </>
+      ) : kind === "courses" ? (
+        groups.length ? <CoursePanels groups={groups.map(t => ({ t, items: byTopic(all, t.id) })).filter(g => g.items.length)} ctx={ctx} />
+          : <p className="muted">{q ? "該当するものはありません" : tab !== "all" ? "該当するコースはありません" : "まだありません"}</p>
       ) : (
         groups.length ? groups.map(t => {
           const items = byTopic(all, t.id);
@@ -186,7 +230,7 @@ export function ListPage({ ctx, kind, view, setView }) {
                 : K.wrap === "car" ? <Carousel key={hiding ? "h" : "a"}>{shown.map(card)}</Carousel> : <div className={K.wrap}>{shown.map(card)}</div>}
             </section>
           );
-        }) : <p className="muted">{kind === "courses" && tab !== "all" ? "該当するコースはありません" : "まだありません"}</p>
+        }) : <p className="muted">{q ? "該当するものはありません" : "まだありません"}</p>
       )}
     </>
   );

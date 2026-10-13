@@ -35,6 +35,27 @@ export function CourseCard({ c, premium, go }) {
   );
 }
 
+// コース一覧の単元のまとまりの中の1行（2026-10-13、モック devhub-course-list.html の A 案）
+export function CourseRow({ c, premium, go }) {
+  const lk = c.locked;
+  const st = c.progress >= 100 ? "done" : c.progress > 0 ? "now" : "";
+  const Main = lk ? "div" : "button";
+  return (
+    <Main {...(lk ? { "aria-disabled": true } : { type: "button", onClick: () => go(`#/courses/${c.id}`) })} className={`crow ${lk ? "locked" : ""}`}>
+      <h3>{c.title}</h3>
+      <span className="go" aria-hidden="true">{lk ? <Ic id="lock" /> : "→"}</span>
+      <div className="meta">
+        <PremTag item={c} premium={premium} />
+        {c.level && <span className="chip">{c.level}</span>}
+        {c.lessons > 0 && <span className="chip"><Ic id="slide" />レッスン {c.lessons}</span>}
+        {c.duration && <span className="chip">{durationLabel(c.duration)}</span>}
+        {!lk && st && <span className={`chip ${st === "done" ? "done" : "now"}`}>{st === "done" ? <><Ic id="check" />修了</> : `受講中 ${c.progress}%`}</span>}
+      </div>
+      <div className="pr"><div className="bar-p" style={{ flex: 1 }}><i style={{ width: `${c.progress}%` }} /></div><span className="num muted">{c.progress >= 100 ? "100%" : c.progress ? `${c.progress}%` : "未受講"}</span></div>
+    </Main>
+  );
+}
+
 export function DrillCard({ d, premium, go }) {
   const t = d.topicObj, lk = d.locked, cleared = d.cleared;
   const body = (
