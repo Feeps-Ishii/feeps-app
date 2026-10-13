@@ -352,3 +352,21 @@
   .tl-course .lsn-thumb.tt.tt-lesson { background: color-mix(in srgb, var(--c, #2457E6) 12%, #fff); border-color: color-mix(in srgb, var(--c, #2457E6) 22%, #fff); }
   .tl-course .lsn-thumb.tt.tt-lesson i { width: 50%; height: 4px; background: color-mix(in srgb, var(--c, #2457E6) 70%, #fff); }
 }
+
+/* 演習一覧：単元の見出しの「クリア済みを隠す」スイッチ（2026-10-13） */
+@layer tenolab {
+  .tl-course .hide-sw { display: inline-flex; align-items: center; gap: 8px; font-size: 13px; font-weight: 700; color: var(--ink2); cursor: pointer; white-space: nowrap; user-select: none; }
+  .tl-course .hide-sw input { position: absolute; opacity: 0; width: 1px; height: 1px; }
+  .tl-course .hide-sw i { width: 34px; height: 20px; border-radius: 999px; background: #D5D8D0; position: relative; transition: background .15s; flex: none; }
+  .tl-course .hide-sw i::after { content: ""; position: absolute; top: 2px; left: 2px; width: 16px; height: 16px; border-radius: 50%; background: #fff; box-shadow: 0 1px 2px rgba(21,23,28,.2); transition: transform .15s; }
+  .tl-course .hide-sw input:checked + i { background: var(--mint, #11966F); }
+  .tl-course .hide-sw input:checked + i::after { transform: translateX(14px); }
+  .tl-course .hide-sw input:focus-visible + i { outline: 3px solid var(--blue, #2457E6); outline-offset: 2px; }
+  .tl-course .all-clear { margin: 4px 0 8px; }
+  @media (prefers-reduced-motion: reduce) { .tl-course .hide-sw i, .tl-course .hide-sw i::after { transition: none; } }
+}
+
+/* 演習のページの集中モード（2026-10-13）。.lsn-layout.ex の列の指定より後ろに置く */
+@layer tenolab {
+  .tl-course .lsn-layout.ex.focus, .tl-course .lsn-layout.ex.focus.no-chat { grid-template-columns: minmax(0, 1fr); }
+}

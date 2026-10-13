@@ -189,7 +189,7 @@ export default function LessonView({ ctx, course, lesson, lessons, slideId }) {
         {/* main 要素にはテノラボ全体の上下の余白が付くので、section にする（真ん中だけ下にずれていた） */}
         {bench ? (
           <section className="lsn-stage ex">
-            <ExerciseBench key={slide.id} slide={slide} lrn={lrn} course={course} lesson={lesson} onContext={c => { exCtx.current = c; setExSees(c.language); }} onAsk={askFromBench} />
+            <ExerciseBench key={slide.id} focus={focus} slide={slide} lrn={lrn} course={course} lesson={lesson} onContext={c => { exCtx.current = c; setExSees(c.language); }} onAsk={askFromBench} />
           </section>
         ) : (
           <section className="lsn-stage">

@@ -125,10 +125,22 @@ const KIND = {
   cases: { eyebrow: "PROJECTS", title: "案件体験", sub: "実際の案件をもとにした課題", Card: CaseCard, prop: "x", wrap: "cases" },
 };
 const COURSE_TABS = [["all", "すべて"], ["inprogress", "受講中"], ["done", "修了"]];
+// 演習一覧：単元ごとに「クリア済みを隠す」（2026-10-13）。この端末だけに覚える
+const HIDE_KEY = "tl-drills-hide-cleared";
+function useHideCleared() {
+  const [hide, setHide] = useState(() => { try { return JSON.parse(localStorage.getItem(HIDE_KEY) || "[]"); } catch (e) { return []; } });
+  const toggle = id => setHide(h => {
+    const next = h.includes(id) ? h.filter(x => x !== id) : [...h, id];
+    try { localStorage.setItem(HIDE_KEY, JSON.stringify(next)); } catch (e) { /* 覚えられなくても切り替えはできる */ }
+    return next;
+  });
+  return [hide, toggle];
+}
 export function ListPage({ ctx, kind, view, setView }) {
   const { topics, premium, go } = ctx;
   const K = KIND[kind];
   const [tab, setTab] = useState("all");
+  const [hide, toggleHide] = useHideCleared();
   const flat = view.mode === "flat";
   let all = ctx[kind];
   if (kind === "courses") all = all.filter(c => tab === "all" || (tab === "done" ? c.completed : c.progress > 0 && !c.completed));
@@ -161,12 +173,17 @@ export function ListPage({ ctx, kind, view, setView }) {
         groups.length ? groups.map(t => {
           const items = byTopic(all, t.id);
           const lk = !!t.premium && !premium;
+          const canHide = kind === "drills" && items.some(d => d.cleared);
+          const hiding = canHide && hide.includes(t.id);
+          const shown = hiding ? items.filter(d => !d.cleared) : items;
           return (
             <section key={t.id}>
               <div className="ghead"><TopicIcon topic={t} size={40} /><h2>{t.name}</h2><PremTag item={t} premium={premium} />{tally(items)}
+                {canHide && <label className="hide-sw"><input type="checkbox" role="switch" checked={hiding} onChange={() => toggleHide(t.id)} /><i aria-hidden="true" />クリア済みを隠す</label>}
                 {t.id !== OTHER_TOPIC.id && <button type="button" className="more" disabled={lk} onClick={() => go(`#/topics/${t.id}`)}>{lk ? <><Ic id="lock" /> Premiumプランで利用できます</> : "この単元を見る →"}</button>}
               </div>
-              {K.wrap === "car" ? <Carousel>{items.map(card)}</Carousel> : <div className={K.wrap}>{items.map(card)}</div>}
+              {hiding && !shown.length ? <span className="chip done all-clear"><Ic id="check" />すべてクリア済み</span>
+                : K.wrap === "car" ? <Carousel key={hiding ? "h" : "a"}>{shown.map(card)}</Carousel> : <div className={K.wrap}>{shown.map(card)}</div>}
             </section>
           );
         }) : <p className="muted">{kind === "courses" && tab !== "all" ? "該当するコースはありません" : "まだありません"}</p>

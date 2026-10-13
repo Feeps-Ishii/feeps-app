@@ -20,17 +20,31 @@ export const BENCH_KINDS = new Set(["code_run", "web_run", "js_run", "sql_run"])
 const LANG = { code_run: { name: "Java 21", key: "java" }, web_run: { name: "HTML / CSS", key: "web" }, js_run: { name: "JavaScript", key: "js" }, sql_run: { name: "SQL", key: "sql" } };
 const NARROW_W = 390;
 
+// 集中モード（focus）のときは、課題の文と右の表示をたたんで書く場所を広くする（2026-10-13）
+function useSide(focus) {
+  const [side, setSide] = useState(!focus);
+  useEffect(() => { setSide(!focus); }, [focus]);
+  return [side, setSide];
+}
+function SideToggle({ side, setSide, label }) {
+  return <button type="button" className="xb-btn sub" aria-pressed={side} onClick={() => setSide(v => !v)}>{side ? `${label}をたたむ` : `${label}を開く`}</button>;
+}
+
 export default function ExerciseBench(props) {
   if (props.slide.kind === "js_run") return <JsBench {...props} />;
   if (props.slide.kind === "sql_run") return <SqlBench {...props} />;
   return props.slide.kind === "web_run" ? <WebBench {...props} /> : <JavaBench {...props} />;
 }
 
-function TaskCard({ slide, content, lang, checks }) {
+function TaskCard({ slide, content, lang, checks, focus }) {
+  const [open, setOpen] = useState(!focus);
+  useEffect(() => { setOpen(!focus); }, [focus]);
+  const text = content.task || content.intro;
   return (
-    <section className={`xb-task ${lang.key}`}>
-      <div className="tt"><span className="lang"><i />{lang.name}</span><h1>{slide.title}</h1>{content.minutes ? <span className="chip">約{content.minutes}分</span> : null}</div>
-      {(content.task || content.intro) && <p>{content.task || content.intro}</p>}
+    <section className={`xb-task ${lang.key} ${open ? "" : "min"}`}>
+      <div className="tt"><span className="lang"><i />{lang.name}</span><h1>{slide.title}</h1>{content.minutes ? <span className="chip">約{content.minutes}分</span> : null}
+        {text && <button type="button" className="xb-more" aria-expanded={open} onClick={() => setOpen(v => !v)}>{open ? "課題をたたむ" : "課題を見る"}</button>}</div>
+      {text && open && <p>{text}</p>}
       {checks.length > 0 && (
         <div className="xb-checks" aria-label="確かめること">
           {checks.map((c, k) => <span key={k} className={c.st || ""}><i>{c.st === "ok" ? "✓" : c.st === "ng" ? "!" : ""}</i>{c.t}</span>)}
@@ -50,7 +64,7 @@ function StatusBar({ lang, left, caret }) {
 }
 
 /* ---------- Java ---------- */
-function JavaBench({ slide, lrn, course, lesson, onContext, onAsk }) {
+function JavaBench({ slide, lrn, course, lesson, onContext, onAsk, focus }) {
   const content = slide.content || {};
   const lang = LANG.code_run;
   const mainName = content.filename || "Main.java";
@@ -104,7 +118,7 @@ function JavaBench({ slide, lrn, course, lesson, onContext, onAsk }) {
 
   return (
     <div className="xb">
-      <TaskCard slide={slide} content={content} lang={lang} checks={checks} />
+      <TaskCard focus={focus} slide={slide} content={content} lang={lang} checks={checks} />
       <section className="xb-ws java">
         <div className="xb-wbar">
           {[mainName, ...extra.map(f => f.name)].map(n => (
@@ -150,7 +164,8 @@ function JavaBench({ slide, lrn, course, lesson, onContext, onAsk }) {
 }
 
 /* ---------- HTML / CSS ---------- */
-function WebBench({ slide, lrn, course, lesson, onContext, onAsk }) {
+function WebBench({ slide, lrn, course, lesson, onContext, onAsk, focus }) {
+  const [side, setSide] = useSide(focus);
   const content = slide.content || {};
   const lang = LANG.web_run;
   const start = useMemo(() => ({ "index.html": content.html || "", "style.css": content.css || "" }), [content.html, content.css]);
@@ -189,15 +204,16 @@ function WebBench({ slide, lrn, course, lesson, onContext, onAsk }) {
   const update = v => { setTouched(true); setFiles(p => ({ ...p, [openFile]: v })); };
   return (
     <div className="xb">
-      <TaskCard slide={slide} content={content} lang={lang} checks={results.map(r => ({ t: r.label, st: r.ok ? "ok" : touched ? "ng" : "" }))} />
+      <TaskCard focus={focus} slide={slide} content={content} lang={lang} checks={results.map(r => ({ t: r.label, st: r.ok ? "ok" : touched ? "ng" : "" }))} />
       <section className="xb-ws web">
         <div className="xb-wbar">
           {names.map(n => <button key={n} type="button" className={`ftab ${n.endsWith(".css") ? "css" : "html"}`} aria-selected={openFile === n} onClick={() => setOpenFile(n)}><i />{n}</button>)}
           <span className="sp" />
+          <SideToggle side={side} setSide={setSide} label="表示" />
           <button type="button" className="xb-btn sub" onClick={() => { setFiles(start); setTouched(false); sent.current = false; }}>最初に戻す</button>
           {touched && !done && results.length > 0 && <button type="button" className="xb-btn sub" onClick={() => onAsk?.("思ったとおりに見えないのはなぜ？")}>AIに聞く ↗</button>}
         </div>
-        <div className="xb-split">
+        <div className={`xb-split ${side ? "" : "solo"}`}>
           <div className="xb-ed">
             <WebEditor key={`${slide.id}-${openFile}`} mode={openFile.endsWith(".css") ? "css" : "html"} value={files[openFile]} onChange={update} level={content.completionLevel || 1} onCaret={setCaret} />
           </div>
@@ -220,7 +236,8 @@ function WebBench({ slide, lrn, course, lesson, onContext, onAsk }) {
    script.js（と、あれば index.html）を書いて ▶ 実行。右に表示、下にコンソール（console.log・alert・エラー）。
    確かめること（checks: [{ label, expr }]）は、隠れた枠でもう一度動かして確かめる（ボタンを押した結果なども枠の中で見られる）。
    受講生のコードは別の起源の枠で動く（exercise/jsRunner.js） */
-function JsBench({ slide, lrn, course, lesson, onContext, onAsk }) {
+function JsBench({ slide, lrn, course, lesson, onContext, onAsk, focus }) {
+  const [side, setSide] = useSide(focus);
   const content = slide.content || {};
   const lang = LANG.js_run;
   const hasHtml = !!String(content.html || "").trim();
@@ -280,15 +297,16 @@ function JsBench({ slide, lrn, course, lesson, onContext, onAsk }) {
   const reset = () => { setFiles({ "script.js": content.js || "", "index.html": content.html || "" }); setResults([]); setRan(false); sent.current = false; };
   return (
     <div className="xb">
-      <TaskCard slide={slide} content={content} lang={lang} checks={(results.length ? results : checks.map(c => ({ label: c.label }))).map(r => ({ t: r.label, st: !ran ? "" : r.ok ? "ok" : "ng" }))} />
+      <TaskCard focus={focus} slide={slide} content={content} lang={lang} checks={(results.length ? results : checks.map(c => ({ label: c.label }))).map(r => ({ t: r.label, st: !ran ? "" : r.ok ? "ok" : "ng" }))} />
       <section className="xb-ws web js">
         <div className="xb-wbar">
           {names.map(n => <button key={n} type="button" className={`ftab ${n.endsWith(".html") ? "html" : "js"}`} aria-selected={openFile === n} onClick={() => setOpenFile(n)}><i />{n}</button>)}
           <span className="sp" />
+          <SideToggle side={side} setSide={setSide} label="表示" />
           <button type="button" className="xb-btn sub" onClick={reset}>最初に戻す</button>
           <button type="button" className="xb-btn go" onClick={run} disabled={running}>{running ? "実行中…" : "▶ 実行"} <kbd>Ctrl+Enter</kbd></button>
         </div>
-        <div className="xb-split">
+        <div className={`xb-split ${side ? "" : "solo"}`}>
           <div className="xb-ed">
             {openFile === "index.html"
               ? <WebEditor key={`${slide.id}-html`} mode="html" value={files["index.html"]} onChange={update} level={1} onCaret={setCaret} />
@@ -320,7 +338,8 @@ function JsBench({ slide, lrn, course, lesson, onContext, onAsk }) {
    query.sql を書いて ▶ 実行。右にテーブルの中身（実行したあとの中身）、下に結果の表。
    確かめること（checks: [{ label, query?, columns? }]）は answerSql の結果と比べる（exercise/sqlRunner.js）。
    テーブルは content.setup（無ければ教材の emp・dept・loc・sal_grades） */
-function SqlBench({ slide, lrn, course, lesson, onContext, onAsk }) {
+function SqlBench({ slide, lrn, course, lesson, onContext, onAsk, focus }) {
+  const [side, setSide] = useSide(focus);
   const content = slide.content || {};
   const lang = LANG.sql_run;
   const setup = content.setup || "";
@@ -377,15 +396,16 @@ function SqlBench({ slide, lrn, course, lesson, onContext, onAsk }) {
 
   return (
     <div className="xb">
-      <TaskCard slide={slide} content={content} lang={lang} checks={checks.map((c, k) => ({ t: c.label, st: !ran ? "" : res.results[k]?.ok ? "ok" : "ng" }))} />
+      <TaskCard focus={focus} slide={slide} content={content} lang={lang} checks={checks.map((c, k) => ({ t: c.label, st: !ran ? "" : res.results[k]?.ok ? "ok" : "ng" }))} />
       <section className="xb-ws sql">
         <div className="xb-wbar">
           <button type="button" className="ftab sql" aria-selected="true"><i />query.sql</button>
           <span className="sp" />
+          <SideToggle side={side} setSide={setSide} label="テーブル" />
           <button type="button" className="xb-btn sub" onClick={reset}>最初に戻す</button>
           <button type="button" className="xb-btn go" onClick={run} disabled={running}>{running ? "実行中…" : "▶ 実行"} <kbd>Ctrl+Enter</kbd></button>
         </div>
-        <div className="xb-split">
+        <div className={`xb-split ${side ? "" : "solo"}`}>
           <div className="xb-ed"><JavaEditor key={`${slide.id}-sql`} lang="sql" words={words} value={code} onChange={setCode} onRun={run} onCaret={setCaret} /></div>
           <SqlTables tables={tables} code={`${ranCode} ${content.sql || ""} ${content.answerSql || ""}`} after={!!ranCode && /\b(INSERT|UPDATE|DELETE|CREATE|DROP|ALTER)\b/i.test(ranCode)} />
         </div>
