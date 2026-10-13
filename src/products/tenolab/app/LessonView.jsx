@@ -5,6 +5,8 @@ import ExerciseBench, { BENCH_KINDS } from "./exercise/Bench.jsx";
 
 /* レッスン画面（モック tenolab-lesson.html、2026-10-08）
    パワポ＋PDFから作ったコースを、資料のページそのままで見せる。足したスライド（表紙・中扉・自動のまとめ）は出さない。
+   代わりに、画面でタイトルだけの表紙（コースの最初）と扉（各レッスンの最初）を出す（2026-10-13、モック devhub-lesson-flow.html）。
+   大きさはそのコースの資料のページと同じ縦横比。保存はしない（slide.id は _cover・_door）。
    左：このレッスンのページ／中：16:9 の枠にページ（演習も同じ枠）とその説明／右：いつもいるAIチャット。
    下に、ついてくる操作の帯（前へ・ページ数・次へ・AIに聞く・集中）。← → でもページを動かせる。
    進み具合は今までどおり lrn.touchLesson（最後に開いた）と lrn.completeLesson（最後のページで「次のレッスン」）。 */
@@ -29,6 +31,7 @@ function useSlideUrl(lrn, materialId) {
 }
 
 function Thumb({ lrn, slide }) {
+  if (slide.kind === "_title") return <span className={`lsn-thumb tt tt-${slide.variant}`} style={{ "--c": slide.color }}>{slide.variant === "course" ? "表紙" : "扉"}</span>;
   const url = useSlideUrl(lrn, slide.kind === "image" ? slide.content?.materialId : "");
   if (isExercise(slide)) return <span className="lsn-thumb ex">{slide.kind === "code_run" || slide.kind === "web_run" || slide.kind === "js_run" || slide.kind === "sql_run" ? "CODE" : "QUIZ"}</span>;
   return <span className="lsn-thumb">{url ? <img src={url} alt="" loading="lazy" /> : null}</span>;
@@ -51,6 +54,7 @@ function Page({ lrn, slide, course, lesson, index, total, lastRatio, onRatio }) 
       </div>
     );
   }
+  if (slide.kind === "_title") return <TitlePage lrn={lrn} slide={slide} lastRatio={lastRatio} />;
   // 演習やそのほかの版面は、元の部品をそのまま同じ枠の中に
   return (
     <div className={`lsn-frame free ${isExercise(slide) ? "ex" : ""}`}>
@@ -61,13 +65,45 @@ function Page({ lrn, slide, course, lesson, index, total, lastRatio, onRatio }) 
   );
 }
 
+// 表紙・扉：タイトルだけ。縦横比はそのレッスンの最初の資料のページの画像から
+function TitlePage({ lrn, slide, lastRatio }) {
+  const url = useSlideUrl(lrn, slide.ratioFrom || "");
+  const [ratio, setRatio] = useState(() => ratioCache.get(slide.ratioFrom) || lastRatio || 16 / 9);
+  useEffect(() => {
+    if (!url || ratioCache.get(slide.ratioFrom)) return undefined;
+    let alive = true;
+    const im = new Image();
+    im.onload = () => { if (im.naturalWidth && im.naturalHeight) { const r = im.naturalWidth / im.naturalHeight; ratioCache.set(slide.ratioFrom, r); if (alive) setRatio(r); } };
+    im.src = url;
+    return () => { alive = false; };
+  }, [url, slide.ratioFrom]);
+  return (
+    <div className={`lsn-frame lsn-title tt-${slide.variant}`} style={{ "--r": ratio, "--c": slide.color }}>
+      {slide.variant === "course"
+        ? <><h1>{slide.title}</h1><i className="rule" aria-hidden="true" /><span className="brand"><b>DevHub</b> Learning</span></>
+        : <><span className="big" aria-hidden="true">{String(slide.no).padStart(2, "0")}</span><span className="no">LESSON {slide.no}</span><h2>{slide.title}</h2></>}
+    </div>
+  );
+}
+
 const FIRST_SUGG = ["もう少しかんたんに", "例えで説明して", "ここで大事なところは？"];
 
 export default function LessonView({ ctx, course, lesson, lessons, slideId }) {
   const { lrn, go } = ctx;
-  const slides = useMemo(() => [...(lesson.slides || [])]
-    .filter(s => s && !HIDE_KINDS.has(s.kind) && s.status !== "hidden" && s.status !== "draft")
-    .sort((a, b) => Number(a.order || 0) - Number(b.order || 0)), [lesson]);
+  const li = lessons.findIndex(l => l.id === lesson.id);
+  const slides = useMemo(() => {
+    const real = [...(lesson.slides || [])]
+      .filter(s => s && !HIDE_KINDS.has(s.kind) && s.status !== "hidden" && s.status !== "draft")
+      .sort((a, b) => Number(a.order || 0) - Number(b.order || 0));
+    if (!real.length) return real;
+    const ratioFrom = real.find(s => s.kind === "image")?.content?.materialId || "";
+    const color = (ctx.topics || []).find(t => t.id === course.topic)?.color || "#15171C";
+    const no = li + 1;
+    const door = { id: "_door", kind: "_title", variant: "lesson", no, color, ratioFrom, chatSlide: real[0],
+      title: String(lesson.title || "").replace(/^\s*Lesson\s*\.?\s*\d+\s*[.:：、]?\s*/i, "") || lesson.title, navLabel: `Lesson.${no}` };
+    const cover = { id: "_cover", kind: "_title", variant: "course", color, ratioFrom, chatSlide: real[0], title: course.title, navLabel: "表紙" };
+    return [...(li === 0 ? [cover] : []), door, ...real];
+  }, [lesson, li, course.title, course.topic, ctx.topics]);
   const startAt = Math.max(0, slides.findIndex(s => s.id === slideId));
   const [i, setI] = useState(startAt);
   const [chatOpen, setChatOpen] = useState(() => (typeof window !== "undefined" ? window.innerWidth > 820 : true));
@@ -77,7 +113,6 @@ export default function LessonView({ ctx, course, lesson, lessons, slideId }) {
   const exCtx = useRef(null);
   const [exSees, setExSees] = useState("");
   const chatAsk = useRef(null);
-  const li = lessons.findIndex(l => l.id === lesson.id);
   const slide = slides[i];
   const total = slides.length;
 
@@ -162,7 +197,7 @@ export default function LessonView({ ctx, course, lesson, lessons, slideId }) {
             {caption && <div className="lsn-cap">{caption}</div>}
           </section>
         )}
-        {chatOpen && <LessonChat course={course} lesson={lesson} slide={slide} index={i} onClose={() => setChatOpen(false)} exCtx={bench ? exCtx : null} sees={bench ? exSees : ""} askRef={chatAsk} />}
+        {chatOpen && <LessonChat course={course} lesson={lesson} slide={slide.chatSlide ? { ...slide.chatSlide, title: slide.navLabel } : slide} index={i} onClose={() => setChatOpen(false)} exCtx={bench ? exCtx : null} sees={bench ? exSees : ""} askRef={chatAsk} />}
       </div>
 
       <div className="lsn-dock" role="toolbar" aria-label="ページの操作">
