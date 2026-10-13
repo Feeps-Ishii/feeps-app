@@ -73,7 +73,7 @@ export function useLabProgress(enabled) {
 export const submitCase = (id, body) => apiPost(`/tenolab/cases/${encodeURIComponent(id)}/submit`, body);
 export const skipCase = id => apiPost(`/tenolab/cases/${encodeURIComponent(id)}/skip`, {});
 // 案件の流れ（2026-10-13）：引き受ける・Servlet を動かす・PM／リーダー／お客さま（AI）に送る
-export const acceptCase = (id, estimate) => apiPost(`/tenolab/cases/${encodeURIComponent(id)}/accept`, { estimate });
+export const acceptCase = id => apiPost(`/tenolab/cases/${encodeURIComponent(id)}/accept`, {});
 export const runCaseServlet = (id, body) => apiPost(`/tenolab/cases/${encodeURIComponent(id)}/run`, body);
 export const sendCaseChat = (id, body) => apiPost(`/tenolab/cases/${encodeURIComponent(id)}/chat`, body);
 export const getDrillAnswer = id => apiGet(`/tenolab/drills/${encodeURIComponent(id)}/answer`);

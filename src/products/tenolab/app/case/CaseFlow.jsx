@@ -28,7 +28,6 @@ const PEOPLE = {
   client: { n: "お客さま", av: "客", c: "#8A5CD0" },
   me: { n: "あなた", av: "A", c: "#B98F00" },
 };
-const ESTIMATES = ["1時間", "2時間", "3時間", "4時間以上"];
 const TPL = "【やりたいこと】\n【やったこと】\n【困っていること】\n【自分の考え】";
 const VERDICT = { approved: "承認（Approve）", returned: "修正依頼（Request changes）", skipped: "先に進みました", submitted: "レビューできませんでした" };
 
@@ -110,7 +109,6 @@ export default function CaseFlow({ item, premium, back, progress, onReload }) {
   const idx = id => STEPS.findIndex(s => s[0] === id);
 
   const [accepted, setAccepted] = useState(!!rec.acceptedAt);
-  const [estimate, setEstimate] = useState(rec.estimate || "");
   const [step, setStep] = useState(() => idx(!rec.acceptedAt ? "assign" : approved ? "done" : reviewed ? "review" : "code"));
   const [code, setCode] = useState(rec.code ?? item.starterCode ?? "");
   const [file, setFile] = useState("main");
@@ -185,10 +183,10 @@ export default function CaseFlow({ item, premium, back, progress, onReload }) {
   const saveDraft = c => { if (!approved) apiPut(`/tenolab/progress/case/${encodeURIComponent(item.id)}`, { status: "doing", code: c }).then(r => progress?.upsert?.(r?.item)).catch(() => {}); };
 
   async function accept() {
-    if (busy || !estimate) return;
+    if (busy) return;
     setBusy("accept"); setErr("");
     try {
-      await acceptCase(item.id, estimate);
+      await acceptCase(item.id);
       setAccepted(true); setTo("lead");
       setStep(idx("ticket"));
       progress?.reload?.();
@@ -298,7 +296,7 @@ export default function CaseFlow({ item, premium, back, progress, onReload }) {
 
   // ---- 右のチャット ----
   const seed = [
-    { who: "pm", text: `@あなた ${item.title} をお願いしたいです。${rec.dueAt ? `期限は ${dueLabel(rec.dueAt)} です。` : "空いた時間に進めてください。"}見積もりをもらえますか？` },
+    { who: "pm", text: `@あなた ${item.title} をお願いしたいです。${rec.dueAt ? `期限は ${dueLabel(rec.dueAt)} です。` : "空いた時間に進めてください。"}` },
     ...(accepted ? [{ who: "lead", text: "わからないところは早めに聞いてください。宛先を選んで送れます。" }] : []),
   ];
   const SUGG = {
@@ -361,15 +359,13 @@ export default function CaseFlow({ item, premium, back, progress, onReload }) {
     view = (
       <section className="cf-panel">
         <div className="ph"><span className={`kind ${KIND[t.kind]?.[1] || "feat"}`}>{KIND[t.kind]?.[0] || "機能追加"}</span>{t.id && <span className="chip">{t.id}</span>}<span className="sp" />
-          {accepted ? <span className="chip ok">アサイン済み・見積もり {estimate || rec.estimate}</span> : <span className="chip warn">{rec.assignedAt ? "管理者から割り当て" : "依頼が来ています"}</span>}</div>
+          {accepted ? <span className="chip ok">アサイン済み</span> : <span className="chip warn">{rec.assignedAt ? "管理者から割り当て" : "依頼が来ています"}</span>}</div>
         <div className="cf-kick">
           <div className="cf-col">
             <div className="cf-cm"><Av who="pm" /><div><div className="who">PM<span className="aitag">AI</span></div><p>{item.summary || item.title}</p></div></div>
-            <div className="cf-col sm"><span className="eyebrow">見積もり</span>
-              <div className="cf-est" role="group" aria-label="見積もり">{ESTIMATES.map(e => <button key={e} type="button" aria-pressed={estimate === e} disabled={accepted} onClick={() => setEstimate(e)}>{e}</button>)}</div></div>
             <div className="ph">
               {accepted ? <><span className="sp" /><button type="button" className="btn" onClick={() => setStep(idx("ticket"))}>チケットへ</button></>
-                : <><button type="button" className="btn ghost" onClick={() => openChat("pm")}>PMに質問</button><span className="sp" /><button type="button" className="btn dark" onClick={accept} disabled={!estimate || !!busy}>{busy === "accept" ? "引き受けています…" : "引き受ける"}</button></>}
+                : <><button type="button" className="btn ghost" onClick={() => openChat("pm")}>PMに質問</button><span className="sp" /><button type="button" className="btn dark" onClick={accept} disabled={!!busy}>{busy === "accept" ? "引き受けています…" : "引き受ける"}</button></>}
             </div>
           </div>
           {props}
