@@ -370,7 +370,7 @@ export default function ItemEditor({ kind, id, isNew, topics, courses, go }) {
               <input value={t.name} onChange={e => setTest(i, "name", e.target.value)} placeholder="名前（受講生に見えます）" />
               {(item.runtime === "js" || item.runtime === "web" || item.runtime === "jsweb") && <input className="mono" value={t.expr || ""} onChange={e => setTest(i, "expr", e.target.value)} placeholder="式" />}
               {item.runtime === "java" && <><input className="mono" value={t.stdin || ""} onChange={e => setTest(i, "stdin", e.target.value)} placeholder="入力（任意）" /><input className="mono" value={t.expect || ""} onChange={e => setTest(i, "expect", e.target.value)} placeholder="出てほしい出力" /></>}
-              {item.runtime === "sql" && <input className="mono" value={t.query || ""} onChange={e => setTest(i, "query", e.target.value)} placeholder="答え合わせのSQL" />}
+              {item.runtime === "sql" && <><input className="mono" value={t.query || ""} onChange={e => setTest(i, "query", e.target.value)} placeholder="答え合わせのSQL" /><input className="mono" value={t.expect || ""} onChange={e => setTest(i, "expect", e.target.value)} placeholder="流したあとに確かめるSQL（INSERT・UPDATE のとき）" /></>}
               {isServlet && <><input className="mono" value={t.params || ""} onChange={e => setTest(i, "params", e.target.value)} placeholder="price=480&count=3" /><textarea className="mono" rows={2} value={t.expect || ""} onChange={e => setTest(i, "expect", e.target.value)} placeholder={"出てほしい文字（1行に1つ）\n合計：1584円"} /></>}
               <button type="button" className="btn ghost" onClick={() => set("tests", item.tests.filter((_, j) => j !== i))}>消す</button>
             </div>

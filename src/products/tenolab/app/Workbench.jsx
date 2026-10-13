@@ -1,4 +1,4 @@
-import React, { useRef, useState } from "react";
+import React, { useMemo, useRef, useState } from "react";
 import { Ic } from "./ui.jsx";
 import { FILE_NAME, runCode } from "./runtime.js";
 import JavaEditor from "../../learning/JavaEditor.jsx";
@@ -6,6 +6,8 @@ import WebEditor from "../../learning/WebEditor.jsx";
 import { parseJavacError } from "../../learning/javaEditorSupport.js";
 import "./exercise/drill.css";
 import { buildJsDocument } from "./exercise/jsRunner.js";
+import { SqlGrid, SqlTables, useSqlTables } from "./exercise/SqlParts.jsx";
+import { sqlWords } from "./exercise/sqlRunner.js";
 
 /* コードを書いて動かす部品（モックの .try / .ed / .console）。演習と案件体験で使う。 */
 
@@ -35,13 +37,15 @@ export function TryPanel({ item, code, setCode, onResult, onHint, onAnswer, answ
   const frame = useRef(null);
   const tests = item.tests || [];
   const runtime = item.runtime;
+  const sqlTables = useSqlTables(runtime === "sql" ? item.sqlSetup || "" : null, res?.ran || "", res?.at || 0);
+  const words = useMemo(() => sqlWords(sqlTables), [sqlTables]);
 
   async function run() {
     if (busy) return;
     setBusy(true);
     try {
       const r = await runCode(runtime, code, tests, { frame: frame.current, sqlSetup: item.sqlSetup });
-      setRes({ ...r, at: Date.now() });
+      setRes({ ...r, at: Date.now(), ran: code });
       onResult && onResult(r);
     } finally { setBusy(false); }
   }
@@ -78,24 +82,33 @@ export function TryPanel({ item, code, setCode, onResult, onHint, onAnswer, answ
             <div className="tabs"><span className="on">{FILE_NAME.web}</span></div>
             <div className="try-ed"><WebEditor mode="html" value={code} onChange={setCode} level={1} /></div>
           </>
+        ) : runtime === "sql" ? (
+          <>
+            <div className="tabs"><span className="on">{FILE_NAME.sql}</span></div>
+            <div className="try-ed"><JavaEditor lang="sql" words={words} value={code} onChange={setCode} onRun={run} /></div>
+          </>
         ) : <Editor value={code} onChange={setCode} label={FILE_NAME[runtime] || "main"} />}
         <div className="run">
           <button className="btn" type="button" onClick={run} disabled={busy}><Ic id="play" />{busy ? "実行しています…" : "実行する"}</button>
           {item.hint && <button className="btn ghost" type="button" onClick={onHint}>ヒント</button>}
           {onAnswer && <button className="btn ghost" type="button" onClick={onAnswer} disabled={answerState === "loading"}>お手本</button>}
         </div>
+        {runtime === "sql" && sqlTables.length > 0 && <div className="try-db"><SqlTables tables={sqlTables} code={`${res?.ran || ""} ${item.starterCode || ""} ${item.task || ""}`} after={!!res?.ran && /\b(INSERT|UPDATE|DELETE|CREATE|DROP|ALTER)\b/i.test(res.ran)} /></div>}
       </div>
       <div className="console">
         <span className="eyebrow">実行結果</span>
         {runtime === "web" && <iframe ref={frame} title="表示" sandbox="allow-same-origin" style={{ width: "100%", minHeight: 180, border: "1px solid #262B38", borderRadius: 8, background: "#fff" }} />}
         {runtime === "jsweb" && res && <iframe key={res.at} title="表示" sandbox="allow-scripts allow-modals allow-forms" srcDoc={buildJsDocument({ html: code })} style={{ width: "100%", minHeight: 180, border: "1px solid #262B38", borderRadius: 8, background: "#fff" }} />}
-        {runtime !== "web" && <pre>{res ? (res.error ? `エラー: ${res.error}` : (res.out.join("\n") || "（表示なし）")) : "「実行する」を押すと、ここに結果が出ます"}</pre>}
+        {runtime === "sql" && res && !res.error && res.set ? <SqlGrid set={res.set} /> : null}
+        {runtime === "sql" && res && !res.error && res.set && !res.set.values.length && <pre>（0行）</pre>}
+        {runtime === "sql" && res && !res.error && !res.set && <pre>（結果を返さない文だけを実行しました）</pre>}
+        {runtime !== "web" && !(runtime === "sql" && res && !res.error) && <pre>{res ? (res.error ? `エラー: ${res.error}` : (res.out.join("\n") || "（表示なし）")) : "「実行する」を押すと、ここに結果が出ます"}</pre>}
         {runtime === "web" && res?.error && <pre>{`エラー: ${res.error}`}</pre>}
         {res ? res.results.map((r, i) => <div key={i} className={`verdict ${r.ok ? "ok" : "ng"}`}>{r.ok ? "OK" : "まだ"} ・ {r.name}</div>)
           : <div className="verdict wait">確かめること {tests.length}つ</div>}
         {res && res.results.length > 0 && res.results.every(r => r.ok) && <div className="verdict ok">完了しました</div>}
         {onAsk && res && !(res.results.length > 0 && res.results.every(r => r.ok)) && (
-          <button type="button" className="btn ghost" style={{ justifySelf: "start" }} onClick={() => onAsk(res.error ? ((d => (d?.line ? `${d.line}行目の` : ""))(parseJavacError(res.error)) + "エラーの意味は？") : "出力が期待どおりにならない理由は？")}>AIに聞く ↗</button>
+          <button type="button" className="btn ghost" style={{ justifySelf: "start" }} onClick={() => onAsk(res.error ? ((d => (d?.line ? `${d.line}行目の` : ""))(parseJavacError(res.error)) + "エラーの意味は？") : (runtime === "sql" ? "期待する結果にならない理由は？" : "出力が期待どおりにならない理由は？"))}>AIに聞く ↗</button>
         )}
         {hintShown && item.hint && <div className="hint">{item.hint}</div>}
         {answerState === "locked" && <div className="hint">お手本は、何回か実行してみたあとに見られます。</div>}

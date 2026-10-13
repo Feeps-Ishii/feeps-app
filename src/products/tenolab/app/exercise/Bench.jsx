@@ -5,6 +5,8 @@ import WebEditor from "../../../learning/WebEditor.jsx";
 import { parseJavacError } from "../../../learning/javaEditorSupport.js";
 import { previewDocument, runWebChecks } from "../../../learning/webChecks.js";
 import { buildJsDocument, runJsPage, userLineOffset } from "./jsRunner.js";
+import { querySet, runSqlChecks, sqlWords } from "./sqlRunner.js";
+import { SqlGrid, SqlTables, useSqlTables } from "./SqlParts.jsx";
 import "./bench.css";
 
 /* 演習の作業台（モック tenolab-exercise.html、2026-10-09）。
@@ -14,12 +16,13 @@ import "./bench.css";
    実行・採点・記録は今までと同じ（/learning/exercises/java/run・webChecks・lrn.submitExercise）。
    編集部品（JavaEditor・WebEditor）は LMS と共通のものをそのまま使う。 */
 
-export const BENCH_KINDS = new Set(["code_run", "web_run", "js_run"]);
-const LANG = { code_run: { name: "Java 21", key: "java" }, web_run: { name: "HTML / CSS", key: "web" }, js_run: { name: "JavaScript", key: "js" } };
+export const BENCH_KINDS = new Set(["code_run", "web_run", "js_run", "sql_run"]);
+const LANG = { code_run: { name: "Java 21", key: "java" }, web_run: { name: "HTML / CSS", key: "web" }, js_run: { name: "JavaScript", key: "js" }, sql_run: { name: "SQL", key: "sql" } };
 const NARROW_W = 390;
 
 export default function ExerciseBench(props) {
   if (props.slide.kind === "js_run") return <JsBench {...props} />;
+  if (props.slide.kind === "sql_run") return <SqlBench {...props} />;
   return props.slide.kind === "web_run" ? <WebBench {...props} /> : <JavaBench {...props} />;
 }
 
@@ -308,6 +311,104 @@ function JsBench({ slide, lrn, course, lesson, onContext, onAsk }) {
           </div>
         </div>
         <StatusBar lang={lang} caret={caret} left={results.length ? `確認 ${results.filter(r => r.ok).length} / ${results.length}` : ""} />
+      </section>
+    </div>
+  );
+}
+
+/* ---------- SQL（2026-10-13） ----------
+   query.sql を書いて ▶ 実行。右にテーブルの中身（実行したあとの中身）、下に結果の表。
+   確かめること（checks: [{ label, query?, columns? }]）は answerSql の結果と比べる（exercise/sqlRunner.js）。
+   テーブルは content.setup（無ければ教材の emp・dept・loc・sal_grades） */
+function SqlBench({ slide, lrn, course, lesson, onContext, onAsk }) {
+  const content = slide.content || {};
+  const lang = LANG.sql_run;
+  const setup = content.setup || "";
+  const [code, setCode] = useState(content.sql || "");
+  const [res, setRes] = useState(null);
+  const [expected, setExpected] = useState(null);
+  const [tab, setTab] = useState("out");
+  const [running, setRunning] = useState(false);
+  const [stamp, setStamp] = useState(0);
+  const [ranCode, setRanCode] = useState("");
+  const [caret, setCaret] = useState({ line: 1, col: 1 });
+  const sent = useRef(false), alive = useRef(true);
+  useEffect(() => { alive.current = true; return () => { alive.current = false; }; }, []);
+  const checks = useMemo(() => {
+    const list = Array.isArray(content.checks) ? content.checks.filter(c => c?.label) : [];
+    return list.length ? list : content.answerSql ? [{ label: "結果が正しい" }] : [];
+  }, [content.checks, content.answerSql]);
+  const tables = useSqlTables(setup, ranCode, stamp);
+  const words = useMemo(() => sqlWords(tables), [tables]);
+
+  async function run() {
+    if (running) return;
+    setRunning(true);
+    try {
+      const r = await runSqlChecks({ setup, code, answer: content.answerSql || "", checks });
+      if (!alive.current) return;
+      setRes(r); setTab("out"); setRanCode(code); setStamp(x => x + 1);
+      const ok = checks.length > 0 && r.results.every(x => x.ok);
+      if (ok && !sent.current && lrn?.submitExercise) {
+        sent.current = true;
+        lrn.submitExercise({ courseId: course.id, lessonId: lesson.id, slideId: slide.id, kind: "sql_run", submittedAnswer: code, isCorrect: true }).catch(() => {});
+      }
+    } finally { if (alive.current) setRunning(false); }
+  }
+  // サンプル（はじめのSQLがそのまま答え）は開いたら一度動かす。穴あきの演習はエラーになるので動かさない
+  useEffect(() => {
+    if (String(content.sql || "").trim() !== String(content.answerSql || content.sql || "").trim()) return undefined;
+    const t = setTimeout(run, 150);
+    return () => clearTimeout(t);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => {
+    if (!content.answerSql || checks[0]?.query) return;
+    querySet(setup, content.answerSql).then(r => { if (alive.current) setExpected(r.set); }).catch(() => {});
+  }, [content.answerSql, setup]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const ran = !!res;
+  const done = ran && checks.length > 0 && res.results.every(r => r.ok);
+  const rows = res?.set ? res.set.values.length : 0;
+  const output = !res ? "" : res.error ? `エラー: ${res.error}` : res.set ? [res.set.columns.join(" | "), ...res.set.values.slice(0, 20).map(r => r.map(v => (v === null ? "NULL" : v)).join(" | "))].join("\n") : "（結果を返さない文だけを実行しました）";
+  useEffect(() => {
+    onContext?.({ language: "sql", source: code, output, compiled: !res?.error, hasResult: ran });
+  }, [code, output, ran]); // eslint-disable-line react-hooks/exhaustive-deps
+  const reset = () => { setCode(content.sql || ""); setRes(null); setRanCode(""); setStamp(x => x + 1); sent.current = false; };
+
+  return (
+    <div className="xb">
+      <TaskCard slide={slide} content={content} lang={lang} checks={checks.map((c, k) => ({ t: c.label, st: !ran ? "" : res.results[k]?.ok ? "ok" : "ng" }))} />
+      <section className="xb-ws sql">
+        <div className="xb-wbar">
+          <button type="button" className="ftab sql" aria-selected="true"><i />query.sql</button>
+          <span className="sp" />
+          <button type="button" className="xb-btn sub" onClick={reset}>最初に戻す</button>
+          <button type="button" className="xb-btn go" onClick={run} disabled={running}>{running ? "実行中…" : "▶ 実行"} <kbd>Ctrl+Enter</kbd></button>
+        </div>
+        <div className="xb-split">
+          <div className="xb-ed"><JavaEditor key={`${slide.id}-sql`} lang="sql" words={words} value={code} onChange={setCode} onRun={run} onCaret={setCaret} /></div>
+          <SqlTables tables={tables} code={`${ranCode} ${content.sql || ""} ${content.answerSql || ""}`} after={!!ranCode && /\b(INSERT|UPDATE|DELETE|CREATE|DROP|ALTER)\b/i.test(ranCode)} />
+        </div>
+        <div className="xb-out">
+          <div className="otabs" role="tablist">
+            <button type="button" role="tab" aria-selected={tab === "out"} onClick={() => setTab("out")}>結果</button>
+            {expected ? <button type="button" role="tab" aria-selected={tab === "exp"} onClick={() => setTab("exp")}>期待する結果</button> : null}
+            <span className="meta">{running ? "実行中…" : !ran ? "まだ動かしていません" : res.error ? "エラー" : res.set ? `${rows}行` : "実行しました"}</span>
+          </div>
+          {tab === "exp" && expected ? <SqlGrid set={expected} /> : (
+            <div className="term">
+              {!ran && <span className="pr">▶ 実行 で動かします</span>}
+              {res?.error && <div className="e">✕ {res.error}</div>}
+              {ran && !res.error && !res.set && <span className="pr">（結果を返さない文だけを実行しました。右のテーブルで中身を見られます）</span>}
+              {ran && !res.error && res.set && !res.set.values.length && <span className="pr">（0行）</span>}
+              {ran && !done && checks.length > 0 && (
+                <div><button type="button" className="xb-askai" onClick={() => onAsk?.(res.error ? "このエラーの意味は？" : "期待する結果にならない理由は？")}>AIに聞く ↗</button></div>
+              )}
+            </div>
+          )}
+          {tab === "out" && res?.set?.columns.length ? <SqlGrid set={res.set} /> : null}
+        </div>
+        <StatusBar lang={lang} caret={caret} left={checks.length && ran ? `確認 ${res.results.filter(r => r.ok).length} / ${checks.length}` : ""} />
       </section>
     </div>
   );

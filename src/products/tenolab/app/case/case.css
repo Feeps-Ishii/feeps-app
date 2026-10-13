@@ -213,3 +213,8 @@ textarea.cf-in { font-family: var(--mono); font-size: 13px; line-height: 1.6; re
 }
 @media (prefers-reduced-motion: reduce) { .cf-chat .typing i { animation: none; } }
 .cf code { font-family: var(--mono); font-size: .88em; background: var(--soft); border-radius: 4px; padding: 0 4px; }
+
+/* SQL の案件（2026-10-13）：動作確認のテーブル */
+.cf-db { padding: 0; overflow: hidden; }
+.cf-db .xb-db { border-left: 0; }
+.cf-db .xb-grid.light { max-height: 280px; overflow: auto; }

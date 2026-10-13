@@ -1,3 +1,4 @@
+import { runSqlChecks } from "./exercise/sqlRunner.js";
 import { apiPost } from "../../../api.js";
 import { runJsPage } from "./exercise/jsRunner.js";
 
@@ -70,35 +71,14 @@ export function runWeb(code, tests = [], frame) {
   });
 }
 
-let sqlPromise = null;
-async function loadSql() {
-  if (!sqlPromise) {
-    sqlPromise = Promise.all([import("sql.js"), import("sql.js/dist/sql-wasm.wasm?url")])
-      .then(([mod, wasm]) => (mod.default || mod)({ locateFile: () => wasm.default }));
-  }
-  return sqlPromise;
-}
-const tableText = res => {
-  if (!res || !res.length) return [];
-  const { columns, values } = res[res.length - 1];
-  return [columns.join(" | "), ...values.slice(0, 50).map(r => r.map(v => (v === null ? "NULL" : String(v))).join(" | "))];
+const tableText = set => {
+  if (!set) return [];
+  return [set.columns.join(" | "), ...set.values.slice(0, 50).map(r => r.map(v => (v === null ? "NULL" : String(v))).join(" | "))];
 };
-const sameRows = (a, b) => JSON.stringify(a?.[a.length - 1]?.values || []) === JSON.stringify(b?.[b.length - 1]?.values || []);
+// 答え合わせ：t.query（答えのSQL）の結果と比べる。t.expect があれば、両方を流したあとに t.expect を流した結果で比べる（INSERT・UPDATE など）
 export async function runSql(code, tests = [], setup = "") {
-  let SQL;
-  try { SQL = await loadSql(); } catch (e) { return { out: [], error: "SQLを動かす準備ができませんでした。ページを読み込み直してください。", results: tests.map(t => ({ name: t.name, ok: false })) }; }
-  const fresh = () => { const db = new SQL.Database(); if (setup) db.run(setup); return db; };
-  let mine, out = [], error = "";
-  try { const db = fresh(); mine = db.exec(code); out = tableText(mine); db.close(); }
-  catch (e) { error = String(e?.message || e); }
-  const results = tests.map(t => {
-    if (error) return { name: t.name, ok: false };
-    try {
-      const db = fresh(); const expect = db.exec(t.query); db.close();
-      return { name: t.name, ok: sameRows(mine, expect) };
-    } catch (e) { return { name: t.name, ok: false, error: String(e?.message || e) }; }
-  });
-  return { out, error, results };
+  const r = await runSqlChecks({ setup, code, checks: tests.map(t => ({ answer: t.query, query: t.expect || "" })) });
+  return { out: tableText(r.set), set: r.set, error: r.error, results: tests.map((t, k) => ({ name: t.name, ok: !!r.results[k]?.ok, ...(r.results[k]?.error ? { error: r.results[k].error } : {}) })) };
 }
 
 export async function runJava(code, tests = []) {

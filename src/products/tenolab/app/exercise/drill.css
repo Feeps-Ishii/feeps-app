@@ -23,3 +23,9 @@
 .tl-course .drill-ask .compose textarea { resize: none; border: 1px solid #CDD1C7; border-radius: 10px; padding: 7px 10px; font: inherit; font-size: 14px; min-height: 40px; max-height: 110px; }
 @media (prefers-reduced-motion: reduce) { .tl-course .drill-ask .typing i { animation: none; } }
 .tl-course .drill-ask .msg .b code { font-family: var(--mono); font-size: .88em; background: #E4E7DE; border-radius: 4px; padding: 0 4px; }
+
+/* SQL の演習（2026-10-13）：エディタの下にテーブルの中身、実行結果は表で */
+.try-db { margin-top: 10px; border: 1px solid var(--line); border-radius: 10px; overflow: hidden; }
+.try-db .xb-db { border-left: 0; }
+.try-db .xb-grid.light { max-height: 240px; overflow: auto; }
+.console .xb-grid { padding: 0; max-height: 300px; border: 1px solid #262B38; border-radius: 8px; }

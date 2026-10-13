@@ -30,7 +30,7 @@ function useSlideUrl(lrn, materialId) {
 
 function Thumb({ lrn, slide }) {
   const url = useSlideUrl(lrn, slide.kind === "image" ? slide.content?.materialId : "");
-  if (isExercise(slide)) return <span className="lsn-thumb ex">{slide.kind === "code_run" || slide.kind === "web_run" || slide.kind === "js_run" ? "CODE" : "QUIZ"}</span>;
+  if (isExercise(slide)) return <span className="lsn-thumb ex">{slide.kind === "code_run" || slide.kind === "web_run" || slide.kind === "js_run" || slide.kind === "sql_run" ? "CODE" : "QUIZ"}</span>;
   return <span className="lsn-thumb">{url ? <img src={url} alt="" loading="lazy" /> : null}</span>;
 }
 
@@ -178,8 +178,8 @@ export default function LessonView({ ctx, course, lesson, lessons, slideId }) {
 }
 
 // 演習のページで、AIが一緒に見ているもの（単語の印で出す）
-const SEES = { java: ["ページ", "コード", "出力"], web: ["ページ", "HTML", "CSS", "表示"], js: ["ページ", "コード", "コンソール"] };
-const EX_SUGG = { java: ["この書き方で合ってる？", "ヒントだけほしい", "エラーの意味は？"], web: ["思ったとおりに見えないのはなぜ？", "どこを見ればいい？", "ヒントだけほしい"], js: ["思ったとおりに動かないのはなぜ？", "エラーの意味は？", "ヒントだけほしい"] };
+const SEES = { java: ["ページ", "コード", "出力"], web: ["ページ", "HTML", "CSS", "表示"], js: ["ページ", "コード", "コンソール"], sql: ["ページ", "SQL", "結果"] };
+const EX_SUGG = { java: ["この書き方で合ってる？", "ヒントだけほしい", "エラーの意味は？"], web: ["思ったとおりに見えないのはなぜ？", "どこを見ればいい？", "ヒントだけほしい"], js: ["思ったとおりに動かないのはなぜ？", "エラーの意味は？", "ヒントだけほしい"], sql: ["期待する結果にならないのはなぜ？", "エラーの意味は？", "ヒントだけほしい"] };
 
 /* いつも横にいるAIチャット。今のページについて答える（既存の POST /learning/slides/ask）。
    コードの演習のページでは、書いているコードと結果も一緒に送る（既存の POST /learning/exercises/{java|web}/ask。答えのコードは返さない） */
@@ -204,7 +204,7 @@ function LessonChat({ course, lesson, slide, index, onClose, exCtx, sees, askRef
     try {
       const c = exCtx?.current;
       const res = c
-        ? await apiPost(`/learning/exercises/${c.language === "web" ? "web" : c.language === "js" ? "js" : "java"}/ask`, { courseId: course.id, lessonId: lesson.id, slideId: slide.id, source: c.source, files: c.files, output: c.output, compiled: c.compiled, question: v, history: hist.current.slice(-4) })
+        ? await apiPost(`/learning/exercises/${c.language === "web" ? "web" : c.language === "js" ? "js" : c.language === "sql" ? "sql" : "java"}/ask`, { courseId: course.id, lessonId: lesson.id, slideId: slide.id, source: c.source, files: c.files, output: c.output, compiled: c.compiled, question: v, history: hist.current.slice(-4) })
         : await apiPost("/learning/slides/ask", { courseId: course.id, lessonId: lesson.id, slideId: slide.id, question: v, history: hist.current.slice(-4) });
       const a = res?.answer || "うまく答えられませんでした。聞き方を変えてみてください。";
       hist.current.push({ role: "user", text: v }, { role: "assistant", text: a });

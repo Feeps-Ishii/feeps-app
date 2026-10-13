@@ -5,6 +5,7 @@ import {
   newlineEdit, tokenBefore, tokenizeLine,
 } from "./javaEditorSupport.js";
 import { Minimap, caretAt } from "./ExerciseChrome.jsx";
+import { sqlCompletionsFor, sqlTokenBefore, tokenizeSqlLine } from "./sqlEditorSupport.js";
 
 // 2026-08-25: 演習で使うJavaエディタ。承認モック: mock/code-editor/index.html
 //
@@ -31,8 +32,8 @@ const PAD_TOP = 14;
 const TOKEN_COLOR = { kw: "#7FB2F5", str: "#8FD69A", num: "#E9C46A", cls: "#79D3C8", cmt: "#6B7B90" };
 
 // diagnostic: { line, col } — javacが返す位置（1始まり）
-function HighlightedLine({ line, diagnostic }) {
-  const tokens = tokenizeLine(line);
+function HighlightedLine({ line, diagnostic, sql }) {
+  const tokens = sql ? tokenizeSqlLine(line) : tokenizeLine(line);
   if (!line) return <span> </span>;
   const range = diagnostic
     ? [Math.max(0, (diagnostic.col || 1) - 1), Math.max((diagnostic.col || 1), (diagnostic.col || 1))]
@@ -65,7 +66,9 @@ function HighlightedLine({ line, diagnostic }) {
   );
 }
 
-export default function JavaEditor({ value, onChange, diagnostic, level = 1, onRun, readOnly = false, onCaret, minimap = false }) {
+// lang="sql"（2026-10-13）: SQL の色分けと補完に切り替える。words はテーブル名・列名（補完の候補）
+export default function JavaEditor({ value, onChange, diagnostic, level = 1, onRun, readOnly = false, onCaret, minimap = false, lang = "java", words }) {
+  const sql = lang === "sql";
   const taRef = useRef(null);
   const gutterRef = useRef(null);
   const boxRef = useRef(null);
@@ -120,9 +123,9 @@ export default function JavaEditor({ value, onChange, diagnostic, level = 1, onR
     const ta = taRef.current;
     if (!ta || readOnly) return;
     const pos = ta.selectionStart;
-    const { word, start } = tokenBefore(ta.value, pos);
+    const { word, start } = (sql ? sqlTokenBefore : tokenBefore)(ta.value, pos);
     if (!force && word.length < 2) { setMenu(null); return; }
-    const items = completionsFor(word, level);
+    const items = sql ? sqlCompletionsFor(word, words) : completionsFor(word, level);
     if (!items.length) { setMenu(null); return; }
     const upto = ta.value.slice(0, pos);
     const lineNo = upto.split("\n").length;
@@ -182,7 +185,7 @@ export default function JavaEditor({ value, onChange, diagnostic, level = 1, onR
 
     if (e.key === "Tab") { e.preventDefault(); apply(indentEdit(ta.value, ta.selectionStart, ta.selectionEnd, e.shiftKey)); return; }
     if (e.key === "Enter") { e.preventDefault(); apply(newlineEdit(ta.value, ta.selectionStart)); return; }
-    if (e.key === "}") { e.preventDefault(); apply(closingBraceEdit(ta.value, ta.selectionStart)); return; }
+    if (e.key === "}" && !sql) { e.preventDefault(); apply(closingBraceEdit(ta.value, ta.selectionStart)); return; }
   }
 
   // 横に長い行だけは入力欄の中でスクロールするので、色付けの層も同じだけ動かす。
@@ -221,7 +224,7 @@ export default function JavaEditor({ value, onChange, diagnostic, level = 1, onR
         <div ref={boxRef} className="pointer-events-none absolute inset-0 overflow-hidden" aria-hidden="true" style={{ ...EDITOR_TEXT, color: "#DCE3EE" }}>
           {lines.map((line, i) => (
             <div key={i} style={{ height: LINE_H }}>
-              <HighlightedLine line={line} diagnostic={diagnostic && diagnostic.line === i + 1 ? diagnostic : null} />
+              <HighlightedLine sql={sql} line={line} diagnostic={diagnostic && diagnostic.line === i + 1 ? diagnostic : null} />
             </div>
           ))}
         </div>
@@ -237,7 +240,7 @@ export default function JavaEditor({ value, onChange, diagnostic, level = 1, onR
           onBlur={() => setTimeout(() => setMenu(null), 140)}
           onKeyDown={handleKeyDown}
           spellCheck={false}
-          aria-label="Javaのコード"
+          aria-label={sql ? "SQL" : "Javaのコード"}
           className="relative block w-full border-0 bg-transparent outline-none"
           style={{
             ...EDITOR_TEXT, color: "transparent", caretColor: "#DCE3EE",

@@ -30,7 +30,7 @@ function CodeDrill({ item, topic, back, go, rec, progress }) {
   const runs = useRef(Number(rec?.runs || 0)), hints = useRef(Number(rec?.hints || 0));
   const [last, setLast] = useState(null);
   const askRef = useRef(null);
-  const canAsk = ["java", "web", "jsweb", "js"].includes(item.runtime);
+  const canAsk = ["java", "web", "jsweb", "js", "sql"].includes(item.runtime);
   const cleared = rec?.status === "cleared";
 
   async function save(status) {

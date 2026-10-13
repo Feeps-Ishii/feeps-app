@@ -7,7 +7,7 @@ import LessonView from "./LessonView.jsx";
    コース詳細はモック（tenolab-course.html の course）の見た目で作り直した。
    レッスンと総合テストは元の画面部品をそのまま使う（Tailwind のクラスで書かれているため .tl-legacy で包む）。 */
 
-const EXERCISE_KINDS = new Set(["quiz", "terminal", "selection_task", "ordering_puzzle", "fill_blank", "interactive_form", "code_run", "web_run", "aws_lab"]);
+const EXERCISE_KINDS = new Set(["quiz", "terminal", "selection_task", "ordering_puzzle", "fill_blank", "interactive_form", "code_run", "web_run", "js_run", "sql_run", "aws_lab"]);
 const countExercises = ls => (Array.isArray(ls?.slides) ? ls.slides : []).filter(s => EXERCISE_KINDS.has(s?.kind)).length;
 const REVIEW_LABEL = { uncertain: "少し不安", need_help: "質問したい", review_later: "あとで復習する" };
 

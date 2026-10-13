@@ -4,11 +4,13 @@ import JavaEditor from "../../../learning/JavaEditor.jsx";
 import { parseJavacError, tokenizeLine } from "../../../learning/javaEditorSupport.js";
 import { Back } from "../ui.jsx";
 import { Editor } from "../Workbench.jsx";
-import { FILE_NAME, runCode } from "../runtime.js";
+import { FILE_NAME, runCode, runSql } from "../runtime.js";
 import { acceptCase, runCaseServlet, sendCaseChat, skipCase, submitCase } from "../data.js";
 import { diffStat, hunks, lineDiff } from "./diff.js";
 import WebEditor from "../../../learning/WebEditor.jsx";
 import { buildJsDocument } from "../exercise/jsRunner.js";
+import { SqlGrid, SqlTables, useSqlTables } from "../exercise/SqlParts.jsx";
+import { sqlWords } from "../exercise/sqlRunner.js";
 import "./case.css";
 
 /* 案件体験（2026-10-13、モック docs/design/mockups/devhub-learning-2026-10/devhub-case.html）。
@@ -103,7 +105,7 @@ export default function CaseFlow({ item, premium, back, progress, onReload }) {
 
   const STEPS = useMemo(() => [
     ["assign", "アサイン"], ["ticket", "チケット"], ...(hasSpec ? [["spec", "仕様"]] : []), ["code", "実装"],
-    ...(isServlet || item.runtime === "web" || item.runtime === "jsweb" ? [["check", "動作確認"]] : []), ["test", "テスト"], ["pr", "プルリク"], ["review", "レビュー"], ["done", "完了"],
+    ...(isServlet || item.runtime === "web" || item.runtime === "jsweb" || item.runtime === "sql" ? [["check", "動作確認"]] : []), ["test", "テスト"], ["pr", "プルリク"], ["review", "レビュー"], ["done", "完了"],
   ], [hasSpec, isServlet, item.runtime]);
   const idx = id => STEPS.findIndex(s => s[0] === id);
 
@@ -121,6 +123,16 @@ export default function CaseFlow({ item, premium, back, progress, onReload }) {
   const [pr, setPr] = useState(() => rec.pr || { title: `${t.id ? `${t.id} ` : ""}${item.title}`, body: `## 対応したチケット\n${t.id || item.title}\n\n## 変更内容\n- \n\n## 確認したこと\n- テスト仕様書 すべて ○\n\n## 見てほしいところ\n- ` });
   const [chat, setChat] = useState(rec.chat || []);
   // HTML＋JavaScript の動作確認（見える枠からの console・alert・エラー）
+  // SQL：動作確認で流した結果と、流したあとのテーブルの中身
+  const [sqlRun, setSqlRun] = useState(null);
+  const sqlTables = useSqlTables(item.runtime === "sql" ? item.sqlSetup || "" : null, sqlRun?.ran || "", sqlRun?.at || 0);
+  const sqlWordList = useMemo(() => sqlWords(sqlTables), [sqlTables]);
+  async function runSqlCheck() {
+    const r = await runSql(code, [], item.sqlSetup || "");
+    if (!alive.current) return;
+    setSqlRun({ ...r, ran: code, at: Date.now() });
+    setCheck({ status: r.error ? "ERROR" : "OK", sql: true });
+  }
   const [jsRun, setJsRun] = useState(() => ({ at: Date.now(), token: `cf-${Date.now()}` }));
   const [jsLogs, setJsLogs] = useState([]);
   useEffect(() => {
@@ -412,14 +424,16 @@ export default function CaseFlow({ item, premium, back, progress, onReload }) {
           {isServlet && sv.pageHtml && <button type="button" className="ftab html" aria-selected={file === "page"} onClick={() => setFile("page")}><i />{sv.pageName || "index.html"}<small>参考</small></button>}
           <span className="sp" />
           <button type="button" className="xbtn sub" onClick={() => { if (window.confirm("はじめのコードに戻します。よろしいですか？")) { setCode(item.starterCode || ""); setCompile(null); } }} disabled={approved}>最初に戻す</button>
-          {(isServlet || item.runtime === "web" || item.runtime === "jsweb") && <button type="button" className="xbtn go" onClick={() => setStep(idx("check"))}>{isServlet ? "サーバーで実行" : item.runtime === "jsweb" ? "動かして確かめる" : "表示を確かめる"}</button>}
-          {!isServlet && item.runtime !== "web" && item.runtime !== "jsweb" && <button type="button" className="xbtn go" onClick={() => setStep(idx("test"))}>テストへ</button>}
+          {(isServlet || item.runtime === "web" || item.runtime === "jsweb" || item.runtime === "sql") && <button type="button" className="xbtn go" onClick={() => { setStep(idx("check")); if (item.runtime === "sql") runSqlCheck(); }}>{isServlet ? "サーバーで実行" : item.runtime === "jsweb" || item.runtime === "sql" ? "動かして確かめる" : "表示を確かめる"}</button>}
+          {!isServlet && item.runtime !== "web" && item.runtime !== "jsweb" && item.runtime !== "sql" && <button type="button" className="xbtn go" onClick={() => setStep(idx("test"))}>テストへ</button>}
         </div>
         {isServlet && sv.filePath && <div className="cf-path mono">{file === "main" ? sv.filePath : "src/main/webapp/"}</div>}
         <div className="cf-ed">
           {file === "page" ? <pre className="cf-ro">{sv.pageHtml}</pre>
             : (isServlet || item.runtime === "java")
               ? <JavaEditor key={`${item.id}-main`} value={code} onChange={approved ? () => {} : setCode} readOnly={approved} diagnostic={diag && diag.file === fileName ? diag : null} level={1} />
+              : item.runtime === "sql"
+                ? <JavaEditor key={`${item.id}-sql`} lang="sql" words={sqlWordList} value={code} onChange={approved ? () => {} : setCode} readOnly={approved} />
               : item.runtime === "web" || item.runtime === "jsweb"
                 ? <WebEditor key={`${item.id}-html`} mode="html" value={code} onChange={approved ? () => {} : setCode} readOnly={approved} level={1} />
                 : <div className="cf-plain"><Editor value={code} onChange={approved ? () => {} : setCode} label={fileName} readOnly={approved} minHeight={360} /></div>}
@@ -427,6 +441,25 @@ export default function CaseFlow({ item, premium, back, progress, onReload }) {
         {compile && <pre className="cf-term e">{compile.error}</pre>}
         <div className="cf-sbar"><span>{RUNTIME_LABEL[item.runtime]}</span><span>{changed ? "● 変更あり" : "変更なし"}</span><span className="sp" /><span>TODO {(code.match(/TODO/g) || []).length}</span></div>
       </section>
+    );
+  } else if (cur === "check" && item.runtime === "sql") {
+    view = (
+      <>
+        <section className="cf-panel">
+          <div className="ph"><span className="eyebrow">実行結果</span><span className="sp" />
+            {sqlRun && !sqlRun.error && <span className="chip">{sqlRun.set ? `${sqlRun.set.values.length}行` : "実行しました"}</span>}
+            <button type="button" className="btn" onClick={runSqlCheck}>▶ 実行</button></div>
+          {!sqlRun && <p className="muted" style={{ margin: 0 }}>▶ 実行 で、書いたSQLを流します</p>}
+          {sqlRun?.error && <pre className="cf-log"><span className="e">✕ {sqlRun.error}</span></pre>}
+          {sqlRun && !sqlRun.error && sqlRun.set && <SqlGrid set={sqlRun.set} light />}
+          {sqlRun && !sqlRun.error && sqlRun.set && !sqlRun.set.values.length && <p className="muted" style={{ margin: 0 }}>（0行）</p>}
+          {sqlRun && !sqlRun.error && !sqlRun.set && <p className="muted" style={{ margin: 0 }}>結果を返さない文だけを実行しました。下のテーブルで中身を見られます</p>}
+          {sqlRun?.error && <button type="button" className="btn ghost" style={{ justifySelf: "start" }} onClick={() => openChat("lead", `【やりたいこと】動作確認\n【困っていること】${sqlRun.error}\n【自分の考え】`)}>リーダーに聞く</button>}
+        </section>
+        <section className="cf-panel tight cf-db">
+          <SqlTables tables={sqlTables} code={`${sqlRun?.ran || ""} ${item.starterCode || ""}`} after={!!sqlRun?.ran && /\b(INSERT|UPDATE|DELETE|CREATE|DROP|ALTER)\b/i.test(sqlRun.ran)} />
+        </section>
+      </>
     );
   } else if (cur === "check") {
     const url = `http://localhost:8080${sv.path ? "" : ""}/${(sv.pageName || "index.html")}`;
