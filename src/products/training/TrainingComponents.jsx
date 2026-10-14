@@ -18,6 +18,8 @@ const LessonNoteDock = React.lazy(() => import("./LessonNoteDock.jsx"));
 // 教材ビューアは pdfjs-dist を使うので、開いた人だけが読み込む
 const MaterialViewer = React.lazy(() => import("./MaterialViewer.jsx"));
 import SubmissionCalendar from "./SubmissionCalendar.jsx";
+import { TraineeHomeNav, DailyNoteCard } from "./TraineeHomeNav.jsx";
+import { ackKey, ackKeys, hasStaffComment } from "./acks.js";
 import SubmissionList from "./SubmissionList.jsx";
 import { clearTraineeTestDraft, clearTrainingTargetContext, getActiveCourseId, getTraineeTestDraft, getTrainingTargetContext, setActiveCourseId, setCurriculumReturn, setLibraryTarget, setTestBuildTarget, setTestFocus, setTraineeTestDraft, setTrainingTargetContext, takeCurriculumReturn, takeTestBuildTarget, takeTestFocus } from "../../utils/common/courseContext.js";
 import {
@@ -352,105 +354,12 @@ function TraineeHome({ go, goProduct, goSub, done, taskDataState, onTaskRetry, t
 
   return (
     <PrismPage className="max-w-full overflow-x-hidden" style={{ gap: 16 }}>
-      {/* 2026-08-24 リデザイン（承認モック: mock/training-home 案A「状況ボード」）。
-          左＝今日の状態と次の一手、右＝いま抱えているもの。研修日／研修がない日で
-          同じ骨格を使い、中身だけ入れ替える。 */}
-      <PrismCard className="overflow-hidden p-0">
-        {/* 2026-10-12（ユーザー指定）：右の「いま抱えているもの」は出さない。右の列は研修日の「今日の必須」だけ */}
-        <div className={`grid ${!thLoading && !thNoTrainingToday ? "lg:grid-cols-[1fr_330px]" : ""}`}>
-          <div className="min-w-0 p-6 sm:px-7">
-            <div className="flex flex-wrap items-center gap-2">
-              <span
-                className="inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-[11.5px] font-bold"
-                style={thNoTrainingToday
-                  ? { background: PRISM.neutralSubtle, color: PRISM.sub }
-                  : { background: PRISM.accentSubtle, color: PRISM.accent }}
-              >
-                <Clock size={12} />
-                {thNoTrainingToday ? formatTrainingDate(thToday) || thToday : "研修日"}
-              </span>
-              <span className="text-[11.5px]" style={{ color: PRISM.mut }}>
-                {[!thNoTrainingToday ? formatTrainingDate(thToday) || thToday : "", thPrimaryCourse?.name].filter(Boolean).join(" ・ ")}
-              </span>
-            </div>
-
-            <h1 className="mt-3.5 text-[26px] font-extrabold leading-[1.28] sm:text-[27px]" style={{ color: PRISM.ink, letterSpacing: "-0.035em" }}>
-              {thHeroTitle}
-            </h1>
-            {/* 2026-10-12（ユーザー指定）：説明文は出さない。日程の設定が要るときの注意だけ残す */}
-            {(thScheduleNeedsSetup || thScheduleConflict) && (
-              <p className="mt-2.5 max-w-[40ch] text-[13.5px] leading-[1.9]" style={{ color: PRISM.sub }}>{thHeroDescription}</p>
-            )}
-
-            {/* 2026-09-14 ホーム作り直し: 「今日の単元」を独立カードから上の1枚へ移した。
-                ホームは「その日の内容」と「提出カレンダー」の2枚だけにする。 */}
-            {!thLoading && (thNoTrainingToday ? (thNextTrainingDay && (
-              <p className="mt-3.5 text-[12.5px] leading-[1.8]" style={{ color: PRISM.sub }}>
-                次の研修は <b style={{ color: PRISM.ink }}>{formatTrainingDate(thNextTrainingDay.date) || thNextTrainingDay.date}
-                {thNextTrainingDay.lessonTitle ? ` ${thNextTrainingDay.lessonTitle}` : ""}</b> です。
-              </p>
-            )) : thDailyLessonState === "loading" || !thLessonTitle ? null : (
-              <p className="mt-3.5 text-[12.5px] leading-[1.8]" style={{ color: PRISM.sub }}>
-                <b className="text-[13.5px]" style={{ color: PRISM.ink }}>{thLessonTitle}</b>
-                {thLessonContent && <><br />{thLessonContent}</>}
-              </p>
-            ))}
-
-            {!thLoading && (
-              <div className="mt-5 flex flex-wrap gap-2">
-                <Btn onClick={thHeroPrimaryOnClick}>{thHeroPrimaryLabel}</Btn>
-                <Btn kind="ghost" onClick={() => go("curriculum")}>{thHeroSecondaryLabel}</Btn>
-              </div>
-            )}
-          </div>
-
-          {/* 右：今日の必須（研修日だけ） */}
-          {!thLoading && !thNoTrainingToday && (
-          <div
-            className="border-t p-6 sm:px-7 lg:border-l lg:border-t-0"
-            style={{ borderColor: PRISM.line, background: `linear-gradient(160deg, ${PRISM.accentSubtle} 0%, ${PRISM.surface} 62%)` }}
-          >
-            <>
-                <div className="text-[11.5px] font-extrabold" style={{ color: PRISM.mut, letterSpacing: "0.04em" }}>今日の必須</div>
-                <div className="mt-3.5 flex items-baseline gap-2">
-                  <span className="text-[40px] font-extrabold leading-none tabular-nums" style={{ color: PRISM.accent, letterSpacing: "-0.04em" }}>
-                    {thTodayProgressAvailable ? thTodayCompletedCount : "—"}
-                  </span>
-                  <span className="text-[15px] font-bold" style={{ color: PRISM.mut }}>
-                    / {thTodayProgressAvailable ? thTodayRequiredCount : 2} 完了
-                  </span>
-                </div>
-                <div className="mt-3.5 grid gap-2.5">
-                  {thRequiredToday.map(item => (
-                    <div key={item.key} className="flex items-center gap-2.5">
-                      {item.done ? (
-                        <span className="grid h-5 w-5 shrink-0 place-items-center rounded-full" style={{ background: PRISM.ok, color: "#fff" }}>
-                          <Check size={11} strokeWidth={3.4} />
-                        </span>
-                      ) : (
-                        <span className="h-5 w-5 shrink-0 rounded-full" style={{ border: `2px dashed ${item.unknown ? PRISM.mut : PRISM.warn}` }} />
-                      )}
-                      <span className="text-[12.5px]" style={{ color: item.done ? PRISM.sub : PRISM.ink, fontWeight: item.done ? 600 : 700 }}>
-                        {item.label}
-                        {item.detail && <span className="ml-1 font-normal" style={{ color: item.done ? PRISM.sub : PRISM.warn }}>{item.detail}</span>}
-                      </span>
-                    </div>
-                  ))}
-                </div>
-                {thUnsubmittedTestCount > 0 && (
-                  <div className="mt-4 border-t pt-3.5 text-[11.5px] leading-relaxed" style={{ borderColor: PRISM.line, color: PRISM.sub }}>
-                    未提出の研修テストが<strong style={{ color: PRISM.warn }}>{thUnsubmittedTestCount}件</strong>あります
-                  </div>
-                )}
-              </>
-          </div>
-          )}
-        </div>
-      </PrismCard>
+      {/* 2026-10-14（ユーザー指定）：上の状況ボードはやめ、よく開く画面へのボタンにした */}
+      <TraineeHomeNav go={go} />
 
       {thErr && <PrismErrorRetryCard message={thErr} onRetry={() => setThReloadKey(value => value + 1)} />}
 
-      {thHasDailyAnnouncement && <PrismCard className="flex items-start gap-3 p-4" style={{ background: PRISM.warnSubtle, borderColor: PRISM.warnLine }}><span className="grid h-9 w-9 shrink-0 place-items-center rounded-xl" style={{ background: PRISM.surface, color: PRISM.warn }}><Megaphone size={16} /></span><div className="min-w-0 flex-1"><div className="text-xs font-bold" style={{ color: PRISM.warn }}>本日のお知らせ</div><div className="mt-1 break-words text-sm leading-relaxed" style={{ color: PRISM.ink }}>{thDailyNote.announcement}</div>{thHome.courses.length > 1 && <div className="mt-1 text-xs" style={{ color: PRISM.mut }}>{thDailyNoteCourse?.name || "メインコース"} の連絡です。</div>}</div></PrismCard>}
+      {thHasDailyAnnouncement && thDailyNoteCourse?.courseId && <DailyNoteCard courseId={thDailyNoteCourse.courseId} date={thToday} text={thDailyNote.announcement} courseName={thHome.courses.length > 1 ? thDailyNoteCourse?.name : ""} />}
 
       {/* ホームは「その日の内容」と「提出カレンダー」の2枚だけ。
           今日の流れ・今日の単元・残っているもの・先生からの返事は畳み、
@@ -705,14 +614,24 @@ function InstructorGoalsDashboard({ go, openKarte }) {
   );
 }
 
-function GoalsView({ role, done, taskSaveState, toggle, goals, setGoals, go, goProduct, goSub, openKarte }) {
+function GoalsView(props) {
+  const { role, go, openKarte } = props;
   // 講師・管理者・企業担当は「受講生の達成状況を見る」と「コースの目標を決める」が仕事。
   // 自分用の目標編集は出さない（2026-09-16 打合せ）
   if (role === "instructor") return <><CourseGoalsEditor /><InstructorGoalsDashboard go={go} openKarte={openKarte} /></>;
   if (role === "admin" || role === "client") return <CourseGoalsEditor />;
+  return <TraineeGoalsView {...props} />;
+}
+
+/* 受講生の目標とタスク（2026-10-14 ユーザー指定）
+   「研修の目標」（コースで決めたもの。編集・削除できない）と「自分の目標」（自分で足したもの）を分ける。
+   研修の目標は、チェックと、自分で足した小目標の編集だけ */
+const isOwnTask = t => !t.fromCourse && String(t.id || "").startsWith("u");
+function TraineeGoalsView({ done, taskSaveState, toggle, goals, setGoals, go }) {
   const gp = goalProgress(goals, done);
+  const courseGoals = gp.filter(g => !g.custom);
+  const myGoals = gp.filter(g => g.custom);
   const overall = overallProgress(goals, done);
-  const all = flatTasks(goals);
   const [ng, setNg] = useState("");
   const [nt, setNt] = useState({});
   const [goalDrafts, setGoalDrafts] = useState({});
@@ -721,7 +640,6 @@ function GoalsView({ role, done, taskSaveState, toggle, goals, setGoals, go, goP
   const [reportLoading, setReportLoading] = useState(true);
   const todayTasks = Array.isArray(todayReport?.goalItems) ? todayReport.goalItems : [];
   const completedTodayTasks = todayTasks.filter(t => t.done).length;
-  const completedSmallGoals = all.filter(t => done[t.id]).length;
 
   useEffect(() => {
     let alive = true;
@@ -740,147 +658,113 @@ function GoalsView({ role, done, taskSaveState, toggle, goals, setGoals, go, goP
   function addTask(gid) {
     const t = (nt[gid] || "").trim();
     if (!t) return;
-    setGoals(safeGoals(goals).map(g => g.id === gid ? { ...g, tasks: [...g.tasks, { id: "u" + Date.now(), t }] } : g));
+    setGoals(safeGoals(goals).map(g => g.id === gid && g.custom ? { ...g, tasks: [...g.tasks, { id: "u" + Date.now(), t }] } : g));
     setNt({ ...nt, [gid]: "" });
   }
   function addGoal() {
     const title = ng.trim();
     if (!title) return;
-    setGoals([...safeGoals(goals), { id: "ug" + Date.now(), title, sub: "自分で設定した長期目標", icon: Star, custom: true, tasks: [] }]);
+    setGoals([...safeGoals(goals), { id: "ug" + Date.now(), title, sub: "", icon: Star, custom: true, tasks: [] }]);
     setNg("");
   }
   function updateGoalText(gid, patch) {
-    setGoals(safeGoals(goals).map(g => g.id === gid ? { ...g, ...patch } : g));
+    setGoals(safeGoals(goals).map(g => g.id === gid && g.custom ? { ...g, ...patch } : g));
     setGoalDrafts(d => ({ ...d, [gid]: false }));
   }
   function deleteGoal(gid) {
     if (!window.confirm("この目標を削除しますか？")) return;
-    setGoals(safeGoals(goals).filter(g => g.id !== gid));
+    setGoals(safeGoals(goals).filter(g => !(g.id === gid && g.custom)));
   }
   function updateTaskText(gid, tid, text) {
     const value = String(text || "").trim();
     if (!value) return;
-    setGoals(safeGoals(goals).map(g => g.id === gid ? { ...g, tasks: g.tasks.map(t => t.id === tid ? { ...t, t: value } : t) } : g));
+    setGoals(safeGoals(goals).map(g => g.id === gid ? { ...g, tasks: g.tasks.map(t => t.id === tid && (g.custom || isOwnTask(t)) ? { ...t, t: value } : t) } : g));
     setTaskDrafts(d => ({ ...d, [tid]: false }));
   }
   function deleteTask(gid, tid) {
-    setGoals(safeGoals(goals).map(g => g.id === gid ? { ...g, tasks: g.tasks.filter(t => t.id !== tid) } : g));
+    setGoals(safeGoals(goals).map(g => g.id === gid ? { ...g, tasks: g.tasks.filter(t => !(t.id === tid && (g.custom || isOwnTask(t)))) } : g));
   }
+
+  const renderGoal = (g, mine) => {
+    const I = g.icon || Target;
+    return (
+      <div key={g.id} className="rounded-xl" style={{ border: "1px solid " + T.border, overflow: "hidden" }}>
+        <div className="flex flex-wrap items-start gap-3 px-4 py-3" style={{ background: T.bgBase }}>
+          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl" style={{ background: mine ? "#9B79EC1A" : T.accentSubtle, color: mine ? "#7C5CD6" : T.accent }}><I size={17} /></div>
+          <div className="min-w-0 flex-1">
+            {goalDrafts[g.id] ? (
+              <div className="space-y-2">
+                <input value={goalDrafts[g.id].title} onChange={e => setGoalDrafts(d => ({ ...d, [g.id]: { ...(d[g.id] || {}), title: e.target.value } }))} aria-label="目標" className="w-full rounded-lg px-2 py-1.5 text-sm outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary }} />
+                <input value={goalDrafts[g.id].sub} onChange={e => setGoalDrafts(d => ({ ...d, [g.id]: { ...(d[g.id] || {}), sub: e.target.value } }))} aria-label="補足" placeholder="補足" className="w-full rounded-lg px-2 py-1.5 text-xs outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary }} />
+                <div className="flex gap-2"><Btn size="sm" kind="soft" icon={Check} onClick={() => updateGoalText(g.id, goalDrafts[g.id])}>保存</Btn><Btn size="sm" kind="ghost" icon={X} onClick={() => setGoalDrafts(d => ({ ...d, [g.id]: false }))}>取消</Btn></div>
+              </div>
+            ) : (
+              <>
+                <div className="break-words text-sm font-bold" style={{ color: T.textPrimary }}>{g.title}</div>
+                {g.sub && <div className="mt-0.5 break-words text-xs" style={{ color: T.textMuted }}>{g.sub}</div>}
+              </>
+            )}
+          </div>
+          <Badge tone={g.pct >= 80 ? "green" : "cyan"}>{g.n}/{g.total}</Badge>
+          {mine && !goalDrafts[g.id] && <div className="flex gap-1"><button type="button" aria-label="目標を編集" onClick={() => setGoalDrafts(d => ({ ...d, [g.id]: { title: g.title || "", sub: g.sub || "" } }))} className="rounded-lg p-1.5 hover:bg-gray-100"><Pencil size={14} style={{ color: T.textMuted }} /></button><button type="button" aria-label="目標を削除" onClick={() => deleteGoal(g.id)} className="rounded-lg p-1.5 hover:bg-gray-100"><Trash2 size={14} style={{ color: T.textMuted }} /></button></div>}
+        </div>
+        <div className="px-4 pt-2"><Bar value={g.pct} tone={g.pct >= 80 ? "green" : g.pct >= 40 ? "cyan" : "amber"} /></div>
+        <div className="p-2">
+          {g.tasks.map(t => {
+            const ok = !!done[t.id];
+            const editable = mine || isOwnTask(t);
+            return <div key={t.id} className="flex w-full items-center gap-3 rounded-xl px-3 py-2 transition hover:bg-gray-50">
+              <button type="button" onClick={() => toggle(t.id)} aria-label={ok ? "未達成に戻す" : "達成にする"}>{ok ? <CheckCircle2 size={18} style={{ color: T.success }} /> : <Circle size={18} style={{ color: T.textMuted }} />}</button>
+              {taskDrafts[t.id] ? <input value={taskDrafts[t.id].text} onChange={e => setTaskDrafts(d => ({ ...d, [t.id]: { text: e.target.value } }))} onKeyDown={e => e.key === "Enter" && updateTaskText(g.id, t.id, taskDrafts[t.id]?.text)} className="min-w-0 flex-1 rounded-lg px-2 py-1.5 text-sm outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary }} />
+                : <button type="button" onClick={() => toggle(t.id)} className="min-w-0 flex-1 text-left text-sm" style={{ color: ok ? T.textMuted : T.textPrimary, textDecoration: ok ? "line-through" : "none" }}>{t.t}</button>}
+              {editable && <div className="flex gap-1">{taskDrafts[t.id] ? <Btn size="sm" kind="ghost" icon={Check} onClick={() => updateTaskText(g.id, t.id, taskDrafts[t.id]?.text)}>保存</Btn> : <button type="button" aria-label="小目標を編集" onClick={() => setTaskDrafts(d => ({ ...d, [t.id]: { text: t.t || "" } }))} className="rounded-lg p-1 hover:bg-gray-100"><Pencil size={14} style={{ color: T.textMuted }} /></button>}<button type="button" aria-label="小目標を削除" onClick={() => deleteTask(g.id, t.id)} className="rounded-lg p-1 hover:bg-gray-100"><Trash2 size={14} style={{ color: T.textMuted }} /></button></div>}
+            </div>;
+          })}
+          {mine && <div className="flex items-center gap-2 px-3 py-2">
+            <Plus size={16} style={{ color: T.textMuted }} />
+            <input value={nt[g.id] || ""} onChange={e => setNt({ ...nt, [g.id]: e.target.value })} onKeyDown={e => e.key === "Enter" && addTask(g.id)} placeholder="小目標を追加" className="min-w-0 flex-1 rounded-lg px-2 py-1.5 text-sm outline-none" style={{ border: "1px solid " + T.border, color: T.textPrimary }} />
+            <button type="button" onClick={() => addTask(g.id)} className="text-xs font-semibold" style={{ color: T.accentHover }}>追加</button>
+          </div>}
+        </div>
+      </div>
+    );
+  };
 
   return (
     <div>
-      <SectionHead title="目標とタスク" desc="長期目標、小目標、今日やることを分けて確認します。" action={taskSaveState && <span className="text-xs font-semibold" aria-live="polite" style={{ color: taskSaveState === "error" ? T.danger : taskSaveState === "saved" ? T.success : T.textMuted }}>{taskSaveState === "saving" ? "保存中…" : taskSaveState === "saved" ? "保存しました" : "保存に失敗したため元に戻しました"}</span>} />
+      <SectionHead title="目標とタスク" action={<span className="flex items-center gap-2"><Badge tone="cyan">全体 {overall}%</Badge>{taskSaveState && <span className="text-xs font-semibold" aria-live="polite" style={{ color: taskSaveState === "error" ? T.danger : taskSaveState === "saved" ? T.success : T.textMuted }}>{taskSaveState === "saving" ? "保存中…" : taskSaveState === "saved" ? "保存しました" : "保存に失敗したため元に戻しました"}</span>}</span>} />
 
       <Card className="mb-6 p-5">
-        <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
-          <div><h3 className="font-bold" style={{ color: T.textPrimary }}>今日のタスク</h3><p className="text-xs" style={{ color: T.textMuted }}>日報の今日の目標リストを、今日やる具体的な行動として表示します。</p></div>
-          {reportLoading ? <Badge tone="muted">読み込み中</Badge> : <Badge tone={todayTasks.length ? "cyan" : "muted"}>{todayTasks.length ? completedTodayTasks + "/" + todayTasks.length + " 完了" : "未設定"}</Badge>}
+        <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
+          <h3 className="font-bold" style={{ color: T.textPrimary }}>今日のタスク</h3>
+          <div className="flex items-center gap-2">
+            {reportLoading ? <Badge tone="muted">読み込み中</Badge> : <Badge tone={todayTasks.length ? "cyan" : "muted"}>{todayTasks.length ? completedTodayTasks + "/" + todayTasks.length + " 完了" : "未設定"}</Badge>}
+            <Btn size="sm" kind="ghost" icon={NotebookPen} onClick={() => go && go("reports")}>日報へ</Btn>
+          </div>
         </div>
         {todayTasks.length ? <div className="space-y-2">{todayTasks.map(item => (
           <div key={item.id || item.text} className="flex items-center gap-3 rounded-xl px-3 py-2.5" style={{ background: item.done ? T.successSubtle : T.bgBase }}>
             {item.done ? <CheckCircle2 size={18} style={{ color: T.success }} /> : <Circle size={18} style={{ color: T.textMuted }} />}
-            <span className="min-w-0 flex-1 text-sm" style={{ color: item.done ? T.textMuted : T.textPrimary, textDecoration: item.done ? "line-through" : "none" }}>{item.text || "タスク未入力"}</span>
+            <span className="min-w-0 flex-1 text-sm" style={{ color: item.done ? T.textMuted : T.textPrimary, textDecoration: item.done ? "line-through" : "none" }}>{item.text || "—"}</span>
           </div>
-        ))}</div> : <div className="rounded-xl p-4 text-sm" style={adminPanelStyle}>今日のタスクは未設定です。日報で今日の目標を追加するとここに表示されます。</div>}
-        <div className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-xl p-3" style={{ background: T.accentSubtle }}>
-          <p className="text-xs leading-relaxed" style={{ color: T.textMuted }}>今日のタスクは日報で追加できます。</p>
-          <div className="flex gap-2"><Btn size="sm" kind="ghost" icon={NotebookPen} onClick={() => go && go("reports")}>日報へ</Btn></div>
-        </div>
+        ))}</div> : null}
       </Card>
 
-      <div className="mb-6 grid gap-4 lg:grid-cols-3">
-        <Card className="p-5 lg:col-span-2">
-          <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
-            <div>
-              <h3 className="font-bold" style={{ color: T.textPrimary }}>現在の目標</h3>
-              <p className="text-xs" style={{ color: T.textMuted }}>目標は長期ゴール、小目標はそこへ向かう単元・スキル・マイルストーンです。</p>
-            </div>
-            <Badge tone="cyan">全体 {overall}%</Badge>
-          </div>
-          {gp.length ? <div className="grid gap-3 sm:grid-cols-2">{gp.map((g, i) => {
-            const I = g.icon || Target;
-            return (
-              <div key={g.id} className="rounded-xl p-4" style={{ background: T.bgBase, border: "1px solid " + T.border }}>
-                <div className="mb-3 flex items-start gap-3">
-                  <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl" style={{ background: T.accentSubtle, color: T.accent }}><I size={18} /></div>
-                  <div className="min-w-0 flex-1">
-                    <div className="text-xs font-bold" style={{ color: T.accent }}>{g.custom ? "自分の目標" : "長期目標 " + (i + 1)}</div>
-                    {goalDrafts[g.id] ? (
-                      <div className="mt-1 space-y-2">
-                        <input value={goalDrafts[g.id].title} onChange={e => setGoalDrafts(d => ({ ...d, [g.id]: { ...(d[g.id] || {}), title: e.target.value } }))} className="w-full rounded-lg px-2 py-1.5 text-sm outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary }} />
-                        <input value={goalDrafts[g.id].sub} onChange={e => setGoalDrafts(d => ({ ...d, [g.id]: { ...(d[g.id] || {}), sub: e.target.value } }))} className="w-full rounded-lg px-2 py-1.5 text-xs outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary }} />
-                        <div className="flex gap-2"><Btn size="sm" kind="soft" icon={Check} onClick={() => updateGoalText(g.id, goalDrafts[g.id])}>保存</Btn><Btn size="sm" kind="ghost" icon={X} onClick={() => setGoalDrafts(d => ({ ...d, [g.id]: false }))}>取消</Btn></div>
-                      </div>
-                    ) : (
-                      <>
-                        <div className="mt-0.5 break-words font-bold" style={{ color: T.textPrimary }}>{g.title}</div>
-                        <div className="mt-0.5 break-words text-xs" style={{ color: T.textMuted }}>{g.sub}</div>
-                        {/* Trainee can edit only self-created custom goals. Instructor/admin-authored goals remain read-only until instructor-side goal CRUD is implemented. */}
-                        {g.custom && <div className="mt-2 flex gap-1.5"><Btn size="sm" kind="ghost" icon={Pencil} onClick={() => setGoalDrafts(d => ({ ...d, [g.id]: { title: g.title || "", sub: g.sub || "" } }))}>編集</Btn><Btn size="sm" kind="ghost" icon={Trash2} onClick={() => deleteGoal(g.id)}>削除</Btn></div>}
-                      </>
-                    )}
-                  </div>
-                </div>
-                <div className="mb-1 flex justify-between text-xs"><span style={{ color: T.textMuted }}>小目標の達成</span><span style={{ color: T.textPrimary }}>{g.n}/{g.total}</span></div>
-                <Bar value={g.pct} tone={g.pct >= 80 ? "green" : g.pct >= 40 ? "cyan" : "amber"} />
-              </div>
-            );
-          })}</div> : <div className="rounded-xl p-4 text-sm" style={adminPanelStyle}>目標データ未設定です。</div>}
-          <div className="mt-4 flex flex-wrap items-center gap-2 rounded-xl p-3" style={{ background: T.accentSubtle }}>
-            <Star size={16} style={{ color: T.accent }} />
-            <input value={ng} onChange={e => setNg(e.target.value)} onKeyDown={e => e.key === "Enter" && addGoal()} placeholder="長期目標を追加（例：基本情報技術者を取得する）" className="min-w-0 flex-1 rounded-xl px-3 py-2 text-sm outline-none" style={{ border: "1px solid " + T.border, color: T.textPrimary }} />
+      <div className="mb-6 grid items-start gap-4 lg:grid-cols-2">
+        <Card className="p-5">
+          <div className="mb-3 flex items-center gap-2"><span className="h-2.5 w-2.5 rounded-[3px]" style={{ background: T.accent }} /><h3 className="font-bold" style={{ color: T.textPrimary }}>研修の目標</h3><Lock size={13} style={{ color: T.textMuted }} aria-label="編集できません" /></div>
+          {courseGoals.length ? <div className="space-y-3">{courseGoals.map(g => renderGoal(g, false))}</div> : <div className="rounded-xl p-4 text-sm" style={adminPanelStyle}>まだありません</div>}
+        </Card>
+        <Card className="p-5">
+          <div className="mb-3 flex items-center gap-2"><span className="h-2.5 w-2.5 rounded-[3px]" style={{ background: "#9B79EC" }} /><h3 className="font-bold" style={{ color: T.textPrimary }}>自分の目標</h3></div>
+          {myGoals.length ? <div className="space-y-3">{myGoals.map(g => renderGoal(g, true))}</div> : null}
+          <div className="mt-3 flex flex-wrap items-center gap-2 rounded-xl p-3" style={{ background: "#9B79EC14" }}>
+            <Star size={16} style={{ color: "#7C5CD6" }} />
+            <input value={ng} onChange={e => setNg(e.target.value)} onKeyDown={e => e.key === "Enter" && addGoal()} placeholder="例：基本情報技術者を取得する" aria-label="自分の目標を追加" className="min-w-0 flex-1 rounded-xl px-3 py-2 text-sm outline-none" style={{ border: "1px solid " + T.border, color: T.textPrimary, background: "#fff" }} />
             <Btn size="sm" icon={Plus} onClick={addGoal}>目標を追加</Btn>
           </div>
         </Card>
-
-        <Card className="p-5">
-          <div className="mb-4 flex items-center gap-3">
-            <Ring value={overall} size={76} stroke={8}><div className="text-base font-bold" style={{ color: T.textPrimary }}>{overall}%</div></Ring>
-            <div><div className="text-sm font-bold" style={{ color: T.textPrimary }}>進捗サマリー</div><div className="mt-0.5 text-xs" style={{ color: T.textMuted }}>{completedSmallGoals} / {all.length} 小目標完了</div></div>
-          </div>
-          <div className="space-y-2 text-sm">
-            <div className="flex justify-between rounded-xl px-3 py-2" style={{ background: T.bgBase }}><span style={{ color: T.textMuted }}>今日のタスク</span><b style={{ color: T.textPrimary }}>{completedTodayTasks}/{todayTasks.length}</b></div>
-            <div className="flex justify-between rounded-xl px-3 py-2" style={{ background: T.bgBase }}><span style={{ color: T.textMuted }}>長期目標</span><b style={{ color: T.textPrimary }}>{gp.length}件</b></div>
-          </div>
-        </Card>
       </div>
-
-      <Card className="mb-6 p-5">
-        <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
-          <div><h3 className="font-bold" style={{ color: T.textPrimary }}>小目標の進捗</h3><p className="text-xs" style={{ color: T.textMuted }}>小目標は、長期目標に向かうための単元・スキル・マイルストーンとして扱います。</p></div>
-          <Badge tone="muted">既存タスクを利用</Badge>
-        </div>
-        {gp.length ? <div className="space-y-4">{gp.map((g, i) => {
-          const I = g.icon || Target;
-          return (
-            <div key={g.id} className="rounded-xl" style={{ border: "1px solid " + T.border, overflow: "hidden" }}>
-              <div className="flex flex-wrap items-center gap-3 px-4 py-3" style={{ background: T.bgBase }}>
-                <div className="flex h-9 w-9 items-center justify-center rounded-xl" style={{ background: T.accentSubtle, color: T.accent }}><I size={17} /></div>
-                <div className="min-w-0 flex-1"><div className="text-xs font-bold" style={{ color: T.accent }}>{g.custom ? "自分の目標" : "長期目標 " + (i + 1)}</div><div className="truncate text-sm font-bold" style={{ color: T.textPrimary }}>{g.title}</div></div>
-                <div className="w-36"><Bar value={g.pct} tone={g.pct >= 80 ? "green" : g.pct >= 40 ? "cyan" : "amber"} /></div>
-                <Badge tone={g.pct >= 80 ? "green" : "cyan"}>{g.n}/{g.total}</Badge>
-              </div>
-              <div className="p-2">
-                {g.tasks.length ? g.tasks.map(t => {
-                  const ok = !!done[t.id];
-                  return <div key={t.id} className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 transition hover:bg-gray-50">
-                    <button onClick={() => toggle(t.id)}>{ok ? <CheckCircle2 size={18} style={{ color: T.success }} /> : <Circle size={18} style={{ color: T.textMuted }} />}</button>
-                    {taskDrafts[t.id] ? <input value={taskDrafts[t.id].text} onChange={e => setTaskDrafts(d => ({ ...d, [t.id]: { text: e.target.value } }))} onKeyDown={e => e.key === "Enter" && updateTaskText(g.id, t.id, taskDrafts[t.id]?.text)} className="min-w-0 flex-1 rounded-lg px-2 py-1.5 text-sm outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary }} />
-                      : <button onClick={() => toggle(t.id)} className="min-w-0 flex-1 text-left text-sm" style={{ color: ok ? T.textMuted : T.textPrimary, textDecoration: ok ? "line-through" : "none" }}>{t.t}</button>}
-                    {ok && <Badge tone="green">達成</Badge>}
-                    {g.custom && <div className="flex gap-1">{taskDrafts[t.id] ? <Btn size="sm" kind="ghost" icon={Check} onClick={() => updateTaskText(g.id, t.id, taskDrafts[t.id]?.text)}>保存</Btn> : <button onClick={() => setTaskDrafts(d => ({ ...d, [t.id]: { text: t.t || "" } }))} className="rounded-lg p-1 hover:bg-gray-100"><Pencil size={14} style={{ color: T.textMuted }} /></button>}<button onClick={() => deleteTask(g.id, t.id)} className="rounded-lg p-1 hover:bg-gray-100"><Trash2 size={14} style={{ color: T.textMuted }} /></button></div>}
-                  </div>;
-                }) : <div className="rounded-xl p-3 text-sm" style={adminPanelStyle}>小目標データ未設定です。</div>}
-                <div className="flex items-center gap-2 px-3 py-2">
-                  <Plus size={16} style={{ color: T.textMuted }} />
-                  <input value={nt[g.id] || ""} onChange={e => setNt({ ...nt, [g.id]: e.target.value })} onKeyDown={e => e.key === "Enter" && addTask(g.id)} placeholder="小目標を追加..." className="flex-1 rounded-lg px-2 py-1.5 text-sm outline-none" style={{ border: "1px solid " + T.border, color: T.textPrimary }} />
-                  <button onClick={() => addTask(g.id)} className="text-xs font-semibold" style={{ color: T.accentHover }}>追加</button>
-                </div>
-              </div>
-            </div>
-          );
-        })}</div> : <div className="rounded-xl p-4 text-sm" style={adminPanelStyle}>目標データ未設定です。</div>}
-      </Card>
     </div>
   );
 }
@@ -907,6 +791,30 @@ function curriculumUnitList(sections) {
   return arr(sections).flatMap((section, si) => section.unitMode === "section"
     ? [{ key: `u:${si}`, si, section, chapter: {}, lesson: section, scope: "section" }]
     : arr(section.chapters).flatMap((chapter, ci) => arr(chapter.lessons).map((lesson, li) => ({ key: `u:${si}:${ci}:${li}`, si, section, chapter, lesson, scope: "lesson" }))));
+}
+/* 2026-10-14（ユーザー指定）：中項目をなくし、単元＝大項目にした。日ごとの区切り（小項目）は任意で、
+   1つの入れ物（chapters[0]）にまとめて持つ。保存の形（sections → chapters → lessons）は変えない */
+function unitDaysOf(section) { return arr(section?.chapters).flatMap(c => arr(c.lessons)); }
+function flattenUnitDays(sections) {
+  return arr(sections).map(sec => {
+    const days = unitDaysOf(sec);
+    const first = arr(sec.chapters)[0];
+    return { ...sec, chapters: days.length ? [{ id: first?.id || makeLocalId("chapter"), title: "", description: "", lessons: days }] : [] };
+  });
+}
+function unitRangeOf(section) { return curriculumSectionDateRange(section); }
+function unitStateOf(section, todayKey) {
+  const r = unitRangeOf(section);
+  if (!r) return "";
+  if (r.start <= todayKey && todayKey <= r.end) return "today";
+  return r.end < todayKey ? "done" : "";
+}
+// 開いておく単元：今日 → これから一番近い → 先頭
+function defaultUnitIndex(sections, todayKey) {
+  const list = arr(sections);
+  let i = list.findIndex(sec => unitStateOf(sec, todayKey) === "today");
+  if (i < 0) i = list.findIndex(sec => { const r = unitRangeOf(sec); return r && r.start >= todayKey; });
+  return i < 0 ? (list.length ? 0 : -1) : i;
 }
 // 日程から見た単元の状態。終わったかどうかの記録は単元単位に無いので、日付だけで決める
 function curriculumUnitState(lesson, todayKey) {
@@ -1106,13 +1014,14 @@ function Curriculum({ role, go, goProduct, done = {}, goals = [] }) {
     setLoading(true); setMsg(""); setErr("");
     apiGet(`/courses/${courseId}/curriculum`)
       .then(item => {
-        const next = normalizeCurriculumSections(item);
+        const next = flattenUnitDays(normalizeCurriculumSections(item));
         setSections(next);
         savedSectionsRef.current = JSON.stringify(next);
         // 開いたときは今日の単元（無ければ次の単元）。テストから戻ったときは元の単元
         const back = curriculumReturn?.courseId === courseId ? curriculumReturn.unitKey : "";
         if (back) setCurriculumReturn({});
-        const key = back || curriculumDefaultUnitKey(curriculumUnitList(next), localDateKey());
+        const di = defaultUnitIndex(next, localDateKey());
+        const key = back || (di >= 0 ? `u:${di}` : "");
         setSelectedCurriculumKey(key);
         setExpandedCurriculumSections(key ? { [key.split(":")[1]]: true } : {});
       })
@@ -1156,6 +1065,39 @@ function Curriculum({ role, go, goProduct, done = {}, goals = [] }) {
   function addLesson(si, ci) {
     setSections(xs => xs.map((s, i) => i !== si ? s : { ...s, chapters: arr(s.chapters).map((c, j) => j === ci ? { ...c, lessons: [...arr(c.lessons), { id: makeLocalId("lesson"), title: "", content: "", memo: "", learningGoals: [], preparationItems: [], exercises: [], skills: [], materialIds: [], startDate: "", endDate: "", durationLabel: "" }] } : c) }));
   }
+  function addDay(si) {
+    setSections(xs => xs.map((sec, i) => {
+      if (i !== si) return sec;
+      const ch = arr(sec.chapters)[0] || { id: makeLocalId("chapter"), title: "", description: "", lessons: [] };
+      return { ...sec, chapters: [{ ...ch, lessons: [...arr(ch.lessons), { id: makeLocalId("lesson"), title: "", content: "", memo: "", learningGoals: [], preparationItems: [], exercises: [], skills: [], materialIds: [], startDate: "", endDate: "", durationLabel: "" }] }] };
+    }));
+  }
+  // 単元・日の中から資料をアップロードして、そのままつなぐ（2026-10-14）
+  const [uploadingKey, setUploadingKey] = useState("");
+  async function uploadMaterial(file, key, attach) {
+    if (!file || uploadingKey) return;
+    setUploadingKey(key); setErr("");
+    try {
+      const contentType = file.type || "application/octet-stream";
+      const { uploadUrl, materialId, s3key } = await apiPost("/materials/upload-url", { courseId, filename: file.name, contentType });
+      const put = await fetch(uploadUrl, { method: "PUT", headers: { "Content-Type": contentType }, body: file });
+      if (!put.ok) throw new Error("ファイルを送れませんでした");
+      const title = file.name.replace(/\.[^.]+$/, "") || file.name;
+      await apiPost("/materials", { courseId, materialId, s3key, title, filename: file.name });
+      setMaterials(ms => [...ms, { courseId, materialId, title, s3key, filename: file.name }]);
+      attach(materialId);
+      setMsg("アップロードしました。最後にカリキュラムを保存してください。");
+    } catch (e) { setErr("アップロードできませんでした：" + (e?.errorMessage || e?.message || e)); }
+    finally { setUploadingKey(""); }
+  }
+  function uploadButton(key, attach) {
+    return (
+      <label className="mt-2 inline-flex cursor-pointer items-center gap-1.5 rounded-xl px-3 py-2 text-xs font-bold" style={{ border: `1px dashed ${T.accent}`, color: T.accentHover, background: T.accentSubtle }}>
+        <Upload size={13} />{uploadingKey === key ? "アップロード中…" : "ファイルをアップロード"}
+        <input type="file" className="hidden" disabled={!!uploadingKey} onChange={e => { const file = e.target.files?.[0]; e.target.value = ""; uploadMaterial(file, key, attach); }} />
+      </label>
+    );
+  }
   function removeLesson(si, ci, li) {
     setSections(xs => xs.map((s, i) => i !== si ? s : { ...s, chapters: arr(s.chapters).map((c, j) => j === ci ? { ...c, lessons: arr(c.lessons).filter((_, k) => k !== li) } : c) }));
   }
@@ -1163,7 +1105,9 @@ function Curriculum({ role, go, goProduct, done = {}, goals = [] }) {
     if (!canEdit) { setErr("このコースの編集権限がありません。"); return; }
     if (busy) return; setBusy(true); setMsg(""); setErr("");
     try {
-      const payload = { sections, sessions: sessionsFromSections(sections) };
+      // 日ごとの区切りがある単元は小項目単位、ない単元は単元そのものを「今日の単元」の判定に使う
+      const out = sections.map(sec => ({ ...sec, unitMode: unitDaysOf(sec).length ? "lessons" : "section" }));
+      const payload = { sections: out, sessions: sessionsFromSections(out) };
       await apiPut(`/courses/${courseId}/curriculum`, payload);
       savedSectionsRef.current = JSON.stringify(sections);
       setMsg("保存しました。"); setTimeout(() => setMsg(""), 2000);
@@ -1305,11 +1249,11 @@ function Curriculum({ role, go, goProduct, done = {}, goals = [] }) {
   function applyCurriculumImport(mode) {
     if (!importPreview) return;
     if (mode === "merge") {
-      setSections(prev => mergeCurriculumSections(prev, importPreview.sections));
+      setSections(prev => flattenUnitDays(mergeCurriculumSections(prev, importPreview.sections)));
       setMsg("Excelの内容を既存のカリキュラムへ追記しました。内容を確認して画面上部の「保存」を押してください。");
     } else {
       if (sections.length > 0 && !window.confirm("現在の編集内容を消して、Excelの内容に置き換えます。よろしいですか？")) return;
-      setSections(importPreview.sections);
+      setSections(flattenUnitDays(importPreview.sections));
       setSelectedCurriculumKey("");
       setMsg("Excelの内容で編集画面を置き換えました。内容を確認して画面上部の「保存」を押してください。");
     }
@@ -1346,7 +1290,7 @@ function Curriculum({ role, go, goProduct, done = {}, goals = [] }) {
         const open = !!openExercises[answerKey];
         return <div key={exercise.id || ei} className="rounded-xl bg-white" style={{ border: `1px solid ${open ? T.accent : T.border}` }}>
           <button type="button" aria-expanded={open} onClick={() => setOpenExercises(state => ({ ...state, [answerKey]: !state[answerKey] }))} className="flex w-full flex-wrap items-center gap-2 px-3 py-2.5 text-left">
-            <span className="min-w-0 flex-1 text-sm font-bold" style={{ color: T.textPrimary }}>{exercise.title || `演習${ei + 1}`}</span>
+            <span className="min-w-0 flex-1 text-sm font-bold" style={{ color: T.textPrimary }}>{exercise._tag && <span className="mr-1.5 text-[11px] font-semibold" style={{ color: T.textMuted }}>{exercise._tag}</span>}{exercise.title || `演習${ei + 1}`}</span>
             <Badge tone="cyan">{exerciseTypeLabel(exercise.type)}</Badge>{exercise.estimatedMinutes !== "" && <Badge tone="muted">目安 {exercise.estimatedMinutes}分</Badge>}
             {open ? <ChevronUp size={16} style={{ color: T.accent }} /> : <ChevronDown size={16} style={{ color: T.textMuted }} />}
           </button>
@@ -1376,7 +1320,7 @@ function Curriculum({ role, go, goProduct, done = {}, goals = [] }) {
     if (kind === "C") return !!arr(sections[Number(si)]?.chapters)[Number(ci)];
     return false;
   };
-  const activeCurriculumKey = curriculumKeyExists(selectedCurriculumKey) ? selectedCurriculumKey : (defaultCurriculumKey || (canEdit && sections.length ? "S:0" : ""));
+  const activeCurriculumKey = selectedCurriculumKey;
   const activeCurriculumUnit = curriculumUnits.find(u => u.key === activeCurriculumKey) || null;
   const curriculumDetailRef = useRef(null);
   function selectCurriculumItem(key, keepScroll = false) {
@@ -1390,18 +1334,14 @@ function Curriculum({ role, go, goProduct, done = {}, goals = [] }) {
   /* 受講生向けの「どこまで進んだか」。**日程ベース**で数える（終わったかどうかの記録が
      単元単位には無いため）。日付が入っていない単元は数に入れず、その旨を出す。 */
   const curriculumProgress = useMemo(() => {
-    const units = arr(sections).flatMap(section => section.unitMode === "section"
-      ? [section]
-      : arr(section.chapters).flatMap(chapter => arr(chapter.lessons)));
-    const dated = units.filter(u => String(u?.startDate || "").slice(0, 10));
-    const doneCount = dated.filter(u => String(u.endDate || u.startDate).slice(0, 10) < todayKey).length;
-    const nowCount = dated.filter(u => curriculumItemIncludesDate(u, todayKey)).length;
-    return { total: units.length, dated: dated.length, done: doneCount, now: nowCount };
+    const ranges = arr(sections).map(unitRangeOf);
+    const dated = ranges.filter(Boolean);
+    return { total: ranges.length, dated: dated.length, done: dated.filter(r => r.end < todayKey).length, now: dated.filter(r => r.start <= todayKey && todayKey <= r.end).length };
   }, [sections, todayKey]);
 
   const curriculumSummary = useMemo(() => {
-    const lessons = sections.flatMap(section => arr(section.chapters).flatMap(chapter => arr(chapter.lessons)));
-    const standalone = sections.filter(section => section.unitMode === "section");
+    const lessons = sections.flatMap(section => unitDaysOf(section));
+    const standalone = sections;
     return {
       lessons: lessons.length + standalone.length,
       goals: lessons.reduce((sum, lesson) => sum + arr(lesson.learningGoals).length, 0) + standalone.reduce((sum, section) => sum + arr(section.learningGoals).length, 0),
@@ -1410,90 +1350,76 @@ function Curriculum({ role, go, goProduct, done = {}, goals = [] }) {
     };
   }, [sections, tests]);
 
-  const hasTodayUnit = curriculumUnits.some(u => curriculumUnitState(u.lesson, todayKey) === "today");
-  const hasUpcomingUnit = curriculumUnits.some(u => String(u.lesson?.startDate || "").slice(0, 10) > todayKey);
+  const hasTodayUnit = sections.some(sec => unitStateOf(sec, todayKey) === "today");
+  const hasUpcomingUnit = sections.some(sec => { const r = unitRangeOf(sec); return r && r.start > todayKey; });
+  function toggleUnit(si, force) {
+    setExpandedCurriculumSections(st => ({ ...st, [String(si)]: force ?? !st[String(si)] }));
+    setSelectedCurriculumKey(`u:${si}`);
+  }
+  function openDefaultUnit() {
+    const di = defaultUnitIndex(sections, todayKey);
+    if (di < 0) return;
+    toggleUnit(di, true);
+    window.setTimeout(() => document.getElementById(`curriculum-unit-${di}`)?.scrollIntoView({ behavior: "smooth", block: "start" }), 60);
+  }
+  const [openDays, setOpenDays] = useState({});
+  const unitTestsOf = section => tests.filter(t => t.sectionId && t.sectionId === section.id);
   const progressPct = curriculumProgress.dated ? Math.round((curriculumProgress.done / curriculumProgress.dated) * 100) : null;
 
-  /* 左の目次。大項目を開くと中項目・小項目が並ぶ。印は日程から（済み／今日／これから）。 */
-  function renderCurriculumToc() {
-    const addStyle = { color: T.accent };
+  /* 単元の一覧（2026-10-14 ユーザー指定）。単元を開くと、期間と、テキスト・演習・テストがまとめて並ぶ。
+     講師・管理者は同じ一覧の中でそのまま編集する */
+  function renderUnits() {
     return (
-      <Card className="p-2 xl:sticky xl:top-4 xl:max-h-[calc(100vh-2rem)] xl:overflow-y-auto">
+      <div className="space-y-3">
         {sections.map((section, si) => {
           const open = !!expandedCurriculumSections[String(si)];
-          const units = curriculumUnits.filter(u => u.si === si);
-          const doneCount = units.filter(u => curriculumUnitState(u.lesson, todayKey) === "done").length;
-          const hasToday = units.some(u => curriculumUnitState(u.lesson, todayKey) === "today");
-          const dot = hasToday ? T.accent : units.length && doneCount === units.length ? T.success : T.border;
-          const single = section.unitMode === "section";
-          const headKey = single ? `u:${si}` : `S:${si}`;
-          const headActive = activeCurriculumKey === headKey;
+          const state = unitStateOf(section, todayKey);
+          const range = unitRangeOf(section);
+          const days = unitDaysOf(section);
+          const textCount = new Set([...arr(section.materialIds), ...days.flatMap(d => sessMids(d))].filter(m => materialsById[m])).size
+            + new Set([...arr(section.folderLinks), ...days.flatMap(d => arr(d.folderLinks))].map(x => x.nodeId)).size;
+          const exCount = arr(section.exercises).length + days.reduce((n, d) => n + arr(d.exercises).length, 0);
+          const unitTests = unitTestsOf(section);
+          const dot = state === "today" ? T.accent : state === "done" ? T.success : T.border;
           return (
-            <div key={section.id || si} className="py-0.5">
-              <button type="button" aria-expanded={single ? undefined : open}
-                onClick={() => { if (single || canEdit) selectCurriculumItem(headKey, true); if (!single) setExpandedCurriculumSections(state => ({ ...state, [String(si)]: canEdit ? !(headActive && open) : !open })); }}
-                className="flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-left text-sm font-bold"
-                style={{ color: T.textPrimary, background: headActive ? T.accentSubtle : "transparent", boxShadow: headActive ? `inset 3px 0 0 ${T.accent}` : undefined }}>
-                <span className="h-2 w-2 shrink-0 rounded-full" style={{ background: dot }} />
-                <span className="min-w-0 flex-1 truncate">{section.title || "大項目未設定"}</span>
-                {single
-                  ? <>{unitTestMark(tests.filter(t => !t.lessonId && !t.chapterId && t.sectionId && t.sectionId === section.id))}<span className="text-[11px] font-medium tabular-nums" style={{ color: hasToday ? T.accent : T.textMuted }}>{hasToday ? "今日" : curriculumMonthDay(section.startDate)}</span></>
-                  : <><span className="text-[11px] font-medium tabular-nums" style={{ color: T.textMuted }}>{doneCount}/{units.length}</span>{open ? <ChevronUp size={14} style={{ color: T.textMuted }} /> : <ChevronDown size={14} style={{ color: T.textMuted }} />}</>}
+            <Card key={section.id || si} id={`curriculum-unit-${si}`} className="scroll-mt-4 overflow-hidden p-0" style={open ? { border: `1px solid ${T.accent}` } : undefined}>
+              <button type="button" aria-expanded={open} onClick={() => toggleUnit(si)} className="flex w-full flex-wrap items-center gap-x-3 gap-y-1.5 px-4 py-3.5 text-left">
+                <span className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ background: dot }} />
+                <span className="min-w-0 flex-1 basis-40 text-[15px] font-bold" style={{ color: T.textPrimary }}>{section.title || "単元名未設定"}</span>
+                {state === "today" && <Badge tone="cyan">今日</Badge>}
+                {state === "done" && <Badge tone="green">済み</Badge>}
+                {range && <span className="text-xs font-semibold tabular-nums" style={{ color: T.textSecondary }}>{curriculumDateRangeLabel(range)}</span>}
+                <span className="flex items-center gap-2 text-[11.5px] tabular-nums" style={{ color: T.textMuted }}>
+                  <span>テキスト {textCount}</span><span>演習 {exCount}</span><span>テスト {unitTests.length}</span>
+                  {role === "trainee" && unitTestMark(unitTests)}
+                </span>
+                {open ? <ChevronUp size={16} style={{ color: T.accent }} /> : <ChevronDown size={16} style={{ color: T.textMuted }} />}
               </button>
-              {open && !single && (
-                <div className="pb-1">
-                  {arr(section.chapters).map((chapter, ci) => (
-                    <div key={chapter.id || ci}>
-                      {canEdit
-                        ? <button type="button" onClick={() => selectCurriculumItem(`C:${si}:${ci}`)} className="block w-full truncate rounded-lg py-1.5 pl-6 pr-2 text-left text-[11.5px] font-bold" style={{ color: activeCurriculumKey === `C:${si}:${ci}` ? T.accent : T.textMuted, background: activeCurriculumKey === `C:${si}:${ci}` ? T.accentSubtle : "transparent" }}>{chapter.title || "中項目未設定"}</button>
-                        : chapter.title && <div className="truncate pb-0.5 pl-6 pr-2 pt-2 text-[11.5px] font-bold" style={{ color: T.textMuted }}>{chapter.title}</div>}
-                      {arr(chapter.lessons).map((lesson, li) => {
-                        const key = `u:${si}:${ci}:${li}`;
-                        const state = curriculumUnitState(lesson, todayKey);
-                        const active = activeCurriculumKey === key;
-                        return (
-                          <button key={lesson.id || li} type="button" onClick={() => selectCurriculumItem(key)}
-                            className="grid w-full grid-cols-[16px_minmax(0,1fr)_auto_auto] items-center gap-2 rounded-lg py-1.5 pl-6 pr-2.5 text-left text-[13px]"
-                            style={active ? { background: T.accentSubtle, color: T.textPrimary, fontWeight: 700, boxShadow: `inset 3px 0 0 ${T.accent}` } : { color: T.textSecondary }}>
-                            <span className="flex h-4 w-4 items-center justify-center rounded-full" style={state === "done" ? { background: T.success, color: "#fff" } : { border: `${state === "today" ? 2 : 1.5}px solid ${state === "today" ? T.accent : T.border}` }}>{state === "done" && <Check size={10} strokeWidth={3.5} />}</span>
-                            <span className="truncate">{lesson.title || "小項目未設定"}</span>
-                            {unitTestMark(tests.filter(t => t.lessonId && t.lessonId === lesson.id))}
-                            <span className="text-[11px] tabular-nums" style={{ color: state === "today" ? T.accent : T.textMuted, fontWeight: state === "today" ? 700 : 400 }}>{state === "today" ? "今日" : curriculumMonthDay(lesson.startDate)}</span>
-                          </button>
-                        );
-                      })}
-                      {canEdit && <button type="button" onClick={() => { addLesson(si, ci); selectCurriculumItem(`u:${si}:${ci}:${arr(chapter.lessons).length}`, true); }} className="flex items-center gap-1.5 py-1.5 pl-6 pr-2 text-xs font-bold" style={addStyle}><Plus size={13} />小項目を足す</button>}
-                    </div>
-                  ))}
-                  {canEdit && <button type="button" onClick={() => { addChapter(si); selectCurriculumItem(`C:${si}:${arr(section.chapters).length}`, true); }} className="flex items-center gap-1.5 py-1.5 pl-6 pr-2 text-xs font-bold" style={addStyle}><Plus size={13} />中項目を足す</button>}
-                </div>
-              )}
-            </div>
+              {open && (canEdit ? renderUnitEditor(si) : renderUnitView(section))}
+            </Card>
           );
         })}
-        {canEdit && <button type="button" onClick={() => { addSection(); selectCurriculumItem(`S:${sections.length}`, true); }} className="mt-1 flex w-full items-center gap-1.5 border-t px-2.5 pb-1.5 pt-3 text-xs font-bold" style={{ ...addStyle, borderColor: T.border }}><Plus size={13} />大項目を足す</button>}
-      </Card>
+        {canEdit && <button type="button" onClick={() => { addSection(); toggleUnit(sections.length, true); }} className="flex w-full items-center justify-center gap-2 rounded-xl py-3 text-sm font-semibold" style={{ border: `1.5px dashed ${T.border}`, color: T.accent }}><Plus size={16} />単元を追加</button>}
+      </div>
     );
   }
 
-  /* 右：受講生（見るだけ）。選んだ単元の中身だけを出す。 */
-  function renderCurriculumUnit(unit) {
-    const { section, chapter, lesson, scope } = unit;
-    const state = curriculumUnitState(lesson, todayKey);
-    const at = curriculumUnits.findIndex(u => u.key === unit.key);
-    const prev = curriculumUnits[at - 1];
-    const next = curriculumUnits[at + 1];
-    const goals = arr(lesson.learningGoals);
-    const prep = arr(lesson.preparationItems);
-    const exercises = arr(lesson.exercises);
-    const ownMids = scope === "section" ? arr(section.materialIds) : sessMids(lesson);
-    const folders = arr((scope === "section" ? section : lesson).folderLinks);
-    const sectionMids = scope === "section" ? [] : arr(section.materialIds);
-    const unitTests = linkedTests(section, chapter, scope === "section" ? {} : lesson);
-    const intro = scope === "section" ? section.description : "";
-    const body = scope === "section" ? section.content : lesson.content;
-    const empty = !intro && !body && !goals.length && !prep.length && !exercises.length && !ownMids.length && !sectionMids.length && !unitTests.length && !folders.length;
-    const materialButton = mid => materialsById[mid] && <button key={mid} type="button" onClick={() => openMaterialById(mid)} className="inline-flex items-center gap-2 rounded-xl bg-white px-3 py-2 text-sm font-semibold" style={{ color: T.textPrimary, border: `1px solid ${T.border}` }}><FileText size={14} style={{ color: T.accent }} />{materialsById[mid].title}</button>;
+  /* 受講生：開いた単元の中身。日ごとに分けず、テキスト・演習・テストをまとめて出す（どの日のものかは小さく添える） */
+  function renderUnitView(section) {
+    const days = unitDaysOf(section);
+    const tagOf = d => [curriculumMonthDay(d.startDate), d.title].filter(Boolean).join(" ");
+    const uniq = list => [...new Set(list.filter(Boolean))];
+    const goals = uniq([...arr(section.learningGoals), ...days.flatMap(d => arr(d.learningGoals))]);
+    const prep = uniq([...arr(section.preparationItems), ...days.flatMap(d => arr(d.preparationItems))]);
+    const exercises = [...arr(section.exercises), ...days.flatMap(d => arr(d.exercises).map(e => ({ ...e, _tag: tagOf(d) })))];
+    const seenMat = new Set();
+    const mats = [...arr(section.materialIds).map(m => ({ m, tag: "" })), ...days.flatMap(d => sessMids(d).map(m => ({ m, tag: tagOf(d) })))]
+      .filter(x => materialsById[x.m] && !seenMat.has(x.m) && seenMat.add(x.m));
+    const seenFolder = new Set();
+    const folders = [...arr(section.folderLinks), ...days.flatMap(d => arr(d.folderLinks))].filter(x => x.nodeId && !seenFolder.has(x.nodeId) && seenFolder.add(x.nodeId));
+    const unitTests = unitTestsOf(section);
+    const body = [section.description, section.content].filter(Boolean);
+    const empty = !body.length && !goals.length && !prep.length && !exercises.length && !mats.length && !folders.length && !unitTests.length && !days.length;
     const block = (icon, title, children, note) => (
       <div className="border-t px-5 py-4" style={{ borderColor: T.border }}>
         <div className="mb-2 flex items-center gap-2 text-[13px] font-bold" style={{ color: T.textSecondary }}>{icon}{title}{note && <span className="ml-auto text-xs font-medium" style={{ color: T.textMuted }}>{note}</span>}</div>
@@ -1501,45 +1427,77 @@ function Curriculum({ role, go, goProduct, done = {}, goals = [] }) {
       </div>
     );
     return (
-      <Card className="overflow-hidden p-0">
-        <div className="px-5 py-4">
-          <div className="text-xs" style={{ color: T.textMuted }}>{[section.title, scope === "section" ? "" : chapter.title].filter(Boolean).join(" ／ ")}</div>
-          <h3 className="mt-0.5 text-xl font-bold" style={{ color: T.textPrimary }}>{(scope === "section" ? section.title : lesson.title) || "小項目未設定"}</h3>
-          <div className="mt-2 flex flex-wrap items-center gap-1.5">
-            {state === "today" && <Badge tone="cyan">今日</Badge>}
-            {state === "done" && <Badge tone="green">済み</Badge>}
-            <CurriculumDateBadge range={curriculumDateRangeOf([lesson])} />
-            {lesson.durationLabel && <Badge tone="muted">{lesson.durationLabel}</Badge>}
-          </div>
-          {intro && <p className="mt-3 whitespace-pre-line text-sm leading-6" style={{ color: T.textSecondary }}>{intro}</p>}
-          {body && <p className="mt-3 whitespace-pre-line text-sm leading-6" style={{ color: T.textSecondary }}>{body}</p>}
-          {empty && <p className="mt-3 text-sm" style={{ color: T.textMuted }}>講師が準備中です。</p>}
-        </div>
-        {/* 資料はいちばん上（2026-09-29 ユーザー指定）。演習は量が多いので1件ずつ開く */}
-        {(ownMids.length > 0 || sectionMids.length > 0 || folders.length > 0) && block(<FileText size={15} style={{ color: T.accent }} />, "資料", <div className="space-y-3">
-          {folders.map(f => (
-            <button key={f.nodeId} type="button" onClick={() => openLibraryFolder(f.nodeId)}
-              className="grid w-full grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-3 rounded-xl px-3.5 py-3 text-left"
-              style={{ border: `1px solid ${T.border}`, background: `linear-gradient(135deg, ${T.accentSubtle}, #fff)` }}>
-              <span className="flex h-9 w-9 items-center justify-center rounded-xl text-white" style={{ background: NOVA.gradAccent }}><Folder size={17} /></span>
-              <span className="min-w-0"><span className="block truncate text-sm font-bold" style={{ color: T.textPrimary }}>{f.name || "フォルダ"}</span><span className="block text-xs" style={{ color: T.textMuted }}>ファイル管理のフォルダ</span></span>
-              <span className="inline-flex items-center gap-1 text-xs font-bold" style={{ color: T.accentHover }}>開く<ChevronRight size={14} /></span>
+      <div>
+        {(body.length > 0 || empty) && <div className="border-t px-5 py-4" style={{ borderColor: T.border }}>
+          {body.map((t, i) => <p key={i} className="whitespace-pre-line text-sm leading-6" style={{ color: T.textSecondary }}>{t}</p>)}
+          {empty && <p className="text-sm" style={{ color: T.textMuted }}>準備中</p>}
+        </div>}
+        {(mats.length > 0 || folders.length > 0) && block(<FileText size={15} style={{ color: T.accent }} />, "テキスト", <div className="space-y-2">
+          {folders.map(fl => (
+            <button key={fl.nodeId} type="button" onClick={() => openLibraryFolder(fl.nodeId)} className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left" style={{ border: `1px solid ${T.border}` }}>
+              <Folder size={16} style={{ color: T.accent }} /><span className="min-w-0 flex-1 truncate text-sm font-semibold" style={{ color: T.textPrimary }}>{fl.name || "フォルダ"}</span><ChevronRight size={14} style={{ color: T.textMuted }} />
             </button>
           ))}
-          {ownMids.length > 0 && <div className="flex flex-wrap gap-2">{ownMids.map(materialButton)}</div>}
-          {sectionMids.length > 0 && <div><div className="mb-1.5 text-[11px] font-bold" style={{ color: T.textMuted }}>{section.title || "大項目"} 全体の資料</div><div className="flex flex-wrap gap-2">{sectionMids.map(materialButton)}</div></div>}
-        </div>)}
+          {mats.map(({ m, tag }) => (
+            <button key={m} type="button" onClick={() => openMaterialById(m)} className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left" style={{ border: `1px solid ${T.border}` }}>
+              <FileText size={16} style={{ color: T.accent }} /><span className="min-w-0 flex-1 truncate text-sm font-semibold" style={{ color: T.textPrimary }}>{materialsById[m].title}</span>{tag && <span className="shrink-0 text-[11px]" style={{ color: T.textMuted }}>{tag}</span>}
+            </button>
+          ))}
+        </div>, `${mats.length + folders.length}件`)}
+        {exercises.length > 0 && block(<Briefcase size={15} style={{ color: T.accent }} />, "演習", renderExerciseList(exercises, `unit:${section.id}`), `${exercises.length}件`)}
+        {unitTests.length > 0 && block(<ClipboardCheck size={15} style={{ color: T.accent }} />, "テスト",
+          <CurriculumUnitTests mode="trainee" tests={unitTests} results={myTestResults}
+            onTake={test => { setTestFocus({ courseId, testId: testIdOf(test) }); go?.("tests"); }} />, `${unitTests.length}件`)}
         {goals.length > 0 && block(<Target size={15} style={{ color: T.accent }} />, "学習目標", <ul className="space-y-1">{goals.map((goal, gi) => <li key={gi} className="flex gap-2 text-sm" style={{ color: T.textPrimary }}><CheckCircle2 size={14} className="mt-1 shrink-0" style={{ color: T.accent }} />{goal}</li>)}</ul>)}
         {prep.length > 0 && block(<AlertCircle size={15} style={{ color: T.warning }} />, "事前に用意・実施すること", <ul className="space-y-1">{prep.map((item, pi) => <li key={pi} className="flex gap-2 text-sm" style={{ color: T.textPrimary }}><Circle size={13} className="mt-1 shrink-0" style={{ color: T.warning }} />{item}</li>)}</ul>)}
-        {exercises.length > 0 && block(<Briefcase size={15} style={{ color: T.accent }} />, "演習", renderExerciseList(exercises, `${scope}:${lesson.id}`), `${exercises.length}件`)}
-        {unitTests.length > 0 && block(<ClipboardCheck size={15} style={{ color: T.accent }} />, "確認テスト",
-          <CurriculumUnitTests mode="trainee" tests={unitTests} results={myTestResults}
-            onTake={test => { setTestFocus({ courseId, testId: testIdOf(test) }); go?.("tests"); }} />)}
-        <div className="flex items-center justify-between gap-2 border-t px-5 py-3" style={{ borderColor: T.border, background: T.bgBase }}>
-          <Btn size="sm" kind="ghost" icon={ChevronLeft} disabled={!prev} onClick={() => prev && selectCurriculumItem(prev.key)}>前の単元</Btn>
-          <Btn size="sm" kind="ghost" disabled={!next} onClick={() => next && selectCurriculumItem(next.key)}>次の単元<ChevronRight size={14} className="ml-1 inline" /></Btn>
+        {days.length > 0 && block(<Calendar size={15} style={{ color: T.accent }} />, "日ごと", <div className="space-y-1.5">{days.map((d, li) => {
+          const k = `v:${section.id}:${li}`;
+          const o = !!openDays[k];
+          const isToday = curriculumItemIncludesDate(d, todayKey);
+          return (
+            <div key={d.id || li} className="rounded-xl" style={{ border: `1px solid ${isToday ? T.accent : T.border}` }}>
+              <button type="button" aria-expanded={o} onClick={() => setOpenDays(st => ({ ...st, [k]: !st[k] }))} className="flex w-full items-center gap-3 px-3 py-2 text-left text-sm">
+                <span className="w-24 shrink-0 text-xs tabular-nums" style={{ color: isToday ? T.accent : T.textMuted, fontWeight: isToday ? 700 : 400 }}>{isToday ? "今日" : curriculumDateRangeLabel(curriculumDateRangeOf([d])) || "—"}</span>
+                <span className="min-w-0 flex-1 truncate font-semibold" style={{ color: T.textPrimary }}>{d.title || "—"}</span>
+                {d.content ? (o ? <ChevronUp size={14} style={{ color: T.textMuted }} /> : <ChevronDown size={14} style={{ color: T.textMuted }} />) : null}
+              </button>
+              {o && d.content && <p className="whitespace-pre-line border-t px-3 py-2 text-sm leading-6" style={{ borderColor: T.border, color: T.textSecondary }}>{d.content}</p>}
+            </div>
+          );
+        })}</div>, `${days.length}日`)}
+      </div>
+    );
+  }
+
+  /* 講師・管理者：開いた単元をその場で編集する。日ごとの区切りは任意で足す */
+  function renderUnitEditor(si) {
+    const section = sections[si];
+    const days = unitDaysOf(section);
+    return (
+      <div className="border-t" style={{ borderColor: T.border }}>
+        <div className="p-4">{renderCurriculumEditor(`S:${si}`)}</div>
+        <div className="border-t px-4 py-3" style={{ borderColor: T.border, background: T.bgBase }}>
+          <div className="mb-2 flex flex-wrap items-center gap-2 text-sm font-bold" style={{ color: T.textPrimary }}>
+            <Calendar size={15} style={{ color: T.accent }} />日ごとの区切り
+            {days.length > 0 && <span className="text-xs font-medium" style={{ color: T.textMuted }}>{days.length}日</span>}
+            <span className="ml-auto"><Btn size="sm" kind="ghost" icon={Plus} onClick={() => { addDay(si); setOpenDays(st => ({ ...st, [`e:${si}:${days.length}`]: true })); }}>日を足す</Btn></span>
+          </div>
+          <div className="space-y-2">{days.map((d, li) => {
+            const k = `e:${si}:${li}`;
+            const o = !!openDays[k];
+            return (
+              <div key={d.id || li} className="rounded-xl bg-white" style={{ border: `1px solid ${o ? T.accent : T.border}` }}>
+                <button type="button" aria-expanded={o} onClick={() => setOpenDays(st => ({ ...st, [k]: !st[k] }))} className="flex w-full items-center gap-3 px-3 py-2.5 text-left text-sm">
+                  <span className="w-28 shrink-0 text-xs tabular-nums" style={{ color: T.textMuted }}>{curriculumDateRangeLabel(curriculumDateRangeOf([d])) || "日付なし"}</span>
+                  <span className="min-w-0 flex-1 truncate font-semibold" style={{ color: T.textPrimary }}>{d.title || "（名前なし）"}</span>
+                  {o ? <ChevronUp size={14} style={{ color: T.accent }} /> : <ChevronDown size={14} style={{ color: T.textMuted }} />}
+                </button>
+                {o && <div className="border-t" style={{ borderColor: T.border }}>{renderCurriculumEditor(`u:${si}:0:${li}`)}</div>}
+              </div>
+            );
+          })}</div>
         </div>
-      </Card>
+      </div>
     );
   }
 
@@ -1567,37 +1525,29 @@ function Curriculum({ role, go, goProduct, done = {}, goals = [] }) {
     const path = text => <div className="mb-3 text-xs font-bold" style={{ color: T.textMuted }}>{text}</div>;
     if (kind === "S" || (kind === "u" && ciText === undefined)) {
       return (
-        <Card className="space-y-4 p-5">
-          {path("大項目")}
+        <div className="space-y-4">
           <div className="grid gap-2 md:grid-cols-[1fr_1.5fr_auto]">
-          <input value={section.title || ""} onChange={e => updateSection(si, "title", e.target.value)} placeholder="大項目 例: AWS / Java" className="rounded-lg px-3 py-2 text-sm font-semibold outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary }} />
-          <input value={section.description || ""} onChange={e => updateSection(si, "description", e.target.value)} placeholder="大項目の説明" className="rounded-xl px-3 py-2 text-sm outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary }} />
-          <button onClick={() => removeSection(si)} className="rounded-lg px-3 py-2 text-xs font-semibold" style={{ color: T.danger, border: `1px solid ${T.border}` }}>大項目削除</button>
+          <input value={section.title || ""} onChange={e => updateSection(si, "title", e.target.value)} placeholder="単元名 例: AWS / Java" className="rounded-lg px-3 py-2 text-sm font-semibold outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary }} />
+          <input value={section.description || ""} onChange={e => updateSection(si, "description", e.target.value)} placeholder="単元の説明" className="rounded-xl px-3 py-2 text-sm outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary }} />
+          <button onClick={() => { if (window.confirm("この単元を削除しますか？")) removeSection(si); }} className="rounded-lg px-3 py-2 text-xs font-semibold" style={{ color: T.danger, border: `1px solid ${T.border}` }}>単元を削除</button>
           </div>
-          <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl p-3" style={{ background: T.accentSubtle }}><div><div className="text-sm font-bold" style={{ color: T.textPrimary }}>この大項目の構成</div><p className="text-xs" style={{ color: T.textMuted }}>大項目だけで完結する研修か、中・小項目へ分ける研修かを選べます。</p></div><select value={section.unitMode || "lessons"} onChange={e => updateSection(si, "unitMode", e.target.value)} className="rounded-xl bg-white px-3 py-2 text-sm font-semibold outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary }}><option value="lessons">中・小項目に分ける</option><option value="section">大項目を1つの単元にする</option></select></div>
-          {section.unitMode === "section" ? (
+          {(
             <div className="rounded-xl p-4" style={{ background: T.bgBase, border: `1px solid ${T.border}` }}>
-              <div className="grid gap-2 xl:grid-cols-[1.3fr_1fr_1fr]"><textarea value={section.content || ""} onChange={e => updateSection(si, "content", e.target.value)} rows={2} placeholder="この大項目で学ぶ内容" className="resize-none rounded-xl bg-white px-3 py-2 text-sm outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary }} /><input type="date" value={section.startDate || ""} onChange={e => updateSection(si, "startDate", e.target.value)} className="rounded-xl bg-white px-3 py-2 text-sm outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary }} /><input type="date" value={section.endDate || ""} onChange={e => updateSection(si, "endDate", e.target.value)} className="rounded-xl bg-white px-3 py-2 text-sm outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary }} /></div>
+              <div className="grid gap-2 xl:grid-cols-[1.3fr_1fr_1fr]"><textarea value={section.content || ""} onChange={e => updateSection(si, "content", e.target.value)} rows={2} placeholder="この単元で学ぶ内容" className="resize-none rounded-xl bg-white px-3 py-2 text-sm outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary }} /><input type="date" value={section.startDate || ""} onChange={e => updateSection(si, "startDate", e.target.value)} className="rounded-xl bg-white px-3 py-2 text-sm outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary }} /><input type="date" value={section.endDate || ""} onChange={e => updateSection(si, "endDate", e.target.value)} className="rounded-xl bg-white px-3 py-2 text-sm outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary }} /></div>
               <div className="mt-2 grid gap-2 md:grid-cols-[1fr_220px]"><textarea value={arr(section.learningGoals).join("\n")} onChange={e => updateSection(si, "learningGoals", e.target.value.split("\n").map(v => v.trim()).filter(Boolean))} rows={2} placeholder={"学習目標（1行に1つ）"} className="resize-none rounded-xl bg-white px-3 py-2 text-sm outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary }} /><input value={section.durationLabel || ""} onChange={e => updateSection(si, "durationLabel", e.target.value)} placeholder="期間表示（例：1〜3日目）" className="rounded-xl bg-white px-3 py-2 text-sm outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary }} /></div>
               <div className="mt-2 rounded-xl bg-white p-3" style={{ border: `1px solid ${T.border}` }}><label className="mb-1 flex items-center gap-2 text-xs font-bold" style={{ color: T.warning }}><AlertCircle size={14} />事前に用意・実施してほしいこと</label><textarea value={arr(section.preparationItems).join("\n")} onChange={e => updateSection(si, "preparationItems", splitCurriculumList(e.target.value))} rows={2} placeholder={"1行に1つ入力 例:\n研修開始前にAWSアカウントへログインできることを確認する"} className="w-full resize-none rounded-xl px-3 py-2 text-sm outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary }} /></div>
-              <div className="mt-3 rounded-xl bg-white p-3" style={{ border: `1px solid ${T.border}` }}><div className="mb-2 flex items-center justify-between gap-2"><div className="flex items-center gap-2 text-sm font-bold" style={{ color: T.textPrimary }}><Briefcase size={15} />大項目の演習</div><Btn size="sm" kind="ghost" icon={Plus} onClick={() => addSectionExercise(si)}>演習を追加</Btn></div>
+              <div className="mt-3 rounded-xl bg-white p-3" style={{ border: `1px solid ${T.border}` }}><div className="mb-2 flex items-center justify-between gap-2"><div className="flex items-center gap-2 text-sm font-bold" style={{ color: T.textPrimary }}><Briefcase size={15} />演習</div><Btn size="sm" kind="ghost" icon={Plus} onClick={() => addSectionExercise(si)}>演習を追加</Btn></div>
               <div className="mb-3 rounded-xl p-3" style={{ background: T.accentSubtle }}><div className="mb-1 flex items-center gap-1.5 text-xs font-bold" style={{ color: T.accentHover }}><Sparkles size={13} />AIに演習案を依頼</div><div className="flex flex-col gap-2 sm:flex-row"><textarea value={aiExercisePrompts[`section:${section.id}`] || ""} onChange={e => setAiExercisePrompts(state => ({ ...state, [`section:${section.id}`]: e.target.value }))} rows={2} placeholder="例：AWS初心者がチームで構成図を作り、発表する演習を3つ考えて" className="min-w-0 flex-1 resize-none rounded-xl bg-white px-3 py-2 text-sm outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary }} /><Btn icon={Sparkles} disabled={!String(aiExercisePrompts[`section:${section.id}`] || "").trim() || aiExerciseBusy[`section:${section.id}`]} onClick={() => generateAiExercises(`section:${section.id}`, { scopeType: "section", sectionTitle: section.title, learningContext: buildLearningContext({ section, lessons: [], materialsById }) }, generated => updateSection(si, "exercises", [...arr(section.exercises), ...generated]))}>{aiExerciseBusy[`section:${section.id}`] ? "生成中…" : "AIで作る"}</Btn></div>{aiExerciseErrors[`section:${section.id}`] && <p className="mt-2 text-xs" style={{ color: T.danger }}>{aiExerciseErrors[`section:${section.id}`]}</p>}</div>
               {arr(section.exercises).length === 0 ? <div className="rounded-lg px-3 py-2 text-xs" style={{ background: T.bgBase, color: T.textMuted }}>演習はまだありません。</div> : <div className="space-y-2">{arr(section.exercises).map((exercise, ei) => <div key={exercise.id || ei} className="rounded-xl p-3" style={{ background: T.bgBase }}><div className="grid gap-2 2xl:grid-cols-[minmax(0,1fr)_140px_110px_auto]"><input value={exercise.title || ""} onChange={e => updateSectionExercise(si, ei, "title", e.target.value)} placeholder="演習名" className="rounded-xl bg-white px-3 py-2 text-sm font-semibold outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary }} /><select value={exercise.type || "hands_on"} onChange={e => updateSectionExercise(si, ei, "type", e.target.value)} className="rounded-xl bg-white px-3 py-2 text-sm outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary }}><option value="hands_on">実技</option><option value="individual">個人演習</option><option value="team">チーム演習</option><option value="submission">提出課題</option></select><input type="number" min="0" value={exercise.estimatedMinutes ?? ""} onChange={e => updateSectionExercise(si, ei, "estimatedMinutes", e.target.value === "" ? "" : Number(e.target.value))} placeholder="目安（分）" className="rounded-xl bg-white px-3 py-2 text-sm outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary }} /><button onClick={() => removeSectionExercise(si, ei)} aria-label="演習を削除" style={{ color: T.danger }}><Trash2 size={16} /></button></div><div className="mt-2 grid gap-2 md:grid-cols-2"><textarea value={exercise.instructions || ""} onChange={e => updateSectionExercise(si, ei, "instructions", e.target.value)} rows={2} placeholder="問題・取り組む内容・手順" className="resize-none rounded-xl bg-white px-3 py-2 text-sm outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary }} /><textarea value={exercise.completionCriteria || ""} onChange={e => updateSectionExercise(si, ei, "completionCriteria", e.target.value)} rows={2} placeholder="完了条件・提出物" className="resize-none rounded-xl bg-white px-3 py-2 text-sm outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary }} /></div><textarea value={exercise.answerExample || ""} onChange={e => updateSectionExercise(si, ei, "answerExample", e.target.value)} rows={2} placeholder="解答例・確認ポイント（受講生はボタンを押すまで非表示）" className="mt-2 w-full resize-none rounded-xl bg-white px-3 py-2 text-sm outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary }} /></div>)}</div>}
               </div>
               {arr(section.materialIds).length > 0 && <div className="mt-3 flex flex-wrap gap-1.5">{arr(section.materialIds).map(mid => materialsById[mid] && <span key={mid} className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs" style={{ background: T.accentSubtle, color: T.accentHover }}><button onClick={() => openMaterialById(mid)} className="inline-flex items-center gap-1"><FileText size={11} />{materialsById[mid].title}</button><button onClick={() => updateSection(si, "materialIds", arr(section.materialIds).filter(id => id !== mid))}><X size={11} /></button></span>)}</div>}
-              <select value="" onChange={e => { const id=e.target.value; if(id && !arr(section.materialIds).includes(id)) updateSection(si, "materialIds", [...arr(section.materialIds), id]); e.target.value=""; }} className="mt-2 w-full rounded-xl bg-white px-3 py-2 text-xs outline-none" style={{ border: `1px solid ${T.border}`, color: T.textMuted }}><option value="">＋ 資料を追加</option>{materials.filter(m => !arr(section.materialIds).includes(m.materialId)).map(m => <option key={m.materialId} value={m.materialId}>{m.title}</option>)}</select>
+              <select value="" onChange={e => { const id=e.target.value; if(id && !arr(section.materialIds).includes(id)) updateSection(si, "materialIds", [...arr(section.materialIds), id]); e.target.value=""; }} className="mt-2 w-full rounded-xl bg-white px-3 py-2 text-xs outline-none" style={{ border: `1px solid ${T.border}`, color: T.textMuted }}><option value="">＋ アップロード済みの資料をつなぐ</option>{materials.filter(m => !arr(section.materialIds).includes(m.materialId)).map(m => <option key={m.materialId} value={m.materialId}>{m.title}</option>)}</select>
+              {uploadButton(`section:${section.id}`, id => setSections(xs => xs.map((x, i) => i === si ? { ...x, materialIds: [...arr(x.materialIds).filter(v => v !== id), id] } : x)))}
               {renderFolderPicker(section.folderLinks, next => updateSection(si, "folderLinks", next))}
               {renderUnitTestEditor(section, null, null, "section", "mt-3 bg-white")}
             </div>
-          ) : (
-            <div className="rounded-xl bg-white p-3" style={{ border: `1px solid ${T.border}` }}>
-              <div className="flex items-center gap-2 text-sm font-bold" style={{ color: T.textPrimary }}><FileText size={15} style={{ color: T.accent }} />大項目「{section.title || `大項目${si + 1}`}」の資料</div>
-              <p className="mt-1 text-xs" style={{ color: T.textMuted }}>この大項目全体で使う資料です。小項目専用の補足資料は各Lesson側に追加できます。</p>
-              {arr(section.materialIds).length > 0 && <div className="mt-2 flex flex-wrap gap-1.5">{arr(section.materialIds).map(mid => materialsById[mid] && <span key={mid} className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs" style={{ background: T.accentSubtle, color: T.accentHover }}><button onClick={() => openMaterialById(mid)} className="inline-flex items-center gap-1"><FileText size={11} />{materialsById[mid].title}</button><button onClick={() => updateSection(si, "materialIds", arr(section.materialIds).filter(id => id !== mid))} aria-label="大項目から資料を外す"><X size={11} /></button></span>)}</div>}
-              <select value="" onChange={e => { const id = e.target.value; if (id && !arr(section.materialIds).includes(id)) updateSection(si, "materialIds", [...arr(section.materialIds), id]); e.target.value = ""; }} className="mt-2 w-full rounded-xl px-3 py-2 text-xs outline-none" style={{ border: `1px solid ${T.border}`, color: T.textMuted, background: T.bgSurface }}><option value="">＋ 大項目に資料を追加</option>{materials.filter(m => !arr(section.materialIds).includes(m.materialId)).map(m => <option key={m.materialId} value={m.materialId}>{m.title}</option>)}</select>
-            </div>
           )}
-        </Card>
+        </div>
       );
     }
     const ci = Number(ciText);
@@ -1620,10 +1570,9 @@ function Curriculum({ role, go, goProduct, done = {}, goals = [] }) {
     const lesson = arr(chapter.lessons)[li];
     if (!lesson) return null;
     return (
-      <Card className="p-5">
-        {path(`${section.title || "大項目"} ／ ${chapter.title || "中項目"}`)}
+      <div className="p-3 sm:p-4">
         <div className="grid gap-2 xl:grid-cols-[1.3fr_1fr_1fr_auto]">
-        <input value={lesson.title || ""} onChange={e => updateLesson(si, ci, li, "title", e.target.value)} placeholder="小項目 例: Lesson1 EC2とは" className="rounded-lg px-3 py-2 text-sm font-semibold outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary }} />
+        <input value={lesson.title || ""} onChange={e => updateLesson(si, ci, li, "title", e.target.value)} placeholder="この日の内容 例: EC2とは" className="rounded-lg px-3 py-2 text-sm font-semibold outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary }} />
         <input type="date" value={lesson.startDate || ""} onChange={e => updateLesson(si, ci, li, "startDate", e.target.value)} className="rounded-xl px-3 py-2 text-sm outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary }} />
         <input type="date" value={lesson.endDate || ""} onChange={e => updateLesson(si, ci, li, "endDate", e.target.value)} className="rounded-xl px-3 py-2 text-sm outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary }} />
         <button onClick={() => removeLesson(si, ci, li)} className="rounded-lg px-3 py-2 text-xs font-semibold" style={{ color: T.danger, border: `1px solid ${T.border}` }}>削除</button>
@@ -1633,10 +1582,10 @@ function Curriculum({ role, go, goProduct, done = {}, goals = [] }) {
         <textarea value={lesson.memo || ""} onChange={e => updateLesson(si, ci, li, "memo", e.target.value)} rows={2} placeholder="講義メモ" className="resize-none rounded-xl px-3 py-2 text-sm outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary }} />
         </div>
         <div className="mt-2 rounded-xl p-3" style={{ background: T.accentSubtle }}>
-        <label className="mb-1 flex items-center gap-2 text-xs font-bold" style={{ color: T.accentHover }}><Target size={14} />この単元の学習目標</label>
+        <label className="mb-1 flex items-center gap-2 text-xs font-bold" style={{ color: T.accentHover }}><Target size={14} />この日の学習目標</label>
         <textarea value={arr(lesson.learningGoals).join("\n")} onChange={e => updateLesson(si, ci, li, "learningGoals", e.target.value.split("\n").map(v => v.trim()).filter(Boolean))} rows={2} placeholder={"1行に1つ入力 例:\n基本構文を使って処理を実装できる"} className="w-full resize-none rounded-xl bg-white px-3 py-2 text-sm outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary }} />
         </div>
-        <div className="mt-2 rounded-xl p-3" style={{ background: T.warningSubtle, border: `1px solid ${T.border}` }}><label className="mb-1 flex items-center gap-2 text-xs font-bold" style={{ color: T.warning }}><AlertCircle size={14} />このLessonまでに用意・実施してほしいこと</label><textarea value={arr(lesson.preparationItems).join("\n")} onChange={e => updateLesson(si, ci, li, "preparationItems", splitCurriculumList(e.target.value))} rows={2} placeholder={"1行に1つ入力 例:\nVS CodeとJava 21をインストールする"} className="w-full resize-none rounded-xl bg-white px-3 py-2 text-sm outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary }} /></div>
+        <div className="mt-2 rounded-xl p-3" style={{ background: T.warningSubtle, border: `1px solid ${T.border}` }}><label className="mb-1 flex items-center gap-2 text-xs font-bold" style={{ color: T.warning }}><AlertCircle size={14} />この日までに用意・実施してほしいこと</label><textarea value={arr(lesson.preparationItems).join("\n")} onChange={e => updateLesson(si, ci, li, "preparationItems", splitCurriculumList(e.target.value))} rows={2} placeholder={"1行に1つ入力 例:\nVS CodeとJava 21をインストールする"} className="w-full resize-none rounded-xl bg-white px-3 py-2 text-sm outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary }} /></div>
         <div className="mt-2 grid gap-2 md:grid-cols-2">
         <input value={lesson.durationLabel || ""} onChange={e => updateLesson(si, ci, li, "durationLabel", e.target.value)} placeholder="期間表示（例：3日目）" className="rounded-xl px-3 py-2 text-sm outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary }} />
         </div>
@@ -1657,12 +1606,13 @@ function Curriculum({ role, go, goProduct, done = {}, goals = [] }) {
         </div>
         {sessMids(lesson).length > 0 && <div className="mt-2 flex flex-wrap gap-1.5">{sessMids(lesson).map(mid => materialsById[mid] && <span key={mid} className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs" style={{ background: T.accentSubtle, color: T.accentHover }}><button onClick={() => openMaterialById(mid)} className="inline-flex items-center gap-1"><FileText size={11} />{materialsById[mid].title}</button><button onClick={() => removeMaterial(si, ci, li, mid)}><X size={11} /></button></span>)}</div>}
         <select value="" onChange={e => { addMaterial(si, ci, li, e.target.value); e.target.value = ""; }} className="mt-2 w-full rounded-xl px-3 py-2 text-xs outline-none" style={{ border: `1px solid ${T.border}`, color: T.textMuted, background: T.bgSurface }}>
-        <option value="">＋ 資料を追加（任意・複数可）</option>
+        <option value="">＋ アップロード済みの資料をつなぐ</option>
         {materials.filter(m => !sessMids(lesson).includes(m.materialId)).map(m => <option key={m.materialId} value={m.materialId}>{m.title}</option>)}
         </select>
+        {uploadButton(`lesson:${lesson.id}`, id => addMaterial(si, ci, li, id))}
         {renderFolderPicker(lesson.folderLinks, next => updateLesson(si, ci, li, "folderLinks", next))}
         {renderUnitTestEditor(section, chapter, lesson, "lesson", "mt-3")}
-      </Card>
+      </div>
     );
   }
 
@@ -1671,7 +1621,7 @@ function Curriculum({ role, go, goProduct, done = {}, goals = [] }) {
       <SectionHead title="カリキュラム"
         action={canEdit && courseId
           ? <div className="flex flex-wrap justify-end gap-2"><Btn kind="ghost" icon={Download} onClick={exportCurriculumTemplate}>Excelテンプレート</Btn><Btn kind="ghost" icon={FileSpreadsheet} onClick={() => curriculumImportRef.current?.click()} disabled={importingCurriculum}>{importingCurriculum ? "読込中…" : "Excel読込"}</Btn><Btn icon={Check} onClick={save}>{busy ? "保存中…" : "保存"}</Btn></div>
-          : !canEdit && !loading && (hasTodayUnit || hasUpcomingUnit) ? <Btn icon={Calendar} onClick={() => selectCurriculumItem(defaultCurriculumKey)}>{hasTodayUnit ? "今日の単元" : "次の単元"}</Btn> : null} />
+          : !canEdit && !loading && (hasTodayUnit || hasUpcomingUnit) ? <Btn icon={Calendar} onClick={openDefaultUnit}>{hasTodayUnit ? "今日の単元" : "次の単元"}</Btn> : null} />
       <input ref={curriculumImportRef} type="file" accept=".xlsx,.xls" className="hidden" onChange={e => previewCurriculumImport(e.target.files?.[0])} />
       {msg && <div className="mb-4 rounded-lg px-3 py-2 text-xs" style={{ background: T.successSubtle, color: T.success }}>{msg}</div>}
       {err && <div className="mb-4 rounded-lg px-3 py-2 text-xs" style={{ background: T.dangerSubtle, color: T.danger }}>{err}</div>}
@@ -1695,22 +1645,16 @@ function Curriculum({ role, go, goProduct, done = {}, goals = [] }) {
             )}
             {!loading && canEdit && (
               <div className="flex flex-wrap gap-1.5">
-                {[["小項目", curriculumSummary.lessons], ["学習目標", curriculumSummary.goals], ["演習", curriculumSummary.exercises], ["確認テスト", curriculumSummary.tests]].map(([label, value]) => <Badge key={label} tone="muted">{label} {value}</Badge>)}
+                {[["単元", sections.length], ["演習", curriculumSummary.exercises], ["テスト", curriculumSummary.tests]].map(([label, value]) => <Badge key={label} tone="muted">{label} {value}</Badge>)}
               </div>
             )}
           </div>
 
           {loading ? <Card><SkeletonRows /></Card>
             : sections.length === 0 && !canEdit ? <Card><EmptyState title="まだ登録がありません" desc="講師がカリキュラムを準備中です" /></Card>
-            : sections.length === 0 ? <button type="button" onClick={() => { addSection(); selectCurriculumItem("S:0", true); }} className="flex w-full items-center justify-center gap-2 rounded-xl py-3 text-sm font-semibold" style={{ border: `1.5px dashed ${T.border}`, color: T.accent }}><Plus size={16} />大項目を追加</button>
             : (
-              <div className="grid items-start gap-4 xl:grid-cols-[280px_minmax(0,1fr)]">
-                {renderCurriculumToc()}
-                <div ref={curriculumDetailRef} className="min-w-0 scroll-mt-4 [&_input]:min-w-0 [&_select]:min-w-0 [&_textarea]:min-w-0">
-                  {canEdit ? renderCurriculumEditor(activeCurriculumKey)
-                    : activeCurriculumUnit ? renderCurriculumUnit(activeCurriculumUnit)
-                    : <Card><EmptyState title="まだ単元がありません" desc="講師がカリキュラムを準備中です" /></Card>}
-                </div>
+              <div ref={curriculumDetailRef} className="min-w-0 [&_input]:min-w-0 [&_select]:min-w-0 [&_textarea]:min-w-0">
+                {renderUnits()}
               </div>
             )}
         </>
@@ -1913,6 +1857,23 @@ function groupTestScopesBySection(scopeGroups) {
     }));
   });
   return [...sections.values()];
+}
+// 受講生のテスト一覧の単元ごとのまとまり。閉じておき、押すとその単元のテストが開く（2026-10-14）
+function TestGroupCard({ title, done, total, defaultOpen = false, children }) {
+  const [open, setOpen] = useState(defaultOpen);
+  useEffect(() => { if (defaultOpen) setOpen(true); }, [defaultOpen]);
+  const all = total > 0 && done === total;
+  return (
+    <Card className="overflow-hidden p-0" style={open ? { border: `1px solid ${T.accent}` } : undefined}>
+      <button type="button" aria-expanded={open} onClick={() => setOpen(o => !o)} className="flex w-full items-center gap-3 px-4 py-3.5 text-left">
+        <span className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ background: all ? T.success : done > 0 ? T.accent : T.border }} />
+        <span className="min-w-0 flex-1 truncate text-[15px] font-bold" style={{ color: T.textPrimary }}>{title}</span>
+        <Badge tone={all ? "green" : "cyan"}>{done} / {total} 完了</Badge>
+        {open ? <ChevronUp size={16} style={{ color: T.accent }} /> : <ChevronDown size={16} style={{ color: T.textMuted }} />}
+      </button>
+      {open && <div style={{ borderTop: `1px solid ${T.border}` }}>{children}</div>}
+    </Card>
+  );
 }
 function testGroupUnitTitle(group) {
   return group.lesson && group.lesson !== "単元全体" ? group.lesson : group.chapter || group.section || "確認テスト";
@@ -2502,15 +2463,14 @@ function Tests({ role, go }) {
     <div>
       <SectionHead title="テスト" desc="受験後すぐに得点が表示されます" action={myTestCourses.length ? <div className="flex items-center gap-2"><span className="text-xs font-semibold" style={{ color: T.textMuted }}>表示するコース</span><select value={selectedTestCourseId} onChange={e => { setSelectedTestCourseId(e.target.value); setActiveCourseId(e.target.value); setTrainingTargetContext({ view: "tests", courseId: e.target.value }); }} className="min-w-0 max-w-full rounded-xl px-3 py-2 text-sm font-semibold outline-none sm:min-w-52" style={{ border: `1px solid ${T.border}`, color: T.textPrimary, background: "#fff" }}>{myTestCourses.map(course => <option key={course.courseId} value={course.courseId}>{course.name || course.courseId}</option>)}</select></div> : null} />
       {testErr && <div className="mb-4 rounded-lg px-3 py-2 text-xs" style={{ background: T.warningSubtle, color: T.warning }}>{testErr}</div>}
-      {tests.length > 0 && <Card className="mb-5 overflow-hidden"><div className="grid gap-5 p-5 lg:grid-cols-[220px_1fr]"><div><div className="flex items-end gap-2"><span className="text-3xl font-bold" style={{ color: T.textPrimary }}>{completedTestCount}</span><span className="pb-1 text-sm font-semibold" style={{ color: T.textMuted }}>/ {orderedTraineeTests.length}件 受験済み</span></div><div className="mt-3 h-2.5 overflow-hidden rounded-full" style={{ background: T.border }}><div className="h-full rounded-full transition-all" style={{ width: `${testProgress}%`, background: T.success }} /></div><div className="mt-2 text-xs font-bold" style={{ color: testProgress === 100 ? T.success : T.accentHover }}>テスト進捗 {testProgress}%</div></div><div className="rounded-xl p-4" style={{ background: nextTest ? T.accentSubtle : T.successSubtle }}><div className="mb-1 flex items-center gap-2 text-xs font-bold" style={{ color: nextTest ? T.accentHover : T.success }}>{nextTest ? <><PlayCircle size={14} />次に受けるテスト</> : <><CheckCircle2 size={14} />公開中のテストはすべて完了</>}</div>{nextTest ? <><div className="font-bold" style={{ color: T.textPrimary }}>{nextTest.title}</div><div className="mt-1 text-xs" style={{ color: T.textMuted }}>{[nextTestGroup?.course, nextTestGroup?.section, nextTestGroup?.chapter, nextTestGroup?.lesson].filter(Boolean).join(" ＞ ")}</div><div className="mt-3"><Btn size="sm" icon={PlayCircle} disabled={!testQuestionsOf(nextTest).length} onClick={() => testQuestionsOf(nextTest).length && startTraineeTest(nextTest)}>このテストを受ける</Btn></div></> : <div className="font-bold" style={{ color: T.textPrimary }}>おつかれさまでした</div>}</div></div></Card>}
-      <div className="mb-3 flex items-center gap-2 text-xs font-semibold" style={{ color: T.textMuted }}><GitBranch size={14} /><span>カリキュラムの順番に沿って、上から進めてください</span></div>
-      <div className="space-y-4">{selectedCourseTests.length === 0 ? <Card><EmptyState title="このコースで受験できるテストがありません" desc="公開されたテストがあるとここに表示されます。" /></Card> : traineeTestGroups.map(group => <Card key={group.key} className="overflow-hidden"><div className="flex flex-wrap items-center justify-between gap-2 px-4 py-4" style={{ background: T.bgBase, borderBottom: `1px solid ${T.border}` }}><div className="flex min-w-0 items-start gap-3"><div className="rounded-lg p-2" style={{ background: T.accentSubtle }}><BookOpen size={18} style={{ color: T.accent }} /></div><div className="min-w-0"><div className="mb-1 flex flex-wrap items-center gap-1 text-xs" style={{ color: T.textMuted }}>{testGroupParentPath(group).map((item, index) => <React.Fragment key={`${item}-${index}`}>{index > 0 && <ChevronRight size={12} />}<span>{item}</span></React.Fragment>)}</div><h3 className="text-lg font-bold leading-snug" style={{ color: T.textPrimary }}>{testGroupUnitTitle(group)}</h3></div></div><Badge tone={group.tests.every(test => test.status === "graded") ? "green" : "cyan"}>{group.tests.filter(test => test.status === "graded").length} / {group.tests.length} 完了</Badge></div><div>{group.tests.map(t => {
+      {tests.length > 0 && <Card className="mb-5 overflow-hidden"><div className="grid gap-5 p-5 lg:grid-cols-[220px_1fr]"><div><div className="flex items-end gap-2"><span className="text-3xl font-bold" style={{ color: T.textPrimary }}>{completedTestCount}</span><span className="pb-1 text-sm font-semibold" style={{ color: T.textMuted }}>/ {orderedTraineeTests.length}件 受験済み</span></div><div className="mt-3 h-2.5 overflow-hidden rounded-full" style={{ background: T.border }}><div className="h-full rounded-full transition-all" style={{ width: `${testProgress}%`, background: T.success }} /></div><div className="mt-2 text-xs font-bold" style={{ color: testProgress === 100 ? T.success : T.accentHover }}>テスト進捗 {testProgress}%</div></div><div className="rounded-xl p-4" style={{ background: nextTest ? T.accentSubtle : T.successSubtle }}><div className="mb-1 flex items-center gap-2 text-xs font-bold" style={{ color: nextTest ? T.accentHover : T.success }}>{nextTest ? <><PlayCircle size={14} />次に受けるテスト</> : <><CheckCircle2 size={14} />公開中のテストはすべて完了</>}</div>{nextTest ? <><div className="font-bold" style={{ color: T.textPrimary }}>{nextTest.title}</div><div className="mt-1 text-xs" style={{ color: T.textMuted }}>{nextTestGroup?.section || ""}</div><div className="mt-3"><Btn size="sm" icon={PlayCircle} disabled={!testQuestionsOf(nextTest).length} onClick={() => testQuestionsOf(nextTest).length && startTraineeTest(nextTest)}>このテストを受ける</Btn></div></> : <div className="font-bold" style={{ color: T.textPrimary }}>おつかれさまでした</div>}</div></div></Card>}
+      <div className="space-y-3">{selectedCourseTests.length === 0 ? <Card><EmptyState title="このコースで受験できるテストがありません" desc="公開されたテストがあるとここに表示されます。" /></Card> : traineeTestGroups.map(group => <TestGroupCard key={group.key} title={group.section} done={group.tests.filter(test => test.status === "graded").length} total={group.tests.length} defaultOpen={group.tests.some(test => (nextTest && testIdOf(test) === testIdOf(nextTest)) || focusOn === testIdOf(test))}>{group.tests.map(t => {
         const hasQuestions = testQuestionsOf(t).length > 0;
         const sequence = orderedTraineeTests.findIndex(test => testIdOf(test) === testIdOf(t)) + 1;
         const isNext = nextTest && testIdOf(nextTest) === testIdOf(t);
         return (
         <div key={testIdOf(t)} data-test-row={testIdOf(t)} className="flex flex-col gap-3 px-4 py-4 transition-shadow sm:flex-row sm:items-center" style={{ background: isNext || focusOn === testIdOf(t) ? T.accentSubtle : "#fff", borderBottom: `1px solid ${T.border}`, boxShadow: focusOn === testIdOf(t) ? `inset 0 0 0 2px ${T.accent}` : "none" }}><div className="flex min-w-0 flex-1 items-start gap-3"><div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-xs font-bold" style={{ background: t.status === "graded" ? T.success : isNext ? T.accent : T.border, color: t.status === "graded" || isNext ? "#fff" : T.textMuted }}>{t.status === "graded" ? <Check size={16} /> : sequence}</div><div className="min-w-0"><div className="flex flex-wrap items-center gap-2"><h4 className="font-bold" style={{ color: T.textPrimary }}>{t.title}</h4>{isNext && <Badge tone="cyan">次に受験</Badge>}{t.status === "graded" ? <Badge tone="green">受験済み</Badge> : <Badge tone="muted">未受験</Badge>}</div><div className="mt-1 text-xs" style={{ color: T.textMuted }}>{t.q}問 ・ 制限 {t.limit} ・ 自動採点</div></div></div><div className="flex shrink-0 items-center justify-end gap-3">{t.status === "graded" && <><div className="text-lg font-bold tabular-nums" style={{ color: t.score >= 70 ? T.success : T.warning }}>{t.score}点</div><Btn size="sm" kind="ghost" icon={Eye} disabled={!hasQuestions || !t.savedResult} onClick={() => startTraineeTest(t, { saved: t.savedResult })}>結果を確認</Btn><Btn size="sm" kind="ghost" icon={RefreshCw} disabled={!hasQuestions} onClick={() => startTraineeTest(t, { fresh: true })}>もう一度受ける</Btn></>}{t.status !== "graded" && (hasQuestions ? <Btn size="sm" icon={PlayCircle} onClick={() => startTraineeTest(t)}>受験する</Btn> : <Btn size="sm" icon={AlertCircle} kind="ghost" disabled>設問なし</Btn>)}</div></div>
-      );})}</div></Card>)}</div>
+      );})}</TestGroupCard>)}</div>
     </div>
   );
 }
@@ -5158,7 +5118,7 @@ function ReportNotePicker({ date, courseId, fields, onInsert }) {
     if (!courseId) { setLessonTitles({}); return; }
     let alive = true;
     apiGet(`/courses/${courseId}/curriculum`)
-      .then(res => { if (alive) setLessonTitles(Object.fromEntries(flattenLessons(normalizeCurriculumSections(res || {})).map(l => [l.id, l.title]))); })
+      .then(res => { if (alive) setLessonTitles(Object.fromEntries(flattenLessons(normalizeCurriculumSections(res || {})).flatMap(l => (l.ids || [l.id]).map(id => [id, l.title])))); })
       .catch(() => { if (alive) setLessonTitles({}); });
     return () => { alive = false; };
   }, [courseId]);
@@ -5291,6 +5251,12 @@ function Reports({ role, userProfile }) {
   };
   const canComment = role === "admin" || role === "client" || (role === "instructor" && opsReportScheduleState === "ready" && opsReportDayContext?.isTrainingDay === true && opsReportDayContext?.effectiveInstructorIds?.includes(opsFilter.currentUserId));
   useEffect(() => { setAdminEditingReport(false); setAdminReportDraft(null); }, [detailReport?.id, detailReport?.traineeId, detailReport?.rawDate]);
+  // 受講生がコメント付きの日報を開いたら「確認した」にする（通知から消える、2026-10-14）
+  useEffect(() => {
+    if (role !== "trainee" || !detailReport || detailReport.__unsubmitted) return;
+    const raw = detailReport.rawData || detailReport;
+    if (hasStaffComment(detailReport) || hasStaffComment(raw)) ackKeys(ackKey.reportComment({ ...raw, date: raw.date || detailReport.rawDate })).catch(() => {});
+  }, [role, detailReport]);
   // 管理者による日報の内容編集・削除。表示制御のみ・正本はBackend(canAdminManageReportsAttendance)。
   function canAdminEditReport(report) {
     return role === "admin" && adminCanManageReportsAttendance(userProfile, report?.courseId || opsFilter.courseId);
@@ -5383,6 +5349,52 @@ function Reports({ role, userProfile }) {
   function blankReportDraft() {
     return { morningGoal: "", goalItems: [], learned: "", question: "", nextday: "", reflection: "", blockers: "", tomorrowGoal: "", customFields: {} };
   }
+  // 2026-10-14: 書きかけは自動で仮保存（PUT /reports/me/draft、講師には見えない）し、「提出」で日報になる。
+  // reportDrafts は 日付→仮保存の内容。空の日は、前の日の「明日の目標」を今日の大きな目標に入れておく
+  const [reportDrafts, setReportDrafts] = useState({});
+  const [autoSaveState, setAutoSaveState] = useState("");
+  const [prefillFrom, setPrefillFrom] = useState(null);
+  const lastSavedRef = useRef("");
+  const pendingRef = useRef(null);
+  const autoTimerRef = useRef(0);
+  const autoPromiseRef = useRef(null);
+  const draftPayload = d => ({
+    morningGoal: d.morningGoal || "", goalItems: (d.goalItems || []).map(g => ({ id: g.id, text: g.text || "", done: !!g.done })),
+    learned: d.learned || "", question: d.question || "", nextday: d.nextday || "", reflection: d.reflection || "",
+    blockers: d.blockers || "", tomorrowGoal: d.tomorrowGoal || "", customFields: { ...(d.customFields || {}) },
+  });
+  function previousTomorrowGoal(date, list) {
+    const prev = list.filter(r => r.rawDate < date && String(r.tomorrowGoal || "").trim()).sort((a, b) => String(b.rawDate).localeCompare(String(a.rawDate)))[0];
+    return prev ? { date: prev.rawDate, text: String(prev.tomorrowGoal).trim() } : null;
+  }
+  function openDraftFor(date, list = reports, draftsMap = reportDrafts) {
+    const report = list.find(r => r.rawDate === date);
+    const saved = draftsMap[date];
+    let next; let pre = null;
+    if (saved) next = draftFromReport(saved);
+    else if (report) next = draftFromReport(report);
+    else { next = blankReportDraft(); pre = previousTomorrowGoal(date, list); if (pre) next.morningGoal = pre.text; }
+    setPrefillFrom(pre);
+    lastSavedRef.current = JSON.stringify(draftPayload(next));
+    setDraft(next);
+    setAutoSaveState("");
+    return { report, saved };
+  }
+  function runAutoSave() {
+    const p = pendingRef.current; pendingRef.current = null; clearTimeout(autoTimerRef.current);
+    if (!p) return autoPromiseRef.current || Promise.resolve();
+    setAutoSaveState("saving");
+    const job = (autoPromiseRef.current || Promise.resolve()).catch(() => {})
+      .then(() => apiPut("/reports/me/draft", { date: p.date, courseId: p.courseId, ...p.data }))
+      .then(res => {
+        lastSavedRef.current = JSON.stringify(p.data);
+        setReportDrafts(cur => ({ ...cur, [p.date]: { ...p.data, date: p.date, updatedAt: res?.updatedAt || "" } }));
+        setAutoSaveState("saved");
+      })
+      .catch(() => setAutoSaveState("error"));
+    autoPromiseRef.current = job;
+    return job;
+  }
   function draftFromReport(r) {
     return {
       morningGoal: r?.morningGoal || "",
@@ -5413,8 +5425,8 @@ function Reports({ role, userProfile }) {
     if (role === "trainee") {
       setReportDataState("loading");
       setSaveErr("");
-      Promise.all([apiGet("/reports/me"), apiGet("/me/courses")])
-        .then(([items, courses]) => {
+      Promise.all([apiGet("/reports/me"), apiGet("/me/courses"), apiGet("/reports/me/drafts").catch(() => [])])
+        .then(([items, courses, draftList]) => {
           setReportCourses(courses || []);
           const preferredCourseId = initialReportTarget?.courseId || getActiveCourseId();
           const initialCourseId = (courses || []).some(course => course.courseId === preferredCourseId) ? preferredCourseId : ((courses || [])[0]?.courseId || "");
@@ -5423,9 +5435,12 @@ function Reports({ role, userProfile }) {
           const mapped = (items || []).map(mapReport);
           setReports(mapped);
           const targetDate = initialReportTarget?.date || todayStr();
-          const targetReport = mapped.find(r => r.rawDate === targetDate);
-          setDraft(targetReport ? draftFromReport(targetReport) : blankReportDraft());
+          const draftsMap = Object.fromEntries((Array.isArray(draftList) ? draftList : []).filter(d => d?.date).map(d => [d.date, d]));
+          setReportDrafts(draftsMap);
+          const { report: targetReport } = openDraftFor(targetDate, mapped, draftsMap);
           setEditingReportDate(targetDate);
+          // 通知（日報へのコメント）から来たときは、その日の日報とコメントを開く
+          if (targetReport && initialReportTarget?.date && hasStaffComment(targetReport)) setDetailReport(targetReport);
           setReportEditState(targetReport ? "edit" : targetDate === todayStr() ? "today" : "create");
           setReportWorkdaysState(initialCourseId ? "loading" : "ready");
           // 日報項目の状態は、項目を読む effect（settingsCourseId）だけが決める。
@@ -5448,6 +5463,16 @@ function Reports({ role, userProfile }) {
       setReports([]);
     }
   }, [role, date, canViewReports, reportReloadKey, showDeletedReports]);
+  useEffect(() => {
+    if (!canWrite || reportDataState !== "ready" || saving) return;
+    if (!reportTrainingDateSet.has(editingReportDate)) return;
+    const data = draftPayload(draft);
+    if (JSON.stringify(data) === lastSavedRef.current) return;
+    pendingRef.current = { date: editingReportDate, courseId: reportCourseId, data };
+    clearTimeout(autoTimerRef.current);
+    autoTimerRef.current = window.setTimeout(runAutoSave, 1500);
+  }, [draft]);
+  useEffect(() => () => { if (pendingRef.current) runAutoSave(); clearTimeout(autoTimerRef.current); }, []);
   // ノートを日報へ入れる。**上書きしない**（書きかけを消さないため、必ず末尾に足す）
   const insertNoteIntoReport = (fieldId, text) => {
     if (!fieldId || !text) return;
@@ -5593,12 +5618,19 @@ function Reports({ role, userProfile }) {
       customFields: { ...(draft.customFields || {}) },
       courseId: reportCourseId,
     };
+    // 待っている自動保存は捨て、送信中のものは終わるのを待つ（提出のあとに仮保存が残らないように）
+    pendingRef.current = null; clearTimeout(autoTimerRef.current);
     setSaveErr(""); setReportSaveState("saving"); setSaving(true);
     try {
-      await apiPut("/reports/me", { ...payload, expectedUpdatedAt: reports.find(report => report.rawDate === saveDate)?.updatedAt || "" });
+      await (autoPromiseRef.current || Promise.resolve()).catch(() => {});
+      const res = await apiPut("/reports/me", { ...payload, expectedUpdatedAt: reports.find(report => report.rawDate === saveDate)?.updatedAt || "" });
       emitNotificationRefresh();
       const previous = reports.find(report => report.rawDate === saveDate);
-      const saved = mapReport({ ...(previous?.rawData || {}), ...payload, updatedAt: new Date().toISOString() });
+      // updatedAt はサーバーの値を使う（ブラウザの時刻だと次の保存が 409 になっていた）
+      const saved = mapReport({ ...(previous?.rawData || {}), ...payload, updatedAt: res?.updatedAt || new Date().toISOString() });
+      setReportDrafts(cur => { const n = { ...cur }; delete n[saveDate]; return n; });
+      lastSavedRef.current = JSON.stringify(draftPayload(draftFromReport(saved)));
+      setPrefillFrom(null); setAutoSaveState("");
       setReports(current => current.some(report => report.rawDate === saveDate)
         ? current.map(report => report.rawDate === saveDate ? saved : report)
         : [saved, ...current]);
@@ -5828,13 +5860,18 @@ function Reports({ role, userProfile }) {
       }
       if (conflict) return { key: dateValue, date: label, unit, main: "同じ日に複数の研修が設定されています", pill: { tone: "warn", label: "日程重複" }, action: null };
       if (reportWorkdaysState !== "ready") return { key: dateValue, date: label, unit, main: "研修日を確認できていません", pill: { tone: "mut", label: "確認中" }, action: null };
+      if (reportDrafts[dateValue]) return {
+        key: dateValue, date: label, unit, miss: true, main: "まだ提出されていません",
+        pill: { tone: "warn", label: "仮保存" },
+        action: { label: "続きを書く", kind: "primary", onClick: () => editReport({ date: dateValue, report: null }) },
+      };
       return {
         key: dateValue, date: label, unit, miss: true, main: "まだ提出されていません",
         pill: { tone: "ng", label: "未提出" },
         action: { label: "書く", kind: "primary", onClick: () => editReport({ date: dateValue, report: null }) },
       };
     }).filter(Boolean).reverse();
-  }, [canWrite, month, reportsByDate, reportTrainingDateSet, reportConflictDateSet, reportWorkdaysState, reportDayTitles]);
+  }, [canWrite, month, reportsByDate, reportDrafts, reportTrainingDateSet, reportConflictDateSet, reportWorkdaysState, reportDayTitles]);
 
   const reportMonthSummary = useMemo(() => {
     if (!canWrite || reportWorkdaysState !== "ready") return "";
@@ -5853,8 +5890,9 @@ function Reports({ role, userProfile }) {
     if (!reportTrainingDateSet.has(row.date)) { setSaveErr("非研修日の日報は新規作成・編集できません。"); return; }
     const r = row.report;
     if (row.date !== editingReportDate) setReportWorkdaysState("loading");
+    runAutoSave();
     setEditingReportDate(row.date);
-    setDraft(r ? draftFromReport(r) : blankReportDraft());
+    openDraftFor(row.date);
     setReportEditState(r ? "edit" : "create");
     setTrainingTargetContext(
       { view: "reports", courseId: reportCourseId, date: row.date },
@@ -6024,17 +6062,32 @@ function Reports({ role, userProfile }) {
         </Card>
       ) : (<>
       {canWrite && <div ref={reportFormRef} style={{ scrollMarginTop: 72 }}><Card className="mb-4 p-5 transition-shadow" style={reportFormPulse ? { boxShadow: `0 0 0 3px ${T.accent}33, 0 18px 40px rgba(0,0,0,.08)` } : undefined}>
-        <div className="mb-3 flex flex-wrap items-center justify-between gap-3"><div><h3 className="font-bold" style={{ color: T.textPrimary }}>朝: 目標</h3><p className="text-xs" style={{ color: T.textMuted }}>研修日を選んで、朝だけでも途中でも保存できます。</p>
-          {latestTrainingDateForTrainee && latestTrainingDateForTrainee !== editingReportDate && <button type="button" onClick={() => setEditingReportDate(latestTrainingDateForTrainee)} className="mt-1 text-xs font-semibold" style={{ color: T.accentHover }}>{reportTrainingDates.length ? "直近の研修日" : "研修期間の最終日"}（{latestTrainingDateForTrainee.replace(/-/g, "/")}）を開く</button>}
-          </div><div className="flex items-center gap-2"><input type="date" value={editingReportDate} disabled={saving} onChange={e => editReport({ date: e.target.value, report: reportsByDate[e.target.value] })} className="rounded-xl px-3 py-2 text-sm outline-none disabled:opacity-60" style={{ border: `1px solid ${T.border}`, color: T.textPrimary, background: "#fff" }} /><Btn kind="soft" size="sm" icon={Plus} disabled={saving || reportWorkdaysLoading || !reportTrainingDateSet.has(editingReportDate)} onClick={addGoalItem}>目標を追加</Btn></div></div>
-        {!reportWorkdaysLoading && reportConflictDateSet.has(editingReportDate) && <div className="mb-4 rounded-xl px-3 py-2 text-xs font-semibold" style={{ background: T.dangerSubtle, color: T.danger }}>同じ日に複数の研修が重複しています。日程の修正後に保存してください。</div>}
-        {!reportWorkdaysLoading && !reportConflictDateSet.has(editingReportDate) && !reportTrainingDateSet.has(editingReportDate) && <div className="mb-4 rounded-xl px-3 py-2 text-xs font-semibold" style={{ background: reportWorkdaysState === "setup_required" ? T.warningSubtle : T.bgBase, color: reportWorkdaysState === "setup_required" ? T.warning : T.textMuted }}>{reportWorkdaysState === "setup_required" ? "研修日程が未設定です。未提出とは判定せず、入力を停止しています。" : "選択日は研修カレンダーの非研修日です。下のカレンダーから研修日を選択してください。"}</div>}
-        <div className="mb-4 rounded-xl px-3 py-2 text-xs font-semibold" style={{ background: reportEditState === "create" ? T.warningSubtle : T.accentSubtle, color: reportEditState === "create" ? T.warning : T.accentHover }}>
-          {reportEditState === "create" ? "新しい日報を作成中" : reportEditState === "edit" ? `${editingReportDate.replace(/-/g, "/")}の日報を編集中` : "本日の日報"}
+        {(() => {
+          const hasDraft = !!reportDrafts[editingReportDate];
+          const hasReport = !!reportsByDate[editingReportDate];
+          const [label, tone] = hasDraft ? ["仮保存", "amber"] : hasReport ? ["提出済み", "green"] : ["未提出", "muted"];
+          return (
+            <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
+              <div className="flex flex-wrap items-center gap-2">
+                <h3 className="font-bold" style={{ color: T.textPrimary }}>{editingReportDate.replace(/-/g, "/")} の日報</h3>
+                <Badge tone={tone}>{label}</Badge>
+                {autoSaveState && <span className="text-xs" style={{ color: autoSaveState === "error" ? T.danger : T.textMuted }}>{autoSaveState === "saving" ? "保存中…" : autoSaveState === "saved" ? "自動保存済み" : "自動保存できませんでした"}</span>}
+              </div>
+              <div className="flex flex-wrap items-center gap-2">
+                {latestTrainingDateForTrainee && latestTrainingDateForTrainee !== editingReportDate && <button type="button" onClick={() => { runAutoSave(); setEditingReportDate(latestTrainingDateForTrainee); openDraftFor(latestTrainingDateForTrainee); }} className="text-xs font-semibold" style={{ color: T.accentHover }}>{reportTrainingDates.length ? "直近の研修日" : "研修期間の最終日"}（{latestTrainingDateForTrainee.replace(/-/g, "/")}）</button>}
+                <input type="date" value={editingReportDate} disabled={saving} onChange={e => editReport({ date: e.target.value, report: reportsByDate[e.target.value] })} className="rounded-xl px-3 py-2 text-sm outline-none disabled:opacity-60" style={{ border: `1px solid ${T.border}`, color: T.textPrimary, background: "#fff" }} />
+              </div>
+            </div>
+          );
+        })()}
+        {!reportWorkdaysLoading && reportConflictDateSet.has(editingReportDate) && <div className="mb-4 rounded-xl px-3 py-2 text-xs font-semibold" style={{ background: T.dangerSubtle, color: T.danger }}>同じ日に複数の研修が重複しています。日程の修正後に提出してください。</div>}
+        {!reportWorkdaysLoading && !reportConflictDateSet.has(editingReportDate) && !reportTrainingDateSet.has(editingReportDate) && <div className="mb-4 rounded-xl px-3 py-2 text-xs font-semibold" style={{ background: reportWorkdaysState === "setup_required" ? T.warningSubtle : T.bgBase, color: reportWorkdaysState === "setup_required" ? T.warning : T.textMuted }}>{reportWorkdaysState === "setup_required" ? "研修日程が未設定です" : "研修日ではありません"}</div>}
+        <div className="mb-1.5 flex flex-wrap items-center gap-2">
+          <label htmlFor="report-morning-goal" className="text-sm font-semibold" style={{ color: T.textPrimary }}>今日の大きな目標</label>
+          {prefillFrom && draft.morningGoal === prefillFrom.text && <span className="rounded-full px-2 py-0.5 text-[11px] font-bold" style={{ background: T.accentSubtle, color: T.accentHover }}>前日（{prefillFrom.date.slice(5).replace("-", "/")}）の「明日の目標」</span>}
         </div>
-        <Field label="今日の大きな目標"><input ref={reportFirstInputRef} value={draft.morningGoal} disabled={saving} onChange={e => setDraft({ ...draft, morningGoal: e.target.value })} placeholder="例）配列とループを使った処理を自力で書けるようにする" className={fieldCls} style={{ border: `1px solid ${T.border}`, color: T.textPrimary, background: "#fff" }} /></Field>
+        <textarea id="report-morning-goal" ref={reportFirstInputRef} value={draft.morningGoal} disabled={saving} onChange={e => setDraft({ ...draft, morningGoal: e.target.value })} rows={3} placeholder="例）配列とループを使った処理を自力で書けるようにする" className="w-full resize-y rounded-xl px-3 py-2.5 text-sm leading-relaxed outline-none disabled:opacity-60" style={{ border: `1px solid ${T.border}`, color: T.textPrimary, background: "#fff" }} />
         <div className="mt-3 space-y-2">
-          {draft.goalItems.length === 0 && <div className="rounded-lg px-3 py-2 text-sm" style={adminPanelStyle}>目標リストはまだありません。</div>}
           {draft.goalItems.map(item => (
             <div key={item.id} className="flex items-center gap-2 rounded-lg p-2" style={{ background: T.bgBase }}>
               <input type="checkbox" checked={!!item.done} disabled={saving} onChange={e => updateGoalItem(item.id, { done: e.target.checked })} />
@@ -6042,17 +6095,16 @@ function Reports({ role, userProfile }) {
               <button disabled={saving} onClick={() => removeGoalItem(item.id)} aria-label="目標を削除" className="rounded-lg p-1.5 transition hover:bg-slate-100 disabled:opacity-60"><X size={15} style={{ color: T.textMuted }} /></button>
             </div>
           ))}
+          <Btn kind="soft" size="sm" icon={Plus} disabled={saving || reportWorkdaysLoading || !reportTrainingDateSet.has(editingReportDate)} onClick={addGoalItem}>小目標を追加</Btn>
         </div>
-        <div className="mt-4 flex flex-wrap items-center justify-end gap-3" aria-live="polite">{saveErr && <span className="mr-auto text-xs font-semibold" style={{ color: T.danger }}>{saveErr}</span>}{reportSaveState === "saved" && <span className="mr-auto text-xs font-semibold" style={{ color: T.success }}>保存しました</span>}<Btn icon={Check} disabled={saving || reportWorkdaysLoading || !reportTrainingDateSet.has(editingReportDate)} onClick={submit}>{saving ? "保存中..." : "目標を保存"}</Btn></div>
       </Card></div>}
       {canWrite && <Card className="mb-6 p-5">
-        <div className="mb-4 flex flex-wrap items-center justify-between gap-3"><div><h3 className="font-bold" style={{ color: T.textPrimary }}>{editingReportDate.replace(/-/g, "/")} の日報</h3><span className="text-xs" style={{ color: T.textMuted }}>1項目を横幅いっぱい使って、具体的に記録できます。</span></div>{reportCourses.length > 1 && <select value={reportCourseId} disabled={saving} onChange={e => { setReportWorkdaysState("loading"); setReportFieldsState("loading"); setReportCourseId(e.target.value); setActiveCourseId(e.target.value); setTrainingTargetContext({ view: "reports", courseId: e.target.value, date: editingReportDate }); }} className="min-w-0 max-w-full rounded-xl px-3 py-2 text-sm outline-none disabled:opacity-60" style={{ border: `1px solid ${T.border}`, color: T.textPrimary, background: "#fff" }}>{reportCourses.map(course => <option key={course.courseId} value={course.courseId}>{course.name}</option>)}</select>}</div>
-        <div className="mb-4 rounded-xl px-3 py-2 text-xs" style={adminPanelStyle}>保存後も同じ日の日報を再編集できます。朝の目標だけ、夕方の振り返りだけでも保存できます。</div>
+        <div className="mb-4 flex flex-wrap items-center justify-between gap-3"><h3 className="font-bold" style={{ color: T.textPrimary }}>振り返り</h3>{reportCourses.length > 1 && <select value={reportCourseId} disabled={saving} onChange={e => { setReportWorkdaysState("loading"); setReportFieldsState("loading"); setReportCourseId(e.target.value); setActiveCourseId(e.target.value); setTrainingTargetContext({ view: "reports", courseId: e.target.value, date: editingReportDate }); }} className="min-w-0 max-w-full rounded-xl px-3 py-2 text-sm outline-none disabled:opacity-60" style={{ border: `1px solid ${T.border}`, color: T.textPrimary, background: "#fff" }}>{reportCourses.map(course => <option key={course.courseId} value={course.courseId}>{course.name}</option>)}</select>}</div>
         <div className="space-y-5">{reportFields.map(field => (
           <div key={field.id}><label className="mb-1.5 block text-sm font-semibold" style={{ color: T.textPrimary }}>{field.label}{field.required && <span className="ml-1 text-xs" style={{ color: T.danger }}>必須</span>}</label>
             <textarea value={reportFieldValue(draft, field.id)} disabled={saving} onChange={e => setDraft(current => REPORT_FIXED_KEYS.has(field.id) ? { ...current, [field.id]: e.target.value } : { ...current, customFields: { ...current.customFields, [field.id]: e.target.value } })} placeholder={field.placeholder} rows={4} className="w-full resize-y rounded-xl px-3 py-3 text-sm leading-relaxed outline-none focus:border-cyan-400 disabled:opacity-60" style={{ border: `1px solid ${T.border}`, color: T.textPrimary, minHeight: 108 }} /></div>
         ))}</div>
-        <div className="mt-4 flex flex-wrap items-center justify-end gap-3" aria-live="polite">{saveErr && <span className="mr-auto text-xs font-semibold" style={{ color: T.danger }}>{saveErr}</span>}{reportSaveState === "saved" && <span className="mr-auto text-xs font-semibold" style={{ color: T.success }}>日報を保存しました</span>}<Btn icon={Send} disabled={saving || reportWorkdaysLoading || !reportTrainingDateSet.has(editingReportDate)} onClick={submit}>{saving ? "保存中…" : "日報を保存"}</Btn></div></Card>}
+        <div className="mt-4 flex flex-wrap items-center justify-end gap-3" aria-live="polite">{saveErr && <span className="mr-auto text-xs font-semibold" style={{ color: T.danger }}>{saveErr}</span>}{reportSaveState === "saved" && <span className="mr-auto text-xs font-semibold" style={{ color: T.success }}>提出しました</span>}<Btn icon={Send} disabled={saving || reportWorkdaysLoading || !reportTrainingDateSet.has(editingReportDate) || (!!reportsByDate[editingReportDate] && !reportDrafts[editingReportDate] && JSON.stringify(draftPayload(draft)) === lastSavedRef.current)} onClick={submit}>{saving ? "提出中…" : reportsByDate[editingReportDate] ? "提出し直す" : "提出する"}</Btn></div></Card>}
       {canWrite && <ReportNotePicker date={editingReportDate} courseId={reportCourseId} fields={reportFields} onInsert={insertNoteIntoReport} />}
       {/* 2026-09-15: 月カレンダーをやめ、1日ずつの記録リストにした（承認モック: trainee-reports）。
           未提出の研修日も行として出すので、出し忘れはここでも残る。 */}

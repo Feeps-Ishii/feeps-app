@@ -97,6 +97,12 @@ const NAV = {
     { sec: "連絡", items: [["announcements", "お知らせ", Megaphone], ["reservations", "予約", CalendarClock]] },
   ],
 };
+// サイドバーの箱と受講生ホームの移動ボタンで使う、グループごとの色（2026-10-14 ここへ移した）
+const NAV_GROUP_TONE = {
+  "毎日": "#3AB9B1", "研修": "#339CFF", "自分用": "#9B79EC", "連絡": "#F3883B",
+  "全体": "#3AB9B1", "自社": "#F3883B", "研修の様子": "#339CFF",
+  "助成金管理": "#C9A227", "分析": "#EB77B1", "契約": "#5D7BF0", "運営": "#5D7BF0",
+};
 const navViewSet = role => new Set([...(NAV[role] || []).flatMap(g => g.items.map(([k]) => k)), "notifications", "profile"]);
 
-export { ROLES, GOALS, GOAL_ICON_MAP, QBANK, NAV, navViewSet };
+export { ROLES, GOALS, GOAL_ICON_MAP, QBANK, NAV, NAV_GROUP_TONE, navViewSet };

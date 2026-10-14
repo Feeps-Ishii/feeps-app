@@ -9,6 +9,7 @@ import { GRANTS_NAV } from "./products/grants/GrantsCatalog.js";
 import FeepsOneHome from "./products/home/FeepsOneHome.jsx";
 import TrainingProduct from "./products/training/TrainingProduct.jsx";
 import ChatNotifier from "./products/training/ChatNotifier.jsx";
+import { ackKey, hasStaffComment, loadAcks } from "./products/training/acks.js";
 import Login from "./products/auth/Login.jsx";
 import { MfaSuggestionDialog, MfaSettingsCard, useMfaStatus } from "./products/auth/MfaSetup.jsx";
 import { TermsAgreementDialog, needsTermsAgreement, TERMS_VERSION } from "./components/common/TermsConsent.jsx";
@@ -17,7 +18,7 @@ import TenolabLink from "./components/common/TenolabLink.jsx";
 import { Card, Badge, Btn, Avatar, Stat, SectionHead, T, NOVA, PRISM, PRISM_PRODUCT_GRAD, BrandMark, PRODUCT_ACCENT, ROLE_ACCENT, Z, PageLoading, EmptyState as CommonEmptyState, SkeletonRows, HelpGuideModal } from "./components/common";
 import { learningHref } from "./components/common/appLinks.js";
 import { HELP_GUIDE_CONTENT } from "./products/home/helpGuideContent.js";
-import { GOALS, GOAL_ICON_MAP, NAV, ROLES } from "./products/training/TrainingCatalog.js";
+import { GOALS, GOAL_ICON_MAP, NAV, NAV_GROUP_TONE, ROLES } from "./products/training/TrainingCatalog.js";
 import { navViewSet, statusKind, testIdOf, todayStr } from "./products/training/useTraining.js";
 import {
   clearTraineeTestDraft,
@@ -25,7 +26,7 @@ import {
   getActiveCourseId,
   setActiveCourseId,
 } from "./utils/common/courseContext.js";
-import { mergeCourseGoals } from "./products/training/courseGoals.js";
+import { mergeCourseGoals, toPersonalGoalsPayload } from "./products/training/courseGoals.js";
 import { filterProductsForRoleAndMode, allowedViewModes, shouldShowModeSwitch } from "./utils/common/accessControl.js";
 import useAppNavigationHistory from "./hooks/common/useAppNavigationHistory.js";
 import useCountUp from "./hooks/common/useCountUp.js";
@@ -450,35 +451,28 @@ async function loadRoleNotifications(role) {
     list.push({ severity: "low", category: "情報", to: "home", ...n });
   };
   const result = [];
+  // 2026-10-14: 受講生の通知は「日報への新しいコメント」と「お知らせ・講師の当日連絡」の未確認だけ。
+  // どれも確認ボタン（acks）を押すまで残す。未保存・未登録・未受験の催促は出さない
   if (role === "trainee") {
-    const [courses, myReports, myAttendance, myTests, publishedTests] = await Promise.all([
+    const [courses, myReports, announcements, acks] = await Promise.all([
       apiGet("/me/courses").catch(e => { console.warn("notifications trainee courses failed", e); return []; }),
       apiGet("/reports/me").catch(e => { console.warn("notifications trainee reports failed", e); return []; }),
-      apiGet("/attendance/me").catch(e => { console.warn("notifications trainee attendance failed", e); return []; }),
-      apiGet("/tests/me").catch(e => { console.warn("notifications trainee tests/me failed", e); return []; }),
-      apiGet("/tests").catch(e => { console.warn("notifications trainee tests failed", e); return []; }),
+      apiGet("/announcements/me").catch(e => { console.warn("notifications trainee announcements failed", e); return null; }),
+      loadAcks().catch(e => { console.warn("notifications trainee acks failed", e); return null; }),
     ]);
-    const reportToday = (Array.isArray(myReports) ? myReports : []).find(r => r.date === date);
-    const attendanceToday = (Array.isArray(myAttendance) ? myAttendance : []).find(a => a.date === date);
-    if (!reportToday) add(result, { id: notifId(role, "reports", date), severity: "high", category: "日報", title: "今日の日報が未保存です", desc: "今日の目標や振り返りを保存してください。", to: "reports", targetUrl: "/training/reports" });
-    if (!attendanceToday) add(result, { id: notifId(role, "attendance", date), severity: "medium", category: "勤怠", title: "勤怠が未登録です", desc: "出勤・退勤など本日の勤怠を登録してください。", to: "attendance", targetUrl: "/training/attendance" });
-    if (reportToday && hasReportComment(reportToday)) add(result, { id: notifId(role, "comments", date), severity: "low", category: "コメント", title: "講師から日報コメントがあります", desc: "今日の日報コメントを確認できます。", to: "reports", targetUrl: "/training/reports" });
-    const takenIds = new Set((Array.isArray(myTests) ? myTests : []).filter(t => t.status === "graded" || t.score != null).map(t => testIdOf(t)));
-    const openTests = (Array.isArray(publishedTests) ? publishedTests : []).filter(t => (t.status || "published") === "published");
-    const notTaken = openTests.filter(t => !takenIds.has(testIdOf(t)));
-    if (notTaken.length) {
-      const firstTest = notTaken[0];
-      const params = new URLSearchParams();
-      if (firstTest?.courseId) params.set("courseId", firstTest.courseId);
-      params.set("testId", testIdOf(firstTest));
-      add(result, { id: notifId(role, "tests", notTaken.length), severity: "medium", category: "テスト", title: `未受験テストが${notTaken.length}件あります`, desc: notTaken.slice(0, 2).map(t => t.title || t.name || testIdOf(t)).join("、"), to: "tests", targetUrl: `/training/tests?${params.toString()}` });
-    }
-    const firstCourse = (Array.isArray(courses) ? courses : [])[0];
-    if (firstCourse?.courseId) {
-      const note = await apiGet(`/courses/${firstCourse.courseId}/daily-note?date=${date}`).catch(e => { console.warn("notifications trainee daily-note failed", e); return null; });
-      if (note?.announcement) add(result, { id: notifId(role, "daily-note", firstCourse.courseId), severity: "low", category: "連絡", title: "本日の連絡があります", desc: note.announcement, to: "home", targetUrl: "/training/home" });
-    }
-    // 案件管理を非表示にしたため、案件の通知も出さない（開く先が無い）
+    if (!acks) return result;
+    (Array.isArray(myReports) ? myReports : [])
+      .filter(r => hasStaffComment(r) && !acks[ackKey.reportComment(r)])
+      .sort((a, b) => String(b.date).localeCompare(String(a.date)))
+      .forEach(r => add(result, { id: notifId(role, "comments", r.date), severity: "medium", category: "コメント", title: `日報にコメントがあります（${String(r.date).slice(5).replace("-", "/")}）`, desc: "", to: "reports", targetUrl: `/training/reports?date=${r.date}` }));
+    (announcements?.items || [])
+      .filter(a => !acks[ackKey.announcement(a.announcementId)])
+      .forEach(a => add(result, { id: notifId(role, "announcement", a.announcementId), severity: a.importance === "important" ? "high" : "medium", category: "お知らせ", title: a.title, desc: a.authorName || "", to: "home", targetUrl: "/training/home" }));
+    const courseIds = [...new Set((Array.isArray(courses) ? courses : []).map(c => c?.courseId).filter(Boolean))];
+    const notes = await Promise.all(courseIds.map(id => apiGet(`/courses/${id}/daily-note?date=${date}`).then(n => [id, n]).catch(() => [id, null])));
+    notes.forEach(([id, note]) => {
+      if (note?.announcement && !acks[ackKey.dailyNote(id, date)]) add(result, { id: notifId(role, "daily-note", id), severity: "high", category: "連絡", title: "本日の連絡", desc: note.announcement, to: "home", targetUrl: "/training/home" });
+    });
     return result;
   }
 
@@ -745,12 +739,14 @@ function QuickAdd({ onPick }) {
 }
 
 /* ===== ルート ===== */
-// 紺のサイドバーで、ジャンル（見出し）ごとの箱に付ける色の印（2026-09-30 サイドバー整理）
-const SIDE_GROUP_TONE = {
-  "毎日": "#3AB9B1", "研修": "#339CFF", "自分用": "#9B79EC", "連絡": "#F3883B",
-  "全体": "#3AB9B1", "自社": "#F3883B", "研修の様子": "#339CFF",
-  "助成金管理": "#C9A227", "分析": "#EB77B1", "契約": "#5D7BF0", "運営": "#5D7BF0",
-};
+// 紺のサイドバーで、ジャンル（見出し）ごとの箱に付ける色（2026-09-30 サイドバー整理、色の定義は TrainingCatalog.js）
+const SIDE_GROUP_TONE = NAV_GROUP_TONE;
+// グループの色を透明度 a・白へ寄せる割合 lift（%）で返す（2026-10-14 箱ごとの色分け）
+function toneA(hex, a = 1, lift = 0) {
+  const n = parseInt(String(hex).replace("#", ""), 16);
+  const ch = v => Math.round(v + (255 - v) * lift / 100);
+  return `rgba(${ch((n >> 16) & 255)},${ch((n >> 8) & 255)},${ch(n & 255)},${a})`;
+}
 // dark=true は PC の紺のサイドバー。ジャンルごとに箱で囲む。スマホのドロワーは従来どおり白地
 function SideNav({ groups, view, karte, go, badges = {}, collapsed = false, pa = PRODUCT_ACCENT.training, dark = false }) {
   const containerRef = useRef(null);
@@ -763,10 +759,11 @@ function SideNav({ groups, view, karte, go, badges = {}, collapsed = false, pa =
       const activeEl = container.querySelector('[data-nav-active="true"]');
       if (!activeEl) { setPill(prev => (prev === null ? prev : null)); return; }
       // 箱の中の項目は、箱の内側の幅に合わせる（offsetTop は箱ではなく container 基準）
-      const next = { top: activeEl.offsetTop, height: activeEl.offsetHeight, boxed: !!activeEl.closest('[data-nav-box="true"]') };
+      const boxEl = activeEl.closest('[data-nav-box="true"]');
+      const next = { top: activeEl.offsetTop, height: activeEl.offsetHeight, boxed: !!boxEl, tone: boxEl?.dataset.navTone || "" };
       // Calling setPill with a brand-new object for unchanged measurements would
       // re-trigger the layout effect indefinitely (React error #185).
-      setPill(prev => (prev && prev.top === next.top && prev.height === next.height && prev.boxed === next.boxed) ? prev : next);
+      setPill(prev => (prev && prev.top === next.top && prev.height === next.height && prev.boxed === next.boxed && prev.tone === next.tone) ? prev : next);
     };
     measure();
     if (typeof ResizeObserver === "undefined") return undefined;
@@ -778,18 +775,19 @@ function SideNav({ groups, view, karte, go, badges = {}, collapsed = false, pa =
   return (
     <div ref={containerRef} className="relative">
       {pill && <span className="feeps-sidebar-pill absolute rounded-xl" style={dark
-        ? { left: pill.boxed ? 6 : 0, right: pill.boxed ? 6 : 0, top: pill.top, height: pill.height, background: "rgba(51,156,255,.16)", boxShadow: "inset 3px 0 0 #339CFF" }
+        ? { left: pill.boxed ? 6 : 0, right: pill.boxed ? 6 : 0, top: pill.top, height: pill.height, background: toneA(pill.tone || "#339CFF", .2), boxShadow: `inset 3px 0 0 ${pill.tone || "#339CFF"}` }
         : { left: 0, right: 0, top: pill.top, height: pill.height, background: pa.subtle, border: `1px solid ${pa.accent}30` }} />}
       {groups.map((g, gi) => {
         const box = dark && !collapsed && g.sec;
+        const tone = g.sec ? SIDE_GROUP_TONE[g.sec] || "" : "";
         return (
-        <div key={gi} data-nav-box={box ? "true" : undefined} className={gi > 0 ? (collapsed ? "mt-2" : dark ? "mt-2.5" : "mt-6") : ""}
-          style={box ? { background: "rgba(255,255,255,.035)", border: "1px solid rgba(255,255,255,.07)", borderRadius: 14, padding: "2px 5px 5px" } : undefined}>
+        <div key={gi} data-nav-box={box ? "true" : undefined} data-nav-tone={box ? tone : undefined} className={gi > 0 ? (collapsed ? "mt-2" : dark ? "mt-2.5" : "mt-6") : ""}
+          style={box ? { background: tone ? toneA(tone, .09) : "rgba(255,255,255,.035)", border: `1px solid ${tone ? toneA(tone, .28) : "rgba(255,255,255,.07)"}`, borderRadius: 14, padding: "2px 5px 5px" } : undefined}>
           {g.sec && (collapsed
             ? <div className="relative z-[1] mx-2 mb-2 h-px" style={{ background: dark ? "rgba(255,255,255,.12)" : T.border }} />
             : dark
-              ? <div className="relative z-[1] flex items-center gap-2 px-2.5 pb-1 pt-2 text-[11.5px] font-bold" style={{ color: "#D5DCEA", letterSpacing: "0.06em" }}><span className="h-2 w-2 shrink-0 rounded-[3px]" style={{ background: SIDE_GROUP_TONE[g.sec] || "#8F9AB2" }} />{g.sec}</div>
-              : <div className="relative z-[1] mb-1.5 px-3 text-[11px] font-bold uppercase" style={{ color: T.textMuted, letterSpacing: "0.08em" }}>{g.sec}</div>)}
+              ? <div className="relative z-[1] flex items-center gap-2 px-2.5 pb-1 pt-2 text-[11.5px] font-bold" style={{ color: tone ? toneA(tone, 1, 50) : "#D5DCEA", letterSpacing: "0.06em" }}><span className="h-2 w-2 shrink-0 rounded-[3px]" style={{ background: tone || "#8F9AB2" }} />{g.sec}</div>
+              : <div className="relative z-[1] mb-1.5 flex items-center gap-2 px-3 text-[11px] font-bold uppercase" style={{ color: T.textMuted, letterSpacing: "0.08em" }}>{tone && <span className="h-2 w-2 shrink-0 rounded-[3px]" style={{ background: tone }} />}{g.sec}</div>)}
           {/* 4要素目は任意の装飾。chip（グラデ地のアイコン）を渡した項目だけ、業務項目と
               見た目を変える。今は「成長の街」だけが使う（2026-09-16）。 */}
           {g.items.map(([k, lab, I, opt]) => { const active = view === k && !karte; const b = badges[k];
@@ -801,7 +799,7 @@ function SideNav({ groups, view, karte, go, badges = {}, collapsed = false, pa =
                   {opt?.chip
                     ? <span className="flex h-[26px] w-[26px] items-center justify-center rounded-lg text-white"
                         style={{ background: opt.chip, boxShadow: `0 1px 3px ${opt.shadow || "rgba(0,0,0,.18)"}` }}><I size={15} /></span>
-                    : <I size={18} style={{ color: active ? (dark ? "#6FB8FF" : pa.accent) : (dark ? "#8F9AB2" : T.textMuted) }} />}
+                    : <I size={18} style={{ color: dark && tone ? toneA(tone, active ? 1 : .85, active ? 40 : 15) : active ? (dark ? "#6FB8FF" : pa.accent) : (dark ? "#8F9AB2" : T.textMuted) }} />}
                   {collapsed && b ? <span className="absolute -right-1 -top-1 h-1.5 w-1.5 rounded-full" style={{ background: dark ? "#339CFF" : T.accent }} /> : null}
                 </span>
                 {!collapsed && <span className="flex-1 truncate text-left text-sm" style={opt?.tint && !active ? { color: opt.tint, fontWeight: 600 } : undefined}>{lab}</span>}
@@ -889,7 +887,8 @@ function PlanComparisonView({ role, learningPlan }) {
     </div>
   );
 }
-function UserProfileView({ me, displayName, userProfile, onSaved, mfaAvailable = false, onOpenPlans = null }) {
+// 受講生は氏名を変えられない（nameLocked。未登録のときの初回だけ入力できる、2026-10-14）
+function UserProfileView({ me, nameLocked = false, displayName, userProfile, onSaved, mfaAvailable = false, onOpenPlans = null }) {
   const [name, setName] = useState(userProfile?.name || "");
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState("");
@@ -938,14 +937,15 @@ function UserProfileView({ me, displayName, userProfile, onSaved, mfaAvailable =
       <Card>
         <div className="flex items-center justify-between px-4 pt-4 pb-1">
           <div className="text-xs font-bold uppercase tracking-widest" style={{ color: T.textMuted }}>アカウント情報</div>
-          <Btn size="sm" onClick={save} disabled={saving}>{saving ? "保存中..." : "保存"}</Btn>
+          {!nameLocked && <Btn size="sm" onClick={save} disabled={saving}>{saving ? "保存中..." : "保存"}</Btn>}
         </div>
         <div className="space-y-3 px-4 py-3">
-          <label className="block">
+          {!nameLocked && <label className="block">
             <div className="mb-1 text-xs font-semibold" style={{ color: T.textMuted }}>氏名</div>
             <input ref={nameInputRef} value={name} onChange={e => setName(e.target.value)} placeholder="氏名を入力してください" className="w-full rounded-xl px-3 py-2 text-sm outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary }} />
-          </label>
+          </label>}
           {[
+            ...(nameLocked ? [["氏名", userProfile?.name]] : []),
             ["メールアドレス", userProfile?.email || "未登録"],
             ["所属", userProfile?.companyName || (userProfile?.company ? "確認できません" : "未登録")],
             ["ロール", me.label],
@@ -1242,7 +1242,8 @@ export default function App() {
           tasks: Array.isArray(g.tasks) ? g.tasks.map((t, j) => ({ ...t, id: t.id || `g_${i}_t_${j}` })) : [],
           icon: GOAL_ICON_MAP[g.id] ?? Star,
         }))
-        : GOALS;
+        // コースの目標があるときは、固定の初期目標（GOALS）は使わない（id が重なって混ざるため）
+        : (Array.isArray(courseGoals?.goals) && courseGoals.goals.length ? [] : GOALS);
       // **コースの目標が土台。自分で足したものは消さない**（courseGoals.js）
       const mergedGoals = mergeCourseGoals(courseGoals?.goals, loadedGoals)
         .map((g, i) => ({ ...g, icon: g.icon || GOAL_ICON_MAP[g.id] || Star, id: g.id || `g_${i}` }));
@@ -1491,7 +1492,7 @@ export default function App() {
       { key: "logout", label: "ログアウト", icon: LogOut, grad: T.danger, action: logout },
     ];
   }, [role, viewMode]);
-  function _serializeGoals(gs) { return gs.map(({ icon, ...rest }) => rest); }
+  function _serializeGoals(gs) { return toPersonalGoalsPayload(gs); }
   function restoreConfirmedTasks() {
     setTaskDone(confirmedTaskStateRef.current.done);
     setGoals(confirmedTaskStateRef.current.goals);
@@ -1567,7 +1568,7 @@ export default function App() {
     // （2026-08-17、プランバッジ導入時に発覚。プロフィールボタンも同じ理由で従来から
     // 学習モード中は開けなかった）。
     if (view === "notifications") return <NotificationCenter notifications={notifications} loading={notifLoading} error={notifErr} role={role} go={go} goProduct={goProduct} goSub={goSub} />;
-    if (view === "profile") return <UserProfileView me={me} displayName={displayName} userProfile={userProfile} onSaved={setUserProfile} mfaAvailable={mfaAvailable} />;
+    if (view === "profile") return <UserProfileView me={me} nameLocked={role === "trainee" && !!userProfile?.name} displayName={displayName} userProfile={userProfile} onSaved={setUserProfile} mfaAvailable={mfaAvailable} />;
     if (view === "plans") return <PlanComparisonView role={role} learningPlan={userProfile?.learningPlan} />;
     if (view === "terms") return <LegalPageView doc="terms" />;
     if (view === "privacy") return <LegalPageView doc="privacy" />;
@@ -1802,8 +1803,10 @@ export default function App() {
 
       <div className="feeps-shell-body flex max-w-full flex-1 overflow-x-hidden lg:min-h-0" style={{ "--shell-offset": `${shellOffset}px` }}>
         {!isHomeProduct && <aside className={"feeps-context-rail feeps-sidebar hidden shrink-0 lg:flex lg:flex-col" + (sidebarCollapsed ? " is-collapsed" : "")} style={{ left: 0, width: sidebarCollapsed ? T.sidebarWidthCollapsed : T.sidebarWidth }}>
-          <div className={"feeps-context-head flex items-center " + (sidebarCollapsed ? "justify-center px-2" : "gap-3 px-3.5")}>
-            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl" style={{ background: NOVA.gradAccent }} title={sidebarCollapsed ? currentProduct.label : undefined}>
+          {/* 左上を押すとホームへ（2026-10-14） */}
+          <button type="button" onClick={() => goProduct("home")} aria-label="ホームへ戻る" title={sidebarCollapsed ? currentProduct.label : "ホームへ"}
+            className={"feeps-context-head flex w-full items-center text-left transition hover:bg-white/[.04] " + (sidebarCollapsed ? "justify-center px-2" : "gap-3 px-3.5")}>
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl" style={{ background: NOVA.gradAccent }}>
               <currentProduct.icon size={20} style={{ color: "#fff" }} />
             </div>
             {!sidebarCollapsed && (
@@ -1812,7 +1815,7 @@ export default function App() {
                 <div className="truncate text-sm font-bold" style={{ color: "#fff" }}>{currentProduct.label}</div>
               </div>
             )}
-          </div>
+          </button>
           {/* 機能が2つ以上ある役割（企業担当・管理者）だけ。開かなくても全部見えるように常に並べる */}
           {availableProducts.length > 1 && (
             <div className={"grid gap-1.5 " + (sidebarCollapsed ? "px-2 pt-2" : "px-3 pt-3")} style={sidebarCollapsed ? undefined : { gridTemplateColumns: `repeat(${Math.min(availableProducts.length, 4)}, minmax(0, 1fr))` }} role="navigation" aria-label="機能の切り替え">

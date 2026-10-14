@@ -195,7 +195,6 @@ function ForgotPasswordFlow({ onBack }) {
     setErr(""); setNotice("");
     if (!code.trim()) { setErr("確認コードを入力してください。"); return; }
     if (!newPw) { setErr("新しいパスワードを入力してください。"); return; }
-    if (!agreedTerms) { setErr("利用規約とプライバシーポリシーへの同意が必要です。"); return; }
     if (newPw !== newPw2) { setErr("新しいパスワードが一致しません。"); return; }
     setBusy(true);
     try {

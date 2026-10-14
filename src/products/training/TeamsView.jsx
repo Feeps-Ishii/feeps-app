@@ -1,11 +1,12 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import ReactMarkdown from "react-markdown";
 import { apiDelete, apiGet, apiPost, apiPut } from "../../api.js";
 import { T, NOVA, Card, Btn, Badge, Modal, EmptyState, SectionHead, SkeletonRows, PrismErrorRetryCard } from "../../components/common";
 import { setLibraryTarget } from "../../utils/common/courseContext.js";
 import { normalizeCurriculumSections } from "./TrainingComponents.jsx";
 import { markTeamChatRead, setOpenChatTeam, takeTeamChatFocus } from "./ChatNotifier.jsx";
 import {
-  Briefcase, Check, ChevronLeft, ChevronRight, Crown, Eye, FileText, Folder, ListTodo, LogIn, LogOut, MessageSquare, PenTool, Plus, Search, Send, Shuffle, Trash2, Users, X, Columns3,
+  Archive, Briefcase, Check, ChevronDown, ChevronLeft, ChevronRight, Code, Copy, Crown, Download, Eye, FileText, Folder, History, ListTodo, Lock, LogIn, LogOut, MessageSquare, Paperclip, PenTool, Plus, RotateCcw, Search, Send, Shuffle, Trash2, Upload, Users, X, Columns3,
 } from "lucide-react";
 
 // 共有ボード（Excalidraw）は重いので、ボードを開いた人だけが読み込む
@@ -25,6 +26,12 @@ const errText = (e, fallback) => e?.errorMessage || e?.message || fallback;
 const fmtSize = b => (!b ? "—" : b >= 1024 * 1024 ? `${(b / 1024 / 1024).toFixed(1)}MB` : `${Math.max(1, Math.round(b / 1024))}KB`);
 const fmtDay = iso => { const s = String(iso || ""); return s ? `${Number(s.slice(5, 7))}/${Number(s.slice(8, 10))}` : ""; };
 const todayKey = () => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`; };
+// 終了したチーム（2026-10-14）。席替えで変わる前のチームは履歴として読むだけ
+const isEnded = t => t?.status === "ended";
+const byEndedDesc = (a, b) => String(b.endedAt || "").localeCompare(String(a.endedAt || ""));
+function EndedBadge({ team }) {
+  return <Badge tone="muted"><Lock size={12} />終了{team?.endedAt ? ` ${fmtDay(team.endedAt)}` : ""}</Badge>;
+}
 
 function Emblem({ team, size = 40 }) {
   return <span className="inline-flex shrink-0 items-center justify-center font-bold text-white" style={{ width: size, height: size, borderRadius: Math.round(size * 0.3), background: teamColor(team), fontSize: Math.round(size * 0.42) }}>{String(team?.name || "?").slice(0, 1)}</span>;
@@ -47,6 +54,7 @@ export default function TeamsView({ role, go }) {
   const [creating, setCreating] = useState("");
   const [msg, setMsg] = useState("");
   const [chatFocus, setChatFocus] = useState(0);
+  const [showPast, setShowPast] = useState(false);
 
   const load = useCallback(async () => {
     setLoadErr("");
@@ -94,27 +102,54 @@ export default function TeamsView({ role, go }) {
     catch (e) { setMsg(errText(e, "保存できませんでした。")); }
   }
   const putTeam = (t, patch) => apiPut(`/teams/${encodeURIComponent(t.teamId)}`, { courseId: t.courseId, ...patch });
+  // 終了・再開（講師・管理者）。終了しても members は残り、元メンバーは読むだけできる
+  const setEnded = (t, end) => {
+    if (end && !window.confirm(`「${t.name}」を終了しますか？`)) return Promise.resolve();
+    return act(() => apiPost(`/teams/${encodeURIComponent(t.teamId)}/${end ? "end" : "reopen"}`, { courseId: t.courseId }), end ? `${t.name}を終了しました。` : `${t.name}を再開しました。`);
+  };
 
   if (loadErr && !data) return <div><SectionHead title="チーム" /><PrismErrorRetryCard message={loadErr} onRetry={load} /></div>;
   if (!data) return <div><SectionHead title="チーム" /><Card className="p-5"><SkeletonRows rows={5} /></Card></div>;
 
   const notice = msg && <div className="mb-3 rounded-lg px-3 py-2 text-xs font-semibold" style={{ background: T.accentSubtle, color: T.accentHover }}>{msg}</div>;
 
-  /* ---------- 受講生 ---------- */
+  /* ---------- 受講生：今のチームが中心。過去のチームは控えめな履歴から開く ---------- */
   if (!isStaff) {
-    const mine = teams.filter(t => t.members.includes(data.me));
-    const current = team(openId) || mine[0];
-    if (!current) return <div><SectionHead title="チーム" /><Card><EmptyState title="まだチームに入っていません" desc="" /></Card></div>;
+    const mineAll = teams.filter(t => t.members.includes(data.me));
+    const mine = mineAll.filter(t => !isEnded(t));
+    const past = mineAll.filter(isEnded).sort(byEndedDesc);
+    const current = mineAll.find(t => t.teamId === openId) || mine[0] || null;
+    const chip = (t, active) => (
+      <button key={t.teamId} type="button" onClick={() => setOpenId(t.teamId)} className="inline-flex min-w-0 max-w-full items-center gap-2 rounded-full py-1 pl-1 pr-3 text-sm font-bold"
+        style={{ background: active ? T.accentSubtle : "#fff", border: `1px solid ${active ? T.accent : T.border}`, color: isEnded(t) ? T.textSecondary : T.textPrimary }}>
+        <span style={{ opacity: isEnded(t) ? 0.55 : 1 }}><Emblem team={t} size={24} /></span><span className="truncate">{t.name}</span>
+        {isEnded(t) && <span className="shrink-0 text-[11px] font-semibold" style={{ color: T.textMuted }}>〜{fmtDay(t.endedAt)}</span>}
+      </button>
+    );
+    const viewingPast = current && isEnded(current);
     return (
       <div>
         <SectionHead title="チーム" />
         {notice}
-        {mine.length > 1 && (
-          <div className="mb-3 flex flex-wrap gap-2">
-            {mine.map(t => <button key={t.teamId} type="button" onClick={() => setOpenId(t.teamId)} className="inline-flex items-center gap-2 rounded-full py-1 pl-1 pr-3 text-sm font-bold" style={{ background: current.teamId === t.teamId ? T.accentSubtle : "#fff", border: `1px solid ${current.teamId === t.teamId ? T.accent : T.border}`, color: T.textPrimary }}><Emblem team={t} size={24} />{t.name}</button>)}
+        {(mine.length > 1 || past.length > 0 || viewingPast) && (
+          <div className="mb-3 flex flex-wrap items-center gap-2">
+            {viewingPast && mine.length > 0 && <Btn size="sm" kind="ghost" icon={ChevronLeft} onClick={() => { setOpenId(mine[0].teamId); setShowPast(false); }}>今のチーム</Btn>}
+            {!viewingPast && mine.length > 1 && mine.map(t => chip(t, current?.teamId === t.teamId))}
+            {past.length > 0 && (
+              <button type="button" onClick={() => setShowPast(v => !v)} aria-expanded={showPast} className="ml-auto inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-bold" style={{ color: T.textMuted, border: `1px solid ${showPast ? T.border : "transparent"}` }}>
+                <History size={13} />過去のチーム<span className="tabular-nums">{past.length}</span><ChevronDown size={13} style={{ transform: showPast ? "rotate(180deg)" : "none" }} />
+              </button>
+            )}
           </div>
         )}
-        <TeamRoom key={current.teamId} team={current} me={data.me} nameOf={nameOf} isStaff={false} role={role} go={go} chatFocus={chatFocus} />
+        {showPast && past.length > 0 && (
+          <div className="mb-3 flex flex-wrap gap-2 rounded-2xl p-2" style={{ border: `1px dashed ${T.border}`, background: T.bgBase }}>
+            {past.map(t => chip(t, current?.teamId === t.teamId))}
+          </div>
+        )}
+        {current
+          ? <TeamRoom key={current.teamId} team={current} me={data.me} nameOf={nameOf} isStaff={false} role={role} go={go} chatFocus={chatFocus} />
+          : <Card><EmptyState title="まだチームに入っていません" desc="" /></Card>}
       </div>
     );
   }
@@ -128,14 +163,17 @@ export default function TeamsView({ role, go }) {
         {notice}
         <div className="mb-3 flex flex-wrap items-center gap-2 rounded-2xl bg-white px-4 py-2.5" style={{ border: `1px dashed ${T.border}` }}>
           <Btn size="sm" kind="ghost" icon={ChevronLeft} onClick={() => setScr("list")}>チーム一覧</Btn>
-          {t.joined ? <Badge tone="green"><Check size={12} />メンバーとして参加中</Badge> : <Badge tone="muted"><Eye size={12} />メンバーではありません{t.canWrite ? "（書き込める）" : "（見るだけ）"}</Badge>}
+          {isEnded(t) ? <EndedBadge team={t} /> : t.joined ? <Badge tone="green"><Check size={12} />メンバーとして参加中</Badge> : <Badge tone="muted"><Eye size={12} />メンバーではありません{t.canWrite ? "（書き込める）" : "（見るだけ）"}</Badge>}
           {t.joined
             ? <Btn size="sm" kind="ghost" icon={LogOut} onClick={() => act(() => apiPost(`/teams/${encodeURIComponent(t.teamId)}/leave`, { courseId: t.courseId }))}>抜ける</Btn>
-            : <Btn size="sm" icon={LogIn} onClick={() => act(() => apiPost(`/teams/${encodeURIComponent(t.teamId)}/join`, { courseId: t.courseId }), `${t.name}に入りました。`)}>このチームに入る</Btn>}
+            : !isEnded(t) && <Btn size="sm" icon={LogIn} onClick={() => act(() => apiPost(`/teams/${encodeURIComponent(t.teamId)}/join`, { courseId: t.courseId }), `${t.name}に入りました。`)}>このチームに入る</Btn>}
           {t.canManage && <Btn size="sm" kind="ghost" icon={Users} onClick={() => setMembersOf(t.teamId)}>メンバー管理</Btn>}
+          {t.canManage && (isEnded(t)
+            ? <Btn size="sm" kind="ghost" icon={RotateCcw} onClick={() => setEnded(t, false)}>再開</Btn>
+            : <Btn size="sm" kind="ghost" icon={Archive} onClick={() => setEnded(t, true)}>チームを終了</Btn>)}
         </div>
         <TeamRoom key={t.teamId} team={t} me={data.me} nameOf={nameOf} isStaff role={role} go={go} chatFocus={chatFocus} />
-        {membersOf && team(membersOf) && <MembersModal team={team(membersOf)} course={data.courses.find(c => c.courseId === team(membersOf).courseId)} teams={teams} trainees={trainees[team(membersOf).courseId]} nameOf={nameOf} me={data.me} isAdmin={role === "admin"} onPut={putTeam} act={act} onClose={() => setMembersOf("")} onDeleted={() => { setMembersOf(""); setScr("list"); }} />}
+        {membersOf && team(membersOf) && <MembersModal team={team(membersOf)} course={data.courses.find(c => c.courseId === team(membersOf).courseId)} teams={teams} trainees={trainees[team(membersOf).courseId]} nameOf={nameOf} me={data.me} isAdmin={role === "admin"} onPut={putTeam} act={act} onSetEnded={setEnded} onClose={() => setMembersOf("")} onDeleted={() => { setMembersOf(""); setScr("list"); }} />}
       </div>
     );
   }
@@ -146,9 +184,9 @@ export default function TeamsView({ role, go }) {
       <div>
         <SectionHead title="チーム" />
         {notice}
-        <AssignBoard course={course} teams={teams.filter(t => t.courseId === course.courseId)} trainees={trainees[course.courseId]} nameOf={nameOf} onPut={putTeam} act={act} onBack={() => setScr("list")} onCreate={() => setCreating(course.courseId)} />
+        <AssignBoard course={course} teams={teams.filter(t => t.courseId === course.courseId && !isEnded(t))} trainees={trainees[course.courseId]} nameOf={nameOf} onPut={putTeam} act={act} onBack={() => setScr("list")} onCreate={() => setCreating(course.courseId)} />
         {creating && <CreateModal courseId={creating} onClose={() => setCreating("")} onCreated={async t => { setCreating(""); await load(); setMembersOf(t.teamId); }} />}
-        {membersOf && team(membersOf) && <MembersModal team={team(membersOf)} course={course} teams={teams} trainees={trainees[course.courseId]} nameOf={nameOf} me={data.me} isAdmin={role === "admin"} onPut={putTeam} act={act} onClose={() => setMembersOf("")} onDeleted={() => setMembersOf("")} />}
+        {membersOf && team(membersOf) && <MembersModal team={team(membersOf)} course={course} teams={teams} trainees={trainees[course.courseId]} nameOf={nameOf} me={data.me} isAdmin={role === "admin"} onPut={putTeam} act={act} onSetEnded={setEnded} onClose={() => setMembersOf("")} onDeleted={() => setMembersOf("")} />}
       </div>
     );
   }
@@ -165,7 +203,7 @@ export default function TeamsView({ role, go }) {
         onCreate={courseId => setCreating(courseId)}
         onMulti={(courseId, allowMulti) => act(() => apiPut("/teams/course-settings", { courseId, allowMulti }))} />
       {creating && <CreateModal courseId={creating} onClose={() => setCreating("")} onCreated={async t => { setCreating(""); await load(); setMembersOf(t.teamId); }} />}
-      {membersOf && team(membersOf) && <MembersModal team={team(membersOf)} course={data.courses.find(c => c.courseId === team(membersOf).courseId)} teams={teams} trainees={trainees[team(membersOf).courseId]} nameOf={nameOf} me={data.me} isAdmin={role === "admin"} onPut={putTeam} act={act} onClose={() => setMembersOf("")} onDeleted={() => setMembersOf("")} />}
+      {membersOf && team(membersOf) && <MembersModal team={team(membersOf)} course={data.courses.find(c => c.courseId === team(membersOf).courseId)} teams={teams} trainees={trainees[team(membersOf).courseId]} nameOf={nameOf} me={data.me} isAdmin={role === "admin"} onPut={putTeam} act={act} onSetEnded={setEnded} onClose={() => setMembersOf("")} onDeleted={() => setMembersOf("")} />}
     </div>
   );
 }
@@ -175,7 +213,27 @@ function TeamList({ role, data, trainees, nameOf, onOpen, onJoin, onMembers, onA
   const [course, setCourse] = useState("all");
   const [q, setQ] = useState("");
   const [mineOnly, setMineOnly] = useState(false);
+  const [endedOpen, setEndedOpen] = useState({});   // courseId → 終了したチームを開いているか
   const query = q.trim();
+  const GRID = "grid grid-cols-[minmax(200px,1.4fr)_minmax(170px,1fr)_minmax(110px,.8fr)_auto] gap-3";
+  const teamRow = t => (
+    <div key={t.teamId} className={`${GRID} items-center px-4 py-2.5`} style={{ borderBottom: `1px solid ${T.border}`, background: isEnded(t) ? T.bgBase : undefined }}>
+      <button type="button" onClick={() => onOpen(t.teamId)} className="flex min-w-0 items-center gap-2.5 text-left">
+        <span style={{ opacity: isEnded(t) ? 0.55 : 1 }}><Emblem team={t} size={36} /></span>
+        <span className="min-w-0"><span className="flex items-center gap-1.5 text-sm font-bold" style={{ color: isEnded(t) ? T.textSecondary : T.textPrimary }}>{t.name}{isEnded(t) ? <EndedBadge team={t} /> : t.joined && <Badge tone="green">参加中</Badge>}</span><span className="block truncate text-xs" style={{ color: T.textMuted }}>{t.theme || "テーマ未設定"}</span></span>
+      </button>
+      <div className="flex items-center gap-2 text-xs" style={{ color: T.textSecondary }}>
+        <span className="flex">{t.members.slice(0, 5).map((id, i) => <span key={id} style={{ marginLeft: i ? -6 : 0 }}><Face name={nameOf(id)} size={26} /></span>)}</span>
+        <span className="tabular-nums">{t.members.length}人</span>
+      </div>
+      <div className="text-xs" style={{ color: t.staff.length || isEnded(t) ? T.textSecondary : T.warning }}>{t.staff.length ? t.staff.map(id => id === data.me ? "あなた" : nameOf(id)).join("・") : isEnded(t) ? "—" : "未設定"}</div>
+      <div className="flex justify-end gap-2">
+        <Btn size="sm" kind="ghost" onClick={() => onOpen(t.teamId)}>開く</Btn>
+        {!t.joined && !isEnded(t) && <Btn size="sm" kind="ghost" icon={LogIn} onClick={() => onJoin(t)}>入る</Btn>}
+        {t.canManage && <Btn size="sm" kind="ghost" icon={Users} aria-label="メンバー管理" title="メンバー管理" onClick={() => onMembers(t.teamId)} />}
+      </div>
+    </div>
+  );
   const courses = data.courses.filter(c => course === "all" || c.courseId === course);
   if (!data.courses.length) return <Card><EmptyState title={role === "admin" ? "コースがありません" : "担当しているコースがありません"} desc="" /></Card>;
   return (
@@ -192,18 +250,24 @@ function TeamList({ role, data, trainees, nameOf, onOpen, onJoin, onMembers, onA
         <label className="inline-flex items-center gap-1.5 text-xs font-bold" style={{ color: T.textSecondary }}><input type="checkbox" checked={mineOnly} onChange={e => setMineOnly(e.target.checked)} />自分が入っているチームだけ</label>
       </div>
       {courses.map(c => {
-        const list = data.teams.filter(t => t.courseId === c.courseId)
+        const inCourse = data.teams.filter(t => t.courseId === c.courseId);
+        const activeAll = inCourse.filter(t => !isEnded(t));
+        const shownOf = arr => arr
           .filter(t => !mineOnly || t.joined)
           .filter(t => !query || `${t.name}${t.theme}${t.members.map(nameOf).join("")}`.includes(query));
+        const list = shownOf(activeAll);
+        const endedList = shownOf(inCourse.filter(isEnded)).sort(byEndedDesc);
         const roster = trainees[c.courseId];
-        const assigned = new Set(data.teams.filter(t => t.courseId === c.courseId).flatMap(t => t.members));
+        // 未所属は今のチームで数える（終了したチームは履歴）
+        const assigned = new Set(activeAll.flatMap(t => t.members));
         const unassigned = Array.isArray(roster) ? roster.filter(p => !assigned.has(p.userId)).length : null;
-        if (query && !list.length) return null;
+        if (query && !list.length && !endedList.length) return null;
+        const showEnded = !!endedOpen[c.courseId] || (!!query && endedList.length > 0);
         return (
           <Card key={c.courseId} className="overflow-hidden p-0">
             <div className="flex flex-wrap items-center gap-2 px-4 py-3" style={{ borderBottom: `1px solid ${T.border}` }}>
               <b className="text-[15px]" style={{ color: T.textPrimary }}>{c.name}</b>
-              <Badge tone="muted">{data.teams.filter(t => t.courseId === c.courseId).length}チーム</Badge>
+              <Badge tone="muted">{activeAll.length}チーム</Badge>
               {unassigned == null ? <Badge tone="muted">受講生を確認できません</Badge> : unassigned ? <Badge tone="amber">未所属 {unassigned}人</Badge> : <Badge tone="green">全員所属</Badge>}
               {c.canManage && <label className="ml-1 inline-flex items-center gap-1.5 text-xs font-bold" style={{ color: T.textSecondary }}><input type="checkbox" checked={!!c.allowMulti} onChange={e => onMulti(c.courseId, e.target.checked)} />1人で複数チームに入れる</label>}
               {c.canManage && <span className="ml-auto flex flex-wrap gap-2">
@@ -211,30 +275,20 @@ function TeamList({ role, data, trainees, nameOf, onOpen, onJoin, onMembers, onA
                 <Btn size="sm" icon={Plus} onClick={() => onCreate(c.courseId)}>チームを作る</Btn>
               </span>}
             </div>
-            {list.length === 0 ? <div className="px-4 py-6 text-sm" style={{ color: T.textMuted }}>チームはまだありません</div> : (
+            {list.length === 0 && !(showEnded && endedList.length) ? <div className="px-4 py-6 text-sm" style={{ color: T.textMuted }}>チームはまだありません</div> : (
               <div className="overflow-x-auto">
                 <div className="min-w-[760px]">
-                  <div className="grid grid-cols-[minmax(200px,1.4fr)_minmax(170px,1fr)_minmax(110px,.8fr)_auto] gap-3 px-4 py-2 text-[11px] font-bold" style={{ color: T.textMuted, borderBottom: `1px solid ${T.border}` }}><span>チーム</span><span>メンバー</span><span>講師</span><span /></div>
-                  {list.map(t => (
-                    <div key={t.teamId} className="grid grid-cols-[minmax(200px,1.4fr)_minmax(170px,1fr)_minmax(110px,.8fr)_auto] items-center gap-3 px-4 py-2.5" style={{ borderBottom: `1px solid ${T.border}` }}>
-                      <button type="button" onClick={() => onOpen(t.teamId)} className="flex min-w-0 items-center gap-2.5 text-left">
-                        <Emblem team={t} size={36} />
-                        <span className="min-w-0"><span className="flex items-center gap-1.5 text-sm font-bold" style={{ color: T.textPrimary }}>{t.name}{t.joined && <Badge tone="green">参加中</Badge>}</span><span className="block truncate text-xs" style={{ color: T.textMuted }}>{t.theme || "テーマ未設定"}</span></span>
-                      </button>
-                      <div className="flex items-center gap-2 text-xs" style={{ color: T.textSecondary }}>
-                        <span className="flex">{t.members.slice(0, 5).map((id, i) => <span key={id} style={{ marginLeft: i ? -6 : 0 }}><Face name={nameOf(id)} size={26} /></span>)}</span>
-                        <span className="tabular-nums">{t.members.length}人</span>
-                      </div>
-                      <div className="text-xs" style={{ color: t.staff.length ? T.textSecondary : T.warning }}>{t.staff.length ? t.staff.map(id => id === data.me ? "あなた" : nameOf(id)).join("・") : "未設定"}</div>
-                      <div className="flex justify-end gap-2">
-                        <Btn size="sm" kind="ghost" onClick={() => onOpen(t.teamId)}>開く</Btn>
-                        {!t.joined && <Btn size="sm" kind="ghost" icon={LogIn} onClick={() => onJoin(t)}>入る</Btn>}
-                        {t.canManage && <Btn size="sm" kind="ghost" icon={Users} aria-label="メンバー管理" title="メンバー管理" onClick={() => onMembers(t.teamId)} />}
-                      </div>
-                    </div>
-                  ))}
+                  <div className={`${GRID} px-4 py-2 text-[11px] font-bold`} style={{ color: T.textMuted, borderBottom: `1px solid ${T.border}` }}><span>チーム</span><span>メンバー</span><span>講師</span><span /></div>
+                  {list.map(teamRow)}
+                  {showEnded && endedList.map(teamRow)}
                 </div>
               </div>
+            )}
+            {endedList.length > 0 && !query && (
+              <button type="button" onClick={() => setEndedOpen(s => ({ ...s, [c.courseId]: !s[c.courseId] }))} aria-expanded={showEnded}
+                className="flex w-full items-center gap-1.5 px-4 py-2 text-xs font-bold" style={{ color: T.textMuted }}>
+                <Archive size={13} />終了したチーム<span className="tabular-nums">{endedList.length}</span><ChevronDown size={13} style={{ transform: showEnded ? "rotate(180deg)" : "none" }} />
+              </button>
             )}
           </Card>
         );
@@ -274,13 +328,14 @@ const SETTING_LABELS = [
   ["board", "ボードを使う"],
   ["staffWrite", "担当の講師・管理者は、チームに入らなくても書き込める"],
 ];
-function MembersModal({ team, course, teams, trainees, nameOf, me, isAdmin, onPut, act, onClose, onDeleted }) {
+function MembersModal({ team, course, teams, trainees, nameOf, me, isAdmin, onPut, act, onSetEnded, onClose, onDeleted }) {
   const [q, setQ] = useState("");
   const [name, setName] = useState(team.name);
   const [theme, setTheme] = useState(team.theme);
   useEffect(() => { setName(team.name); setTheme(team.theme); }, [team.teamId]); // eslint-disable-line react-hooks/exhaustive-deps
   const allowMulti = !!course?.allowMulti;
-  const otherTeamOf = id => teams.find(t => t.courseId === team.courseId && t.teamId !== team.teamId && t.members.includes(id));
+  const ended = isEnded(team);   // 終了したチームのメンバーは終了時点のまま（サーバーでも変えられない）
+  const otherTeamOf = id => teams.find(t => t.courseId === team.courseId && t.teamId !== team.teamId && !isEnded(t) && t.members.includes(id));
   const cands = (trainees || []).filter(p => !team.members.includes(p.userId) && (!q.trim() || String(p.name).includes(q.trim())))
     .sort((a, b) => (otherTeamOf(a.userId) ? 1 : 0) - (otherTeamOf(b.userId) ? 1 : 0));
   const staffCands = [...new Set([...(course?.instructorIds || []), ...(isAdmin ? [me] : [])])].filter(id => !team.staff.includes(id));
@@ -288,17 +343,18 @@ function MembersModal({ team, course, teams, trainees, nameOf, me, isAdmin, onPu
   const iconBtn = (label, onClick, Icon = X) => <button type="button" aria-label={label} title={label} onClick={onClick} className="inline-flex h-7 w-7 items-center justify-center rounded-lg" style={{ border: `1px solid ${T.border}`, color: T.textMuted }}><Icon size={14} /></button>;
   return (
     <Modal size="lg" title={`${team.name} のメンバー管理`} onClose={onClose}
-      footer={<><button type="button" className="mr-auto text-xs font-bold" style={{ color: T.danger }} onClick={() => { if (window.confirm(`「${team.name}」を消しますか？フォルダの中身は残ります。`)) act(() => apiDelete(`/teams/${encodeURIComponent(team.teamId)}?courseId=${encodeURIComponent(team.courseId)}`), "チームを消しました。").then(onDeleted); }}><Trash2 size={13} className="mr-1 inline" />チームを消す</button><Btn onClick={onClose}>閉じる</Btn></>}>
+      footer={<><button type="button" className="mr-auto text-xs font-bold" style={{ color: T.danger }} onClick={() => { if (window.confirm(`「${team.name}」を消しますか？フォルダの中身は残ります。`)) act(() => apiDelete(`/teams/${encodeURIComponent(team.teamId)}?courseId=${encodeURIComponent(team.courseId)}`), "チームを消しました。").then(onDeleted); }}><Trash2 size={13} className="mr-1 inline" />チームを消す</button>{onSetEnded && <Btn kind="ghost" icon={ended ? RotateCcw : Archive} onClick={() => onSetEnded(team, !ended)}>{ended ? "再開" : "チームを終了"}</Btn>}<Btn onClick={onClose}>閉じる</Btn></>}>
       <div className="grid gap-4">
+        {ended && <div><EndedBadge team={team} /></div>}
         <div className="grid gap-2 sm:grid-cols-[1fr_1.4fr]">
           <input value={name} onChange={e => setName(e.target.value)} onBlur={() => name.trim() && name.trim() !== team.name && act(() => onPut(team, { name: name.trim() }))} aria-label="チーム名" maxLength={40} className="rounded-xl px-3 py-2 text-sm font-bold outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary }} />
           <input value={theme} onChange={e => setTheme(e.target.value)} onBlur={() => theme.trim() !== team.theme && act(() => onPut(team, { theme: theme.trim() }))} placeholder="テーマ" aria-label="テーマ" maxLength={80} className="rounded-xl px-3 py-2 text-sm outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary }} />
         </div>
-        <div className="grid gap-5 md:grid-cols-2">
+        <div className={`grid gap-5 ${ended ? "" : "md:grid-cols-2"}`}>
           <div>
             <div className="mb-1 text-xs font-bold" style={{ color: T.textMuted }}>メンバー {team.members.length}</div>
             {team.members.length === 0 && <div className="py-2 text-sm" style={{ color: T.textMuted }}>まだいません</div>}
-            {team.members.map(id => row(id, <>
+            {team.members.map(id => ended ? row(id, team.leader === id ? <Badge tone="amber"><Crown size={12} />リーダー</Badge> : null) : row(id, <>
               <button type="button" onClick={() => act(() => onPut(team, { leader: team.leader === id ? "" : id }))} className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-bold" style={team.leader === id ? { background: T.warningSubtle, color: T.warning } : { border: `1px solid ${T.border}`, color: T.textMuted }} title="リーダーにする"><Crown size={12} />{team.leader === id ? "リーダー" : ""}</button>
               {iconBtn("外す", () => act(() => onPut(team, { members: team.members.filter(m => m !== id) })))}
             </>))}
@@ -307,7 +363,7 @@ function MembersModal({ team, course, teams, trainees, nameOf, me, isAdmin, onPu
             {team.staff.map(id => row(id, iconBtn("外す", () => act(() => onPut(team, { staff: team.staff.filter(s => s !== id) })))))}
             {staffCands.length > 0 && <div className="mt-2 flex flex-wrap gap-2">{staffCands.map(id => <Btn key={id} size="sm" kind="ghost" icon={Plus} onClick={() => act(() => onPut(team, { staff: [...team.staff, id] }))}>{id === me ? "自分" : nameOf(id)}</Btn>)}</div>}
           </div>
-          <div>
+          {!ended && <div>
             <div className="mb-1 text-xs font-bold" style={{ color: T.textMuted }}>コースの受講生から足す</div>
             <label className="mb-2 flex items-center gap-1.5 rounded-xl px-3 py-1.5" style={{ border: `1px solid ${T.border}`, color: T.textMuted }}><Search size={14} /><input value={q} onChange={e => setQ(e.target.value)} placeholder="名前で探す" aria-label="受講生を探す" className="min-w-0 flex-1 bg-transparent text-sm outline-none" style={{ color: T.textPrimary }} /></label>
             {trainees == null ? <div className="text-sm" style={{ color: T.textMuted }}>受講生を確認できません</div> : (
@@ -320,7 +376,7 @@ function MembersModal({ team, course, teams, trainees, nameOf, me, isAdmin, onPu
                   </>); })}
               </div>
             )}
-          </div>
+          </div>}
         </div>
         <div className="grid gap-1.5 rounded-xl p-3" style={{ background: T.bgBase }}>
           <div className="text-xs font-bold" style={{ color: T.textMuted }}>チームの設定</div>
@@ -407,6 +463,7 @@ function TeamRoom({ team, me, nameOf, isStaff, role, go, chatFocus }) {
   // 今日のカリキュラムのチーム演習（あれば帯で出す）
   useEffect(() => {
     let alive = true;
+    if (isEnded(team)) { setExercises([]); return undefined; }   // 終了したチームに今日の演習は出さない
     apiGet(`/courses/${encodeURIComponent(team.courseId)}/curriculum`).then(item => {
       const day = todayKey();
       const inDay = u => { const s = String(u?.startDate || "").slice(0, 10), e = String(u?.endDate || u?.startDate || "").slice(0, 10); return s && s <= day && day <= e; };
@@ -418,7 +475,7 @@ function TeamRoom({ team, me, nameOf, isStaff, role, go, chatFocus }) {
       if (alive) setExercises(out);
     }).catch(() => {});
     return () => { alive = false; };
-  }, [team.courseId]);
+  }, [team.courseId, team.status]); // eslint-disable-line react-hooks/exhaustive-deps
   const tabs = [["chat", MessageSquare, "チャット"], ...(team.settings?.board ? [["board", PenTool, "ボード"]] : []), ["todo", ListTodo, "やること"], ["files", Folder, "フォルダ"], ["members", Users, "メンバー"]];
   return (
     <div className="grid gap-3">
@@ -426,7 +483,7 @@ function TeamRoom({ team, me, nameOf, isStaff, role, go, chatFocus }) {
         <div className="flex flex-wrap items-center gap-3 px-4 py-3.5">
           <Emblem team={team} size={44} />
           <div className="min-w-0">
-            <div className="text-lg font-bold" style={{ color: T.textPrimary }}>{team.name}</div>
+            <div className="flex flex-wrap items-center gap-2 text-lg font-bold" style={{ color: T.textPrimary }}>{team.name}{isEnded(team) && <EndedBadge team={team} />}</div>
             <div className="text-xs" style={{ color: T.textMuted }}>{[team.theme, team.courseName].filter(Boolean).join(" ・ ")}</div>
           </div>
           <div className="ml-auto flex">{[...team.members, ...team.staff].slice(0, 8).map((id, i) => <span key={id} style={{ marginLeft: i ? -6 : 0 }}><Face name={nameOf(id)} size={30} /></span>)}</div>
@@ -461,19 +518,75 @@ function TeamRoom({ team, me, nameOf, isStaff, role, go, chatFocus }) {
   );
 }
 
-/* ---------- チャット（②） ---------- */
+/* ---------- チャット（②）。2026-10-14：Markdown表示・コードブロック・チームのフォルダのファイル添付・さかのぼり ---------- */
 const CHAT_POLL_MS = 4000;
+const MAX_CHAT_TEXT = 8000;
+const MAX_CHAT_FILES = 5;
 const hm = iso => { const d = new Date(iso); return Number.isNaN(d.getTime()) ? "" : `${d.getHours()}:${String(d.getMinutes()).padStart(2, "0")}`; };
 const dayLabel = iso => { const d = new Date(iso); if (Number.isNaN(d.getTime())) return ""; const t = new Date(); const same = (a, b) => a.toDateString() === b.toDateString(); const y = new Date(t); y.setDate(t.getDate() - 1); return same(d, t) ? "今日" : same(d, y) ? "昨日" : `${d.getMonth() + 1}月${d.getDate()}日`; };
+const teamSpace = team => `course#${team.courseId}`;
+const hastText = n => (n?.type === "text" ? n.value : (n?.children || []).map(hastText).join(""));
+
+function CodeBlock({ node, children }) {
+  const [copied, setCopied] = useState(false);
+  async function copy() {
+    try { await navigator.clipboard.writeText(hastText(node).replace(/\n$/, "")); setCopied(true); window.setTimeout(() => setCopied(false), 1500); } catch { /* コピーできない環境では何もしない */ }
+  }
+  return (
+    <div className="relative mb-[0.9em] min-w-0 last:mb-0">
+      <pre style={{ margin: 0, paddingRight: 40 }}>{children}</pre>
+      <button type="button" onClick={copy} aria-label="コピー" title="コピー" className="absolute right-1.5 top-1.5 inline-flex h-7 w-7 items-center justify-center rounded-md" style={{ background: "rgba(255,255,255,.12)", color: "#e2e8f0" }}>
+        {copied ? <Check size={14} /> : <Copy size={14} />}
+      </button>
+    </div>
+  );
+}
+// 生の HTML は描画しない（skipHtml）。画像は外部を読み込まず、リンクとして出す
+const MD_COMPONENTS = {
+  pre: CodeBlock,
+  a: ({ node: _n, ...p }) => <a {...p} target="_blank" rel="noopener noreferrer" />,
+  img: ({ src, alt }) => <a href={src} target="_blank" rel="noopener noreferrer">{alt || src}</a>,
+};
+function MsgBody({ text }) {
+  return (
+    <div className="feeps-lesson-md min-w-0 max-w-full break-words [&_li]:whitespace-pre-wrap [&_p]:whitespace-pre-wrap">
+      <ReactMarkdown skipHtml components={MD_COMPONENTS}>{text}</ReactMarkdown>
+    </div>
+  );
+}
+
+function FileChip({ file, onOpen, onRemove }) {
+  const body = <>
+    <FileText size={15} className="shrink-0" style={{ color: T.accent }} />
+    <span className="min-w-0 flex-1 truncate font-semibold" style={{ color: T.textPrimary }}>{file.name}</span>
+    <span className="shrink-0 tabular-nums" style={{ color: T.textMuted }}>{fmtSize(file.sizeBytes)}</span>
+  </>;
+  return (
+    <div className="flex min-w-0 max-w-full items-center gap-2 rounded-xl bg-white px-2.5 py-1.5 text-xs" style={{ border: `1px solid ${T.border}` }}>
+      {onOpen
+        ? <button type="button" onClick={onOpen} title={file.name} className="flex min-w-0 flex-1 items-center gap-2 text-left">{body}<Download size={14} className="shrink-0" style={{ color: T.textMuted }} /></button>
+        : <span className="flex min-w-0 flex-1 items-center gap-2">{body}</span>}
+      {onRemove && <button type="button" onClick={onRemove} aria-label="外す" title="外す" className="shrink-0" style={{ color: T.textMuted }}><X size={14} /></button>}
+    </div>
+  );
+}
+
 function ChatTab({ team, me, nameOf }) {
+  const ended = isEnded(team);
   const [msgs, setMsgs] = useState(null);
   const [canPost, setCanPost] = useState(false);
+  const [hasMore, setHasMore] = useState(false);
+  const [older, setOlder] = useState(false);
   const [err, setErr] = useState("");
   const [text, setText] = useState("");
+  const [files, setFiles] = useState([]);       // 送る前の添付
+  const [picking, setPicking] = useState(false);
   const [sending, setSending] = useState(false);
   const listRef = useRef(null);
+  const inputRef = useRef(null);
   const cursorRef = useRef("");
   const stickRef = useRef(true);
+  const keepRef = useRef(null);                 // さかのぼったとき、見ていた位置を保つ
   const base = `/teams/${encodeURIComponent(team.teamId)}/messages`;
   const cq = `courseId=${encodeURIComponent(team.courseId)}`;
   const markedRef = useRef("");
@@ -481,10 +594,10 @@ function ChatTab({ team, me, nameOf }) {
   useEffect(() => { setOpenChatTeam(team.teamId); return () => setOpenChatTeam(""); }, [team.teamId]);
   useEffect(() => {
     const last = msgs?.length ? msgs[msgs.length - 1].id : "";
-    if (msgs == null || document.visibilityState !== "visible" || (last && last === markedRef.current)) return;
+    if (ended || msgs == null || document.visibilityState !== "visible" || (last && last === markedRef.current)) return;
     markedRef.current = last || "-";
     markTeamChatRead(team, last);
-  }, [msgs, team]);
+  }, [msgs, team, ended]);
   const addMsgs = useCallback(list => {
     if (!list.length) return;
     cursorRef.current = list[list.length - 1].id > cursorRef.current ? list[list.length - 1].id : cursorRef.current;
@@ -495,13 +608,13 @@ function ChatTab({ team, me, nameOf }) {
       const d = await apiGet(`${base}?${cq}`);
       const list = Array.isArray(d?.messages) ? d.messages : [];
       cursorRef.current = list.length ? list[list.length - 1].id : "";
-      setMsgs(list); setCanPost(!!d?.canPost); setErr("");
+      setMsgs(list); setCanPost(!!d?.canPost); setHasMore(!!d?.hasMore); setErr("");
     } catch (e) { setErr(errText(e, "チャットを読み込めませんでした。")); }
   }, [base, cq]);
-  useEffect(() => { load(); }, [load]);
-  // 新着を数秒ごとに読む（見えているときだけ）
+  useEffect(() => { load(); }, [load, ended]);
+  // 新着を数秒ごとに読む（見えているときだけ。終了したチームは読まない）
   useEffect(() => {
-    if (msgs == null) return undefined;
+    if (msgs == null || ended) return undefined;
     const id = window.setInterval(async () => {
       if (document.visibilityState !== "visible") return;
       try {
@@ -510,49 +623,104 @@ function ChatTab({ team, me, nameOf }) {
       } catch { /* 次の回で読み直す */ }
     }, CHAT_POLL_MS);
     return () => window.clearInterval(id);
-  }, [msgs == null, base, cq, addMsgs]); // eslint-disable-line react-hooks/exhaustive-deps
-  // 下を見ているときだけ、新着で下へ送る
-  useEffect(() => { const el = listRef.current; if (el && stickRef.current) el.scrollTop = el.scrollHeight; }, [msgs]);
+  }, [msgs == null, ended, base, cq, addMsgs]); // eslint-disable-line react-hooks/exhaustive-deps
+  // さかのぼったときは位置を保つ。下を見ているときだけ、新着で下へ送る
+  useLayoutEffect(() => {
+    const el = listRef.current;
+    if (!el) return;
+    if (keepRef.current != null) { el.scrollTop = el.scrollHeight - keepRef.current; keepRef.current = null; return; }
+    if (stickRef.current) el.scrollTop = el.scrollHeight;
+  }, [msgs]);
+  async function loadOlder() {
+    if (older || !msgs?.length) return;
+    setOlder(true);
+    try {
+      const d = await apiGet(`${base}?${cq}&before=${encodeURIComponent(msgs[0].id)}`);
+      const list = Array.isArray(d?.messages) ? d.messages : [];
+      const el = listRef.current;
+      keepRef.current = el ? el.scrollHeight - el.scrollTop : null;
+      setMsgs(cur => { const seen = new Set((cur || []).map(m => m.id)); return [...list.filter(m => !seen.has(m.id)), ...(cur || [])]; });
+      setHasMore(!!d?.hasMore);
+    } catch (e) { setErr(errText(e, "読み込めませんでした。")); }
+    finally { setOlder(false); }
+  }
   async function send() {
     const v = text.trim();
-    if (!v || sending) return;
+    if ((!v && !files.length) || sending) return;
     setSending(true); setErr("");
-    try { const m = await apiPost(base, { courseId: team.courseId, text: v }); setText(""); stickRef.current = true; addMsgs([m]); }
-    catch (e) { setErr(errText(e, "送れませんでした。")); }
+    try {
+      const m = await apiPost(base, { courseId: team.courseId, text: v, attachments: files.map(f => ({ nodeId: f.nodeId })) });
+      setText(""); setFiles([]); stickRef.current = true; addMsgs([m]);
+    } catch (e) { setErr(errText(e, "送れませんでした。")); }
     finally { setSending(false); }
   }
   async function remove(m) {
     if (!window.confirm("この発言を消しますか？")) return;
-    try { await apiDelete(`${base}?${cq}&id=${encodeURIComponent(m.id)}`); setMsgs(cur => (cur || []).map(x => (x.id === m.id ? { ...x, deleted: true, text: "" } : x))); }
+    try { await apiDelete(`${base}?${cq}&id=${encodeURIComponent(m.id)}`); setMsgs(cur => (cur || []).map(x => (x.id === m.id ? { ...x, deleted: true, text: "", attachments: [] } : x))); }
     catch (e) { setErr(errText(e, "消せませんでした。")); }
   }
+  async function openFile(f) {
+    setErr("");
+    try {
+      const r = await apiGet(`/library/download?spaceId=${encodeURIComponent(teamSpace(team))}&nodeId=${encodeURIComponent(f.nodeId)}&mode=download`);
+      window.open(r.url, "_blank", "noopener");
+    } catch (e) { setErr(errText(e, "ファイルを開けませんでした。")); }
+  }
+  // 「コード」：``` で囲む（選んでいる文字があれば、それを囲む）
+  function insertCode() {
+    const el = inputRef.current;
+    const s = el ? el.selectionStart : text.length, e = el ? el.selectionEnd : text.length;
+    const lead = s > 0 && text[s - 1] !== "\n" ? "\n" : "";
+    const before = `${lead}\`\`\`\n`, after = "\n```\n";
+    const next = (text.slice(0, s) + before + text.slice(s, e) + after + text.slice(e)).slice(0, MAX_CHAT_TEXT);
+    setText(next);
+    requestAnimationFrame(() => { if (!el) return; el.focus(); el.setSelectionRange(s + before.length, e + before.length); });
+  }
+  const inFence = (v, pos) => (v.slice(0, pos).match(/```/g) || []).length % 2 === 1;
   if (msgs == null) return err ? <PrismErrorRetryCard message={err} onRetry={load} /> : <Card className="p-4"><SkeletonRows rows={4} /></Card>;
   let lastDay = "";
+  const attachList = (m, end) => (m.attachments?.length ? (
+    <div className={`mt-1 flex w-full min-w-0 flex-col gap-1 ${end ? "items-end" : "items-start"}`}>
+      {m.attachments.map(f => <div key={f.nodeId} className="w-64 max-w-full"><FileChip file={f} onOpen={() => openFile(f)} /></div>)}
+    </div>
+  ) : null);
+  const iconBtn = (label, Icon, onClick, disabled) => (
+    <button type="button" aria-label={label} title={label} onClick={onClick} disabled={disabled} className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl disabled:opacity-40" style={{ border: `1px solid ${T.border}`, color: T.textSecondary }}><Icon size={17} /></button>
+  );
   return (
     <Card className="flex flex-col overflow-hidden p-0" style={{ height: "min(620px, 70vh)" }}>
       <div ref={listRef} onScroll={e => { const el = e.currentTarget; stickRef.current = el.scrollHeight - el.scrollTop - el.clientHeight < 60; }} className="flex-1 overflow-y-auto px-4 py-3">
+        {hasMore && <div className="mb-2 flex justify-center"><Btn size="sm" kind="ghost" icon={History} disabled={older} onClick={loadOlder}>{older ? "読み込み中…" : "さらに読み込む"}</Btn></div>}
         {msgs.length === 0 && <div className="py-10 text-center text-sm" style={{ color: T.textMuted }}>まだ発言はありません</div>}
         {msgs.map(m => {
           const day = dayLabel(m.createdAt);
           const sep = day !== lastDay ? <div className="my-2 flex justify-center"><span className="rounded-full px-2.5 text-[11px]" style={{ background: T.bgBase, color: T.textMuted }}>{day}</span></div> : null;
           lastDay = day;
           const mine = m.by === me;
+          const bubble = !m.deleted && !m.text ? null : (
+            <div className={`min-w-0 max-w-full break-words rounded-2xl px-3 py-2 text-sm ${mine ? "rounded-tr-md" : "mt-0.5 rounded-tl-md"}`}
+              style={m.deleted ? { background: T.bgBase, color: T.textMuted, ...(mine ? {} : { border: `1px solid ${T.border}` }) } : mine ? { background: T.accent, color: "#fff" } : { background: "#fff", border: `1px solid ${T.border}`, color: T.textPrimary }}>
+              {m.deleted ? "この発言は消されました" : <MsgBody text={m.text} />}
+            </div>
+          );
           return (
             <React.Fragment key={m.id}>
               {sep}
               {mine ? (
                 <div className="group my-1.5 flex justify-end gap-2">
-                  <div className="flex max-w-[78%] flex-col items-end">
-                    <div className="whitespace-pre-wrap break-words rounded-2xl rounded-tr-md px-3 py-2 text-sm" style={m.deleted ? { background: T.bgBase, color: T.textMuted } : { background: T.accent, color: "#fff" }}>{m.deleted ? "この発言は消されました" : m.text}</div>
-                    <div className="mt-0.5 flex items-center gap-2 text-[11px]" style={{ color: T.textMuted }}>{!m.deleted && <button type="button" onClick={() => remove(m)} className="opacity-0 transition group-hover:opacity-100 focus:opacity-100" style={{ color: T.textMuted }}>消す</button>}{hm(m.createdAt)}</div>
+                  <div className="flex min-w-0 max-w-[78%] flex-col items-end">
+                    {bubble}
+                    {!m.deleted && attachList(m, true)}
+                    <div className="mt-0.5 flex items-center gap-2 text-[11px]" style={{ color: T.textMuted }}>{!m.deleted && !ended && <button type="button" onClick={() => remove(m)} className="opacity-0 transition group-hover:opacity-100 focus:opacity-100" style={{ color: T.textMuted }}>消す</button>}{hm(m.createdAt)}</div>
                   </div>
                 </div>
               ) : (
                 <div className="my-1.5 flex gap-2">
                   <Face name={nameOf(m.by)} size={30} ring={false} />
-                  <div className="flex max-w-[78%] flex-col items-start">
+                  <div className="flex min-w-0 max-w-[78%] flex-col items-start">
                     <div className="text-xs font-bold" style={{ color: T.textSecondary }}>{nameOf(m.by)}<span className="ml-1.5 font-normal" style={{ color: T.textMuted }}>{hm(m.createdAt)}</span></div>
-                    <div className="mt-0.5 whitespace-pre-wrap break-words rounded-2xl rounded-tl-md px-3 py-2 text-sm" style={{ background: m.deleted ? T.bgBase : "#fff", border: `1px solid ${T.border}`, color: m.deleted ? T.textMuted : T.textPrimary }}>{m.deleted ? "この発言は消されました" : m.text}</div>
+                    {bubble}
+                    {!m.deleted && attachList(m, false)}
                   </div>
                 </div>
               )}
@@ -561,17 +729,124 @@ function ChatTab({ team, me, nameOf }) {
         })}
       </div>
       {err && <div className="px-4 pb-1 text-xs" style={{ color: T.danger }}>{err}</div>}
-      {canPost ? (
-        <div className="flex items-end gap-2 px-3 py-2.5" style={{ borderTop: `1px solid ${T.border}` }}>
-          <textarea value={text} onChange={e => setText(e.target.value)} rows={1} maxLength={2000} placeholder={`${team.name} に送る`} aria-label="メッセージ"
-            onKeyDown={e => { if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) { e.preventDefault(); send(); } }}
-            className="max-h-32 min-h-[40px] min-w-0 flex-1 resize-none rounded-xl px-3 py-2 text-sm outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary }} />
-          <Btn icon={Send} disabled={!text.trim() || sending} onClick={send}>送る</Btn>
+      {canPost && !ended ? (
+        <div className="grid gap-2 px-3 py-2.5" style={{ borderTop: `1px solid ${T.border}` }}>
+          {files.length > 0 && (
+            <div className="flex flex-wrap gap-1.5">
+              {files.map(f => <div key={f.nodeId} className="w-56 max-w-full"><FileChip file={f} onRemove={() => setFiles(cur => cur.filter(x => x.nodeId !== f.nodeId))} /></div>)}
+            </div>
+          )}
+          <div className="flex items-end gap-2">
+            {team.folderNodeId && iconBtn("ファイル", Paperclip, () => setPicking(true), files.length >= MAX_CHAT_FILES)}
+            {iconBtn("コード", Code, insertCode)}
+            <textarea ref={inputRef} value={text} onChange={e => setText(e.target.value)} rows={1} maxLength={MAX_CHAT_TEXT} placeholder={`${team.name} に送る`} aria-label="メッセージ"
+              onKeyDown={e => { if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing && !inFence(text, e.currentTarget.selectionStart)) { e.preventDefault(); send(); } }}
+              className="max-h-40 min-h-[40px] min-w-0 flex-1 resize-none rounded-xl px-3 py-2 text-sm outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary, fontFamily: inFence(text, text.length) ? "ui-monospace, SFMono-Regular, Menlo, monospace" : undefined }} />
+            <Btn icon={Send} disabled={(!text.trim() && !files.length) || sending} onClick={send}>送る</Btn>
+          </div>
         </div>
       ) : (
-        <div className="flex items-center justify-center gap-2 px-3 py-3 text-sm" style={{ borderTop: `1px solid ${T.border}`, color: T.textMuted }}><Eye size={15} />見るだけ</div>
+        <div className="flex items-center justify-center gap-2 px-3 py-3 text-sm" style={{ borderTop: `1px solid ${T.border}`, color: T.textMuted }}>{ended ? <EndedBadge team={team} /> : <><Eye size={15} />見るだけ</>}</div>
       )}
+      {picking && <AttachPicker team={team} picked={files} onClose={() => setPicking(false)} onDone={list => { setFiles(list); setPicking(false); }} />}
     </Card>
+  );
+}
+
+/* チャットに添付するファイルを、チームのフォルダから選ぶ／新しく置く（置いたファイルはそのまま選んだ状態にする） */
+function AttachPicker({ team, picked, onClose, onDone }) {
+  const spaceId = teamSpace(team);
+  const [nodes, setNodes] = useState(null);
+  const [err, setErr] = useState("");
+  const [sel, setSel] = useState(() => picked.map(f => f.nodeId));
+  const [busy, setBusy] = useState(false);
+  const fileInput = useRef(null);
+  const load = useCallback(async () => {
+    try { const d = await apiGet(`/library?spaceId=${encodeURIComponent(spaceId)}`); setNodes(Array.isArray(d?.nodes) ? d.nodes : []); setErr(""); }
+    catch (e) { setErr(errText(e, "フォルダを読み込めませんでした。")); }
+  }, [spaceId]);
+  useEffect(() => { load(); }, [load]);
+  const byId = useMemo(() => new Map((nodes || []).map(n => [n.nodeId, n])), [nodes]);
+  const folder = byId.get(team.folderNodeId);
+  // チームのフォルダの下か。下のフォルダの名前は場所として添える
+  const placeOf = n => {
+    const names = [];
+    let cur = byId.get(n.parentId);
+    for (let i = 0; cur && i < 30; i++) {
+      if (cur.nodeId === team.folderNodeId) return names.reverse().join(" / ");
+      names.push(cur.name);
+      cur = byId.get(cur.parentId);
+    }
+    return null;
+  };
+  const files = (nodes || []).filter(n => n.type === "file").map(n => ({ n, place: placeOf(n) })).filter(x => x.place !== null)
+    .sort((a, b) => String(b.n.updatedAt || "").localeCompare(String(a.n.updatedAt || "")));
+  const toggle = id => setSel(cur => (cur.includes(id) ? cur.filter(x => x !== id) : cur.length >= MAX_CHAT_FILES ? cur : [...cur, id]));
+  async function onFiles(e) {
+    const list = [...(e.target.files || [])];
+    e.target.value = "";
+    if (!list.length) return;
+    setBusy(true); setErr("");
+    const added = [];
+    try {
+      for (const f of list) {
+        // eslint-disable-next-line no-await-in-loop
+        const got = await apiPost("/library/upload-url", { spaceId, parentId: team.folderNodeId, filename: f.name, contentType: f.type || "application/octet-stream", sizeBytes: f.size });
+        // eslint-disable-next-line no-await-in-loop
+        const put = await fetch(got.uploadUrl, { method: "PUT", headers: { "content-type": got.contentType }, body: f });
+        if (!put.ok) throw new Error(`アップロードに失敗しました（${put.status}）。`);
+        // eslint-disable-next-line no-await-in-loop
+        const node = await apiPost("/library/files", { spaceId, parentId: team.folderNodeId, nodeId: got.nodeId, s3key: got.s3key, materialId: got.materialId, name: f.name, sizeBytes: f.size, contentType: got.contentType });
+        added.push(node?.nodeId || got.nodeId);
+      }
+    } catch (e2) { setErr(errText(e2, "アップロードできませんでした。")); }
+    finally {
+      if (added.length) setSel(cur => [...cur, ...added.filter(id => !cur.includes(id))].slice(0, MAX_CHAT_FILES));
+      await load();
+      setBusy(false);
+    }
+  }
+  function done() {
+    const keep = new Map(picked.map(f => [f.nodeId, f]));
+    onDone(sel.map(id => {
+      const n = byId.get(id);
+      return n ? { nodeId: n.nodeId, name: n.name, sizeBytes: n.sizeBytes, contentType: n.contentType } : keep.get(id);
+    }).filter(Boolean));
+  }
+  return (
+    <Modal title="チームのフォルダ" onClose={onClose}
+      footer={<>
+        {folder?.canWrite && <>
+          <input ref={fileInput} type="file" multiple hidden onChange={onFiles} />
+          <Btn kind="ghost" icon={Upload} disabled={busy} onClick={() => fileInput.current?.click()} className="mr-auto">{busy ? "アップロード中…" : "アップロード"}</Btn>
+        </>}
+        <Btn kind="ghost" onClick={onClose}>やめる</Btn>
+        <Btn icon={Paperclip} disabled={busy} onClick={done}>添付{sel.length ? ` ${sel.length}` : ""}</Btn>
+      </>}>
+      {err && <p className="mb-2 text-xs" style={{ color: T.danger }}>{err}</p>}
+      {nodes == null ? (err ? <Btn size="sm" kind="ghost" onClick={load}>再読み込み</Btn> : <SkeletonRows rows={4} />) : files.length === 0 ? (
+        <div className="py-8 text-center text-sm" style={{ color: T.textMuted }}>ファイルはありません</div>
+      ) : (
+        <div className="grid max-h-[50vh] gap-1 overflow-y-auto">
+          {files.map(({ n, place }) => {
+            const on = sel.includes(n.nodeId);
+            const full = !on && sel.length >= MAX_CHAT_FILES;
+            return (
+              <label key={n.nodeId} className="flex min-w-0 cursor-pointer items-center gap-2.5 rounded-xl px-2.5 py-2" style={{ border: `1px solid ${on ? T.accent : T.border}`, background: on ? T.accentSubtle : "#fff", opacity: full ? 0.5 : 1 }}>
+                <input type="checkbox" checked={on} disabled={full} onChange={() => toggle(n.nodeId)} />
+                <FileText size={16} className="shrink-0" style={{ color: T.accent }} />
+                <span className="min-w-0 flex-1">
+                  <span className="block truncate text-sm font-semibold" style={{ color: T.textPrimary }}>{n.name}</span>
+                  {place && <span className="block truncate text-[11px]" style={{ color: T.textMuted }}><Folder size={11} className="mr-1 inline" />{place}</span>}
+                </span>
+                <span className="shrink-0 text-xs tabular-nums" style={{ color: T.textMuted }}>{fmtSize(n.sizeBytes)}</span>
+                <span className="hidden shrink-0 text-xs tabular-nums sm:inline" style={{ color: T.textMuted }}>{fmtDay(n.updatedAt)}</span>
+              </label>
+            );
+          })}
+        </div>
+      )}
+    </Modal>
   );
 }
 

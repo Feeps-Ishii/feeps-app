@@ -1,7 +1,8 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
-import { Megaphone, Pin, Plus, Trash2, Pencil, AlertCircle, RefreshCw, X } from "lucide-react";
+import { Megaphone, Pin, Plus, Trash2, Pencil, AlertCircle, RefreshCw, X, Check } from "lucide-react";
 import { T, Btn, Card, EmptyState, SkeletonRows, PrismErrorRetryCard } from "../../components/common";
 import { apiGet, apiPost, apiPut, apiDelete } from "../../api.js";
+import { ackKey, ackKeys, loadAcks } from "./acks.js";
 
 // お知らせ（人が書いて出す連絡）。既存の「通知」（データから合成）とは別物。
 //
@@ -194,13 +195,16 @@ export function AnnouncementBoard({ go, role, max = 3 }) {
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("");
   const [posted, setPosted] = useState(null);   // 出した側の要約。null = まだ読めていない
+  const [acks, setAcks] = useState(null);       // 受講生の「確認しました」（2026-10-14）
   const canPost = POSTER_ROLES.includes(role);
+  const isTrainee = role === "trainee";
 
   const load = useCallback(() => {
     setState("loading");
     apiGet("/announcements/me")
       .then(r => { setItems(Array.isArray(r?.items) ? r.items : []); setState("ready"); })
       .catch(() => setState("error"));
+    if (role === "trainee") loadAcks().then(setAcks).catch(() => setAcks(null));
     // 出した側は「今どれが出ているか」がホームで分かるようにする。
     // 取れなかった場合は要約を出さない（0件と混同させないため）。
     if (POSTER_ROLES.includes(role)) {
@@ -233,7 +237,13 @@ export function AnnouncementBoard({ go, role, max = 3 }) {
     }
   }
 
-  const shown = items.slice(0, max);
+  const isAcked = a => !!acks?.[ackKey.announcement(a.announcementId)];
+  // 受講生は未確認を先に
+  const shown = (isTrainee && acks ? [...items.filter(a => !isAcked(a)), ...items.filter(isAcked)] : items).slice(0, max);
+  async function confirm(a) {
+    try { const next = await ackKeys(ackKey.announcement(a.announcementId)); if (next) setAcks(next); }
+    catch (e) { setMessage("確認の記録に失敗しました"); }
+  }
   const live = (posted || []).filter(a => periodState(a) === "live");
   const scheduled = (posted || []).filter(a => periodState(a) === "before");
 
@@ -279,6 +289,13 @@ export function AnnouncementBoard({ go, role, max = 3 }) {
                 className="mt-1 text-xs font-bold" style={{ color: T.accent }}>
                 {open ? "閉じる" : "続きを読む"}
               </button>
+            )}
+            {isTrainee && acks && (
+              <div className="mt-2 flex justify-end">
+                {isAcked(a)
+                  ? <span className="inline-flex items-center gap-1 text-xs font-bold" style={{ color: T.textMuted }}><Check size={13} />確認済み</span>
+                  : <Btn size="sm" icon={Check} onClick={() => confirm(a)}>確認しました</Btn>}
+              </div>
             )}
           </Card>
         );

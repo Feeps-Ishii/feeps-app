@@ -2,7 +2,7 @@ import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { apiGet, apiPost, apiPut, apiDelete } from "../../api.js";
 import { PRISM, PrismCard, SkeletonRows } from "../../components/common";
 import { Editor, NoteCard } from "./NotesShared.jsx";
-import { isWrittenNote, lessonLabel, noteCountLabel } from "./notesLessons.js";
+import { isWrittenNote, lessonLabel, noteCountLabel, resolveUnitId } from "./notesLessons.js";
 import { AlertCircle, ChevronDown, ChevronUp, PenLine, Plus, RotateCcw } from "lucide-react";
 
 /* 教材の横に出すノート。正典: docs/specs/training-notes-spec.md
@@ -42,13 +42,13 @@ export default function LessonNoteDock({ courseId, lessons = [], lessonId, onLes
   useEffect(() => { onCount?.(err ? null : notes.length); }, [notes.length, err, onCount]);
 
   // 単元が決まっていないときは先頭の単元にしておく（選ばせるより早い）
-  const current = lessonId || lessons[0]?.id || "";
+  const current = resolveUnitId(lessons, lessonId) || lessons[0]?.id || "";
   const currentLesson = useMemo(() => lessons.find(l => l.id === current) || null, [lessons, current]);
   const mine = useMemo(() => {
-    const inLesson = notes.filter(n => n.lessonId === current);
+    const inLesson = notes.filter(n => resolveUnitId(lessons, n.lessonId) === current);
     if (!onPage) return inLesson;
     return inLesson.filter(n => n.materialId === materialId && Number(n.page) === Number(page));
-  }, [notes, current, onPage, materialId, page]);
+  }, [notes, lessons, current, onPage, materialId, page]);
 
   const save = useCallback(async () => {
     if (!editing?.lessonId || !editing.body.trim()) return;
@@ -71,12 +71,6 @@ export default function LessonNoteDock({ courseId, lessons = [], lessonId, onLes
     } finally { setSaving(false); }
   }, [editing, courseId]);
 
-  const setMark = async (note, mark) => {
-    const prev = notes;
-    setNotes(p => p.map(n => (n.noteId === note.noteId ? { ...n, mark } : n)));
-    try { await apiPut(`/notes/${note.noteId}/mark`, { mark }); }
-    catch { setNotes(prev); setSaveErr("状態を変えられませんでした。"); }
-  };
   const remove = async (note) => {
     const prev = notes;
     setNotes(p => p.filter(n => n.noteId !== note.noteId));
@@ -170,7 +164,7 @@ export default function LessonNoteDock({ courseId, lessons = [], lessonId, onLes
               {mine.map(n => (
                 <NoteCard key={n.noteId} note={n} compact
                   onEdit={() => setEditing({ noteId: n.noteId, lessonId: n.lessonId, body: n.body || "", ...(n.materialId ? { materialId: n.materialId, page: n.page } : {}) })}
-                  onMark={m => setMark(n, m)} onRemove={() => remove(n)} />
+                  onRemove={() => remove(n)} />
               ))}
             </div>
           )}

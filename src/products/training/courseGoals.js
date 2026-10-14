@@ -18,21 +18,34 @@ export function mergeCourseGoals(courseGoals, personalGoals) {
   const merged = course.map(cg => {
     const mine = personalById.get(cg.id);
     const courseTaskIds = new Set(arr(cg.tasks).map(t => t.id));
-    // 同じ目標に自分で足したタスクは後ろに残す
-    const extra = arr(mine?.tasks).filter(t => t && t.id && !courseTaskIds.has(t.id));
+    // 同じ目標に自分で足したタスクは後ろに残す（以前の保存で入ったコースのタスクの写しは除く）
+    const extra = arr(mine?.tasks).filter(t => t && t.id && !courseTaskIds.has(t.id) && !t.fromCourse);
     return {
-      ...(mine || {}),
       id: cg.id,
       title: cg.title,
-      sub: cg.sub || mine?.sub || "",
+      sub: cg.sub || "",
       fromCourse: true,
       tasks: [...arr(cg.tasks).map(t => ({ ...t, fromCourse: true })), ...extra],
     };
   });
 
+  // 2026-10-14: コースの目標があるときは、自分で足した目標（custom）だけを足す。
+  // 講師が消したコースの目標は出さない。その目標に自分で足したタスクがあれば、自分の目標として残す
   const courseIds = new Set(course.map(g => g.id));
-  const own = personal.filter(g => g && !courseIds.has(g.id));
+  const own = personal.filter(g => g && !courseIds.has(g.id)).flatMap(g => {
+    if (g.custom) return [g];
+    const mineTasks = g.fromCourse ? arr(g.tasks).filter(t => t && t.id && !t.fromCourse) : [];
+    return mineTasks.length ? [{ ...g, fromCourse: false, custom: true, tasks: mineTasks }] : [];
+  });
   return [...merged, ...own];
+}
+
+/* 本人の記録として保存する形（2026-10-14）。コースの目標は写しを持たず、
+   id と、その目標に自分で足したタスクだけを残す（講師の変更・削除がそのまま反映されるように） */
+export function toPersonalGoalsPayload(goals) {
+  return arr(goals).map(({ icon, ...g }) => g.fromCourse
+    ? { id: g.id, title: g.title || "", fromCourse: true, tasks: arr(g.tasks).filter(t => !t.fromCourse) }
+    : g);
 }
 
 /* コースの目標として保存する形。表示用の付随情報（アイコン・由来）は落とす */

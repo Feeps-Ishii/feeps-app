@@ -1,8 +1,8 @@
 import React, { useRef } from "react";
 import ReactMarkdown from "react-markdown";
 import { PRISM, PrismCard } from "../../components/common";
-import { flattenLessons, lessonLabel } from "./notesLessons.js";
-import { Bold, Check, ChevronDown, Code, Hash, HelpCircle, List, ListChecks, PenLine, Trash2, X } from "lucide-react";
+import { flattenLessons, lessonLabel, resolveUnitId, todayUnitId } from "./notesLessons.js";
+import { Bold, ChevronDown, Code, Hash, List, ListChecks, PenLine, Trash2, X } from "lucide-react";
 
 /* 研修ノートの共通部品。正典: docs/specs/training-notes-spec.md
  *
@@ -10,11 +10,6 @@ import { Bold, Check, ChevronDown, Code, Hash, HelpCircle, List, ListChecks, Pen
  * 両方が同じ見た目・同じ書き味になるように、ここへ寄せている。
  * **react-markdown を含むので、読み込む側は必ず lazy にする。** */
 
-export const MARKS = {
-  none:    { label: "ふつう",       color: PRISM.mut },
-  later:   { label: "あとで見返す", color: PRISM.accent },
-  unknown: { label: "わからない",   color: PRISM.warn },
-};
 
 export function IconBtn({ children, label, onClick, danger }) {
   return (
@@ -26,7 +21,8 @@ export function IconBtn({ children, label, onClick, danger }) {
   );
 }
 
-export function NoteCard({ note, onEdit, onMark, onRemove, compact = false }) {
+// 2026-10-14: 「ふつう／あとで見返す／わからない」の印はやめた（ユーザー指定）
+export function NoteCard({ note, onEdit, onRemove, compact = false }) {
   return (
     <PrismCard className={compact ? "p-3" : "p-4"}>
       <div className="flex items-start gap-3">
@@ -38,21 +34,7 @@ export function NoteCard({ note, onEdit, onMark, onRemove, compact = false }) {
           <IconBtn label="消す" onClick={onRemove} danger><Trash2 size={14} /></IconBtn>
         </div>
       </div>
-      <div className="mt-3 flex flex-wrap items-center gap-1.5">
-        {Object.entries(MARKS).map(([k, v]) => (
-          <button key={k} onClick={() => onMark(k)}
-            className="flex items-center gap-1 rounded-lg px-2 py-1 text-[11px] font-bold"
-            style={{
-              background: note.mark === k ? PRISM.accentSubtle : "transparent",
-              color: note.mark === k ? v.color : PRISM.mut,
-              boxShadow: `inset 0 0 0 1px ${note.mark === k ? v.color + "55" : PRISM.line}`,
-            }}>
-            {k === "unknown" && <HelpCircle size={12} />}
-            {k === "later" && <ListChecks size={12} />}
-            {k === "none" && <Check size={12} />}
-            {v.label}
-          </button>
-        ))}
+      <div className="mt-2 flex items-center">
         <span className="ml-auto text-[11px]" style={{ color: PRISM.mut }}>
           {String(note.updatedAt || note.createdAt || "").slice(0, 10)}
         </span>
@@ -88,16 +70,15 @@ export function Editor({ lessons, value, saving, onChange, onSave, onCancel, row
     <Shell className={bare ? "" : "p-4"}>
       {lessons && (
         <div className="flex flex-wrap items-center gap-2">
-          <span className="text-xs font-bold" style={{ color: PRISM.mut }}>どの単元のノートか</span>
+          <span className="text-xs font-bold" style={{ color: PRISM.mut }}>単元</span>
           <div className="relative min-w-0 flex-1">
-            {/* **単元に紐づけないノートも作れる。** どの単元か決まらないうちに書きたいもの、
-                授業と関係ないメモを、書けずに諦めさせないため（2026-09-18） */}
+            {/* 2026-10-14: ノートは単元を選ぶだけ（フリーメモはやめた。ユーザー指定） */}
             <select
-              value={value.lessonId} onChange={e => onChange({ ...value, lessonId: e.target.value })}
+              value={value.lessonId} onChange={e => onChange({ ...value, lessonId: e.target.value })} aria-label="単元"
               className="w-full appearance-none rounded-xl border py-2 pl-3 pr-9 text-sm"
               style={{ borderColor: PRISM.line, background: PRISM.surface, color: PRISM.ink }}>
-              <option value="">単元に紐づけない（フリーメモ）</option>
-              {lessons.map(l => <option key={l.id} value={l.id}>{lessonLabel(l)}</option>)}
+              {!value.lessonId && <option value="">単元を選ぶ</option>}
+              {lessons.map(l => <option key={l.id} value={l.id}>{l.title || "名称未設定"}</option>)}
             </select>
             <ChevronDown size={15} className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2" style={{ color: PRISM.mut }} />
           </div>
@@ -139,4 +120,4 @@ export function Editor({ lessons, value, saving, onChange, onSave, onCancel, row
   );
 }
 
-export { flattenLessons, lessonLabel };
+export { flattenLessons, lessonLabel, resolveUnitId, todayUnitId };

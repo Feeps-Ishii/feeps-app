@@ -4,9 +4,9 @@ import {
   PRISM, PrismPage, PrismCard, PrismHomeHeading, PrismSectionTitle, PrismErrorRetryCard, SkeletonRows,
 } from "../../components/common";
 import { normalizeCurriculumSections } from "./TrainingComponents.jsx";
-import { Editor, NoteCard, flattenLessons } from "./NotesShared.jsx";
+import { Editor, NoteCard, flattenLessons, resolveUnitId, todayUnitId } from "./NotesShared.jsx";
 import { isWrittenNote } from "./notesLessons.js";
-import { AlertCircle, ChevronDown, HelpCircle, ListChecks, PenLine, Plus, Search } from "lucide-react";
+import { AlertCircle, ChevronDown, ListChecks, PenLine, Plus, Search } from "lucide-react";
 
 /* 研修ノート。正典: docs/specs/training-notes-spec.md
  *
@@ -17,7 +17,6 @@ import { AlertCircle, ChevronDown, HelpCircle, ListChecks, PenLine, Plus, Search
  * 書きたいもの、授業と関係ないメモを、書けずに諦めさせないため。紐づけないものは
  * 先頭にまとめて出し、あとから単元を選び直せる。 */
 
-const FILTERS = [["all", "すべて"], ["later", "あとで見返す"], ["unknown", "わからない"]];
 
 export default function NotesView() {
   const [courses, setCourses] = useState([]);
@@ -28,7 +27,6 @@ export default function NotesView() {
   const [err, setErr] = useState("");
   const [reloadKey, setReloadKey] = useState(0);
   const [q, setQ] = useState("");
-  const [filter, setFilter] = useState("all");
   const [editing, setEditing] = useState(null);   // { noteId?, lessonId, body }
   const [saving, setSaving] = useState(false);
   const [saveErr, setSaveErr] = useState("");
@@ -73,9 +71,8 @@ export default function NotesView() {
   const grouped = useMemo(() => {
     const needle = q.trim().toLowerCase();
     const hit = n => {
-      if (filter !== "all" && n.mark !== filter) return false;
       if (!needle) return true;
-      const l = lessonById[n.lessonId];
+      const l = lessonById[resolveUnitId(lessons, n.lessonId)];
       return [n.body, l?.title, l?.sectionTitle, l?.chapterTitle]
         .filter(Boolean).some(v => String(v).toLowerCase().includes(needle));
     };
@@ -83,7 +80,7 @@ export default function NotesView() {
     const free = [];
     notes.filter(hit).forEach(n => {
       if (!n.lessonId) { free.push(n); return; }
-      (byLesson[n.lessonId] ||= []).push(n);
+      (byLesson[resolveUnitId(lessons, n.lessonId)] ||= []).push(n);
     });
     // 単元の順番はカリキュラムが決めている。並べ替えUIは作らない
     const rows = lessons
@@ -92,7 +89,7 @@ export default function NotesView() {
     // **紐づけないノートは先頭。** 場所が決まっていないぶん、探しに来るのはここになる
     if (free.length) {
       rows.unshift({
-        lesson: { id: "__free", title: "単元に紐づけないノート", sectionTitle: "", chapterTitle: "" },
+        lesson: { id: "__free", title: "単元なし", sectionTitle: "", chapterTitle: "" },
         items: free,
       });
     }
@@ -105,18 +102,12 @@ export default function NotesView() {
       });
     }
     return rows;
-  }, [notes, lessons, lessonById, q, filter]);
-
-  const counts = useMemo(() => ({
-    all: notes.length,
-    later: notes.filter(n => n.mark === "later").length,
-    unknown: notes.filter(n => n.mark === "unknown").length,
-  }), [notes]);
+  }, [notes, lessons, lessonById, q]);
 
   /* ---- 保存 ---- */
   const save = useCallback(async () => {
-    // 単元は任意。本文さえあれば保存できる
-    if (!editing || !editing.body.trim()) return;
+    // 2026-10-14: 単元は必ず選ぶ
+    if (!editing || !editing.lessonId || !editing.body.trim()) return;
     setSaving(true); setSaveErr("");
     try {
       const payload = { courseId, lessonId: editing.lessonId || "", body: editing.body, kind: "note" };
@@ -132,12 +123,6 @@ export default function NotesView() {
     } finally { setSaving(false); }
   }, [editing, courseId]);
 
-  const setMark = async (note, mark) => {
-    const prev = notes;
-    setNotes(p => p.map(n => (n.noteId === note.noteId ? { ...n, mark } : n)));
-    try { await apiPut(`/notes/${note.noteId}/mark`, { mark }); }
-    catch { setNotes(prev); setSaveErr("状態を変えられませんでした。"); }
-  };
   const remove = async (note) => {
     const prev = notes;
     setNotes(p => p.filter(n => n.noteId !== note.noteId));
@@ -186,28 +171,15 @@ export default function NotesView() {
       ) : (
         <div className="flex flex-col gap-2 sm:flex-row">
           <button
-            onClick={() => setEditing({ lessonId: lessons[0]?.id || "", body: "" })}
+            onClick={() => { const d = new Date(); const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`; setEditing({ lessonId: todayUnitId(lessons, key), body: "" }); }}
             disabled={!lessons.length}
             className="flex min-w-0 flex-1 items-center gap-3 rounded-2xl border p-4 text-left disabled:opacity-50"
             style={{ borderColor: PRISM.line, background: PRISM.surface }}>
             <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl"
               style={{ background: PRISM.accentSubtle, color: PRISM.accent }}><Plus size={18} /></span>
             <span className="min-w-0">
-              <span className="block text-sm font-bold" style={{ color: PRISM.ink }}>単元にひもづけて書く</span>
-              <span className="block text-xs" style={{ color: PRISM.mut }}>
-                {lessons.length ? "単元を選んで書くと、その場所に残ります。" : "このコースのカリキュラムがまだありません。"}
-              </span>
-            </span>
-          </button>
-          <button
-            onClick={() => setEditing({ lessonId: "", body: "" })}
-            className="flex min-w-0 flex-1 items-center gap-3 rounded-2xl border p-4 text-left"
-            style={{ borderColor: PRISM.line, background: PRISM.surface }}>
-            <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl"
-              style={{ background: PRISM.bgSoft || PRISM.accentSubtle, color: PRISM.mut }}><PenLine size={18} /></span>
-            <span className="min-w-0">
-              <span className="block text-sm font-bold" style={{ color: PRISM.ink }}>とりあえず書く（フリーメモ）</span>
-              <span className="block text-xs" style={{ color: PRISM.mut }}>単元を決めずに書けます。あとから紐づけ直せます。</span>
+              <span className="block text-sm font-bold" style={{ color: PRISM.ink }}>ノートを書く</span>
+              {!lessons.length && <span className="block text-xs" style={{ color: PRISM.mut }}>カリキュラムがまだありません</span>}
             </span>
           </button>
         </div>
@@ -223,27 +195,12 @@ export default function NotesView() {
             className="w-full rounded-xl border py-2 pl-9 pr-3 text-sm"
             style={{ borderColor: PRISM.line, background: PRISM.surface, color: PRISM.ink }} />
         </div>
-        <div className="flex overflow-hidden rounded-xl border" style={{ borderColor: PRISM.line }}>
-          {FILTERS.map(([k, label]) => (
-            <button key={k} onClick={() => setFilter(k)}
-              className="px-3 py-2 text-xs font-bold"
-              style={{
-                background: filter === k ? PRISM.accentSubtle : "transparent",
-                color: filter === k ? PRISM.accent : PRISM.mut,
-              }}>
-              {label}<span className="ml-1 font-mono">{counts[k] ?? 0}</span>
-            </button>
-          ))}
-        </div>
       </div>
 
       {loading ? <SkeletonRows rows={4} /> : grouped.length === 0 ? (
         <PrismCard className="p-8 text-center">
           <div className="text-sm font-bold" style={{ color: PRISM.ink }}>
             {notes.length ? "この条件に合うノートはありません" : "まだノートがありません"}
-          </div>
-          <div className="mt-1 text-xs" style={{ color: PRISM.mut }}>
-            {notes.length ? "検索や絞り込みを外すと出てきます。" : "授業中に気づいたことを残せます。単元に紐づけても、紐づけずに書いても構いません。"}
           </div>
         </PrismCard>
       ) : (
@@ -257,8 +214,8 @@ export default function NotesView() {
             <div className="mt-2 flex flex-col gap-2">
               {items.map(n => (
                 <NoteCard key={n.noteId} note={n}
-                  onEdit={() => setEditing({ noteId: n.noteId, lessonId: n.lessonId, body: n.body || "" })}
-                  onMark={m => setMark(n, m)} onRemove={() => remove(n)} />
+                  onEdit={() => setEditing({ noteId: n.noteId, lessonId: resolveUnitId(lessons, n.lessonId), body: n.body || "" })}
+                  onRemove={() => remove(n)} />
               ))}
             </div>
           </div>
@@ -282,7 +239,6 @@ function NotesHowTo() {
   };
   const ITEMS = [
     { icon: PenLine, title: "教材を見ながら書く", desc: "ファイル管理でPDFを「読む」と、右にノートが並びます。ページごとにも、単元ぜんぶにも書けます。" },
-    { icon: HelpCircle, title: "分からないところに印を付ける", desc: "「わからない」を付けておくと、あとでその印だけを絞り込めます。質問するときの材料になります。" },
     { icon: ListChecks, title: "日報にそのまま入れる", desc: "日報の下に「この日のノート」が出ます。書き写さずに、選んで入れるだけで済みます。" },
   ];
   return (
@@ -292,7 +248,7 @@ function NotesHowTo() {
         <span className="text-[11px]" style={{ color: PRISM.mut }}>整理は要りません。カリキュラムの順に自動で並びます。</span>
         <button onClick={close} className="ml-auto text-[11px] font-bold" style={{ color: PRISM.mut }}>閉じる</button>
       </div>
-      <div className="grid gap-3 sm:grid-cols-3">
+      <div className="grid gap-3 sm:grid-cols-2">
         {ITEMS.map(it => (
           <div key={it.title} className="rounded-xl p-3" style={{ background: PRISM.neutralSubtle }}>
             <div className="flex items-center gap-2 text-xs font-bold" style={{ color: PRISM.ink }}>
