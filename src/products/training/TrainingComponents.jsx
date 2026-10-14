@@ -623,15 +623,18 @@ function GoalsView(props) {
   return <TraineeGoalsView {...props} />;
 }
 
-/* 受講生の目標とタスク（2026-10-14 ユーザー指定）
+/* 受講生の目標とタスク（2026-10-14 ユーザー指定、10-15 表示は前の形に戻した）
    「研修の目標」（コースで決めたもの。編集・削除できない）と「自分の目標」（自分で足したもの）を分ける。
    研修の目標は、チェックと、自分で足した小目標の編集だけ */
 const isOwnTask = t => !t.fromCourse && String(t.id || "").startsWith("u");
+// 研修の目標（コースで決めたもの・変えられない）と自分の目標の印（2026-10-15）
+function GoalSourceTag({ mine }) {
+  return <span className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-bold" style={mine ? { background: "#9B79EC1A", color: "#7C5CD6" } : { background: T.accentSubtle, color: T.accentHover }}>{mine ? "自分の目標" : <><Lock size={10} />研修の目標</>}</span>;
+}
 function TraineeGoalsView({ done, taskSaveState, toggle, goals, setGoals, go }) {
   const gp = goalProgress(goals, done);
-  const courseGoals = gp.filter(g => !g.custom);
-  const myGoals = gp.filter(g => g.custom);
   const overall = overallProgress(goals, done);
+  const all = flatTasks(goals);
   const [ng, setNg] = useState("");
   const [nt, setNt] = useState({});
   const [goalDrafts, setGoalDrafts] = useState({});
@@ -640,6 +643,7 @@ function TraineeGoalsView({ done, taskSaveState, toggle, goals, setGoals, go }) 
   const [reportLoading, setReportLoading] = useState(true);
   const todayTasks = Array.isArray(todayReport?.goalItems) ? todayReport.goalItems : [];
   const completedTodayTasks = todayTasks.filter(t => t.done).length;
+  const completedSmallGoals = all.filter(t => done[t.id]).length;
 
   useEffect(() => {
     let alive = true;
@@ -668,103 +672,137 @@ function TraineeGoalsView({ done, taskSaveState, toggle, goals, setGoals, go }) 
     setNg("");
   }
   function updateGoalText(gid, patch) {
-    setGoals(safeGoals(goals).map(g => g.id === gid && g.custom ? { ...g, ...patch } : g));
+    setGoals(safeGoals(goals).map(g => g.id === gid ? { ...g, ...patch } : g));
     setGoalDrafts(d => ({ ...d, [gid]: false }));
   }
   function deleteGoal(gid) {
     if (!window.confirm("この目標を削除しますか？")) return;
-    setGoals(safeGoals(goals).filter(g => !(g.id === gid && g.custom)));
+    setGoals(safeGoals(goals).filter(g => g.id !== gid));
   }
   function updateTaskText(gid, tid, text) {
     const value = String(text || "").trim();
     if (!value) return;
-    setGoals(safeGoals(goals).map(g => g.id === gid ? { ...g, tasks: g.tasks.map(t => t.id === tid && (g.custom || isOwnTask(t)) ? { ...t, t: value } : t) } : g));
+    setGoals(safeGoals(goals).map(g => g.id === gid ? { ...g, tasks: g.tasks.map(t => t.id === tid ? { ...t, t: value } : t) } : g));
     setTaskDrafts(d => ({ ...d, [tid]: false }));
   }
   function deleteTask(gid, tid) {
-    setGoals(safeGoals(goals).map(g => g.id === gid ? { ...g, tasks: g.tasks.filter(t => !(t.id === tid && (g.custom || isOwnTask(t)))) } : g));
+    setGoals(safeGoals(goals).map(g => g.id === gid ? { ...g, tasks: g.tasks.filter(t => t.id !== tid) } : g));
   }
-
-  const renderGoal = (g, mine) => {
-    const I = g.icon || Target;
-    return (
-      <div key={g.id} className="rounded-xl" style={{ border: "1px solid " + T.border, overflow: "hidden" }}>
-        <div className="flex flex-wrap items-start gap-3 px-4 py-3" style={{ background: T.bgBase }}>
-          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl" style={{ background: mine ? "#9B79EC1A" : T.accentSubtle, color: mine ? "#7C5CD6" : T.accent }}><I size={17} /></div>
-          <div className="min-w-0 flex-1">
-            {goalDrafts[g.id] ? (
-              <div className="space-y-2">
-                <input value={goalDrafts[g.id].title} onChange={e => setGoalDrafts(d => ({ ...d, [g.id]: { ...(d[g.id] || {}), title: e.target.value } }))} aria-label="目標" className="w-full rounded-lg px-2 py-1.5 text-sm outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary }} />
-                <input value={goalDrafts[g.id].sub} onChange={e => setGoalDrafts(d => ({ ...d, [g.id]: { ...(d[g.id] || {}), sub: e.target.value } }))} aria-label="補足" placeholder="補足" className="w-full rounded-lg px-2 py-1.5 text-xs outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary }} />
-                <div className="flex gap-2"><Btn size="sm" kind="soft" icon={Check} onClick={() => updateGoalText(g.id, goalDrafts[g.id])}>保存</Btn><Btn size="sm" kind="ghost" icon={X} onClick={() => setGoalDrafts(d => ({ ...d, [g.id]: false }))}>取消</Btn></div>
-              </div>
-            ) : (
-              <>
-                <div className="break-words text-sm font-bold" style={{ color: T.textPrimary }}>{g.title}</div>
-                {g.sub && <div className="mt-0.5 break-words text-xs" style={{ color: T.textMuted }}>{g.sub}</div>}
-              </>
-            )}
-          </div>
-          <Badge tone={g.pct >= 80 ? "green" : "cyan"}>{g.n}/{g.total}</Badge>
-          {mine && !goalDrafts[g.id] && <div className="flex gap-1"><button type="button" aria-label="目標を編集" onClick={() => setGoalDrafts(d => ({ ...d, [g.id]: { title: g.title || "", sub: g.sub || "" } }))} className="rounded-lg p-1.5 hover:bg-gray-100"><Pencil size={14} style={{ color: T.textMuted }} /></button><button type="button" aria-label="目標を削除" onClick={() => deleteGoal(g.id)} className="rounded-lg p-1.5 hover:bg-gray-100"><Trash2 size={14} style={{ color: T.textMuted }} /></button></div>}
-        </div>
-        <div className="px-4 pt-2"><Bar value={g.pct} tone={g.pct >= 80 ? "green" : g.pct >= 40 ? "cyan" : "amber"} /></div>
-        <div className="p-2">
-          {g.tasks.map(t => {
-            const ok = !!done[t.id];
-            const editable = mine || isOwnTask(t);
-            return <div key={t.id} className="flex w-full items-center gap-3 rounded-xl px-3 py-2 transition hover:bg-gray-50">
-              <button type="button" onClick={() => toggle(t.id)} aria-label={ok ? "未達成に戻す" : "達成にする"}>{ok ? <CheckCircle2 size={18} style={{ color: T.success }} /> : <Circle size={18} style={{ color: T.textMuted }} />}</button>
-              {taskDrafts[t.id] ? <input value={taskDrafts[t.id].text} onChange={e => setTaskDrafts(d => ({ ...d, [t.id]: { text: e.target.value } }))} onKeyDown={e => e.key === "Enter" && updateTaskText(g.id, t.id, taskDrafts[t.id]?.text)} className="min-w-0 flex-1 rounded-lg px-2 py-1.5 text-sm outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary }} />
-                : <button type="button" onClick={() => toggle(t.id)} className="min-w-0 flex-1 text-left text-sm" style={{ color: ok ? T.textMuted : T.textPrimary, textDecoration: ok ? "line-through" : "none" }}>{t.t}</button>}
-              {editable && <div className="flex gap-1">{taskDrafts[t.id] ? <Btn size="sm" kind="ghost" icon={Check} onClick={() => updateTaskText(g.id, t.id, taskDrafts[t.id]?.text)}>保存</Btn> : <button type="button" aria-label="小目標を編集" onClick={() => setTaskDrafts(d => ({ ...d, [t.id]: { text: t.t || "" } }))} className="rounded-lg p-1 hover:bg-gray-100"><Pencil size={14} style={{ color: T.textMuted }} /></button>}<button type="button" aria-label="小目標を削除" onClick={() => deleteTask(g.id, t.id)} className="rounded-lg p-1 hover:bg-gray-100"><Trash2 size={14} style={{ color: T.textMuted }} /></button></div>}
-            </div>;
-          })}
-          {mine && <div className="flex items-center gap-2 px-3 py-2">
-            <Plus size={16} style={{ color: T.textMuted }} />
-            <input value={nt[g.id] || ""} onChange={e => setNt({ ...nt, [g.id]: e.target.value })} onKeyDown={e => e.key === "Enter" && addTask(g.id)} placeholder="小目標を追加" className="min-w-0 flex-1 rounded-lg px-2 py-1.5 text-sm outline-none" style={{ border: "1px solid " + T.border, color: T.textPrimary }} />
-            <button type="button" onClick={() => addTask(g.id)} className="text-xs font-semibold" style={{ color: T.accentHover }}>追加</button>
-          </div>}
-        </div>
-      </div>
-    );
-  };
 
   return (
     <div>
-      <SectionHead title="目標とタスク" action={<span className="flex items-center gap-2"><Badge tone="cyan">全体 {overall}%</Badge>{taskSaveState && <span className="text-xs font-semibold" aria-live="polite" style={{ color: taskSaveState === "error" ? T.danger : taskSaveState === "saved" ? T.success : T.textMuted }}>{taskSaveState === "saving" ? "保存中…" : taskSaveState === "saved" ? "保存しました" : "保存に失敗したため元に戻しました"}</span>}</span>} />
+      <SectionHead title="目標とタスク" desc="長期目標、小目標、今日やることを分けて確認します。" action={taskSaveState && <span className="text-xs font-semibold" aria-live="polite" style={{ color: taskSaveState === "error" ? T.danger : taskSaveState === "saved" ? T.success : T.textMuted }}>{taskSaveState === "saving" ? "保存中…" : taskSaveState === "saved" ? "保存しました" : "保存に失敗したため元に戻しました"}</span>} />
 
       <Card className="mb-6 p-5">
-        <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
-          <h3 className="font-bold" style={{ color: T.textPrimary }}>今日のタスク</h3>
-          <div className="flex items-center gap-2">
-            {reportLoading ? <Badge tone="muted">読み込み中</Badge> : <Badge tone={todayTasks.length ? "cyan" : "muted"}>{todayTasks.length ? completedTodayTasks + "/" + todayTasks.length + " 完了" : "未設定"}</Badge>}
-            <Btn size="sm" kind="ghost" icon={NotebookPen} onClick={() => go && go("reports")}>日報へ</Btn>
-          </div>
+        <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
+          <div><h3 className="font-bold" style={{ color: T.textPrimary }}>今日のタスク</h3><p className="text-xs" style={{ color: T.textMuted }}>日報の今日の目標リストを、今日やる具体的な行動として表示します。</p></div>
+          {reportLoading ? <Badge tone="muted">読み込み中</Badge> : <Badge tone={todayTasks.length ? "cyan" : "muted"}>{todayTasks.length ? completedTodayTasks + "/" + todayTasks.length + " 完了" : "未設定"}</Badge>}
         </div>
         {todayTasks.length ? <div className="space-y-2">{todayTasks.map(item => (
           <div key={item.id || item.text} className="flex items-center gap-3 rounded-xl px-3 py-2.5" style={{ background: item.done ? T.successSubtle : T.bgBase }}>
             {item.done ? <CheckCircle2 size={18} style={{ color: T.success }} /> : <Circle size={18} style={{ color: T.textMuted }} />}
-            <span className="min-w-0 flex-1 text-sm" style={{ color: item.done ? T.textMuted : T.textPrimary, textDecoration: item.done ? "line-through" : "none" }}>{item.text || "—"}</span>
+            <span className="min-w-0 flex-1 text-sm" style={{ color: item.done ? T.textMuted : T.textPrimary, textDecoration: item.done ? "line-through" : "none" }}>{item.text || "タスク未入力"}</span>
           </div>
-        ))}</div> : null}
+        ))}</div> : <div className="rounded-xl p-4 text-sm" style={adminPanelStyle}>今日のタスクは未設定です。日報で今日の目標を追加するとここに表示されます。</div>}
+        <div className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-xl p-3" style={{ background: T.accentSubtle }}>
+          <p className="text-xs leading-relaxed" style={{ color: T.textMuted }}>今日のタスクは日報で追加できます。</p>
+          <div className="flex gap-2"><Btn size="sm" kind="ghost" icon={NotebookPen} onClick={() => go && go("reports")}>日報へ</Btn></div>
+        </div>
       </Card>
 
-      <div className="mb-6 grid items-start gap-4 lg:grid-cols-2">
-        <Card className="p-5">
-          <div className="mb-3 flex items-center gap-2"><span className="h-2.5 w-2.5 rounded-[3px]" style={{ background: T.accent }} /><h3 className="font-bold" style={{ color: T.textPrimary }}>研修の目標</h3><Lock size={13} style={{ color: T.textMuted }} aria-label="編集できません" /></div>
-          {courseGoals.length ? <div className="space-y-3">{courseGoals.map(g => renderGoal(g, false))}</div> : <div className="rounded-xl p-4 text-sm" style={adminPanelStyle}>まだありません</div>}
-        </Card>
-        <Card className="p-5">
-          <div className="mb-3 flex items-center gap-2"><span className="h-2.5 w-2.5 rounded-[3px]" style={{ background: "#9B79EC" }} /><h3 className="font-bold" style={{ color: T.textPrimary }}>自分の目標</h3></div>
-          {myGoals.length ? <div className="space-y-3">{myGoals.map(g => renderGoal(g, true))}</div> : null}
-          <div className="mt-3 flex flex-wrap items-center gap-2 rounded-xl p-3" style={{ background: "#9B79EC14" }}>
-            <Star size={16} style={{ color: "#7C5CD6" }} />
-            <input value={ng} onChange={e => setNg(e.target.value)} onKeyDown={e => e.key === "Enter" && addGoal()} placeholder="例：基本情報技術者を取得する" aria-label="自分の目標を追加" className="min-w-0 flex-1 rounded-xl px-3 py-2 text-sm outline-none" style={{ border: "1px solid " + T.border, color: T.textPrimary, background: "#fff" }} />
+      <div className="mb-6 grid gap-4 lg:grid-cols-3">
+        <Card className="p-5 lg:col-span-2">
+          <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
+            <div>
+              <h3 className="font-bold" style={{ color: T.textPrimary }}>現在の目標</h3>
+              <p className="text-xs" style={{ color: T.textMuted }}>目標は長期ゴール、小目標はそこへ向かう単元・スキル・マイルストーンです。</p>
+            </div>
+            <Badge tone="cyan">全体 {overall}%</Badge>
+          </div>
+          {gp.length ? <div className="grid gap-3 sm:grid-cols-2">{gp.map((g, i) => {
+            const I = g.icon || Target;
+            return (
+              <div key={g.id} className="rounded-xl p-4" style={{ background: T.bgBase, border: "1px solid " + T.border }}>
+                <div className="mb-3 flex items-start gap-3">
+                  <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl" style={{ background: T.accentSubtle, color: T.accent }}><I size={18} /></div>
+                  <div className="min-w-0 flex-1">
+                    <div><GoalSourceTag mine={g.custom} /></div>
+                    {goalDrafts[g.id] ? (
+                      <div className="mt-1 space-y-2">
+                        <input value={goalDrafts[g.id].title} onChange={e => setGoalDrafts(d => ({ ...d, [g.id]: { ...(d[g.id] || {}), title: e.target.value } }))} className="w-full rounded-lg px-2 py-1.5 text-sm outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary }} />
+                        <input value={goalDrafts[g.id].sub} onChange={e => setGoalDrafts(d => ({ ...d, [g.id]: { ...(d[g.id] || {}), sub: e.target.value } }))} className="w-full rounded-lg px-2 py-1.5 text-xs outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary }} />
+                        <div className="flex gap-2"><Btn size="sm" kind="soft" icon={Check} onClick={() => updateGoalText(g.id, goalDrafts[g.id])}>保存</Btn><Btn size="sm" kind="ghost" icon={X} onClick={() => setGoalDrafts(d => ({ ...d, [g.id]: false }))}>取消</Btn></div>
+                      </div>
+                    ) : (
+                      <>
+                        <div className="mt-0.5 break-words font-bold" style={{ color: T.textPrimary }}>{g.title}</div>
+                        <div className="mt-0.5 break-words text-xs" style={{ color: T.textMuted }}>{g.sub}</div>
+                        {/* Trainee can edit only self-created custom goals. Instructor/admin-authored goals remain read-only until instructor-side goal CRUD is implemented. */}
+                        {g.custom && <div className="mt-2 flex gap-1.5"><Btn size="sm" kind="ghost" icon={Pencil} onClick={() => setGoalDrafts(d => ({ ...d, [g.id]: { title: g.title || "", sub: g.sub || "" } }))}>編集</Btn><Btn size="sm" kind="ghost" icon={Trash2} onClick={() => deleteGoal(g.id)}>削除</Btn></div>}
+                      </>
+                    )}
+                  </div>
+                </div>
+                <div className="mb-1 flex justify-between text-xs"><span style={{ color: T.textMuted }}>小目標の達成</span><span style={{ color: T.textPrimary }}>{g.n}/{g.total}</span></div>
+                <Bar value={g.pct} tone={g.pct >= 80 ? "green" : g.pct >= 40 ? "cyan" : "amber"} />
+              </div>
+            );
+          })}</div> : <div className="rounded-xl p-4 text-sm" style={adminPanelStyle}>目標データ未設定です。</div>}
+          <div className="mt-4 flex flex-wrap items-center gap-2 rounded-xl p-3" style={{ background: T.accentSubtle }}>
+            <Star size={16} style={{ color: T.accent }} />
+            <input value={ng} onChange={e => setNg(e.target.value)} onKeyDown={e => e.key === "Enter" && addGoal()} placeholder="長期目標を追加（例：基本情報技術者を取得する）" className="min-w-0 flex-1 rounded-xl px-3 py-2 text-sm outline-none" style={{ border: "1px solid " + T.border, color: T.textPrimary }} />
             <Btn size="sm" icon={Plus} onClick={addGoal}>目標を追加</Btn>
           </div>
         </Card>
+
+        <Card className="p-5">
+          <div className="mb-4 flex items-center gap-3">
+            <Ring value={overall} size={76} stroke={8}><div className="text-base font-bold" style={{ color: T.textPrimary }}>{overall}%</div></Ring>
+            <div><div className="text-sm font-bold" style={{ color: T.textPrimary }}>進捗サマリー</div><div className="mt-0.5 text-xs" style={{ color: T.textMuted }}>{completedSmallGoals} / {all.length} 小目標完了</div></div>
+          </div>
+          <div className="space-y-2 text-sm">
+            <div className="flex justify-between rounded-xl px-3 py-2" style={{ background: T.bgBase }}><span style={{ color: T.textMuted }}>今日のタスク</span><b style={{ color: T.textPrimary }}>{completedTodayTasks}/{todayTasks.length}</b></div>
+            <div className="flex justify-between rounded-xl px-3 py-2" style={{ background: T.bgBase }}><span style={{ color: T.textMuted }}>長期目標</span><b style={{ color: T.textPrimary }}>{gp.length}件</b></div>
+          </div>
+        </Card>
       </div>
+
+      <Card className="mb-6 p-5">
+        <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
+          <div><h3 className="font-bold" style={{ color: T.textPrimary }}>小目標の進捗</h3><p className="text-xs" style={{ color: T.textMuted }}>小目標は、長期目標に向かうための単元・スキル・マイルストーンとして扱います。</p></div>
+          <Badge tone="muted">既存タスクを利用</Badge>
+        </div>
+        {gp.length ? <div className="space-y-4">{gp.map((g, i) => {
+          const I = g.icon || Target;
+          return (
+            <div key={g.id} className="rounded-xl" style={{ border: "1px solid " + T.border, overflow: "hidden" }}>
+              <div className="flex flex-wrap items-center gap-3 px-4 py-3" style={{ background: T.bgBase }}>
+                <div className="flex h-9 w-9 items-center justify-center rounded-xl" style={{ background: T.accentSubtle, color: T.accent }}><I size={17} /></div>
+                <div className="min-w-0 flex-1"><div><GoalSourceTag mine={g.custom} /></div><div className="truncate text-sm font-bold" style={{ color: T.textPrimary }}>{g.title}</div></div>
+                <div className="w-36"><Bar value={g.pct} tone={g.pct >= 80 ? "green" : g.pct >= 40 ? "cyan" : "amber"} /></div>
+                <Badge tone={g.pct >= 80 ? "green" : "cyan"}>{g.n}/{g.total}</Badge>
+              </div>
+              <div className="p-2">
+                {g.tasks.length ? g.tasks.map(t => {
+                  const ok = !!done[t.id];
+                  return <div key={t.id} className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 transition hover:bg-gray-50">
+                    <button onClick={() => toggle(t.id)}>{ok ? <CheckCircle2 size={18} style={{ color: T.success }} /> : <Circle size={18} style={{ color: T.textMuted }} />}</button>
+                    {taskDrafts[t.id] ? <input value={taskDrafts[t.id].text} onChange={e => setTaskDrafts(d => ({ ...d, [t.id]: { text: e.target.value } }))} onKeyDown={e => e.key === "Enter" && updateTaskText(g.id, t.id, taskDrafts[t.id]?.text)} className="min-w-0 flex-1 rounded-lg px-2 py-1.5 text-sm outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary }} />
+                      : <button onClick={() => toggle(t.id)} className="min-w-0 flex-1 text-left text-sm" style={{ color: ok ? T.textMuted : T.textPrimary, textDecoration: ok ? "line-through" : "none" }}>{t.t}</button>}
+                    {ok && <Badge tone="green">達成</Badge>}
+                    {(g.custom || isOwnTask(t)) && <div className="flex gap-1">{taskDrafts[t.id] ? <Btn size="sm" kind="ghost" icon={Check} onClick={() => updateTaskText(g.id, t.id, taskDrafts[t.id]?.text)}>保存</Btn> : <button onClick={() => setTaskDrafts(d => ({ ...d, [t.id]: { text: t.t || "" } }))} className="rounded-lg p-1 hover:bg-gray-100"><Pencil size={14} style={{ color: T.textMuted }} /></button>}<button onClick={() => deleteTask(g.id, t.id)} className="rounded-lg p-1 hover:bg-gray-100"><Trash2 size={14} style={{ color: T.textMuted }} /></button></div>}
+                  </div>;
+                }) : <div className="rounded-xl p-3 text-sm" style={adminPanelStyle}>小目標データ未設定です。</div>}
+                {g.custom && <div className="flex items-center gap-2 px-3 py-2">
+                  <Plus size={16} style={{ color: T.textMuted }} />
+                  <input value={nt[g.id] || ""} onChange={e => setNt({ ...nt, [g.id]: e.target.value })} onKeyDown={e => e.key === "Enter" && addTask(g.id)} placeholder="小目標を追加..." className="flex-1 rounded-lg px-2 py-1.5 text-sm outline-none" style={{ border: "1px solid " + T.border, color: T.textPrimary }} />
+                  <button onClick={() => addTask(g.id)} className="text-xs font-semibold" style={{ color: T.accentHover }}>追加</button>
+                </div>}
+              </div>
+            </div>
+          );
+        })}</div> : <div className="rounded-xl p-4 text-sm" style={adminPanelStyle}>目標データ未設定です。</div>}
+      </Card>
     </div>
   );
 }
