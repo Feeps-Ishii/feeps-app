@@ -68,7 +68,8 @@ export function takeTeamChatFocus() {
   const id = focusTeam; focusTeam = ""; return id;
 }
 
-function useChatUnread(enabled) {
+// ホームの移動ボタン（チームの新着の件数）からも使う
+export function useChatUnread(enabled) {
   const [s, setS] = useState(state);
   useEffect(() => {
     if (!enabled) return undefined;

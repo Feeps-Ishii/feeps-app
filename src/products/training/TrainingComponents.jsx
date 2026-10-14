@@ -355,7 +355,7 @@ function TraineeHome({ go, goProduct, goSub, done, taskDataState, onTaskRetry, t
   return (
     <PrismPage className="max-w-full overflow-x-hidden" style={{ gap: 16 }}>
       {/* 2026-10-14（ユーザー指定）：上の状況ボードはやめ、よく開く画面へのボタンにした */}
-      <TraineeHomeNav go={go} />
+      <TraineeHomeNav go={go} reports={thAvailability.reports ? thHome.reports : null} />
 
       {thErr && <PrismErrorRetryCard message={thErr} onRetry={() => setThReloadKey(value => value + 1)} />}
 
