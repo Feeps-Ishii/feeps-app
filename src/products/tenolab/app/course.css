@@ -130,6 +130,13 @@
 .tl-course .verdict.ok{background:var(--mint-soft); color:var(--mint); border:1.5px solid var(--mint)}
 .tl-course .verdict.ng{background:var(--red-soft); color:var(--red); border:1.5px solid var(--red)}
 .tl-course .verdict.wait{background:var(--soft); color:var(--muted); border:1.5px dashed var(--line)}
+/* AWSの演習：残り時間の注意と、片付ける前の確認（2026-10-15） */
+.tl-course .verdict.warn{display:flex; flex-wrap:wrap; align-items:center; gap:10px; justify-content:space-between; background:#FFF4E0; color:#9A5B00; border:1.5px solid #F0B44C}
+.tl-course .verdict.warn .btn{padding:6px 12px; font-size:13px}
+.tl-course .env-confirm{display:grid; gap:8px; padding:12px 14px; border-radius:12px; background:var(--red-soft); border:1.5px solid var(--red); color:var(--ink)}
+.tl-course .env-confirm b{color:var(--red); font-size:14px}
+.tl-course .env-confirm ul{margin:0; padding-left:18px; font-size:13px; color:var(--ink2); display:grid; gap:2px}
+.tl-course .btn.danger{background:var(--red); border-color:var(--red); color:#fff}
 .tl-course .hint{background:var(--marker-soft); border:1.5px solid var(--marker-deep); border-radius:10px; padding:8px 12px; font-size:14px}
 .tl-course .choices{display:grid; gap:8px; max-width:560px}
 .tl-course .choices button{text-align:left; border:1px solid #CDD1C7; border-radius:10px; background:var(--card); padding:10px 14px; font-weight:500}

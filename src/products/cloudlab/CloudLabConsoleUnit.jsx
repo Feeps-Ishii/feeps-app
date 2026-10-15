@@ -108,7 +108,7 @@ export default function CloudLabConsoleUnit({ unit, onBack }) {
   }
 
   async function finish() {
-    if (!window.confirm("実習を終了します。作ったものはすべて消えます。よろしいですか？")) return;
+    if (!window.confirm("実習を終了します。作ったものはすべて消え、開いているAWSのコンソールもすぐに使えなくなります。よろしいですか？")) return;
     setBusy("finish"); setError("");
     try {
       await apiDelete("/cloudlab/session");

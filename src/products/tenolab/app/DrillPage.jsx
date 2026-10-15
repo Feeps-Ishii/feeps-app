@@ -146,6 +146,9 @@ const START_TEXT = {
   ready: "VPC・サブネット・EC2が用意された環境から始めます。今回は足りない部分だけを作ります。",
   trouble: "Webサーバーが表示されなくなった環境から始めます。原因を探して直してください。",
 };
+// 残りがこれより少なくなったら、片付く前に注意を出す
+const WARN_LEFT_MS = 10 * 60_000;
+const EXTEND_LABEL = "30分";
 const fmtLeft = ms => { const s = Math.max(0, Math.floor(ms / 1000)); return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`; };
 
 function AwsDrill({ item, premium, back, rec, progress }) {
@@ -172,6 +175,9 @@ export function AwsEnvPanel({ scenario, start = "blank", task, steps, onGraded, 
   const [now, setNow] = useState(Date.now());
   const [note, setNote] = useState({ cause: "", note: "" });
   const [reopen, setReopen] = useState(false);
+  // 片付ける・最初に戻す前の確認（"stop" | "reset" | ""）と、延長したあとの「開き直して」（2026-10-15 ユーザー指定：途中で終わらないよう注意を出す）
+  const [confirm, setConfirm] = useState("");
+  const [extended, setExtended] = useState(false);
 
   async function load() {
     try {
@@ -234,8 +240,11 @@ export function AwsEnvPanel({ scenario, start = "blank", task, steps, onGraded, 
     setGraded(r);
     onGraded && onGraded(r);
   });
-  const reset = () => act("reset", async () => { await cloud.stop(); await cloud.start(scenario); setGraded(null); await load(); });
-  const stop = () => act("stop", async () => { await cloud.stop(); setGraded(null); await load(); });
+  // 片付けると、開いているコンソールもその場で使えなくなる（API 側で取り消す）
+  const reset = () => act("reset", async () => { setConfirm(""); setExtended(false); await cloud.stop(); await cloud.start(scenario); setGraded(null); await load(); });
+  const stop = () => act("stop", async () => { setConfirm(""); setExtended(false); await cloud.stop(); setGraded(null); await load(); });
+  // コンソールの一時キーは開いたときの期限で切れるので、延長したら開き直してもらう
+  const extend = () => act("extend", async () => { await cloud.extend(); await load(); setExtended(true); });
   const saveNote = () => act("note", async () => { await cloud.note(scenario, note); });
   // 手順の「ここまで確かめる」：採点と同じ読み取り。結果は右の採点にも反映する
   const verifyStep = async () => { const r = await cloud.check(scenario); setGraded(r); onGraded && onGraded(r); return r; };
@@ -244,6 +253,7 @@ export function AwsEnvPanel({ scenario, start = "blank", task, steps, onGraded, 
   const checks = graded?.checks || names.map((name, i) => ({ id: String(i), name, ok: false, pending: true }));
   const s = sess.session;
   const left = s?.expiresAt ? new Date(s.expiresAt).getTime() - now : null;
+  const soon = sess.state === "ready" && left != null && left <= WARN_LEFT_MS;
 
   return (
     <>
@@ -265,7 +275,14 @@ export function AwsEnvPanel({ scenario, start = "blank", task, steps, onGraded, 
             {sess.state === "ready" && waitingVpc && s?.tag && <span>$ VPCを作るときは、タグ {s.tag.key} = {s.tag.value} を付けてください（「VPCのみ」で作成）</span>}
             {sess.state === "ready" && s?.namePrefix && start !== "blank" && <span className="mute">ALB・Auto Scaling・アラームなどの名前は「{s.namePrefix}」で始めてください</span>}
             {reopen && <span className="ok">✓ VPCを確認しました。続きの操作のため、コンソールを開き直してください</span>}
+            {extended && <span className="ok">✓ 延長しました。コンソールを開き直してください（開いたままの画面は前の時間で切れます）</span>}
           </section>
+          {soon && (
+            <div className="verdict warn" role="status">
+              <span>{left > 0 ? `残り ${fmtLeft(left)}。時間になると環境は片付き、コンソールも使えなくなります` : "時間になりました。環境を片付けています"}</span>
+              {left > 0 && !readOnly && <button className="btn ghost" type="button" onClick={extend} disabled={!!busy}>{busy === "extend" ? "延長しています…" : `${EXTEND_LABEL}延長する`}</button>}
+            </div>
+          )}
           {(steps || []).length > 0 && <AwsGuide scenario={scenario} steps={steps} session={s} ready={sess.state === "ready" && !readOnly} verify={verifyStep} />}
           {scenario === "recover" && sess.state === "ready" && (
             <section className="card" style={{ padding: "16px 18px", display: "grid", gap: 8 }}>
@@ -290,11 +307,26 @@ export function AwsEnvPanel({ scenario, start = "blank", task, steps, onGraded, 
           {sess.state === "ready" && !readOnly && <>
             <button className="btn" type="button" onClick={openConsole} disabled={!!busy} style={{ justifyContent: "center" }}>AWSのコンソールを開く ↗</button>
             <button className="btn dark" type="button" onClick={grade} disabled={!!busy} style={{ justifyContent: "center" }}>{busy === "grade" ? "採点しています…" : "採点する"}</button>
-            <button className="btn ghost" type="button" onClick={reset} disabled={!!busy} style={{ justifyContent: "center" }}>{busy === "reset" ? "作り直しています…" : "最初の状態に戻す"}</button>
+            <button className="btn ghost" type="button" onClick={extend} disabled={!!busy} style={{ justifyContent: "center" }}>{busy === "extend" ? "延長しています…" : `${EXTEND_LABEL}延長する`}</button>
+            <button className="btn ghost" type="button" onClick={() => setConfirm("reset")} disabled={!!busy} style={{ justifyContent: "center" }}>{busy === "reset" ? "作り直しています…" : "最初の状態に戻す"}</button>
           </>}
-          {(sess.state === "ready" || sess.state === "other" || sess.state === "failed") && <button className="btn ghost" type="button" onClick={stop} disabled={!!busy} style={{ justifyContent: "center" }}>{busy === "stop" ? "片付けています…" : "環境を片付ける"}</button>}
+          {(sess.state === "ready" || sess.state === "other" || sess.state === "failed") && <button className="btn ghost" type="button" onClick={() => setConfirm("stop")} disabled={!!busy} style={{ justifyContent: "center" }}>{busy === "stop" ? "片付けています…" : "環境を片付ける"}</button>}
+          {confirm && (
+            <div className="env-confirm" role="alertdialog" aria-labelledby="env-confirm-t">
+              <b id="env-confirm-t">{confirm === "stop" ? "環境を片付けますか？" : "最初の状態に戻しますか？"}</b>
+              <ul>
+                <li>作ったものはすべて消えます</li>
+                <li>開いているAWSのコンソールは、すぐに使えなくなります</li>
+                {confirm === "reset" && <li>戻したあと、コンソールを開き直してください</li>}
+              </ul>
+              <div className="row" style={{ gap: 8 }}>
+                <button className="btn danger" type="button" onClick={confirm === "stop" ? stop : reset} disabled={!!busy}>{confirm === "stop" ? "片付ける" : "戻す"}</button>
+                <button className="btn ghost" type="button" onClick={() => setConfirm("")} disabled={!!busy}>やめる</button>
+              </div>
+            </div>
+          )}
           {sess.state === "error" && <button className="btn ghost" type="button" onClick={load} style={{ justifyContent: "center" }}>もう一度確かめる</button>}
-          <div className="muted" style={{ fontSize: 12.5, display: "grid", gap: 4 }}><span>・1回 90分まで（延長できます）</span><span>・終わったら自動で片付けます</span></div>
+          <div className="muted" style={{ fontSize: 12.5, display: "grid", gap: 4 }}><span>・1回 90分まで（延長できます）</span><span>・時間になると自動で片付けます</span><span>・片付けると、コンソールも使えなくなります</span></div>
         </aside>
       </div>
     </>
