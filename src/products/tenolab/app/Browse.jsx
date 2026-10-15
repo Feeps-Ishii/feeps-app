@@ -205,10 +205,23 @@ function DrillFilter({ all, groups, view, setView, premium, go }) {
   const tagChips = tagRows.filter(r => !seenTag.has(r.x) && seenTag.add(r.x)).map(r => ({ ...r, n: inTopic.filter(d => (d.tags || []).includes(r.x)).length }));
   const levels = LEVEL_ORDER.filter(l => inTopic.some(d => d.level === l));
   const level = levels.includes(view.level) ? view.level : "all";
-  const list = inTopic.filter(d => (!tags.length || tags.some(x => (d.tags || []).includes(x))) && (level === "all" || d.level === level) && !(view.hide && d.cleared));
+  const list0 = inTopic.filter(d => (!tags.length || tags.some(x => (d.tags || []).includes(x))) && (level === "all" || d.level === level) && !(view.hide && d.cleared));
   const toggleTag = x => set({ tags: tags.includes(x) ? tags.filter(y => y !== x) : [...tags, x] });
+  // レッスンの「演習へ」から来たとき：このレッスンに紐づいた演習を先頭に（絞り込みとは別に、いつも全部出す）
+  const L = view.lesson;
+  const linked = L ? all.filter(d => (d.lessons || []).some(x => x.courseId === L.courseId && x.lessonId === L.lessonId)) : [];
+  const list = linked.length ? list0.filter(d => !linked.includes(d)) : list0;
   return (
     <>
+      {L && (
+        <div className="dflesson">
+          <span className="x">レッスン：{L.title}<button type="button" aria-label="レッスンの並べ替えを外す" onClick={() => set({ lesson: null })}>×</button></span>
+          <small>紐づいた演習を先頭に</small>
+          <span className="sp" />
+          <button type="button" className="btn ghost" onClick={() => go(L.back)}>◀ レッスンに戻る</button>
+          <button type="button" className="btn" onClick={() => go(L.next)}>{L.nextLabel} ▶</button>
+        </div>
+      )}
       <div className="dfbar">
         <div className="dfrow" role="group" aria-label="単元で絞り込む"><span className="lbl">単元</span>
           <button type="button" className="f" aria-pressed={topic === "all"} onClick={() => set({ filter: "all", tags: [] })}>すべて <small>{all.length}</small></button>
@@ -222,9 +235,16 @@ function DrillFilter({ all, groups, view, setView, premium, go }) {
         <div className="dfrow last">
           {levels.length > 1 && <span className="seg" role="group" aria-label="レベル">{[["all", "すべて"], ...levels.map(l => [l, l])].map(([k, l]) => <button key={k} type="button" aria-pressed={level === k} onClick={() => set({ level: k })}>{l}</button>)}</span>}
           {inTopic.some(d => d.cleared) && <label className="hide-sw"><input type="checkbox" role="switch" checked={!!view.hide} onChange={e => set({ hide: e.target.checked })} /><i aria-hidden="true" />クリア済みを隠す</label>}
-          <span className="dcount"><b>{list.length}</b>問</span>
+          <span className="dcount"><b>{list.length + linked.length}</b>問</span>
         </div>
       </div>
+      {linked.length > 0 && (
+        <>
+          <div className="dfgh"><b>このレッスンの演習</b><small>{linked.length}問 ・ クリア {linked.filter(d => d.cleared).length}</small></div>
+          <div className="courses dflinked">{linked.map(d => <DrillCard key={d.id} d={d} premium={premium} go={go} hits={tags} />)}</div>
+          <div className="dfgh"><b>ほかの演習</b></div>
+        </>
+      )}
       {list.length ? <div className="courses">{list.map(d => <DrillCard key={d.id} d={d} premium={premium} go={go} hits={tags} />)}</div> : <p className="muted">当てはまる演習はありません</p>}
     </>
   );

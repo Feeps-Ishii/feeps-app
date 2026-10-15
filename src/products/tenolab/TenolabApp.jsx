@@ -228,7 +228,17 @@ function App({ route, auth, onLogout }) {
     else go(fallback);
   }, [go]);
 
-  const ctx = { lrn, topics, courses, drills, cases, premium, staff, go, back, progress, resume, reloadCases: casesQ.reload, notices };
+  // レッスンの最後の「演習へ」（2026-10-15）。演習一覧で、このレッスンに紐づいた演習を先頭に並べる
+  const openLessonDrills = useCallback((course, lesson, nextLesson) => {
+    const base = `#/courses/${encodeURIComponent(course.id)}`;
+    setViews(s => ({ ...s, drills: { ...s.drills, mode: "flat", lesson: {
+      courseId: course.id, lessonId: lesson.id, title: `${course.title} ${lesson.title}`,
+      back: `${base}/lessons/${encodeURIComponent(lesson.id)}`,
+      next: nextLesson ? `${base}/lessons/${encodeURIComponent(nextLesson.id)}` : base, nextLabel: nextLesson ? "次のレッスンへ" : "コースへ戻る",
+    } } }));
+    go("#/drills");
+  }, [go]);
+  const ctx = { lrn, topics, courses, drills, cases, premium, staff, go, back, progress, resume, reloadCases: casesQ.reload, notices, openLessonDrills };
   const noticeDrawerEl = <NoticeDrawer notices={notices} courseTitle={id => lrn.courseById?.(id)?.title || ""} onCourse={id => go(`#/courses/${id}`)} />;
   const loading = [topicsQ, me].some(q => q.state === "loading") || lrn.courseCatalogState === "loading";
   // 「研修のみ」の契約の人は入れない（ログイン済みのまま開いたときもここで戻す）

@@ -1,8 +1,9 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { apiPost } from "../../../api.js";
 import { SlideRenderer } from "../../learning/ElSlideLessonView.jsx";
-import ExerciseBench, { BENCH_KINDS } from "./exercise/Bench.jsx";
+import ExerciseBench, { BENCH_KINDS, isSampleSlide } from "./exercise/Bench.jsx";
 import { ChoiceQuiz, CodeQuiz } from "./exercise/Quiz.jsx";
+import Tour, { tourEnvOf, tourSeen } from "./exercise/Tour.jsx";
 
 /* レッスン画面（モック tenolab-lesson.html、2026-10-08）
    パワポ＋PDFから作ったコースを、資料のページそのままで見せる。足したスライド（表紙・中扉・自動のまとめ）は出さない。
@@ -12,7 +13,36 @@ import { ChoiceQuiz, CodeQuiz } from "./exercise/Quiz.jsx";
    下に、ついてくる操作の帯（前へ・ページ数・次へ・AIに聞く・集中）。← → でもページを動かせる。
    進み具合は今までどおり lrn.touchLesson（最後に開いた）と lrn.completeLesson（最後のページで「次のレッスン」）。 */
 const HIDE_KINDS = new Set(["summary", "_cover", "_divider"]);
-const isExercise = s => s && !["image", "concept", "video", "pdf", "figure", "table", "compare", "chapter", "agenda", "hook", "steps", "columns", "work"].includes(s.kind);
+const isExercise = s => s && !["image", "concept", "video", "pdf", "figure", "table", "compare", "chapter", "agenda", "hook", "steps", "columns", "work", "_title", "_practice"].includes(s.kind);
+
+/* 演習に入る前の切れ目のスライド（2026-10-15、モック devhub-lesson-drill-link.html の ① A案）。
+   説明のページのあとに、コードを動かす・コードのクイズが続くところへ1枚足す（保存はしない。slide.id は _practice1 …）。
+   選ぶだけのクイズしか無いところには足さない（軽いので切れ目にしない） */
+const isCodeWork = s => BENCH_KINDS.has(s.kind) || (s.kind === "quiz" && s.interaction?.type === "code");
+function withPracticeBreaks(real) {
+  const out = [];
+  const breaks = [];
+  for (let k = 0; k < real.length; k++) {
+    const s = real[k];
+    if (isExercise(s) && (k === 0 || !isExercise(real[k - 1]))) {
+      let e = k;
+      while (e + 1 < real.length && isExercise(real[e + 1])) e++;
+      const run = real.slice(k, e + 1);
+      if (run.some(isCodeWork)) {
+        const code = run.filter(x => BENCH_KINDS.has(x.kind)).length;
+        const cquiz = run.filter(x => x.kind === "quiz" && x.interaction?.type === "code").length;
+        const quiz = run.length - code - cquiz;
+        const minutes = run.reduce((m, x) => m + (Number(x.content?.minutes) || (BENCH_KINDS.has(x.kind) ? 3 : 1)), 0);
+        const b = { id: `_practice${breaks.length + 1}`, kind: "_practice", navLabel: "演習", chatSlide: s, items: [code && ["▶", "コードを動かす", code], cquiz && ["?", "コードのクイズ", cquiz], quiz && ["✓", "確認クイズ", quiz]].filter(Boolean), minutes };
+        breaks.push(b);
+        out.push(b);
+      }
+    }
+    out.push(s);
+  }
+  breaks.forEach((b, n) => { b.no = n + 1; b.of = breaks.length; });
+  return out;
+}
 const urlCache = new Map();
 const labelOf = (s, i) => s?.navLabel || s?.title || `ページ ${i + 1}`;
 // AIが作った説明に「&lt;」のような文字参照が混ざることがある。画面ではふつうの文字に戻す
@@ -33,6 +63,7 @@ function useSlideUrl(lrn, materialId) {
 
 function Thumb({ lrn, slide }) {
   if (slide.kind === "_title") return <span className={`lsn-thumb tt tt-${slide.variant}`} style={{ "--c": slide.color }} aria-hidden="true"><i /></span>;
+  if (slide.kind === "_practice") return <span className="lsn-thumb pr" aria-hidden="true">PRACTICE</span>;
   const url = useSlideUrl(lrn, slide.kind === "image" ? slide.content?.materialId : "");
   if (isExercise(slide)) return <span className="lsn-thumb ex">{slide.kind === "code_run" || slide.kind === "web_run" || slide.kind === "js_run" || slide.kind === "sql_run" ? "CODE" : "QUIZ"}</span>;
   return <span className="lsn-thumb">{url ? <img src={url} alt="" loading="lazy" /> : null}</span>;
@@ -56,6 +87,7 @@ function Page({ lrn, slide, course, lesson, index, total, lastRatio, onRatio }) 
     );
   }
   if (slide.kind === "_title") return <TitlePage lrn={lrn} slide={slide} lastRatio={lastRatio} />;
+  if (slide.kind === "_practice") return <PracticePage slide={slide} lastRatio={lastRatio} />;
   // クイズは紹介ページと同じ見た目と動き（2026-10-15、exercise/Quiz.jsx）
   if (slide.kind === "quiz" && (slide.interaction?.type === "choice" || slide.interaction?.type === "code")) {
     return <div className="lsn-frame free ex">{slide.interaction.type === "code" ? <CodeQuiz slide={slide} /> : <ChoiceQuiz slide={slide} />}</div>;
@@ -91,6 +123,20 @@ function TitlePage({ lrn, slide, lastRatio }) {
   );
 }
 
+// 演習に入る前の切れ目：暗い地に黄色（コースの表紙と同じ色合い）
+function PracticePage({ slide, lastRatio }) {
+  return (
+    <div className="lsn-frame lsn-practice" style={{ "--r": lastRatio || 16 / 9 }}>
+      <span className="no">PRACTICE{slide.of > 1 ? ` ・ ${slide.no} / ${slide.of}` : ""}</span>
+      <h2>ここから<br />手を動かします</h2>
+      <i className="rule" aria-hidden="true" />
+      <ul>{slide.items.map(([ic, label, n]) => <li key={label}><i>{ic}</i>{label}<em>{n}{label.includes("クイズ") ? "問" : "つ"}</em></li>)}</ul>
+      <span className="time">約 {slide.minutes}分</span>
+      <span className="big" aria-hidden="true">&lt;/&gt;</span>
+    </div>
+  );
+}
+
 const FIRST_SUGG = ["もう少しかんたんに", "例えで説明して", "ここで大事なところは？"];
 
 export default function LessonView({ ctx, course, lesson, lessons, slideId }) {
@@ -107,7 +153,7 @@ export default function LessonView({ ctx, course, lesson, lessons, slideId }) {
     const head = { id: "_lesson", kind: "_title", variant: "lesson", no, color, ratioFrom, chatSlide: real[0],
       title: String(lesson.title || "").replace(/^\s*Lesson\s*\.?\s*[\d-]+\s*[.:：、]?\s*/i, "") || lesson.title, navLabel: `Lesson.${no}` };
     const cover = { id: "_cover", kind: "_title", variant: "course", ratioFrom, chatSlide: real[0], title: course.title, navLabel: "表紙" };
-    return [...(li === 0 ? [cover] : []), head, ...real];
+    return [...(li === 0 ? [cover] : []), head, ...withPracticeBreaks(real)];
   }, [lesson, li, course.title, course.topic, ctx.topics]);
   const startAt = Math.max(0, slides.findIndex(s => s.id === slideId));
   const [i, setI] = useState(startAt);
@@ -120,6 +166,19 @@ export default function LessonView({ ctx, course, lesson, lessons, slideId }) {
   const chatAsk = useRef(null);
   const slide = slides[i];
   const total = slides.length;
+  // 初めてのときだけのツアー（画面の種類ごと）。ページが描かれてから出す
+  const stageRef = useRef(null);
+  const env = tourEnvOf(slide, isSampleSlide(slide));
+  const [tour, setTour] = useState("");
+  useEffect(() => {
+    setTour("");
+    if (!env || tourSeen(env)) return undefined;
+    const t = setTimeout(() => setTour(env), 700);
+    return () => clearTimeout(t);
+  }, [slide?.id, env]);
+  // このレッスンに紐づいた演習（最後のページの「演習へ」。2026-10-15 モックの ⑤）
+  const linkedDrills = useMemo(() => (ctx.drills || []).filter(d => (d.lessons || []).some(x => x.courseId === course.id && x.lessonId === lesson.id)), [ctx.drills, course.id, lesson.id]);
+  const allCleared = linkedDrills.length > 0 && linkedDrills.every(d => d.cleared);
 
   useEffect(() => { setI(Math.max(0, slides.findIndex(s => s.id === slideId))); }, [lesson.id]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => { lrn.touchLesson?.(course.id, lesson.id); }, [course.id, lesson.id]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -180,7 +239,7 @@ export default function LessonView({ ctx, course, lesson, lessons, slideId }) {
             {lessons.map(l => <option key={l.id} value={l.id}>{l.title}</option>)}
           </select>
         </label>
-        <div className="r"><span className="chip">{i + 1} / {total}ページ</span><span className="lsn-prog"><i style={{ width: `${(i + 1) / total * 100}%` }} /></span></div>
+        <div className="r">{env && <button type="button" className="lsn-help" onClick={() => setTour(env)}>？ 操作の説明</button>}<span className="chip">{i + 1} / {total}ページ</span><span className="lsn-prog"><i style={{ width: `${(i + 1) / total * 100}%` }} /></span></div>
       </div>
 
       <div className={`lsn-layout ${chatOpen ? "" : "no-chat"} ${focus ? "focus" : ""} ${bench ? "ex" : ""}`}>
@@ -193,11 +252,11 @@ export default function LessonView({ ctx, course, lesson, lessons, slideId }) {
         </nav>
         {/* main 要素にはテノラボ全体の上下の余白が付くので、section にする（真ん中だけ下にずれていた） */}
         {bench ? (
-          <section className="lsn-stage ex">
+          <section className="lsn-stage ex" ref={stageRef}>
             <ExerciseBench key={slide.id} focus={focus} slide={slide} lrn={lrn} course={course} lesson={lesson} onContext={c => { exCtx.current = c; setExSees(c.language); }} onAsk={askFromBench} />
           </section>
         ) : (
-          <section className="lsn-stage">
+          <section className="lsn-stage" ref={stageRef}>
             <div className="lsn-fwrap"><Page key={slide.id} lrn={lrn} slide={slide} course={course} lesson={lesson} index={i} total={total} lastRatio={lastRatio} onRatio={setLastRatio} /></div>
             {caption && <div className="lsn-cap">{caption}</div>}
           </section>
@@ -208,11 +267,13 @@ export default function LessonView({ ctx, course, lesson, lessons, slideId }) {
       <div className="lsn-dock" role="toolbar" aria-label="ページの操作">
         <button type="button" onClick={prev} disabled={i === 0 && li === 0}>◀ <span className="lbl">前へ</span></button>
         <span className="pos">{i + 1} / {total}</span>
+        {last && linkedDrills.length > 0 && <button type="button" className="to-drills" onClick={() => { lrn.completeLesson?.(course.id, lesson.id); ctx.openLessonDrills?.(course, lesson, li < lessons.length - 1 ? lessons[li + 1] : null); }}>✎ <span className="lbl">演習へ</span><em>{allCleared ? "✓" : `${linkedDrills.length}問`}</em></button>}
         <button type="button" className="next" onClick={next}><span className="lbl">{last ? (li < lessons.length - 1 ? "次のレッスン" : "コースへ戻る") : "次へ"}</span> ▶</button>
         <span className="sep" />
         <button type="button" aria-pressed={chatOpen} onClick={() => { setChatOpen(v => !v); setFocus(false); }}>AI <span className="lbl">に聞く</span></button>
         <button type="button" aria-pressed={focus} onClick={() => { setFocus(v => !v); if (!focus) setChatOpen(false); }}>⤢ <span className="lbl">集中</span></button>
       </div>
+      {tour && <Tour key={`${slide.id}-${tour}`} env={tour} root={stageRef.current} onClose={() => setTour("")} />}
     </div>
   );
 }

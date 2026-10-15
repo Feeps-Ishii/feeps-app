@@ -349,3 +349,15 @@
 @media (prefers-reduced-motion:reduce){
 .tl-course *, .tl-course{transition:none !important}
 }
+/* AWSの演習：終了までの時間（大きく）と、始める前の時間の案内（2026-10-15） */
+.tl-course .envtimer{display:grid; gap:4px; padding:12px 14px; border-radius:12px; background:var(--ink); color:var(--paper); text-align:center}
+.tl-course .envtimer small{font-size:12px; color:#C9CCD6; font-weight:700}
+.tl-course .envtimer b{font-family:var(--mono); font-size:34px; line-height:1.15; letter-spacing:.02em; color:var(--marker)}
+.tl-course .envtimer .bar{height:6px; border-radius:99px; background:rgba(255,255,255,.15); overflow:hidden}
+.tl-course .envtimer .bar i{display:block; height:100%; border-radius:99px; background:var(--marker)}
+.tl-course .envtimer.soon{background:#9A3B0F}
+.tl-course .envtimer.soon b, .tl-course .envtimer.soon .bar i{color:#FFE3C2; background-color:transparent}
+.tl-course .envtimer.soon .bar i{background:#FFB27A}
+.tl-course .envplan{display:grid; gap:2px; padding:10px 12px; border-radius:12px; background:var(--marker-soft); border:1px solid var(--marker-deep); font-size:13px}
+.tl-course .envplan b{font-size:14px}
+.tl-course .envplan span{color:var(--ink2); font-size:12.5px}

@@ -434,3 +434,47 @@
   .tl-course .dtags span.hit { background: var(--tc); color: #fff; }
   .tl-course .dtags small { font-size: 11px; color: var(--muted); }
 }
+
+/* 演習に入る前の切れ目のスライド・初めてのときのツアー・レッスンの「演習へ」（2026-10-15、モック devhub-lesson-drill-link.html の ①②⑤） */
+@layer tenolab {
+  .tl-course .lsn-practice { container-type: inline-size; border: 0; color: #FBFBF7; background: #15171C; place-items: center start; align-content: center; justify-items: start; gap: 1.6cqw; padding: 6cqw 7cqw; }
+  .tl-course .lsn-practice .no { font-family: var(--mono); font-size: 1.7cqw; letter-spacing: .24em; color: var(--marker, #FFE14D); font-weight: 600; }
+  .tl-course .lsn-practice h2 { margin: 0; font-family: var(--display, sans-serif); font-weight: 400; font-size: 5.4cqw; line-height: 1.3; color: #FBFBF7; position: relative; }
+  .tl-course .lsn-practice .rule { width: 8cqw; height: .8cqw; border-radius: 99px; background: var(--marker, #FFE14D); }
+  .tl-course .lsn-practice ul { list-style: none; margin: .6cqw 0 0; padding: 0; display: grid; gap: 1cqw; width: min(44cqw, 100%); position: relative; }
+  .tl-course .lsn-practice li { display: flex; align-items: center; gap: 1.4cqw; font-size: 2.1cqw; color: #E6E9F1; }
+  .tl-course .lsn-practice li i { font-style: normal; width: 3.4cqw; height: 3.4cqw; border-radius: 1cqw; background: rgba(255,225,77,.18); color: var(--marker, #FFE14D); display: grid; place-items: center; font-size: 1.6cqw; font-weight: 700; }
+  .tl-course .lsn-practice li em { margin-left: auto; font-style: normal; font-family: var(--mono); font-size: 1.8cqw; color: #9CA1AD; }
+  .tl-course .lsn-practice .time { font-family: var(--mono); font-size: 1.7cqw; color: #9CA1AD; }
+  .tl-course .lsn-practice .big { position: absolute; right: 3cqw; bottom: -5cqw; font-family: var(--mono); font-weight: 700; font-size: 24cqw; line-height: 1; color: rgba(255,225,77,.12); }
+  .tl-course .lsn-thumb.pr { display: grid; place-items: center; background: #15171C; border-color: #15171C; color: var(--marker, #FFE14D); font-family: var(--mono); font-size: 7.5px; font-weight: 700; letter-spacing: .06em; }
+  .tl-course .lsn-help { border: 1px solid var(--line); background: var(--card); border-radius: 999px; padding: 2px 12px; font-size: 12.5px; font-weight: 700; color: var(--ink2); white-space: nowrap; }
+  .tl-course .lsn-dock button.to-drills { background: #3D6BF0; color: #fff; box-shadow: 0 0 0 3px rgba(61,107,240,.35); display: inline-flex; align-items: center; gap: 6px; }
+  .tl-course .lsn-dock button.to-drills:hover { background: #2F5AD6; }
+  .tl-course .lsn-dock button.to-drills em { font-style: normal; font-size: 11px; background: rgba(255,255,255,.22); border-radius: 999px; padding: 0 7px; }
+  /* 演習一覧：レッスンの演習を先頭に */
+  .tl-course .dflesson { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; background: var(--card); border: 1.5px solid #3D6BF0; border-radius: 12px; padding: 10px 14px; margin-bottom: 10px; }
+  .tl-course .dflesson .x { display: inline-flex; align-items: center; gap: 8px; background: #3D6BF0; color: #fff; border-radius: 999px; padding: 2px 6px 2px 12px; font-size: 13px; font-weight: 700; }
+  .tl-course .dflesson .x button { border: 0; background: rgba(255,255,255,.25); color: #fff; width: 20px; height: 20px; border-radius: 50%; line-height: 1; padding: 0; }
+  .tl-course .dflesson small { color: var(--ink2); font-size: 12.5px; }
+  .tl-course .dflesson .sp { flex: 1; }
+  .tl-course .dfgh { display: flex; align-items: baseline; gap: 10px; margin: 6px 0 8px; }
+  .tl-course .dfgh b { font-size: 15px; }
+  .tl-course .dfgh small { color: var(--muted); font-size: 12.5px; }
+  .tl-course .dflinked { margin-bottom: 18px; }
+  .tl-course .dflinked .ccard { border: 1.5px solid #3D6BF0; box-shadow: 0 8px 20px -14px #3D6BF0; }
+}
+/* ツアーは画面全体に重ねる（.tl-course の外でも効くように @layer の外） */
+.tl-tour { position: fixed; inset: 0; z-index: 80; pointer-events: auto; }
+.tl-tour .hole { position: fixed; border-radius: 10px; box-shadow: 0 0 0 9999px rgba(15,17,22,.62); outline: 3px solid #FFE14D; transition: all .3s cubic-bezier(.3,.9,.4,1); pointer-events: none; }
+.tl-tour .pop { position: fixed; background: #fff; color: #15171C; border: 1px solid #15171C; border-radius: 14px; padding: 14px 16px; display: grid; gap: 8px; box-shadow: 0 14px 30px -12px rgba(0,0,0,.45); transition: left .3s, top .3s; font-family: "Zen Kaku Gothic New", "Hiragino Kaku Gothic ProN", "Yu Gothic UI", Meiryo, sans-serif; }
+.tl-tour .pop b { font-size: 15px; }
+.tl-tour .pop p { margin: 0; font-size: 13.5px; color: #454B57; line-height: 1.7; }
+.tl-tour .pop .r { display: flex; align-items: center; gap: 8px; }
+.tl-tour .pop .r small { font-family: "JetBrains Mono", monospace; color: #767D8C; font-size: 12px; }
+.tl-tour .pop .dots { display: flex; gap: 4px; }
+.tl-tour .pop .dots i { width: 6px; height: 6px; border-radius: 50%; background: #E2E5DD; }
+.tl-tour .pop .dots i.on { background: #15171C; }
+.tl-tour .pop .skip { margin-left: auto; border: 0; background: none; color: #767D8C; font-size: 13px; text-decoration: underline; cursor: pointer; }
+.tl-tour .pop .btn.go { border: 1px solid #15171C; background: #FFE14D; color: #15171C; border-radius: 10px; padding: 4px 14px; font-weight: 700; font-size: 13px; cursor: pointer; }
+@media (prefers-reduced-motion: reduce) { .tl-tour .hole, .tl-tour .pop { transition: none; } }

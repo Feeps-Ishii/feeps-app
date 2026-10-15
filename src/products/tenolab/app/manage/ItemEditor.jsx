@@ -23,7 +23,7 @@ const TEST_HELP = {
   servlet: "フォームの値（name=value&… 同じ name は何回でも）で Servlet を動かし、画面に出た文字に「出てほしい文字」（1行に1つ）がすべて含まれればOK（空白は無視）。",
 };
 const blank = kind => kind === "drills"
-  ? { title: "", topic: "", runtime: "js", level: "やさしい", minutes: 10, tags: [], task: "", hint: "", starterCode: "", answerCode: "", tests: [{ name: "", expr: "" }], premium: false, order: 0, thumb: null }
+  ? { title: "", topic: "", runtime: "js", level: "やさしい", minutes: 10, tags: [], lessons: [], task: "", hint: "", starterCode: "", answerCode: "", tests: [{ name: "", expr: "" }], premium: false, order: 0, thumb: null }
   : { title: "", topic: "", runtime: "js", summary: "", hours: 2, needCourseId: "", ticket: { id: "", kind: "feat", client: "", background: "", scope: [""], done: [], notes: "", comments: [] }, spec: { rules: [], fields: [] }, starterCode: "", answerCode: "", tests: [{ name: "", expr: "" }], rubric: [], skipAfter: 2, premium: false, order: 0, thumb: null };
 const SKIP_AFTER = [[1, "やり直し1回から"], [2, "やり直し2回から"], [3, "やり直し3回から"], [0, "出さない"]];
 
@@ -184,11 +184,36 @@ function TagPicker({ topic, value, onChange }) {
   );
 }
 
+/* 演習とレッスンの紐づけ（2026-10-15）。コースを選ぶとそのレッスンが出る */
+function LessonLinks({ lrn, courses, value, onChange }) {
+  const [cid, setCid] = useState("");
+  const [lid, setLid] = useState("");
+  useEffect(() => { if (cid && lrn?.refreshCourseLessons) lrn.refreshCourseLessons(cid); }, [cid]); // eslint-disable-line react-hooks/exhaustive-deps
+  const lessonsOf = c => (lrn?.lessonsForCourse ? lrn.lessonsForCourse(c) : []) || [];
+  const courseTitle = c => courses.find(x => x.id === c)?.title || c;
+  const lessonTitle = (c, l) => lessonsOf(c).find(x => x.id === l)?.title || l;
+  const add = () => {
+    if (!cid || !lid || value.some(x => x.courseId === cid && x.lessonId === lid)) return;
+    onChange([...value, { courseId: cid, lessonId: lid }]);
+    setLid("");
+  };
+  return (
+    <div style={{ display: "grid", gap: 6 }}>
+      {value.length > 0 && <div className="row" style={{ gap: 6, flexWrap: "wrap" }}>{value.map(x => <button key={`${x.courseId}/${x.lessonId}`} type="button" className="chip" onClick={() => onChange(value.filter(y => y !== x))}>{courseTitle(x.courseId)} ／ {lessonTitle(x.courseId, x.lessonId)} ×</button>)}</div>}
+      <div className="row" style={{ gap: 6, flexWrap: "wrap" }}>
+        <select value={cid} aria-label="コース" onChange={e => { setCid(e.target.value); setLid(""); }}><option value="">コースを選ぶ</option>{courses.map(c => <option key={c.id} value={c.id}>{c.title}</option>)}</select>
+        <select value={lid} aria-label="レッスン" disabled={!cid} onChange={e => setLid(e.target.value)}><option value="">レッスンを選ぶ</option>{lessonsOf(cid).map(l => <option key={l.id} value={l.id}>{l.title}</option>)}</select>
+        <button type="button" className="btn ghost" disabled={!cid || !lid} onClick={add}>足す</button>
+      </div>
+    </div>
+  );
+}
+
 function Field({ label, children, wide }) {
   return <label className="mfield" style={wide ? { gridColumn: "1 / -1" } : undefined}><span>{label}</span>{children}</label>;
 }
 
-export default function ItemEditor({ kind, id, isNew, topics, courses, go }) {
+export default function ItemEditor({ kind, id, isNew, topics, courses, go, lrn }) {
   const noun = kind === "drills" ? "演習" : "案件体験";
   const [st, setSt] = useState({ state: isNew ? "ready" : "loading" });
   const [item, setItem] = useState(blank(kind));
@@ -285,6 +310,7 @@ export default function ItemEditor({ kind, id, isNew, topics, courses, go }) {
             <Field label="レベル"><select value={item.level} onChange={e => set("level", e.target.value)}>{(isAws ? AWS_LEVELS : LEVELS).map(l => <option key={l}>{l}</option>)}</select></Field>
             <Field label="目安（分）"><input type="number" min="1" value={item.minutes} onChange={e => set("minutes", Number(e.target.value))} /></Field>
             {/* label で包むと、見出しを押したときに最初のタグが切り替わるので div にする */}
+            <div className="mfield" style={{ gridColumn: "1 / -1" }}><span>対応するレッスン（なくてもよい・複数可。レッスンの最後の「演習へ」で先頭に並ぶ）</span><LessonLinks lrn={lrn} courses={courses} value={item.lessons || []} onChange={v => set("lessons", v)} /></div>
             <div className="mfield" style={{ gridColumn: "1 / -1" }}><span>タグ（3つまで。一覧は「単元」で決める）</span><TagPicker topic={topics.find(t => t.id === item.topic)} value={item.tags || []} onChange={v => set("tags", v)} /></div>
           </> : <>
             <Field label="目安（時間）"><input type="number" min="0.5" step="0.5" value={item.hours} onChange={e => set("hours", Number(e.target.value))} /></Field>

@@ -148,7 +148,6 @@ const START_TEXT = {
 };
 // 残りがこれより少なくなったら、片付く前に注意を出す
 const WARN_LEFT_MS = 10 * 60_000;
-const EXTEND_LABEL = "30分";
 const fmtLeft = ms => { const s = Math.max(0, Math.floor(ms / 1000)); return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`; };
 
 function AwsDrill({ item, premium, back, rec, progress }) {
@@ -254,6 +253,13 @@ export function AwsEnvPanel({ scenario, start = "blank", task, steps, onGraded, 
   const s = sess.session;
   const left = s?.expiresAt ? new Date(s.expiresAt).getTime() - now : null;
   const soon = sess.state === "ready" && left != null && left <= WARN_LEFT_MS;
+  // 演習ごとの時間と延長（2026-10-15 ユーザー指定：標準30分・ELBなどは60分、延長は1回まで）
+  const info = sess.info || {};
+  const planMin = info.scenarioMinutes?.[scenario] || info.defaultScenarioMinutes || 30;
+  const extMin = info.extendMinutes || 30;
+  const canExtend = info.extendsLeft == null || info.extendsLeft > 0;
+  const running = left != null && (sess.state === "ready" || sess.state === "preparing");
+  const totalMs = (planMin + (canExtend ? 0 : extMin)) * 60_000;
 
   return (
     <>
@@ -280,7 +286,8 @@ export function AwsEnvPanel({ scenario, start = "blank", task, steps, onGraded, 
           {soon && (
             <div className="verdict warn" role="status">
               <span>{left > 0 ? `残り ${fmtLeft(left)}。時間になると環境は片付き、コンソールも使えなくなります` : "時間になりました。環境を片付けています"}</span>
-              {left > 0 && !readOnly && <button className="btn ghost" type="button" onClick={extend} disabled={!!busy}>{busy === "extend" ? "延長しています…" : `${EXTEND_LABEL}延長する`}</button>}
+              {left > 0 && !readOnly && canExtend && <button className="btn ghost" type="button" onClick={extend} disabled={!!busy}>{busy === "extend" ? "延長しています…" : `${extMin}分延長する`}</button>}
+              {left > 0 && !canExtend && <span>延長はもう使いました</span>}
             </div>
           )}
           {(steps || []).length > 0 && <AwsGuide scenario={scenario} steps={steps} session={s} ready={sess.state === "ready" && !readOnly} verify={verifyStep} />}
@@ -301,13 +308,24 @@ export function AwsEnvPanel({ scenario, start = "blank", task, steps, onGraded, 
           {err && <div className="verdict ng" role="alert">{err}</div>}
         </div>
         <aside className="card" style={{ padding: 18, display: "grid", gap: 12, alignContent: "start" }}>
+          {/* 終了までの時間を大きく（2026-10-15） */}
+          {running ? (
+            <div className={`envtimer ${soon ? "soon" : ""}`} role="timer" aria-label="終了までの時間">
+              <small>終了まで</small>
+              <b>{fmtLeft(left)}</b>
+              <span className="bar"><i style={{ width: `${Math.max(0, Math.min(100, left / totalMs * 100))}%` }} /></span>
+              <small>{canExtend ? `1回まで${extMin}分延長できます` : "延長済み"}</small>
+            </div>
+          ) : (sess.state === "none" || sess.state === "failed") && (
+            <div className="envplan"><b>この演習は {planMin}分 で終了します</b><span>延長は1回まで（{extMin}分）</span></div>
+          )}
           <div className="eyebrow">環境</div>
           {(sess.state === "none" || sess.state === "failed") && <button className="btn" type="button" onClick={startEnv} disabled={!!busy} style={{ justifyContent: "center" }}>{busy === "start" ? "用意しています…" : "環境を用意する"}</button>}
           {sess.state === "preparing" && <button className="btn" type="button" disabled style={{ justifyContent: "center" }}>用意しています…</button>}
           {sess.state === "ready" && !readOnly && <>
             <button className="btn" type="button" onClick={openConsole} disabled={!!busy} style={{ justifyContent: "center" }}>AWSのコンソールを開く ↗</button>
             <button className="btn dark" type="button" onClick={grade} disabled={!!busy} style={{ justifyContent: "center" }}>{busy === "grade" ? "採点しています…" : "採点する"}</button>
-            <button className="btn ghost" type="button" onClick={extend} disabled={!!busy} style={{ justifyContent: "center" }}>{busy === "extend" ? "延長しています…" : `${EXTEND_LABEL}延長する`}</button>
+            <button className="btn ghost" type="button" onClick={extend} disabled={!!busy || !canExtend} style={{ justifyContent: "center" }}>{busy === "extend" ? "延長しています…" : canExtend ? `${extMin}分延長する（1回まで）` : "延長済み"}</button>
             <button className="btn ghost" type="button" onClick={() => setConfirm("reset")} disabled={!!busy} style={{ justifyContent: "center" }}>{busy === "reset" ? "作り直しています…" : "最初の状態に戻す"}</button>
           </>}
           {(sess.state === "ready" || sess.state === "other" || sess.state === "failed") && <button className="btn ghost" type="button" onClick={() => setConfirm("stop")} disabled={!!busy} style={{ justifyContent: "center" }}>{busy === "stop" ? "片付けています…" : "環境を片付ける"}</button>}
@@ -326,7 +344,7 @@ export function AwsEnvPanel({ scenario, start = "blank", task, steps, onGraded, 
             </div>
           )}
           {sess.state === "error" && <button className="btn ghost" type="button" onClick={load} style={{ justifyContent: "center" }}>もう一度確かめる</button>}
-          <div className="muted" style={{ fontSize: 12.5, display: "grid", gap: 4 }}><span>・1回 90分まで（延長できます）</span><span>・時間になると自動で片付けます</span><span>・片付けると、コンソールも使えなくなります</span></div>
+          <div className="muted" style={{ fontSize: 12.5, display: "grid", gap: 4 }}><span>・この演習は{planMin}分（延長は1回・{extMin}分）</span><span>・時間になると自動で片付けます</span><span>・片付けると、コンソールも使えなくなります</span></div>
         </aside>
       </div>
     </>

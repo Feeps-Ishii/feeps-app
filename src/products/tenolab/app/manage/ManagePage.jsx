@@ -45,7 +45,7 @@ export default function ManagePage({ ctx, rest }) {
   if (section !== "materials") return <p className="muted">この画面はありません。</p>;
   let body;
   if (tab === "courses") body = id === "legacy" ? <CourseAdmin go={go} /> : <CourseList topics={topics} go={go} />;
-  else if (id) body = <ItemEditor key={`${tab}/${id}`} kind={tab} id={id === "_new" ? "" : id} isNew={id === "_new"} topics={topics} courses={courses} go={go} />;
+  else if (id) body = <ItemEditor key={`${tab}/${id}`} kind={tab} id={id === "_new" ? "" : id} isNew={id === "_new"} topics={topics} courses={courses} go={go} lrn={lrn} />;
   else body = <ItemList kind={tab} topics={topics} go={go} />;
   return (
     <div className="mpage">
