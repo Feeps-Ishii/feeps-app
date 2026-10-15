@@ -38,7 +38,8 @@ window.addEventListener("load", function(){
     var T = ${JSON.stringify(token)};
     var list = ${JSON.stringify(exprs)};
     var out = list.map(function(src){
-      try { return { ok: !!(new Function("return (" + src + ");"))() }; }
+      // value は式の値の写し（コードのクイズで「→ 300 になりました」と出すため。2026-10-15）
+      try { var v = (new Function("return (" + src + ");"))(); var w; try { w = v === undefined ? "undefined" : JSON.stringify(v); } catch (e2) { w = String(v); } return { ok: !!v, value: w }; }
       catch (e) { return { ok: false, error: String(e && e.message || e) }; }
     });
     parent.postMessage({ __djs: T, t: "done", d: out }, "*");

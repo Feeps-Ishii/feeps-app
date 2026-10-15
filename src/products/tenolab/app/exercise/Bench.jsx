@@ -7,6 +7,7 @@ import { previewDocument, runWebChecks } from "../../../learning/webChecks.js";
 import { buildJsDocument, runJsPage, userLineOffset } from "./jsRunner.js";
 import { querySet, runSqlChecks, sqlWords } from "./sqlRunner.js";
 import { SqlGrid, SqlTables, useSqlTables } from "./SqlParts.jsx";
+import JsTraceSample from "./Trace.jsx";
 import "./bench.css";
 
 /* 演習の作業台（モック tenolab-exercise.html、2026-10-09）。
@@ -30,8 +31,16 @@ function SideToggle({ side, setSide, label }) {
   return <button type="button" className="xb-btn sub" aria-pressed={side} onClick={() => setSide(v => !v)}>{side ? `${label}をたたむ` : `${label}を開く`}</button>;
 }
 
+// サンプル（navLabel「サンプル」・題が「サンプル」で始まる）は、まず1行ずつの動きを見せる（2026-10-15）。content.trace === false で今までどおり
+export const isSampleSlide = s => !!s && (s.navLabel === "サンプル" || /^サンプル/.test(String(s.title || "")));
+function JsSample(props) {
+  const [mode, setMode] = useState(props.slide.content?.trace === false ? "edit" : "trace");
+  if (mode === "edit") return <JsBench {...props} />;
+  return <JsTraceSample slide={props.slide} onEdit={() => setMode("edit")} onFail={() => setMode("edit")} />;
+}
+
 export default function ExerciseBench(props) {
-  if (props.slide.kind === "js_run") return <JsBench {...props} />;
+  if (props.slide.kind === "js_run") return isSampleSlide(props.slide) ? <JsSample {...props} /> : <JsBench {...props} />;
   if (props.slide.kind === "sql_run") return <SqlBench {...props} />;
   return props.slide.kind === "web_run" ? <WebBench {...props} /> : <JavaBench {...props} />;
 }

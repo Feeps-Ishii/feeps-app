@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { apiPost } from "../../../api.js";
 import { SlideRenderer } from "../../learning/ElSlideLessonView.jsx";
 import ExerciseBench, { BENCH_KINDS } from "./exercise/Bench.jsx";
+import { ChoiceQuiz, CodeQuiz } from "./exercise/Quiz.jsx";
 
 /* レッスン画面（モック tenolab-lesson.html、2026-10-08）
    パワポ＋PDFから作ったコースを、資料のページそのままで見せる。足したスライド（表紙・中扉・自動のまとめ）は出さない。
@@ -55,6 +56,10 @@ function Page({ lrn, slide, course, lesson, index, total, lastRatio, onRatio }) 
     );
   }
   if (slide.kind === "_title") return <TitlePage lrn={lrn} slide={slide} lastRatio={lastRatio} />;
+  // クイズは紹介ページと同じ見た目と動き（2026-10-15、exercise/Quiz.jsx）
+  if (slide.kind === "quiz" && (slide.interaction?.type === "choice" || slide.interaction?.type === "code")) {
+    return <div className="lsn-frame free ex">{slide.interaction.type === "code" ? <CodeQuiz slide={slide} /> : <ChoiceQuiz slide={slide} />}</div>;
+  }
   // 演習やそのほかの版面は、元の部品をそのまま同じ枠の中に
   return (
     <div className={`lsn-frame free ${isExercise(slide) ? "ex" : ""}`}>
