@@ -6,6 +6,7 @@ import {
 } from "./javaEditorSupport.js";
 import { Minimap, caretAt } from "./ExerciseChrome.jsx";
 import { sqlCompletionsFor, sqlTokenBefore, tokenizeSqlLine } from "./sqlEditorSupport.js";
+import { pairBackspace, pairEdit } from "./editorPairs.js";
 
 // 2026-08-25: 演習で使うJavaエディタ。承認モック: mock/code-editor/index.html
 //
@@ -90,6 +91,9 @@ export default function JavaEditor({ value, onChange, diagnostic, level = 1, onR
   const pendingCaret = useRef(null);
 
   function apply({ value: next, caret, caretEnd }) {
+    // 中身が変わらないとき（閉じ括弧の上を進むだけ）は、描き直しが起きないのでその場でカーソルを動かす
+    const ta0 = taRef.current;
+    if (ta0 && next === ta0.value) { ta0.setSelectionRange(caret, caretEnd === undefined ? caret : caretEnd); return; }
     pendingCaret.current = [caret, caretEnd === undefined ? caret : caretEnd];
     onChange(next);
   }
@@ -125,7 +129,7 @@ export default function JavaEditor({ value, onChange, diagnostic, level = 1, onR
     const pos = ta.selectionStart;
     const { word, start } = (sql ? sqlTokenBefore : tokenBefore)(ta.value, pos);
     if (!force && word.length < 2) { setMenu(null); return; }
-    const items = sql ? sqlCompletionsFor(word, words) : completionsFor(word, level);
+    const items = sql ? sqlCompletionsFor(word, words) : completionsFor(word, level, { value: ta.value, start, pos });
     if (!items.length) { setMenu(null); return; }
     const upto = ta.value.slice(0, pos);
     const lineNo = upto.split("\n").length;
@@ -184,7 +188,14 @@ export default function JavaEditor({ value, onChange, diagnostic, level = 1, onR
     }
 
     if (e.key === "Tab") { e.preventDefault(); apply(indentEdit(ta.value, ta.selectionStart, ta.selectionEnd, e.shiftKey)); return; }
-    if (e.key === "Enter") { e.preventDefault(); apply(newlineEdit(ta.value, ta.selectionStart)); return; }
+    if (e.key === "Enter") { e.preventDefault(); setMenu(null); apply(newlineEdit(ta.value, ta.selectionStart)); return; }
+    // 括弧・引用符を自動で閉じる（2026-10-15、editorPairs.js）。日本語の変換中は触らない
+    if (e.nativeEvent?.isComposing) return;
+    if (e.key === "Backspace") { const edit = pairBackspace(ta.value, ta.selectionStart, ta.selectionEnd); if (edit) { e.preventDefault(); apply(edit); } return; }
+    if (e.key.length === 1 && !e.ctrlKey && !e.metaKey && !e.altKey) {
+      const edit = pairEdit(ta.value, ta.selectionStart, ta.selectionEnd, e.key, { quotes: sql ? ["'", '"'] : ['"', "'", ...(lang === "js" || level === 0 ? ["`"] : [])] });
+      if (edit) { e.preventDefault(); apply(edit); return; }
+    }
     if (e.key === "}" && !sql) { e.preventDefault(); apply(closingBraceEdit(ta.value, ta.selectionStart)); return; }
   }
 

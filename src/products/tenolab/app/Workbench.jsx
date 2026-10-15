@@ -11,20 +11,16 @@ import { sqlWords } from "./exercise/sqlRunner.js";
 
 /* コードを書いて動かす部品（モックの .try / .ed / .console）。演習と案件体験で使う。 */
 
+// 2026-10-15: 素の入力欄をやめ、レッスンと同じエディタ（色分け・行番号・補完・括弧を閉じる）にした。
+// main.js のときは JavaScript の書き方（level 0・` も閉じる）
 export function Editor({ value, onChange, label, readOnly, minHeight, tabs }) {
-  const onKey = e => {
-    if (e.key === "Tab" && !readOnly) {
-      e.preventDefault();
-      const el = e.target, s = el.selectionStart;
-      el.setRangeText("  ", s, el.selectionEnd, "end");
-      onChange(el.value);
-    }
-  };
+  const js = /\.js$/i.test(String(label || ""));
   return (
     <>
       <div className="tabs">{(tabs || [label]).map((t, i) => <span key={t} className={i === 0 ? "on" : ""}>{t}</span>)}</div>
-      <textarea spellCheck="false" aria-label={label} value={value} readOnly={readOnly} style={minHeight ? { minHeight } : undefined}
-        onChange={e => onChange(e.target.value)} onKeyDown={onKey} />
+      <div className="try-ed" style={minHeight ? { minHeight } : undefined}>
+        <JavaEditor value={value} onChange={readOnly ? () => {} : onChange} readOnly={readOnly} level={js ? 0 : 1} lang={js ? "js" : "java"} />
+      </div>
     </>
   );
 }

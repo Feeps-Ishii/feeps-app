@@ -6,6 +6,7 @@ import {
   webCompletionsFor, webDedentEdit, webNewlineEdit, webTokenBefore,
 } from "./webEditorSupport.js";
 import { Minimap, caretAt } from "./ExerciseChrome.jsx";
+import { pairBackspace, pairEdit } from "./editorPairs.js";
 
 // 2026-08-27: HTML/CSS演習で使うエディタ。承認モック: mock/html-editor/index.html
 //
@@ -45,6 +46,9 @@ export default function WebEditor({ value, onChange, mode = "html", level = 1, o
 
   function apply(edit) {
     if (!edit) return;
+    // 中身が変わらないとき（閉じ括弧の上を進むだけ）は、描き直しが起きないのでその場でカーソルを動かす
+    const ta0 = taRef.current;
+    if (ta0 && edit.value === ta0.value) { ta0.setSelectionRange(edit.caret, edit.caretEnd === undefined ? edit.caret : edit.caretEnd); return; }
     pendingCaret.current = [edit.caret, edit.caretEnd === undefined ? edit.caret : edit.caretEnd];
     onChange(edit.value);
   }
@@ -133,7 +137,18 @@ export default function WebEditor({ value, onChange, mode = "html", level = 1, o
     }
 
     if (e.key === "Tab") { e.preventDefault(); apply(indentEdit(ta.value, ta.selectionStart, ta.selectionEnd, e.shiftKey)); return; }
-    if (e.key === "Enter") { e.preventDefault(); apply(webNewlineEdit(mode, ta.value, ta.selectionStart)); return; }
+    if (e.key === "Enter") { e.preventDefault(); setMenu(null); apply(webNewlineEdit(mode, ta.value, ta.selectionStart)); return; }
+    // 括弧・引用符を自動で閉じる（2026-10-15、editorPairs.js）。HTML はタグの中の " だけ（本文の文字は閉じない）
+    if (!e.nativeEvent?.isComposing) {
+      if (e.key === "Backspace") { const edit = pairBackspace(ta.value, ta.selectionStart, ta.selectionEnd); if (edit) { e.preventDefault(); apply(edit); } return; }
+      if (e.key.length === 1 && !e.ctrlKey && !e.metaKey && !e.altKey) {
+        const head = ta.value.slice(0, ta.selectionStart);
+        const inTag = head.lastIndexOf("<") > head.lastIndexOf(">");
+        const opts = mode === "css" ? { open: ["(", "[", "{"], quotes: ['"', "'"] } : inTag ? { open: [], quotes: ['"'] } : { open: [], quotes: [] };
+        const edit = pairEdit(ta.value, ta.selectionStart, ta.selectionEnd, e.key, opts);
+        if (edit) { e.preventDefault(); setMenu(null); apply(edit); return; }
+      }
+    }
     // `>` で閉じタグを補い、`</` でいま開いているタグ名を補う。
     // 閉じタグの書き忘れはこの講座でいちばん多い詰まり方なので、道具の側で減らす。
     if (mode !== "css" && e.key === ">") {

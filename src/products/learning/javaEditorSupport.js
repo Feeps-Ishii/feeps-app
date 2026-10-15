@@ -184,11 +184,46 @@ export function tokenBefore(value, pos) {
   return { word: m[0], start: pos - m[0].length };
 }
 
-export function completionsFor(word, level = 1) {
+// コードの中に書いた名前（変数・メソッド・クラス）も候補にする（2026-10-15）。
+// 宣言（int score = … / String name; / const total = … / function judge(…) / void show(…)）の名前を先に、
+// ほかに出てくる名前をその後に。打ちかけの語そのもの（カーソルの位置の語）は数えない。
+const JS_WORDS = new Set(["const", "let", "var", "function", "return", "if", "else", "for", "of", "in", "while", "do", "switch", "case",
+  "break", "continue", "new", "class", "true", "false", "null", "undefined", "typeof", "this", "async", "await", "try", "catch", "throw"]);
+export function codeWordCompletions(value, start, pos, word) {
+  const q = String(word || "");
+  if (!q || q.includes(".")) return [];
+  const text = String(value || "").slice(0, start) + String(value || "").slice(pos);
+  const plain = text.replace(/\/\/.*$/gm, "").replace(/"(?:[^"\\\n]|\\.)*"|'(?:[^'\\\n]|\\.)*'|`(?:[^`\\]|\\.)*`/g, "\"\"");
+  const declared = new Map();
+  const DECL = [
+    /\b(?:int|long|short|byte|double|float|boolean|char|String|var|final|[A-Z][A-Za-z0-9_]*(?:<[^<>]*>)?(?:\[\])*)\s+([A-Za-z_$][A-Za-z0-9_$]*)\s*(?=[=;,):\[]|$)/gm,
+    /\b(?:const|let|var)\s+([A-Za-z_$][A-Za-z0-9_$]*)/g,
+    /\bfunction\s+([A-Za-z_$][A-Za-z0-9_$]*)/g,
+    /\b(?:void|int|long|double|boolean|String|[A-Z][A-Za-z0-9_]*)\s+([a-z_$][A-Za-z0-9_$]*)\s*\(/g,
+    /\bclass\s+([A-Za-z_$][A-Za-z0-9_$]*)/g,
+  ];
+  for (const re of DECL) {
+    let m; re.lastIndex = 0;
+    while ((m = re.exec(plain))) if (!KEYWORDS.has(m[1]) && !JS_WORDS.has(m[1])) declared.set(m[1], /\(/.test(plain.slice(m.index + m[0].length - 1, m.index + m[0].length)) || /function/.test(m[0]) ? "メソッド" : /class/.test(m[0]) ? "クラス" : "変数");
+  }
+  const others = new Set();
+  const all = plain.match(/[A-Za-z_$][A-Za-z0-9_$]*/g) || [];
+  for (const w of all) if (!declared.has(w) && !KEYWORDS.has(w) && !JS_WORDS.has(w) && w.length > 1) others.add(w);
+  const lq = q.toLowerCase();
+  const hit = w => w !== q && w.toLowerCase().startsWith(lq);
+  const items = [];
+  for (const [w, kind] of declared) if (hit(w)) items.push({ label: w, kind, detail: "このコードの中", insert: w });
+  for (const w of others) if (hit(w)) items.push({ label: w, kind: "名前", detail: "このコードの中", insert: w });
+  return items.slice(0, 8);
+}
+
+export function completionsFor(word, level = 1, code = null) {
   const q = String(word || "").toLowerCase();
   const pool = COMPLETIONS.filter(c => (c.level || 1) <= level);
-  if (!q) return pool.slice(0, 12);
-  return pool.filter(c => c.label.toLowerCase().startsWith(q)).slice(0, 12);
+  const fixed = q ? pool.filter(c => c.label.toLowerCase().startsWith(q)) : pool;
+  // 書いた変数を先に出す（定型と同じ名前は定型のほうを残す）
+  const mine = code ? codeWordCompletions(code.value, code.start, code.pos, word).filter(m => !fixed.some(f => f.label === m.label)) : [];
+  return [...mine, ...fixed].slice(0, 12);
 }
 
 // 使っているのに import が無いものを上に足す。足した行数を返す
