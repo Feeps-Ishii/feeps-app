@@ -749,7 +749,9 @@ function toneA(hex, a = 1, lift = 0) {
   return `rgba(${ch((n >> 16) & 255)},${ch((n >> 8) & 255)},${ch(n & 255)},${a})`;
 }
 // dark=true は PC の紺のサイドバー。ジャンルごとに箱で囲む。スマホのドロワーは従来どおり白地
-function SideNav({ groups, view, karte, go, badges = {}, collapsed = false, pa = PRODUCT_ACCENT.training, dark = false }) {
+// glass：研修管理のすりガラスのサイドバー（2026-10-15 モック lms-sidebar.html の E2）。dark と同じ並び（グループの箱）で、明るい色にする
+function SideNav({ groups, view, karte, go, badges = {}, collapsed = false, pa = PRODUCT_ACCENT.training, dark = false, glass = false }) {
+  const deco = dark || glass;
   const containerRef = useRef(null);
   const [pill, setPill] = useState(null);
 
@@ -775,17 +777,23 @@ function SideNav({ groups, view, karte, go, badges = {}, collapsed = false, pa =
 
   return (
     <div ref={containerRef} className="relative">
-      {pill && <span className="feeps-sidebar-pill absolute rounded-xl" style={dark
+      {pill && <span className="feeps-sidebar-pill absolute rounded-xl" style={glass
+        ? { left: pill.boxed ? 6 : 0, right: pill.boxed ? 6 : 0, top: pill.top, height: pill.height, background: "rgba(255,255,255,.96)", boxShadow: "0 6px 18px -10px rgba(40,50,140,.45)" }
+        : dark
         ? { left: pill.boxed ? 6 : 0, right: pill.boxed ? 6 : 0, top: pill.top, height: pill.height, background: toneA(pill.tone || "#339CFF", .2), boxShadow: `inset 3px 0 0 ${pill.tone || "#339CFF"}` }
         : { left: 0, right: 0, top: pill.top, height: pill.height, background: pa.subtle, border: `1px solid ${pa.accent}30` }} />}
       {groups.map((g, gi) => {
-        const box = dark && !collapsed && g.sec;
+        const box = deco && !collapsed && g.sec;
         const tone = g.sec ? SIDE_GROUP_TONE[g.sec] || "" : "";
         return (
-        <div key={gi} data-nav-box={box ? "true" : undefined} data-nav-tone={box ? tone : undefined} className={gi > 0 ? (collapsed ? "mt-2" : dark ? "mt-2.5" : "mt-6") : ""}
-          style={box ? { background: tone ? toneA(tone, .09) : "rgba(255,255,255,.035)", border: `1px solid ${tone ? toneA(tone, .28) : "rgba(255,255,255,.07)"}`, borderRadius: 14, padding: "2px 5px 5px" } : undefined}>
+        <div key={gi} data-nav-box={box ? "true" : undefined} data-nav-tone={box ? tone : undefined} className={gi > 0 ? (collapsed ? "mt-2" : deco ? "mt-2.5" : "mt-6") : ""}
+          style={!box ? undefined : glass
+            ? { background: "rgba(255,255,255,.55)", border: "1px solid rgba(255,255,255,.8)", borderRadius: 16, padding: "2px 6px 6px", boxShadow: "0 8px 24px -16px rgba(40,50,120,.35)" }
+            : { background: tone ? toneA(tone, .09) : "rgba(255,255,255,.035)", border: `1px solid ${tone ? toneA(tone, .28) : "rgba(255,255,255,.07)"}`, borderRadius: 14, padding: "2px 5px 5px" }}>
           {g.sec && (collapsed
-            ? <div className="relative z-[1] mx-2 mb-2 h-px" style={{ background: dark ? "rgba(255,255,255,.12)" : T.border }} />
+            ? <div className="relative z-[1] mx-2 mb-2 h-px" style={{ background: glass ? "rgba(120,130,200,.22)" : dark ? "rgba(255,255,255,.12)" : T.border }} />
+            : glass
+              ? <div className="relative z-[1] flex items-center gap-2 px-2.5 pb-1 pt-2.5 text-[11.5px] font-bold" style={{ color: "#4B5683", letterSpacing: "0.06em" }}><span className="h-[7px] w-[7px] shrink-0 rounded-full" style={{ background: tone || "#8F9AB2", boxShadow: `0 0 0 3px ${toneA(tone || "#8F9AB2", .22)}` }} />{g.sec}</div>
             : dark
               ? <div className="relative z-[1] flex items-center gap-2 px-2.5 pb-1 pt-2 text-[11.5px] font-bold" style={{ color: tone ? toneA(tone, 1, 50) : "#D5DCEA", letterSpacing: "0.06em" }}><span className="h-2 w-2 shrink-0 rounded-[3px]" style={{ background: tone || "#8F9AB2" }} />{g.sec}</div>
               : <div className="relative z-[1] mb-1.5 flex items-center gap-2 px-3 text-[11px] font-bold uppercase" style={{ color: T.textMuted, letterSpacing: "0.08em" }}>{tone && <span className="h-2 w-2 shrink-0 rounded-[3px]" style={{ background: tone }} />}{g.sec}</div>)}
@@ -794,17 +802,21 @@ function SideNav({ groups, view, karte, go, badges = {}, collapsed = false, pa =
           {g.items.map(([k, lab, I, opt]) => { const active = view === k && !karte; const b = badges[k];
             return (
               <button key={k} onClick={() => go(k)} title={collapsed ? (b ? `${lab}（未対応の通知 ${b}件）` : lab) : (b ? `未対応の通知 ${b}件` : undefined)} data-nav-active={active ? "true" : undefined} aria-current={active ? "page" : undefined}
-                className={"relative z-[1] flex w-full items-center rounded-xl transition-colors " + (dark ? "mb-0.5 min-h-[40px] " : "mb-1 min-h-[44px] ") + (collapsed ? "justify-center px-0" : "gap-3 px-3") + (active ? "" : dark ? " hover:bg-white/[.06]" : " hover:bg-black/[.04]")}
-                style={{ color: active ? (dark ? "#FFFFFF" : T.textPrimary) : (dark ? "#B7C0D5" : T.textSecondary), fontWeight: active ? 600 : 500 }}>
+                className={"relative z-[1] flex w-full items-center rounded-xl transition-colors " + (deco ? "mb-0.5 min-h-[40px] " : "mb-1 min-h-[44px] ") + (collapsed ? "justify-center px-0" : glass ? "gap-2.5 px-2" : "gap-3 px-3") + (active ? "" : glass ? " hover:bg-white/60" : dark ? " hover:bg-white/[.06]" : " hover:bg-black/[.04]")}
+                style={{ color: glass ? (active ? "#18202F" : "#27304A") : active ? (dark ? "#FFFFFF" : T.textPrimary) : (dark ? "#B7C0D5" : T.textSecondary), fontWeight: active ? (glass ? 700 : 600) : 500 }}>
                 <span className="relative inline-flex shrink-0">
                   {opt?.chip
                     ? <span className="flex h-[26px] w-[26px] items-center justify-center rounded-lg text-white"
                         style={{ background: opt.chip, boxShadow: `0 1px 3px ${opt.shadow || "rgba(0,0,0,.18)"}` }}><I size={15} /></span>
-                    : <I size={18} style={{ color: dark && tone ? toneA(tone, active ? 1 : .85, active ? 40 : 15) : active ? (dark ? "#6FB8FF" : pa.accent) : (dark ? "#8F9AB2" : T.textMuted) }} />}
-                  {collapsed && b ? <span className="absolute -right-1 -top-1 h-1.5 w-1.5 rounded-full" style={{ background: dark ? "#339CFF" : T.accent }} /> : null}
+                    : glass
+                      ? <span className="flex h-7 w-7 items-center justify-center rounded-[9px]" style={active
+                          ? { background: `linear-gradient(135deg, ${tone || pa.accent}, #7B4FE0)`, color: "#fff" }
+                          : { background: "rgba(255,255,255,.75)", color: tone || pa.accent }}><I size={16} /></span>
+                      : <I size={18} style={{ color: dark && tone ? toneA(tone, active ? 1 : .85, active ? 40 : 15) : active ? (dark ? "#6FB8FF" : pa.accent) : (dark ? "#8F9AB2" : T.textMuted) }} />}
+                  {collapsed && b ? <span className="absolute -right-1 -top-1 h-1.5 w-1.5 rounded-full" style={{ background: glass ? (tone || T.accent) : dark ? "#339CFF" : T.accent }} /> : null}
                 </span>
                 {!collapsed && <span className="flex-1 truncate text-left text-sm" style={opt?.tint && !active ? { color: opt.tint, fontWeight: 600 } : undefined}>{lab}</span>}
-                {!collapsed && b ? <span title={`未対応の通知 ${b}件`} aria-label={`未対応の通知 ${b}件`} className="flex h-5 items-center justify-center rounded-full px-1.5 text-xs font-bold text-white" style={{ background: dark ? "#339CFF" : T.accent, minWidth: 20, fontVariantNumeric: "tabular-nums" }}>{b}</span> : null}
+                {!collapsed && b ? <span title={`未対応の通知 ${b}件`} aria-label={`未対応の通知 ${b}件`} className="flex h-5 items-center justify-center rounded-full px-1.5 text-xs font-bold text-white" style={{ background: glass ? (tone || T.accent) : dark ? "#339CFF" : T.accent, minWidth: 20, fontVariantNumeric: "tabular-nums" }}>{b}</span> : null}
               </button>
             );
           })}
@@ -1743,10 +1755,17 @@ export default function App() {
   // 2026-09-30: 左端の帯（GlobalRail）をやめ、紺のサイドバー1本に。機能の切り替えはサイドバー上のタイル
   const shellOffset = isHomeProduct ? 0 : (sidebarCollapsed ? T.sidebarWidthCollapsed : T.sidebarWidth);
   const RAIL_SHORT = { training: "研修", analytics: "分析", grants: "助成金", company: "企業", learning: "学習", talent: "成長", matching: "案件" };
+  // 2026-10-15（ユーザー指定・お試し）：研修管理はすりガラスのサイドバー（モック lms-sidebar.html の E2）。
+  // 本文までそろえるのは、まずホームと日報だけ（feeps-glass-page）。ほかの機能は今の紺のサイドバーのまま
+  const glass = product === "training" && !isHomeProduct;
+  const glassPage = glass && !karte && (activeView === "home" || activeView === "reports");
+  const SB = glass
+    ? { sub: "#5F6AA0", ink: "#18202F", hover: " hover:bg-white/60", userBox: { background: "rgba(255,255,255,.6)", border: "1px solid rgba(255,255,255,.85)" } }
+    : { sub: "#8F9AB2", ink: "#fff", hover: " hover:bg-white/5", userBox: { background: "rgba(255,255,255,.05)", border: "1px solid rgba(255,255,255,.08)" } };
 
   return (
-    <div className="app-root feeps-nova-shell flex min-h-screen flex-col lg:h-screen lg:overflow-hidden lg:overflow-x-hidden" style={{
-      background: T.shellBase, color: T.textPrimary,
+    <div className={"app-root feeps-nova-shell flex min-h-screen flex-col lg:h-screen lg:overflow-hidden lg:overflow-x-hidden" + (glass ? " is-glass" : "")} style={{
+      background: glass ? T.shellGlass : T.shellBase, color: T.textPrimary,
       "--nova-ink": NOVA.ink, "--nova-rail": NOVA.rail, "--nova-rail-elevated": NOVA.railElevated,
       "--nova-paper": NOVA.paper, "--nova-card": NOVA.card, "--nova-muted": NOVA.muted,
       "--nova-quiet": NOVA.quiet, "--nova-line": NOVA.line, "--nova-soft": NOVA.soft,
@@ -1809,14 +1828,14 @@ export default function App() {
         {!isHomeProduct && <aside className={"feeps-context-rail feeps-sidebar hidden shrink-0 lg:flex lg:flex-col" + (sidebarCollapsed ? " is-collapsed" : "")} style={{ left: 0, width: sidebarCollapsed ? T.sidebarWidthCollapsed : T.sidebarWidth }}>
           {/* 左上を押すとホームへ（2026-10-14） */}
           <button type="button" onClick={() => goProduct("home")} aria-label="ホームへ戻る" title={sidebarCollapsed ? currentProduct.label : "ホームへ"}
-            className={"feeps-context-head flex w-full items-center text-left transition hover:bg-white/[.04] " + (sidebarCollapsed ? "justify-center px-2" : "gap-3 px-3.5")}>
+            className={"feeps-context-head flex w-full items-center text-left transition " + (glass ? "hover:bg-white/40 " : "hover:bg-white/[.04] ") + (sidebarCollapsed ? "justify-center px-2" : "gap-3 px-3.5")}>
             <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl" style={{ background: NOVA.gradAccent }}>
               <currentProduct.icon size={20} style={{ color: "#fff" }} />
             </div>
             {!sidebarCollapsed && (
               <div className="min-w-0">
-                <div className="truncate text-[11px] font-semibold" style={{ color: "#8F9AB2" }}>DevHub LMS</div>
-                <div className="truncate text-sm font-bold" style={{ color: "#fff" }}>{currentProduct.label}</div>
+                <div className="truncate text-[11px] font-semibold" style={{ color: SB.sub }}>DevHub LMS</div>
+                <div className="truncate text-sm font-bold" style={{ color: SB.ink }}>{currentProduct.label}</div>
               </div>
             )}
           </button>
@@ -1827,35 +1846,37 @@ export default function App() {
                 const on = product === p.key;
                 return (
                   <button key={p.key} type="button" onClick={() => goProduct(p.key)} title={p.label} aria-current={on ? "page" : undefined}
-                    className="flex flex-col items-center justify-center gap-0.5 rounded-xl px-0.5 py-2 text-[11px] font-bold transition-colors hover:text-white"
-                    style={{ color: on ? "#fff" : "#B7C0D5", background: on ? "rgba(51,156,255,.18)" : NOVA.railElevated, border: `1px solid ${on ? "#339CFF" : "rgba(255,255,255,.08)"}` }}>
-                    <p.icon size={17} style={{ color: on ? "#6FB8FF" : undefined }} />
+                    className={"flex flex-col items-center justify-center gap-0.5 rounded-xl px-0.5 py-2 text-[11px] font-bold transition-colors " + (glass ? "hover:bg-white" : "hover:text-white")}
+                    style={glass
+                      ? { color: on ? "#18202F" : "#4B5683", background: on ? "#fff" : "rgba(255,255,255,.55)", border: `1px solid ${on ? "rgba(58,111,242,.45)" : "rgba(255,255,255,.8)"}`, boxShadow: on ? "0 6px 16px -10px rgba(40,50,140,.5)" : undefined }
+                      : { color: on ? "#fff" : "#B7C0D5", background: on ? "rgba(51,156,255,.18)" : NOVA.railElevated, border: `1px solid ${on ? "#339CFF" : "rgba(255,255,255,.08)"}` }}>
+                    <p.icon size={17} style={{ color: on ? (glass ? T.accent : "#6FB8FF") : undefined }} />
                     {!sidebarCollapsed && <span className="max-w-full truncate">{RAIL_SHORT[p.key] || p.label}</span>}
                   </button>
                 );
               })}
             </div>
           )}
-          <nav className={"min-h-0 flex-1 overflow-y-auto " + (sidebarCollapsed ? "p-2" : "p-3")} aria-label={`${currentProduct.label}メニュー`}>{role === "trainee" && product === "training" && !sidebarCollapsed && <CourseSwitcher dark onChange={onCourseSwitch} />}<SideNav groups={nav} view={activeView} karte={karte} go={product === "training" ? go : goSub} badges={navBadges} collapsed={sidebarCollapsed} pa={pa} dark /></nav>
+          <nav className={"min-h-0 flex-1 overflow-y-auto " + (sidebarCollapsed ? "p-2" : "p-3")} aria-label={`${currentProduct.label}メニュー`}>{role === "trainee" && product === "training" && !sidebarCollapsed && <CourseSwitcher dark={!glass} onChange={onCourseSwitch} />}<SideNav groups={nav} view={activeView} karte={karte} go={product === "training" ? go : goSub} badges={navBadges} collapsed={sidebarCollapsed} pa={pa} dark={!glass} glass={glass} /></nav>
           <button type="button" onClick={toggleSidebar} title={sidebarCollapsed ? "サイドバーを展開" : "サイドバーを折りたたむ"} aria-label={sidebarCollapsed ? "サイドバーを展開" : "サイドバーを折りたたむ"}
             className={"feeps-context-toggle mx-2 mb-1 flex items-center rounded-xl py-2 text-xs font-semibold transition " + (sidebarCollapsed ? "justify-center" : "gap-2 px-3")}>
             {sidebarCollapsed ? <ChevronRight size={16} /> : <><ChevronLeft size={16} />折りたたむ</>}
           </button>
           <div className={sidebarCollapsed ? "p-2" : "p-3"}>
             {sidebarCollapsed ? (
-              <button type="button" onClick={() => setSidebarUserOpen(v => !v)} title={displayName} className="flex w-full justify-center rounded-xl p-2 transition hover:bg-white/5">
+              <button type="button" onClick={() => setSidebarUserOpen(v => !v)} title={displayName} className={"flex w-full justify-center rounded-xl p-2 transition" + SB.hover}>
                 <span className="inline-flex rounded-full p-[2px]" style={{ background: `conic-gradient(from 0deg, ${(PRODUCT_ACCENT[product] || PRODUCT_ACCENT.training).accent}, ${T.aiAccent}, ${(PRODUCT_ACCENT[product] || PRODUCT_ACCENT.training).accent})` }}>
                   <Avatar name={displayName} size={28} />
                 </span>
               </button>
             ) : (
-              <div className="relative rounded-xl p-2.5" style={{ background: "rgba(255,255,255,.05)", border: "1px solid rgba(255,255,255,.08)" }}>
-                <button type="button" onClick={() => setSidebarUserOpen(v => !v)} className="flex min-w-0 w-full items-center gap-2 rounded-lg p-0.5 transition hover:bg-white/5">
+              <div className="relative rounded-xl p-2.5" style={SB.userBox}>
+                <button type="button" onClick={() => setSidebarUserOpen(v => !v)} className={"flex min-w-0 w-full items-center gap-2 rounded-lg p-0.5 transition" + SB.hover}>
                   <span className="inline-flex shrink-0 rounded-full p-[2px]" style={{ background: `conic-gradient(from 0deg, ${(PRODUCT_ACCENT[product] || PRODUCT_ACCENT.training).accent}, ${T.aiAccent}, ${(PRODUCT_ACCENT[product] || PRODUCT_ACCENT.training).accent})` }}>
                     <Avatar name={displayName} size={32} />
                   </span>
-                  <div className="min-w-0 flex-1 text-left"><div className="truncate text-sm font-semibold" style={{ color: "#fff" }}>{displayName}</div><div className="truncate text-xs" style={{ color: "#8F9AB2" }}>{me.label}</div></div>
-                  <ChevronDown size={14} className="shrink-0" style={{ color: "#8F9AB2" }} />
+                  <div className="min-w-0 flex-1 text-left"><div className="truncate text-sm font-semibold" style={{ color: SB.ink }}>{displayName}</div><div className="truncate text-xs" style={{ color: SB.sub }}>{me.label}</div></div>
+                  <ChevronDown size={14} className="shrink-0" style={{ color: SB.sub }} />
                 </button>
                 {sidebarUserOpen && (<>
                   <div className="fixed inset-0" style={{ zIndex: Z.dropdown - 1 }} onClick={() => setSidebarUserOpen(false)} />
@@ -1929,9 +1950,9 @@ export default function App() {
             "--canvas-shadow": T.canvasShadow, "--canvas-radius": `${T.canvasRadius}px`,
             "--canvas-margin": T.canvasMargin,
           }}>
-          <div ref={mainScrollRef} onScroll={e => { setScrolled(e.currentTarget.scrollTop > 0); scheduleNavigationScrollSave(); }} className="feeps-main-scroll flex-1 lg:min-h-0 lg:overflow-y-auto" style={{ borderRadius: "inherit" }}>
+          <div ref={mainScrollRef} onScroll={e => { setScrolled(e.currentTarget.scrollTop > 0); scheduleNavigationScrollSave(); }} className={"feeps-main-scroll flex-1 lg:min-h-0 lg:overflow-y-auto" + (glassPage ? " is-glass-page" : "")} style={{ borderRadius: "inherit" }}>
           <main className="mx-auto w-full max-w-full p-4 sm:p-6 lg:p-8 xl:p-10 2xl:px-12" style={{ maxWidth: isHomeProduct ? 1680 : 1520 }}>
-            <div key={role + product + activeView + (karte ? karte.id : "")} className="view-anim min-w-0 max-w-full">
+            <div key={role + product + activeView + (karte ? karte.id : "")} className={"view-anim min-w-0 max-w-full" + (glassPage ? " feeps-glass-page" : "")}>
               <ScreenErrorBoundary><Suspense fallback={<PageLoading />}>{screen}</Suspense></ScreenErrorBoundary>
             </div>
             <div className="mt-12 pt-4 text-center text-xs" style={{ borderTop: `1px solid ${T.border}`, color: T.textMuted }}>{FOOTER}</div></main>
