@@ -1,4 +1,4 @@
-import { LayoutDashboard, PenLine, FileText, ClipboardCheck, Clock, NotebookPen, Users, UsersRound, Armchair, Building2, BookOpen, Settings, GraduationCap, Calendar, Sparkles, Target, Wrench, Compass, CalendarClock, Megaphone, Award } from "lucide-react";
+import { LayoutDashboard, PenLine, FileText, ClipboardCheck, Clock, NotebookPen, Users, UsersRound, Armchair, Building2, BookOpen, Settings, GraduationCap, Calendar, Sparkles, Target, Wrench, Compass, CalendarClock, Megaphone, Award, BarChart3, Landmark, Star } from "lucide-react";
 
 
 /* ===== ロール ===== */
@@ -84,11 +84,12 @@ const NAV = {
     { sec: "研修", items: [["curriculum", "カリキュラム", Calendar], ["tests", "テスト", ClipboardCheck], ["teams", "チーム", UsersRound], ["seating", "席替え", Armchair], ["completion", "修了レポート", Award], ["materials", "ファイル管理", FileText], ["goals", "目標とタスク", Target]] },
     { sec: "連絡", items: [["announcements", "お知らせ", Megaphone], ["reservations", "予約", CalendarClock]] },
   ],
+  // 2026-10-15（ユーザー指定・モック client-screens.html の A案）：ご紹介資料の「企業様ができること」を入り口に。
+  // 研修管理と助成金管理を1本にし、受講生のような細かいメニューは並べない（勤怠・テスト・カリキュラムは「研修の様子」のタブ）
   client: [
-    { sec: null, items: [["home", "ホーム", LayoutDashboard]] },
-    { sec: "自社", items: [["trainees", "受講生", Users], ["companies", "企業情報", Building2]] },
-    { sec: "研修の様子", items: [["attendance", "勤怠", Clock], ["reports", "日報", NotebookPen], ["tests", "テスト", ClipboardCheck], ["curriculum", "カリキュラム", Calendar], ["materials", "ファイル管理", FileText], ["completion", "修了レポート", Award]] },
-    { sec: "連絡", items: [["announcements", "お知らせ", Megaphone], ["reservations", "予約", CalendarClock]] },
+    { sec: null, items: [["home", "ホーム", LayoutDashboard], ["state", "研修の様子", BarChart3], ["reports", "日報", NotebookPen], ["trainees", "受講生の記録", Users]] },
+    { sec: null, items: [["announcements", "お知らせ", Megaphone], ["reservations", "面談・報告会", CalendarClock], ["grants", "助成金", Landmark]] },
+    { sec: null, items: [["completion", "修了レポート", Award], ["evaluation", "評価表", Star]] },
   ],
   admin: [
     { sec: null, items: [["home", "ホーム", LayoutDashboard]] },

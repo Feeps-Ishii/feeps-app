@@ -2,6 +2,7 @@ import React from "react";
 import { ReservationManager } from "../grants/GrantsComponents.jsx";
 import Announcements, { AnnouncementBoard } from "./Announcements.jsx";
 import InstructorWorkspace from "../workspace/InstructorWorkspace.jsx";
+import { ClientEvaluationSoon, ClientGrantsView, ClientHomeNav, ClientStateView } from "./ClientViews.jsx";
 
 // ノートは react-markdown を使うので、開いた人だけが読み込むように分ける
 const NotesView = React.lazy(() => import("./NotesView.jsx"));
@@ -42,9 +43,13 @@ export default function TrainingProduct({
     const board = <AnnouncementBoard go={go} role={role} />;
     if (role === "trainee") return <>{board}<TraineeHome go={go} goProduct={goProduct} goSub={goSub} done={taskDone} taskDataState={taskDataState} onTaskRetry={onTaskRetry} taskSaveState={taskSaveState} toggle={toggle} goals={goals} /></>;
     if (role === "instructor") return <>{board}<InstructorWorkspace go={go} displayName={displayName} /></>;
-    if (role === "client") return <>{board}<ClientHome openKarte={setKarte} go={go} goProduct={goProduct} /></>;
+    // 企業担当者：6つの入り口とお知らせを出す欄（2026-10-15、モック client-screens.html）
+    if (role === "client") return <ClientHomeNav go={go} />;
     return null;
   }
+  if (role === "client" && view === "state") return <ClientStateView role={role} go={go} goProduct={goProduct} userProfile={userProfile} done={taskDone} goals={goals} />;
+  if (role === "client" && view === "grants") return <ClientGrantsView role={role} />;
+  if (role === "client" && view === "evaluation") return <ClientEvaluationSoon />;
   if (view === "curriculum") return <Curriculum role={role} go={go} goProduct={goProduct} done={taskDone} goals={goals} />;
   if (view === "companies") return <ReadOnlyCompanies role={role} />;
   if (view === "courses") return <ReadOnlyCourses role={role} go={go} />;

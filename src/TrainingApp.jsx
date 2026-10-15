@@ -177,7 +177,8 @@ const PRODUCTS = [
   { key: "analytics", label: "分析・レポート", icon: Activity,      color: PRODUCT_ACCENT.analytics.accent, roles: ["admin"], modes: ["training"] },
   // 助成金管理: instructor/traineeは業務上利用しないため除外（Backend routes/grants.mjsも
   // isAdmin||isClient以外を全エンドポイントで403にしている、Matching同様の設計）。
-  { key: "grants",    label: "助成金管理",     icon: Landmark,      color: PRODUCT_ACCENT.grants.accent, roles: ["client","admin"], modes: ["training"] },
+  // 2026-10-15: 企業担当者は研修管理のサイドバーの「助成金」から使う（研修管理と1本に。products/training/ClientViews.jsx）
+  { key: "grants",    label: "助成金管理",     icon: Landmark,      color: PRODUCT_ACCENT.grants.accent, roles: ["admin"], modes: ["training"] },
   // 企業管理（2026-08-21新設）: 契約・プラン・席・企業マスタ。Feeps側の運営機能なので
   // super adminだけ（モードの出し分けは allowedViewModes / canUseCompanyMode）。
   // 2026-09-28: モードをやめ、レールに並ぶProductの1つにした。super adminだけ（filterProductsForRoleAndMode）。
@@ -534,14 +535,14 @@ async function loadRoleNotifications(role) {
     const reportMissing = applicableMembers.filter(t => !reportIds.has(traineeIdOf(t)));
     const absent = applicableMembers.filter(t => statusKind(attById[traineeIdOf(t)]?.status) === "absent");
     if (reportMissing.length) add(result, { id: notifId(role, "reports-missing", date), severity: "high", category: "日報", title: `自社受講生の日報未保存が${reportMissing.length}名います`, desc: reportMissing.slice(0, 3).map(userName).join("、"), to: "reports", targetUrl: "/training/reports" });
-    if (absent.length) add(result, { id: notifId(role, "absent", date), severity: "high", category: "勤怠", title: `自社受講生に欠席者が${absent.length}名います`, desc: absent.slice(0, 3).map(userName).join("、"), to: "attendance", targetUrl: "/training/attendance" });
+    if (absent.length) add(result, { id: notifId(role, "absent", date), severity: "high", category: "勤怠", title: `自社受講生に欠席者が${absent.length}名います`, desc: absent.slice(0, 3).map(userName).join("、"), to: "state", targetUrl: "/training/attendance" });
     const visibleTests = (Array.isArray(tests) ? tests : []).filter(t => (t.status || "published") !== "archived").slice(0, 8);
     const resultPairs = await Promise.all(visibleTests.map(t => apiGet(`/tests/${testIdOf(t)}/results`).then(rows => [testIdOf(t), Array.isArray(rows) ? rows : []]).catch(() => [testIdOf(t), []])));
     const resultMap = Object.fromEntries(resultPairs);
     const missingTests = visibleTests.length ? members.filter(t => visibleTests.some(test => !(resultMap[testIdOf(test)] || []).some(r => (r.traineeId || r.userId) === traineeIdOf(t)))) : [];
     const lowScores = visibleTests.flatMap(test => (resultMap[testIdOf(test)] || []).filter(r => ids.has(r.traineeId || r.userId) && Number(r.score) < 70));
-    if (missingTests.length) add(result, { id: notifId(role, "tests-missing", date), severity: "medium", category: "テスト", title: `テスト未受験の受講生が${missingTests.length}名います`, desc: missingTests.slice(0, 3).map(userName).join("、"), to: "tests", targetUrl: "/training/tests" });
-    if (lowScores.length) add(result, { id: notifId(role, "low-score", date), severity: "high", category: "成長確認", title: `理解度低下の可能性が${lowScores.length}件あります`, desc: "70点未満のテスト結果があります。", to: "tests", targetUrl: "/training/tests" });
+    if (missingTests.length) add(result, { id: notifId(role, "tests-missing", date), severity: "medium", category: "テスト", title: `テスト未受験の受講生が${missingTests.length}名います`, desc: missingTests.slice(0, 3).map(userName).join("、"), to: "state", targetUrl: "/training/tests" });
+    if (lowScores.length) add(result, { id: notifId(role, "low-score", date), severity: "high", category: "成長確認", title: `理解度低下の可能性が${lowScores.length}件あります`, desc: "70点未満のテスト結果があります。", to: "state", targetUrl: "/training/tests" });
     // 同上。案件の通知は出さない
     return result;
   }
