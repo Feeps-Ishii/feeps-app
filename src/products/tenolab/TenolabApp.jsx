@@ -231,7 +231,8 @@ function App({ route, auth, onLogout }) {
   // レッスンの最後の「演習へ」（2026-10-15）。演習一覧で、このレッスンに紐づいた演習を先頭に並べる
   const openLessonDrills = useCallback((course, lesson, nextLesson) => {
     const base = `#/courses/${encodeURIComponent(course.id)}`;
-    setViews(s => ({ ...s, drills: { ...s.drills, mode: "flat", lesson: {
+    // 紐づいた演習が無いときは、コースの単元で絞る（一覧の側で「このレッスンの演習」が空なら単元の演習だけになる）
+    setViews(s => ({ ...s, drills: { ...s.drills, mode: "flat", filter: course.topic || "all", tags: [], lesson: {
       courseId: course.id, lessonId: lesson.id, title: `${course.title} ${lesson.title}`,
       back: `${base}/lessons/${encodeURIComponent(lesson.id)}`,
       next: nextLesson ? `${base}/lessons/${encodeURIComponent(nextLesson.id)}` : base, nextLabel: nextLesson ? "次のレッスンへ" : "コースへ戻る",

@@ -216,7 +216,7 @@ function DrillFilter({ all, groups, view, setView, premium, go }) {
       {L && (
         <div className="dflesson">
           <span className="x">レッスン：{L.title}<button type="button" aria-label="レッスンの並べ替えを外す" onClick={() => set({ lesson: null })}>×</button></span>
-          <small>紐づいた演習を先頭に</small>
+          <small>{linked.length ? "紐づいた演習を先頭に" : "この単元の演習"}</small>
           <span className="sp" />
           <button type="button" className="btn ghost" onClick={() => go(L.back)}>◀ レッスンに戻る</button>
           <button type="button" className="btn" onClick={() => go(L.next)}>{L.nextLabel} ▶</button>

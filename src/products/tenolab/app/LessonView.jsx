@@ -179,6 +179,9 @@ export default function LessonView({ ctx, course, lesson, lessons, slideId }) {
   // このレッスンに紐づいた演習（最後のページの「演習へ」。2026-10-15 モックの ⑤）
   const linkedDrills = useMemo(() => (ctx.drills || []).filter(d => (d.lessons || []).some(x => x.courseId === course.id && x.lessonId === lesson.id)), [ctx.drills, course.id, lesson.id]);
   const allCleared = linkedDrills.length > 0 && linkedDrills.every(d => d.cleared);
+  // 紐づいた演習が無いレッスンでも、そのコースの単元の演習へ行けるようにする（2026-10-15 ユーザー指定）
+  const topicDrills = useMemo(() => (course.topic ? (ctx.drills || []).filter(d => d.topic === course.topic) : []), [ctx.drills, course.topic]);
+  const drillCount = linkedDrills.length || topicDrills.length;
 
   useEffect(() => { setI(Math.max(0, slides.findIndex(s => s.id === slideId))); }, [lesson.id]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => { lrn.touchLesson?.(course.id, lesson.id); }, [course.id, lesson.id]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -267,7 +270,7 @@ export default function LessonView({ ctx, course, lesson, lessons, slideId }) {
       <div className="lsn-dock" role="toolbar" aria-label="ページの操作">
         <button type="button" onClick={prev} disabled={i === 0 && li === 0}>◀ <span className="lbl">前へ</span></button>
         <span className="pos">{i + 1} / {total}</span>
-        {last && linkedDrills.length > 0 && <button type="button" className="to-drills" onClick={() => { lrn.completeLesson?.(course.id, lesson.id); ctx.openLessonDrills?.(course, lesson, li < lessons.length - 1 ? lessons[li + 1] : null); }}>✎ <span className="lbl">演習へ</span><em>{allCleared ? "✓" : `${linkedDrills.length}問`}</em></button>}
+        {last && drillCount > 0 && <button type="button" className="to-drills" onClick={() => { lrn.completeLesson?.(course.id, lesson.id); ctx.openLessonDrills?.(course, lesson, li < lessons.length - 1 ? lessons[li + 1] : null); }}>✎ <span className="lbl">演習へ</span><em>{allCleared ? "✓" : `${drillCount}問`}</em></button>}
         <button type="button" className="next" onClick={next}><span className="lbl">{last ? (li < lessons.length - 1 ? "次のレッスン" : "コースへ戻る") : "次へ"}</span> ▶</button>
         <span className="sep" />
         <button type="button" aria-pressed={chatOpen} onClick={() => { setChatOpen(v => !v); setFocus(false); }}>AI <span className="lbl">に聞く</span></button>
