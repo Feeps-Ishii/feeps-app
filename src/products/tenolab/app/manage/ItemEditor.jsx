@@ -194,12 +194,12 @@ function LessonLinks({ lrn, courses, value, onChange }) {
   const lessonTitle = (c, l) => lessonsOf(c).find(x => x.id === l)?.title || l;
   const add = () => {
     if (!cid || !lid || value.some(x => x.courseId === cid && x.lessonId === lid)) return;
-    onChange([...value, { courseId: cid, lessonId: lid }]);
+    onChange([...value, { courseId: cid, lessonId: lid, courseTitle: courseTitle(cid), lessonTitle: lessonTitle(cid, lid) }]);
     setLid("");
   };
   return (
     <div style={{ display: "grid", gap: 6 }}>
-      {value.length > 0 && <div className="row" style={{ gap: 6, flexWrap: "wrap" }}>{value.map(x => <button key={`${x.courseId}/${x.lessonId}`} type="button" className="chip" onClick={() => onChange(value.filter(y => y !== x))}>{courseTitle(x.courseId)} ／ {lessonTitle(x.courseId, x.lessonId)} ×</button>)}</div>}
+      {value.length > 0 && <div className="row" style={{ gap: 6, flexWrap: "wrap" }}>{value.map(x => <button key={`${x.courseId}/${x.lessonId}`} type="button" className="chip" onClick={() => onChange(value.filter(y => y !== x))}>{x.courseTitle || courseTitle(x.courseId)} ／ {x.lessonTitle || lessonTitle(x.courseId, x.lessonId)} ×</button>)}</div>}
       <div className="row" style={{ gap: 6, flexWrap: "wrap" }}>
         <select value={cid} aria-label="コース" onChange={e => { setCid(e.target.value); setLid(""); }}><option value="">コースを選ぶ</option>{courses.map(c => <option key={c.id} value={c.id}>{c.title}</option>)}</select>
         <select value={lid} aria-label="レッスン" disabled={!cid} onChange={e => setLid(e.target.value)}><option value="">レッスンを選ぶ</option>{lessonsOf(cid).map(l => <option key={l.id} value={l.id}>{l.title}</option>)}</select>

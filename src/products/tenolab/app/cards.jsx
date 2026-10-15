@@ -66,6 +66,8 @@ export function DrillCard({ d, premium, go, hits = [] }) {
       <div className="body">
         <span className="row" style={{ gap: 8 }}><TopicIcon topic={t} size={28} /><span className="eyebrow" style={{ color: t.color }}>{t.name}</span><PremTag item={d} premium={premium} /></span>
         <h3 style={{ fontWeight: 700, fontSize: 15 }}>{d.title}</h3>
+        {/* 紐づいたレッスン（2026-10-15 ユーザー指定：どのコースのどのレッスンか） */}
+        {(d.lessons || []).filter(x => x.lessonTitle).slice(0, 1).map(x => <span key={x.lessonId} className="dlesson"><Ic id="slide" />{x.courseTitle} ・ {x.lessonTitle}{d.lessons.length > 1 && <small>ほか{d.lessons.length - 1}</small>}</span>)}
         {(d.tags || []).length > 0 && (
           <div className="dtags" style={{ "--tc": t.color }}>
             {[...d.tags.filter(x => hits.includes(x)), ...d.tags.filter(x => !hits.includes(x))].slice(0, 2).map(x => <span key={x} className={hits.includes(x) ? "hit" : ""}>{x}</span>)}

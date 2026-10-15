@@ -69,6 +69,7 @@ function CodeDrill({ item, topic, back, go, rec, progress }) {
           {cleared && <span className="chip done"><Ic id="check" />クリア済み</span>}
         </div>
         <h1 className="h1">{item.title}</h1>
+        <LessonRefs item={item} />
         {item.task && <p style={{ whiteSpace: "pre-wrap" }}>{item.task}</p>}
         <TryPanel item={item} code={code} setCode={setCode} onResult={onResult}
           onHint={() => { if (!hint) { hints.current += 1; setHint(true); } }} hintShown={hint}
@@ -150,6 +151,21 @@ const START_TEXT = {
 const WARN_LEFT_MS = 10 * 60_000;
 const fmtLeft = ms => { const s = Math.max(0, Math.floor(ms / 1000)); return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`; };
 
+// 紐づいたレッスンへ戻る（2026-10-15 ユーザー指定：演習からレッスンにも飛べる）
+function LessonRefs({ item }) {
+  const links = (item.lessons || []).filter(x => x.courseId && x.lessonId);
+  if (!links.length) return null;
+  return (
+    <div className="dlrefs">
+      {links.map(x => (
+        <button key={`${x.courseId}/${x.lessonId}`} type="button" className="dlref" onClick={() => { window.location.hash = `#/courses/${encodeURIComponent(x.courseId)}/lessons/${encodeURIComponent(x.lessonId)}`; }}>
+          <Ic id="slide" /><span><small>もとのレッスン</small>{[x.courseTitle, x.lessonTitle].filter(Boolean).join(" ・ ") || "レッスン"}</span><b>レッスンを開く →</b>
+        </button>
+      ))}
+    </div>
+  );
+}
+
 function AwsDrill({ item, premium, back, rec, progress }) {
   const start = START_OF[item.aws?.scenario] || "blank";
   const cleared = rec?.status === "cleared";
@@ -159,6 +175,7 @@ function AwsDrill({ item, premium, back, rec, progress }) {
       <div style={{ display: "grid", gap: 8, marginBottom: 16 }}>
         <div className="row"><PremTag item={item} premium={premium} />{item.level && <span className="chip">{item.level}</span>}{item.minutes ? <span className="chip">約{item.minutes}分</span> : null}<StartTag start={start} />{cleared && <span className="chip done"><Ic id="check" />クリア済み</span>}</div>
         <h1 className="h1">{item.title}</h1>
+        <LessonRefs item={item} />
       </div>
       <AwsEnvPanel scenario={item.aws?.scenario || item.id} start={start} task={item.task} steps={item.aws?.steps} onGraded={r => { if (r?.allOk) progress.reload(); }} />
     </>
