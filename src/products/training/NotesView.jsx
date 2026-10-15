@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { apiGet, apiPost, apiPut, apiDelete } from "../../api.js";
 import {
-  PRISM, PrismPage, PrismCard, PrismHomeHeading, PrismSectionTitle, PrismErrorRetryCard, SkeletonRows,
+  PRISM, PrismPage, PrismCard, PrismSectionTitle, PrismErrorRetryCard, SkeletonRows,
 } from "../../components/common";
 import { normalizeCurriculumSections } from "./TrainingComponents.jsx";
 import { Editor, NoteCard, flattenLessons, resolveUnitId, todayUnitId } from "./NotesShared.jsx";
@@ -132,11 +132,7 @@ export default function NotesView() {
 
   return (
     <PrismPage>
-      <PrismHomeHeading
-        eyebrow="研修中"
-        title="ノート"
-        description="書いたものは、カリキュラムの順に並びます。並べ替えもタグ付けも要りません。ここに書いたものは、講師には見えません。"
-      />
+      {/* 2026-10-15: ほかの画面にそろえて、上の大きな見出しは出さない（画面名はヘッダーにある） */}
 
       {courses.length > 1 && (
         <div className="flex flex-wrap items-center gap-2">
