@@ -450,6 +450,9 @@ export default function CaseFlow({ item, premium, back, progress, onReload }) {
                 ? <JavaEditor key={`${item.id}-sql`} lang="sql" words={sqlWordList} value={code} onChange={approved ? () => {} : setCode} readOnly={approved} />
               : item.runtime === "web" || item.runtime === "jsweb"
                 ? <WebEditor key={`${item.id}-html`} mode="html" value={code} onChange={approved ? () => {} : setCode} readOnly={approved} level={1} />
+              // JavaScript も演習（JsBench）と同じエディタにする（2026-10-15。簡易の入力欄だと左に寄って狭かった）
+              : item.runtime === "js"
+                ? <JavaEditor key={`${item.id}-js`} value={code} onChange={approved ? () => {} : setCode} readOnly={approved} level={0} />
                 : <div className="cf-plain"><Editor value={code} onChange={approved ? () => {} : setCode} label={fileName} readOnly={approved} minHeight={360} /></div>}
         </div>
         {compile && <pre className="cf-term e">{compile.error}</pre>}
