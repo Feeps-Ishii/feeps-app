@@ -9,6 +9,7 @@ import { GRANTS_NAV } from "./products/grants/GrantsCatalog.js";
 import FeepsOneHome from "./products/home/FeepsOneHome.jsx";
 import TrainingProduct from "./products/training/TrainingProduct.jsx";
 import ChatNotifier from "./products/training/ChatNotifier.jsx";
+import CourseSwitcher from "./products/training/CourseSwitcher.jsx";
 import { ackKey, hasStaffComment, loadAcks } from "./products/training/acks.js";
 import Login from "./products/auth/Login.jsx";
 import { MfaSuggestionDialog, MfaSettingsCard, useMfaStatus } from "./products/auth/MfaSetup.jsx";
@@ -989,6 +990,9 @@ export default function App() {
   const [viewMode, setViewMode] = useState(() => storageGet("feeps.viewMode", "training"));
   const [karte, setKarte] = useState(null);
   const [trainingNavigationVersion, setTrainingNavigationVersion] = useState(0);
+  // 受講生がサイドバーでコースを切り替えたら、いまの画面をそのコースで読み直す（2026-10-15、CourseSwitcher.jsx）
+  const [courseVersion, setCourseVersion] = useState(0);
+  const onCourseSwitch = () => { setCourseVersion(v => v + 1); setTaskReloadKey(v => v + 1); emitNotificationRefresh(); };
   const [taskDone, setTaskDone] = useState({});
   const [goals, setGoals] = useState(GOALS);
   const [taskSaveState, setTaskSaveState] = useState("");
@@ -1587,7 +1591,7 @@ export default function App() {
     if (product === "company") return <CompanyProduct subView={subView} />;
     if (product === "training" && role === "admin" && ["home", "companies", "courses", "users"].includes(view)) return <AdminProduct view={view} go={go} goProduct={goProduct} goSub={goSub} />;
     return <TrainingProduct
-      key={`training-${trainingNavigationVersion}`}
+      key={`training-${trainingNavigationVersion}-${courseVersion}`}
       view={view}
       role={role}
       karte={karte}
@@ -1832,7 +1836,7 @@ export default function App() {
               })}
             </div>
           )}
-          <nav className={"min-h-0 flex-1 overflow-y-auto " + (sidebarCollapsed ? "p-2" : "p-3")} aria-label={`${currentProduct.label}メニュー`}><SideNav groups={nav} view={activeView} karte={karte} go={product === "training" ? go : goSub} badges={navBadges} collapsed={sidebarCollapsed} pa={pa} dark /></nav>
+          <nav className={"min-h-0 flex-1 overflow-y-auto " + (sidebarCollapsed ? "p-2" : "p-3")} aria-label={`${currentProduct.label}メニュー`}>{role === "trainee" && product === "training" && !sidebarCollapsed && <CourseSwitcher dark onChange={onCourseSwitch} />}<SideNav groups={nav} view={activeView} karte={karte} go={product === "training" ? go : goSub} badges={navBadges} collapsed={sidebarCollapsed} pa={pa} dark /></nav>
           <button type="button" onClick={toggleSidebar} title={sidebarCollapsed ? "サイドバーを展開" : "サイドバーを折りたたむ"} aria-label={sidebarCollapsed ? "サイドバーを展開" : "サイドバーを折りたたむ"}
             className={"feeps-context-toggle mx-2 mb-1 flex items-center rounded-xl py-2 text-xs font-semibold transition " + (sidebarCollapsed ? "justify-center" : "gap-2 px-3")}>
             {sidebarCollapsed ? <ChevronRight size={16} /> : <><ChevronLeft size={16} />折りたたむ</>}
@@ -1906,7 +1910,7 @@ export default function App() {
                       </button>
                     ); })}
                   </div>
-                  {!isHomeProduct && <div className="mt-5"><div className="mb-2 px-2 text-[10px] font-bold uppercase tracking-[.12em]" style={{ color: T.textMuted }}>{currentProduct.label}</div><SideNav groups={nav} view={activeView} karte={karte} go={product === "training" ? go : goSub} badges={navBadges} pa={pa} /></div>}
+                  {!isHomeProduct && <div className="mt-5"><div className="mb-2 px-2 text-[10px] font-bold uppercase tracking-[.12em]" style={{ color: T.textMuted }}>{currentProduct.label}</div>{role === "trainee" && product === "training" && <CourseSwitcher onChange={onCourseSwitch} />}<SideNav groups={nav} view={activeView} karte={karte} go={product === "training" ? go : goSub} badges={navBadges} pa={pa} /></div>}
                 </div>
                 <div className="p-3" style={{ borderTop: `1px solid ${T.border}` }}>
                   <button type="button" onClick={() => go("profile")} className="flex min-h-[50px] w-full items-center gap-3 rounded-xl px-2 text-left hover:bg-black/[.04]"><Avatar name={displayName} size={34} /><span className="min-w-0 flex-1"><span className="block truncate text-sm font-bold">{displayName}</span><span className="block truncate text-xs" style={{ color: T.textMuted }}>{me.label}</span></span><ChevronRight size={16} style={{ color: T.textMuted }} /></button>

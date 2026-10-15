@@ -4,6 +4,7 @@ import {
   PRISM, PrismPage, PrismCard, PrismSectionTitle, PrismErrorRetryCard, SkeletonRows,
 } from "../../components/common";
 import { normalizeCurriculumSections } from "./TrainingComponents.jsx";
+import { getActiveCourseId } from "../../utils/common/courseContext.js";
 import { Editor, NoteCard, flattenLessons, resolveUnitId, todayUnitId } from "./NotesShared.jsx";
 import { isWrittenNote } from "./notesLessons.js";
 import { AlertCircle, ChevronDown, ListChecks, PenLine, Plus, Search } from "lucide-react";
@@ -38,7 +39,9 @@ export default function NotesView() {
       if (!alive) return;
       const rows = Array.isArray(list) ? list : [];
       setCourses(rows);
-      setCourseId(prev => prev || rows[0]?.courseId || "");
+      // いま選んでいるコース（サイドバーで切り替える）を使う
+      const active = getActiveCourseId();
+      setCourseId(prev => prev || (rows.some(r => r.courseId === active) ? active : rows[0]?.courseId || ""));
     }).catch(() => alive && setErr("コースを取得できませんでした。再読み込みしてください。"));
     return () => { alive = false; };
   }, []);
@@ -134,7 +137,8 @@ export default function NotesView() {
     <PrismPage>
       {/* 2026-10-15: ほかの画面にそろえて、上の大きな見出しは出さない（画面名はヘッダーにある） */}
 
-      {courses.length > 1 && (
+      {/* コースの切り替えはサイドバー（2026-10-15） */}
+      {false && courses.length > 1 && (
         <div className="flex flex-wrap items-center gap-2">
           <span className="text-xs font-bold" style={{ color: PRISM.mut }}>コース</span>
           <div className="relative">

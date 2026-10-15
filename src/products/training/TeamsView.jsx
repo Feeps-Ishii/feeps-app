@@ -529,6 +529,8 @@ const hastText = n => (n?.type === "text" ? n.value : (n?.children || []).map(ha
 
 function CodeBlock({ node, children }) {
   const [copied, setCopied] = useState(false);
+  // 中身の無いコードの箱は出さない（2026-10-15。以前の書き方で空のまま送られたものがある）
+  if (!hastText(node).trim()) return null;
   async function copy() {
     try { await navigator.clipboard.writeText(hastText(node).replace(/\n$/, "")); setCopied(true); window.setTimeout(() => setCopied(false), 1500); } catch { /* コピーできない環境では何もしない */ }
   }
@@ -582,6 +584,8 @@ function ChatTab({ team, me, nameOf }) {
   const [files, setFiles] = useState([]);       // 送る前の添付
   const [picking, setPicking] = useState(false);
   const [sending, setSending] = useState(false);
+  const [code, setCode] = useState(null);      // コードを貼る欄（null＝閉じている）。送るときに ``` で囲んで本文の後ろに付ける
+  const codeRef = useRef(null);
   const listRef = useRef(null);
   const inputRef = useRef(null);
   const cursorRef = useRef("");
@@ -644,13 +648,19 @@ function ChatTab({ team, me, nameOf }) {
     } catch (e) { setErr(errText(e, "読み込めませんでした。")); }
     finally { setOlder(false); }
   }
+  const composed = () => {
+    const t = text.trim();
+    const c = (code || "").replace(/\s+$/, "").replace(/^\n+/, "");
+    return [t, c.trim() ? "```\n" + c + "\n```" : ""].filter(Boolean).join("\n");
+  };
   async function send() {
-    const v = text.trim();
+    const v = composed();
     if ((!v && !files.length) || sending) return;
+    if (v.length > MAX_CHAT_TEXT) { setErr(`長すぎます（${MAX_CHAT_TEXT}文字まで）。`); return; }
     setSending(true); setErr("");
     try {
       const m = await apiPost(base, { courseId: team.courseId, text: v, attachments: files.map(f => ({ nodeId: f.nodeId })) });
-      setText(""); setFiles([]); stickRef.current = true; addMsgs([m]);
+      setText(""); setCode(null); setFiles([]); stickRef.current = true; addMsgs([m]);
     } catch (e) { setErr(errText(e, "送れませんでした。")); }
     finally { setSending(false); }
   }
@@ -666,15 +676,19 @@ function ChatTab({ team, me, nameOf }) {
       window.open(r.url, "_blank", "noopener");
     } catch (e) { setErr(errText(e, "ファイルを開けませんでした。")); }
   }
-  // 「コード」：``` で囲む（選んでいる文字があれば、それを囲む）
+  // 「コード」：入力欄の上にコードを貼る欄を開く（2026-10-15 ユーザー指定）。送るときに ``` で囲んで付ける
   function insertCode() {
-    const el = inputRef.current;
-    const s = el ? el.selectionStart : text.length, e = el ? el.selectionEnd : text.length;
-    const lead = s > 0 && text[s - 1] !== "\n" ? "\n" : "";
-    const before = `${lead}\`\`\`\n`, after = "\n```\n";
-    const next = (text.slice(0, s) + before + text.slice(s, e) + after + text.slice(e)).slice(0, MAX_CHAT_TEXT);
-    setText(next);
-    requestAnimationFrame(() => { if (!el) return; el.focus(); el.setSelectionRange(s + before.length, e + before.length); });
+    if (code == null) setCode("");
+    requestAnimationFrame(() => codeRef.current?.focus());
+  }
+  // コードの欄の Tab は字下げ（2文字）にする
+  function codeKey(e) {
+    if (e.key !== "Tab") return;
+    e.preventDefault();
+    const el = e.currentTarget, st = el.selectionStart, en = el.selectionEnd;
+    const next = (code || "").slice(0, st) + "  " + (code || "").slice(en);
+    setCode(next);
+    requestAnimationFrame(() => el.setSelectionRange(st + 2, st + 2));
   }
   const inFence = (v, pos) => (v.slice(0, pos).match(/```/g) || []).length % 2 === 1;
   if (msgs == null) return err ? <PrismErrorRetryCard message={err} onRetry={load} /> : <Card className="p-4"><SkeletonRows rows={4} /></Card>;
@@ -736,13 +750,23 @@ function ChatTab({ team, me, nameOf }) {
               {files.map(f => <div key={f.nodeId} className="w-56 max-w-full"><FileChip file={f} onRemove={() => setFiles(cur => cur.filter(x => x.nodeId !== f.nodeId))} /></div>)}
             </div>
           )}
+          {code != null && (
+            <div className="overflow-hidden rounded-xl" style={{ border: "1px solid #1f2937", background: "#0f172a" }}>
+              <div className="flex items-center gap-2 px-3 py-1.5 text-[11px] font-bold" style={{ color: "#94a3b8", borderBottom: "1px solid #1f2937" }}>
+                <Code size={13} />コード
+                <button type="button" onClick={() => setCode(null)} aria-label="コードの欄を閉じる" title="閉じる" className="ml-auto inline-flex h-6 w-6 items-center justify-center rounded-md" style={{ color: "#94a3b8" }}><X size={14} /></button>
+              </div>
+              <textarea ref={codeRef} value={code} onChange={e => setCode(e.target.value)} onKeyDown={codeKey} rows={6} spellCheck={false} placeholder="ここにコードを貼り付け" aria-label="コード"
+                className="block max-h-72 w-full resize-y bg-transparent px-3 py-2 text-[13px] leading-6 outline-none" style={{ color: "#e2e8f0", fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace", whiteSpace: "pre", overflowX: "auto", tabSize: 2 }} />
+            </div>
+          )}
           <div className="flex items-end gap-2">
             {team.folderNodeId && iconBtn("ファイル", Paperclip, () => setPicking(true), files.length >= MAX_CHAT_FILES)}
-            {iconBtn("コード", Code, insertCode)}
+            {iconBtn("コード", Code, insertCode, code != null)}
             <textarea ref={inputRef} value={text} onChange={e => setText(e.target.value)} rows={1} maxLength={MAX_CHAT_TEXT} placeholder={`${team.name} に送る`} aria-label="メッセージ"
               onKeyDown={e => { if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing && !inFence(text, e.currentTarget.selectionStart)) { e.preventDefault(); send(); } }}
               className="max-h-40 min-h-[40px] min-w-0 flex-1 resize-none rounded-xl px-3 py-2 text-sm outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary, fontFamily: inFence(text, text.length) ? "ui-monospace, SFMono-Regular, Menlo, monospace" : undefined }} />
-            <Btn icon={Send} disabled={(!text.trim() && !files.length) || sending} onClick={send}>送る</Btn>
+            <Btn icon={Send} disabled={(!text.trim() && !(code || "").trim() && !files.length) || sending} onClick={send}>送る</Btn>
           </div>
         </div>
       ) : (

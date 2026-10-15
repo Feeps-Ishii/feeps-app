@@ -560,7 +560,8 @@ export default function LibraryView({ role, go, scope = null }) {
           </div>
         }
       />}
-      {!scope && !overview && courses.length > 0 && <CourseBar courses={courses} value={courseId} onChange={selectCourse} />}
+      {/* 受講生のコースの切り替えはサイドバー（2026-10-15） */}
+      {!scope && !overview && courses.length > 0 && role !== "trainee" && <CourseBar courses={courses} value={courseId} onChange={selectCourse} />}
 
       {overview ? (
         <VisibilityOverview
