@@ -1,6 +1,7 @@
 import React from "react";
 import { Ic, PremTag, StartTag, Thumb, TopicIcon, durationLabel } from "./ui.jsx";
 import "./case/preview.css";
+import { CASE_PREVIEWS } from "./case/CasePreviews.jsx";
 
 /* 一覧のカード（モックの courseCard / drillCard / caseCard）。
    c / d / x は app/model.js で整えた形（locked・progress・cleared などを含む）。 */
@@ -84,6 +85,12 @@ function CasePreview({ x }) {
   const t = x.ticket || {};
   const kind = CASE_KIND[t.kind] ? t.kind : "feat";
   const tag = (t.id || CASE_KIND[kind]) && <span className="cp-tag">{t.id && <b>{t.id}</b>}<i className={`cp-kind ${kind}`}>{CASE_KIND[kind]}</i></span>;
+  // 案件ごとの絵（2026-10-15）：お客さまの画面のいまの状態に、作るところ・不具合のところを重ねる
+  const Own = CASE_PREVIEWS[x.id];
+  if (Own) {
+    const client = String(t.client || "").replace(/（架空）/g, "").trim();
+    return <div className="cp cpx" aria-hidden="true">{tag}{client && <span className="x-client">{client}</span>}<Own /></div>;
+  }
   if (x.servlet?.pageHtml) {
     return (
       <div className="cp" aria-hidden="true">

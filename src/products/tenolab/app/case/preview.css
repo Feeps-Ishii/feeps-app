@@ -37,3 +37,59 @@
 .tl-course .ac-all { margin-left: auto; border: 0; background: none; font: inherit; font-weight: 700; font-size: 13px; color: var(--blue); cursor: pointer; white-space: nowrap; }
 .tl-course .ac-more { border: 1px dashed #CDD1C7; background: transparent; border-radius: 12px; padding: 10px 16px; font: inherit; font-weight: 700; font-size: 14px; color: var(--ink2); cursor: pointer; text-align: center; }
 .tl-course .ac-more:hover { border-color: var(--ink); color: var(--ink); }
+
+/* 案件ごとのプレビュー（case/CasePreviews.jsx、2026-10-15）。お客さまの画面のいまの状態＋蛍光ペン（作る）・赤い丸（不具合） */
+.tl-course .cp.cpx { aspect-ratio: 320 / 168; font-size: 10px; line-height: 1.45; }
+.tl-course .cpx .cp-tag { left: 4%; top: 5%; bottom: auto; z-index: 3; padding: 3px 7px; gap: 5px; }
+.tl-course .cpx .cp-tag b { font-size: 10.5px; }
+.tl-course .cpx .cp-kind { font-size: 9.5px; padding: 0 5px; }
+.tl-course .cpx .x-client { position: absolute; right: 4%; top: 6%; z-index: 3; font-size: 9.5px; color: var(--ink2); background: rgba(255, 255, 255, .92); border: 1px solid var(--line); border-radius: 999px; padding: 1px 8px; white-space: nowrap; max-width: 46%; overflow: hidden; text-overflow: ellipsis; }
+.tl-course .cpx .x-win { position: absolute; left: 7%; right: 7%; top: 15%; bottom: -12%; background: #fff; border: 1px solid #D9DEE7; border-radius: 9px 9px 0 0; box-shadow: 0 10px 26px rgba(21, 23, 28, .12); overflow: hidden; display: grid; grid-template-rows: auto 1fr; text-align: left; }
+.tl-course .cpx .x-bar { display: flex; align-items: center; gap: 4px; padding: 5px 8px; background: #F6F7FA; border-bottom: 1px solid #E3E6EC; }
+.tl-course .cpx .x-bar i { width: 6px; height: 6px; border-radius: 50%; background: #D3D7DF; flex: none; }
+.tl-course .cpx .x-bar span { margin-left: 6px; font-family: var(--mono); font-size: 8.5px; color: var(--muted); white-space: nowrap; overflow: hidden; }
+.tl-course .cpx .x-pg { position: relative; padding: 7px 10px; overflow: hidden; color: var(--ink); }
+.tl-course .cpx .x-sh { display: flex; align-items: center; gap: 8px; padding-bottom: 5px; border-bottom: 1px solid #EEF0F3; margin-bottom: 5px; white-space: nowrap; overflow: hidden; }
+.tl-course .cpx .x-sh b { font-size: 10px; letter-spacing: .04em; }
+.tl-course .cpx .x-sh span { color: #9AA1AE; font-size: 8.5px; }
+.tl-course .cpx .x-sh .gap { flex: 1; }
+.tl-course .cpx .x-h { font-size: 10px; font-weight: 700; }
+.tl-course .cpx .x-h.s { font-size: 9.5px; }
+.tl-course .cpx .x-lab { font-size: 8.5px; color: #6B7280; margin-top: 3px; }
+.tl-course .cpx .x-in { height: 13px; border: 1px solid #D5DAE2; border-radius: 3px; background: #fff; font-size: 8.5px; padding: 0 4px; display: flex; align-items: center; white-space: nowrap; overflow: hidden; }
+.tl-course .cpx .x-in.ghost { border-style: dashed; border-color: #C9CED8; background: transparent; }
+.tl-course .cpx .x-btn { display: inline-block; margin-top: 5px; background: #2B3A55; color: #fff; border-radius: 3px; padding: 1px 10px; font-size: 8.5px; white-space: nowrap; }
+.tl-course .cpx .x-toast { position: absolute; right: 8px; bottom: 26px; background: #E3F5EE; color: #0B6B4F; border: 1px solid #9BD8C1; border-radius: 5px; padding: 2px 8px; font-size: 9px; font-weight: 700; }
+.tl-course .cpx .x-result { margin-top: 6px; font-size: 9.5px; }
+.tl-course .cpx .x-result b { font-size: 11px; }
+.tl-course .cpx .x-hl { background: linear-gradient(transparent 8%, var(--marker-soft, #FFF7C2) 8%, var(--marker-soft, #FFF7C2) 92%, transparent 92%); outline: 1.5px dashed var(--marker-deep, #F2C200); outline-offset: 2px; border-radius: 3px; }
+.tl-course .cpx .x-ring { position: absolute; z-index: 2; border: 2.2px solid #D63B2F; border-radius: 50%; transform: rotate(-4deg); pointer-events: none; }
+.tl-course .cpx .x-say { position: absolute; z-index: 3; background: #D63B2F; color: #fff; font-weight: 700; font-size: 9.5px; border-radius: 6px; padding: 2px 6px; white-space: nowrap; box-shadow: 0 4px 10px rgba(214, 59, 47, .3); }
+.tl-course .cpx .x-say.y { background: var(--ink); color: var(--marker); box-shadow: 0 4px 10px rgba(21, 23, 28, .25); }
+.tl-course .cpx .x-lay { display: grid; gap: 5px; }
+.tl-course .cpx .x-main { display: grid; gap: 3px; }
+.tl-course .cpx .x-ln { height: 5px; border-radius: 2px; background: #E8EBF0; }
+.tl-course .cpx .x-ln.b { background: #DCE6F7; }
+.tl-course .cpx .x-side { border: 1px solid #DCE6F7; background: #F3F7FE; border-radius: 4px; padding: 4px 6px; display: grid; gap: 3px; }
+.tl-course .cpx .x-side b { font-size: 8.5px; color: #3B5BA9; }
+.tl-course .cpx .x-cart { width: 100%; border-collapse: collapse; font-size: 8.5px; }
+.tl-course .cpx .x-cart th { text-align: left; color: #8A919E; font-weight: 500; border-bottom: 1px solid #EEF0F3; padding: 1px 3px; }
+.tl-course .cpx .x-cart td { border-bottom: 1px solid #F3F4F6; padding: 1px 3px; white-space: nowrap; }
+.tl-course .cpx .x-qty { display: inline-block; width: 22px; border: 1px solid #D5DAE2; border-radius: 3px; text-align: center; }
+.tl-course .cpx .x-sum { margin-top: 4px; margin-left: auto; width: 54%; display: grid; grid-template-columns: 1fr auto; gap: 0 8px; font-size: 8.5px; padding: 2px 5px; }
+.tl-course .cpx .x-sum b { font-family: var(--mono); }
+.tl-course .cpx .x-sum .t { font-weight: 700; }
+.tl-course .cpx .x-term { position: absolute; left: 7%; right: 7%; top: 15%; bottom: -12%; background: #12151C; color: #C9D1E0; border-radius: 9px 9px 0 0; box-shadow: 0 10px 26px rgba(21, 23, 28, .18); overflow: hidden; font-family: var(--mono); font-size: 8.5px; text-align: left; }
+.tl-course .cpx .x-tbar { display: flex; gap: 10px; padding: 5px 9px; background: #1B1F29; color: #7E889B; font-size: 8px; }
+.tl-course .cpx .x-tbar .on { color: #FFE14D; }
+.tl-course .cpx .x-grid { width: 100%; border-collapse: collapse; font-size: 8.5px; }
+.tl-course .cpx .x-grid th { background: #1B2030; color: #8D97AB; font-weight: 600; text-align: left; padding: 2px 6px; }
+.tl-course .cpx .x-grid td { padding: 2px 6px; border-bottom: 1px solid #222838; }
+.tl-course .cpx .x-grid .empty td { color: #586176; }
+.tl-course .cpx .x-xls { position: absolute; left: 7%; right: 7%; top: 15%; bottom: -12%; background: #fff; border: 1px solid #D9DEE7; border-radius: 9px 9px 0 0; box-shadow: 0 10px 26px rgba(21, 23, 28, .12); overflow: hidden; text-align: left; }
+.tl-course .cpx .x-xbar { padding: 4px 8px; background: #1F7A4A; color: #fff; font-size: 8.5px; font-weight: 700; }
+.tl-course .cpx .x-xls table { width: 100%; border-collapse: collapse; font-size: 8.5px; }
+.tl-course .cpx .x-xls td, .tl-course .cpx .x-xls th { border: 1px solid #E3E7E4; padding: 1px 5px; height: 13px; }
+.tl-course .cpx .x-xls th { background: #F3F6F4; color: #5D6B63; font-weight: 600; text-align: left; }
+.tl-course .cpx .x-ref { position: absolute; right: 5%; bottom: 8%; z-index: 3; display: flex; gap: 4px; }
+.tl-course .cpx .x-ref span { font-family: var(--mono); font-size: 8.5px; background: #12151C; color: #9FB0CF; border-radius: 4px; padding: 1px 6px; }
