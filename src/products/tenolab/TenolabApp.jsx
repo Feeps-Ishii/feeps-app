@@ -189,7 +189,7 @@ function App({ route, auth, onLogout }) {
     },
     close: () => setNoticeDrawer(null),
   }), [noticeItems, noticeDrawer]); // eslint-disable-line react-hooks/exhaustive-deps
-  const [views, setViews] = useState({ courses: {}, drills: {}, cases: {} });
+  const [views, setViews] = useState({ courses: {}, drills: { mode: "flat" }, cases: {} }); // 演習は絞り込みバーのある「すべて」から（2026-10-15）
   // 「戻る」用に、アプリの中で開いた画面を覚えておく（外から直接来たときは、決まった画面へ戻す）
   const prevHashes = useRef([]);
   const lastHash = useRef(window.location.hash);

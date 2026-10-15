@@ -57,7 +57,8 @@ export function CourseRow({ c, premium, go }) {
   );
 }
 
-export function DrillCard({ d, premium, go }) {
+// hits：絞り込みに当たったタグ（先に・濃く出す）。カードに出すタグは2つまで（2026-10-15）
+export function DrillCard({ d, premium, go, hits = [] }) {
   const t = d.topicObj, lk = d.locked, cleared = d.cleared;
   const body = (
     <>
@@ -65,6 +66,12 @@ export function DrillCard({ d, premium, go }) {
       <div className="body">
         <span className="row" style={{ gap: 8 }}><TopicIcon topic={t} size={28} /><span className="eyebrow" style={{ color: t.color }}>{t.name}</span><PremTag item={d} premium={premium} /></span>
         <h3 style={{ fontWeight: 700, fontSize: 15 }}>{d.title}</h3>
+        {(d.tags || []).length > 0 && (
+          <div className="dtags" style={{ "--tc": t.color }}>
+            {[...d.tags.filter(x => hits.includes(x)), ...d.tags.filter(x => !hits.includes(x))].slice(0, 2).map(x => <span key={x} className={hits.includes(x) ? "hit" : ""}>{x}</span>)}
+            {d.tags.length > 2 && <small>+{d.tags.length - 2}</small>}
+          </div>
+        )}
         <div className="row" style={{ gap: 6 }}>
           {d.level && <span className="chip">{d.level}</span>}
           {d.minutes ? <span className="chip">約{d.minutes}分</span> : null}

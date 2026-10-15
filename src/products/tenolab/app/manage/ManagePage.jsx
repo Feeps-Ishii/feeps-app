@@ -118,7 +118,11 @@ function ItemList({ kind, topics, go }) {
   );
 }
 
-/* 単元（管理者）：名前・説明・色・アイコン・Premium・並び順 */
+// タグの一覧は、編集中は文字のまま持ち、保存するときに配列にする
+const splitTags = v => (Array.isArray(v) ? v : String(v || "").split(/[、,，\n]/)).map(s => s.trim()).filter(Boolean);
+const tagText = (t, k) => (Array.isArray(t[k]) ? t[k].join("、") : t[k] || "");
+
+/* 単元（管理者）：名前・説明・色・アイコン・Premium・並び順・演習のタグ */
 function TopicsEditor({ topics }) {
   const [list, setList] = useState(() => topics.map(t => ({ ...t })));
   const [msg, setMsg] = useState({ kind: "", text: "" });
@@ -127,7 +131,7 @@ function TopicsEditor({ topics }) {
   async function save() {
     setBusy(true); setMsg({ kind: "", text: "" });
     try {
-      await manage.saveTopics(list.map((t, i) => ({ ...t, order: i })));
+      await manage.saveTopics(list.map((t, i) => ({ ...t, tagsTech: splitTags(t.tagsTech), tagsLearn: splitTags(t.tagsLearn), order: i })));
       setMsg({ kind: "ok", text: "保存しました。画面を読み込み直すと反映されます。" });
     } catch (e) {
       const issues = e?.data?.issues;
@@ -148,6 +152,9 @@ function TopicsEditor({ topics }) {
             <label className="mfield"><span>色</span><input type="color" value={t.color || "#767D8C"} onChange={e => set(i, "color", e.target.value)} /></label>
             <label className="mfield"><span>うすい色</span><input type="color" value={t.soft || "#F2F3EE"} onChange={e => set(i, "soft", e.target.value)} /></label>
             <label className="mfield" style={{ gridColumn: "1 / -1" }}><span>説明</span><input value={t.desc || ""} onChange={e => set(i, "desc", e.target.value)} /></label>
+            {/* 演習のタグの一覧（2026-10-15）。読点か改行で区切る。技術＝濃い色、学ぶこと＝薄い色 */}
+            <label className="mfield" style={{ gridColumn: "1 / -1" }}><span>演習のタグ：技術（、で区切る）</span><input value={tagText(t, "tagsTech")} onChange={e => set(i, "tagsTech", e.target.value)} placeholder="HTML、CSS" /></label>
+            <label className="mfield" style={{ gridColumn: "1 / -1" }}><span>演習のタグ：学ぶこと（、で区切る）</span><input value={tagText(t, "tagsLearn")} onChange={e => set(i, "tagsLearn", e.target.value)} placeholder="フォーム、表、Flexbox" /></label>
             <label className="row" style={{ gap: 6, fontSize: 13 }}><input type="checkbox" checked={!!t.premium} onChange={e => set(i, "premium", e.target.checked)} />Premium</label>
           </div>
           <div style={{ display: "grid", gap: 6, alignContent: "start" }}>

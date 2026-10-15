@@ -75,13 +75,20 @@ const AWS_LEVELS = [["all", "すべて"], ["基礎", "基礎"], ["応用", "応�
 export function TopicPage({ ctx, topicId }) {
   const { topics, courses, drills, cases, premium, go, back } = ctx;
   const [lv, setLv] = useState("all");
+  const [tagSel, setTagSel] = useState("all");
   const t = topics.find(x => x.id === topicId) || (topicId === OTHER_TOPIC.id ? OTHER_TOPIC : null);
   if (!t) return <><Back onClick={() => go("#/home")}>← ホーム</Back><p className="muted">この単元は見つかりませんでした。</p></>;
   if (t.premium && !premium) return <><Back onClick={() => go("#/home")}>← ホーム</Back><div className="card flat" style={{ padding: 18, marginTop: 12 }}><b><Ic id="lock" /> {t.name}はPremiumプランで利用できます</b></div></>;
   const cs0 = byTopic(courses, t.id), ds0 = byTopic(drills, t.id), xs0 = byTopic(cases, t.id);
   const levelOf = x => x.level || courses.find(c => c.id === x.needCourseId)?.level;
   const pick = list => (lv === "all" ? list : list.filter(x => levelOf(x) === lv));
-  const cs = pick(cs0), ds = pick(ds0), xs = pick(xs0);
+  const cs = pick(cs0), ds1 = pick(ds0), xs = pick(xs0);
+  // 演習をタグで絞る（2026-10-15、モック devhub-drill-filter.html の C 案）。演習に付いているものだけ出す。
+  // 技術のタグは2つ以上あるとき（Web制作の HTML・CSS など）だけ前に並べる
+  const { tech: techTags, learn: learnTags0 } = topicTags(t);
+  const learnTags = [...(techTags.length > 1 ? techTags : []), ...learnTags0].map(x => [x, ds1.filter(d => (d.tags || []).includes(x)).length]).filter(([, n]) => n);
+  const dtag = learnTags.some(([x]) => x === tagSel) ? tagSel : "all";
+  const ds = dtag === "all" ? ds1 : ds1.filter(d => (d.tags || []).includes(dtag));
   return (
     <>
       <Back onClick={() => back("#/home")}>← ホーム</Back>
@@ -111,7 +118,13 @@ export function TopicPage({ ctx, topicId }) {
       <div className="sec-h"><h2 className="h2">コース</h2></div>
       {cs.length ? <div className="courses">{cs.map(c => <CourseCard key={c.id} c={c} premium={premium} go={go} />)}</div> : <p className="muted">まだありません</p>}
       <div className="sec-h"><h2 className="h2">{t.premium ? "実習" : "簡単な演習"}</h2><span className="muted" style={{ fontSize: 13 }}>{t.premium ? "本物のAWS環境で 20〜45分" : "5〜10分で1問"}</span></div>
-      {ds.length ? <div className="courses">{ds.map(d => <DrillCard key={d.id} d={d} premium={premium} go={go} />)}</div> : <p className="muted">まだありません</p>}
+      {learnTags.length > 1 && (
+        <div className="dfrow tagnav" role="group" aria-label="内容で絞り込む">
+          <button type="button" className="f" aria-pressed={dtag === "all"} onClick={() => setTagSel("all")}>すべて <small>{ds1.length}</small></button>
+          {learnTags.map(([x, n]) => <button key={x} type="button" className={`f tag ${techTags.includes(x) ? "tech" : ""}`} style={{ "--tc": t.color }} aria-pressed={dtag === x} onClick={() => setTagSel(x)}>{x} <small>{n}</small></button>)}
+        </div>
+      )}
+      {ds.length ? <div className="courses">{ds.map(d => <DrillCard key={d.id} d={d} premium={premium} go={go} hits={dtag === "all" ? [] : [dtag]} />)}</div> : <p className="muted">まだありません</p>}
       <div className="sec-h"><h2 className="h2">この単元の案件体験</h2></div>
       {xs.length ? <div className="cases">{xs.map(x => <CaseCard key={x.id} x={x} premium={premium} go={go} />)}</div> : <p className="muted">まだありません</p>}
     </>
@@ -129,7 +142,7 @@ const COURSE_TABS = [["all", "すべて"], ["inprogress", "受講中"], ["done",
 // キーワード検索（2026-10-13）：名前・概要・単元・レベル・依頼元などに、空白で区切った語がすべて入っているもの
 const norm = s => String(s ?? "").normalize("NFKC").toLowerCase();
 const KIND_WORD = { feat: "機能追加", bug: "不具合", mod: "改修" };
-const searchText = x => norm([x.title, x.summary, x.level, x.topicObj?.name, x.runtime, x.ticket?.client, x.ticket?.id, KIND_WORD[x.ticket?.kind]].join(" "));
+const searchText = x => norm([x.title, x.summary, x.level, x.topicObj?.name, x.runtime, x.ticket?.client, x.ticket?.id, KIND_WORD[x.ticket?.kind], ...(x.tags || [])].join(" "));
 function matchAll(list, q) {
   const words = norm(q).split(/\s+/).filter(Boolean);
   return words.length ? list.filter(x => { const t = searchText(x); return words.every(w => t.includes(w)); }) : list;
@@ -174,6 +187,49 @@ function useHideCleared() {
   });
   return [hide, toggle];
 }
+/* 演習一覧の絞り込み（2026-10-15、モック devhub-drill-filter.html の A 案）
+   単元 → その単元のタグ（技術は濃い色・学ぶことは薄い色）→ レベル・クリア済みを隠す。タグはどれかに当たれば出す */
+const LEVEL_ORDER = ["やさしい", "ふつう", "むずかしい", "基礎", "応用", "運用"];
+const topicTags = t => ({ tech: t?.tagsTech || [], learn: t?.tagsLearn || [] });
+function DrillFilter({ all, groups, view, setView, premium, go }) {
+  const topic = view.filter && view.filter !== "all" && groups.some(g => g.id === view.filter) ? view.filter : "all";
+  const tags = view.tags || [];
+  const set = patch => setView({ ...view, ...patch });
+  const inTopic = topic === "all" ? all : all.filter(d => d.topic === topic);
+  const t = groups.find(g => g.id === topic);
+  // すべてのときは各単元の技術のタグ、単元を選んだときはその単元の技術と学ぶこと
+  const tagRows = topic === "all"
+    ? groups.flatMap(g => topicTags(g).tech.map(x => ({ x, color: g.color, tech: true })))
+    : [...topicTags(t).tech.map(x => ({ x, color: t?.color, tech: true })), ...topicTags(t).learn.map(x => ({ x, color: t?.color, tech: false }))];
+  const seenTag = new Set();
+  const tagChips = tagRows.filter(r => !seenTag.has(r.x) && seenTag.add(r.x)).map(r => ({ ...r, n: inTopic.filter(d => (d.tags || []).includes(r.x)).length }));
+  const levels = LEVEL_ORDER.filter(l => inTopic.some(d => d.level === l));
+  const level = levels.includes(view.level) ? view.level : "all";
+  const list = inTopic.filter(d => (!tags.length || tags.some(x => (d.tags || []).includes(x))) && (level === "all" || d.level === level) && !(view.hide && d.cleared));
+  const toggleTag = x => set({ tags: tags.includes(x) ? tags.filter(y => y !== x) : [...tags, x] });
+  return (
+    <>
+      <div className="dfbar">
+        <div className="dfrow" role="group" aria-label="単元で絞り込む"><span className="lbl">単元</span>
+          <button type="button" className="f" aria-pressed={topic === "all"} onClick={() => set({ filter: "all", tags: [] })}>すべて <small>{all.length}</small></button>
+          {groups.map(g => <button key={g.id} type="button" className="f" aria-pressed={topic === g.id} onClick={() => set({ filter: g.id, tags: [] })}><i style={{ background: g.color }} />{g.name} <small>{all.filter(d => d.topic === g.id).length}</small></button>)}
+        </div>
+        {tagChips.some(c => c.n) && (
+          <div className="dfrow" role="group" aria-label="技術・内容で絞り込む"><span className="lbl">{topic === "all" ? "技術" : "技術・内容"}</span>
+            {tagChips.map(c => <button key={c.x} type="button" className={`f tag ${c.tech ? "tech" : ""}`} style={{ "--tc": c.color }} aria-pressed={tags.includes(c.x)} disabled={!c.n} onClick={() => toggleTag(c.x)}>{c.x} <small>{c.n}</small></button>)}
+          </div>
+        )}
+        <div className="dfrow last">
+          {levels.length > 1 && <span className="seg" role="group" aria-label="レベル">{[["all", "すべて"], ...levels.map(l => [l, l])].map(([k, l]) => <button key={k} type="button" aria-pressed={level === k} onClick={() => set({ level: k })}>{l}</button>)}</span>}
+          {inTopic.some(d => d.cleared) && <label className="hide-sw"><input type="checkbox" role="switch" checked={!!view.hide} onChange={e => set({ hide: e.target.checked })} /><i aria-hidden="true" />クリア済みを隠す</label>}
+          <span className="dcount"><b>{list.length}</b>問</span>
+        </div>
+      </div>
+      {list.length ? <div className="courses">{list.map(d => <DrillCard key={d.id} d={d} premium={premium} go={go} hits={tags} />)}</div> : <p className="muted">当てはまる演習はありません</p>}
+    </>
+  );
+}
+
 export function ListPage({ ctx, kind, view, setView }) {
   const { topics, premium, go } = ctx;
   const K = KIND[kind];
@@ -202,7 +258,9 @@ export function ListPage({ ctx, kind, view, setView }) {
         </span>
       </div>
       {kind === "cases" && <ActiveCases cases={all} go={go} />}
-      {flat ? (
+      {flat && kind === "drills" ? (
+        <DrillFilter all={all} groups={groups} view={view} setView={setView} premium={premium} go={go} />
+      ) : flat ? (
         <>
           <div className="filters" role="group" aria-label="単元で絞り込む">
             <button type="button" aria-pressed={!view.filter || view.filter === "all"} onClick={() => setView({ ...view, filter: "all" })}>すべて</button>
