@@ -471,33 +471,6 @@ body.feeps-modal-open .feeps-main-scroll { overflow: hidden !important; }
   .feeps-shell-body { margin-left: var(--shell-offset); width: calc(100% - var(--shell-offset)); }
 }
 
-/* ===== 研修管理のすりガラス（2026-10-15 ユーザー指定・お試し。モック lms-sidebar.html の E2）=====
-   光のにじみ（TrainingApp の T.shellGlass）を画面の後ろに敷き、サイドバー・上の帯をすりガラスに。
-   ぼかし（backdrop-filter）は外枠だけ。本文のカードはぼかさず半透明の白にする（重くしないため）。
-   本文までそろえるのはホームと日報だけ（.is-glass-page / .feeps-glass-page） */
-.feeps-nova-shell.is-glass .feeps-context-rail {
-  color: #18202F;
-  background: rgba(255,255,255,.38);
-  -webkit-backdrop-filter: blur(18px) saturate(130%);
-  backdrop-filter: blur(18px) saturate(130%);
-  border-right: 1px solid rgba(255,255,255,.85);
-  box-shadow: 1px 0 0 rgba(120,130,200,.16), 14px 0 34px -24px rgba(40,50,120,.3);
-}
-.feeps-nova-shell.is-glass .feeps-context-head { border-bottom-color: rgba(120,130,200,.16); }
-.feeps-nova-shell.is-glass .feeps-context-rail nav { scrollbar-color: rgba(75,86,131,.25) transparent; }
-.feeps-nova-shell.is-glass .feeps-context-rail nav::-webkit-scrollbar-thumb { background: rgba(75,86,131,.25); }
-.feeps-nova-shell.is-glass .feeps-context-toggle { color: #5F6AA0; border-color: rgba(255,255,255,.85); background: rgba(255,255,255,.4); }
-.feeps-nova-shell.is-glass .feeps-context-toggle:hover { color: #18202F; background: rgba(255,255,255,.75); }
-.feeps-nova-shell.is-glass .feeps-topbar,
-.feeps-nova-shell.is-glass .feeps-mobile-topbar { background: rgba(255,255,255,.5); border-bottom-color: rgba(255,255,255,.85); }
-.feeps-nova-shell .feeps-main-scroll.is-glass-page { background: transparent; }
-.feeps-glass-page [data-plain-card] {
-  background: rgba(255,255,255,.8) !important;
-  border-color: rgba(255,255,255,.95) !important;
-  box-shadow: 0 10px 30px -18px rgba(40,50,120,.35), inset 0 1px 0 rgba(255,255,255,.9) !important;
-}
-.feeps-glass-page .th-nav-ic { width: 32px; height: 32px; padding: 7px; border-radius: 10px; background: color-mix(in srgb, var(--tone) 12%, #fff); }
-
 /* ===== Nova authentication ===== */
 .feeps-auth-shell { display: grid; grid-template-columns: minmax(0, 1.06fr) minmax(480px, .94fr); overflow: hidden; }
 .feeps-auth-brand {

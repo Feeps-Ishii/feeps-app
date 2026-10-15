@@ -46,8 +46,6 @@ export const T = {
   // ---- Nova Command shell dimensions / compatibility surfaces ----
   // canvas* remain as compatibility values for the existing main wrapper.
   shellBase: "radial-gradient(900px 440px at 72% -8%, rgba(51,156,255,.08), transparent 68%), radial-gradient(760px 420px at 105% 14%, rgba(155,121,236,.07), transparent 70%), #F7F9FC",
-  // 研修管理のすりガラス（2026-10-15 モック lms-sidebar.html の E2）。青・紫・ティールの淡い光のにじみ
-  shellGlass: "radial-gradient(900px 640px at 0% 0%, rgba(58,111,242,.22), transparent 70%), radial-gradient(1000px 680px at 60% -12%, rgba(139,107,224,.17), transparent 70%), radial-gradient(900px 700px at 100% 78%, rgba(47,169,161,.16), transparent 70%), radial-gradient(820px 600px at 18% 104%, rgba(47,134,230,.14), transparent 70%), #F3F5FC",
   shellTail: "#F7F9FC", // shellBase末尾色。iOS Safariのオーバースクロール/100vh差分で白帯を出さないためbody背景に使う
   canvasBg: "#FFFFFF",
   canvasBorder: "1px solid rgba(26,28,31,.08)",

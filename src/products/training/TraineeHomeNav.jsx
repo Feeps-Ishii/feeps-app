@@ -45,7 +45,7 @@ export function TraineeHomeNav({ go, reports = null }) {
                   className="th-nav-row group relative flex items-center gap-3 rounded-[10px] px-3 py-[13px] text-left text-[14.5px] font-bold"
                   style={{ "--tone": tone, color: PRISM.ink }}>
                   {i >= (wide ? 2 : 1) && <span className={`absolute left-3 right-3 top-0 h-px ${wide ? "" : "hidden md:block"}`} style={{ background: PRISM.line }} />}
-                  <Icon size={20} strokeWidth={1.6} className="th-nav-ic shrink-0" style={{ color: tone }} />
+                  <Icon size={20} strokeWidth={1.6} className="shrink-0" style={{ color: tone }} />
                   <span className="min-w-0 flex-1 whitespace-nowrap">{label}</span>
                   {badge[k] && <span className="shrink-0 rounded-full px-2 py-px text-[11px] font-bold tabular-nums" style={{ color: tone, background: `${tone}1F` }}>{badge[k]}</span>}
                   <ChevronRight size={16} className="shrink-0 transition-transform group-hover:translate-x-[3px]" style={{ color: PRISM.mut }} />

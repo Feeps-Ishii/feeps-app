@@ -20,7 +20,7 @@ export function PrismPage({ children, className = "", style = {}, ...rest }) {
 
 export function PrismCard({ children, className = "", style = {}, hover, onClick, ...rest }) {
   return (
-    <Card data-plain-card={style?.background || style?.backgroundColor ? undefined : ""} {...rest} hover={hover} onClick={onClick} className={className} style={{ background: NOVA.card, border: `1px solid ${NOVA.line}`, borderRadius: 18, boxShadow: NOVA.shadowSm, ...style }}>
+    <Card {...rest} hover={hover} onClick={onClick} className={className} style={{ background: NOVA.card, border: `1px solid ${NOVA.line}`, borderRadius: 18, boxShadow: NOVA.shadowSm, ...style }}>
       {children}
     </Card>
   );
