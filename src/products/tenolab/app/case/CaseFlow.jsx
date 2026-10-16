@@ -605,10 +605,13 @@ export default function CaseFlow({ item, premium, back, progress, onReload }) {
   return (
     <div className="cf" ref={rootRef}>
       {tour && <Tour key={tour} env={tour} root={rootRef.current} onClose={() => setTour("")} />}
-      <Back onClick={() => back("#/cases")} />
+      <div className="cf-top">
+        <Back onClick={() => back("#/cases")} />
+        {accepted && cur !== "assign" && <button type="button" className="cf-brief-btn" onClick={() => setStep(idx("assign"))}><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z" /><path d="M14 3v5h5M9 13h6M9 17h4" /></svg>案件の概要を見る</button>}
+      </div>
       <div className="cf-head">
         {t.id && <span className="tid">{t.id}</span>}<h1>{item.title}</h1>
-        <div className="meta"><span className={`kind ${KIND[t.kind]?.[1] || "feat"}`}>{KIND[t.kind]?.[0] || "機能追加"}</span><span className="chip"><i className="dot" />{RUNTIME_LABEL[item.runtime] || item.runtime}</span>{dueChip}{accepted && <span className="branch">feature/{(t.id || item.id).replace(/^#/, "")}</span>}{accepted && cur !== "assign" && <button type="button" className="cf-brief-btn" onClick={() => setStep(idx("assign"))}>案件の概要</button>}</div>
+        <div className="meta"><span className={`kind ${KIND[t.kind]?.[1] || "feat"}`}>{KIND[t.kind]?.[0] || "機能追加"}</span><span className="chip"><i className="dot" />{RUNTIME_LABEL[item.runtime] || item.runtime}</span>{dueChip}{accepted && <span className="branch">feature/{(t.id || item.id).replace(/^#/, "")}</span>}</div>
       </div>
       <nav className="cf-steps" aria-label="案件の流れ" ref={stepsRef}>
         {STEPS.map(([id, label], i) => {

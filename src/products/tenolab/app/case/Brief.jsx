@@ -72,9 +72,9 @@ function Demo({ url, cls, onReplay, className = "", children }) {
     </div>
   );
 }
-const Who = ({ who }) => <span className={`bf-av ${who}`}>{{ client: "客", pm: "PM", lead: "L", me: "あ" }[who] || "・"}</span>;
+const Who = ({ who }) => <span className={`bf-av av-${who}`}>{{ client: "客", pm: "PM", lead: "L", me: "あ" }[who] || "・"}</span>;
 function Say({ who = "pm", name, children }) {
-  return <div className={`bf-say ${who}`}><Who who={who} /><div className="bub"><small>{name}</small>{children}</div></div>;
+  return <div className={`bf-say say-${who}`}><Who who={who} /><div className="bub"><small>{name}</small>{children}</div></div>;
 }
 const NAMES = { pm: "PM（AI）", lead: "リーダー（AI）", client: "お客さま（AI）" };
 
@@ -184,13 +184,13 @@ function ProblemPage({ b, item }) {
           <Demo url={sc.url || "お客さまの画面"} cls={cls} onReplay={replay} className="bf-screen">
             <div className="scr">
               {sc.title && <div className="st">{sc.title}{sc.id && <em>{sc.id}</em>}</div>}
-              {sc.badge && <div className={`badge ${n >= 2 ? "on" : ""}`}><small>{sc.badgeLabel || ""}</small><b>{sc.badge}</b>{sc.flash && <span className="flash">{sc.flash}</span>}</div>}
-              {(sc.rows || []).map((r, i) => <div key={i} className={`row ${r.bad && n >= 2 ? "bad" : ""}`}><span>{r.label}</span><b>{r.count != null ? <>{r.prefix}<Count to={Number(r.count)} from={Number(r.from || 0)} on={n >= 1} comma />{r.suffix}</> : r.value}</b></div>)}
+              {sc.badge && <div className={`bdg ${n >= 2 ? "on" : ""}`}><small>{sc.badgeLabel || ""}</small><b>{sc.badge}</b>{sc.flash && <span className="flash">{sc.flash}</span>}</div>}
+              {(sc.rows || []).map((r, i) => <div key={i} className={`srow ${r.bad && n >= 2 ? "bad" : ""}`}><span>{r.label}</span><b>{r.count != null ? <>{r.prefix}<Count to={Number(r.count)} from={Number(r.from || 0)} on={n >= 1} comma />{r.suffix}</> : r.value}</b></div>)}
             </div>
             {p.voice && <div className={`bf-float fl-bc ${n >= 3 ? "on" : ""}`}><Who who="client" />{p.voice}</div>}
           </Demo>
         )}
-        <div className="side">
+        <div className="pside">
           {p.mail && <div className="bf-mail"><div className="mh"><b>{p.mail.subject}</b><span>{p.mail.from}</span></div><div className="mb">{p.mail.body}</div></div>}
           {(p.impacts || []).length > 0 && <div className="bf-kpis">{p.impacts.map((x, i) => <div key={i}><small>{x.label}</small><b>{x.value}</b></div>)}</div>}
         </div>
@@ -236,7 +236,7 @@ function WantsPage({ b, item }) {
         <Demo cls={cls} onReplay={replay} className="bf-want">
           <div className="wc w1"><small>いま</small><div className="mc bad"><span>{w.before.label}</span><b>{w.before.value}</b></div>{w.before.note && <p>{w.before.note}</p>}</div>
           <span className="warr">→</span>
-          <div className="wc w2"><small>直したあと</small><div className="flip"><div className="mc bad back"><span>{w.before.label}</span><b>{w.before.value}</b></div><div className="mc good front"><span>{w.after.label}</span><b>{w.after.value}</b></div></div>{w.after.note && <p>{w.after.note}</p>}</div>
+          <div className="wc w2"><small>直したあと</small><div className="flip"><div className="mc bad fb"><span>{w.before.label}</span><b>{w.before.value}</b></div><div className="mc good ff"><span>{w.after.label}</span><b>{w.after.value}</b></div></div>{w.after.note && <p>{w.after.note}</p>}</div>
           {(w.keep || []).length > 0 && <div className="wc w3"><small>変えないこと</small><ul>{w.keep.map((x, i) => <li key={i}>{x}</li>)}</ul></div>}
           <button type="button" className="bf-replay solo" onClick={replay}>もう一度</button>
         </Demo>
@@ -305,7 +305,7 @@ function MembersPage({ b, item }) {
     <>
       <h2>一緒に進める人たち</h2>
       <div className="bf-members">{list.map((m, i) => (
-        <div key={m.who} className={`mc ${m.who === "me" ? "me" : ""}`} style={{ animationDelay: `${i * 120}ms` }}>
+        <div key={m.who} className={`mc ${m.who === "me" ? "is-me" : ""}`} style={{ animationDelay: `${i * 120}ms` }}>
           <div className="top"><Who who={m.who} /><span><b>{m.name}</b><small>{m.role}</small></span>{m.who !== "me" && <em>AI</em>}</div>
           <p className="job">{m.job}</p><p className="about">{m.about}</p>{m.ask && <p className="ask">聞いていいこと：{m.ask}</p>}
         </div>
@@ -371,7 +371,7 @@ export default function CaseBrief({ item, accepted, busy, onJoin, onLater }) {
   const Page = pages[Math.min(k, pages.length - 1)][3];
   let grp = "";
   return (
-    <div className="bf" ref={top}>
+    <div className="bf-wrap" ref={top}><div className="bf">
       <nav className="bf-nav" aria-label="案件の説明の目次">
         <div className="ttl"><small>案件の説明</small><b>{item.title}</b></div>
         {pages.map(([id, g, t], i) => {
@@ -384,6 +384,6 @@ export default function CaseBrief({ item, accepted, busy, onJoin, onLater }) {
         <div className="bf-content" key={pages[k][0]}><Page /></div>
         <div className="bf-foot"><button type="button" className="btn ghost" onClick={() => go(Math.max(0, k - 1))} disabled={k === 0}>◀ 戻る</button><span className="sp" />{accepted && k < pages.length - 1 && <button type="button" className="btn ghost" onClick={onJoin}>チケットへ</button>}{k < pages.length - 1 && <button type="button" className="btn go" onClick={() => go(k + 1)}>次へ ▶</button>}</div>
       </div>
-    </div>
+    </div></div>
   );
 }
