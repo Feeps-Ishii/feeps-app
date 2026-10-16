@@ -22,6 +22,8 @@
 .cf-head .chip .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--cf-java); display: inline-block; }
 .cf-head .branch { font-family: var(--mono); font-size: 12px; color: var(--ink2); background: var(--card); border: 1px solid var(--line); border-radius: 6px; padding: 0 8px; white-space: nowrap; }
 .cf-head .branch::before { content: "⑂ "; color: var(--muted); }
+.cf-head .cf-brief-btn { font: inherit; font-size: 12.5px; font-weight: 700; color: var(--ink); background: var(--marker); border: 1.5px solid var(--ink); border-radius: 999px; padding: 2px 12px; cursor: pointer; white-space: nowrap; }
+.cf-head .cf-brief-btn:hover { filter: brightness(.97); } .cf-head .cf-brief-btn:focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }
 
 .cf-steps { display: flex; align-items: center; gap: 4px; overflow-x: auto; padding: 4px 2px; scrollbar-width: thin; }
 .cf-steps button { flex: none; border: 1px solid var(--line); background: var(--card); border-radius: 10px; padding: 4px 11px 4px 8px; font: inherit; font-weight: 700; font-size: 13.5px; color: var(--ink2); display: inline-flex; align-items: center; gap: 7px; cursor: pointer; }

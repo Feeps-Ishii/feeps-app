@@ -608,7 +608,7 @@ export default function CaseFlow({ item, premium, back, progress, onReload }) {
       <Back onClick={() => back("#/cases")} />
       <div className="cf-head">
         {t.id && <span className="tid">{t.id}</span>}<h1>{item.title}</h1>
-        <div className="meta"><span className={`kind ${KIND[t.kind]?.[1] || "feat"}`}>{KIND[t.kind]?.[0] || "機能追加"}</span><span className="chip"><i className="dot" />{RUNTIME_LABEL[item.runtime] || item.runtime}</span>{dueChip}{accepted && <span className="branch">feature/{(t.id || item.id).replace(/^#/, "")}</span>}</div>
+        <div className="meta"><span className={`kind ${KIND[t.kind]?.[1] || "feat"}`}>{KIND[t.kind]?.[0] || "機能追加"}</span><span className="chip"><i className="dot" />{RUNTIME_LABEL[item.runtime] || item.runtime}</span>{dueChip}{accepted && <span className="branch">feature/{(t.id || item.id).replace(/^#/, "")}</span>}{accepted && cur !== "assign" && <button type="button" className="cf-brief-btn" onClick={() => setStep(idx("assign"))}>案件の概要</button>}</div>
       </div>
       <nav className="cf-steps" aria-label="案件の流れ" ref={stepsRef}>
         {STEPS.map(([id, label], i) => {

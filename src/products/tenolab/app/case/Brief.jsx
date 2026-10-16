@@ -241,7 +241,7 @@ function WantsPage({ b, item }) {
           <button type="button" className="bf-replay solo" onClick={replay}>もう一度</button>
         </Demo>
       )}
-      <div className="bf-reqs">{items.slice(0, 6).map((x, i) => <div key={i} className={`rq ${x.tag === "別件" ? "other" : ""}`}><Ic n={x.icon || "check"} size={24} /><b>{x.title}</b>{x.tag && <span className={`pri ${x.tag === "別件" ? "o" : "m"}`}>{x.tag}</span>}</div>)}</div>
+      <div className="bf-reqs">{items.slice(0, 6).map((x, i) => <div key={i} className={`rq ${x.tag === "別件" || x.tag === "変えない" ? "other" : ""}`}><Ic n={x.icon || "check"} size={24} /><b>{x.title}</b>{x.tag && <span className={`pri ${x.tag === "別件" || x.tag === "変えない" ? "o" : "m"}`}>{x.tag}</span>}</div>)}</div>
     </>
   );
 }
@@ -359,7 +359,8 @@ export default function CaseBrief({ item, accepted, busy, onJoin, onLater }) {
     ["join", "6 参画", accepted ? "参画済み" : "参画する", () => <JoinPage item={item} accepted={accepted} busy={busy} onJoin={onJoin} onLater={onLater} />],
   ].filter(Boolean);
   const KEY = `tl-case-brief-${item.id}`;
-  const [k, setK] = useState(() => (accepted ? pages.length - 1 : 0));
+  // 参画済みでも、いつでも最初から読み返せる（2026-10-16）
+  const [k, setK] = useState(0);
   const [read, setRead] = useState(() => { try { return JSON.parse(localStorage.getItem(KEY) || "{}"); } catch (e) { return {}; } });
   const top = useRef(null);
   const go = useCallback(next => {
@@ -381,7 +382,7 @@ export default function CaseBrief({ item, accepted, busy, onJoin, onLater }) {
       <div className="bf-page">
         <div className="bf-prog"><small>{k + 1} / {pages.length}</small><span><i style={{ width: `${(k + 1) / pages.length * 100}%` }} /></span></div>
         <div className="bf-content" key={pages[k][0]}><Page /></div>
-        <div className="bf-foot"><button type="button" className="btn ghost" onClick={() => go(Math.max(0, k - 1))} disabled={k === 0}>◀ 戻る</button><span className="sp" />{k < pages.length - 1 && <button type="button" className="btn go" onClick={() => go(k + 1)}>次へ ▶</button>}</div>
+        <div className="bf-foot"><button type="button" className="btn ghost" onClick={() => go(Math.max(0, k - 1))} disabled={k === 0}>◀ 戻る</button><span className="sp" />{accepted && k < pages.length - 1 && <button type="button" className="btn ghost" onClick={onJoin}>チケットへ</button>}{k < pages.length - 1 && <button type="button" className="btn go" onClick={() => go(k + 1)}>次へ ▶</button>}</div>
       </div>
     </div>
   );
