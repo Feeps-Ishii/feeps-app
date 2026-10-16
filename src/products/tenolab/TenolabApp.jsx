@@ -1,12 +1,13 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { fetchAuthSession, getCurrentUser, signOut } from "aws-amplify/auth";
-import { apiGet } from "../../api.js";
+import { apiGet, apiPut } from "../../api.js";
 import { roleOf, isStaffRole } from "./role.js";
 import { ENTRY_HTML } from "./entry/entryMarkup.js";
 import { mountEntry } from "./entry/mountEntry.js";
 import { entryAuth } from "./entry/entryAuth.js";
 import { useLearning } from "../learning/useLearning.js";
 import Shell from "./app/Shell.jsx";
+import FirstSetup from "./app/FirstSetup.jsx";
 import { Home, ListPage, TopicPage } from "./app/Browse.jsx";
 import { CourseDetail, FinalTestPage, LessonPage } from "./app/CoursePages.jsx";
 import DrillPage from "./app/DrillPage.jsx";
@@ -76,15 +77,19 @@ export default function TenolabApp() {
       const u = await getCurrentUser();
       const email = u?.signInDetails?.loginId || "";
       let name = email.split("@")[0] || "";
+      let placeholder = false, nameEditable = false;
       try {
         const p = await apiGet("/profile/me");
         if (p?.name) name = p.name;
+        // まとめて発行した仮のIDの人は、はじめての設定へ（2026-10-16）
+        placeholder = p?.placeholder === true;
+        nameEditable = p?.nameEditable === true;
       } catch (e) {
         console.warn("tenolab profile load failed", e);   // 名前が取れなくてもログインは続ける
       }
       let role = "trainee";
       try { role = roleOf((await fetchAuthSession())?.tokens?.idToken?.payload || {}); } catch (e) { console.warn("tenolab role load failed", e); }
-      setAuth({ state: "in", name: name || "あなた", email, role });
+      setAuth({ state: "in", name: name || "あなた", email, role, placeholder, nameEditable });
       return role;
     } catch (e) {
       setAuth({ state: "out", name: "", email: "", role: "" });
@@ -124,7 +129,11 @@ export default function TenolabApp() {
     return <EntryHost key={loginError} loginError={route.view === "login" ? loginError : ""} onLoggedIn={onLoggedIn} />;
   }
   if (auth.state !== "in") return <div className="tl-boot" role="status">読み込んでいます…</div>;
-  return <App route={route} auth={auth} onLogout={logout} />;
+  if (auth.placeholder) {
+    return <Shell nav={[]} name={auth.name} email={auth.email} role={auth.role} onLogout={logout}><FirstSetup name={auth.name} onDone={async () => { await loadUser(); window.location.hash = "#/home"; }} /></Shell>;
+  }
+  const rename = auth.nameEditable ? async n => { await apiPut("/profile/me", { name: n }); await loadUser(); } : null;
+  return <App route={route} auth={{ ...auth, rename }} onLogout={logout} />;
 }
 
 /* 入口（紹介・ログイン・Java体験・お見積り）。モックの HTML と動きをそのまま載せる */
@@ -292,7 +301,7 @@ function App({ route, auth, onLogout }) {
   else if (route.page === "case") page = <CasePage ctx={ctx} id={route.id} />;
 
   return (
-    <Shell section={route.page === "list" ? route.kind : SECTION[route.page]} name={auth.name} email={auth.email} role={auth.role} switchLink={admin ? ["#/manage", "管理の画面"] : client ? ["#/company", "企業の画面"] : null} onLogout={() => onLogout()} notices={notices}>
+    <Shell section={route.page === "list" ? route.kind : SECTION[route.page]} name={auth.name} email={auth.email} role={auth.role} switchLink={admin ? ["#/manage", "管理の画面"] : client ? ["#/company", "企業の画面"] : null} onLogout={() => onLogout()} onRename={auth.rename} notices={notices}>
       {page}
       {noticeDrawerEl}
     </Shell>

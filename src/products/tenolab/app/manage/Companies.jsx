@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useState } from "react";
 import { admin } from "../data.js";
 import { Title, yen, usdToYen, PLAN_LABEL, fmtTime } from "./parts.jsx";
+import BatchAccounts from "./BatchAccounts.jsx";
 
 /* 企業と契約（モック tenolab-admin.html の companies・company。ADR 0025 §5）
    企業そのものは LMS の企業管理で作る。ここでは契約（Eラーニングの有効・無効、プラン、受講枠、金額・期間）と使用料を見る・直す。
@@ -173,6 +174,7 @@ function Company({ c, d, go, onSaved }) {
           </section>
         </div>
       </div>
+      <BatchAccounts c={c} onDone={onSaved} />
     </>
   );
 }
