@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { ChevronLeft, Plus, Sparkles, Trash2 } from "lucide-react";
 import { apiGet, apiPost, apiPut } from "../../api.js";
 import { Badge, Btn, Card, Modal, PrismErrorRetryCard, SectionHead, SkeletonRows, T } from "../../components/common";
@@ -185,19 +185,25 @@ function Review({ courseId, id, back, toSetup }) {
   const [rev, setRev] = useState(null);
   const [busy, setBusy] = useState("");
   const [msg, setMsg] = useState({ kind: "", text: "" });
+  const detailRef = useRef(null);
   const load = () => apiGet(`/dev-assignments/${encodeURIComponent(id)}/submissions?courseId=${encodeURIComponent(courseId)}`).then(d => { setSt({ state: "ready", d }); return d; }).catch(() => { setSt({ state: "error" }); return null; });
   useEffect(() => { load().then(d => { const first = d?.rows.find(r => r.files.length && STATUS(r)[0] === "レビュー待ち") || d?.rows.find(r => r.files.length) || d?.rows[0]; if (first) choose(first); }); }, [courseId, id]); // eslint-disable-line react-hooks/exhaustive-deps
   const row = st.d?.rows.find(r => r.traineeId === pick);
   const batches = useMemo(() => (row ? [...new Set(row.files.map(f => f.name.split("/")[0]))].sort().reverse() : []), [row]);
-  function choose(r) {
+  function choose(r, user) {
     setPick(r.traineeId); setMsg({ kind: "", text: "" });
+    // 一覧と提出が縦に並ぶ幅では、選んだ人の提出へ移る
+    if (user && window.matchMedia("(max-width: 1023px)").matches) setTimeout(() => detailRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }), 50);
     const newest = [...new Set(r.files.map(f => f.name.split("/")[0]))].sort().reverse()[0];
     setSel(new Set(r.files.filter(f => f.name.startsWith(`${newest}/`)).map(f => f.nodeId)));
     setRev(r.reviews[0] ? { ...r.reviews[0] } : null);
   }
   if (st.state === "loading") return <Card className="p-4"><SkeletonRows rows={5} /></Card>;
   if (st.state === "error") return <PrismErrorRetryCard message="提出を読み込めませんでした。" onRetry={load} />;
-  const { item, rows } = st.d;
+  const { item } = st.d;
+  // 出した人を上に（レビュー待ち → AIレビュー済み → 再提出待ち → 公開済み → 未提出）
+  const ORDER = { "レビュー待ち": 0, "AIレビュー済み": 1, "再提出待ち": 2, "公開済み": 3, "未提出": 4 };
+  const rows = [...st.d.rows].sort((a, b) => ORDER[STATUS(a)[0]] - ORDER[STATUS(b)[0]] || String(b.lastUpload).localeCompare(String(a.lastUpload)));
   async function runAi() {
     setBusy("ai"); setMsg({ kind: "", text: "" });
     try {
@@ -220,17 +226,19 @@ function Review({ courseId, id, back, toSetup }) {
     <div className="grid gap-4">
       <button type="button" onClick={back} className="inline-flex items-center gap-1 justify-self-start text-sm font-semibold" style={{ color: T.textMuted }}><ChevronLeft size={16} />課題の一覧</button>
       <div className="flex flex-wrap items-center gap-3"><h2 className="m-0 text-xl font-bold" style={{ color: T.textPrimary }}>{item.title}</h2>{item.deadline && <Badge tone="cyan">締め切り {fmtDate(item.deadline)}</Badge>}<span className="ml-auto"><Btn kind="ghost" size="sm" onClick={toSetup}>課題の設定</Btn></span></div>
-      <div className="grid items-start gap-4 xl:grid-cols-[300px_minmax(0,1fr)]">
-        <Card className="overflow-hidden">
+      <div className="grid items-start gap-4 lg:grid-cols-[260px_minmax(0,1fr)]">
+        <Card className="overflow-hidden lg:sticky lg:top-4">
+          <div className="max-h-[42vh] overflow-y-auto lg:max-h-[calc(100vh-180px)]">
           {rows.map(r => { const [s, tone] = STATUS(r); const last = r.reviews[0]; return (
-            <button key={r.traineeId} type="button" onClick={() => choose(r)} className="grid w-full grid-cols-[1fr_auto] items-center gap-x-2 px-4 py-2.5 text-left" style={{ borderBottom: `1px solid ${T.border}`, background: pick === r.traineeId ? T.accentSubtle : "#fff" }}>
+            <button key={r.traineeId} type="button" onClick={() => choose(r, true)} className="grid w-full grid-cols-[1fr_auto] items-center gap-x-2 px-4 py-2.5 text-left" style={{ borderBottom: `1px solid ${T.border}`, background: pick === r.traineeId ? T.accentSubtle : "#fff" }}>
               <b className="truncate text-sm" style={{ color: T.textPrimary }}>{r.name}</b><span className="tabular-nums text-sm" style={{ color: T.textPrimary }}>{last ? last.total : ""}</span>
               <span className="col-span-2 flex items-center gap-2"><Badge tone={tone}>{s}</Badge>{r.lastUpload && <small style={{ color: T.textMuted }}>{fmtDate(r.lastUpload)}</small>}</span>
             </button>
           ); })}
+          </div>
         </Card>
         {row ? (
-          <div className="grid gap-4">
+          <div className="grid gap-4" ref={detailRef}>
             <Card className="grid gap-3 p-5">
               <div className="flex flex-wrap items-center gap-2"><b style={{ color: T.textPrimary }}>{row.name}の提出</b><small style={{ color: T.textMuted }}>提出のたびに日時のフォルダ</small>
                 <span className="ml-auto"><Btn icon={Sparkles} onClick={runAi} disabled={!!busy || !sel.size}>{busy.startsWith("ai") ? "AIがレビューしています…" : `選んだ${sel.size}ファイルをAIレビュー`}</Btn></span></div>
