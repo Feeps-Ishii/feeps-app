@@ -283,7 +283,7 @@ function RolePage({ b, item }) {
     <>
       <h2>{r.headline || `あなたは「${pj.role || "開発メンバー"}」として、${mine.join("と")}を受け持ちます`}</h2>
       <Demo url="開発の工程と担当" cls={cls} onReplay={replay}>
-        <div className="bf-v">{PHASES.map(([k, label], i) => <div key={k} className={`vs ${ph[k]} ${n > i ? "on" : ""}`} style={{ gridColumn: i + 1, gridRow: ROW[i] }}><b>{label}</b><small>{WHO[ph[k]]}</small></div>)}</div>
+        <div className="bf-v">{PHASES.map(([k, label], i) => <div key={k} className={`vs v-${ph[k]} ${n > i ? "on" : ""}`} style={{ gridColumn: i + 1, gridRow: ROW[i] }}><b>{label}</b><small>{WHO[ph[k]]}</small></div>)}</div>
         <div className={`bf-float fl-br ${n > PHASES.length ? "on" : ""}`}><Who who="me" />{mine.join("と")}があなたの担当</div>
       </Demo>
       <div className="bf-roles">{cards.map(([ic, k, v]) => <div key={k}><Ic n={ic} /><b>{k}</b><small>{v}</small></div>)}</div>
