@@ -9,6 +9,7 @@ import ClientReports from "./ClientReports.jsx";
 const NotesView = React.lazy(() => import("./NotesView.jsx"));
 // 研修資料。PDFビューアを抱えるので、開いた人だけが読み込むように分ける（2026-09-18）
 const LibraryView = React.lazy(() => import("./LibraryView.jsx"));
+const DevReview = React.lazy(() => import("./DevReview.jsx"));
 // チーム（2026-10-01）。開いた人だけが読み込む
 const TeamsView = React.lazy(() => import("./TeamsView.jsx"));
 // 席替え（2026-10-02）。講師・管理者だけ
@@ -80,6 +81,11 @@ export default function TrainingProduct({
     );
   }
   if (view === "tests") return <Tests role={role} go={go} />;
+  // 個人開発の課題とAIレビュー（2026-10-16）
+  if (view === "devreview") {
+    if (role === "client") return null;
+    return <React.Suspense fallback={<div className="p-4"><SkeletonRows rows={4} /></div>}><DevReview role={role} /></React.Suspense>;
+  }
   if (view === "completion") {
     if (role !== "admin" && role !== "instructor" && role !== "client") return null;
     return (
