@@ -120,13 +120,19 @@ export function ReviewBody({ review, editable, onChange, showAnswer }) {
       {(review.requirements || []).length > 0 && (
         <div className="grid gap-1">
           <b className="text-[13px]" style={{ color: T.textPrimary }}>要件</b>
-          {review.requirements.map((r, i) => (
+          {review.requirements.map((r, i) => {
+            // ○ できている・△ 一部できている・✕ できていない（講師は押すたびに ○ → △ → ✕）
+            const s = r.status || (r.ok ? "ok" : "ng");
+            const mark = { ok: ["○", T.success], partial: ["△", T.warning], ng: ["✕", T.danger] }[s];
+            const next = { ok: "partial", partial: "ng", ng: "ok" }[s];
+            return (
             <div key={r.id} className="grid grid-cols-[28px_1fr] items-start gap-2 border-b py-1.5 text-[13px]" style={{ borderColor: "#EEF1F6" }}>
-              {editable ? <button type="button" aria-label={`${r.id}を${r.ok ? "×" : "○"}にする`} onClick={() => set("requirements", review.requirements.map((x, j) => (j === i ? { ...x, ok: !x.ok } : x)))} className="font-extrabold" style={{ color: r.ok ? T.success : T.danger }}>{r.ok ? "○" : "✕"}</button>
-                : <b style={{ color: r.ok ? T.success : T.danger }}>{r.ok ? "○" : "✕"}</b>}
+              {editable ? <button type="button" aria-label={`${r.id}を${{ ok: "○", partial: "△", ng: "✕" }[next]}にする`} onClick={() => set("requirements", review.requirements.map((x, j) => (j === i ? { ...x, status: next, ok: next === "ok" } : x)))} className="font-extrabold" style={{ color: mark[1] }}>{mark[0]}</button>
+                : <b style={{ color: mark[1] }}>{mark[0]}</b>}
               <span><b className="mr-1 font-mono text-xs" style={{ color: T.accent }}>{r.id}</b>{r.text}{r.note && <small className="block" style={{ color: T.textMuted }}>{r.note}</small>}</span>
             </div>
-          ))}
+            );
+          })}
         </div>
       )}
       {(review.notes || []).length > 0 && (

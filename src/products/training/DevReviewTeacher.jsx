@@ -143,7 +143,7 @@ function Setup({ courseId, id, back, toReview }) {
             {(f.requirements || []).length ? f.requirements.map((r, i) => (
               <div key={i} className="grid grid-cols-[48px_1fr_auto] items-start gap-2">
                 <input aria-label="要件の番号" value={r.id} onChange={e => set("requirements", f.requirements.map((x, j) => (j === i ? { ...x, id: e.target.value.slice(0, 8) } : x)))} className={`${inputCls} font-mono`} style={box} />
-                <div className="grid gap-1"><input aria-label="要件" value={r.text} onChange={e => set("requirements", f.requirements.map((x, j) => (j === i ? { ...x, text: e.target.value } : x)))} className={inputCls} style={box} /><input aria-label="確かめ方" value={r.how} placeholder="確かめ方" onChange={e => set("requirements", f.requirements.map((x, j) => (j === i ? { ...x, how: e.target.value } : x)))} className={`${inputCls} text-xs`} style={box} /></div>
+                <div className="grid gap-1"><input aria-label="要件" value={r.text} onChange={e => set("requirements", f.requirements.map((x, j) => (j === i ? { ...x, text: e.target.value } : x)))} className={inputCls} style={box} /><input aria-label="確かめ方" value={r.how} placeholder="確かめ方" onChange={e => set("requirements", f.requirements.map((x, j) => (j === i ? { ...x, how: e.target.value } : x)))} className={`${inputCls} text-xs`} style={box} />{r.source && <small style={{ color: T.textMuted }}>{r.source}</small>}</div>
                 <button type="button" aria-label="消す" onClick={() => set("requirements", f.requirements.filter((_, j) => j !== i))} style={{ color: T.textMuted }}><Trash2 size={16} /></button>
               </div>
             )) : <p className="m-0 text-sm" style={{ color: T.textMuted }}>「AIに読ませる」で問題と解答から作るか、手で足してください。</p>}
