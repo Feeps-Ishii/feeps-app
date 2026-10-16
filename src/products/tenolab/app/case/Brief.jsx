@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useRef, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import "./brief.css";
 
 /* 案件の説明（参画する前に読む。2026-10-16、モック docs/design/mockups/devhub-learning-2026-10/devhub-case-onboarding.html）
@@ -342,8 +342,14 @@ function JoinPage({ item, accepted, busy, onJoin, onLater }) {
   );
 }
 
-/* ---- 目次と本体 ---- */
-export default function CaseBrief({ item, accepted, busy, onJoin, onLater }) {
+/* ---- 目次と本体 ----
+   compact：参画したあとに右の欄・モーダルで読み返すとき（参画のページと「チケットへ」を出さない、ページを替えたら枠の中を上へ）
+   page・onPage：ページを外（下の帯の前へ・次へ）から動かすとき。無ければ自分で持つ */
+export function briefPageCount(item, accepted, compact) {
+  const b = item.project?.brief || {};
+  return (b.company ? 1 : 0) + (b.system ? 1 : 0) + (b.history ? 1 : 0) + 5 + (compact && accepted ? 0 : 1);
+}
+export default function CaseBrief({ item, accepted, busy, onJoin, onLater, compact = false, page, onPage }) {
   const b = item.project?.brief || {};
   const pj = item.project || {};
   const fixed = (pj.mode || "fixed") === "fixed";
@@ -356,22 +362,29 @@ export default function CaseBrief({ item, accepted, busy, onJoin, onLater }) {
     fixed ? ["fix", "3 修正内容", "修正内容", () => <WantsPage b={b} item={item} />] : ["hear", "3 要件を聞き出す", "聞いて決めること", () => <HearPage item={item} />],
     ["role", "4 あなたの担当", "あなたの担当と役割", () => <RolePage b={b} item={item} />],
     ["mem", "5 関係者・メンバー", "関係者とメンバー", () => <MembersPage b={b} item={item} />],
-    ["join", "6 参画", accepted ? "参画済み" : "参画する", () => <JoinPage item={item} accepted={accepted} busy={busy} onJoin={onJoin} onLater={onLater} />],
+    !(compact && accepted) && ["join", "6 参画", accepted ? "参画済み" : "参画する", () => <JoinPage item={item} accepted={accepted} busy={busy} onJoin={onJoin} onLater={onLater} />],
   ].filter(Boolean);
   const KEY = `tl-case-brief-${item.id}`;
   // 参画済みでも、いつでも最初から読み返せる（2026-10-16）
-  const [k, setK] = useState(0);
+  const [kIn, setKIn] = useState(0);
+  const k = Math.max(0, Math.min(page ?? kIn, pages.length - 1));
+  const go = onPage || setKIn;
   const [read, setRead] = useState(() => { try { return JSON.parse(localStorage.getItem(KEY) || "{}"); } catch (e) { return {}; } });
   const top = useRef(null);
-  const go = useCallback(next => {
-    setRead(r => { const v = { ...r, [pages[k][0]]: true }; try { localStorage.setItem(KEY, JSON.stringify(v)); } catch (e) { /* 覚えられなくても進める */ } return v; });
-    setK(next);
-    top.current?.scrollIntoView({ block: "start", behavior: "smooth" });
-  }, [k, pages, KEY]);
-  const Page = pages[Math.min(k, pages.length - 1)][3];
+  const prev = useRef(k);
+  // ページが替わったら、前のページを「読んだ」にして上へ
+  useEffect(() => {
+    if (prev.current === k) return;
+    const was = pages[prev.current]?.[0];
+    prev.current = k;
+    if (was) setRead(r => { const v = { ...r, [was]: true }; try { localStorage.setItem(KEY, JSON.stringify(v)); } catch (e) { /* 覚えられなくても進める */ } return v; });
+    const box = compact && top.current?.closest(".cf-side-body, .cf-bmodal .bd");
+    if (box) box.scrollTo({ top: 0, behavior: "smooth" }); else top.current?.scrollIntoView({ block: "start", behavior: "smooth" });
+  }, [k]); // eslint-disable-line react-hooks/exhaustive-deps
+  const Page = pages[k][3];
   let grp = "";
   return (
-    <div className="bf-wrap" ref={top}><div className="bf">
+    <div className={`bf-wrap ${compact ? "compact" : ""}`} ref={top}><div className="bf">
       <nav className="bf-nav" aria-label="案件の説明の目次">
         <div className="ttl"><small>案件の説明</small><b>{item.title}</b></div>
         {pages.map(([id, g, t], i) => {
@@ -382,7 +395,7 @@ export default function CaseBrief({ item, accepted, busy, onJoin, onLater }) {
       <div className="bf-page">
         <div className="bf-prog"><small>{k + 1} / {pages.length}</small><span><i style={{ width: `${(k + 1) / pages.length * 100}%` }} /></span></div>
         <div className="bf-content" key={pages[k][0]}><Page /></div>
-        <div className="bf-foot"><button type="button" className="btn ghost" onClick={() => go(Math.max(0, k - 1))} disabled={k === 0}>◀ 戻る</button><span className="sp" />{accepted && k < pages.length - 1 && <button type="button" className="btn ghost" onClick={onJoin}>チケットへ</button>}{k < pages.length - 1 && <button type="button" className="btn go" onClick={() => go(k + 1)}>次へ ▶</button>}</div>
+        <div className="bf-foot"><button type="button" className="btn ghost" onClick={() => go(Math.max(0, k - 1))} disabled={k === 0}>◀ 戻る</button><span className="sp" />{accepted && !compact && k < pages.length - 1 && <button type="button" className="btn ghost" onClick={onJoin}>チケットへ</button>}{k < pages.length - 1 && <button type="button" className="btn go" onClick={() => go(k + 1)}>次へ ▶</button>}</div>
       </div>
     </div></div>
   );

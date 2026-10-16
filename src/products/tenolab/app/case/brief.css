@@ -1,5 +1,7 @@
 /* 案件の説明（case/Brief.jsx、2026-10-16）。紹介サイトの demo と同じ作りの動く図。クラスは bf- で始める */
 .bf-wrap { container: bf / inline-size; scroll-margin-top: 80px; min-width: 0; }
+.bf-wrap.compact .bf { min-height: 0; border: 0; border-radius: 0; box-shadow: none; }
+.bf-wrap.compact .bf-foot { position: sticky; bottom: 0; z-index: 3; }
 .bf { display: grid; grid-template-columns: 230px minmax(0, 1fr); background: var(--card); border: 1px solid var(--line); border-radius: 18px; box-shadow: var(--shadow, 0 6px 20px rgba(21,23,28,.05)); overflow: hidden; min-height: 640px; scroll-margin-top: 80px; }
 .bf-nav { background: var(--soft); border-right: 1px solid var(--line); padding: 16px 10px; display: grid; gap: 2px; align-content: start; }
 .bf-nav .ttl { padding: 0 8px 10px; display: grid; gap: 2px; }
