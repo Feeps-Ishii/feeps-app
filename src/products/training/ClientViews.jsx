@@ -1,8 +1,9 @@
 import React, { useEffect, useState } from "react";
+import { getCurrentUser } from "aws-amplify/auth";
 import { BarChart3, CalendarClock, ChevronRight, ClipboardCheck, MessageSquareText, Send, Star, Users } from "lucide-react";
 import { apiGet, apiPost } from "../../api.js";
-import { Btn, PRISM, PrismCard, SkeletonRows } from "../../components/common";
-import { Attendance, Curriculum, Tests } from "./TrainingComponents.jsx";
+import { Btn, PRISM, PrismCard, Pager, SkeletonRows, usePaged } from "../../components/common";
+import { Attendance, Curriculum } from "./TrainingComponents.jsx";
 
 /* 企業担当者の画面（2026-10-15、モック docs/design/mockups/devhub-lms-2026-10/client-screens.html の A案）。
    ご紹介資料の「企業様ができること」を入り口にする。研修管理と助成金管理の切り替えはなくし、ここで1本にまとめた。
@@ -41,9 +42,15 @@ const todayStr = () => { const d = new Date(); return `${d.getFullYear()}-${Stri
 export function ClientHomeNav({ go }) {
   const date = todayStr();
   const [dash, setDash] = useState(null);
+  const [unread, setUnread] = useState(null);
   useEffect(() => {
     let alive = true;
     apiGet(`/dashboard/client?date=${date}`).then(d => alive && setDash(d || null)).catch(() => alive && setDash(null));
+    // 日報の「まだ読んでいない」の数（読んだ人は clientReadIds。取れないときは出さない）
+    Promise.all([apiGet(`/reports?date=${date}`), getCurrentUser()]).then(([r, u]) => {
+      const me = u?.userId || u?.username || "";
+      if (alive && me && Array.isArray(r)) setUnread(r.filter(x => x.deleted !== true && !(x.clientReadIds || []).includes(me)).length);
+    }).catch(() => {});
     return () => { alive = false; };
   }, [date]);
   const today = (Array.isArray(dash?.trainees) ? dash.trainees : []).filter(t => t.dayStatus === "training_day");
@@ -53,7 +60,7 @@ export function ClientHomeNav({ go }) {
   // 件数は取れたものだけ出す（取れないときに0件と見せない）
   const entries = [
     { k: "state", Icon: BarChart3, tone: TONE.blue, title: "研修の様子を見る", desc: "出欠・テスト・カリキュラム", pills: [late && [`遅刻 ${late}名`, "warn"], noClock && [`まだ打刻がない ${noClock}名`, "bad"]] },
-    { k: "reports", Icon: MessageSquareText, tone: TONE.teal, title: "日報にコメント", desc: "受講生の日報を読んで、励ましや気づきを書く", pills: [notSubmitted && [`今日の未提出 ${notSubmitted}名`, "warn"]] },
+    { k: "reports", Icon: MessageSquareText, tone: TONE.teal, title: "日報にコメント", desc: "受講生の日報を読んで、励ましや気づきを書く", pills: [unread ? [`まだ読んでいない ${unread}件`, "teal"] : null, notSubmitted && [`今日の未提出 ${notSubmitted}名`, "warn"]] },
     { k: "trainees", Icon: Users, tone: TONE.violet, title: "一人ひとりの記録", desc: "出欠・日報・テスト・講師の指導記録", pills: [] },
     { k: "announcements", Icon: Send, tone: TONE.orange, title: "お知らせを出す", desc: "自社の受講生へ。日時を決めて予約もできる", pills: [] },
     { k: "reservations", Icon: CalendarClock, tone: TONE.orange, title: "面談・報告会を依頼", desc: "希望の日時を送るだけ", pills: [] },
@@ -76,7 +83,7 @@ export function ClientHomeNav({ go }) {
             <span className="col-start-2 text-[12.5px]" style={{ color: PRISM.sub }}>{e.desc}</span>
             {e.pills.filter(Boolean).length > 0 && (
               <span className="col-start-2 mt-1.5 flex flex-wrap gap-1.5">
-                {e.pills.filter(Boolean).map(([t, tone]) => <span key={t} className="rounded-full px-2.5 py-px text-[11.5px] font-bold" style={{ color: tone === "bad" ? PRISM.bad : PRISM.warn, background: tone === "bad" ? PRISM.badSubtle : PRISM.warnSubtle }}>{t}</span>)}
+                {e.pills.filter(Boolean).map(([t, tone]) => <span key={t} className="rounded-full px-2.5 py-px text-[11.5px] font-bold" style={tone === "teal" ? { color: PRISM.tealDeep, background: PRISM.tealSubtle } : { color: tone === "bad" ? PRISM.bad : PRISM.warn, background: tone === "bad" ? PRISM.badSubtle : PRISM.warnSubtle }}>{t}</span>)}
               </span>
             )}
           </button>
@@ -156,10 +163,64 @@ export function ClientStateView({ role, go, goProduct, userProfile, done, goals 
       <Tabs tone={TONE.blue} value={tab} onChange={setTab} tabs={[["att", "出欠"], ["test", "テスト"], ["cur", "カリキュラム"]]} />
       <div key={tab} className="min-w-0">
         {tab === "att" ? <Attendance role={role} userProfile={userProfile} />
-          : tab === "test" ? <Tests role={role} go={go} />
+          : tab === "test" ? <ClientTests />
             : <Curriculum role={role} go={go} goProduct={goProduct} done={done} goals={goals} />}
       </div>
     </div>
+  );
+}
+
+/* 研修の様子：テスト（受講生 × テストの点と平均。60点未満は赤。受けていないものは「—」。2026-10-16 モック client-screens.html） */
+function ClientTests() {
+  const [st, setSt] = useState({ state: "loading", tests: [], rows: [] });
+  const load = () => {
+    setSt(s => ({ ...s, state: "loading" }));
+    Promise.all([apiGet("/tests"), apiGet(`/dashboard/client?date=${todayStr()}`)]).then(async ([tests, dash]) => {
+      const list = (Array.isArray(tests) ? tests : []).filter(t => t.status !== "draft" && t.deleted !== true)
+        .sort((a, b) => String(a.publishAt || a.createdAt || "").localeCompare(String(b.publishAt || b.createdAt || "")));
+      const results = await Promise.all(list.map(t => apiGet(`/tests/${encodeURIComponent(t.testId)}/results`).catch(() => null)));
+      const people = Array.isArray(dash?.trainees) ? dash.trainees : [];
+      const rows = people.map(p => ({ id: p.traineeId, name: p.name, scores: list.map((t, i) => {
+        if (!Array.isArray(results[i])) return undefined; // 取れなかった
+        const r = results[i].find(x => x.traineeId === p.traineeId);
+        const v = r ? Number(r.officialScore ?? r.teacherScore ?? r.score) : null;
+        return Number.isFinite(v) ? v : null;
+      }) }));
+      setSt({ state: "ready", tests: list, rows });
+    }).catch(() => setSt({ state: "error", tests: [], rows: [] }));
+  };
+  useEffect(load, []); // eslint-disable-line react-hooks/exhaustive-deps
+  const pg = usePaged(st.rows, 20);
+  const avg = a => { const v = a.filter(x => typeof x === "number"); return v.length ? Math.round(v.reduce((s, n) => s + n, 0) / v.length) : null; };
+  if (st.state === "loading") return <PrismCard className="p-4" style={{ borderRadius: 16 }}><SkeletonRows rows={5} /></PrismCard>;
+  if (st.state === "error") return <PrismCard className="flex items-center gap-3 p-5" style={{ borderRadius: 16 }}><span className="text-sm" style={{ color: PRISM.bad }}>テストの結果を読み込めませんでした。</span><Btn kind="ghost" size="sm" onClick={load}>もう一度</Btn></PrismCard>;
+  if (!st.tests.length) return <PrismCard className="p-6 text-center text-sm" style={{ borderRadius: 16, color: PRISM.sub }}>まだテストはありません</PrismCard>;
+  const cell = v => (v === undefined ? <span style={{ color: PRISM.mut }}>?</span> : v == null ? <span style={{ color: PRISM.mut }}>—</span>
+    : <span className="inline-block min-w-[2.6em] rounded-md px-1.5 py-px font-bold tabular-nums" style={v < 60 ? { color: PRISM.bad, background: PRISM.badSubtle } : { color: PRISM.ink }}>{v}</span>);
+  const th = { color: PRISM.sub, borderBottom: `1px solid ${PRISM.line2}` };
+  return (
+    <PrismCard className="overflow-hidden p-0" style={{ borderRadius: 16 }}>
+      <div className="overflow-x-auto">
+        <table className="w-full min-w-[640px] border-collapse text-sm">
+          <thead><tr><th className="px-4 py-2.5 text-left text-xs font-bold" style={th}>受講生</th>{st.tests.map(t => <th key={t.testId} className="px-3 py-2.5 text-right text-xs font-bold" style={th}>{t.title || t.name || "テスト"}</th>)}<th className="px-4 py-2.5 text-right text-xs font-bold" style={th}>平均</th></tr></thead>
+          <tbody>
+            {pg.rows.map(r => (
+              <tr key={r.id} style={{ borderBottom: `1px solid ${PRISM.line}` }}>
+                <td className="px-4 py-2.5 font-bold" style={{ color: PRISM.ink }}>{r.name}</td>
+                {r.scores.map((v, i) => <td key={i} className="px-3 py-2.5 text-right">{cell(v)}</td>)}
+                <td className="px-4 py-2.5 text-right font-bold tabular-nums" style={{ color: PRISM.ink }}>{avg(r.scores) ?? "—"}</td>
+              </tr>
+            ))}
+            <tr style={{ background: PRISM.base }}>
+              <td className="px-4 py-2.5 text-xs font-bold" style={{ color: PRISM.sub }}>全体の平均</td>
+              {st.tests.map((t, i) => <td key={t.testId} className="px-3 py-2.5 text-right font-bold tabular-nums" style={{ color: PRISM.ink }}>{avg(st.rows.map(r => r.scores[i])) ?? "—"}</td>)}
+              <td />
+            </tr>
+          </tbody>
+        </table>
+      </div>
+      <Pager {...pg} unit="名" />
+    </PrismCard>
   );
 }
 

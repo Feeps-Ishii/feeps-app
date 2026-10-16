@@ -4,7 +4,7 @@ import { apiGet, apiPut, apiPost, apiDelete as apiDeleteBase } from "../../api.j
 import {
   Card, Badge, Btn, Avatar, Stat, SectionHead, Field, Seg, T, PageHeader, EmptyState as CommonEmptyState, SkeletonRows, SkeletonCards, Modal, MonthPicker,
   PRISM, PrismPage, PrismCard, PrismHero, PrismHomeHeading, PrismKpiCard, PrismSectionTitle, PrismErrorRetryCard, PrismProgressRing, PrismEmptyBlock,
-  TrainingHomeHero, TrainingHomePanel, TrainingHomePanelRow, PRODUCT_ACCENT, NOVA,
+  TrainingHomeHero, TrainingHomePanel, TrainingHomePanelRow, PRODUCT_ACCENT, NOVA, Pager, usePaged,
 } from "../../components/common";
 import { TraineeTrainingDayIllustration, TraineeOffDayIllustration, ClientHomeIllustration } from "../../components/common/TrainingHomeIllustrations.jsx";
 import { homeDateLabel } from "./useTraining.js";
@@ -4232,10 +4232,13 @@ function AttendanceManage({ role, userProfile }) {
     if (attendanceSort === "clockIn") return Number(b.missing || 0) - Number(a.missing || 0);
     return String(a.name || "").localeCompare(String(b.name || ""), "ja");
   });
+  // 長い一覧はページで分ける（2026-10-16）
+  const attPg = usePaged(filteredRows, 20);
+  const monPg = usePaged(monthlyAttendance, 20);
   return (
     <div>
       <SectionHead title={canEdit ? "勤怠管理" : "勤怠状況"} desc={periodMode === "月次" ? `${month}の勤怠集計` : `${fmtLongDate(date)}の${role === "client" ? "自社" : "担当"}受講生の出席状況${canEdit ? "・修正" : ""}`}
-        action={<div className="flex flex-wrap items-center gap-2"><Seg value={periodMode} onChange={setPeriodMode} options={["日次", "月次"]} />{periodMode === "月次" ? <MonthPicker value={month} onChange={setMonth} /> : <input type="date" value={date} onChange={e => setDate(e.target.value)} className="rounded-xl px-3 py-2 text-sm outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary, background: "#fff" }} />}<Btn kind="ghost" icon={FileSpreadsheet} onClick={() => {
+        action={<div className="flex flex-wrap items-center gap-2"><Seg value={periodMode} onChange={setPeriodMode} options={["日次", "月次"]} />{periodMode === "月次" ? <MonthPicker value={month} onChange={setMonth} /> : <span className="flex items-center gap-1"><button type="button" onClick={() => setDate(shiftWeekday(date, -1))} className="grid h-9 w-9 place-items-center rounded-xl" style={{ border: `1px solid ${T.border}`, background: "#fff", color: T.textPrimary }} aria-label="前の日"><ChevronLeft size={16} /></button><input type="date" value={date} onChange={e => setDate(e.target.value)} className="rounded-xl px-3 py-2 text-sm outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary, background: "#fff" }} /><button type="button" onClick={() => setDate(shiftWeekday(date, 1))} className="grid h-9 w-9 place-items-center rounded-xl" style={{ border: `1px solid ${T.border}`, background: "#fff", color: T.textPrimary }} aria-label="次の日"><ChevronRight size={16} /></button>{date !== todayStr() && <Btn kind="ghost" size="sm" onClick={() => setDate(todayStr())}>今日へ</Btn>}</span>}<Btn kind="ghost" icon={FileSpreadsheet} onClick={() => {
           if (periodMode === "月次") {
             const companyNameOf = id => opsFilter.companies.find(c => c.companyId === id)?.name || "";
             const rows = monthlyRows
@@ -4317,7 +4320,7 @@ function AttendanceManage({ role, userProfile }) {
                 <div className="grid grid-cols-7 gap-3 px-4 py-2.5 text-xs font-semibold" style={{ background: T.bgBase, color: T.textMuted }}>
                   <div className="col-span-2">受講生</div><div>出席数</div><div>欠席数</div><div>遅刻数</div><div>未登録数</div><div>操作</div>
                 </div>
-                {monthlyAttendance.length === 0 ? <div className="px-4 py-8 text-center text-sm" style={{ color: T.textMuted }}>該当データがありません</div> : monthlyAttendance.map(r => (
+                {monthlyAttendance.length === 0 ? <div className="px-4 py-8 text-center text-sm" style={{ color: T.textMuted }}>該当データがありません</div> : monPg.rows.map(r => (
                   <div key={r.traineeId} className="grid grid-cols-7 gap-3 px-4 py-3 text-sm" style={{ borderTop: `1px solid ${T.border}`, color: T.textPrimary }}>
                     <div className="col-span-2 flex items-center gap-2"><Avatar name={r.name} size={28} /><div className="min-w-0"><div className="truncate font-semibold">{r.name}</div><div className="truncate text-xs" style={{ color: T.textMuted }}>{r.company}</div></div></div>
                     <div><Badge tone="green">{r.present}日</Badge></div><div><Badge tone={r.absent ? "red" : "muted"}>{r.absent}日</Badge></div><div><Badge tone={r.late ? "amber" : "muted"}>{r.late}日</Badge></div><div><Badge tone={r.missing == null ? "muted" : r.missing ? "amber" : "green"}>{r.missing == null ? "—" : `${r.missing}日`}</Badge></div>
@@ -4327,12 +4330,13 @@ function AttendanceManage({ role, userProfile }) {
               </div>
             </div>
           )}
+          {!monthlyLoading && <Pager {...monPg} unit="名" />}
         </Card>
       ) : (<>
       <div className="mb-5 grid gap-4 sm:grid-cols-2 lg:grid-cols-4"><Stat icon={CheckCircle2} label="出勤" value={`${present}名`} tone="green" /><Stat icon={AlertCircle} label="遅刻" value={`${late}名`} tone="amber" /><Stat icon={X} label="欠席" value={`${absent}名`} tone="muted" /><Stat icon={Clock} label="出勤未打刻" value={`${unregistered}名`} tone={unregistered ? "amber" : "muted"} /></div>
       <Card>
         <div className="divide-y md:hidden" style={{ borderColor: T.border }}>
-          {filteredRows.length === 0 ? <div className="px-4 py-8 text-center text-sm" style={{ color: T.textMuted }}>該当データがありません</div> : filteredRows.map(a => (
+          {filteredRows.length === 0 ? <div className="px-4 py-8 text-center text-sm" style={{ color: T.textMuted }}>該当データがありません</div> : attPg.rows.map(a => (
             <div key={`mobile-${a.traineeId}`} className="p-4">
               <div className="mb-3 flex items-center justify-between gap-3">
                 <div className="flex min-w-0 items-center gap-2"><Avatar name={nameMap[a.traineeId] || a.name} size={32} /><span className="truncate text-sm font-semibold" style={{ color: T.textPrimary }}>{nameMap[a.traineeId] || a.name}</span></div>
@@ -4368,7 +4372,7 @@ function AttendanceManage({ role, userProfile }) {
           <div className="feeps-zebra" style={{ minWidth: 600 }}>
             <div className="flex items-center gap-3 px-4 py-2.5 text-xs font-semibold" style={{ background: T.bgBase, color: T.textMuted }}>
               {canEdit && <div className="w-6" />}<div className="w-40">受講生</div><div className="w-16">出勤</div><div className="w-16">退勤</div><div className="w-20">状態</div><div className="flex-1">備考</div><div className="w-28 text-right">操作</div></div>
-            {filteredRows.length === 0 ? <div className="px-4 py-8 text-center text-sm" style={{ color: T.textMuted }}>該当データがありません</div> : filteredRows.map((a) => {
+            {filteredRows.length === 0 ? <div className="px-4 py-8 text-center text-sm" style={{ color: T.textMuted }}>該当データがありません</div> : attPg.rows.map((a) => {
               return (
               <div key={a.traineeId} className="flex items-center gap-3 px-4 py-3 text-sm" style={{ borderTop: `1px solid ${T.border}`, color: T.textPrimary }}>
                 {canEdit && <div className="w-6"><input type="checkbox" checked={selectedRowIds.includes(a.traineeId)} onChange={() => setSelectedRowIds(s => s.includes(a.traineeId) ? s.filter(x => x !== a.traineeId) : [...s, a.traineeId])} /></div>}<div className="flex w-40 items-center gap-2"><Avatar name={nameMap[a.traineeId] || a.name} size={28} /><span className="truncate">{nameMap[a.traineeId] || a.name}</span></div>
@@ -4399,6 +4403,7 @@ function AttendanceManage({ role, userProfile }) {
             );})}
           </div>
         </div>
+        <Pager {...attPg} unit="名" />
       </Card>
       </>)}
       {attendanceDetail && (() => {
@@ -4566,6 +4571,8 @@ function mapReport(r) {
   };
 }
 const todayStr = () => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`; };
+// 前後の平日へ（日付の前後送り。土日は研修が無いので飛ばす。2026-10-16）
+const shiftWeekday = (date, n) => { const d = new Date(`${date || todayStr()}T00:00:00`); do { d.setDate(d.getDate() + n); } while (d.getDay() === 0 || d.getDay() === 6); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`; };
 const monthStr = () => todayStr().slice(0, 7);
 const datesInMonth = (ym) => {
   if (!ym) return [];
@@ -5962,7 +5969,7 @@ function Reports({ role, userProfile }) {
         {role === "admin" && periodMode === "日次" && <label className="flex items-center gap-1.5 text-xs" style={{ color: T.textMuted }}>
           <input type="checkbox" checked={showDeletedReports} onChange={e => setShowDeletedReports(e.target.checked)} />削除済みも表示
         </label>}
-          <Seg value={periodMode} onChange={setPeriodMode} options={["日次", "月次"]} /><span className="text-xs font-semibold" style={{ color: T.textMuted }}>{periodMode === "月次" ? "対象月" : "日報確認日"}</span>{periodMode === "月次" ? <MonthPicker value={month} onChange={setMonth} /> : <input type="date" value={date} onChange={e => setDate(e.target.value)} className="rounded-xl px-3 py-2 text-sm outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary, background: "#fff" }} />}</div> : null} />
+          <Seg value={periodMode} onChange={setPeriodMode} options={["日次", "月次"]} /><span className="text-xs font-semibold" style={{ color: T.textMuted }}>{periodMode === "月次" ? "対象月" : "日報確認日"}</span>{periodMode === "月次" ? <MonthPicker value={month} onChange={setMonth} /> : <span className="flex items-center gap-1"><button type="button" onClick={() => setDate(shiftWeekday(date, -1))} className="grid h-9 w-9 place-items-center rounded-xl" style={{ border: `1px solid ${T.border}`, background: "#fff", color: T.textPrimary }} aria-label="前の日"><ChevronLeft size={16} /></button><input type="date" value={date} onChange={e => setDate(e.target.value)} className="rounded-xl px-3 py-2 text-sm outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary, background: "#fff" }} /><button type="button" onClick={() => setDate(shiftWeekday(date, 1))} className="grid h-9 w-9 place-items-center rounded-xl" style={{ border: `1px solid ${T.border}`, background: "#fff", color: T.textPrimary }} aria-label="次の日"><ChevronRight size={16} /></button>{date !== todayStr() && <Btn kind="ghost" size="sm" onClick={() => setDate(todayStr())}>今日へ</Btn>}</span>}</div> : null} />
       {saveErr && !canWrite && <div className="mb-4 rounded-lg px-3 py-2 text-xs" style={{ background: T.dangerSubtle, color: T.danger }}>{saveErr}</div>}
       {canWrite && reportWorkdaysState === "setup_required" && <div className="mb-4 rounded-xl px-4 py-3 text-sm font-semibold" style={{ background: T.warningSubtle, color: T.warning }}>所属コースの日程が未設定です。未提出には数えず、新規保存を停止しています。運営担当者へご確認ください。</div>}
       {canViewReports && periodMode === "日次" && opsReportScheduleState === "setup_required" && <div className="mb-4 rounded-xl px-4 py-3 text-sm font-semibold" style={{ background: T.warningSubtle, color: T.warning }}>コース日程が未設定です。受講生を未提出には数えていません。</div>}

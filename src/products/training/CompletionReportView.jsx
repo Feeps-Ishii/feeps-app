@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useState } from "react";
 import { apiGet, apiPut } from "../../api.js";
-import { T, Card, Btn, Badge, EmptyState, SectionHead, SkeletonRows, PrismErrorRetryCard } from "../../components/common";
+import { T, Card, Btn, Badge, EmptyState, SectionHead, SkeletonRows, PrismErrorRetryCard, Pager, usePaged } from "../../components/common";
 import { getActiveCourseId, setActiveCourseId } from "../../utils/common/courseContext.js";
 import { Check, FileDown, RotateCcw, Save } from "lucide-react";
 
@@ -66,6 +66,7 @@ export default function CompletionReportView({ role }) {
     finally { setBusy(""); }
   }
 
+  const pg = usePaged(data?.trainees || [], 20); // 長い一覧はページで分ける（2026-10-16）
   if (courses == null) return <div><SectionHead title="修了レポート" /><Card className="p-5"><SkeletonRows rows={5} /></Card></div>;
   if (!courses.length) return <div><SectionHead title="修了レポート" /><Card><EmptyState title={role === "client" ? "見られるコースがありません" : role === "admin" ? "コースがありません" : "担当しているコースがありません"} desc="" /></Card></div>;
 
@@ -142,7 +143,7 @@ export default function CompletionReportView({ role }) {
             <div className="overflow-x-auto">
               <table className="w-full min-w-[860px] border-collapse text-sm">
                 <thead><tr>{["受講生", "出席", "遅刻・早退・欠席", "日報", "テスト", "講師から一言"].map(h => <th key={h} className="px-4 py-2 text-left text-[11px] font-bold" style={{ color: T.textMuted, borderBottom: `1px solid ${T.border}` }}>{h}</th>)}</tr></thead>
-                <tbody>{data.trainees.map(t => (
+                <tbody>{pg.rows.map(t => (
                   <tr key={t.id} style={{ borderBottom: `1px solid ${T.border}`, verticalAlign: "top" }}>
                     <td className="px-4 py-2"><b style={{ color: T.textPrimary }}>{t.name}</b>{t.companyName && <div className="text-[11px]" style={{ color: T.textMuted }}>{t.companyName}</div>}</td>
                     <td className="px-4 py-2 tabular-nums"><b>{pctText(t.attendanceRate)}</b><div className="text-[11px]" style={{ color: T.textMuted }}>{t.attended} / {period?.trainingDays ?? 0}日{t.missing ? ` ・ 未登録 ${t.missing}` : ""}</div></td>
@@ -158,6 +159,7 @@ export default function CompletionReportView({ role }) {
                 ))}</tbody>
               </table>
             </div>
+            <Pager {...pg} unit="名" />
           </Card>
 
           <Card className="grid gap-2 px-5 py-4">

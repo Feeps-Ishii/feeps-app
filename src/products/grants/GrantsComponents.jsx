@@ -20,6 +20,7 @@ import { computeGrantStages, computeNextActions } from "./grantStages.js";
 import {
   Avatar, Badge, Btn, Card, EmptyState, Field, fieldStyle, Modal, PrismErrorRetryCard,
   ProductNavCard, SectionHead, SkeletonRows, T, TraineeBulkImportPanel, PRODUCT_ACCENT,
+  Pager, usePaged,
 } from "../../components/common";
 
 const LIST_PAGE_SIZE = 10;
@@ -1354,6 +1355,7 @@ export function ReservationManager({ role }) {
 
   const companyName = id => companies.find(c => c.companyId === id)?.name || "（企業情報なし）";
   const sorted = useMemo(() => [...items].sort((a, b) => String(a.scheduledAt || "").localeCompare(String(b.scheduledAt || ""))), [items]);
+  const pg = usePaged(sorted, 20); // 長い一覧はページで分ける（2026-10-16）
 
   function startNew() { setForm({ ...EMPTY_RESERVATION_FORM }); setCreating(true); clearActionError(); }
   async function submit() {
@@ -1397,7 +1399,7 @@ export function ReservationManager({ role }) {
         {error ? <div className="p-4"><PrismErrorRetryCard message={error} onRetry={reload} /></div>
           : loading ? <SkeletonRows rows={4} />
           : items.length === 0 ? <EmptyState icon={CalendarClock} title="予約がまだありません" desc={isAdmin ? "「新規予約」から登録できます。" : "「面談をリクエスト」から依頼できます。"} />
-          : <div>{sorted.map((r, i) => (
+          : <div>{pg.rows.map((r, i) => (
             <div key={r.reservationId} className="flex flex-wrap items-center gap-3 px-4 py-3" style={{ borderTop: i ? `1px solid ${T.border}` : "none", background: i % 2 ? T.bgBase : "#fff" }}>
               <div className="min-w-0 flex-1">
                 <div className="flex flex-wrap items-center gap-2">
@@ -1416,7 +1418,7 @@ export function ReservationManager({ role }) {
                 {r.status !== "cancelled" && <Btn kind="ghost" size="sm" icon={X} onClick={() => setStatus(r, "cancelled")}>キャンセル</Btn>}
               </div>
             </div>
-          ))}</div>}
+          ))}<Pager {...pg} /></div>}
       </Card>
       {creating && (
         <Modal title={isAdmin ? "新規予約" : "面談をリクエスト"} onClose={() => setCreating(false)} size="lg"

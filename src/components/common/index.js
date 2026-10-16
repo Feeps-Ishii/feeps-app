@@ -25,3 +25,4 @@ export {
   TrainingHomeHero, TrainingHomePanel, TrainingHomePanelRow,
 } from "./PrismHome.jsx";
 export { T, NOVA, GRAD, PRISM, PRISM_PRODUCT_GRAD, PRODUCT_ACCENT, ROLE_ACCENT, Z } from "./theme.js";
+export { default as Pager, usePaged } from "./Pager.jsx";

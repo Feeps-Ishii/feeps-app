@@ -3,6 +3,7 @@ import { ReservationManager } from "../grants/GrantsComponents.jsx";
 import Announcements, { AnnouncementBoard } from "./Announcements.jsx";
 import InstructorWorkspace from "../workspace/InstructorWorkspace.jsx";
 import { ClientEvaluationSoon, ClientGrantsView, ClientHomeNav, ClientStateView } from "./ClientViews.jsx";
+import ClientReports from "./ClientReports.jsx";
 
 // ノートは react-markdown を使うので、開いた人だけが読み込むように分ける
 const NotesView = React.lazy(() => import("./NotesView.jsx"));
@@ -50,6 +51,7 @@ export default function TrainingProduct({
   if (role === "client" && view === "state") return <ClientStateView role={role} go={go} goProduct={goProduct} userProfile={userProfile} done={taskDone} goals={goals} />;
   if (role === "client" && view === "grants") return <ClientGrantsView role={role} />;
   if (role === "client" && view === "evaluation") return <ClientEvaluationSoon />;
+  if (role === "client" && view === "reports") return <ClientReports go={go} />;
   if (view === "curriculum") return <Curriculum role={role} go={go} goProduct={goProduct} done={taskDone} goals={goals} />;
   if (view === "companies") return <ReadOnlyCompanies role={role} />;
   if (view === "courses") return <ReadOnlyCourses role={role} go={go} />;

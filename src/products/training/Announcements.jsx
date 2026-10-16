@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { Megaphone, Pin, Plus, Trash2, Pencil, AlertCircle, RefreshCw, X, Check } from "lucide-react";
-import { T, Btn, Card, EmptyState, SkeletonRows, PrismErrorRetryCard } from "../../components/common";
+import { T, Btn, Card, EmptyState, SkeletonRows, PrismErrorRetryCard, Pager, usePaged } from "../../components/common";
 import { apiGet, apiPost, apiPut, apiDelete } from "../../api.js";
 import { ackKey, ackKeys, loadAcks } from "./acks.js";
 
@@ -367,6 +367,7 @@ export default function Announcements({ role }) {
   const [draft, setDraft] = useState(null);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("");
+  const pg = usePaged(items, 20); // 長い一覧はページで分ける（2026-10-16）
   const isAdmin = role === "admin";
 
   const load = useCallback(() => {
@@ -448,7 +449,7 @@ export default function Announcements({ role }) {
           : items.length === 0 ? <div className="p-4"><EmptyState icon={Megaphone} title="お知らせはまだありません" desc="「お知らせを作成」から登録できます。" /></div>
           : (
             <div className="flex flex-col">
-              {items.map(a => {
+              {pg.rows.map(a => {
                 const p = periodLabel(a);
                 const tone = p.badge === "公開中" ? { bg: T.successSubtle, fg: T.success }
                   : p.badge === "公開前" ? { bg: T.accentSubtle, fg: T.accentHover }
@@ -476,6 +477,7 @@ export default function Announcements({ role }) {
               })}
             </div>
           )}
+        {state !== "loading" && <Pager {...pg} />}
       </Card>
     </div>
   );
