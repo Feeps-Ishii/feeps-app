@@ -5,7 +5,7 @@ import { parseJavacError, tokenizeLine } from "../../../learning/javaEditorSuppo
 import { Back } from "../ui.jsx";
 import { Editor } from "../Workbench.jsx";
 import { FILE_NAME, runCode, runSql } from "../runtime.js";
-import { acceptCase, runCaseServlet, sendCaseChat, skipCase, submitCase } from "../data.js";
+import { acceptCase, runCaseServlet, sendCaseChat, skipCase, submitCase, withdrawCase } from "../data.js";
 import { diffStat, hunks, lineDiff } from "./diff.js";
 import WebEditor from "../../../learning/WebEditor.jsx";
 import { buildJsDocument } from "../exercise/jsRunner.js";
@@ -96,7 +96,7 @@ function DiffView({ before, after, fileName, comments = [], fixed, onFix }) {
 }
 
 /* ---------- 本体 ---------- */
-export default function CaseFlow({ item, premium, back, progress, onReload }) {
+export default function CaseFlow({ item, premium, back, progress, onReload, onReset }) {
   const rec = item.progress || {};
   const t = item.ticket || {};
   const isServlet = item.runtime === "servlet";
@@ -162,6 +162,13 @@ export default function CaseFlow({ item, premium, back, progress, onReload }) {
   // 参画したあとの案件の概要（2026-10-16、モック devhub-case-brief-access.html の案A）：
   // まず大きく（モーダル）開く。右上の「右に小さく表示」で右の欄（チャットと切り替え・広げて表示）へ。右の欄の ⤢ でまた大きく
   const [briefMode, setBriefMode] = useState("off"); // off | big | side
+  // 参画を中断する（2026-10-16）：記録をすべて消して、参画する前に戻す。確かめてから
+  const [withdraw, setWithdraw] = useState({ open: false, busy: false, err: "" });
+  async function doWithdraw() {
+    setWithdraw(w => ({ ...w, busy: true, err: "" }));
+    try { await withdrawCase(item.id); setWithdraw({ open: false, busy: false, err: "" }); await onReset?.(); }
+    catch (e) { setWithdraw(w => ({ ...w, busy: false, err: e?.errorMessage || "中断できませんでした。もう一度お試しください。" })); }
+  }
   const [briefPage, setBriefPage] = useState(0);
   const [sidePage, setSidePage] = useState(0);
   const rootRef = useRef(null);
@@ -630,7 +637,21 @@ export default function CaseFlow({ item, premium, back, progress, onReload }) {
       <div className="cf-top">
         <Back onClick={() => back("#/cases")} />
         {accepted && !onAssign && <button type="button" className="cf-brief-btn" onClick={openBrief}><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z" /><path d="M14 3v5h5M9 13h6M9 17h4" /></svg>案件の概要を見る</button>}
+        {accepted && onReset && <button type="button" className="cf-withdraw-btn" onClick={() => setWithdraw({ open: true, busy: false, err: "" })}>参画を中断する</button>}
       </div>
+      {withdraw.open && (
+        <div className="cf-bmodal" role="dialog" aria-modal="true" aria-labelledby="cf-wd-title" onClick={e => { if (e.target === e.currentTarget && !withdraw.busy) setWithdraw({ open: false, busy: false, err: "" }); }} onKeyDown={e => { if (e.key === "Escape" && !withdraw.busy) setWithdraw({ open: false, busy: false, err: "" }); }}>
+          <div className="box cf-wd">
+            <div className="mh"><b id="cf-wd-title">参画を中断しますか？</b></div>
+            <div className="bd">
+              <p>この案件の記録はすべて消えて、参画する前に戻ります。<b>元には戻せません。</b></p>
+              <ul><li>書いたコード・テストの結果</li><li>チャット・ヒアリング</li><li>提出・レビュー・評価</li></ul>
+              {withdraw.err && <div className="verdict ng" role="alert">{withdraw.err}</div>}
+              <div className="act"><button type="button" className="btn ghost" autoFocus disabled={withdraw.busy} onClick={() => setWithdraw({ open: false, busy: false, err: "" })}>やめる</button><button type="button" className="btn cf-danger" disabled={withdraw.busy} onClick={doWithdraw}>{withdraw.busy ? "中断しています…" : "中断して最初に戻す"}</button></div>
+            </div>
+          </div>
+        </div>
+      )}
       <div className="cf-head">
         {t.id && <span className="tid">{t.id}</span>}<h1>{item.title}</h1>
         <div className="meta"><span className={`kind ${KIND[t.kind]?.[1] || "feat"}`}>{KIND[t.kind]?.[0] || "機能追加"}</span><span className="chip"><i className="dot" />{RUNTIME_LABEL[item.runtime] || item.runtime}</span>{dueChip}{accepted && <span className="branch">feature/{(t.id || item.id).replace(/^#/, "")}</span>}</div>

@@ -23,6 +23,7 @@ export default function CasePage({ ctx, id }) {
   const { back, go, cases, premium, progress } = ctx;
   const c = useCase(id);
   const listItem = cases.find(x => x.id === id);
+  const [nonce, setNonce] = useState(0); // 参画を中断したら、案件の画面を作り直す
   // 読み直し（提出のあと）では画面を作り直さない。最初の読み込みのときだけ「読み込み中」
   if (c.state === "loading" && (!c.data || c.data.id !== id)) return <Loading />;
   if (c.state === "error" && c.status === 403) {
@@ -42,7 +43,7 @@ export default function CasePage({ ctx, id }) {
   if (c.state === "error" && c.status === 404) return <><Back onClick={() => back("#/cases")} /><p className="muted">この案件体験は見つかりませんでした。</p></>;
   if (c.state === "error" || !c.data) return <><Back onClick={() => back("#/cases")} /><LoadError onRetry={c.reload} what="案件体験を読み込めませんでした" /></>;
   // AWS 以外は、実際の案件の流れの画面（case/CaseFlow.jsx、2026-10-13）
-  if (c.data.runtime !== "aws") return <CaseFlow key={id} item={{ ...c.data, premium: listItem?.premium ?? c.data.premium }} premium={premium} back={back} progress={progress} onReload={async () => { ctx.reloadCases?.(); await c.reload(); }} />;
+  if (c.data.runtime !== "aws") return <CaseFlow key={`${id}:${nonce}`} item={{ ...c.data, premium: listItem?.premium ?? c.data.premium }} premium={premium} back={back} progress={progress} onReload={async () => { ctx.reloadCases?.(); await c.reload(); }} onReset={async () => { ctx.reloadCases?.(); progress?.reload?.(); await c.reload(); setNonce(n => n + 1); }} />;
   return <CaseWork item={{ ...c.data, premium: listItem?.premium ?? c.data.premium }} premium={premium} back={back} progress={progress} onSubmitted={c.reload} />;
 }
 

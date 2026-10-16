@@ -183,6 +183,14 @@ textarea.cf-in { font-family: var(--mono); font-size: 13px; line-height: 1.6; re
 .cf-bmodal .bd { overflow-y: auto; min-height: 0; }
 .cf-tomini { display: inline-flex; align-items: center; gap: 6px; border: 1.5px solid var(--ink); background: var(--marker-soft); border-radius: 10px; padding: 5px 12px; font: inherit; font-size: 13px; font-weight: 700; color: var(--ink); cursor: pointer; white-space: nowrap; }
 .cf-tomini:hover { background: var(--marker); }
+/* 参画を中断する（2026-10-16） */
+.cf-top .cf-withdraw-btn { margin-left: auto; border: 1px solid var(--line); background: var(--card); color: var(--muted); border-radius: 999px; padding: 4px 14px; font: inherit; font-size: 13px; font-weight: 700; cursor: pointer; }
+.cf-top .cf-withdraw-btn:hover { color: var(--red, #D9483B); border-color: var(--red, #D9483B); }
+.cf-bmodal .box.cf-wd { width: min(460px, 100%); height: auto; }
+.cf-wd .bd { padding: 16px 18px 18px; display: grid; gap: 10px; font-size: 14px; }
+.cf-wd .bd p { margin: 0; } .cf-wd .bd ul { margin: 0; padding-left: 20px; color: var(--ink2); }
+.cf-wd .act { display: flex; gap: 8px; justify-content: flex-end; margin-top: 4px; }
+.cf-danger { background: var(--red, #D9483B) !important; border-color: var(--red, #D9483B) !important; color: #fff !important; }
 @keyframes cf-fade { from { opacity: 0; } }
 .cf-chat .ch { display: flex; align-items: center; gap: 4px; padding: 10px 12px; border-bottom: 1px solid var(--line); }
 .cf-chat .ch b { font-size: 14px; white-space: nowrap; }

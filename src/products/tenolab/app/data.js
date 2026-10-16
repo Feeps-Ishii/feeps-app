@@ -74,6 +74,8 @@ export const submitCase = (id, body) => apiPost(`/tenolab/cases/${encodeURICompo
 export const skipCase = id => apiPost(`/tenolab/cases/${encodeURIComponent(id)}/skip`, {});
 // 案件の流れ（2026-10-13）：引き受ける・Servlet を動かす・PM／リーダー／お客さま（AI）に送る
 export const acceptCase = id => apiPost(`/tenolab/cases/${encodeURIComponent(id)}/accept`, {});
+// 参画を中断して、参画する前に戻す（記録はすべて消える。2026-10-16）
+export const withdrawCase = id => apiPost(`/tenolab/cases/${encodeURIComponent(id)}/withdraw`, {});
 export const runCaseServlet = (id, body) => apiPost(`/tenolab/cases/${encodeURIComponent(id)}/run`, body);
 export const sendCaseChat = (id, body) => apiPost(`/tenolab/cases/${encodeURIComponent(id)}/chat`, body);
 export const getDrillAnswer = id => apiGet(`/tenolab/drills/${encodeURIComponent(id)}/answer`);
