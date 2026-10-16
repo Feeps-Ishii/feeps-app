@@ -1,4 +1,5 @@
 import { AwsStepsField, ProjectFields } from "./ProjectFields.jsx";
+import { BriefFields } from "./BriefFields.jsx";
 import React, { useEffect, useRef, useState } from "react";
 import { company, manage } from "../data.js";
 import { THUMB_KINDS, Thumb } from "../ui.jsx";
@@ -367,6 +368,7 @@ export default function ItemEditor({ kind, id, isNew, topics, courses, go, lrn }
       )}
 
       {kind === "cases" && <ProjectFields project={item.project} onChange={v => set("project", v)} Field={Field} />}
+      {kind === "cases" && <BriefFields brief={item.project?.brief} onChange={v => set("project", { ...(item.project || {}), brief: v })} Field={Field} />}
       {isAws && <AwsStepsField steps={item.aws?.steps} onChange={v => set("aws", { ...(item.aws || {}), steps: v })} Field={Field} />}
 
       {kind === "cases" && !isAws && (
