@@ -181,6 +181,8 @@ textarea.cf-in { font-family: var(--mono); font-size: 13px; line-height: 1.6; re
 .cf-bmodal .box { width: min(1180px, 100%); height: min(92vh, 900px); background: var(--card); border-radius: 18px; overflow: hidden; display: grid; grid-template-rows: auto minmax(0, 1fr); box-shadow: 0 30px 60px rgba(0, 0, 0, .35); }
 .cf-bmodal .mh { display: flex; align-items: center; gap: 8px; padding: 10px 16px; border-bottom: 1px solid var(--line); } .cf-bmodal .mh b { font-size: 15px; } .cf-bmodal .mh .sp { flex: 1; }
 .cf-bmodal .bd { overflow-y: auto; min-height: 0; }
+.cf-tomini { display: inline-flex; align-items: center; gap: 6px; border: 1.5px solid var(--ink); background: var(--marker-soft); border-radius: 10px; padding: 5px 12px; font: inherit; font-size: 13px; font-weight: 700; color: var(--ink); cursor: pointer; white-space: nowrap; }
+.cf-tomini:hover { background: var(--marker); }
 @keyframes cf-fade { from { opacity: 0; } }
 .cf-chat .ch { display: flex; align-items: center; gap: 4px; padding: 10px 12px; border-bottom: 1px solid var(--line); }
 .cf-chat .ch b { font-size: 14px; white-space: nowrap; }

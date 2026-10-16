@@ -159,9 +159,9 @@ export default function CaseFlow({ item, premium, back, progress, onReload }) {
   const [chatErr, setChatErr] = useState("");
   const [chatOpen, setChatOpen] = useState(() => typeof window === "undefined" || !window.matchMedia("(max-width: 820px)").matches);
   const [tour, setTour] = useState("");
-  // 参画したあとの案件の概要（2026-10-16、モック devhub-case-brief-access.html の案A）：右の欄をチャットと切り替え、広げて出す。⤢ で大きく（モーダル）
-  const [side, setSide] = useState("chat");
-  const [briefBig, setBriefBig] = useState(false);
+  // 参画したあとの案件の概要（2026-10-16、モック devhub-case-brief-access.html の案A）：
+  // まず大きく（モーダル）開く。右上の「右に小さく表示」で右の欄（チャットと切り替え・広げて表示）へ。右の欄の ⤢ でまた大きく
+  const [briefMode, setBriefMode] = useState("off"); // off | big | side
   const [briefPage, setBriefPage] = useState(0);
   const [sidePage, setSidePage] = useState(0);
   const rootRef = useRef(null);
@@ -335,8 +335,8 @@ export default function CaseFlow({ item, premium, back, progress, onReload }) {
   };
   const sideSeg = accepted && (
     <span className="cf-seg" role="group" aria-label="右の欄">
-      <button type="button" aria-pressed={side === "chat"} onClick={() => setSide("chat")}>チャット</button>
-      <button type="button" aria-pressed={side === "brief"} onClick={() => setSide("brief")}>案件の概要</button>
+      <button type="button" aria-pressed={briefMode !== "side"} onClick={() => { setBriefMode("off"); setChatOpen(true); }}>チャット</button>
+      <button type="button" aria-pressed={briefMode === "side"} onClick={() => setBriefMode(m => (m === "side" ? "side" : "big"))}>案件の概要</button>
     </span>
   );
   const chatPanel = (
@@ -614,12 +614,13 @@ export default function CaseFlow({ item, premium, back, progress, onReload }) {
 
   const locked = !accepted;
   const onAssign = cur === "assign";
-  const briefSide = accepted && side === "brief" && chatOpen && !onAssign;
-  const openBrief = () => { setSide("brief"); setChatOpen(true); };
+  const briefSide = accepted && briefMode === "side" && !onAssign;
+  const briefBig = accepted && briefMode === "big" && !onAssign;
+  const openBrief = () => setBriefMode("big");
   const briefN = briefPageCount(item, accepted, false);
   const sidePanel = briefSide ? (
     <aside className="cf-chat cf-side-brief" aria-label="案件の概要">
-      <div className="ch">{sideSeg}<span className="sp" /><button type="button" className="cf-big" onClick={() => setBriefBig(true)}>⤢ <span>大きく開く</span></button><button type="button" className="x" onClick={() => setChatOpen(false)} aria-label="閉じる">×</button></div>
+      <div className="ch">{sideSeg}<span className="sp" /><button type="button" className="cf-big" onClick={() => setBriefMode("big")}>⤢ <span>大きく開く</span></button><button type="button" className="x" onClick={() => setBriefMode("off")} aria-label="閉じる">×</button></div>
       <div className="cf-side-body"><CaseBrief item={item} accepted compact page={sidePage} onPage={setSidePage} /></div>
     </aside>
   ) : chatPanel;
@@ -646,7 +647,7 @@ export default function CaseFlow({ item, premium, back, progress, onReload }) {
           );
         })}
       </nav>
-      <div className={`cf-layout ${chatOpen ? "" : "no-chat"} ${briefSide ? "wide-side" : ""}`}>
+      <div className={`cf-layout ${chatOpen || briefSide ? "" : "no-chat"} ${briefSide ? "wide-side" : ""}`}>
         <main className="cf-main">
           {view}
           {err && <div className="verdict ng" role="alert">{err}</div>}
@@ -654,9 +655,9 @@ export default function CaseFlow({ item, premium, back, progress, onReload }) {
         {sidePanel}
       </div>
       {briefBig && (
-        <div className="cf-bmodal" role="dialog" aria-modal="true" aria-label="案件の概要" onClick={e => { if (e.target === e.currentTarget) setBriefBig(false); }} onKeyDown={e => { if (e.key === "Escape") setBriefBig(false); }}>
+        <div className="cf-bmodal" role="dialog" aria-modal="true" aria-label="案件の概要" onClick={e => { if (e.target === e.currentTarget) setBriefMode("off"); }} onKeyDown={e => { if (e.key === "Escape") setBriefMode("off"); }}>
           <div className="box">
-            <div className="mh"><b>案件の概要</b><span className="sp" /><button type="button" className="btn ghost" autoFocus onClick={() => setBriefBig(false)}>閉じる ×</button></div>
+            <div className="mh"><b>案件の概要</b><span className="sp" /><button type="button" className="cf-tomini" onClick={() => setBriefMode("side")}><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="2" /><path d="M14 4v16" /><path d="M9 10l-3 2 3 2" /></svg>右に小さく表示</button><button type="button" className="btn ghost" autoFocus onClick={() => setBriefMode("off")}>閉じる ×</button></div>
             <div className="bd"><CaseBrief item={item} accepted compact page={sidePage} onPage={setSidePage} /></div>
           </div>
         </div>
@@ -678,8 +679,8 @@ export default function CaseFlow({ item, premium, back, progress, onReload }) {
           </>
         )}
         <span className="sep" />
-        <button type="button" aria-pressed={chatOpen && !briefSide} onClick={() => (briefSide ? setSide("chat") : setChatOpen(v => !v))}>チャット</button>
-        {accepted && !onAssign && <button type="button" className="cf-dock-brief" aria-pressed={briefSide} onClick={() => (briefSide ? setChatOpen(false) : openBrief())}><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z" /><path d="M14 3v5h5M9 13h6M9 17h4" /></svg><span className="lbl">案件の概要</span></button>}
+        <button type="button" aria-pressed={chatOpen && !briefSide} onClick={() => { if (briefSide) { setBriefMode("off"); setChatOpen(true); } else setChatOpen(v => !v); }}>チャット</button>
+        {accepted && !onAssign && <button type="button" className="cf-dock-brief" aria-pressed={briefMode !== "off"} onClick={() => setBriefMode(m => (m === "off" ? "big" : "off"))}><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z" /><path d="M14 3v5h5M9 13h6M9 17h4" /></svg><span className="lbl">案件の概要</span></button>}
         {accepted && <button type="button" onClick={() => setTour("case")}>？ <span className="lbl">画面の説明</span></button>}
       </div>
     </div>

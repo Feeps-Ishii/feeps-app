@@ -393,9 +393,13 @@ export default function CaseBrief({ item, accepted, busy, onJoin, onLater, compa
         })}
       </nav>
       <div className="bf-page">
-        <div className="bf-prog"><small>{k + 1} / {pages.length}</small><span><i style={{ width: `${(k + 1) / pages.length * 100}%` }} /></span></div>
+        <div className="bf-prog">
+          {compact && <button type="button" className="bf-pg" onClick={() => go(Math.max(0, k - 1))} disabled={k === 0} aria-label="前のページ">◀</button>}
+          <small>{k + 1} / {pages.length}</small><span><i style={{ width: `${(k + 1) / pages.length * 100}%` }} /></span>
+          {compact && <button type="button" className="bf-pg go" onClick={() => go(Math.min(pages.length - 1, k + 1))} disabled={k === pages.length - 1}>次 ▶</button>}
+        </div>
         <div className="bf-content" key={pages[k][0]}><Page /></div>
-        <div className="bf-foot"><button type="button" className="btn ghost" onClick={() => go(Math.max(0, k - 1))} disabled={k === 0}>◀ 戻る</button><span className="sp" />{accepted && !compact && k < pages.length - 1 && <button type="button" className="btn ghost" onClick={onJoin}>チケットへ</button>}{k < pages.length - 1 && <button type="button" className="btn go" onClick={() => go(k + 1)}>次へ ▶</button>}</div>
+        {!compact && <div className="bf-foot"><button type="button" className="btn ghost" onClick={() => go(Math.max(0, k - 1))} disabled={k === 0}>◀ 戻る</button><span className="sp" />{accepted && !compact && k < pages.length - 1 && <button type="button" className="btn ghost" onClick={onJoin}>チケットへ</button>}{k < pages.length - 1 && <button type="button" className="btn go" onClick={() => go(k + 1)}>次へ ▶</button>}</div>}
       </div>
     </div></div>
   );
