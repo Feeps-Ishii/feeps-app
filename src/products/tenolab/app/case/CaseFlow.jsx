@@ -11,7 +11,9 @@ import WebEditor from "../../../learning/WebEditor.jsx";
 import { buildJsDocument } from "../exercise/jsRunner.js";
 import { SqlGrid, SqlTables, useSqlTables } from "../exercise/SqlParts.jsx";
 import { sqlWords } from "../exercise/sqlRunner.js";
-import { CaseOverview, HearingBoard, HearingSummary } from "./Overview.jsx";
+import { HearingBoard, HearingSummary } from "./Overview.jsx";
+import CaseBrief from "./Brief.jsx";
+import Tour, { tourSeen } from "../exercise/Tour.jsx";
 import "./case.css";
 
 /* 案件体験（2026-10-13、モック docs/design/mockups/devhub-learning-2026-10/devhub-case.html）。
@@ -156,6 +158,8 @@ export default function CaseFlow({ item, premium, back, progress, onReload }) {
   const [sending, setSending] = useState(false);
   const [chatErr, setChatErr] = useState("");
   const [chatOpen, setChatOpen] = useState(() => typeof window === "undefined" || !window.matchMedia("(max-width: 820px)").matches);
+  const [tour, setTour] = useState("");
+  const rootRef = useRef(null);
   const frame = useRef(null);
   const resFrame = useRef(null);
   const logRef = useRef(null);
@@ -198,6 +202,8 @@ export default function CaseFlow({ item, premium, back, progress, onReload }) {
       await acceptCase(item.id);
       setAccepted(true); setTo("lead");
       setStep(idx("ticket"));
+      // 初めて参画したときは、案件の画面のツアー（2026-10-16）
+      if (!tourSeen("case")) setTimeout(() => setTour("case"), 800);
       progress?.reload?.();
       onReload();
     } catch (e) { setErr(e?.errorMessage || "引き受けられませんでした。もう一度お試しください。"); }
@@ -368,20 +374,8 @@ export default function CaseFlow({ item, premium, back, progress, onReload }) {
 
   let view = null;
   if (cur === "assign") {
-    view = (
-      <CaseOverview item={item} side={
-        <section className="cf-panel cfo-take">
-          <div className="ph"><span className={`kind ${KIND[t.kind]?.[1] || "feat"}`}>{KIND[t.kind]?.[0] || "機能追加"}</span>{t.id && <span className="chip">{t.id}</span>}<span className="sp" />
-            {accepted ? <span className="chip ok">アサイン済み</span> : <span className="chip warn">{rec.assignedAt ? "管理者から割り当て" : "依頼が来ています"}</span>}</div>
-          <div className="cf-cm"><Av who="pm" /><div><div className="who">PM<span className="aitag">AI</span></div><p>{item.summary || item.title}</p></div></div>
-          {props}
-          <div className="ph">
-            {accepted ? <><span className="sp" /><button type="button" className="btn" onClick={() => setStep(idx("ticket"))}>チケットへ</button></>
-              : <><button type="button" className="btn ghost" onClick={() => openChat("pm")}>PMに質問</button><span className="sp" /><button type="button" className="btn dark" onClick={accept} disabled={!!busy}>{busy === "accept" ? "引き受けています…" : "引き受ける"}</button></>}
-          </div>
-        </section>
-      } />
-    );
+    // 案件の説明（概要 → 現状 → 修正内容／要件 → 担当 → メンバー → 参画する。case/Brief.jsx、2026-10-16）
+    view = <CaseBrief item={item} accepted={accepted} busy={busy === "accept"} onJoin={() => (accepted ? setStep(idx("ticket")) : accept())} onLater={() => back("#/cases")} />;
   } else if (cur === "hear") {
     const nextId = STEPS[idx("hear") + 1]?.[0] || "code";
     view = mode === "done"
@@ -609,7 +603,8 @@ export default function CaseFlow({ item, premium, back, progress, onReload }) {
 
   const locked = !accepted;
   return (
-    <div className="cf">
+    <div className="cf" ref={rootRef}>
+      {tour && <Tour key={tour} env={tour} root={rootRef.current} onClose={() => setTour("")} />}
       <Back onClick={() => back("#/cases")} />
       <div className="cf-head">
         {t.id && <span className="tid">{t.id}</span>}<h1>{item.title}</h1>
@@ -640,6 +635,7 @@ export default function CaseFlow({ item, premium, back, progress, onReload }) {
         <button type="button" className="next" onClick={() => setStep(s => Math.min(STEPS.length - 1, s + 1))} disabled={step === STEPS.length - 1 || (locked && step >= idx(hasSpec ? "spec" : "ticket"))}><span className="lbl">次へ</span> ▶</button>
         <span className="sep" />
         <button type="button" aria-pressed={chatOpen} onClick={() => setChatOpen(v => !v)}>チャット</button>
+        {accepted && <button type="button" onClick={() => setTour("case")}>？ <span className="lbl">画面の説明</span></button>}
       </div>
     </div>
   );
