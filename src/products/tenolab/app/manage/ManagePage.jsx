@@ -5,6 +5,7 @@ import ItemEditor from "./ItemEditor.jsx";
 import AdminHome from "./AdminHome.jsx";
 import Grading from "./Grading.jsx";
 import Companies from "./Companies.jsx";
+import AccountIssue from "./AccountIssue.jsx";
 import { AdminLearners } from "../company/CompanyPages.jsx";
 import CourseList from "./CourseList.jsx";
 import { Title } from "./parts.jsx";
@@ -14,12 +15,13 @@ import { GroupHead, PublishResult, confirmPublish, groupByTopic, needsPublish, p
 /* 管理の画面（#/manage/…、管理者だけ。モック tenolab-admin.html、2026-10-06〜）
      #/manage                         ホーム
      #/manage/companies[/{companyId}] 企業と契約
+     #/manage/accounts[/{companyId}]  アカウントを発行する（依頼→案→一覧→発行→Excel）
      #/manage/learners[/{userId}]     受講状況（企業担当者の画面と同じ部品）
      #/manage/courses|drills|cases[/{id}|/_new]  教材（コースは一覧とプレビュー。#/manage/courses/legacy は元の管理画面＝細かく直す）
      #/manage/grading[/{caseId}]      AI採点（旧 #/manage/submissions もここ）
      #/manage/topics                  単元
    外枠（黒い帯のヘッダー）は TenolabApp が Shell variant="admin" で付ける */
-export const ADMIN_NAV = [["home", "ホーム", "#/manage"], ["companies", "企業と契約", "#/manage/companies"], ["learners", "受講状況", "#/manage/learners"], ["materials", "教材", "#/manage/courses"], ["grading", "AI採点", "#/manage/grading"], ["notices", "お知らせ", "#/manage/notices"], ["topics", "単元", "#/manage/topics"]];
+export const ADMIN_NAV = [["home", "ホーム", "#/manage"], ["companies", "企業と契約", "#/manage/companies"], ["accounts", "アカウント発行", "#/manage/accounts"], ["learners", "受講状況", "#/manage/learners"], ["materials", "教材", "#/manage/courses"], ["grading", "AI採点", "#/manage/grading"], ["notices", "お知らせ", "#/manage/notices"], ["topics", "単元", "#/manage/topics"]];
 const MATERIAL_TABS = [["courses", "コース"], ["drills", "演習"], ["cases", "案件体験"]];
 
 export function adminSection(rest) {
@@ -39,6 +41,7 @@ export default function ManagePage({ ctx, rest }) {
   if (section === "home") return <AdminHome go={go} />;
   if (section === "learners") return <AdminLearners rest={rest} go={go} />;
   if (section === "companies") return <Companies go={go} companyId={id ? decodeURIComponent(id) : ""} />;
+  if (section === "accounts") return <AccountIssue key={id || ""} go={go} companyId={id ? decodeURIComponent(id) : ""} />;
   if (section === "grading") return <Grading go={go} caseId={tab === "grading" ? id || "" : ""} />;
   if (section === "topics") return <><Title eyebrow="TOPICS" title="単元" /><TopicsEditor topics={topics} /></>;
   if (section === "notices") return <NoticesAdmin courses={courses} />;

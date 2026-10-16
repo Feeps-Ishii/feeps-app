@@ -169,7 +169,13 @@ textarea.cf-in { font-family: var(--mono); font-size: 13px; line-height: 1.6; re
 .cf-chat.closed { display: none; }
 /* 右の欄：チャット／案件の概要の切り替え（案件の概要のときは欄を広げる） */
 .cf-layout.wide-side { grid-template-columns: minmax(0, 1fr) min(600px, 46%); }
-.cf-seg { display: inline-flex; background: var(--soft); border-radius: 999px; padding: 3px; margin-right: 6px; flex: none; }
+.cf-seg { display: flex; background: var(--soft); border-radius: 999px; padding: 3px; flex: 0 0 100%; order: -1; }
+.cf-seg button { flex: 1; }
+/* 切り替えは1行目に、チャンネル名と人は2行目に（狭い欄で右に押し出されないように。2026-10-16） */
+.cf-chat .ch { flex-wrap: wrap; row-gap: 6px; }
+.cf-chat .ch b { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.cf-layout > * { min-width: 0; }
+.cf-chat { min-width: 0; max-width: 100%; }
 .cf-seg button { border: 0; background: none; border-radius: 999px; padding: 2px 12px; font: inherit; font-size: 12.5px; font-weight: 700; color: var(--muted); cursor: pointer; white-space: nowrap; }
 .cf-seg button[aria-pressed="true"] { background: var(--card); color: var(--ink); box-shadow: 0 1px 4px rgba(21, 23, 28, .12); }
 .cf-side-brief { grid-template-rows: auto minmax(0, 1fr); }

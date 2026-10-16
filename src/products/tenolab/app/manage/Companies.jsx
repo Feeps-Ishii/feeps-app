@@ -1,7 +1,6 @@
 import React, { useCallback, useEffect, useState } from "react";
 import { admin } from "../data.js";
 import { Title, yen, usdToYen, PLAN_LABEL, fmtTime } from "./parts.jsx";
-import BatchAccounts from "./BatchAccounts.jsx";
 
 /* 企業と契約（モック tenolab-admin.html の companies・company。ADR 0025 §5）
    企業そのものは LMS の企業管理で作る。ここでは契約（Eラーニングの有効・無効、プラン、受講枠、金額・期間）と使用料を見る・直す。
@@ -117,7 +116,7 @@ function Company({ c, d, go, onSaved }) {
           <button type="button" className="back" onClick={() => go("#/manage/companies")}>← 企業と契約</button>
           <h1 className="h1" style={{ marginTop: 6 }}>{c.name} {c.lms && <LmsTag />}</h1>
         </div>
-        <div className="r"><button type="button" className="btn" onClick={save} disabled={busy}>{busy ? "保存しています…" : "保存"}</button></div>
+        <div className="r"><button type="button" className="btn ghost" onClick={() => go(`#/manage/accounts/${encodeURIComponent(c.companyId)}`)}>アカウントを発行</button><button type="button" className="btn" onClick={save} disabled={busy}>{busy ? "保存しています…" : "保存"}</button></div>
       </div>
       {msg.text && <div className={`verdict ${msg.kind}`} role={msg.kind === "ng" ? "alert" : "status"} style={{ marginBottom: 12 }}>{msg.text}</div>}
       <div className="mtwo" style={{ marginTop: 0 }}>
@@ -174,7 +173,6 @@ function Company({ c, d, go, onSaved }) {
           </section>
         </div>
       </div>
-      <BatchAccounts c={c} onDone={onSaved} />
     </>
   );
 }

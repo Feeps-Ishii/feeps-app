@@ -1,0 +1,33 @@
+/* アカウントを発行する（AccountIssue.jsx、2026-10-16） */
+.ai-page { display: grid; gap: 16px; }
+.ai-flow { display: flex; flex-wrap: wrap; gap: 6px; font-size: 13px; color: var(--muted); }
+.ai-flow span { display: inline-flex; align-items: center; gap: 6px; border: 1px solid var(--line); background: var(--card); border-radius: 999px; padding: 2px 12px; }
+.ai-flow span i { font-style: normal; font-family: var(--mono); font-size: 11px; font-weight: 700; width: 18px; height: 18px; border-radius: 50%; display: grid; place-items: center; background: var(--soft); }
+.ai-flow span.done { color: var(--mint); } .ai-flow span.done i { background: var(--mint); color: #fff; }
+.ai-flow span.on { background: var(--ink); color: var(--paper); border-color: var(--ink); font-weight: 700; } .ai-flow span.on i { background: var(--marker); color: #15171C; }
+.ai-ask { padding: 16px 18px; display: grid; gap: 10px; }
+.ai-ask textarea { width: 100%; resize: vertical; border: 1.5px solid var(--line); border-radius: 12px; padding: 10px 12px; background: var(--paper); font: inherit; font-size: 15px; }
+.ai-ask textarea:focus { border-color: var(--ink); outline: none; box-shadow: 0 0 0 4px var(--marker-soft); }
+.ai-ex { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; } .ai-ex small { color: var(--muted); font-size: 12px; }
+.ai-ex button { border: 1px dashed var(--line); background: var(--card); border-radius: 999px; padding: 2px 12px; font: inherit; font-size: 13px; color: var(--ink2); cursor: pointer; } .ai-ex button:hover { border-color: var(--ink); }
+.ai-row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; } .ai-row .sp { flex: 1; }
+.ai-plan { display: grid; grid-template-columns: minmax(0, 1.35fr) minmax(0, 1fr); gap: 16px; align-items: start; }
+.ai-pc { padding: 0; overflow: hidden; }
+.ai-pc .hd { display: flex; align-items: center; gap: 10px; padding: 12px 16px; border-bottom: 1px solid var(--line); background: var(--soft); } .ai-pc .hd b { font-size: 16px; }
+.ai-pc .quote { margin: 0; padding: 8px 16px; font-size: 13px; color: var(--ink2); border-bottom: 1px dashed var(--line); }
+.ai-pc .it { display: grid; grid-template-columns: 96px minmax(0, 1fr) auto; gap: 10px; align-items: center; padding: 10px 16px; border-bottom: 1px solid var(--line); }
+.ai-pc .it > span { font-size: 12.5px; font-weight: 700; color: var(--muted); } .ai-pc .it small { font-size: 12px; }
+.ai-pc .v { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; font-weight: 700; }
+.ai-pc .v input, .ai-pc .v select { border: 1.5px solid var(--line); border-radius: 9px; padding: 4px 8px; background: var(--paper); font: inherit; font-weight: 700; min-width: 0; }
+.ai-pc .v input.num { width: 70px; text-align: right; } .ai-pc .v input.id { width: 130px; } .ai-pc .v .mono { font-size: 12.5px; font-weight: 600; }
+.ai-pc .notes { margin: 0; padding: 10px 16px 12px 32px; font-size: 12.5px; color: var(--ink2); background: var(--marker-soft); }
+.ai-side { display: grid; gap: 12px; }
+.ai-q { padding: 12px 14px; display: grid; gap: 8px; } .ai-q h3 { margin: 0; font-size: 14px; display: flex; gap: 8px; align-items: center; }
+.ai-q .qi { display: grid; gap: 6px; padding: 9px 11px; border-radius: 12px; background: #FFF1E2; } .ai-q .qi.done { background: var(--mint-soft, #E3F5EE); }
+.ai-q .qi p { margin: 0; font-size: 13px; font-weight: 700; }
+.ai-q .ch { display: flex; flex-wrap: wrap; gap: 6px; } .ai-q .ch button { border: 1.5px solid var(--line); background: var(--card); border-radius: 999px; padding: 2px 12px; font: inherit; font-size: 12.5px; font-weight: 700; cursor: pointer; }
+.ai-q .ch button[aria-pressed="true"] { background: var(--ink); color: var(--paper); border-color: var(--ink); }
+.ai-sum { padding: 12px 14px; display: grid; gap: 6px; font-size: 13.5px; } .ai-sum div { display: flex; justify-content: space-between; gap: 10px; }
+.ai-list { padding: 0; overflow: hidden; } .ai-list .hd { padding: 10px 14px; border-bottom: 1px solid var(--line); }
+.chip.warn { background: #FFF1E2; color: #A8620F; }
+@media (max-width: 900px) { .ai-plan { grid-template-columns: 1fr; } .ai-pc .it { grid-template-columns: 1fr; gap: 4px; } }
