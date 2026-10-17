@@ -130,6 +130,16 @@
 .tl-entry .login .sub a{color:var(--blue); font-weight:700}
 .tl-entry .login .alt{border-top:1px solid var(--line); padding-top:14px; font-size:13px; color:var(--muted); display:flex; flex-wrap:wrap; gap:6px 14px}
 .tl-entry .login .alt span{text-wrap:balance}
+/* Google のログイン（2026-10-17） */
+.tl-entry .login .g-alt{display:grid; gap:12px}
+.tl-entry .login .g-alt[hidden]{display:none}
+.tl-entry .login .or{display:flex; align-items:center; gap:12px; color:var(--muted); font-size:12px}
+.tl-entry .login .or::before, .tl-entry .login .or::after{content:""; flex:1; border-top:1px solid var(--line)}
+.tl-entry .login .gbtn{display:flex; align-items:center; justify-content:center; gap:10px; border:1px solid var(--line); border-radius:10px; background:var(--card); color:var(--ink); padding:11px 18px; font:inherit; font-weight:700; font-size:14.5px; cursor:pointer}
+.tl-entry .login .gbtn:hover{border-color:var(--ink2)}
+.tl-entry .login .gbtn:focus-visible{outline:2px solid var(--blue); outline-offset:2px}
+.tl-entry .login .gbtn[aria-busy]{opacity:.6; cursor:progress}
+.tl-entry .login .gbtn svg{width:18px; height:18px; flex:none}
 .tl-entry .login .alt a{color:var(--ink); font-weight:700; text-decoration:underline; text-decoration-color:var(--marker-deep); text-underline-offset:3px}
 .tl-entry .calm{background:#F6F7F2; border-left:1px solid var(--line); padding:34px 36px; display:grid; gap:22px; align-content:center; background-image:linear-gradient(#EEF0E9 1px, transparent 1px), linear-gradient(90deg, #EEF0E9 1px, transparent 1px); background-size:24px 24px}
 .tl-entry .calm-h{display:grid; gap:4px}

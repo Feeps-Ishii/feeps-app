@@ -1,5 +1,7 @@
 import QRCode from "qrcode";
-import { signIn, signOut, confirmSignIn, resetPassword, confirmResetPassword, rememberDevice } from "aws-amplify/auth";
+import { signIn, signOut, confirmSignIn, resetPassword, confirmResetPassword, rememberDevice, signInWithRedirect } from "aws-amplify/auth";
+import { Hub } from "aws-amplify/utils";
+import { GOOGLE_LOGIN } from "../../../aws.js";
 
 /* 入口（mountEntry）のログイン画面が使う、本番の認証（Cognito）。
    流れは本番のテノラボのログインと同じ：ログイン → 確認コード／初回のパスワード設定 → 認証アプリの登録、
@@ -46,7 +48,57 @@ async function next(result, email) {
 
 let currentEmail = "";
 
+/* Google のログイン（2026-10-17、ADR 0028）。Google から戻ってきた結果は、画面ができる前に届くことがあるので、
+   読み込んだ時点で受け取っておき、onGoogleResult で渡す。断られた理由（DH_…）は登録前の判定（cognitoPreSignUp）が付ける */
+const GOOGLE_ERRORS = {
+  DH_NO_ACCOUNT: "この Google アカウントのメールアドレスは登録されていません。登録したメールアドレスとパスワードでログインしてください。",
+  DH_PASSWORD_ONLY: "このアカウントは、メールアドレスとパスワードでログインしてください。",
+  DH_UNVERIFIED: "Google アカウントのメールアドレスを確かめられませんでした。",
+  access_denied: "Google のログインを取りやめました。",
+};
+const RETRY_KEY = "devhub.googleRetry";
+const session = {
+  get: () => { try { return sessionStorage.getItem(RETRY_KEY); } catch (e) { return null; } },
+  set: () => { try { sessionStorage.setItem(RETRY_KEY, "1"); } catch (e) { /* 保存できなくても続ける */ } },
+  clear: () => { try { sessionStorage.removeItem(RETRY_KEY); } catch (e) { /* 同上 */ } },
+};
+let googleResult = null;
+let googleListener = null;
+const deliver = r => { if (googleListener) googleListener(r); else googleResult = r; };
+if (GOOGLE_LOGIN) {
+  Hub.listen("auth", ({ payload }) => {
+    if (payload.event === "signInWithRedirect") { session.clear(); deliver({ ok: true }); }
+    if (payload.event !== "signInWithRedirect_failure") return;
+    const msg = String(payload.data?.error?.message || "");
+    // 今のアカウントに Google をつないだ直後の1回だけ断られる。もう一度 Google へ送れば、そのまま入れる
+    if (msg.includes("DH_LINKED") && !session.get()) {
+      session.set();
+      signInWithRedirect({ provider: "Google" }).catch(() => deliver({ error: "Google でログインできませんでした。もう一度試してください。" }));
+      return;
+    }
+    session.clear();
+    const code = Object.keys(GOOGLE_ERRORS).find(k => msg.includes(k));
+    deliver({ error: code ? GOOGLE_ERRORS[code] : "Google でログインできませんでした。もう一度試してください。" });
+  });
+}
+
 export const entryAuth = {
+  googleEnabled: GOOGLE_LOGIN,
+  async google() {
+    try {
+      await signInWithRedirect({ provider: "Google" });
+      return { next: "redirect" };
+    } catch (x) {
+      if (x?.name === "UserAlreadyAuthenticatedException") return { next: "done" };
+      return fail("Google のログインを始められませんでした。もう一度試してください。");
+    }
+  },
+  // Google から戻ってきた結果（{ ok } か { error }）を1回だけ渡す。返り値で受け取りをやめる
+  onGoogleResult(cb) {
+    googleListener = cb;
+    if (googleResult) { const r = googleResult; googleResult = null; cb(r); }
+    return () => { if (googleListener === cb) googleListener = null; };
+  },
   async signIn(email, password) {
     currentEmail = email.trim();
     try {

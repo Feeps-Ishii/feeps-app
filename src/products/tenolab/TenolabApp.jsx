@@ -75,7 +75,10 @@ export default function TenolabApp() {
   const loadUser = useCallback(async () => {
     try {
       const u = await getCurrentUser();
-      const email = u?.signInDetails?.loginId || "";
+      let idPayload = {};
+      try { idPayload = (await fetchAuthSession())?.tokens?.idToken?.payload || {}; } catch (e) { console.warn("tenolab session load failed", e); }
+      // Google で入ったときは signInDetails が無いので、IDトークンのメールを使う（2026-10-17）
+      const email = u?.signInDetails?.loginId || String(idPayload.email || "");
       let name = email.split("@")[0] || "";
       let placeholder = false, nameEditable = false;
       try {
@@ -87,8 +90,7 @@ export default function TenolabApp() {
       } catch (e) {
         console.warn("tenolab profile load failed", e);   // 名前が取れなくてもログインは続ける
       }
-      let role = "trainee";
-      try { role = roleOf((await fetchAuthSession())?.tokens?.idToken?.payload || {}); } catch (e) { console.warn("tenolab role load failed", e); }
+      const role = roleOf(idPayload);
       setAuth({ state: "in", name: name || "あなた", email, role, placeholder, nameEditable });
       return role;
     } catch (e) {
@@ -110,6 +112,15 @@ export default function TenolabApp() {
     setLoginError(typeof message === "string" ? message : "");
     window.location.hash = typeof message === "string" ? "#/login" : "#/";
   }
+  // Google から戻ってきたら、パスワードでログインしたときと同じ確かめ方をする（2026-10-17、ADR 0028）
+  const onLoggedInRef = useRef(null);
+  onLoggedInRef.current = onLoggedIn;
+  useEffect(() => entryAuth.onGoogleResult(async r => {
+    if (r.error) { setLoginError(r.error); window.location.hash = "#/login"; return; }
+    const msg = await onLoggedInRef.current();
+    if (msg) { setLoginError(msg); window.location.hash = "#/login"; }
+  }), []);
+
   // ログインしたら、先にテノラボを使える契約かを確かめる（ログイン済みにしてから確かめると、
   // いったんホームへ移ってからログインに戻り、ログインの画面が作り直されてしまう）。使えなければ文言を返す
   async function onLoggedIn() {

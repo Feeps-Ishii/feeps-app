@@ -399,6 +399,20 @@ qform.addEventListener("submit", e => {
   }).finally(() => { sendBtn.removeAttribute("aria-busy"); sendBtn.innerHTML = sendLabel; });
 });
 
+// Google のログイン（2026-10-17、ADR 0028）。Google の画面へ移るので、戻ってきた後はアプリ（TenolabApp）が引き継ぐ
+if (OPTS.auth.googleEnabled) {
+  document.getElementById("l-galt").hidden = false;
+  const gb = document.getElementById("l-google");
+  gb.addEventListener("click", () => {
+    if (gb.getAttribute("aria-busy")) return;
+    gb.setAttribute("aria-busy", "true");
+    OPTS.auth.google().then(r => { if (r?.next === "done") afterAuth(r); }, e => {
+      gb.removeAttribute("aria-busy");
+      fail(stepEl("login"), e?.message || "Google のログインを始められませんでした。");
+    });
+  });
+}
+
 if (OPTS.loginError && !loginView.hidden) fail(stepEl("login"), OPTS.loginError);
 
 return () => { CLEANUP.forEach(f => { try { f(); } catch (e) { /* 片付けの失敗は無視 */ } }); };
