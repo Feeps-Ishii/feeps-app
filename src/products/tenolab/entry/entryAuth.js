@@ -1,5 +1,5 @@
 import QRCode from "qrcode";
-import { signIn, signOut, confirmSignIn, resetPassword, confirmResetPassword, rememberDevice, signInWithRedirect } from "aws-amplify/auth";
+import { signIn, signOut, confirmSignIn, resetPassword, confirmResetPassword, rememberDevice, signInWithRedirect, signUp, confirmSignUp, resendSignUpCode } from "aws-amplify/auth";
 import { Hub } from "aws-amplify/utils";
 import { GOOGLE_LOGIN } from "../../../aws.js";
 
@@ -47,6 +47,8 @@ async function next(result, email) {
 }
 
 let currentEmail = "";
+// 無料登録の途中（確認コードのあと、そのままログインするため）。メモリの中だけに置く
+let pendingSignup = null;
 
 /* Google のログイン（2026-10-17、ADR 0028）。Google から戻ってきた結果は、画面ができる前に届くことがあるので、
    読み込んだ時点で受け取っておき、onGoogleResult で渡す。断られた理由（DH_…）は登録前の判定（cognitoPreSignUp）が付ける */
@@ -108,7 +110,12 @@ export const entryAuth = {
       if (x instanceof Error && !x.name?.endsWith("Exception")) throw x;
       const n = x?.name || "";
       if (n === "UserNotFoundException" || n === "NotAuthorizedException") fail("メールアドレスかパスワードが違います。");
-      if (n === "UserNotConfirmedException") fail("メールアドレスの確認がまだ終わっていません。お勤め先の研修担当に問い合わせてください。");
+      // 無料登録の確認コードが済んでいない人：コードを送り直して、登録の確認コードの画面へ
+      if (n === "UserNotConfirmedException") {
+        try { await resendSignUpCode({ username: currentEmail }); } catch (y) { /* 送れなくても画面は出す */ }
+        pendingSignup = { email: currentEmail, password };
+        return { next: "signupCode" };
+      }
       return fail(authError(x, "ログインできませんでした。通信状況を確かめて、もう一度試してください。"));
     }
   },
@@ -129,6 +136,36 @@ export const entryAuth = {
       if (x instanceof Error && !x.name?.endsWith("Exception")) throw x;
       return fail(authError(x, "パスワードを設定できませんでした。"));
     }
+  },
+  // 個人の無料登録（2026-10-20、ADR 0029）：メール＋パスワード → メールの確認コード → そのままログイン。
+  // 登録のあとで個人（individual）になる（cognitoPostConfirmation）
+  async signUp(email, password) {
+    const username = email.trim().toLowerCase();
+    try {
+      try { await signOut(); } catch (x) { /* 前のセッションが無ければそのまま */ }
+      await signUp({ username, password, options: { userAttributes: { email: username } } });
+      pendingSignup = { email: username, password };
+      return { next: "code" };
+    } catch (x) {
+      if (x?.name === "UsernameExistsException") fail("このメールアドレスはすでに登録されています。ログインしてください。");
+      if (String(x?.message || "").includes("DH_")) fail("いまは登録を受け付けていません。");
+      return fail(authError(x, "登録できませんでした。通信状況を確かめて、もう一度試してください。"));
+    }
+  },
+  async confirmSignUp(code) {
+    if (!pendingSignup) fail("時間が切れました。最初から登録し直してください。");
+    try {
+      await confirmSignUp({ username: pendingSignup.email, confirmationCode: code });
+    } catch (x) {
+      return fail(authError(x, "コードを確かめられませんでした。"));
+    }
+    const { email, password } = pendingSignup;
+    pendingSignup = null;
+    return entryAuth.signIn(email, password);
+  },
+  async resendSignUp() {
+    if (!pendingSignup) fail("時間が切れました。最初から登録し直してください。");
+    try { await resendSignUpCode({ username: pendingSignup.email }); } catch (x) { fail(authError(x, "確認コードを送れませんでした。")); }
   },
   async cancel() {
     try { await signOut(); } catch (x) { /* 抜けられなくても入力画面へ戻す */ }

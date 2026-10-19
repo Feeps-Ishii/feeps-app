@@ -19,6 +19,13 @@ async function authHeaders() {
   return headers;
 }
 
+// API が返す決まった理由（英字の名前）を、画面に出せる文に読みかえる（個人のプラン、2026-10-20、ADR 0029）
+const ERROR_TEXT = {
+  plan_required: "この機能は Pro プランで使えます。アカウントの「プランと支払い」から変更できます。",
+  aws_hours_exceeded: "今月の本物の AWS の時間を使い切りました。来月になると、また使えます。",
+  individual_not_allowed: "この画面は個人のアカウントでは使えません。",
+};
+
 async function throwApiError(res, path, method) {
   let data = null;
   try { data = await res.json(); } catch { data = null; }
@@ -26,7 +33,7 @@ async function throwApiError(res, path, method) {
   err.status = res.status;
   err.data = data;
   err.errorCode = data?.errorCode;
-  err.errorMessage = data?.errorMessage || data?.detail || data?.error;
+  err.errorMessage = data?.errorMessage || data?.detail || ERROR_TEXT[data?.error] || data?.error;
   err.hint = data?.hint;
   throw err;
 }

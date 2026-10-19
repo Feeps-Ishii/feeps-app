@@ -8,7 +8,7 @@ import { NoticeBell } from "./notices/Notices.jsx";
    管理の画面（variant "admin"、モック tenolab-admin.html）：帯を黒にして受講生の画面と見分ける。
    企業担当者の画面（variant "client"）も黒い帯。右上のリンク（switchLink）で受講生の画面と行き来できる */
 export const LEARNER_NAV = [["home", "ホーム", "#/home"], ["courses", "コース一覧", "#/courses"], ["drills", "演習一覧", "#/drills"], ["cases", "案件体験", "#/cases"]];
-const ROLE_LABEL = { admin: "管理者", instructor: "講師", client: "企業担当者", trainee: "受講生" };
+const ROLE_LABEL = { admin: "管理者", instructor: "講師", client: "企業担当者", trainee: "受講生", individual: "個人" };
 
 export default function Shell({ section, name, email, role, switchLink, onLogout, onRename, children, variant = "learner", nav = LEARNER_NAV, notices }) {
   const [open, setOpen] = useState(false);
@@ -56,6 +56,7 @@ export default function Shell({ section, name, email, role, switchLink, onLogout
                 {onRename && (renaming
                   ? <form onSubmit={saveName} style={{ display: "grid", gap: 6, padding: "8px 12px" }}><input id="um-rename" aria-label="新しい名前" value={newName} autoFocus onChange={e => setNewName(e.target.value.slice(0, 40))} /><span style={{ display: "flex", gap: 6, justifyContent: "flex-end" }}><button type="button" className="btn ghost" onClick={() => setRenaming(false)}>やめる</button><button type="submit" className="btn" disabled={renameBusy || !newName.trim()}>{renameBusy ? "保存しています…" : "保存"}</button></span></form>
                   : <button type="button" role="menuitem" className="um-out" onClick={() => { setNewName(name || ""); setRenaming(true); }}>名前を変える</button>)}
+                {role === "individual" && <a role="menuitem" className="um-out" href="#/account" onClick={() => setOpen(false)}>プランと支払い</a>}
                 <button type="button" role="menuitem" className="um-out" onClick={() => { setOpen(false); onLogout(); }}>ログアウト</button>
               </div>
             </div>

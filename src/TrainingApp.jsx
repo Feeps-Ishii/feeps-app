@@ -143,7 +143,9 @@ function roleFromIdTokenPayload(payload = {}) {
   if (ROLES[claimedRole]) return claimedRole;
   const rawGroups = payload?.["cognito:groups"] ?? payload?.groups ?? [];
   const groups = (Array.isArray(rawGroups) ? rawGroups.join(",") : String(rawGroups)).toLowerCase();
-  return groups.includes("admin") ? "admin" : groups.includes("instructor") ? "instructor" : groups.includes("client") ? "client" : "trainee";
+  // individual：DevHub Learning で自分で登録した個人（ADR 0029）。LMS は使えないので Learning へ送る
+  return groups.includes("admin") ? "admin" : groups.includes("instructor") ? "instructor" : groups.includes("client") ? "client"
+    : groups.includes("individual") ? "individual" : "trainee";
 }
 
 /* ===== 受講生：ホーム ===== */
@@ -1125,6 +1127,8 @@ export default function App() {
         const session = await fetchAuthSession();
         if (!active) return;
         const verifiedRole = roleFromIdTokenPayload(session.tokens?.idToken?.payload || {});
+        // 個人（自分で登録した人）は LMS の対象外。ログインは共有なので、そのまま DevHub Learning へ
+        if (verifiedRole === "individual") { window.location.replace(learningHref("#/home")); return; }
         const subject = currentUser?.userId || currentUser?.username || "";
         const previousSubject = storageGet("feeps.authUserId", "");
         const accountChanged = !!previousSubject && !!subject && previousSubject !== subject;

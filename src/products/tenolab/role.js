@@ -4,7 +4,9 @@ export function roleOf(payload = {}) {
   if (["admin", "instructor", "client", "trainee"].includes(claimed)) return claimed;
   const raw = payload?.["cognito:groups"] ?? payload?.groups ?? [];
   const g = (Array.isArray(raw) ? raw.join(",") : String(raw)).toLowerCase();
-  return g.includes("admin") ? "admin" : g.includes("instructor") ? "instructor" : g.includes("client") ? "client" : "trainee";
+  // individual：自分で登録した個人（2026-10-20、ADR 0029）
+  return g.includes("admin") ? "admin" : g.includes("instructor") ? "instructor" : g.includes("client") ? "client"
+    : g.includes("individual") ? "individual" : "trainee";
 }
 
 export const isStaffRole = (role) => role === "admin" || role === "instructor";
