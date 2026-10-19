@@ -11,6 +11,8 @@ const PLANS = [
   { id: "proplus", name: "Pro+", month: 2980, year: 29800, feats: ["Pro のすべて", "本物の AWS 月 40時間", "本格案件 すべて", "AWS の案件", "AI コーチ 多め"] },
 ];
 const NAME = { free: "無料", pro: "Pro", proplus: "Pro+" };
+// 本物の AWS の時間の買い足し（個人だけ・その月だけ。ADR 0029）
+const ADDONS = [{ hours: 5, price: 300 }, { hours: 10, price: 500 }, { hours: 20, price: 900 }];
 const yen = n => `¥${n.toLocaleString("ja-JP")}`;
 const day = iso => { try { return new Date(iso).toLocaleDateString("ja-JP", { year: "numeric", month: "long", day: "numeric" }); } catch { return ""; } };
 const ERR = {
@@ -24,8 +26,8 @@ export default function AccountPlan() {
   const [busy, setBusy] = useState("");
   const [msg, setMsg] = useState("");
   const [aws, setAws] = useState(null);   // 本物の AWS の今月の時間（有料の人だけ）
-  const notice = (window.location.hash.split("?")[1] || "").includes("billing=success") ? "ok"
-    : (window.location.hash.split("?")[1] || "").includes("billing=cancel") ? "cancel" : "";
+  const q = window.location.hash.split("?")[1] || "";
+  const notice = q.includes("billing=success") ? "ok" : q.includes("billing=addon") ? "addon" : q.includes("billing=cancel") ? "cancel" : "";
 
   const load = () => {
     setSt(s => ({ ...s, state: "loading" }));
@@ -68,7 +70,8 @@ export default function AccountPlan() {
       <span className="eyebrow">ACCOUNT</span>
       <h1 className="h1">プランと支払い</h1>
       {notice === "ok" && <div className="ap-note ok" role="status">{paid ? `${NAME[d.plan]} になりました。` : "お支払いを確かめています…"}</div>}
-      {notice === "cancel" && !paid && <div className="ap-note" role="status">お支払いは取りやめました。</div>}
+      {notice === "cancel" && <div className="ap-note" role="status">お支払いは取りやめました。</div>}
+      {notice === "addon" && <div className="ap-note ok" role="status">時間を買い足しました。反映まで少しかかることがあります。</div>}
       {d.unknown && <div className="ap-note" role="status">契約を確かめられませんでした。時間をおいて読み込み直してください。</div>}
 
       <section className="card ap-now">
@@ -78,6 +81,19 @@ export default function AccountPlan() {
         {paid && d.status === "past_due" && <div className="ap-warn">お支払いを確かめられませんでした。カードを確かめてください。</div>}
         {d.hasCustomer && <button type="button" className="btn ghost" disabled={!!busy} onClick={() => go("/billing/portal", {}, "portal")}>{busy === "portal" ? "開いています…" : "支払いと解約"}</button>}
       </section>
+
+      {paid && (
+        <section className="card ap-add">
+          <div><b>本物の AWS の時間を買い足す</b><small>今月だけ使えます（月が変わると残りは消えます）</small></div>
+          <div className="ap-add-btns">
+            {ADDONS.map(a => (
+              <button key={a.hours} type="button" className="btn ghost" disabled={!!busy} onClick={() => go("/billing/addon", { hours: a.hours }, `add${a.hours}`)}>
+                {busy === `add${a.hours}` ? "開いています…" : <>＋{a.hours}時間<small>{yen(a.price)}</small></>}
+              </button>
+            ))}
+          </div>
+        </section>
+      )}
 
       {!paid && <>
         <div className="ap-cycle" role="group" aria-label="支払いの単位">

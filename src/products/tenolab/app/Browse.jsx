@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { Back, Carousel, Ic, PremTag, TopicIcon } from "./ui.jsx";
+import { Back, Carousel, Ic, PlanLink, PremTag, TopicIcon, planLabel } from "./ui.jsx";
 import { ActiveCases, CaseCard, CourseCard, DrillCard, CourseRow } from "./cards.jsx";
 import { NoticeBanner, NoticeCard } from "./notices/Notices.jsx";
 import { byTopic } from "./model.js";
@@ -53,7 +53,7 @@ export function Home({ ctx }) {
                 <span className="row" style={{ gap: 6 }}><span className="eyebrow">{t.sub}</span><PremTag item={t} premium={premium} /></span>
                 <h3>{t.name}</h3>
                 <span className="counts"><span>コース <b>{cs.length}</b></span><span>演習 <b>{ds.length}</b></span><span>案件 <b>{xs.length}</b></span></span>
-                {lk && <span className="lockline"><Ic id="lock" />Premiumプランで利用できます</span>}
+                {lk && <span className="lockline"><Ic id="lock" />{planLabel()}プランで利用できます</span>}
                 {cs.some(c => c.progress) && <span className="row" style={{ gap: 8 }}><span className="bar-p" style={{ flex: 1, maxWidth: 160 }}><i style={{ width: `${avg}%` }} /></span><span className="muted num" style={{ fontSize: 12 }}>修了 {done} / {cs.length}</span></span>}
               </span>
             </Tag>
@@ -78,7 +78,7 @@ export function TopicPage({ ctx, topicId }) {
   const [tagSel, setTagSel] = useState("all");
   const t = topics.find(x => x.id === topicId) || (topicId === OTHER_TOPIC.id ? OTHER_TOPIC : null);
   if (!t) return <><Back onClick={() => go("#/home")}>← ホーム</Back><p className="muted">この単元は見つかりませんでした。</p></>;
-  if (t.premium && !premium) return <><Back onClick={() => go("#/home")}>← ホーム</Back><div className="card flat" style={{ padding: 18, marginTop: 12 }}><b><Ic id="lock" /> {t.name}はPremiumプランで利用できます</b></div></>;
+  if (t.premium && !premium) return <><Back onClick={() => go("#/home")}>← ホーム</Back><div className="card flat" style={{ padding: 18, marginTop: 12 }}><b><Ic id="lock" /> {t.name}は{planLabel()}プランで利用できます</b> <PlanLink /></div></>;
   const cs0 = byTopic(courses, t.id), ds0 = byTopic(drills, t.id), xs0 = byTopic(cases, t.id);
   const levelOf = x => x.level || courses.find(c => c.id === x.needCourseId)?.level;
   const pick = list => (lv === "all" ? list : list.filter(x => levelOf(x) === lv));
@@ -302,7 +302,7 @@ export function ListPage({ ctx, kind, view, setView }) {
             <section key={t.id}>
               <div className="ghead"><TopicIcon topic={t} size={40} /><h2>{t.name}</h2><PremTag item={t} premium={premium} />{tally(items)}
                 {canHide && <label className="hide-sw"><input type="checkbox" role="switch" checked={hiding} onChange={() => toggleHide(t.id)} /><i aria-hidden="true" />クリア済みを隠す</label>}
-                {t.id !== OTHER_TOPIC.id && <button type="button" className="more" disabled={lk} onClick={() => go(`#/topics/${t.id}`)}>{lk ? <><Ic id="lock" /> Premiumプランで利用できます</> : "この単元を見る →"}</button>}
+                {t.id !== OTHER_TOPIC.id && <button type="button" className="more" disabled={lk} onClick={() => go(`#/topics/${t.id}`)}>{lk ? <><Ic id="lock" /> {planLabel()}プランで利用できます</> : "この単元を見る →"}</button>}
               </div>
               {hiding && !shown.length ? <span className="chip done all-clear"><Ic id="check" />すべてクリア済み</span>
                 : K.wrap === "car" ? <Carousel key={hiding ? "h" : "a"}>{shown.map(card)}</Carousel> : <div className={K.wrap}>{shown.map(card)}</div>}

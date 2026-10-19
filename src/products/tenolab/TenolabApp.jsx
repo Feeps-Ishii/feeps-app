@@ -16,7 +16,7 @@ import ManagePage, { ADMIN_NAV, adminSection } from "./app/manage/ManagePage.jsx
 import ClientPages, { CLIENT_NAV, clientSection } from "./app/company/CompanyPages.jsx";
 import StudioPage from "./app/studio/StudioPage.jsx";
 import AccountPlan from "./app/AccountPlan.jsx";
-import { LoadError, Loading } from "./app/ui.jsx";
+import { LoadError, Loading, setViewerRole } from "./app/ui.jsx";
 import { submitInquiry, useCases, useDrills, useLabProgress, useMe, useTopics, useNotices, markNoticeRead } from "./app/data.js";
 import { NoticeDrawer } from "./app/notices/Notices.jsx";
 import { caseModels, courseModels, drillModels } from "./app/model.js";
@@ -189,6 +189,7 @@ function EntryHost({ onLoggedIn, loginError }) {
 
 /* ログイン後 */
 function App({ route, auth, onLogout }) {
+  setViewerRole(auth.role);   // 有料の言い方（個人は Pro、企業の人は Premium）
   const staff = isStaffRole(auth.role);
   const admin = auth.role === "admin";
   const client = auth.role === "client";

@@ -24,6 +24,8 @@ const ERROR_TEXT = {
   plan_required: "この機能は Pro プランで使えます。アカウントの「プランと支払い」から変更できます。",
   aws_hours_exceeded: "今月の本物の AWS の時間を使い切りました。来月になると、また使えます。",
   individual_not_allowed: "この画面は個人のアカウントでは使えません。",
+  case_limit: "Pro プランで参画できる本格案件は2本までです。もっと参画するには Pro+ にしてください。",
+  plan_plus_required: "AWS の案件は Pro+ プランで利用できます。",
 };
 
 async function throwApiError(res, path, method) {

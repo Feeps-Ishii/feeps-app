@@ -1,5 +1,5 @@
 import React from "react";
-import { Ic, PremTag, StartTag, Thumb, TopicIcon, durationLabel } from "./ui.jsx";
+import { Ic, PremTag, StartTag, Thumb, TopicIcon, durationLabel, planLabel } from "./ui.jsx";
 import "./case/preview.css";
 import { CASE_PREVIEWS } from "./case/CasePreviews.jsx";
 
@@ -78,7 +78,7 @@ export function DrillCard({ d, premium, go, hits = [] }) {
           {d.level && <span className="chip">{d.level}</span>}
           {d.minutes ? <span className="chip">約{d.minutes}分</span> : null}
           <StartTag start={d.start} />
-          {lk && <span className="chip" style={{ color: "#8A5A10" }}><Ic id="lock" />Premium</span>}
+          {lk && <span className="chip" style={{ color: "#8A5A10" }}><Ic id="lock" />{planLabel()}</span>}
         </div>
       </div>
     </>

@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import { Back, Ic, LoadError, Loading, durationHours, durationLabel } from "./ui.jsx";
+import { Back, Ic, LoadError, Loading, PlanLink, durationHours, durationLabel, planLabel } from "./ui.jsx";
 import { ElFinalTestView } from "../../learning/LearningComponents.jsx";
 import LessonView from "./LessonView.jsx";
 
@@ -21,7 +21,7 @@ function NotAvailable({ ctx, course, premiumLocked }) {
     <>
       <Back onClick={() => ctx.back("#/courses")} />
       <div className="card flat" style={{ padding: 18, marginTop: 12 }}>
-        <b>{premiumLocked ? <><Ic id="lock" /> {course?.title || "このコース"}はPremiumプランで利用できます</> : "このコースは見つかりませんでした"}</b>
+        <b>{premiumLocked ? <><Ic id="lock" /> {course?.title || "このコース"}は{planLabel()}プランで利用できます</> : "このコースは見つかりませんでした"}</b>{premiumLocked && <> <PlanLink /></>}
       </div>
     </>
   );

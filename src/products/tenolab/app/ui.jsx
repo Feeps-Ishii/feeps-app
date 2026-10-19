@@ -76,9 +76,19 @@ export function Thumb({ item }) {
 }
 
 /* ---------- 小さな部品 ---------- */
+// 有料の言い方（2026-10-20、ADR 0029）：企業の人は契約の名前どおり「Premium」、個人は「Pro」。
+// ログインした人のロールは App が描く前に setViewerRole で渡す
+let viewerRole = "";
+export function setViewerRole(role) { viewerRole = role || ""; }
+export const planLabel = () => (viewerRole === "individual" ? "Pro" : "Premium");
+// 個人だけ、鍵の案内の横に「プランを見る」（#/account）
+export function PlanLink() {
+  return viewerRole === "individual" ? <a className="planlink" href="#/account">プランを見る →</a> : null;
+}
+
 export function PremTag({ item, premium }) {
   if (!item?.premium) return null;
-  return <><span className="prem">PREMIUM</span>{premium && <span className="avail">✓ 利用可能</span>}</>;
+  return <><span className="prem">{planLabel().toUpperCase()}</span>{premium && <span className="avail">✓ 利用可能</span>}</>;
 }
 export const START = { blank: ["まっさらな環境から", "blank"], ready: ["用意済みの環境から", "ready"], trouble: ["障害が起きた環境から", "trouble"] };
 export function StartTag({ start }) {

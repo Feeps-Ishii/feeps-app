@@ -1,7 +1,7 @@
 import AwsGuide from "./aws/AwsGuide.jsx";
 import React, { useEffect, useRef, useState } from "react";
 import { apiPost } from "../../../api.js";
-import { Back, Ic, LoadError, Loading, PremTag, StartTag } from "./ui.jsx";
+import { Back, Ic, LoadError, Loading, PlanLink, PremTag, StartTag, planLabel } from "./ui.jsx";
 import { TryPanel } from "./Workbench.jsx";
 import { cloud, getDrillAnswer, useDrill } from "./data.js";
 import { START_OF } from "./model.js";
@@ -12,7 +12,7 @@ export default function DrillPage({ ctx, id }) {
   const d = useDrill(id);
   if (d.state === "loading") return <Loading />;
   if (d.state === "error" && d.status === 403) {
-    return <><Back onClick={() => back("#/drills")} /><div className="card flat" style={{ padding: 18, marginTop: 12 }}><b><Ic id="lock" /> この実習はPremiumプランで利用できます</b></div></>;
+    return <><Back onClick={() => back("#/drills")} /><div className="card flat" style={{ padding: 18, marginTop: 12 }}><b><Ic id="lock" /> この実習は{planLabel()}プランで利用できます</b> <PlanLink /></div></>;
   }
   if (d.state === "error" && d.status === 404) return <><Back onClick={() => back("#/drills")} /><p className="muted">この演習は見つかりませんでした。</p></>;
   if (d.state === "error" || !d.data) return <><Back onClick={() => back("#/drills")} /><LoadError onRetry={d.reload} what="演習を読み込めませんでした" /></>;
@@ -233,7 +233,7 @@ export function AwsEnvPanel({ scenario, start = "blank", task, steps, onGraded, 
     try { await fn(); }
     catch (e) {
       setErr(e?.status === 409 ? "いまは環境の空きがありません。少し時間をおいてから試してください。"
-        : e?.status === 403 ? "この実習はPremiumプランで利用できます。"
+        : e?.status === 403 ? (e?.errorMessage && !/^(premium_required|POST |GET )/.test(e.errorMessage) ? e.errorMessage : `この実習は${planLabel()}プランで利用できます。`)
           : (e?.errorMessage || "うまくいきませんでした。もう一度試してください。"));
     } finally { setBusy(""); }
   }

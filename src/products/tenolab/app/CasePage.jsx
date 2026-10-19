@@ -1,6 +1,6 @@
 import React, { useRef, useState } from "react";
 import { apiPut } from "../../../api.js";
-import { Back, Ic, LoadError, Loading, PremTag } from "./ui.jsx";
+import { Back, Ic, LoadError, Loading, PlanLink, PremTag, planLabel } from "./ui.jsx";
 import { Editor } from "./Workbench.jsx";
 import { AwsEnvPanel } from "./DrillPage.jsx";
 import { FILE_NAME, runCode } from "./runtime.js";
@@ -34,7 +34,7 @@ export default function CasePage({ ctx, id }) {
         {listItem && <h1 className="h1" style={{ marginBottom: 8 }}>{listItem.title}</h1>}
         {listItem?.summary && <p style={{ margin: 0, color: "var(--ink2)", maxWidth: "66ch" }}>{listItem.summary}</p>}
         <div className="card flat" style={{ padding: 18, marginTop: 14, display: "grid", gap: 8, justifyItems: "start" }}>
-          <b><Ic id="lock" /> {listItem?.locked ? "この案件体験はPremiumプランで利用できます" : `${listItem?.needTitle || "前提のコース"}を修了すると挑戦できます`}</b>
+          <b><Ic id="lock" /> {listItem?.locked ? `この案件体験は${planLabel()}プランで利用できます` : `${listItem?.needTitle || "前提のコース"}を修了すると挑戦できます`}</b>{listItem?.locked && <> <PlanLink /></>}
           {listItem?.needCourseId && !listItem?.locked && <button type="button" className="btn ghost" onClick={() => go(`#/courses/${listItem.needCourseId}`)}>コースへ</button>}
         </div>
       </>
