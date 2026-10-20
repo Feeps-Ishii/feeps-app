@@ -1831,6 +1831,7 @@ export default function App() {
           </div>
           {modeSwitch}
           <div className="ml-auto flex min-w-0 shrink-0 items-center justify-end gap-1.5">
+            {backToConsole}
             {role === "instructor" && !isHomeProduct && <QuickAdd onPick={go} />}
             {/* 2026-10-01: 検索・使い方のボタンは外した（あまり使わない）。表示ロールの切り替えは管理者だけ */}
             <TenolabLink />
