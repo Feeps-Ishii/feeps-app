@@ -36,6 +36,10 @@ export function matchCourse(text, courses) {
     if (n.length >= 2 && t.includes(n) && (!best || n.length > best.len)) best = { c, len: n.length };
   }
   if (best) return best.c;
+  // 名前の頭の語（「Java研修 2026秋」の「Java研修」）で1つに決まるとき
+  const head = c => norm(String(c.name || "").split(/[\s　(（]/)[0]);
+  const byHead = courses.filter(c => head(c).length >= 2 && t.includes(head(c)));
+  if (byHead.length === 1) return byHead[0];
   const byCompany = courses.filter(c => c.company && norm(c.company).length >= 2 && t.includes(norm(c.company)));
   return byCompany.length === 1 ? byCompany[0] : null;
 }

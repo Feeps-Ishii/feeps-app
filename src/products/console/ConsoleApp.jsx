@@ -74,7 +74,7 @@ export default function ConsoleApp({ role, displayName, userProfile, onLogout, o
       if (result?.kind === "navigate") { setAsk(null); return navigate(result); }
       setAsk({ text, result });
     } catch (e) {
-      setAsk({ text, error: e?.message || "うまく受け取れませんでした。もう一度お試しください。" });
+      setAsk({ text, error: e?.errorMessage || "うまく受け取れませんでした。もう一度お試しください。" });
     }
     return undefined;
   }

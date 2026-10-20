@@ -141,7 +141,7 @@ export default function AssistPanel({ ask, courses, role, onClose, onNavigate, o
       const c = changes[i];
       if (c.on === false || next[i]?.ok) continue;
       try { await runChange(c, { courses, people }); next[i] = { ok: true }; }
-      catch (e) { next[i] = { error: e?.message || "実行できませんでした。" }; }
+      catch (e) { next[i] = { error: e?.errorMessage || (e?.status ? "実行できませんでした（権限がないか、入力が正しくありません）。" : e?.message) || "実行できませんでした。" }; }
       setStatus({ ...next });
     }
     setRunning(false);
