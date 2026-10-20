@@ -21,7 +21,12 @@ const norm = s => String(s || "").replace(/[\s　「」『』]/g, "").toLowerCas
 const byName = (list, name, key = "name") => {
   const n = norm(name);
   const exact = list.filter(x => norm(x[key]) === n);
-  return exact.length ? exact : list.filter(x => norm(x[key]).includes(n) || (n.length >= 2 && n.includes(norm(x[key])) && norm(x[key]).length >= 2)).slice(0, 6);
+  if (exact.length) return exact;
+  const part = list.filter(x => norm(x[key]).includes(n) || (n.length >= 2 && n.includes(norm(x[key])) && norm(x[key]).length >= 2));
+  if (part.length) return part.slice(0, 6);
+  // 語に分けて、どの語も入っているもの（「Javaの確認テスト」→「Java 基本文法 確認テスト」）
+  const words = String(name || "").split(/[s　の・、「」]+/).map(norm).filter(w => w.length >= 2);
+  return words.length ? list.filter(x => words.every(w => norm(x[key]).includes(w))).slice(0, 6) : [];
 };
 const spaceName = (spaceId, courses) => (spaceId === "shared" ? "共有（全社）" : spaceId === "ops" ? "運営だけ" : courses.find(c => `course#${c.id}` === spaceId)?.name || "コース");
 
