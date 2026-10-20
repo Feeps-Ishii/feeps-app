@@ -12,14 +12,15 @@ const CLEANUP = [];
 
 /* ---------- 単元（紹介ページ） ---------- */
 const TOPICS = [
-  { id: "web", name: "Web制作", sub: "HTML / CSS", color: "#F2C200", soft: "#FFF7C2", meta: "コース 2 ・ 演習 2 ・ 案件体験 1" },
-  { id: "js", name: "JavaScript", sub: "JavaScript", color: "#2457E6", soft: "#E8EEFD", meta: "コース 6 ・ 演習 6 ・ 案件体験 2" },
-  { id: "java", name: "Java", sub: "Java", color: "#D9483B", soft: "#FBE9E7", meta: "コース 2 ・ 演習 2 ・ 案件体験 1" },
-  { id: "db", name: "データベース", sub: "SQL", color: "#11966F", soft: "#E3F5EE", meta: "コース 1 ・ 演習 2 ・ 案件体験 1" },
-  { id: "git", name: "Git・チーム開発", sub: "Git", color: "#7454C7", soft: "#F0ECFD", meta: "コース 1 ・ 演習 1 ・ 案件体験 1" },
-  { id: "cloud", name: "AWS", sub: "クラウド", color: "#F29A38", soft: "#FFF1E2", meta: "コース 5 ・ 実習 6 ・ 案件体験 2", premium: true },
+  { id: "web", name: "Web制作", sub: "HTML / CSS", color: "#F2C200", soft: "#FFF7C2", meta: "入門は無料 ・ 続きは Pro", free: true },
+  { id: "js", name: "JavaScript", sub: "JavaScript", color: "#2457E6", soft: "#E8EEFD", meta: "入門は無料 ・ 続きは Pro", free: true },
+  { id: "db", name: "データベース", sub: "SQL", color: "#11966F", soft: "#E3F5EE", meta: "入門は無料 ・ 続きは Pro", free: true },
+  { id: "java", name: "Java", sub: "Java", color: "#D9483B", soft: "#FBE9E7", meta: "Pro ・ その場で実行" },
+  { id: "cloud", name: "AWS", sub: "クラウド", color: "#F29A38", soft: "#FFF1E2", meta: "模擬ラボは無料 ・ 本物は Pro", free: true },
 ];
 const ICON = {
+  spring: c => `<svg viewBox="0 0 64 64"><path d="M48 14c-18 0-32 10-32 26 0 6 3 10 3 10s4-14 18-20c-10 8-14 16-14 16s22 2 28-14c3-8-3-18-3-18z" fill="${c}" stroke="#15171C" stroke-width="3" stroke-linejoin="round"/></svg>`,
+  linux: c => `<svg viewBox="0 0 64 64"><rect x="8" y="12" width="48" height="40" rx="6" fill="${c}" stroke="#15171C" stroke-width="3"/><path d="M18 26l8 6-8 6M30 40h14" fill="none" stroke="#fff" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"/></svg>`,
   web: c => `<svg viewBox="0 0 64 64"><rect x="6" y="10" width="52" height="40" rx="5" fill="#fff" stroke="#15171C" stroke-width="3"/><path d="M6 20h52" stroke="#15171C" stroke-width="3"/><rect x="12" y="26" width="18" height="18" rx="2" fill="${c}"/><path d="M36 28h16M36 35h12M36 42h16" stroke="#15171C" stroke-width="3" stroke-linecap="round"/></svg>`,
   js: c => `<svg viewBox="0 0 64 64"><rect x="8" y="8" width="48" height="48" rx="8" fill="${c}"/><path d="M27 20c-5 0-5 3-5 7s-1 5-4 5c3 0 4 1 4 5s0 7 5 7M37 20c5 0 5 3 5 7s1 5 4 5c-3 0-4 1-4 5s0 7-5 7" fill="none" stroke="#fff" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"/></svg>`,
   java: c => `<svg viewBox="0 0 64 64"><path d="M14 28h30v12a12 12 0 0 1-12 12h-6a12 12 0 0 1-12-12z" fill="#fff" stroke="#15171C" stroke-width="3"/><path d="M44 31h4a5 5 0 0 1 0 10h-4" fill="none" stroke="#15171C" stroke-width="3"/><path d="M22 12c-3 4 3 6 0 10M30 10c-3 4 3 6 0 12M38 12c-3 4 3 6 0 10" fill="none" stroke="${c}" stroke-width="3" stroke-linecap="round"/></svg>`,
@@ -28,20 +29,34 @@ const ICON = {
   cloud: c => `<svg viewBox="0 0 64 64"><path d="M18 46a10 10 0 0 1-1-20 14 14 0 0 1 27-4 11 11 0 0 1 3 24z" fill="#fff" stroke="#15171C" stroke-width="3" stroke-linejoin="round"/><path d="M32 30v14M26 36l6-6 6 6" fill="none" stroke="${c}" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"/></svg>`,
 };
 document.getElementById("topic-grid").innerHTML = TOPICS.map(t => `
-  <div class="card tile ${t.premium ? "gold" : ""}">
+  <div class="card tile${t.soon ? " soon" : ""}">
     <span class="ti" style="background:${t.soft}">${ICON[t.id](t.color)}</span>
     <span style="display:grid;gap:2px;min-width:0">
-      <span style="display:flex;gap:6px;align-items:center"><span class="eyebrow">${t.sub}</span>${t.premium ? '<span class="prem">PREMIUM</span>' : ""}</span>
+      <span style="display:flex;gap:6px;align-items:center"><span class="eyebrow">${t.sub}</span>${t.soon ? '<span class="soonb">準備中</span>' : t.free ? '<span class="free">無料あり</span>' : '<span class="prem">PRO</span>'}</span>
       <h3>${t.name}</h3><span class="meta">${t.meta}</span>
     </span>
-  </div>`).join("");
+  </div>`).join("") + `
+  <div class="card tile more"><span class="ti more-ic">＋</span><span style="display:grid;gap:2px;min-width:0"><span class="eyebrow">COMING SOON</span><h3>ほかのコースも続々追加</h3><span class="meta">新しい単元を順次公開</span></span></div>`;
 
 /* ---------- 画面の切り替え（紹介 ⇄ ログイン） ---------- */
+const signupView = document.getElementById("signup-view"), bizView = document.getElementById("biz-view"), legalView = document.getElementById("legal-view");
 const lp = document.getElementById("lp"), loginView = document.getElementById("login-view"), trialView = document.getElementById("trial-view"), quoteView = document.getElementById("quote-view");
 function show(view) {
-  lp.hidden = view !== "lp"; loginView.hidden = view !== "login"; trialView.hidden = view !== "trial"; quoteView.hidden = view !== "quote";
-  document.querySelector(".bar").hidden = view === "login";   // ログインは1ページで完結（上の枠は出さない）
-  document.getElementById("lp-nav").style.visibility = view === "lp" ? "visible" : "hidden";
+  // 紹介 ⇄ 法人のページは横にすべらせる（2026-10-19）
+  const prevView = lp.hidden ? (bizView.hidden ? "" : "business") : "lp";
+  lp.hidden = view !== "lp"; bizView.hidden = view !== "business"; loginView.hidden = view !== "login"; signupView.hidden = view !== "signup";
+  document.querySelector(".bar").classList.toggle("is-biz", view === "business");
+  const slideEl = view === "business" ? bizView : view === "lp" ? lp : null;
+  if (slideEl && prevView && prevView !== view && !REDUCED) { slideEl.classList.remove("slide-l", "slide-r"); void slideEl.offsetWidth; slideEl.classList.add(view === "business" ? "slide-l" : "slide-r"); } trialView.hidden = view !== "trial"; quoteView.hidden = view !== "quote";
+  // 規約は1つのページで、# の名前で開く文書を切り替える
+  legalView.hidden = view !== "legal";
+  if (view === "legal") {
+    const doc = (location.hash || "").replace(/^#\/?/, "").split("/")[0];
+    legalView.querySelectorAll("[data-doc]").forEach(a => { a.hidden = a.dataset.doc !== doc; });
+    legalView.querySelectorAll(".lg-tabs a").forEach(a => { if (a.getAttribute("href") === "#/" + doc) a.setAttribute("aria-current", "page"); else a.removeAttribute("aria-current"); });
+  }
+  document.querySelector(".bar").hidden = view === "login" || view === "signup";   // ログインは1ページで完結（上の枠は出さない）
+  document.getElementById("lp-nav").style.visibility = view === "lp" || view === "business" ? "visible" : "hidden";
   document.getElementById("cta-login").hidden = view === "login";
   window.scrollTo({ top: 0 });
   // 動く画面は1つだけ。ログインでは右側へ移して、紹介ページに戻ったら元の位置へ
@@ -50,19 +65,28 @@ function show(view) {
   if (stage.parentElement !== want) { want.appendChild(stage); if (!REDUCED) runFrom(0); }
   if (view === "login") loginGo("login");
 }
-const VIEW_OF = { "": "lp", login: "login", try: "trial", quote: "quote" };
+const VIEW_OF = { "": "lp", login: "login", signup: "signup", business: "business", try: "trial", quote: "quote", terms: "legal", privacy: "legal", tokushoho: "legal" };
 const viewOfHash = () => VIEW_OF[(location.hash || "").replace(/^#\/?/, "").split("/")[0]] || "lp";
 const onHash = () => show(viewOfHash());
 window.addEventListener("hashchange", onHash);
 CLEANUP.push(() => window.removeEventListener("hashchange", onHash));
 
+/* ---------- 料金：月額／年額（2026-10-19。はじめは月額） ---------- */
+const cycleBtns = [...document.querySelectorAll("#cycle button")];
+function setCycle(c) {
+  cycleBtns.forEach(x => x.setAttribute("aria-pressed", String(x.dataset.c === c)));
+  document.querySelectorAll("#price [data-m]").forEach(el => { el.textContent = el.dataset[c]; });
+}
+cycleBtns.forEach(x => x.addEventListener("click", () => setCycle(x.dataset.c)));
+setCycle("m");
+
 /* ---------- 紹介ページの動き ---------- */
 const REDUCED = matchMedia("(prefers-reduced-motion: reduce)").matches;
 
 // 単元の流れる帯（2周分並べて、半分ずらすと切れ目なくつながる）
-const mqItems = TOPICS.map(t => `<span class="mq-item"><span class="ti" style="background:${t.soft}">${ICON[t.id](t.color)}</span>${t.name}<small>${t.sub}</small></span>`).join("");
+const mqItems = TOPICS.filter(t => !t.soon).map(t => `<span class="mq-item"><span class="ti" style="background:${t.soft}">${ICON[t.id](t.color)}</span>${t.name}<small>${t.sub}</small></span>`).join("");
 document.getElementById("mq").innerHTML = mqItems + mqItems;
-document.getElementById("mq").lastElementChild && [...document.getElementById("mq").children].slice(TOPICS.length).forEach(el => el.setAttribute("aria-hidden", "true"));
+document.getElementById("mq").lastElementChild && [...document.getElementById("mq").children].slice(TOPICS.filter(t => !t.soon).length).forEach(el => el.setAttribute("aria-hidden", "true"));
 
 // スクロールで出てくる要素・見出しのマーカー
 document.querySelectorAll("#topic-grid .tile").forEach((el, i) => { el.classList.add("rv"); el.style.setProperty("--d", (i % 3) * 0.08 + "s"); });
@@ -79,7 +103,7 @@ function reveal(el) {
   if (el.classList.contains("mark")) el.classList.add("on");
   onIn[el.id]?.(el);
 }
-const revealTargets = [...document.querySelectorAll("#lp .rv, #lp .mark, #arch, #dash")].filter(el => !el.closest(".hero"));
+const revealTargets = [...document.querySelectorAll("#lp .rv, #lp .mark, #biz-view .rv, #biz-view .mark, #arch, #dash")].filter(el => !el.closest(".hero"));
 if (REDUCED || !("IntersectionObserver" in window)) {
   revealTargets.forEach(el => { el.classList.add("in"); el.querySelectorAll?.(".checks li").forEach(li => li.classList.add("ok")); el.classList.add("on", "done"); });
   document.querySelectorAll("[data-to]").forEach(n => n.textContent = n.dataset.to);
@@ -190,6 +214,39 @@ tabs.forEach(t => t.addEventListener("click", () => {
 }));
 if (REDUCED) { activate(0); finalScene(0); } else runFrom(0);
 
+/* ---------- ヒーローの奥：本物の AWS の画面（3つの場面） ---------- */
+const awin = document.querySelector(".aws-win");
+if (awin) {
+  const awScns = [...awin.querySelectorAll(".aw-scn")], awScore = document.getElementById("aw-score"), awCrumb = document.getElementById("aw-crumb"), awPg = [...document.querySelectorAll("#aw-pg i")];
+  const AW = [
+    { crumb: "AWS 実習 ／ ALB と EC2 2台", steps: ["採点 1 / 3", "採点 2 / 3", "採点 3 / 3"] },
+    { crumb: "AWS 実習 ／ サーバーレスの API", steps: ["採点 1 / 3", "採点 2 / 3", "採点 3 / 3"] },
+    { crumb: "AWS 実習 ／ 止まったサーバーを復旧", steps: ["障害を検知", "原因を調査", "復旧 ✓"], broken: true },
+  ];
+  let awT = 0, awI = 0;
+  const show = k => {
+    awScns.forEach((el, n) => { el.classList.toggle("on", n === k); if (n === k) el.classList.remove("built", "broken", "fixed"); else setTimeout(() => { if (!el.classList.contains("on")) el.classList.remove("built", "broken", "fixed"); }, 700); });
+    awPg.forEach((el, n) => el.classList.toggle("on", n === k));
+    awCrumb.textContent = AW[k].crumb; awScore.textContent = AW[k].broken ? "監視中" : "採点 0 / 3"; awScore.classList.remove("full", "bad");
+  };
+  const play = () => {
+    const k = awI, el = awScns[k], sc = AW[k];
+    show(k); void el.offsetWidth; el.classList.add("built");
+    let n = 0;
+    const step = () => {
+      if (sc.broken && n === 0) { el.classList.add("broken"); awScore.classList.add("bad"); }
+      awScore.textContent = sc.steps[n]; n++;
+      if (n < sc.steps.length) { awT = setTimeout(step, sc.broken ? 900 : 450); return; }
+      if (sc.broken) { el.classList.remove("broken"); el.classList.add("fixed"); awScore.classList.remove("bad"); }
+      awScore.classList.add("full");
+      awI = (awI + 1) % AW.length; awT = setTimeout(play, 4200);
+    };
+    awT = setTimeout(step, 1900);
+  };
+  if (REDUCED) { show(0); awScns[0].classList.add("built"); awScore.textContent = "採点 3 / 3"; awScore.classList.add("full"); } else play();
+  CLEANUP.push(() => clearTimeout(awT));
+}
+
 
 /* ---------- ログイン：本番の認証（OPTS.auth = entryAuth）。流れは本番のテノラボと同じ ---------- */
 const LF = document.getElementById("lform");
@@ -236,6 +293,7 @@ const mailOk = v => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v.trim());
 // 認証の次の段階へ。done ならアプリに知らせる（ホームへ）
 function afterAuth(r) {
   if (!r) return;
+  if (r.next === "signupCode") { goSignupCode(); return; }
   if (r.next === "done") {
     Promise.resolve(OPTS.onLoggedIn && OPTS.onLoggedIn()).then(msg => {
       // 画面を離れていたら（ログインできてホームへ移ったなど）何もしない
@@ -313,59 +371,52 @@ resend.addEventListener("click", () => {
 /* ---------- ログイン画面 ---------- */
 function startLive() {}
 function stopLive() {}
-/* ---------- Javaを少しだけ体験 ---------- */
-const T_START = `public class Main {
-  // 税込み金額を返す（税率10%）
-  static int withTax(int price) {
-    return price; // ← ここを直す
-  }
-
-  public static void main(String[] args) {
-    System.out.println(withTax(1000) + "円");
-    System.out.println(withTax(250) + "円");
-  }
-}`;
-const $tCode = document.getElementById("t-code"), $tOut = document.getElementById("t-out");
-$tCode.value = T_START;
-const escT = v => String(v).replace(/[&<>]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;" }[c]));
-function runJava() {
-  const src = $tCode.value;
-  const m = src.match(/static\s+int\s+withTax\s*\(\s*int\s+price\s*\)\s*\{([\s\S]*?)\n\s{2}\}/);
-  if (!m) return { error: "Main.java:3: エラー: メソッド withTax(int) が見つかりません" };
-  // Javaならコンパイルで止まる書き方は、ここで止める（文末の ; と、double を int で返すこと）
-  const lines = m[1].replace(/\/\/.*$/gm, "").split("\n").map(l => l.trim()).filter(Boolean);
-  const noSemi = lines.findIndex(l => !/[;{}]$/.test(l));
-  if (noSemi >= 0) return { error: `Main.java:${4 + noSemi}: エラー: ';' がありません` };
-  if (/\d+\.\d+/.test(m[1].replace(/\/\/.*$/gm, "")) && !/\(int\)/.test(m[1])) return { error: "Main.java:4: エラー: 不適合な型: double から int への変換で精度が失われる可能性があります" };
-  // 型の宣言とキャストだけをJSに読みかえる（モック用のごく小さな置き換え）
-  const body = m[1].replace(/\/\/.*$/gm, "").replace(/\b(int|long|double)\s+(?=[a-zA-Z_])/g, "let ").replace(/\(int\)\s*\(/g, "Math.trunc(");
-  let fn;
-  try { fn = new Function("price", body); } catch (e) { return { error: "Main.java:4: エラー: 文の書き方を確かめてください" }; }
-  const results = [];
-  for (const v of [1000, 250]) {
-    let r; try { r = fn(v); } catch (e) { return { error: "実行時エラー: " + e.message }; }
-    if (typeof r !== "number") return { error: "Main.java:4: エラー: int を返してください" };
-    if (!Number.isInteger(r)) return { error: "Main.java:4: エラー: 不適合な型: double から int への変換で精度が失われる可能性があります" };
-    results.push(r);
-  }
-  return { results };
+/* ---------- 模擬の AWS ラボ（登録なしの体験。ブラウザの中だけで動き、AWS には何も作らない） ---------- */
+const LAB = [
+  { cls: "st1", cmd: "aws ec2 create-vpc --cidr-block 10.0.0.0/16", ok: "✓ vpc-0f3a9c21（vpc-lab）を作成しました" },
+  { cls: "st2", cmd: "aws ec2 create-subnet --cidr-block 10.0.1.0/24", ok: "✓ subnet-07d2b8a6（public-a）を作成しました" },
+  { cls: "st3", cmd: "aws ec2 run-instances --instance-type t3.micro", ok: "✓ i-0a3f9c21（web-1）が実行中になりました" },
+  { cls: "st4", cmd: "aws ec2 authorize-security-group-ingress --port 80", ok: "✓ web-sg で 80 番を許可し、インターネットゲートウェイをつなぎました" },
+];
+const $lab = document.getElementById("lab"), $labLog = document.getElementById("lab-log"), $lsteps = [...document.querySelectorAll("#lsteps li")];
+let labAt = 0, labBusy = false, labTimers = [];
+const labLine = (cls, text) => { const s = document.createElement("span"); s.className = cls; s.textContent = text; $labLog.appendChild(s); };
+function labRender() {
+  $lsteps.forEach((li, i) => {
+    li.classList.toggle("done", i < labAt); li.classList.toggle("now", i === labAt);
+    li.querySelectorAll("button").forEach(b => { b.disabled = i !== labAt || labBusy; });
+  });
+  document.getElementById("lab-n").textContent = labAt + " / " + LAB.length;
+  document.getElementById("lab-bar").style.width = (labAt / LAB.length * 100) + "%";
+  $lab.querySelectorAll(".st").forEach(g => g.classList.toggle("on", LAB.slice(0, labAt).some(s => g.classList.contains(s.cls))));
+  $lab.querySelector(".st0").classList.toggle("off", labAt > 0);
+  document.getElementById("t-done").hidden = labAt < LAB.length;
 }
-document.getElementById("t-run").addEventListener("click", () => {
-  const r = runJava();
-  const checks = [...document.querySelectorAll("#tchecks li")];
-  if (r.error) {
-    $tOut.innerHTML = `<span class="lbl">コンソール</span><span class="err">${escT(r.error)}</span>`;
-    checks.forEach(li => { li.classList.remove("ok"); li.querySelector("i").textContent = ""; });
-    document.getElementById("t-done").hidden = true; return;
-  }
-  const ok = [r.results[0] === 1100, r.results[1] === 275];
-  checks.forEach((li, i) => { li.classList.toggle("ok", ok[i]); li.querySelector("i").textContent = ok[i] ? "✓" : ""; });
-  $tOut.innerHTML = `<span class="lbl">コンソール</span>${r.results.map(v => `<span>${v}円</span>`).join("")}${ok.every(Boolean) ? '<span class="pass">✓ 2つとも合っています</span>' : '<span style="color:var(--ide-mute)">まだ税込みになっていません</span>'}`;
-  document.getElementById("t-done").hidden = !ok.every(Boolean);
+function labDo(i) {
+  if (i !== labAt || labBusy) return;
+  labBusy = true; labRender();
+  if (labAt === 0) $labLog.querySelector(".mute")?.remove();
+  labLine("cmd", "$ " + LAB[i].cmd);
+  labTimers.push(setTimeout(() => {
+    labLine("ok", LAB[i].ok); labAt++; labBusy = false;
+    if (labAt === LAB.length) { labLine("cmd", "$ curl http://13.231.xx.xx"); labLine("pass", "200 OK ・ Hello from web-1"); }
+    labRender();
+  }, 520));
+}
+$lsteps.forEach((li, i) => li.querySelector(".mk")?.addEventListener("click", () => labDo(i)));
+document.querySelectorAll("#lsteps .port").forEach(b => b.addEventListener("click", () => {
+  const ok = b.dataset.p === "80";
+  document.getElementById("lhint").hidden = ok;
+  b.classList.toggle("ng", !ok);
+  if (ok) labDo(3);
+}));
+document.getElementById("lab-reset").addEventListener("click", () => {
+  labTimers.forEach(clearTimeout); labTimers = []; labAt = 0; labBusy = false;
+  $labLog.innerHTML = '<span class="lbl">ログ</span><span class="mute">「作成」を押すと、ここに結果が出ます</span>';
+  document.getElementById("lhint").hidden = true; document.querySelectorAll("#lsteps .port").forEach(b => b.classList.remove("ng"));
+  labRender();
 });
-document.getElementById("t-reset").addEventListener("click", () => { $tCode.value = T_START; $tOut.innerHTML = '<span class="lbl">コンソール</span>'; document.querySelectorAll("#tchecks li").forEach(li => { li.classList.remove("ok"); li.querySelector("i").textContent = ""; }); document.getElementById("t-done").hidden = true; });
-document.getElementById("t-hint").addEventListener("click", () => { document.getElementById("t-hint-box").hidden = false; });
-$tCode.addEventListener("keydown", e => { if (e.key === "Tab") { e.preventDefault(); const s = $tCode.selectionStart; $tCode.setRangeText("  ", s, $tCode.selectionEnd, "end"); } });
+labRender();
 
 show(viewOfHash());
 
@@ -411,6 +462,75 @@ if (OPTS.auth.googleEnabled) {
       fail(stepEl("login"), e?.message || "Google のログインを始められませんでした。");
     });
   });
+}
+
+/* ---------- 無料登録（個人、2026-10-20 ADR 0029）：メール＋パスワード → 確認コード → そのままログイン ---------- */
+const SF = document.getElementById("sform");
+const sStep = s => SF.querySelector(`[data-sstep="${s}"]`);
+let sResendTimer = 0;
+function sGo(step) {
+  SF.querySelectorAll("[data-sstep]").forEach(el => { el.hidden = el.dataset.sstep !== step; });
+  SF.querySelectorAll(".ferr").forEach(e => { e.hidden = true; e.textContent = ""; });
+  SF.querySelectorAll("[aria-invalid]").forEach(e => e.removeAttribute("aria-invalid"));
+  const first = sStep(step).querySelector("input");
+  if (first && !signupView.hidden) first.focus({ preventScroll: true });
+}
+const sResend = document.getElementById("s-resend");
+function startSignupResend() {
+  let left = 45; clearInterval(sResendTimer); sResend.disabled = true; sResend.textContent = `コードを送り直す（${left}秒後）`;
+  sResendTimer = setInterval(() => { left--; if (left <= 0) { clearInterval(sResendTimer); sResend.disabled = false; sResend.textContent = "コードを送り直す"; } else sResend.textContent = `コードを送り直す（${left}秒後）`; }, 1000);
+}
+CLEANUP.push(() => clearInterval(sResendTimer));
+// ログインしようとした人の登録の確認が済んでいなかったとき（コードは送り直してある）
+function goSignupCode() {
+  if (location.hash !== "#/signup") location.hash = "#/signup";
+  sGo("code"); startSignupResend();
+  sStep("code").querySelector(".info").textContent = "登録の確認がまだです。確認コードを送りました。";
+}
+const sPass = document.getElementById("s-pass");
+sPass.addEventListener("input", () => SF.querySelectorAll('[data-sstep="signup"] .rules span').forEach(r => r.classList.toggle("ok", RULES[r.dataset.r](sPass.value))));
+sStep("signup").addEventListener("submit", e => {
+  e.preventDefault();
+  const form = e.currentTarget, m = document.getElementById("s-email"), agree = document.getElementById("s-agree");
+  if (!m.value.trim()) return fail(form, "メールアドレスを入れてください。", m);
+  if (!mailOk(m.value)) return fail(form, "メールアドレスの形が正しくありません。@ のあとも確かめてください。", m);
+  if (!rulesOk(sPass.value)) return fail(form, "パスワードが条件を満たしていません。", sPass);
+  if (!agree.checked) return fail(form, "利用規約とプライバシーポリシーへの同意が必要です。", agree);
+  busy(form, "登録しています…", () => OPTS.auth.signUp(m.value, sPass.value)).then(r => {
+    if (!r) return;
+    sGo("code"); startSignupResend();
+    sStep("code").querySelector(".info").textContent = `${m.value.trim()} に確認コードを送りました。`;
+  });
+});
+sStep("code").addEventListener("submit", e => {
+  e.preventDefault();
+  const form = e.currentTarget, c = document.getElementById("s-code");
+  if (!checkCode(form, c, "メールに届いた6桁の数字を入れてください。")) return;
+  busy(form, "確かめています…", () => OPTS.auth.confirmSignUp(c.value.trim())).then(r => {
+    if (!r) return;
+    sPass.value = "";
+    if (r.next !== "done") location.hash = "#/login";
+    afterAuth(r);
+  });
+});
+sResend.addEventListener("click", () => {
+  OPTS.auth.resendSignUp().then(() => { sStep("code").querySelector(".info").textContent = "確認コードを送り直しました。"; startSignupResend(); },
+    e => fail(sStep("code"), e?.message || "確認コードを送れませんでした。"));
+});
+// Google で始める（Google のログインが使えるときだけ出す）
+const sGoogle = document.getElementById("s-google");
+if (OPTS.auth.googleEnabled) {
+  sGoogle.addEventListener("click", () => {
+    if (sGoogle.getAttribute("aria-busy")) return;
+    sGoogle.setAttribute("aria-busy", "true");
+    OPTS.auth.google().then(r => { if (r?.next === "done") afterAuth(r); }, err => {
+      sGoogle.removeAttribute("aria-busy");
+      fail(sStep("signup"), err?.message || "Google の登録を始められませんでした。");
+    });
+  });
+} else {
+  sGoogle.hidden = true;
+  sGoogle.nextElementSibling.hidden = true;
 }
 
 if (OPTS.loginError && !loginView.hidden) fail(stepEl("login"), OPTS.loginError);
