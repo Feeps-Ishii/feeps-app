@@ -997,7 +997,8 @@ export default function App() {
   });
   const [view, setView] = useState(() => storageGet("feeps.view", "home"));
   // 新しい管理画面を使うか（"off" で前の画面）。legacyOnce は前の画面を一時的に開いているとき
-  const [consoleOn, setConsoleOn] = useState(() => storageGet("feeps.console", "on") !== "off");
+  // 2026-10-20 ユーザー指定：標準は元の画面（サイドバー）。新しい画面は「新しい画面へ」を押した人だけ（feeps.console = on）
+  const [consoleOn, setConsoleOn] = useState(() => storageGet("feeps.console", "off") === "on");
   const [legacyOnce, setLegacyOnce] = useState(false);
   const [isManager, setIsManager] = useState(false);
   // 2026-09-30: 左の帯と一緒に総合ホームの入口もなくしたので、保存値が "home" でも研修から始める
