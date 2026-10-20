@@ -103,7 +103,8 @@ export const Style = () => <style>{CSS}</style>;
 
 /* ---- 部品 ---- */
 const esc = s => String(s ?? "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
-const hl = l => esc(l).replace(/(\/\*.*?\*\/|&lt;!--.*?--&gt;)/g, '<span class="c">$1</span>').replace(/(&lt;\/?[!a-zA-Z0-9-]+)/g, '<span class="k">$1</span>').replace(/"([^"\n]*)"/g, '<span class="s">"$1"</span>');
+// 1回でまとめて置きかえる（順に置きかえると、先に入れた <span class="k"> の "k" を文字列として拾ってしまう。2026-10-20）
+const hl = l => esc(l).replace(/(\/\*.*?\*\/|&lt;!--.*?--&gt;)|(&lt;\/?[!a-zA-Z0-9-]+)|("[^"\n]*")/g, (m, c, k, str) => (c ? `<span class="c">${c}</span>` : k ? `<span class="k">${k}</span>` : `<span class="s">${str}</span>`));
 function CodeBlock({ fn, code }) {
   const lines = String(code || "").split("\n");
   return (
