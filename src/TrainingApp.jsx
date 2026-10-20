@@ -56,6 +56,8 @@ const AdminProduct = lazy(() => import("./products/admin/AdminProduct.jsx"));
 const GrantsProduct = lazy(() => import("./products/grants/GrantsProduct.jsx"));
 // 企業管理モード（2026-08-21新設）。契約・プラン・席・企業マスタを1か所へ。
 const CompanyProduct = lazy(() => import("./products/company/CompanyProduct.jsx"));
+// 管理者・講師の新しい画面（2026-10-20）
+const ConsoleApp = lazy(() => import("./products/console/ConsoleApp.jsx"));
 
 // Catches render/chunk-load failures in a lazily loaded Product so one broken chunk
 // (e.g. a deploy while the tab was open) degrades to a reload prompt, not a white screen.
@@ -985,6 +987,9 @@ export default function App() {
     return ROLES[storedRole] ? storedRole : "trainee";
   });
   const [view, setView] = useState(() => storageGet("feeps.view", "home"));
+  // 新しい管理画面を使うか（"off" で前の画面）。legacyOnce は前の画面を一時的に開いているとき
+  const [consoleOn, setConsoleOn] = useState(() => storageGet("feeps.console", "on") !== "off");
+  const [legacyOnce, setLegacyOnce] = useState(false);
   // 2026-09-30: 左の帯と一緒に総合ホームの入口もなくしたので、保存値が "home" でも研修から始める
   const [product, setProduct] = useState(() => { const saved = storageGet("feeps.product", "training"); return saved === "home" ? "training" : saved; });
   const [subView, setSubView] = useState(() => storageGet("feeps.subView", "home"));
@@ -1749,6 +1754,20 @@ export default function App() {
   const shellOffset = isHomeProduct ? 0 : (sidebarCollapsed ? T.sidebarWidthCollapsed : T.sidebarWidth);
   const RAIL_SHORT = { training: "研修", analytics: "分析", grants: "助成金", company: "企業", learning: "学習", talent: "成長", matching: "案件" };
 
+  const useConsole = consoleOn && !legacyOnce && (role === "admin" || role === "instructor") && viewMode === "training" && !karte;
+  if (useConsole) {
+    return (
+      <Suspense fallback={<PageLoading />}>
+        <ConsoleApp role={role} displayName={displayName} userProfile={userProfile} onLogout={logout} goProduct={goProduct}
+          modeSwitch={modeSwitch}
+          viewAs={isViewingAsOther ? { label: me.label, back: () => switchRole("admin") } : null}
+          onLegacy={(v, opts = {}) => { if (opts.persist) { storageSet("feeps.console", "off"); setConsoleOn(false); } else setLegacyOnce(true); if (product !== "training") goProduct("training"); go(v); }} />
+      </Suspense>
+    );
+  }
+  const backToConsole = (role === "admin" || role === "instructor") && viewMode === "training" && (!consoleOn || legacyOnce)
+    ? <button type="button" onClick={() => { storageSet("feeps.console", "on"); setConsoleOn(true); setLegacyOnce(false); }} className="rounded-lg px-2.5 py-1 text-xs font-bold" style={{ background: "#F0ECFC", color: "#6E54D9" }}>新しい画面へ</button>
+    : null;
   return (
     <div className="app-root feeps-nova-shell flex min-h-screen flex-col lg:h-screen lg:overflow-hidden lg:overflow-x-hidden" style={{
       background: T.shellBase, color: T.textPrimary,
@@ -1786,6 +1805,7 @@ export default function App() {
             </div>
           </button>
           <div className="ml-auto flex items-center gap-1">
+            {backToConsole}
             {modeSwitch}
             <TenolabLink compact />
             <ChatNotifier role={role} compact onOpenTeams={openTeamsFromChat} />

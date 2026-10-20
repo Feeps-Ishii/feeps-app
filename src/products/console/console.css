@@ -1,0 +1,174 @@
+/* 管理者・講師の新しい画面（2026-10-20。モック docs/design/mockups/devhub-lms-2026-10/lms-admin-new.html）
+   サイドバーなし。上の帯（コース／教材／人・企業 と小さな頼む欄）＋本文。色と形はモックのまま、.dhc の中だけに効かせる */
+.dhc {
+  --bg: #F4F6FA; --surface: #FFFFFF; --ink: #161B26; --ink2: #3B4456; --sub: #5E6779; --mut: #8E96A6; --line: #E3E7EE; --line2: #EEF1F5; --soft: #F6F8FB;
+  --blue: #2F6FE0; --blue-soft: #E8F0FD; --violet: #6E54D9; --violet-soft: #F0ECFC; --ok: #1F9D6B; --ok-soft: #E4F5EE; --warn: #B4590F; --warn-soft: #FFF2E2; --bad: #D9483B; --bad-soft: #FDECEA;
+  --grad: linear-gradient(135deg, #6E54D9, #2F6FE0);
+  min-height: 100vh; background: var(--bg); color: var(--ink);
+  font-family: "Noto Sans JP", "Hiragino Sans", "Yu Gothic", system-ui, sans-serif; font-size: 14px; line-height: 1.6;
+}
+.dhc * { box-sizing: border-box }
+.dhc button { cursor: pointer; font: inherit; color: inherit }
+.dhc input, .dhc select, .dhc textarea { font: inherit; color: inherit }
+.dhc :focus-visible { outline: 2px solid var(--blue); outline-offset: 2px }
+
+/* 上の帯 */
+.dhc-bar { position: sticky; top: 0; z-index: 30; display: flex; align-items: center; gap: 14px; flex-wrap: wrap; padding: 10px max(16px, 2vw); background: var(--surface); border-bottom: 1px solid var(--line) }
+.dhc-brand { display: flex; align-items: center; gap: 10px; border: 0; background: none; padding: 0; text-align: left }
+.dhc-brand i { width: 30px; height: 30px; border-radius: 9px; background: var(--grad); flex: none }
+.dhc-brand b { font-size: 14px; display: block; line-height: 1.2 }
+.dhc-brand small { display: block; font-size: 10.5px; color: var(--mut); font-weight: 700; letter-spacing: .08em }
+.dhc-nav { display: flex; gap: 2px }
+.dhc-nav button { border: 0; background: none; padding: 7px 12px; border-radius: 9px; font-weight: 700; color: var(--sub); white-space: nowrap }
+.dhc-nav button[aria-current="true"] { background: var(--soft); color: var(--ink) }
+.dhc-cswitch { position: relative }
+.dhc-cswitch > button { display: flex; align-items: center; gap: 8px; border: 1px solid var(--line); background: var(--surface); border-radius: 10px; padding: 5px 10px; font-weight: 800; font-size: 13px; max-width: 280px }
+.dhc-cswitch > button span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap }
+.dhc-dot { width: 9px; height: 9px; border-radius: 3px; background: var(--c, #8E96A6); flex: none }
+.dhc-mini { flex: 1 1 260px; max-width: 520px; display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 6px; align-items: center; border: 1.5px solid var(--line); border-radius: 12px; padding: 3px 3px 3px 12px; background: var(--soft) }
+.dhc-mini:focus-within { border-color: var(--violet); background: var(--surface) }
+.dhc-mini input { border: 0; background: transparent; outline: none; font-size: 13.5px; min-width: 0; padding: 4px 0 }
+.dhc-mini button { border: 0; background: var(--grad); color: #fff; border-radius: 9px; padding: 5px 14px; font-weight: 800; font-size: 13px }
+.dhc-me { margin-left: auto; display: flex; gap: 8px; align-items: center; font-size: 12.5px; color: var(--sub); position: relative }
+.dhc-av { width: 30px; height: 30px; border-radius: 50%; display: grid; place-items: center; color: #fff; font-size: 12px; font-weight: 800; background: var(--ac, #2F6FE0); border: 0 }
+.dhc-menu { position: absolute; right: 0; top: calc(100% + 6px); z-index: 40; min-width: 220px; background: var(--surface); border: 1px solid var(--line); border-radius: 12px; box-shadow: 0 18px 40px -18px rgba(20,30,60,.35); padding: 6px; display: grid }
+.dhc-menu button { border: 0; background: none; text-align: left; padding: 8px 10px; border-radius: 8px; font-size: 13px; color: var(--ink2) }
+.dhc-menu button:hover { background: var(--soft) }
+.dhc-menu hr { border: 0; border-top: 1px solid var(--line2); margin: 4px 0 }
+.dhc-menu .lab { font-size: 11px; font-weight: 800; color: var(--mut); padding: 6px 10px 2px; letter-spacing: .06em }
+.dhc-viewas { background: var(--warn-soft); color: var(--warn); font-size: 12px; font-weight: 700; text-align: center; padding: 4px 12px }
+.dhc-viewas button { border: 0; background: none; text-decoration: underline; font-weight: 800; color: inherit }
+
+.dhc-body { padding: 22px max(16px, 2.4vw) 40px; display: grid; gap: 18px; align-content: start; max-width: 1400px; margin: 0 auto }
+
+/* 共通の部品 */
+.dhc-card { background: var(--surface); border: 1px solid var(--line); border-radius: 16px }
+.dhc-sec { padding: 16px 18px; display: grid; gap: 12px }
+.dhc-sec > h3 { margin: 0; font-size: 15px; display: flex; gap: 8px; align-items: center; flex-wrap: wrap }
+.dhc-sec > h3 small { font-weight: 500; color: var(--sub); font-size: 12.5px }
+.dhc-sec > h3 .r { margin-left: auto }
+.dhc-secttl { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap }
+.dhc-secttl h2 { margin: 0; font-size: 17px }
+.dhc-secttl small { color: var(--sub); font-size: 12.5px }
+.dhc-secttl .r { margin-left: auto; display: flex; gap: 6px; flex-wrap: wrap }
+.dhc-pill { display: inline-flex; align-items: center; gap: 4px; border-radius: 999px; padding: 1px 9px; font-size: 11.5px; font-weight: 700; background: var(--soft); color: var(--sub); white-space: nowrap }
+.dhc-pill.ok { background: var(--ok-soft); color: var(--ok) } .dhc-pill.warn { background: var(--warn-soft); color: var(--warn) } .dhc-pill.bad { background: var(--bad-soft); color: var(--bad) } .dhc-pill.ai { background: var(--violet-soft); color: var(--violet) } .dhc-pill.blue { background: var(--blue-soft); color: var(--blue) }
+.dhc-btn { border: 1px solid var(--ink); background: var(--ink); color: var(--surface) !important; border-radius: 10px; padding: 7px 16px; font-weight: 800; font-size: 13.5px }
+.dhc-btn.ghost { background: var(--surface); color: var(--ink2) !important; border-color: var(--line) }
+.dhc-btn.ok { background: var(--ok); border-color: var(--ok) }
+.dhc-btn.ai { background: var(--grad); border-color: transparent }
+.dhc-btn:disabled { opacity: .5; cursor: default }
+.dhc-lnk { border: 0; background: none; padding: 0; color: var(--blue) !important; font-weight: 700; font-size: 12.5px }
+.dhc-note { font-size: 12.5px; color: var(--sub) }
+.dhc-err { font-size: 13px; color: var(--bad); background: var(--bad-soft); border-radius: 10px; padding: 8px 12px }
+.dhc-empty { padding: 26px; text-align: center; color: var(--sub); font-size: 13px }
+
+/* ホームの一番上の頼む欄 */
+.dhc-hero { display: grid; gap: 12px; padding: 24px 26px; border-radius: 20px; background: var(--surface); border: 1px solid var(--line); box-shadow: 0 1px 2px rgba(20,30,60,.04), 0 18px 44px -26px rgba(60,40,140,.4); position: relative }
+.dhc-hero::before { content: ""; position: absolute; inset: 0 0 auto 0; height: 4px; border-radius: 20px 20px 0 0; background: var(--grad) }
+.dhc-hero h2 { margin: 0; font-size: 24px }
+.dhc-hrow { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 10px; align-items: stretch }
+.dhc-scope { position: relative }
+.dhc-scope > button { height: 100%; display: flex; gap: 10px; align-items: center; border: 1.5px solid var(--line); background: var(--soft); border-radius: 14px; padding: 8px 14px; font-weight: 800; min-width: 250px; max-width: 340px; text-align: left; font-size: 14.5px }
+.dhc-scope > button > span:nth-child(2) { min-width: 0; overflow: hidden }
+.dhc-scope > button small { display: block; font-size: 11.5px; color: var(--sub); font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap }
+.dhc-scope .chev, .dhc-cswitch .chev { margin-left: auto; color: var(--mut) }
+.dhc-bigask { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 10px; align-items: center; border: 1.5px solid var(--line); border-radius: 14px; padding: 8px 8px 8px 16px; background: var(--soft) }
+.dhc-bigask:focus-within { border-color: var(--violet); background: var(--surface) }
+.dhc-bigask input { border: 0; background: transparent; outline: none; font-size: 15.5px; padding: 8px 0; min-width: 0 }
+.dhc-go { border: 0; background: var(--grad); color: #fff !important; border-radius: 10px; padding: 9px 22px; font-weight: 800; font-size: 14.5px }
+.dhc-go:disabled { opacity: .6 }
+.dhc-chips { display: flex; flex-wrap: wrap; gap: 6px }
+.dhc-chips button { border: 1px dashed var(--line); background: var(--surface); border-radius: 999px; padding: 3px 12px; font-size: 12.5px; color: var(--ink2) }
+.dhc-chips button:hover { border-color: var(--violet); color: var(--violet) }
+
+/* コースの選択メニュー */
+.dhc-cmenu { position: absolute; left: 0; top: calc(100% + 6px); z-index: 40; width: 340px; max-width: calc(100vw - 32px); max-height: 420px; overflow: auto; background: var(--surface); border: 1px solid var(--line); border-radius: 14px; box-shadow: 0 18px 40px -18px rgba(20,30,60,.35); padding: 8px; display: grid; gap: 2px }
+.dhc-cmenu input { border: 1px solid var(--line); border-radius: 9px; padding: 6px 10px; font-size: 13px; margin-bottom: 4px }
+.dhc-cmenu .lab { font-size: 11px; font-weight: 800; color: var(--mut); padding: 6px 8px 2px; letter-spacing: .06em }
+.dhc-ci { display: grid; grid-template-columns: 10px minmax(0, 1fr) auto; gap: 10px; align-items: center; border: 0; background: none; text-align: left; padding: 7px 8px; border-radius: 9px }
+.dhc-ci:hover, .dhc-ci[aria-current="true"] { background: var(--soft) }
+.dhc-ci i { width: 10px; height: 10px; border-radius: 3px; background: var(--c) }
+.dhc-ci b { display: block; font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap }
+.dhc-ci small { display: block; font-size: 11.5px; color: var(--sub); overflow: hidden; text-overflow: ellipsis; white-space: nowrap }
+
+/* コースのカード */
+.dhc-courses { display: grid; grid-template-columns: repeat(auto-fill, minmax(290px, 1fr)); gap: 12px }
+.dhc-cc { text-align: left; border: 1px solid var(--line); background: var(--surface); border-radius: 16px; padding: 14px 16px; display: grid; gap: 8px; position: relative; overflow: hidden }
+.dhc-cc::before { content: ""; position: absolute; inset: 0 auto 0 0; width: 4px; background: var(--c) }
+.dhc-cc:hover { border-color: var(--violet) }
+.dhc-cc .t { display: flex; gap: 8px; align-items: baseline }
+.dhc-cc .t b { font-size: 15px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap }
+.dhc-cc .t small { color: var(--sub); font-size: 12px; white-space: nowrap }
+.dhc-cc .nums { display: flex; gap: 14px; font-size: 12.5px; color: var(--sub); flex-wrap: wrap }
+.dhc-cc .nums b { color: var(--ink); font-size: 15px; font-variant-numeric: tabular-nums; margin-right: 2px }
+.dhc-cc .tags { display: flex; gap: 6px; flex-wrap: wrap }
+
+/* 数字のタイル */
+.dhc-g4 { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 12px }
+.dhc-td { text-align: left; border: 1px solid var(--line); background: var(--surface); border-radius: 14px; padding: 14px 16px; display: grid; gap: 2px }
+.dhc-td:hover { border-color: var(--violet) }
+.dhc-td b { font-size: 28px; line-height: 1.15; font-variant-numeric: tabular-nums }
+.dhc-td span { font-weight: 700; font-size: 13px }
+.dhc-td small { color: var(--sub); font-size: 12px }
+.dhc-td em { font-style: normal; font-size: 12px; font-weight: 700; color: var(--violet); margin-top: 4px }
+.dhc-td.warn b { color: var(--warn) } .dhc-td.bad b { color: var(--bad) }
+
+/* コースの頭とタブ */
+.dhc-chead { display: flex; gap: 14px; align-items: center; flex-wrap: wrap }
+.dhc-chead h1 { margin: 0; font-size: 21px; display: flex; gap: 10px; align-items: center }
+.dhc-chead h1 .dhc-dot { width: 12px; height: 12px; border-radius: 4px }
+.dhc-chead .meta { color: var(--sub); font-size: 12.5px; display: flex; gap: 10px; flex-wrap: wrap }
+.dhc-tabs { display: flex; gap: 2px; border-bottom: 1px solid var(--line); overflow-x: auto; scrollbar-width: thin }
+.dhc-tabs button { border: 0; background: none; padding: 9px 13px 10px; font-weight: 700; color: var(--sub); border-bottom: 2.5px solid transparent; margin-bottom: -1px; white-space: nowrap; display: inline-flex; gap: 6px; align-items: center }
+.dhc-tabs button[aria-current="true"] { color: var(--ink); border-bottom-color: var(--violet) }
+.dhc-tabs button em { font-style: normal; font-size: 11px; font-weight: 800; background: var(--warn-soft); color: var(--warn); border-radius: 999px; padding: 0 7px }
+.dhc-tabs .grp { width: 1px; background: var(--line); margin: 8px 6px }
+.dhc-pane { min-width: 0 }
+/* 中に入れる今までの画面：コースの選択はこの画面の上で済んでいるので、余白だけ整える */
+.dhc-pane > div:first-child { min-width: 0 }
+
+/* 頼んだ結果（右から出る板） */
+.dhc-shade { position: fixed; inset: 0; z-index: 60; background: rgba(16,20,32,.32); display: flex; justify-content: flex-end }
+.dhc-panel { width: min(560px, 100vw); height: 100%; background: var(--bg); border-left: 1px solid var(--line); display: grid; grid-template-rows: auto 1fr auto; box-shadow: -20px 0 50px -30px rgba(20,30,60,.5) }
+.dhc-panel > header { display: flex; align-items: center; gap: 10px; padding: 14px 18px; background: var(--surface); border-bottom: 1px solid var(--line) }
+.dhc-panel > header b { font-size: 15px }
+.dhc-panel > header button { margin-left: auto; border: 0; background: none; font-size: 20px; color: var(--mut); line-height: 1 }
+.dhc-panel > .in { overflow: auto; padding: 18px; display: grid; gap: 14px; align-content: start }
+.dhc-panel > footer { padding: 12px 18px; background: var(--surface); border-top: 1px solid var(--line); display: flex; gap: 8px; align-items: center; flex-wrap: wrap }
+.dhc-you { justify-self: end; max-width: 85%; background: var(--ink); color: #fff; border-radius: 14px 14px 4px 14px; padding: 9px 14px; font-size: 14px; white-space: pre-wrap }
+.dhc-say { display: grid; grid-template-columns: 30px minmax(0, 1fr); gap: 12px; align-items: start }
+.dhc-say .ic { width: 30px; height: 30px; border-radius: 10px; background: var(--grad); color: #fff; display: grid; place-items: center; font-size: 11px; font-weight: 800 }
+.dhc-say .tx { display: grid; gap: 10px; min-width: 0 }
+.dhc-chg { display: grid; grid-template-columns: auto auto minmax(0, 1fr); gap: 10px; align-items: start; padding: 12px 14px; border: 1px solid var(--line); border-radius: 12px; background: var(--surface) }
+.dhc-chg input[type=checkbox] { width: 16px; height: 16px; margin-top: 3px }
+.dhc-chg .k { font-size: 11.5px; font-weight: 800; border-radius: 6px; padding: 2px 8px; white-space: nowrap; margin-top: 1px }
+.dhc-k-mv { background: var(--blue-soft); color: var(--blue) } .dhc-k-pub { background: var(--warn-soft); color: var(--warn) } .dhc-k-add { background: var(--ok-soft); color: var(--ok) }
+.dhc-chg .bd { display: grid; gap: 6px; min-width: 0 }
+.dhc-chg .bd b { font-size: 14px }
+.dhc-chg .bd small { color: var(--sub); font-size: 12.5px }
+.dhc-chg .bd input[type=text], .dhc-chg .bd textarea, .dhc-chg .bd select { width: 100%; border: 1px solid var(--line); border-radius: 9px; padding: 6px 10px; font-size: 13px; background: var(--surface) }
+.dhc-chg .bd textarea { min-height: 110px; resize: vertical }
+.dhc-chg.done { border-color: color-mix(in srgb, var(--ok) 40%, var(--line)); background: var(--ok-soft) }
+.dhc-chg.fail { border-color: color-mix(in srgb, var(--bad) 40%, var(--line)) }
+.dhc-which { display: flex; gap: 6px; flex-wrap: wrap }
+.dhc-which button { border: 1px solid var(--line); background: var(--surface); border-radius: 10px; padding: 4px 10px; font-size: 12.5px; text-align: left }
+.dhc-which button small { display: block; color: var(--sub); font-size: 11px }
+.dhc-which button[aria-pressed="true"] { border-color: var(--ink); box-shadow: 0 0 0 1.5px var(--ink) inset }
+.dhc-names { display: flex; gap: 6px; flex-wrap: wrap }
+.dhc-names span { font-size: 12.5px; border-radius: 8px; padding: 2px 8px; background: var(--ok-soft); color: var(--ok); font-weight: 700 }
+.dhc-names span.ng { background: var(--warn-soft); color: var(--warn) }
+
+/* 人・企業 */
+.dhc-subtabs { display: flex; gap: 6px; flex-wrap: wrap }
+.dhc-subtabs button { border: 1px solid var(--line); background: var(--surface); border-radius: 999px; padding: 4px 14px; font-size: 13px; font-weight: 700; color: var(--ink2) }
+.dhc-subtabs button[aria-pressed="true"] { background: var(--ink); color: var(--surface); border-color: var(--ink) }
+
+@media (max-width: 760px) {
+  .dhc-hrow { grid-template-columns: minmax(0, 1fr) }
+  .dhc-scope > button { min-width: 0; max-width: none; width: 100% }
+  .dhc-hero { padding: 18px 16px }
+  .dhc-hero h2 { font-size: 20px }
+  .dhc-mini { order: 5; flex-basis: 100%; max-width: none }
+}
+@media (prefers-reduced-motion: reduce) { .dhc * { transition: none !important; animation: none !important } }
