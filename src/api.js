@@ -26,6 +26,7 @@ const ERROR_TEXT = {
   individual_not_allowed: "この画面は個人のアカウントでは使えません。",
   case_limit: "Pro プランで参画できる本格案件は2本までです。もっと参画するには Pro+ にしてください。",
   plan_plus_required: "AWS の案件は Pro+ プランで利用できます。",
+  ai_limit_reached: "今月の AI コーチの回数を使い切りました。来月になると、また使えます。",
 };
 
 async function throwApiError(res, path, method) {

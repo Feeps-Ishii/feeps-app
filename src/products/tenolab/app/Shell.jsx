@@ -56,6 +56,7 @@ export default function Shell({ section, name, email, role, switchLink, onLogout
                 {onRename && (renaming
                   ? <form onSubmit={saveName} style={{ display: "grid", gap: 6, padding: "8px 12px" }}><input id="um-rename" aria-label="新しい名前" value={newName} autoFocus onChange={e => setNewName(e.target.value.slice(0, 40))} /><span style={{ display: "flex", gap: 6, justifyContent: "flex-end" }}><button type="button" className="btn ghost" onClick={() => setRenaming(false)}>やめる</button><button type="submit" className="btn" disabled={renameBusy || !newName.trim()}>{renameBusy ? "保存しています…" : "保存"}</button></span></form>
                   : <button type="button" role="menuitem" className="um-out" onClick={() => { setNewName(name || ""); setRenaming(true); }}>名前を変える</button>)}
+                {variant === "learner" && <a role="menuitem" className="um-out" href="#/record" onClick={() => setOpen(false)}>学習の記録</a>}
                 {role === "individual" && <a role="menuitem" className="um-out" href="#/account" onClick={() => setOpen(false)}>プランと支払い</a>}
                 <button type="button" role="menuitem" className="um-out" onClick={() => { setOpen(false); onLogout(); }}>ログアウト</button>
               </div>

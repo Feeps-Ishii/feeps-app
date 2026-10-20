@@ -78,6 +78,7 @@ export default function AccountPlan() {
         <div><span className="ap-k">いまのプラン</span><b className="ap-plan">{NAME[d.plan] || "無料"}</b></div>
         {paid && <div><span className="ap-k">{d.cancelAtPeriodEnd ? "使える期限" : "次の請求日"}</span><b>{day(d.currentPeriodEnd)}</b>{d.cancelAtPeriodEnd && <small>この日で無料に戻ります</small>}</div>}
         {paid && aws && <div><span className="ap-k">本物の AWS（今月の残り）</span><b>{Math.floor(aws.left / 60)}時間{aws.left % 60 ? ` ${aws.left % 60}分` : ""}</b><small>月 {Math.round((aws.limit + aws.extra) / 60)}時間まで</small></div>}
+        {paid && d.ai && <div><span className="ap-k">AI コーチ（今月の残り）</span><b>{d.ai.left}回</b><small>月 {d.ai.limit}回まで</small></div>}
         {paid && d.status === "past_due" && <div className="ap-warn">お支払いを確かめられませんでした。カードを確かめてください。</div>}
         {d.hasCustomer && <button type="button" className="btn ghost" disabled={!!busy} onClick={() => go("/billing/portal", {}, "portal")}>{busy === "portal" ? "開いています…" : "支払いと解約"}</button>}
       </section>

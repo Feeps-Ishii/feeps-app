@@ -16,6 +16,7 @@ import ManagePage, { ADMIN_NAV, adminSection } from "./app/manage/ManagePage.jsx
 import ClientPages, { CLIENT_NAV, clientSection } from "./app/company/CompanyPages.jsx";
 import StudioPage from "./app/studio/StudioPage.jsx";
 import AccountPlan from "./app/AccountPlan.jsx";
+import RecordPage from "./app/RecordPage.jsx";
 import { LoadError, Loading, setViewerRole } from "./app/ui.jsx";
 import { submitInquiry, useCases, useDrills, useLabProgress, useMe, useTopics, useNotices, markNoticeRead } from "./app/data.js";
 import { NoticeDrawer } from "./app/notices/Notices.jsx";
@@ -33,6 +34,7 @@ import "./app/app.css";
      #/company/…                           企業担当者の画面（自社の社員の習得状況・スキル・契約。企業担当者はここから始まる）
      #/studio[/course/{courseId}]           教材づくり（AIとチャットで作る。管理者だけ。外枠はモックどおり専用）
      #/account[?billing=success|cancel]    プランと支払い（個人だけ。ADR 0029）
+     #/record                               学習の記録（PDF に出す。有料の人）
    「研修のみ」の契約の企業の人（/tenolab/me の elearning が false）は、ログアウトしてログインの画面に戻す（ADR 0025） */
 // 入口の画面（紹介・法人・無料登録・規約。2026-10-20 に signup / business / terms / privacy / tokushoho を足した）
 const ENTRY = new Set(["", "login", "signup", "business", "try", "quote", "terms", "privacy", "tokushoho"]);
@@ -43,6 +45,7 @@ function parseHash() {
   if (!p.length || ENTRY.has(p[0])) return { page: "entry", view: p[0] || "" };
   if (p[0] === "home") return { page: "home" };
   if (p[0] === "account") return { page: "account" };
+  if (p[0] === "record") return { page: "record" };
   if (p[0] === "topics" && p[1]) return { page: "topic", id: p[1] };
   if (p[0] === "courses" && !p[1]) return { page: "list", kind: "courses" };
   if (p[0] === "courses" && p[2] === "lessons" && p[3]) return { page: "lesson", id: p[1], lessonId: p[3], slideId: p[4] || null };
@@ -315,6 +318,7 @@ function App({ route, auth, onLogout }) {
   else if (route.page === "test") page = <FinalTestPage ctx={ctx} courseId={route.id} mode={route.mode} />;
   else if (route.page === "drill") page = <DrillPage ctx={ctx} id={route.id} />;
   else if (route.page === "case") page = <CasePage ctx={ctx} id={route.id} />;
+  else if (route.page === "record") page = <RecordPage ctx={ctx} name={auth.name} email={auth.email} />;
   else if (route.page === "account") page = auth.role === "individual" ? <AccountPlan />
     : <p className="muted" style={{ paddingTop: 24 }}>契約は、お勤め先の研修のご担当者が管理しています。</p>;
 

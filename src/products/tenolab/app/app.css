@@ -542,3 +542,38 @@
   .tl-course .ap-add-btns .btn { display: inline-flex; gap: 8px; align-items: baseline; }
   .tl-course .ap-add-btns .btn small { font-weight: 600; }
 }
+
+/* 学習の記録（2026-10-20、app/RecordPage.jsx） */
+@layer tenolab {
+  .tl-course .rec { display: grid; gap: 14px; padding-block: 24px 48px; max-width: 900px; }
+  .tl-course .rec-bar { display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 12px; }
+  .tl-course .rec-bar .h1 { margin: 0; }
+  .tl-course .rec-act { display: grid; gap: 4px; justify-items: end; }
+  .tl-course .rec-act small { font-size: 12px; color: var(--muted); }
+  .tl-course .rec-note { margin: 0; font-size: 13px; }
+  .tl-course .rec-sheet { padding: 28px 32px; display: grid; gap: 12px; }
+  .tl-course .rec-head { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: flex-end; gap: 8px; border-bottom: 2px solid var(--ink); padding-bottom: 10px; }
+  .tl-course .rec-head > div { display: grid; gap: 2px; }
+  .tl-course .rec-title { font-size: 20px; }
+  .tl-course .rec-who { font-size: 14px; color: var(--ink2); }
+  .tl-course .rec-date { font-size: 12.5px; color: var(--muted); font-variant-numeric: tabular-nums; }
+  .tl-course .rec-sum { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+  .tl-course .rec-sum div { border: 1px solid var(--line); border-radius: 10px; padding: 10px 14px; display: grid; }
+  .tl-course .rec-sum span { font-size: 12px; color: var(--muted); }
+  .tl-course .rec-sum b { font-size: 26px; font-variant-numeric: tabular-nums; }
+  .tl-course .rec-sheet h2 { font-size: 15px; margin: 10px 0 0; }
+  .tl-course .rec-t { width: 100%; border-collapse: collapse; font-size: 13px; }
+  .tl-course .rec-t th { text-align: left; font-size: 11.5px; color: var(--muted); font-weight: 600; border-bottom: 1px solid var(--line); padding: 5px 6px; }
+  .tl-course .rec-t td { border-bottom: 1px solid var(--line); padding: 6px; }
+  .tl-course .rec-t .num { font-variant-numeric: tabular-nums; white-space: nowrap; }
+  .tl-course .rec-aws { margin-left: 8px; font-size: 11px; font-weight: 700; color: #8A4A10; background: #FDE7D6; border-radius: 5px; padding: 0 6px; }
+  .tl-course .rec-st { font-size: 12px; font-weight: 700; border-radius: 6px; padding: 0 8px; background: var(--soft); }
+  .tl-course .rec-st.ok { background: var(--mint-soft); color: #0B6B50; }
+  .tl-course .rec-st.warn { background: var(--marker-soft); color: #7A5A00; }
+  .tl-course .rec-foot { margin-top: 8px; font-size: 11.5px; color: var(--muted); }
+  @media (max-width: 640px) {
+    .tl-course .rec-sheet { padding: 18px 14px; }
+    .tl-course .rec-sum { grid-template-columns: 1fr; }
+    .tl-course .rec-act { justify-items: start; }
+  }
+}
