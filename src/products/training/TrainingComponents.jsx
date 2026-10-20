@@ -4535,9 +4535,10 @@ function normalizeReportComments(r) {
     const authorRole = String(c?.authorRole || c?.role || "instructor").toLowerCase();
     comments.push({
       id: c?.commentId || `comment-${i}`,
-      by: c?.authorName || c?.by || reportCommentRoleLabel(authorRole),
+      // コース担当者（2026-10-20）は authorTitle で見せる名前だけ分ける
+      by: c?.authorName || c?.by || (c?.authorTitle ? `${c.authorTitle}コメント` : reportCommentRoleLabel(authorRole)),
       role: authorRole,
-      roleLabel: reportCommentRoleLabel(authorRole),
+      roleLabel: c?.authorTitle ? `${c.authorTitle}コメント` : reportCommentRoleLabel(authorRole),
       tone: reportCommentTone(authorRole),
       text,
       at: c?.createdAt ? fmtTs(c.createdAt) : (c?.at || ""),

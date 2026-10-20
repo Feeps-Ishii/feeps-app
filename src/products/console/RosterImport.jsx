@@ -37,7 +37,7 @@ async function downloadExcel({ company, course, rows }) {
   XLSX.writeFile(wb, `DevHub LMS アカウント_${company}_${today.replace(/-/g, "")}.xlsx`);
 }
 
-export default function RosterImport({ course, onClose, onDone }) {
+export default function RosterImport({ course, admin = true, onClose, onDone }) {
   const [rows, setRows] = useState(null);
   const [map, setMap] = useState(null);
   const [paste, setPaste] = useState("");
@@ -51,9 +51,15 @@ export default function RosterImport({ course, onClose, onDone }) {
   const [done, setDone] = useState(null);   // { made: [{name, loginId, password, email}], enrolled, failed: [] }
 
   useEffect(() => {
-    apiGet("/companies").then(l => setCompanies((l || []).filter(c => !c.deleted))).catch(() => setCompanies([]));
-    apiGet("/admin/users").then(l => setUsers((l || []).filter(u => !u.role || u.role === "trainee"))).catch(() => setUsers([]));
-  }, []);
+    // コース担当者は、このコースの企業だけ（API もそれ以外は断る）
+    apiGet("/companies").then(l => setCompanies((l || []).filter(c => !c.deleted && (admin || !course.companyId || c.companyId === course.companyId)))).catch(() => setCompanies([]));
+  }, [admin, course.companyId]);
+  // 今いる人：選んだ企業の受講生（同じ人を二重に作らない）
+  useEffect(() => {
+    if (!companyId) { setUsers([]); return; }
+    setUsers(null);
+    apiGet(`/companies/${encodeURIComponent(companyId)}/trainees`).then(l => setUsers(l || [])).catch(() => setUsers([]));
+  }, [companyId]);
   const company = companies.find(c => c.companyId === companyId);
   useEffect(() => { if (!prefix && company) setPrefix(slug(company.name) || slug(company.companyId) || "user"); }, [company]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -77,7 +83,7 @@ export default function RosterImport({ course, onClose, onDone }) {
 
   const people = useMemo(() => rosterPeople(rows || [], map), [rows, map]);
   const judged = useMemo(() => {
-    const mine = (users || []).filter(u => !companyId || u.company === companyId || u.companyId === companyId);
+    const mine = users || [];
     const seen = new Set();
     return people.map(p => {
       const key = p.email || norm(p.name);
@@ -96,7 +102,7 @@ export default function RosterImport({ course, onClose, onDone }) {
     let enrolled = 0;
     const news = judged.filter(p => p.kind === "new");
     if (news.length) {
-      const plan = await apiPost("/admin/accounts/plan", { prefix, count: news.length });
+      const plan = await apiPost("/admin/accounts/plan", { prefix, count: news.length, courseId: course.id });
       const ids = plan?.loginIds || [];
       const list = news.map((p, i) => ({ ...p, loginId: ids[i], password: makePassword() })).filter(p => p.loginId);
       for (let i = 0; i < list.length; i += CHUNK) {

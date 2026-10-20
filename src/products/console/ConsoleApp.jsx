@@ -23,7 +23,7 @@ function saveLoc(loc) { try { window.sessionStorage.setItem(LOC_KEY, JSON.string
 
 const initials = name => String(name || "?").replace(/\s/g, "").slice(0, 1);
 
-export default function ConsoleApp({ role, displayName, userProfile, onLogout, onLegacy, goProduct, modeSwitch, viewAs }) {
+export default function ConsoleApp({ role, manager = false, displayName, userProfile, onLogout, onLegacy, goProduct, modeSwitch, viewAs }) {
   const data = useConsoleCourses(role);
   const { courses } = data;
   const [loc, setLoc] = useState(() => readLoc() || { area: "home" });
@@ -90,7 +90,7 @@ export default function ConsoleApp({ role, displayName, userProfile, onLogout, o
       {viewAs && <div className="dhc-viewas">{viewAs.label}の画面で表示しています <button type="button" onClick={viewAs.back}>管理者に戻る</button></div>}
       <header className="dhc-bar">
         <button type="button" className="dhc-brand" onClick={() => (single ? openCourse(single.id) : go({ area: "home" }))}>
-          <i aria-hidden="true" /><span><b>DevHub LMS</b><small>{role === "instructor" ? "講師" : "管理"}</small></span>
+          <i aria-hidden="true" /><span><b>DevHub LMS</b><small>{manager ? "コース担当者" : role === "instructor" ? "講師" : "管理"}</small></span>
         </button>
         <nav className="dhc-nav" aria-label="入口">
           {nav.map(([k, t]) => (
@@ -132,13 +132,14 @@ export default function ConsoleApp({ role, displayName, userProfile, onLogout, o
 
       <main className="dhc-body">
         {loc.area === "home" && (
-          <ConsoleHome role={role} courses={courses} loading={data.loading} error={data.error} reload={data.reload}
+          <ConsoleHome role={role} manager={manager} courses={courses} loading={data.loading} error={data.error} reload={data.reload}
             scope={scope} setScope={setScope} onAsk={t => doAsk(t, scope)} asking={asking}
             pick={pick} setPick={setPick} openCourse={openCourse} />
         )}
         {loc.area === "course" && course && (
           <ConsoleCourse course={course} tab={loc.tab || "today"} role={role} counts={counts}
             openTab={tab => go({ area: "course", courseId: loc.courseId, tab })} onLegacy={onLegacy}
+            canManage={role === "admin" || manager}
             roster={!!loc.roster} onRosterClose={() => go({ area: "course", courseId: loc.courseId, tab: loc.tab })} onChanged={data.reload}
             userProfile={userProfile} displayName={displayName} goProduct={goProduct} />
         )}
@@ -147,7 +148,7 @@ export default function ConsoleApp({ role, displayName, userProfile, onLogout, o
         {loc.area === "people" && role === "admin" && <ConsolePeople sub={loc.sub} setSub={sub => go({ area: "people", sub })} onLegacy={onLegacy} />}
       </main>
 
-      {ask && <AssistPanel key={ask.text + (ask.result ? "r" : "")} ask={ask} courses={courses} role={role} onClose={() => setAsk(null)} onNavigate={r => { setAsk(null); navigate(r); }} onDone={data.reload} />}
+      {ask && <AssistPanel key={ask.text + (ask.result ? "r" : "")} ask={ask} courses={courses} role={manager ? "manager" : role} onClose={() => setAsk(null)} onNavigate={r => { setAsk(null); navigate(r); }} onDone={data.reload} />}
       {toast && <div role="status" style={{ position: "fixed", left: "50%", bottom: 24, transform: "translateX(-50%)", zIndex: 70, background: "var(--ink)", color: "#fff", borderRadius: 12, padding: "9px 16px", fontSize: 13, fontWeight: 700 }}>{toast}</div>}
     </div>
   );

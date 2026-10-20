@@ -149,7 +149,7 @@ export default function ClientReports({ go }) {
                     <div className="grid gap-2">
                       {comments.map((c, i) => (
                         <div key={c.commentId || i} className="rounded-xl px-3.5 py-2.5" style={{ background: c.authorRole === "client" ? "#FFF6E6" : PRISM.accentSubtle }}>
-                          <b className="text-xs" style={{ color: PRISM.ink }}>{c.authorName || ROLE[c.authorRole] || "講師"}<small className="ml-2 font-normal" style={{ color: PRISM.mut }}>{ROLE[c.authorRole] || ""} {md(c.createdAt)}</small></b>
+                          <b className="text-xs" style={{ color: PRISM.ink }}>{c.authorName || c.authorTitle || ROLE[c.authorRole] || "講師"}<small className="ml-2 font-normal" style={{ color: PRISM.mut }}>{c.authorTitle || ROLE[c.authorRole] || ""} {md(c.createdAt)}</small></b>
                           <p className="m-0 whitespace-pre-wrap text-sm" style={{ color: PRISM.ink }}>{c.text || c.comment}</p>
                         </div>
                       ))}

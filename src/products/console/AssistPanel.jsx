@@ -32,7 +32,9 @@ const spaceName = (spaceId, courses) => (spaceId === "shared" ? "共有（全社
 
 function usePeople(changes, role, courses) {
   const needIns = role === "admin" && changes.some(c => c.op === "assign_instructor");
-  const needUsers = role === "admin" && changes.some(c => c.op === "enroll");
+  // 受講生を探す：管理者は全員、コース担当者は自分のコースの企業の受講生（/companies/{id}/trainees）
+  const needUsers = (role === "admin" || role === "manager") && changes.some(c => c.op === "enroll");
+  const companyIds = [...new Set(courses.map(c => c.companyId).filter(Boolean))].join(",");
   const needTests = changes.some(c => c.op === "link_test");
   const folderCourses = changes.some(c => c.op === "folder_access") ? [...new Set(changes.filter(c => c.op === "folder_access").map(c => c.courseId || "*"))].join(",") : "";
   const [people, setPeople] = useState({ instructors: null, users: null, tests: null, folders: null, error: "" });
@@ -44,7 +46,8 @@ function usePeople(changes, role, courses) {
     const spaces = !folderCourses ? [] : [...new Set(["shared", ...(ids.includes("*") ? ["ops", ...courses.slice(0, 20).map(c => `course#${c.id}`)] : []), ...ids.filter(x => x !== "*").map(id => `course#${id}`)])];
     Promise.all([
       needIns ? apiGet("/admin/instructors") : Promise.resolve([]),
-      needUsers ? apiGet("/admin/users") : Promise.resolve([]),
+      !needUsers ? Promise.resolve([]) : role === "admin" ? apiGet("/admin/users")
+        : Promise.all(companyIds.split(",").filter(Boolean).map(id => apiGet(`/companies/${encodeURIComponent(id)}/trainees`).catch(() => []))).then(x => x.flat()),
       needTests ? apiGet("/tests") : Promise.resolve([]),
       Promise.all(spaces.map(sp => apiGet(`/library?spaceId=${encodeURIComponent(sp)}`).then(r => (r?.nodes || []).filter(n => n.type === "folder").map(n => ({ ...n, spaceId: sp }))).catch(() => []))).then(x => x.flat()),
     ]).then(([ins, users, tests, folders]) => {

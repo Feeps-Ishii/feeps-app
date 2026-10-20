@@ -24,12 +24,14 @@ function CourseCard({ c, onOpen }) {
   );
 }
 
-export default function ConsoleHome({ role, courses, loading, error, reload, scope, setScope, onAsk, asking, pick, setPick, openCourse }) {
+export default function ConsoleHome({ role, manager = false, courses, loading, error, reload, scope, setScope, onAsk, asking, pick, setPick, openCourse }) {
   const [text, setText] = useState("");
   const [menu, setMenu] = useState(false);
   const sc = courses.find(c => c.id === scope) || null;
   const submit = t => { const v = String(t ?? text).trim(); if (!v) return; onAsk(v); setText(""); };
-  const chips = role === "instructor"
+  const chips = manager
+    ? ["今日の日報を確認したい", "お客様の名簿で登録したい", "お知らせを出したい", "教材を使い回したい"]
+    : role === "instructor"
     ? ["今日の日報を確認したい", "お知らせを出したい", "席替えをしたい", "チームを作りたい", "テストの採点待ちを見る"]
     : sc ? ["今日の日報を確認したい", "テストの採点待ちを見る", "お客様の名簿で登録したい", "お知らせを出したい"]
       : ["今日の日報を確認したい", "お客様の名簿で登録したい", "フォルダの公開先を見たい", "教材を使い回したい", "企業の一覧を見たい"];

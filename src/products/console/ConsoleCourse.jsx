@@ -4,6 +4,7 @@ import { GOALS } from "../training/TrainingCatalog.js";
 import { setActiveCourseId } from "../../utils/common/courseContext.js";
 import CourseRoom from "./CourseRoom.jsx";
 import RosterImport from "./RosterImport.jsx";
+import CourseSettings from "./CourseSettings.jsx";
 
 /* コースの画面（2026-10-20）。コースの頭＋タブ。タブの中身は今までの画面をそのまま入れる
    （どの画面も「選んだコース」を読むので、開く前に setActiveCourseId でこのコースにしておく）。
@@ -82,7 +83,8 @@ function CourseToday({ course, openTab }) {
   );
 }
 
-export default function ConsoleCourse({ course, tab, role, counts, openTab, onLegacy, userProfile, displayName, goProduct, roster = false, onRosterClose, onChanged }) {
+export default function ConsoleCourse({ course, tab, role, counts, openTab, onLegacy, userProfile, displayName, goProduct, roster = false, onRosterClose, onChanged, canManage = false }) {
+  const [settings, setSettings] = useState(false);
   const [karte, setKarte] = useState(null);
   const [rosterOpen, setRosterOpen] = useState(roster);
   useEffect(() => { if (roster) setRosterOpen(true); }, [roster]);
@@ -107,20 +109,22 @@ export default function ConsoleCourse({ course, tab, role, counts, openTab, onLe
           {course.students != null && <span>受講生 {course.students} 人</span>}
           {course.instructorNames?.length > 0 && <span>講師 {course.instructorNames.join("・")}</span>}
         </div>
+        {canManage && <button type="button" className="dhc-sbtn" style={{ marginLeft: "auto" }} onClick={() => setSettings(true)}>コースの設定</button>}
       </div>
       <nav className="dhc-tabs" aria-label="コースの画面">
         {COURSE_TABS.map((t, i) => (t === "|"
           ? <span key={`g${i}`} className="grp" aria-hidden="true" />
           : <button key={t[0]} type="button" aria-current={tab === t[0]} onClick={() => openTab(t[0])}>{t[1]}{counts?.[t[0]] ? <em>{counts[t[0]]}</em> : null}</button>))}
       </nav>
-      {tab === "students" && role === "admin" && (
+      {settings && <CourseSettings course={course} role={role} onClose={() => setSettings(false)} onSaved={onChanged} />}
+      {tab === "students" && canManage && (
         <div className="dhc-toolbar">
           <span className="dhc-note">お客様から届いた名簿（Excel・CSV）を読み込んで、まとめて登録できます</span>
           <span style={{ marginLeft: "auto" }} />
           <button type="button" className="dhc-sbtn pri" onClick={() => setRosterOpen(true)}>＋ お客様の名簿で登録</button>
         </div>
       )}
-      {rosterOpen && role === "admin" && <RosterImport course={course} onClose={() => { setRosterOpen(false); onRosterClose?.(); setPaneKey(k => k + 1); }} onDone={onChanged} />}
+      {rosterOpen && canManage && <RosterImport course={course} admin={role === "admin"} onClose={() => { setRosterOpen(false); onRosterClose?.(); setPaneKey(k => k + 1); }} onDone={onChanged} />}
       <div className="dhc-pane" key={`${course.id}-${tab}-${paneKey}`}>
         {def[0] === "today"
           ? <CourseToday course={course} openTab={openTab} />

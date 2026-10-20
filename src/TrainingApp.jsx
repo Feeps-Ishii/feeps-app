@@ -148,8 +148,15 @@ function roleFromIdTokenPayload(payload = {}) {
   const rawGroups = payload?.["cognito:groups"] ?? payload?.groups ?? [];
   const groups = (Array.isArray(rawGroups) ? rawGroups.join(",") : String(rawGroups)).toLowerCase();
   // individual：DevHub Learning で自分で登録した個人（ADR 0029）。LMS は使えないので Learning へ送る
-  return groups.includes("admin") ? "admin" : groups.includes("instructor") ? "instructor" : groups.includes("client") ? "client"
+  // manager：コース担当者（2026-10-20）。画面では講師として扱い（付けたコースだけが API から返る）、
+  // 新しい管理画面だけが isManagerPayload で「コース担当者」の表示と、受講生を入れる・名簿で登録などを出す
+  return groups.includes("admin") ? "admin" : groups.includes("instructor") ? "instructor" : groups.includes("manager") ? "instructor" : groups.includes("client") ? "client"
     : groups.includes("individual") ? "individual" : "trainee";
+}
+function isManagerPayload(payload = {}) {
+  const rawGroups = payload?.["cognito:groups"] ?? payload?.groups ?? [];
+  const groups = (Array.isArray(rawGroups) ? rawGroups : String(rawGroups).split(",")).map(g => String(g).toLowerCase());
+  return groups.includes("manager") && !groups.includes("admin") && !groups.includes("instructor");
 }
 
 /* ===== 受講生：ホーム ===== */
@@ -992,6 +999,7 @@ export default function App() {
   // 新しい管理画面を使うか（"off" で前の画面）。legacyOnce は前の画面を一時的に開いているとき
   const [consoleOn, setConsoleOn] = useState(() => storageGet("feeps.console", "on") !== "off");
   const [legacyOnce, setLegacyOnce] = useState(false);
+  const [isManager, setIsManager] = useState(false);
   // 2026-09-30: 左の帯と一緒に総合ホームの入口もなくしたので、保存値が "home" でも研修から始める
   const [product, setProduct] = useState(() => { const saved = storageGet("feeps.product", "training"); return saved === "home" ? "training" : saved; });
   const [subView, setSubView] = useState(() => storageGet("feeps.subView", "home"));
@@ -1134,6 +1142,7 @@ export default function App() {
         const session = await fetchAuthSession();
         if (!active) return;
         const verifiedRole = roleFromIdTokenPayload(session.tokens?.idToken?.payload || {});
+        setIsManager(isManagerPayload(session.tokens?.idToken?.payload || {}));
         // 個人（自分で登録した人）は LMS の対象外。ログインは共有なので、そのまま DevHub Learning へ
         if (verifiedRole === "individual") { window.location.replace(learningHref("#/home")); return; }
         const subject = currentUser?.userId || currentUser?.username || "";
@@ -1769,7 +1778,7 @@ export default function App() {
   if (useConsole) {
     return (
       <Suspense fallback={<PageLoading />}>
-        <ConsoleApp role={role} displayName={displayName} userProfile={userProfile} onLogout={logout} goProduct={goProduct}
+        <ConsoleApp role={role} manager={isManager && role === "instructor"} displayName={displayName} userProfile={userProfile} onLogout={logout} goProduct={goProduct}
           modeSwitch={modeSwitch}
           viewAs={isViewingAsOther ? { label: me.label, back: () => switchRole("admin") } : null}
           onLegacy={(v, opts = {}) => { if (opts.persist) { storageSet("feeps.console", "off"); setConsoleOn(false); } else setLegacyOnce(true); if (product !== "training") goProduct("training"); go(v); }} />

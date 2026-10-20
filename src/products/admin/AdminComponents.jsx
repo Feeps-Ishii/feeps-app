@@ -1138,9 +1138,9 @@ function AdminCourses({ go }) {
     </div>
   );
 }
-const ROLE_OPTS = [["trainee", "受講生"], ["instructor", "講師"], ["client", "企業担当者"], ["admin", "管理者"]];
+const ROLE_OPTS = [["trainee", "受講生"], ["instructor", "講師"], ["manager", "コース担当者"], ["client", "企業担当者"], ["admin", "管理者"]];
 const roleLabel = (r) => (ROLE_OPTS.find(o => o[0] === r)?.[1]) || r || "—";
-const roleTone = (r) => r === "instructor" ? "cyan" : r === "admin" ? "red" : r === "client" ? "amber" : "muted";
+const roleTone = (r) => r === "instructor" ? "cyan" : r === "manager" ? "green" : r === "admin" ? "red" : r === "client" ? "amber" : "muted";
 
 function AdminUsers() {
   const [users, setUsers] = useState([]);
