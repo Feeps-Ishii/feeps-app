@@ -1,3 +1,4 @@
+import { setPracticeFocus, usePracticeLinks } from "./practiceLinks.js";
 import React, { useState, useMemo, useEffect, useRef } from "react";
 import { getCurrentUser, fetchAuthSession } from "aws-amplify/auth";
 import { apiGet, apiPut, apiPost, apiDelete as apiDeleteBase } from "../../api.js";
@@ -25,7 +26,7 @@ import { clearTraineeTestDraft, clearTrainingTargetContext, getActiveCourseId, g
 import {
   FileText, ClipboardCheck, Clock, NotebookPen, Users,
   Building2, BookOpen, PenLine, Search, Upload, Download,
-  CheckCircle2, Circle, AlertCircle, ChevronRight, ChevronLeft, ChevronUp, ChevronDown, Trash2, LogOut,
+  CheckCircle2, Circle, AlertCircle, ListChecks, ChevronRight, ChevronLeft, ChevronUp, ChevronDown, Trash2, LogOut,
   Plus, Send, MessageSquare, PlayCircle,
   Sparkles, X, Eye, Pencil, StickyNote, Megaphone,
   Check, Target, Lock,
@@ -1026,6 +1027,8 @@ function Curriculum({ role, go, goProduct, done = {}, goals = [] }) {
   // カリキュラムの中でテストを受ける・作る（2026-10-01）
   const [myTestResults, setMyTestResults] = useState({});   // 受講生：testId → 自分の結果。null は確認できない
   const [curriculumReturn] = useState(() => takeCurriculumReturn(false));
+  // 練習問題（2026-10-20）：単元と結んだ公開中の問題集。受講生だけ単元に出す
+  const practiceFor = usePracticeLinks(role === "trainee" ? courseId : "");
   const savedSectionsRef = useRef("");
   const materialsById = useMemo(() => Object.fromEntries(materials.map(m => [m.materialId, m])), [materials]);
   const selectedCourse = useMemo(() => courses.find(c => c.courseId === courseId) || null, [courses, courseId]);
@@ -1486,6 +1489,13 @@ function Curriculum({ role, go, goProduct, done = {}, goals = [] }) {
         {unitTests.length > 0 && block(<ClipboardCheck size={15} style={{ color: T.accent }} />, "テスト",
           <CurriculumUnitTests mode="trainee" tests={unitTests} results={myTestResults}
             onTake={test => { setTestFocus({ courseId, testId: testIdOf(test) }); go?.("tests"); }} />, `${unitTests.length}件`)}
+        {practiceFor(section.id).length > 0 && block(<ListChecks size={15} style={{ color: T.accent }} />, "練習問題", <div className="flex flex-wrap gap-2">
+          {practiceFor(section.id).map(p => (
+            <button key={`${p.setId}:${p.no}`} type="button" onClick={() => { setPracticeFocus({ courseId, setId: p.setId, qid: p.firstQ }); go?.("practice"); }} className="inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-sm font-bold" style={{ border: `1px solid ${T.aiAccent}55`, background: T.aiSubtle, color: T.aiAccentDeep }}>
+              練習問題 {p.label}<ChevronRight size={14} />
+            </button>
+          ))}
+        </div>, `${practiceFor(section.id).length}件`)}
         {goals.length > 0 && block(<Target size={15} style={{ color: T.accent }} />, "学習目標", <ul className="space-y-1">{goals.map((goal, gi) => <li key={gi} className="flex gap-2 text-sm" style={{ color: T.textPrimary }}><CheckCircle2 size={14} className="mt-1 shrink-0" style={{ color: T.accent }} />{goal}</li>)}</ul>)}
         {prep.length > 0 && block(<AlertCircle size={15} style={{ color: T.warning }} />, "事前に用意・実施すること", <ul className="space-y-1">{prep.map((item, pi) => <li key={pi} className="flex gap-2 text-sm" style={{ color: T.textPrimary }}><Circle size={13} className="mt-1 shrink-0" style={{ color: T.warning }} />{item}</li>)}</ul>)}
         {days.length > 0 && block(<Calendar size={15} style={{ color: T.accent }} />, "日ごと", <div className="space-y-1.5">{days.map((d, li) => {

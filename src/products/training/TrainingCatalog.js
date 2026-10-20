@@ -1,4 +1,4 @@
-import { Code, LayoutDashboard, PenLine, FileText, ClipboardCheck, Clock, NotebookPen, Users, UsersRound, Armchair, Building2, BookOpen, Settings, GraduationCap, Calendar, Sparkles, Target, Wrench, Compass, CalendarClock, Megaphone, Award, BarChart3, Landmark, Star } from "lucide-react";
+import { Code, ListChecks, LayoutDashboard, PenLine, FileText, ClipboardCheck, Clock, NotebookPen, Users, UsersRound, Armchair, Building2, BookOpen, Settings, GraduationCap, Calendar, Sparkles, Target, Wrench, Compass, CalendarClock, Megaphone, Award, BarChart3, Landmark, Star } from "lucide-react";
 
 
 /* ===== ロール ===== */
@@ -75,13 +75,13 @@ const NAV = {
   trainee: [
     { sec: null, items: [["home", "ホーム", LayoutDashboard]] },
     { sec: "毎日", items: [["reports", "日報", NotebookPen], ["attendance", "勤怠", Clock]] },
-    { sec: "研修", items: [["curriculum", "カリキュラム", Calendar], ["tests", "テスト", ClipboardCheck], ["devreview", "個人開発", Code], ["teams", "チーム", UsersRound], ["materials", "ファイル管理", FileText]] },
+    { sec: "研修", items: [["curriculum", "カリキュラム", Calendar], ["tests", "テスト", ClipboardCheck], ["practice", "練習問題", ListChecks], ["devreview", "個人開発", Code], ["teams", "チーム", UsersRound], ["materials", "ファイル管理", FileText]] },
     { sec: "自分用", items: [["notes", "ノート", PenLine], ["goals", "目標とタスク", Target]] },
   ],
   instructor: [
     { sec: null, items: [["home", "ホーム", LayoutDashboard]] },
     { sec: "毎日", items: [["trainees", "受講生", Users], ["reports", "日報", NotebookPen], ["attendance", "勤怠", Clock]] },
-    { sec: "研修", items: [["curriculum", "カリキュラム", Calendar], ["tests", "テスト", ClipboardCheck], ["devreview", "個人開発", Code], ["teams", "チーム", UsersRound], ["seating", "席替え", Armchair], ["completion", "修了レポート", Award], ["materials", "ファイル管理", FileText], ["goals", "目標とタスク", Target]] },
+    { sec: "研修", items: [["curriculum", "カリキュラム", Calendar], ["tests", "テスト", ClipboardCheck], ["practice", "練習問題", ListChecks], ["devreview", "個人開発", Code], ["teams", "チーム", UsersRound], ["seating", "席替え", Armchair], ["completion", "修了レポート", Award], ["materials", "ファイル管理", FileText], ["goals", "目標とタスク", Target]] },
     { sec: "連絡", items: [["announcements", "お知らせ", Megaphone], ["reservations", "予約", CalendarClock]] },
   ],
   // 2026-10-15（ユーザー指定・モック client-screens.html の A案）：ご紹介資料の「企業様ができること」を入り口に。
@@ -94,7 +94,7 @@ const NAV = {
   admin: [
     { sec: null, items: [["home", "ホーム", LayoutDashboard]] },
     { sec: "全体", items: [["trainees", "受講生", GraduationCap], ["companies", "企業", Building2], ["users", "ユーザー・講師", Users]] },
-    { sec: "研修", items: [["curriculum", "カリキュラム", Calendar], ["reports", "日報", NotebookPen], ["attendance", "勤怠", Clock], ["tests", "テスト", ClipboardCheck], ["devreview", "個人開発", Code], ["teams", "チーム", UsersRound], ["seating", "席替え", Armchair], ["completion", "修了レポート", Award], ["materials", "ファイル管理", FileText], ["goals", "目標とタスク", Target]] },
+    { sec: "研修", items: [["curriculum", "カリキュラム", Calendar], ["reports", "日報", NotebookPen], ["attendance", "勤怠", Clock], ["tests", "テスト", ClipboardCheck], ["practice", "練習問題", ListChecks], ["devreview", "個人開発", Code], ["teams", "チーム", UsersRound], ["seating", "席替え", Armchair], ["completion", "修了レポート", Award], ["materials", "ファイル管理", FileText], ["goals", "目標とタスク", Target]] },
     { sec: "連絡", items: [["announcements", "お知らせ", Megaphone], ["reservations", "予約", CalendarClock]] },
   ],
 };
