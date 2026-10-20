@@ -58,6 +58,8 @@ const GrantsProduct = lazy(() => import("./products/grants/GrantsProduct.jsx"));
 const CompanyProduct = lazy(() => import("./products/company/CompanyProduct.jsx"));
 // 管理者・講師の新しい画面（2026-10-20）
 const ConsoleApp = lazy(() => import("./products/console/ConsoleApp.jsx"));
+// まとめて発行した仮のIDの人の、はじめての設定（2026-10-20）
+const FirstSetupLms = lazy(() => import("./products/auth/FirstSetupLms.jsx"));
 
 // Catches render/chunk-load failures in a lazily loaded Product so one broken chunk
 // (e.g. a deploy while the tab was open) degrades to a reload prompt, not a white screen.
@@ -1573,6 +1575,15 @@ export default function App() {
   // 利用規約・プライバシーポリシーへの同意が未記録なら、先に同意してもらう
   if (needsTermsAgreement(userProfile)) {
     return <TermsAgreementDialog onAgreed={() => setUserProfile(p => ({ ...(p || {}), termsVersion: TERMS_VERSION, termsAgreedAt: new Date().toISOString() }))} onSignOut={logout} />;
+  }
+  // 仮のID（@id.devhub-lms.com）で入った人は、名前とメールアドレスを登録してから使う（profile.placeholder が外れるまで）
+  if (userProfile?.placeholder === true) {
+    return (
+      <Suspense fallback={<PageLoading />}>
+        <FirstSetupLms name={userProfile?.name} onLogout={logout}
+          onDone={async () => { try { setUserProfile(await apiGet("/profile/me")); } catch { setUserProfile(p => ({ ...(p || {}), placeholder: false })); } }} />
+      </Suspense>
+    );
   }
 
   const screen = (() => {

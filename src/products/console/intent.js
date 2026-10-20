@@ -19,7 +19,7 @@ export const TAB_WORDS = [
 ];
 const AREA_WORDS = [
   ["people", /企業|会社|ユーザー|アカウント|講師(を|の)?(一覧|探|登録)|管理者/],
-  ["library", /教材/],
+  ["library", /教材|公開先|見せる人|共有フォルダ/],
 ];
 // 見る・開く・作りたい、は移動。誰かを・何かを「〜して」は変える内容なので AI へ
 const WANT_TO_SEE = /(見|確認|開|一覧|画面|行|チェック|したい|たい$|追加したい|作りたい|直したい)/;
@@ -51,6 +51,12 @@ export function matchCourse(text, courses) {
 export function ruleIntent(text, { courses, scopeCourseId }) {
   const raw = String(text || "").trim();
   if (!raw) return null;
+  // お客様の名簿で登録：受講生のタブで名簿の読み込みを開く（中身は画面で確かめる）
+  if (/名簿/.test(raw) && /(登録|読み込|取り込|入れ|作)/.test(raw)) {
+    const c = matchCourse(raw, courses);
+    const courseId = c?.id || scopeCourseId || (courses.length === 1 ? courses[0].id : "");
+    return courseId ? { kind: "navigate", area: "course", courseId, tab: "students", roster: true } : { kind: "pick", tab: "students", roster: true };
+  }
   if (DO_IT.test(raw) && !/^(.*)(見せて|開いて)$/.test(raw)) return null;
   const course = matchCourse(raw, courses);
   if (!course) for (const [area, re] of AREA_WORDS) if (re.test(raw) && (WANT_TO_SEE.test(raw) || raw.length <= 8)) return { kind: "navigate", area };
@@ -60,6 +66,8 @@ export function ruleIntent(text, { courses, scopeCourseId }) {
   if (!tab) return null;
   if (!WANT_TO_SEE.test(raw) && !short) return null;
   const courseId = course?.id || scopeCourseId || (courses.length === 1 ? courses[0].id : "");
+  // 資料・フォルダはコースを決めずに頼まれたら、教材のフォルダ（置き場ごとの一覧）へ
+  if (!courseId && tab === "doc") return { kind: "navigate", area: "library", sub: "folders" };
   if (!courseId) return { kind: "pick", tab };
   return { kind: "navigate", area: "course", courseId, tab };
 }

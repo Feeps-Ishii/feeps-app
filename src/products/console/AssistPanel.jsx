@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { apiGet, apiPost, apiPut } from "../../api.js";
 import { findPeople } from "./useConsole.js";
+import { aclText, relayoutCurriculum, testCourseIds } from "./materials.js";
 
 /* 頼んだ結果の板（2026-10-20）。AI が出した「変える内容」を1つずつ見せ、確かめてから実行する。
    公開・登録・変更は、ここで「この内容で実行」を押すまで何も起きない（ユーザー指定：公開する前は必ず確認）。
@@ -12,22 +13,40 @@ const OP_LABEL = {
   announce: ["お知らせを出す", "dhc-k-pub"],
   rename_course: ["名前を変える", "dhc-k-mv"],
   course_dates: ["期間を変える", "dhc-k-mv"],
+  link_test: ["テストを付ける", "dhc-k-add"],
+  folder_access: ["見せる人", "dhc-k-pub"],
+  copy_curriculum: ["カリキュラムを写す", "dhc-k-mv"],
 };
+const norm = s => String(s || "").replace(/[\s　「」『』]/g, "").toLowerCase();
+const byName = (list, name, key = "name") => {
+  const n = norm(name);
+  const exact = list.filter(x => norm(x[key]) === n);
+  return exact.length ? exact : list.filter(x => norm(x[key]).includes(n) || (n.length >= 2 && n.includes(norm(x[key])) && norm(x[key]).length >= 2)).slice(0, 6);
+};
+const spaceName = (spaceId, courses) => (spaceId === "shared" ? "共有（全社）" : spaceId === "ops" ? "運営だけ" : courses.find(c => `course#${c.id}` === spaceId)?.name || "コース");
 
-function usePeople(changes, role) {
-  const needIns = changes.some(c => c.op === "assign_instructor");
-  const needUsers = changes.some(c => c.op === "enroll");
-  const [people, setPeople] = useState({ instructors: null, users: null, error: "" });
+function usePeople(changes, role, courses) {
+  const needIns = role === "admin" && changes.some(c => c.op === "assign_instructor");
+  const needUsers = role === "admin" && changes.some(c => c.op === "enroll");
+  const needTests = changes.some(c => c.op === "link_test");
+  const folderCourses = changes.some(c => c.op === "folder_access") ? [...new Set(changes.filter(c => c.op === "folder_access").map(c => c.courseId || "*"))].join(",") : "";
+  const [people, setPeople] = useState({ instructors: null, users: null, tests: null, folders: null, error: "" });
   useEffect(() => {
-    if (role !== "admin" || (!needIns && !needUsers)) return;
+    if (!needIns && !needUsers && !needTests && !folderCourses) return;
     let alive = true;
+    // フォルダは、コースが分かればそのコースと共有、分からなければ共有と担当のコース（20まで）から探す
+    const ids = folderCourses.split(",").filter(Boolean);
+    const spaces = !folderCourses ? [] : [...new Set(["shared", ...(ids.includes("*") ? ["ops", ...courses.slice(0, 20).map(c => `course#${c.id}`)] : []), ...ids.filter(x => x !== "*").map(id => `course#${id}`)])];
     Promise.all([
       needIns ? apiGet("/admin/instructors") : Promise.resolve([]),
       needUsers ? apiGet("/admin/users") : Promise.resolve([]),
-    ]).then(([ins, users]) => { if (alive) setPeople({ instructors: ins || [], users: (users || []).filter(u => !u.role || u.role === "trainee"), error: "" }); })
-      .catch(() => { if (alive) setPeople({ instructors: [], users: [], error: "人の一覧を読み込めませんでした。" }); });
+      needTests ? apiGet("/tests") : Promise.resolve([]),
+      Promise.all(spaces.map(sp => apiGet(`/library?spaceId=${encodeURIComponent(sp)}`).then(r => (r?.nodes || []).filter(n => n.type === "folder").map(n => ({ ...n, spaceId: sp }))).catch(() => []))).then(x => x.flat()),
+    ]).then(([ins, users, tests, folders]) => {
+      if (alive) setPeople({ instructors: ins || [], users: (users || []).filter(u => !u.role || u.role === "trainee"), tests: (tests || []).filter(t => t.status !== "archived"), folders: folders.map(f => (f.nodeId === "root" ? { ...f, name: "（いちばん上）" } : f)), error: "" });
+    }).catch(() => { if (alive) setPeople({ instructors: [], users: [], tests: [], folders: [], error: "一覧を読み込めませんでした。" }); });
     return () => { alive = false; };
-  }, [needIns, needUsers, role]);
+  }, [needIns, needUsers, needTests, folderCourses]); // eslint-disable-line react-hooks/exhaustive-deps
   return people;
 }
 
@@ -72,6 +91,43 @@ function Change({ c, i, courses, people, set, status }) {
       <textarea value={c.body} onChange={e => set(i, { body: e.target.value })} aria-label="本文" />
       <small>出すとすぐに受講生のホームに出ます。文を直してから実行できます。</small>
     </>);
+  } else if (c.op === "link_test") {
+    const hits = people.tests ? byName(people.tests, c.test, "title") : null;
+    const pickId = c.testId || (hits?.length === 1 ? (hits[0].testId || hits[0].id) : "");
+    body = (<>
+      <b>テスト「{c.test}」をコースに付ける</b>
+      {hits === null ? <small>テストを探しています…</small>
+        : !hits.length ? <small style={{ color: "var(--bad)" }}>「{c.test}」というテストが見つかりません。教材 → テスト で探してください。</small>
+        : <div className="dhc-which">{hits.map(t => (
+          <button key={t.testId || t.id} type="button" aria-pressed={pickId === (t.testId || t.id)} onClick={() => set(i, { testId: t.testId || t.id })}>
+            {t.title}<small>{t.status === "published" ? "公開中（付けたコースの受講生にすぐ出ます）" : "下書き"}</small>
+          </button>))}</div>}
+    </>);
+  } else if (c.op === "folder_access") {
+    const hits = people.folders ? byName(people.folders, c.folder) : null;
+    const pick = hits?.find(f => `${f.spaceId}|${f.nodeId}` === c.folderKey) || (hits?.length === 1 ? hits[0] : null);
+    const next = { scope: pick?.acl?.scope === "org" ? "org" : pick?.acl?.scope === "groups" ? "groups" : "course", groups: pick?.acl?.groups || null, roles: { trainee: !!c.trainee, client: !!c.client, instructor: c.instructor !== false } };
+    body = (<>
+      <b>フォルダ「{c.folder}」を見せる人を変える</b>
+      {hits === null ? <small>フォルダを探しています…</small>
+        : !hits.length ? <small style={{ color: "var(--bad)" }}>「{c.folder}」というフォルダが見つかりません。教材 → フォルダ で探してください。</small>
+        : (<>
+          {hits.length > 1 && <div className="dhc-which">{hits.map(f => (
+            <button key={f.spaceId + f.nodeId} type="button" aria-pressed={pick === f} onClick={() => set(i, { folderKey: `${f.spaceId}|${f.nodeId}` })}>
+              {f.name}<small>{spaceName(f.spaceId, courses)}</small>
+            </button>))}</div>}
+          {pick && <small>{spaceName(pick.spaceId, courses)} ・ いま {aclText(pick.acl, pick.spaceId)} → <b style={{ color: "var(--ink)" }}>{aclText(next, pick.spaceId)}</b></small>}
+        </>)}
+      <div className="dhc-checks">{[["trainee", "受講生"], ["instructor", "講師"], ["client", "企業担当"]].map(([k, t]) => (
+        <label key={k} className={(k === "instructor" ? c[k] !== false : c[k]) ? "on" : ""}><input type="checkbox" disabled={!!status} checked={k === "instructor" ? c[k] !== false : !!c[k]} onChange={e => set(i, { [k]: e.target.checked })} />{t}</label>))}</div>
+    </>);
+  } else if (c.op === "copy_curriculum") {
+    const from = courses.find(x => x.id === c.fromCourseId);
+    body = (<>
+      <b>{from?.name || "—"} のカリキュラムを写す</b>
+      <small>写す先のいまのカリキュラムは置きかわります。日付は始まりの日から平日で並べ直します（祝日は見ません）。</small>
+      <label className="dhc-field">始まりの日<input type="date" value={c.startDate || course?.startDate || ""} onChange={e => set(i, { startDate: e.target.value })} style={{ border: "1px solid var(--line)", borderRadius: 9, padding: "5px 10px" }} /></label>
+    </>);
   } else if (c.op === "rename_course") {
     body = (<><b>名前を変える</b><small>{course?.name || "—"} → </small><input type="text" value={c.name} onChange={e => set(i, { name: e.target.value })} aria-label="新しい名前" /></>);
   } else if (c.op === "course_dates") {
@@ -83,7 +139,7 @@ function Change({ c, i, courses, people, set, status }) {
       <span className={`k ${cls}`}>{label}</span>
       <div className="bd">
         {body}
-        <CoursePick value={c.courseId} courses={courses} onChange={v => set(i, { courseId: v })} />
+        {c.op !== "folder_access" && <CoursePick value={c.courseId} courses={courses} onChange={v => set(i, { courseId: v })} />}
         {status?.ok && <small style={{ color: "var(--ok)", fontWeight: 700 }}>実行しました</small>}
         {status?.error && <small style={{ color: "var(--bad)" }}>{status.error}</small>}
       </div>
@@ -93,8 +149,31 @@ function Change({ c, i, courses, people, set, status }) {
 
 // 1つの変更を、今までの API で実行する
 async function runChange(c, { courses, people }) {
+  if (c.op === "folder_access") {
+    const hits = byName(people.folders || [], c.folder);
+    const f = hits.find(x => `${x.spaceId}|${x.nodeId}` === c.folderKey) || (hits.length === 1 ? hits[0] : null);
+    if (!f) throw new Error("フォルダを1つ選んでください。");
+    const acl = { scope: f.acl?.scope === "org" ? "org" : f.acl?.scope === "groups" ? "groups" : "course", groups: f.acl?.groups || null, roles: { trainee: !!c.trainee, client: !!c.client, instructor: c.instructor !== false }, ...(f.acl?.owner ? { owner: f.acl.owner } : {}) };
+    await apiPut(`/library/nodes/${encodeURIComponent(f.nodeId)}`, { spaceId: f.spaceId, acl });
+    return;
+  }
   const course = courses.find(x => x.id === c.courseId);
   if (!course) throw new Error("コースを選んでください。");
+  if (c.op === "link_test") {
+    const hits = byName(people.tests || [], c.test, "title");
+    const t = (people.tests || []).find(x => (x.testId || x.id) === c.testId) || (hits.length === 1 ? hits[0] : null);
+    if (!t) throw new Error("テストを1つ選んでください。");
+    await apiPut(`/tests/${encodeURIComponent(t.testId || t.id)}`, { courseIds: [...new Set([...testCourseIds(t), course.id])] });
+    return;
+  }
+  if (c.op === "copy_curriculum") {
+    const start = c.startDate || course.startDate;
+    if (!start) throw new Error("始まりの日を入れてください。");
+    const src = await apiGet(`/courses/${encodeURIComponent(c.fromCourseId)}/curriculum`);
+    const plan = relayoutCurriculum(src, start);
+    await apiPut(`/courses/${encodeURIComponent(course.id)}/curriculum`, { sections: plan.sections, sessions: plan.sessions });
+    return;
+  }
   const coursePut = extra => apiPut(`/courses/${encodeURIComponent(course.id)}`, {
     name: course.name, type: course.type || course.kind || "shinjin", memo: course.memo ?? course.description ?? "", ...extra,
   });
@@ -129,7 +208,7 @@ export default function AssistPanel({ ask, courses, role, onClose, onNavigate, o
   const [changes, setChanges] = useState(() => (ask.result?.changes || []).map(c => ({ ...c, on: true })));
   const [status, setStatus] = useState({});
   const [running, setRunning] = useState(false);
-  const people = usePeople(changes, role);
+  const people = usePeople(changes, role, courses);
   const set = (i, patch) => setChanges(list => list.map((c, j) => (j === i ? { ...c, ...patch } : c)));
   const r = ask.result;
   const finished = changes.length > 0 && changes.every((c, i) => c.on === false || status[i]);

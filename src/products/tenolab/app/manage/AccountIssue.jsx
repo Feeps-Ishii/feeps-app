@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useState } from "react";
 import { apiPost } from "../../../../api.js";
 import { admin } from "../data.js";
 import { Title } from "./parts.jsx";
+import { makePassword } from "../../../../utils/common/password.js";
 import "./accountIssue.css";
 
 /* アカウントを発行する（管理者のみ。2026-10-16、モック devhub-account-issue.html）
@@ -13,15 +14,6 @@ const LOGIN_URL = "https://learn.devhub-lms.com/";
 const CHUNK = 10;
 const EXAMPLES = ["みなと文具さんに新入社員20名分。4月1日から。うち3名はPremiumで", "さくら精機 5アカウント 来週から研修", "既存の企業に追加で8名。来月から"];
 
-function makePassword() {
-  const sets = ["ABCDEFGHJKLMNPQRSTUVWXYZ", "abcdefghijkmnpqrstuvwxyz", "23456789", "#$%&@!?"];
-  const all = sets.join("");
-  const r = n => { const a = new Uint32Array(1); crypto.getRandomValues(a); return a[0] % n; };
-  const chars = sets.map(s => s[r(s.length)]);
-  while (chars.length < 12) chars.push(all[r(all.length)]);
-  for (let i = chars.length - 1; i > 0; i--) { const j = r(i + 1); [chars[i], chars[j]] = [chars[j], chars[i]]; }
-  return chars.join("");
-}
 const slug = s => String(s || "").toLowerCase().replace(/[^a-z0-9-]/g, "").replace(/^-+/, "").slice(0, 24);
 const ymd = d => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 const todayYmd = () => ymd(new Date());

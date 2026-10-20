@@ -164,6 +164,80 @@
 .dhc-subtabs button { border: 1px solid var(--line); background: var(--surface); border-radius: 999px; padding: 4px 14px; font-size: 13px; font-weight: 700; color: var(--ink2) }
 .dhc-subtabs button[aria-pressed="true"] { background: var(--ink); color: var(--surface); border-color: var(--ink) }
 
+
+/* 確かめる窓 */
+.dhc-center { justify-content: center; align-items: center; padding: 16px }
+.dhc-modal { width: min(560px, 100%); max-height: calc(100vh - 32px); background: var(--bg); border-radius: 16px; display: grid; grid-template-rows: auto minmax(0, 1fr) auto; overflow: hidden; box-shadow: 0 30px 70px -30px rgba(20,30,60,.6) }
+.dhc-modal > header { display: flex; align-items: center; gap: 10px; padding: 14px 18px; background: var(--surface); border-bottom: 1px solid var(--line) }
+.dhc-modal > header b { font-size: 15px }
+.dhc-modal > header button { margin-left: auto; border: 0; background: none; font-size: 20px; color: var(--mut); line-height: 1 }
+.dhc-modal > .in { overflow: auto; padding: 16px 18px; display: grid; gap: 12px; align-content: start }
+.dhc-modal > footer { padding: 12px 18px; background: var(--surface); border-top: 1px solid var(--line); display: flex; gap: 8px; align-items: center; flex-wrap: wrap }
+.dhc-rows { display: grid; gap: 0; background: var(--surface); border: 1px solid var(--line); border-radius: 12px }
+.dhc-rows > div { display: grid; grid-template-columns: 120px minmax(0, 1fr); gap: 10px; padding: 9px 12px; border-top: 1px solid var(--line2); font-size: 13px }
+.dhc-rows > div:first-child { border-top: 0 }
+.dhc-rows span { color: var(--sub) }
+.dhc-warn { font-size: 13px; color: var(--warn); background: var(--warn-soft); border-radius: 10px; padding: 8px 12px }
+.dhc-okmsg { font-size: 13px; color: var(--ok); background: var(--ok-soft); border-radius: 10px; padding: 8px 12px; font-weight: 700 }
+.dhc-field { display: grid; gap: 4px; font-size: 12.5px; color: var(--sub); font-weight: 700 }
+.dhc-field select, .dhc-field input { border: 1px solid var(--line); border-radius: 9px; padding: 7px 10px; font-size: 13.5px; background: var(--surface); color: var(--ink); font-weight: 500 }
+.dhc-checks { display: flex; gap: 6px; flex-wrap: wrap }
+.dhc-checks label { display: inline-flex; gap: 6px; align-items: center; border: 1px solid var(--line); background: var(--surface); border-radius: 10px; padding: 5px 10px; font-size: 13px; font-weight: 600; color: var(--ink2) }
+.dhc-checks label.on { border-color: var(--ink); box-shadow: 0 0 0 1px var(--ink) inset; color: var(--ink) }
+
+/* 連絡と教室 */
+.dhc-rooms { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 12px }
+.dhc-room { border: 1px solid var(--line2); border-radius: 12px; padding: 12px 14px; display: grid; gap: 8px; align-content: start; background: var(--soft) }
+.dhc-room h4 { margin: 0; font-size: 13.5px; display: flex; align-items: center; gap: 8px }
+.dhc-room h4 button { margin-left: auto }
+.dhc-room .dhc-lnk { justify-self: start }
+.dhc-li { display: grid; gap: 1px; font-size: 13px; padding: 6px 10px; background: var(--surface); border-radius: 9px; border: 1px solid var(--line2) }
+.dhc-li b { font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap } .dhc-li small { color: var(--sub); font-size: 11.5px }
+.dhc-teams { display: flex; flex-wrap: wrap; gap: 6px }
+.dhc-teams span { background: var(--surface); border: 1px solid var(--line2); border-radius: 9px; padding: 3px 10px; font-size: 12.5px; font-weight: 700 }
+.dhc-teams em { font-style: normal; color: var(--sub); font-weight: 600; margin-left: 6px; font-size: 11.5px }
+
+/* 名簿で登録 */
+.dhc-roster { width: min(980px, 100%) }
+.dhc-drop { display: grid; gap: 4px; place-items: center; text-align: center; padding: 30px 16px; border: 2px dashed var(--line); border-radius: 14px; background: var(--surface); cursor: pointer }
+.dhc-drop:hover { border-color: var(--violet) }
+.dhc-drop input { position: absolute; width: 1px; height: 1px; opacity: 0 }
+.dhc-drop b { font-size: 15px } .dhc-drop small { color: var(--sub); font-size: 12.5px }
+.dhc-colmap { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 10px }
+.dhc-steps2 { display: flex; gap: 6px; flex-wrap: wrap; align-items: center }
+.dhc-rtable { max-height: 320px; overflow: auto; border: 1px solid var(--line); border-radius: 12px; background: var(--surface) }
+.dhc-rtable table { width: 100%; border-collapse: collapse; font-size: 12.5px }
+.dhc-rtable th { position: sticky; top: 0; background: var(--soft); text-align: left; font-size: 11.5px; color: var(--mut); padding: 7px 10px; border-bottom: 1px solid var(--line); white-space: nowrap }
+.dhc-rtable td { padding: 6px 10px; border-bottom: 1px solid var(--line2); white-space: nowrap }
+.dhc-rtable tr.skip td { color: var(--warn); background: var(--warn-soft) }
+.dhc-rtable tr.enroll td:last-child { color: var(--blue); font-weight: 700 }
+.dhc-rtable tr.new td:last-child { color: var(--ok); font-weight: 700 }
+
+/* 教材の一覧 */
+.dhc-toolbar { display: flex; gap: 8px; align-items: center; flex-wrap: wrap }
+.dhc-toolbar input[type=search], .dhc-toolbar select { border: 1px solid var(--line); border-radius: 10px; padding: 7px 12px; font-size: 13.5px; background: var(--surface) }
+.dhc-toolbar input[type=search] { flex: 1 1 220px; min-width: 0 }
+.dhc-list { display: grid }
+.dhc-row { display: grid; grid-template-columns: minmax(0, 1.6fr) minmax(0, 2fr) auto; gap: 12px; align-items: center; padding: 11px 16px; border-top: 1px solid var(--line2); font-size: 13px }
+.dhc-row:first-child { border-top: 0 }
+.dhc-row .nm { min-width: 0 }
+.dhc-row .nm b { display: block; font-size: 14px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap }
+.dhc-row .nm small { color: var(--sub); font-size: 12px }
+.dhc-row .uses { display: flex; gap: 5px; flex-wrap: wrap; min-width: 0 }
+.dhc-row .act { display: flex; gap: 6px; flex-wrap: wrap; justify-content: flex-end }
+.dhc-cchip { display: inline-flex; align-items: center; gap: 5px; border-radius: 8px; padding: 1px 8px; font-size: 12px; font-weight: 700; background: var(--soft); color: var(--ink2); border: 1px solid var(--line2); white-space: nowrap; max-width: 220px; overflow: hidden; text-overflow: ellipsis }
+.dhc-cchip i { width: 8px; height: 8px; border-radius: 2px; background: var(--c); flex: none }
+.dhc-sbtn { border: 1px solid var(--line); background: var(--surface); border-radius: 9px; padding: 4px 11px; font-size: 12.5px; font-weight: 700; color: var(--ink2) !important; white-space: nowrap }
+.dhc-sbtn:hover { border-color: var(--violet); color: var(--violet) !important }
+.dhc-sbtn.pri { background: var(--ink); color: var(--surface) !important; border-color: var(--ink) }
+.dhc-tree .dhc-row { grid-template-columns: minmax(0, 1.4fr) minmax(0, 1.6fr) auto }
+.dhc-tree .nm b::before { content: ""; display: inline-block; width: calc(var(--d, 0) * 18px) }
+.dhc-fold { display: inline-block; width: 14px; height: 11px; border-radius: 2px 3px 3px 3px; background: #E2A63B; margin-right: 8px; vertical-align: -1px; position: relative }
+.dhc-fold.sc { background: #8C6BE0 }
+@media (max-width: 760px) {
+  .dhc-row, .dhc-tree .dhc-row { grid-template-columns: minmax(0, 1fr) }
+  .dhc-row .act { justify-content: flex-start }
+}
 @media (max-width: 760px) {
   .dhc-hrow { grid-template-columns: minmax(0, 1fr) }
   .dhc-scope > button { min-width: 0; max-width: none; width: 100% }

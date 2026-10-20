@@ -1,0 +1,18 @@
+/* LMS のはじめての設定（FirstSetupLms.jsx）。Learning の FirstSetup の部品に、.fs-lms の中だけで見た目を当てる */
+.fs-lms { min-height: 100vh; background: #F4F6FA; color: #161B26; font-family: "Noto Sans JP", "Hiragino Sans", "Yu Gothic", system-ui, sans-serif; padding: 0 16px 40px }
+.fs-lms > header { display: flex; align-items: center; max-width: 520px; margin: 0 auto; padding: 18px 0 0 }
+.fs-lms > header b { font-size: 15px }
+.fs-lms > header button { margin-left: auto; border: 1px solid #E3E7EE; background: #fff; border-radius: 9px; padding: 5px 12px; font-size: 13px; font-weight: 700; cursor: pointer }
+.fs-lms .card { background: #fff; border: 1px solid #E3E7EE; border-radius: 18px; box-shadow: 0 18px 44px -26px rgba(60,40,140,.35) }
+.fs-lms .eyebrow { font-size: 12px; font-weight: 800; color: #6E54D9; letter-spacing: .08em }
+.fs-lms .h1 { font-weight: 800; line-height: 1.35 }
+.fs-lms .muted { color: #5E6779 }
+.fs-lms .mfield { display: grid; gap: 6px; font-size: 13px; font-weight: 700; color: #3B4456 }
+.fs-lms .mfield input { border: 1.5px solid #E3E7EE; border-radius: 10px; padding: 10px 12px; font-size: 15px; font-weight: 500; color: #161B26; background: #fff }
+.fs-lms .mfield input:focus { outline: none; border-color: #6E54D9 }
+.fs-lms .btn { border: 0; background: linear-gradient(135deg, #6E54D9, #2F6FE0); color: #fff; border-radius: 10px; padding: 9px 20px; font-weight: 800; font-size: 14px; cursor: pointer }
+.fs-lms .btn.ghost { background: #fff; color: #3B4456; border: 1px solid #E3E7EE }
+.fs-lms .btn:disabled { opacity: .6; cursor: default }
+.fs-lms .verdict { border-radius: 10px; padding: 9px 12px; font-size: 13.5px }
+.fs-lms .verdict.ok { background: #E4F5EE; color: #1F9D6B }
+.fs-lms .verdict.ng { background: #FDECEA; color: #D9483B }

@@ -6,6 +6,7 @@ import { ruleIntent } from "./intent.js";
 import ConsoleHome from "./ConsoleHome.jsx";
 import ConsoleCourse from "./ConsoleCourse.jsx";
 import ConsolePeople from "./ConsolePeople.jsx";
+import ConsoleLibrary from "./ConsoleLibrary.jsx";
 import CourseMenu from "./CourseMenu.jsx";
 import AssistPanel from "./AssistPanel.jsx";
 
@@ -28,13 +29,14 @@ export default function ConsoleApp({ role, displayName, userProfile, onLogout, o
   const [loc, setLoc] = useState(() => readLoc() || { area: "home" });
   const [scope, setScope] = useState("");
   const [pick, setPick] = useState("");
+  const [pickRoster, setPickRoster] = useState(false);
   const [ask, setAsk] = useState(null);
   const [mini, setMini] = useState("");
   const [menu, setMenu] = useState("");
   const [toast, setToast] = useState("");
 
   const go = next => { setLoc(next); saveLoc(next); setMenu(""); window.scrollTo?.(0, 0); };
-  const openCourse = (courseId, tab = "today") => { setPick(""); go({ area: "course", courseId, tab }); };
+  const openCourse = (courseId, tab = "today") => { const roster = !!pick && pickRoster; setPick(""); setPickRoster(false); go({ area: "course", courseId, tab, ...(roster ? { roster: true } : {}) }); };
 
   // 講師で担当が1つだけなら、そのコースから始める
   const single = role === "instructor" && courses.length === 1 ? courses[0] : null;
@@ -58,8 +60,8 @@ export default function ConsoleApp({ role, displayName, userProfile, onLogout, o
 
   function navigate(r) {
     if (r.area === "people" && role === "admin") return go({ area: "people" });
-    if (r.area === "library") { setToast("教材の画面は準備中です。コースの中のタブから開けます。"); return undefined; }
-    if (r.area === "course" && r.courseId) return openCourse(r.courseId, r.tab || "today");
+    if (r.area === "library") return go({ area: "library", sub: r.sub || "folders" });
+    if (r.area === "course" && r.courseId) { setPick(""); return go({ area: "course", courseId: r.courseId, tab: r.tab || "today", ...(r.roster ? { roster: true } : {}) }); }
     if (r.area === "course" && r.tab) { setPick(r.tab); return go({ area: "home" }); }
     return go({ area: "home" });
   }
@@ -67,7 +69,7 @@ export default function ConsoleApp({ role, displayName, userProfile, onLogout, o
   async function doAsk(text, scopeCourseId) {
     const rule = ruleIntent(text, { courses, scopeCourseId });
     if (rule?.kind === "navigate") { setAsk(null); return navigate(rule); }
-    if (rule?.kind === "pick") { setAsk(null); setPick(rule.tab); return go({ area: "home" }); }
+    if (rule?.kind === "pick") { setAsk(null); setPick(rule.tab); setPickRoster(!!rule.roster); return go({ area: "home" }); }
     setAsk({ text, loading: true });
     try {
       const result = await apiPost("/console/assist", { text, courseId: scopeCourseId || "" });
@@ -81,7 +83,7 @@ export default function ConsoleApp({ role, displayName, userProfile, onLogout, o
 
   const asking = !!ask?.loading;
   const isHome = loc.area === "home";
-  const nav = [["home", single ? "コース" : "コース"], ...(role === "admin" ? [["people", "人・企業"]] : [])];
+  const nav = [["home", "コース"], ["library", "教材"], ...(role === "admin" ? [["people", "人・企業"]] : [])];
 
   return (
     <div className="dhc">
@@ -136,10 +138,12 @@ export default function ConsoleApp({ role, displayName, userProfile, onLogout, o
         )}
         {loc.area === "course" && course && (
           <ConsoleCourse course={course} tab={loc.tab || "today"} role={role} counts={counts}
-            openTab={tab => go({ ...loc, tab })} onLegacy={onLegacy}
+            openTab={tab => go({ area: "course", courseId: loc.courseId, tab })} onLegacy={onLegacy}
+            roster={!!loc.roster} onRosterClose={() => go({ area: "course", courseId: loc.courseId, tab: loc.tab })} onChanged={data.reload}
             userProfile={userProfile} displayName={displayName} goProduct={goProduct} />
         )}
         {loc.area === "course" && !course && <div className="dhc-empty">読み込んでいます…</div>}
+        {loc.area === "library" && <ConsoleLibrary courses={courses} role={role} sub={loc.sub} setSub={sub => go({ area: "library", sub })} openCourse={openCourse} />}
         {loc.area === "people" && role === "admin" && <ConsolePeople sub={loc.sub} setSub={sub => go({ area: "people", sub })} onLegacy={onLegacy} />}
       </main>
 

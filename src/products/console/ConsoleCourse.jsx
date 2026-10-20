@@ -2,6 +2,8 @@ import React, { useEffect, useState } from "react";
 import TrainingProduct from "../training/TrainingProduct.jsx";
 import { GOALS } from "../training/TrainingCatalog.js";
 import { setActiveCourseId } from "../../utils/common/courseContext.js";
+import CourseRoom from "./CourseRoom.jsx";
+import RosterImport from "./RosterImport.jsx";
 
 /* コースの画面（2026-10-20）。コースの頭＋タブ。タブの中身は今までの画面をそのまま入れる
    （どの画面も「選んだコース」を読むので、開く前に setActiveCourseId でこのコースにしておく）。
@@ -55,6 +57,7 @@ function CourseToday({ course, openTab }) {
           <small>カリキュラムの今日</small><em>カリキュラムを開く →</em>
         </button>
       </div>
+      <CourseRoom course={course} openTab={openTab} />
       {course.issues.length > 0 && (
         <div className="dhc-card dhc-sec">
           <h3>直しておくこと</h3>
@@ -70,7 +73,7 @@ function CourseToday({ course, openTab }) {
       <div className="dhc-card dhc-sec">
         <h3>よく使う</h3>
         <div className="dhc-chips">
-          {[["announce", "お知らせを出す"], ["test", "テストを作る"], ["practice", "練習問題を付ける"], ["doc", "資料を置く"], ["teams", "チームを作る"], ["seating", "席替え"]].map(([k, t]) => (
+          {[["test", "テストを作る"], ["practice", "練習問題を付ける"], ["doc", "資料を置く"], ["students", "受講生を見る"], ["completion", "修了レポート"]].map(([k, t]) => (
             <button key={k} type="button" onClick={() => openTab(k)}>{t}</button>
           ))}
         </div>
@@ -79,8 +82,11 @@ function CourseToday({ course, openTab }) {
   );
 }
 
-export default function ConsoleCourse({ course, tab, role, counts, openTab, onLegacy, userProfile, displayName, goProduct }) {
+export default function ConsoleCourse({ course, tab, role, counts, openTab, onLegacy, userProfile, displayName, goProduct, roster = false, onRosterClose, onChanged }) {
   const [karte, setKarte] = useState(null);
+  const [rosterOpen, setRosterOpen] = useState(roster);
+  useEffect(() => { if (roster) setRosterOpen(true); }, [roster]);
+  const [paneKey, setPaneKey] = useState(0);
   // 中の画面が開く前に、このコースを「選んだコース」にしておく
   setActiveCourseId(course.id);
   useEffect(() => { setKarte(null); }, [course.id, tab]);
@@ -107,7 +113,15 @@ export default function ConsoleCourse({ course, tab, role, counts, openTab, onLe
           ? <span key={`g${i}`} className="grp" aria-hidden="true" />
           : <button key={t[0]} type="button" aria-current={tab === t[0]} onClick={() => openTab(t[0])}>{t[1]}{counts?.[t[0]] ? <em>{counts[t[0]]}</em> : null}</button>))}
       </nav>
-      <div className="dhc-pane" key={`${course.id}-${tab}`}>
+      {tab === "students" && role === "admin" && (
+        <div className="dhc-toolbar">
+          <span className="dhc-note">お客様から届いた名簿（Excel・CSV）を読み込んで、まとめて登録できます</span>
+          <span style={{ marginLeft: "auto" }} />
+          <button type="button" className="dhc-sbtn pri" onClick={() => setRosterOpen(true)}>＋ お客様の名簿で登録</button>
+        </div>
+      )}
+      {rosterOpen && role === "admin" && <RosterImport course={course} onClose={() => { setRosterOpen(false); onRosterClose?.(); setPaneKey(k => k + 1); }} onDone={onChanged} />}
+      <div className="dhc-pane" key={`${course.id}-${tab}-${paneKey}`}>
         {def[0] === "today"
           ? <CourseToday course={course} openTab={openTab} />
           : (
