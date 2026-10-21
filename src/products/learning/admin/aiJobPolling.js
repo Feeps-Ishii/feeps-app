@@ -6,7 +6,8 @@
 // 正典: docs/decisions/0018-ai-generation-async-job.md
 import { apiGet, apiPost } from "../../../api.js";
 
-const POLL_INTERVAL_MS = 2500;
+// 2026-10-21: 2.5秒→5秒（管理者・講師だけの機能。API の呼び出しを半分にする。ADR 0031）
+const POLL_INTERVAL_MS = 5000;
 // ワーカーのLambda Timeoutは300秒。少し余裕を足した時点で諦める。
 const POLL_TIMEOUT_MS = 330000;
 

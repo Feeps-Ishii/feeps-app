@@ -107,7 +107,7 @@ export async function runJob(path, body, timeoutMs = 330000) {
   if (!started?.jobId) return started;
   const end = Date.now() + timeoutMs;
   while (Date.now() < end) {
-    await sleep(2500);
+    await sleep(5000);                // 2026-10-21: 2.5秒→5秒（API の呼び出しを半分に。ADR 0031）
     const job = await apiGet(`/learning/admin/ai-jobs/${encodeURIComponent(started.jobId)}`);
     if (job?.status === "done") return job.result || {};
     if (job?.status === "error") { const e = new Error(job.error || "AIが作れませんでした。"); e.errorMessage = e.message; throw e; }

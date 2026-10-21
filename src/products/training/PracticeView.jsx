@@ -258,7 +258,7 @@ const STATUS = { new: ["Word を送る前", "muted"], building: ["AI が作っ�
 async function waitJob(courseId, id, jobId, onTick) {
   for (let i = 0; i < 120; i++) {
     // eslint-disable-next-line no-await-in-loop
-    await new Promise(r => setTimeout(r, i ? 3000 : 2000));
+    await new Promise(r => setTimeout(r, 5000)); // 2026-10-21: 3秒→5秒（ADR 0031）
     // eslint-disable-next-line no-await-in-loop
     const r = await api.job(courseId, id, jobId);
     if (r.status === "done") return r;
@@ -289,7 +289,7 @@ function CreatePanel({ courseId, onMade, cancel }) {
       if (ans) await putFile(c.uploads.answer, ans, c.uploads.contentType);
       setBusy("AI が問題集にしています…（30秒〜1分ほど）");
       const { jobId } = await api.build(courseId, c.item.id, { hasAnswer: !!ans, problemName: prob.name, answerName: ans?.name || "" });
-      await waitJob(courseId, c.item.id, jobId, i => setBusy(`AI が問題集にしています…（${Math.round((i + 1) * 3)}秒）`));
+      await waitJob(courseId, c.item.id, jobId, i => setBusy(`AI が問題集にしています…（${(i + 1) * 5}秒）`));
       onMade(c.item.id);
     } catch (e) { setErr(errText(e)); setBusy(""); }
   }

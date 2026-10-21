@@ -24,7 +24,7 @@ const stamp = () => { const d = new Date(); const p = x => String(x).padStart(2,
 export async function waitJob(courseId, id, jobId, onTick) {
   for (let i = 0; i < 120; i++) {
     // eslint-disable-next-line no-await-in-loop
-    await new Promise(r => setTimeout(r, i ? 3000 : 1500));
+    await new Promise(r => setTimeout(r, 5000)); // 2026-10-21: 3秒→5秒（ADR 0031）
     // eslint-disable-next-line no-await-in-loop
     const r = await devApi.job(courseId, id, jobId);
     if (r.status === "done") return r;
