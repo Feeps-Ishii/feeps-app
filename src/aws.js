@@ -9,7 +9,7 @@ export const GOOGLE_LOGIN = false;
 
 // 画面への合図（チャット・ボードの新着。AppSync Events、2026-10-25、ADR 0032）。
 // sam deploy の出力 RealtimeHttpDomain を入れる。空のあいだは合図を使わず、画面は60秒ごとの問い合わせで動く（src/realtime.js）
-export const REALTIME_HTTP_DOMAIN = "";
+export const REALTIME_HTTP_DOMAIN = "wm6b77lerzcrvlawtcgnkbpfzm.appsync-api.ap-northeast-1.amazonaws.com";
 
 // 戻り先は「いま開いているページ」。Cognito のアプリクライアントに同じ URL を登録しておく
 const here = typeof window === "undefined" ? "" : window.location.origin + (window.location.pathname === "/index.html" ? "/" : window.location.pathname || "/");
