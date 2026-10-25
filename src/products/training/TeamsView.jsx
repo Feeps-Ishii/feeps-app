@@ -5,6 +5,7 @@ import { T, NOVA, Card, Btn, Badge, Modal, EmptyState, SectionHead, SkeletonRows
 import { setLibraryTarget } from "../../utils/common/courseContext.js";
 import { normalizeCurriculumSections } from "./TrainingComponents.jsx";
 import { markTeamChatRead, setOpenChatTeam, takeTeamChatFocus } from "./ChatNotifier.jsx";
+import { FALLBACK_POLL_MS, isLive, onLiveChange, onSignal, watchChannels } from "../../realtime.js";
 import {
   Archive, Briefcase, Check, ChevronDown, ChevronLeft, ChevronRight, Code, Copy, Crown, Download, Eye, FileText, Folder, History, ListTodo, Lock, LogIn, LogOut, MessageSquare, Paperclip, PenTool, Plus, RotateCcw, Search, Send, Shuffle, Trash2, Upload, Users, X, Columns3,
 } from "lucide-react";
@@ -519,7 +520,6 @@ function TeamRoom({ team, me, nameOf, isStaff, role, go, chatFocus }) {
 }
 
 /* ---------- チャット（②）。2026-10-14：Markdown表示・コードブロック・チームのフォルダのファイル添付・さかのぼり ---------- */
-const CHAT_POLL_MS = 4000;
 const MAX_CHAT_TEXT = 8000;
 const MAX_CHAT_FILES = 5;
 const hm = iso => { const d = new Date(iso); return Number.isNaN(d.getTime()) ? "" : `${d.getHours()}:${String(d.getMinutes()).padStart(2, "0")}`; };
@@ -616,18 +616,32 @@ function ChatTab({ team, me, nameOf }) {
     } catch (e) { setErr(errText(e, "チャットを読み込めませんでした。")); }
   }, [base, cq]);
   useEffect(() => { load(); }, [load, ended]);
-  // 新着を数秒ごとに読む（見えているときだけ。終了したチームは読まない）
+  // 新着は、チームのチャンネルの合図を受けて読む（2026-10-25、ADR 0032。それまでは4秒ごと）。
+  // 合図が届かないあいだだけ60秒ごと。見えているときだけ読み、タブに戻ったら読む。終了したチームは読まない
+  const fetchNew = useCallback(async () => {
+    if (document.visibilityState !== "visible") return;
+    try {
+      const d = await apiGet(`${base}?${cq}${cursorRef.current ? `&after=${encodeURIComponent(cursorRef.current)}` : ""}`);
+      addMsgs(Array.isArray(d?.messages) ? d.messages : []);
+    } catch { /* 次の合図・次の回で読み直す */ }
+  }, [base, cq, addMsgs]);
   useEffect(() => {
     if (msgs == null || ended) return undefined;
-    const id = window.setInterval(async () => {
-      if (document.visibilityState !== "visible") return;
-      try {
-        const d = await apiGet(`${base}?${cq}${cursorRef.current ? `&after=${encodeURIComponent(cursorRef.current)}` : ""}`);
-        addMsgs(Array.isArray(d?.messages) ? d.messages : []);
-      } catch { /* 次の回で読み直す */ }
-    }, CHAT_POLL_MS);
-    return () => window.clearInterval(id);
-  }, [msgs == null, ended, base, cq, addMsgs]); // eslint-disable-line react-hooks/exhaustive-deps
+    const unwatch = watchChannels([team.rt]);
+    let timer = 0;
+    const setFallback = live => { window.clearInterval(timer); timer = live ? 0 : window.setInterval(fetchNew, FALLBACK_POLL_MS); };
+    setFallback(isLive());
+    const offLive = onLiveChange(setFallback);
+    const offSignal = onSignal(ev => {
+      if (ev?.t !== "chat" || ev.team !== team.teamId) return;
+      // 消された発言は、その場で消して見せる（それまでは開き直すまで残っていた）
+      if (ev.del) setMsgs(cur => (cur || []).map(m => (m.id === ev.del ? { ...m, deleted: true, text: "", attachments: [] } : m)));
+      else fetchNew();
+    });
+    const onVisible = () => { if (document.visibilityState === "visible") fetchNew(); };
+    document.addEventListener("visibilitychange", onVisible);
+    return () => { window.clearInterval(timer); offLive(); offSignal(); unwatch(); document.removeEventListener("visibilitychange", onVisible); };
+  }, [msgs == null, ended, team.rt, team.teamId, fetchNew]); // eslint-disable-line react-hooks/exhaustive-deps
   // さかのぼったときは位置を保つ。下を見ているときだけ、新着で下へ送る
   useLayoutEffect(() => {
     const el = listRef.current;

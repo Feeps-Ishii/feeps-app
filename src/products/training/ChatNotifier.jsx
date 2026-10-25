@@ -3,20 +3,23 @@ import { createPortal } from "react-dom";
 import { apiGet, apiPost } from "../../api.js";
 import { T, NOVA, Z } from "../../components/common";
 import { MessageCircle, X } from "lucide-react";
+import { FALLBACK_POLL_MS, isLive, onLiveChange, onSignal, watchChannels } from "../../realtime.js";
 
 /* チームのチャットの新着（2026-10-02 ユーザー決定。CHANGELOG 192）
-   - 20秒ごとに未読を読み、ヘッダーに「新着チャット n」、新しい発言が来たら右上に小さく出す（LINEの通知のように）
+   - 未読を読み、ヘッダーに「新着チャット n」、新しい発言が来たら右上に小さく出す（LINEの通知のように）
+   - 2026-10-25〜（ADR 0032）：読むのは「開いたとき・チャットの合図が来たとき・タブに戻ったとき」だけ。
+     合図が届かない環境では60秒ごとに読む（それまでは20秒ごと）
    - 押すとそのチームのチャットを開く。開いているチームのぶんは数えず、出さない
    - ヘッダーはPC用・スマートフォン用の2か所にあるので、読み込みはこのファイルの中で1つにまとめる */
 
-const POLL_MS = 20000;
 const TEAM_COLORS = ["#E07A5F", "#3D8A63", "#7454C7", "#B07C2E", "#2E86AB", "#D1495B", "#00798C", "#5C946E"];
 
 let state = { total: 0, teams: [] };
 let seen = null;            // teamId → 最後に見た新着のid（はじめの1回は通知を出さない）
 let openTeam = "";          // いま開いているチャットのチーム
 let focusTeam = "";         // 通知から開くチーム（チームの画面が受け取る）
-let refs = 0, timer = 0;
+let refs = 0, timer = 0, soon = 0;
+let unwatch = () => {}, watchedKey = "", offSignal = () => {}, offLive = () => {};
 const subs = new Set(), toastSubs = new Set();
 
 function publish(teams) {
@@ -30,24 +33,45 @@ async function poll() {
   try {
     const d = await apiGet("/teams/unread");
     const teams = Array.isArray(d?.teams) ? d.teams : [];
+    // 合図のチャンネル（自分の今のチーム）。変わったときだけつなぎ直す
+    const chs = Array.isArray(d?.channels) ? d.channels : [];
+    const key = chs.slice().sort().join(",");
+    if (key !== watchedKey) { unwatch(); unwatch = watchChannels(chs); watchedKey = key; }
     if (seen) teams.forEach(t => { if (t.latest && t.latest.id !== seen.get(t.teamId) && t.teamId !== openTeam) toastSubs.forEach(f => f(t)); });
     seen = new Map(teams.map(t => [t.teamId, t.latest?.id || ""]));
     lastTeams = teams;
     publish(teams);
   } catch { /* 次の回で読み直す */ }
 }
+// 合図が届くあいだは定期に読まない。届かないあいだだけ60秒ごと
+function setFallback() {
+  window.clearInterval(timer); timer = 0;
+  if (!isLive()) timer = window.setInterval(poll, FALLBACK_POLL_MS);
+}
+const onVisible = () => { if (document.visibilityState === "visible") poll(); };
 function start() {
   refs += 1;
   if (refs > 1) return;
   poll();
-  timer = window.setInterval(poll, POLL_MS);
+  setFallback();
+  offLive = onLiveChange(setFallback);
+  // チャットの合図が来たら、少しまとめてから読む（続けて送られたときに何度も読まない）
+  offSignal = onSignal(ev => {
+    if (ev?.t !== "chat") return;
+    window.clearTimeout(soon);
+    soon = window.setTimeout(poll, 400);
+  });
   window.addEventListener("focus", poll);
+  document.addEventListener("visibilitychange", onVisible);
 }
 function stop() {
   refs -= 1;
   if (refs > 0) return;
-  window.clearInterval(timer);
+  window.clearInterval(timer); timer = 0;
+  window.clearTimeout(soon);
+  offLive(); offSignal(); unwatch(); unwatch = () => {}; watchedKey = "";
   window.removeEventListener("focus", poll);
+  document.removeEventListener("visibilitychange", onVisible);
   seen = null; lastTeams = []; state = { total: 0, teams: [] };
 }
 

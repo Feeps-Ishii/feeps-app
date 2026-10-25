@@ -3,11 +3,12 @@ import { Excalidraw } from "@excalidraw/excalidraw";
 import "@excalidraw/excalidraw/index.css";
 import { apiGet, apiPut } from "../../api.js";
 import { T, SkeletonRows, PrismErrorRetryCard } from "../../components/common";
+import { FALLBACK_POLL_MS, isLive, onLiveChange, onSignal, watchChannels } from "../../realtime.js";
 
 /* チームの共有ボード（2026-10-01 ③）。Excalidraw（MIT）を使う。重いので開いた人だけが読み込む（TeamsView から lazy）。
-   同時編集は「図形ごとの version が大きいほうを残す」で合わせる。書いたら少し待って送り、ほかの人の変更は数秒ごとに読む。
+   同時編集は「図形ごとの version が大きいほうを残す」で合わせる。書いたら少し待って送る。
+   ほかの人の変更は、チームのチャンネルの合図（rev）を受けて読む（2026-10-25、ADR 0032。それまでは3秒ごと）。合図が届かないあいだだけ60秒ごと。
    画像は共有の仕組みが無いので使わない。 */
-const POLL_MS = 3000;
 const SEND_DELAY_MS = 800;
 const sig = els => (els || []).map(e => `${e.id}:${e.version}`).join("|");
 const byIndex = (a, b) => (String(a.index || "") < String(b.index || "") ? -1 : String(a.index || "") > String(b.index || "") ? 1 : 0);
@@ -51,24 +52,34 @@ export default function TeamBoard({ team, nameOf }) {
   }, [base]);
   useEffect(() => { load(); }, [load]);
 
-  // ほかの人の変更を数秒ごとに読む（見えているときだけ）
+  // ほかの人の変更を読む（見えているときだけ）。合図・タブに戻ったとき・合図が届かないあいだの60秒ごと
+  const pull = useCallback(async () => {
+    if (document.visibilityState !== "visible" || sendingRef.current || !apiRef.current) return;
+    try {
+      const d = await apiGet(`${base}&rev=${revRef.current}`);
+      if (d?.unchanged || !Array.isArray(d?.elements)) return;
+      revRef.current = Number(d.rev) || revRef.current;
+      setInfo({ updatedAt: d.updatedAt || "", updatedBy: d.updatedBy || "" });
+      const merged = mergeElements(apiRef.current.getSceneElementsIncludingDeleted(), d.elements);
+      lastSig.current = sig(merged);
+      apiRef.current.updateScene({ elements: merged });
+    } catch { /* 次の合図・次の回で読み直す */ }
+  }, [base]);
   useEffect(() => {
     if (!initial) return undefined;
-    const id = window.setInterval(async () => {
-      if (document.visibilityState !== "visible" || sendingRef.current || !apiRef.current) return;
-      try {
-        const d = await apiGet(`${base}&rev=${revRef.current}`);
-        tick(n => n + 1);
-        if (d?.unchanged || !Array.isArray(d?.elements)) return;
-        revRef.current = Number(d.rev) || revRef.current;
-        setInfo({ updatedAt: d.updatedAt || "", updatedBy: d.updatedBy || "" });
-        const merged = mergeElements(apiRef.current.getSceneElementsIncludingDeleted(), d.elements);
-        lastSig.current = sig(merged);
-        apiRef.current.updateScene({ elements: merged });
-      } catch { /* 次の回で読み直す */ }
-    }, POLL_MS);
-    return () => window.clearInterval(id);
-  }, [initial, base]);
+    const unwatch = watchChannels([team.rt]);
+    let timer = 0;
+    const setFallback = live => { window.clearInterval(timer); timer = live ? 0 : window.setInterval(pull, FALLBACK_POLL_MS); };
+    setFallback(isLive());
+    const offLive = onLiveChange(setFallback);
+    // 自分が送った分（rev が今と同じか古い）は読み直さない
+    const offSignal = onSignal(ev => { if (ev?.t === "board" && ev.team === team.teamId && Number(ev.rev) > revRef.current) pull(); });
+    const onVisible = () => { if (document.visibilityState === "visible") pull(); };
+    document.addEventListener("visibilitychange", onVisible);
+    // 「〇秒前」の表示だけを進める（API は呼ばない）
+    const clock = window.setInterval(() => tick(n => n + 1), 15000);
+    return () => { window.clearInterval(timer); window.clearInterval(clock); offLive(); offSignal(); unwatch(); document.removeEventListener("visibilitychange", onVisible); };
+  }, [initial, pull, team.rt, team.teamId]);
 
   const send = useCallback(async () => {
     const api = apiRef.current;
