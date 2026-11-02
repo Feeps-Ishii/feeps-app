@@ -7,6 +7,8 @@ const COLORS = {
   umb: { bg: "#15171C", fg: "#FFFFFF", hub: "#FFE14D" },
   lms: { bg: "grad", fg: "#FFFFFF", hub: "#FFFFFF" },
   lrn: { bg: "#FFE14D", fg: "#15171C", hub: "#15171C" },
+  // 新しい LMS（セージ、2026-11-02）のティール
+  teal: { bg: "#0E9F96", fg: "#FFFFFF", hub: "#FFFFFF" },
 };
 const POINTS = [[15, 12], [15, 36], [26, 12], [35, 18], [35, 30], [26, 36]];
 

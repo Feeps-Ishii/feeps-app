@@ -1,0 +1,192 @@
+/* 新しい LMS の見た目「セージ」（2026-11-02、モック docs/design/mockups/devhub-lms-2026-10/lms-learning-style.html）。
+   前の画面（Nova/Prism）を変えないよう、すべて .lms の中だけに効かせる */
+
+.lms {
+  --paper: #F2F3EF; --card: #FFFFFF; --soft: #F3F4F0; --bg: #E7E9E4;
+  --ink: #1F2624; --ink2: #4E5754; --muted: #646D69; --line: #E1E3DD; --line2: #ECEEE9;
+  --mark: #1E6F68; --mark-soft: #DCEBE7; --word: #1E6F68; --word-dark: #8CCFC6;
+  --rep: #E3EDE4; --rep-i: #3F6B4C; --rep-d: #6E9B79;
+  --att: #F5EDD8; --att-i: #7A5A12; --att-d: #C9A24A;
+  --cur: #E2E9F3; --cur-i: #3C5A86; --cur-d: #6F8DB8;
+  --tst: #EEE5EE; --tst-i: #6E4870; --tst-d: #A27DA4;
+  --dev: #F3E4DF; --dev-i: #8A4A3C; --dev-d: #B9806E;
+  --tm: #DCEBE7; --tm-i: #1E6F68; --tm-d: #2E8F87;
+  --gy: #ECEEE9; --gy-i: #4E5754; --gy-d: #8A928E;
+  --body: "Zen Kaku Gothic New", "Hiragino Kaku Gothic ProN", "Yu Gothic UI", Meiryo, system-ui, sans-serif;
+  --display: "Zen Kaku Gothic Antique", "Zen Kaku Gothic New", sans-serif;
+  --num: Manrope, "Helvetica Neue", Arial, sans-serif;
+  min-height: 100vh; background: var(--bg); color: var(--ink); font-family: var(--body); font-size: 15px; line-height: 1.65;
+  word-break: auto-phrase; line-break: strict; overflow-wrap: anywhere; display: flex; flex-direction: column;
+}
+.lms *, .lms *::before, .lms *::after { box-sizing: border-box }
+:where(.lms) :where(button, input, textarea, select) { font: inherit; color: inherit }
+:where(.lms) button { cursor: pointer }
+.lms :focus-visible { outline: 3px solid var(--mark); outline-offset: 2px }
+.lms h1, .lms h2, .lms h3 { margin: 0; font-weight: 700; text-wrap: balance }
+.lms .num { font-family: var(--num); font-variant-numeric: tabular-nums }
+.lms .c-rep { --c: var(--rep); --ci: var(--rep-i); --cd: var(--rep-d) } .lms .c-att { --c: var(--att); --ci: var(--att-i); --cd: var(--att-d) }
+.lms .c-cur { --c: var(--cur); --ci: var(--cur-i); --cd: var(--cur-d) } .lms .c-tst { --c: var(--tst); --ci: var(--tst-i); --cd: var(--tst-d) }
+.lms .c-dev { --c: var(--dev); --ci: var(--dev-i); --cd: var(--dev-d) } .lms .c-tm { --c: var(--tm); --ci: var(--tm-i); --cd: var(--tm-d) }
+.lms .c-gy { --c: var(--gy); --ci: var(--gy-i); --cd: var(--gy-d) }
+
+/* ===== ヘッダー（上：まとまり ・ 下：画面） ===== */
+.lms-wrap { width: 100%; max-width: 1360px; margin: 0 auto; padding-inline: 20px }
+.lms-bar { background: var(--paper); border-bottom: 1px solid var(--line); position: sticky; top: 0; z-index: 40 }
+.lms-bar.admin { background: var(--ink); color: #fff; border-color: var(--ink) }
+.lms-bar .lms-wrap { display: flex; align-items: center; gap: 14px; min-height: 60px; padding-block: 8px }
+.lms-logo { display: inline-flex; align-items: center; gap: 9px; white-space: nowrap; border: 0; background: none; padding: 0; color: inherit }
+.lms-logo .wm { font-family: "Bricolage Grotesque", var(--body); font-size: 20px; letter-spacing: -.035em; line-height: 1 }
+.lms-logo .wm b { font-weight: 800 } .lms-logo .wm i { font-style: normal; font-weight: 700; margin-left: .28em; color: var(--word) }
+.lms-bar.admin .lms-logo .wm i { color: var(--word-dark) }
+.lms-mode { font-family: var(--num); font-size: 10.5px; font-weight: 600; letter-spacing: .18em; border: 1px solid rgba(255, 255, 255, .4); border-radius: 6px; padding: 1px 7px }
+.lms-nav { display: flex; gap: 4px; flex-wrap: wrap }
+.lms-ng { position: relative }
+.lms-ng > button { border: 0; background: none; padding: 6px 14px; border-radius: 999px; font-weight: 600; color: var(--ink2); white-space: nowrap; display: inline-flex; gap: 6px; align-items: center }
+.lms-bar.admin .lms-ng > button { color: #C9CFD6 }
+.lms-ng > button[aria-current="page"] { background: var(--ink); color: #fff }
+.lms-bar.admin .lms-ng > button[aria-current="page"] { background: var(--tm-d); color: #fff }
+.lms-ng > button .cv { opacity: .55; display: inline-flex }
+.lms-drop { display: none; position: absolute; top: 100%; left: -10px; z-index: 45; padding-top: 10px; min-width: 248px }
+.lms-ng:hover .lms-drop, .lms-ng:focus-within .lms-drop { display: block }
+.lms-dc { background: var(--card); color: var(--ink); border-radius: 16px; box-shadow: 0 18px 40px -16px rgba(31, 38, 36, .35); padding: 8px; display: grid; gap: 2px }
+.lms-dh { font-family: var(--num); font-size: 10.5px; font-weight: 600; letter-spacing: .14em; color: var(--muted); padding: 4px 10px 6px }
+.lms-di { display: flex; align-items: center; gap: 10px; width: 100%; border: 0; background: none; border-radius: 12px; padding: 8px 10px; text-align: left; font-weight: 700; font-size: 14px; color: var(--ink) }
+.lms-di:hover { background: var(--soft) } .lms-di[aria-current="page"] { background: var(--tm); color: var(--tm-i) }
+.lms-di .ic { width: 30px; height: 30px; border-radius: 50%; display: grid; place-items: center; background: var(--soft); color: var(--ink2); flex: none }
+.lms-di[aria-current="page"] .ic { background: var(--card); color: var(--tm-i) }
+.lms-me { margin-left: auto; display: flex; align-items: center; gap: 10px; position: relative }
+.lms-bell { width: 36px; height: 36px; border-radius: 50%; border: 0; background: var(--card); display: grid; place-items: center; position: relative; color: var(--ink) }
+.lms-bell em { position: absolute; top: -4px; right: -4px; background: var(--dev-d); color: #fff; font-style: normal; font-size: 10.5px; font-weight: 700; border-radius: 999px; padding: 0 5px; line-height: 1.6 }
+.lms-um { display: flex; align-items: center; gap: 10px; border: 0; background: var(--card); border-radius: 999px; padding: 4px 14px 4px 5px; color: var(--ink) }
+.lms-um b { font-size: 13px; display: block; line-height: 1.25; text-align: left } .lms-um small { font-size: 11px; color: var(--muted); display: block; line-height: 1.25; text-align: left }
+.lms-pop { position: absolute; right: 0; top: calc(100% + 8px); z-index: 50; min-width: 220px; background: var(--card); color: var(--ink); border-radius: 16px; box-shadow: 0 18px 40px -16px rgba(31, 38, 36, .35); padding: 8px; display: grid; gap: 2px }
+.lms-pop button { border: 0; background: none; text-align: left; padding: 9px 12px; border-radius: 10px; font-weight: 600; font-size: 14px }
+.lms-pop button:hover { background: var(--soft) }
+.lms-sub { background: var(--paper); border-bottom: 1px solid var(--line) }
+.lms-sub .lms-wrap { display: flex; gap: 2px; overflow-x: auto; scrollbar-width: thin }
+.lms-sub button { border: 0; background: none; padding: 10px 14px 11px; font-weight: 700; color: var(--muted); border-bottom: 3px solid transparent; white-space: nowrap }
+.lms-sub button[aria-current="page"] { color: var(--ink); border-bottom-color: var(--ink) }
+.lms-main { flex: 1; width: 100%; padding-block: 22px 56px; display: grid; gap: 18px; align-content: start }
+.lms-bnav { display: none }
+.lms-mode, .lms-me, .lms-logo { flex: none } .lms-nav { flex-wrap: nowrap; min-width: 0 } .lms-um b, .lms-um small { white-space: nowrap }
+@media (max-width: 1100px) {
+  .lms-um > span:last-child { display: none } .lms-um { padding: 4px }
+  .lms-ng > button { padding: 6px 10px } .lms-ng > button .cv { display: none }
+}
+.lms-sheet { position: fixed; inset: 0; z-index: 60; background: rgba(31, 38, 36, .38); display: grid; align-items: end }
+.lms-sheet > div { background: var(--paper); border-radius: 22px 22px 0 0; padding: 16px 16px calc(16px + env(safe-area-inset-bottom)); display: grid; gap: 14px; max-height: 80vh; overflow: auto }
+.lms-sheet h3 { font-size: 12px; letter-spacing: .12em; color: var(--muted); font-family: var(--num) }
+.lms-sheet .grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px }
+.lms-sheet .grid button { border: 0; background: var(--card); border-radius: 14px; padding: 12px 6px; display: grid; justify-items: center; gap: 4px; font-size: 12.5px; font-weight: 700 }
+.lms-sheet .grid button[aria-current="page"] { background: var(--tm); color: var(--tm-i) }
+@media (max-width: 760px) {
+  .lms-bar .lms-nav, .lms-mode { display: none }
+  .lms-bnav { display: grid; grid-template-columns: repeat(5, 1fr); position: sticky; bottom: 0; z-index: 35; background: var(--card); border-top: 1px solid var(--line); padding: 6px 4px calc(6px + env(safe-area-inset-bottom)) }
+  .lms-bnav button { border: 0; background: none; display: grid; justify-items: center; gap: 2px; font-size: 11.5px; font-weight: 700; color: var(--muted); padding: 4px 0 }
+  .lms-bnav button[aria-current="page"] { color: var(--tm-i) }
+  .lms-wrap { padding-inline: 16px }
+}
+
+/* ===== 部品 ===== */
+.lms .eyebrow { font-family: var(--num); font-size: 11px; font-weight: 600; letter-spacing: .12em; color: var(--muted) }
+.lms .h1 { font-family: var(--display); font-size: clamp(22px, 3vw, 28px); line-height: 1.35; letter-spacing: .01em }
+.lms .h2 { font-size: 18px } .lms .h3 { font-size: 15px }
+.lms .head { display: flex; align-items: end; gap: 12px; flex-wrap: wrap }
+.lms .head .r { margin-left: auto; display: flex; gap: 8px; flex-wrap: wrap; align-items: center }
+.lms .card { background: var(--card); border-radius: 20px; box-shadow: 0 1px 0 rgba(31, 38, 36, .04), 0 12px 32px -24px rgba(31, 38, 36, .28) }
+.lms .pad { padding: 20px 22px; display: grid; gap: 12px; align-content: start }
+.lms .row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center }
+.lms .g2 { display: grid; grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr); gap: 16px; align-items: start }
+.lms .g2e { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 16px; align-items: start }
+@media (max-width: 860px) { .lms .g2, .lms .g2e { grid-template-columns: minmax(0, 1fr) } }
+.lms .btn { display: inline-flex; align-items: center; gap: 8px; border: 1px solid var(--ink); border-radius: 999px; background: var(--ink); padding: 8px 16px; font-weight: 700; font-size: 14px; white-space: nowrap; color: #fff; transition: background .15s, transform .15s }
+.lms .btn:hover { background: #333B39 } .lms .btn:active { transform: translateY(1px) }
+.lms .btn.ghost { background: var(--card); border-color: var(--line); color: var(--ink) } .lms .btn.ghost:hover { border-color: var(--ink2) }
+.lms .btn.sm { padding: 4px 12px; font-size: 13px } .lms .btn.big { padding: 12px 24px; font-size: 15px } .lms .btn.full { width: 100%; justify-content: center }
+.lms .btn:disabled { opacity: .45; cursor: default }
+.lms .chip { display: inline-flex; align-items: center; gap: 5px; border-radius: 999px; background: var(--soft); padding: 2px 10px; font-size: 12px; color: var(--ink2); white-space: nowrap }
+.lms .chip.ok { background: var(--rep); color: var(--rep-i) } .lms .chip.warn { background: var(--att); color: var(--att-i) } .lms .chip.bad { background: var(--dev); color: var(--dev-i) }
+.lms .chip.blue { background: var(--cur); color: var(--cur-i) } .lms .chip.mk { background: var(--tm); color: var(--tm-i) } .lms .chip.co { background: var(--tst); color: var(--tst-i) } .lms .chip.ink { background: var(--ink); color: #fff }
+.lms .seg { display: inline-flex; border-radius: 999px; background: var(--paper); padding: 3px; gap: 2px }
+.lms .seg button { border: 0; background: none; padding: 6px 14px; border-radius: 999px; font-weight: 700; font-size: 13px; color: var(--ink2) }
+.lms .seg button[aria-pressed="true"] { background: var(--ink); color: #fff }
+.lms .face { width: 34px; height: 34px; border-radius: 50%; background: var(--tm); color: var(--tm-i); display: grid; place-items: center; font-weight: 700; font-size: 13px; flex: none }
+.lms .bar10 { height: 6px; border-radius: 3px; background: var(--line2); overflow: hidden } .lms .bar10 i { display: block; height: 100%; width: var(--w); background: var(--tm-d); border-radius: 3px }
+.lms .list { display: grid }
+.lms .li { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 10px; align-items: center; padding: 10px 0; border-top: 1px solid var(--line2); font-size: 14px }
+.lms .li:first-child { border-top: 0 } .lms .li small { color: var(--muted); font-size: 12.5px; display: block }
+.lms .scroll { overflow-x: auto }
+.lms .tbl { width: 100%; border-collapse: collapse; font-size: 14px }
+.lms .tbl th { text-align: left; font-size: 11.5px; letter-spacing: .06em; color: var(--muted); font-weight: 700; padding: 12px 16px; border-bottom: 1px solid var(--line2); white-space: nowrap }
+.lms .tbl td { padding: 12px 16px; border-bottom: 1px solid var(--line2); white-space: nowrap; vertical-align: middle }
+.lms .tbl tr:last-child td { border-bottom: 0 } .lms .tbl tbody tr:hover td { background: var(--paper) }
+.lms .field { display: grid; gap: 5px; font-size: 13px; font-weight: 700; color: var(--ink2) }
+.lms textarea, .lms input[type=text], .lms input[type=search], .lms input[type=date], .lms input[type=number], .lms input[type=email], .lms input[type=password], .lms select.in {
+  width: 100%; border: 1px solid transparent; border-radius: 12px; padding: 9px 12px; background: var(--paper); font-size: 14.5px }
+.lms textarea:focus, .lms input:focus, .lms select.in:focus { outline: none; border-color: var(--ink); background: var(--card) }
+.lms textarea { min-height: 84px; resize: vertical }
+.lms .empty { display: grid; justify-items: center; gap: 8px; padding: 28px 12px; color: var(--muted); font-size: 14px; text-align: center }
+
+/* 絞り込み・探す・並べ替え（受講生が並ぶ一覧には必ず付ける） */
+.lms .ftool { display: flex; gap: 10px; align-items: center; flex-wrap: wrap }
+.lms .ftabs { display: flex; gap: 6px; flex-wrap: wrap }
+.lms .ftabs button { display: inline-flex; gap: 6px; align-items: center; border: 0; background: var(--card); border-radius: 999px; padding: 6px 14px; font-weight: 700; font-size: 13px; color: var(--ink2); box-shadow: 0 1px 0 rgba(31, 38, 36, .05) }
+.lms .ftabs button em { font-style: normal; font-family: var(--num); font-size: 12px; border-radius: 999px; padding: 0 7px; background: var(--paper); color: var(--ink2) }
+.lms .ftabs button.bad em { background: var(--dev); color: var(--dev-i) } .lms .ftabs button.warn em { background: var(--att); color: var(--att-i) } .lms .ftabs button.ok em { background: var(--rep); color: var(--rep-i) }
+.lms .ftabs button[aria-pressed="true"] { background: var(--ink); color: #fff } .lms .ftabs button[aria-pressed="true"] em { background: rgba(255, 255, 255, .2); color: #fff }
+.lms .fsearch { flex: 1 1 180px; max-width: 260px } .lms .fsearch input { border-radius: 999px; padding: 8px 16px; background: var(--card); box-shadow: 0 1px 0 rgba(31, 38, 36, .05) }
+.lms .card .fsearch input { background: var(--paper); box-shadow: none }
+.lms .fsort { display: inline-flex; gap: 6px; align-items: center; font-size: 12.5px; color: var(--muted); font-weight: 700; margin-left: auto }
+.lms .fsort select { border: 0; background: var(--card); border-radius: 999px; padding: 6px 12px; font-size: 13px }
+
+/* 見出しの日付・札 */
+.lms .th-top { display: flex; align-items: center; gap: 16px; flex-wrap: wrap }
+.lms .th-date { display: flex; align-items: center; gap: 12px }
+.lms .th-date > b { font-family: var(--num); font-weight: 300; font-size: 48px; line-height: 1; letter-spacing: -.04em; white-space: nowrap; flex: none }
+.lms .th-date em { display: block; font-style: normal; font-weight: 700; font-size: 15px } .lms .th-date small { display: block; color: var(--muted); font-size: 12.5px }
+.lms .th-att { margin-left: auto; display: flex; gap: 8px; flex-wrap: wrap }
+.lms .th-pill { display: inline-flex; align-items: center; gap: 7px; height: 32px; padding: 0 14px; border-radius: 999px; background: var(--card); font-size: 13px; font-weight: 600; color: var(--ink2) }
+.lms .th-pill i { width: 8px; height: 8px; border-radius: 50%; background: var(--line) } .lms .th-pill.ok i { background: var(--rep-d) }
+.lms .th-pill b { font-family: var(--num); font-weight: 600; color: var(--ink) }
+
+/* 色の面（ヒーロー）と中の数字 */
+.lms .hero { background: var(--c); border-radius: 24px; padding: 24px 26px; display: grid; gap: 18px; align-content: start }
+.lms .hero-h { display: flex; align-items: center; justify-content: space-between; gap: 10px } .lms .hero-h .eyebrow { color: var(--ci) }
+.lms .hero-step { font-family: var(--num); font-size: 12.5px; font-weight: 600; color: var(--ci); background: rgba(255, 255, 255, .65); border-radius: 999px; padding: 2px 11px; white-space: nowrap; flex: none }
+.lms .hero-t { font-family: var(--display); font-size: clamp(26px, 3.2vw, 38px); line-height: 1.2; letter-spacing: .01em }
+.lms .hero-s { margin: 0; color: var(--ink2); font-size: 15px }
+.lms .kpi { display: grid; grid-template-columns: repeat(var(--n, 3), minmax(0, 1fr)); gap: 10px }
+.lms .kpi > div { background: rgba(255, 255, 255, .72); border-radius: 16px; padding: 12px 14px; display: grid; gap: 5px; align-content: start }
+.lms .kpi span { font-size: 12.5px; color: var(--ink2); font-weight: 600 }
+.lms .kpi b { font-family: var(--num); font-weight: 300; font-size: 30px; line-height: 1.05; letter-spacing: -.02em } .lms .kpi b small { font-size: 14px; font-weight: 500; color: var(--muted); letter-spacing: 0 }
+.lms .kpi .bar10 { background: rgba(31, 38, 36, .08) } .lms .kpi .bar10 i { background: var(--ci) }
+.lms .kpi em { font-style: normal; font-size: 11.5px; color: var(--muted) }
+@media (max-width: 860px) { .lms .kpi { grid-template-columns: repeat(2, minmax(0, 1fr)) } }
+@media (max-width: 560px) {
+  .lms .hero { padding: 20px 18px; border-radius: 20px }
+  .lms .kpi { grid-template-columns: minmax(0, 1fr); gap: 6px }
+  .lms .kpi > div { grid-template-columns: minmax(0, 1fr) auto; align-items: center; column-gap: 12px; padding: 10px 14px }
+  .lms .kpi b { font-size: 24px; grid-row: 1 / span 3; grid-column: 2 } .lms .kpi .bar10, .lms .kpi em { grid-column: 1 }
+  .lms .th-date > b { font-size: 40px } .lms .th-att { margin-left: 0 }
+}
+
+/* 日付の札（幅をそろえて余白をとる） */
+.lms .cal { display: grid; justify-items: center; gap: 3px; width: 54px; flex: none; padding: 8px 0 9px; border-radius: 14px; background: var(--c); color: var(--ci); line-height: 1 }
+.lms .cal b { font-family: var(--num); font-size: 22px; font-weight: 600; line-height: 1 } .lms .cal small { font-size: 11px; font-weight: 600 } .lms .cal small:last-child { opacity: .75 }
+
+/* 輪 */
+.lms .ring { position: relative; width: 116px; height: 116px; flex: none; display: grid; place-items: center }
+.lms .ring svg { position: absolute; inset: 0; width: 100%; height: 100% }
+.lms .ring .tr { fill: none; stroke: var(--line2); stroke-width: 11 } .lms .ring .fg { fill: none; stroke: var(--cd, var(--tm-d)); stroke-width: 11; stroke-linecap: round }
+.lms .ring b { position: relative; font-family: var(--num); font-weight: 300; font-size: 30px; letter-spacing: -.02em } .lms .ring b small { font-size: 14px; color: var(--muted) }
+
+/* 準備中（まだ今の画面にも無い画面） */
+.lms .soon { display: grid; justify-items: center; gap: 10px; padding: 48px 16px; color: var(--muted) }
+.lms .soon .ic { width: 52px; height: 52px; border-radius: 50%; display: grid; place-items: center; background: var(--card); color: var(--ink2) }
+
+/* 今の画面を中に出すとき（作り直すまでの受け皿） */
+.lms-legacy { background: var(--card); border-radius: 20px; padding: 8px; overflow: hidden }
+
+.lms-toast { position: fixed; left: 50%; bottom: 28px; transform: translateX(-50%); z-index: 70; background: var(--ink); color: #fff; border-radius: 999px; padding: 10px 20px; font-weight: 700; font-size: 14px; box-shadow: 0 16px 36px -16px rgba(31, 38, 36, .6) }
+@media (max-width: 760px) { .lms-toast { bottom: 84px } }
+@media (prefers-reduced-motion: reduce) { .lms *, .lms *::before, .lms *::after { transition: none !important; animation: none !important } }
