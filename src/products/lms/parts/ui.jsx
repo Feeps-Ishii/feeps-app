@@ -43,7 +43,7 @@ export function Hero({ cat = "tm", eyebrow, step, title, sub, children, classNam
 // 色の面の中の数字：items = [{ label, value, unit, pct, note }]
 export function Kpi({ items }) {
   return (
-    <div className="kpi" style={{ "--n": items.length }}>
+    <div className={`kpi${items.length === 4 ? " n4" : ""}`} style={{ "--n": items.length }}>
       {items.map(it => (
         <div key={it.label}>
           <span>{it.label}</span>

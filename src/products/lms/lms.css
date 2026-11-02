@@ -161,7 +161,7 @@
 .lms .kpi b { font-family: var(--num); font-weight: 300; font-size: 30px; line-height: 1.05; letter-spacing: -.02em } .lms .kpi b small { font-size: 14px; font-weight: 500; color: var(--muted); letter-spacing: 0 }
 .lms .kpi .bar10 { background: rgba(31, 38, 36, .08) } .lms .kpi .bar10 i { background: var(--ci) }
 .lms .kpi em { font-style: normal; font-size: 11.5px; color: var(--muted) }
-@media (max-width: 860px) { .lms .kpi { grid-template-columns: repeat(2, minmax(0, 1fr)) } }
+@media (max-width: 860px) { .lms .kpi.n4 { grid-template-columns: repeat(2, minmax(0, 1fr)) } }
 @media (max-width: 560px) {
   .lms .hero { padding: 20px 18px; border-radius: 20px }
   .lms .kpi { grid-template-columns: minmax(0, 1fr); gap: 6px }
@@ -190,3 +190,32 @@
 .lms-toast { position: fixed; left: 50%; bottom: 28px; transform: translateX(-50%); z-index: 70; background: var(--ink); color: #fff; border-radius: 999px; padding: 10px 20px; font-weight: 700; font-size: 14px; box-shadow: 0 16px 36px -16px rgba(31, 38, 36, .6) }
 @media (max-width: 760px) { .lms-toast { bottom: 84px } }
 @media (prefers-reduced-motion: reduce) { .lms *, .lms *::before, .lms *::after { transition: none !important; animation: none !important } }
+
+/* ===== 受講生のホーム（モック homeT） ===== */
+.lms .th { display: grid; gap: 18px }
+.lms .th-grid { display: grid; grid-template-columns: minmax(0, 1.55fr) minmax(0, 1fr); gap: 18px; align-items: stretch }
+.lms .th-grid > .hero:only-child { grid-column: 1 / -1 }
+.lms .th-row { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 18px; align-items: start }
+.lms .th-chips .chip { background: rgba(255, 255, 255, .7); color: var(--ink2) }
+.lms .btn.ghost.th-ghost { background: rgba(255, 255, 255, .8); border-color: transparent }
+.lms .th-flow { align-content: start }
+.lms .th-cnt { font-family: var(--num); font-size: 24px; font-weight: 300; letter-spacing: -.02em } .lms .th-cnt small { font-size: 13px; color: var(--muted); font-weight: 500; letter-spacing: 0 }
+.lms .tf { list-style: none; margin: 0; padding: 0; display: grid; gap: 2px }
+.lms .tf li { display: grid; grid-template-columns: 30px minmax(0, 1fr) auto; gap: 12px; align-items: center; padding: 8px 10px; border-radius: 14px; position: relative }
+.lms .tf li:not(:last-child)::after { content: ""; position: absolute; left: 24px; top: calc(50% + 18px); height: calc(100% - 34px); width: 2px; border-radius: 1px; background: var(--line) }
+.lms .tf li.done:not(:last-child)::after { background: var(--cd) }
+.lms .tf i { width: 30px; height: 30px; border-radius: 50%; display: grid; place-items: center; font-style: normal; font-family: var(--num); font-weight: 700; font-size: 12px; background: var(--soft); color: var(--muted) }
+.lms .tf .done i { background: var(--cd); color: #fff } .lms .tf .done b { color: var(--ink2); font-weight: 600 }
+.lms .tf .next { background: var(--c) } .lms .tf .next i { background: var(--ink); color: #fff }
+.lms .tf b { display: block; font-size: 14.5px; line-height: 1.35 } .lms .tf small { display: block; font-size: 12.5px; color: var(--muted) }
+.lms .tf em { font-style: normal; font-size: 11.5px; font-weight: 700; background: var(--ink); color: #fff; border-radius: 999px; padding: 1px 10px }
+.lms .th-l { display: grid; align-content: start }
+.lms .th-dl { display: grid; grid-template-columns: 54px minmax(0, 1fr) auto; gap: 14px; align-items: center; width: 100%; border: 0; border-top: 1px solid var(--line2); background: none; padding: 10px 6px; text-align: left; color: var(--ink) }
+.lms .th-dl:first-child { border-top: 0 } .lms .th-dl:hover { background: var(--soft); border-radius: 12px }
+.lms .th-cal-ic { height: 58px; place-items: center }
+.lms .th-dlb b { display: block; font-size: 14.5px } .lms .th-dlb small { color: var(--muted); font-size: 12.5px }
+.lms .th-an { display: grid; grid-template-columns: 38px minmax(0, 1fr); gap: 12px; padding: 12px 6px; border-top: 1px solid var(--line2) } .lms .th-an:first-child { border-top: 0 }
+.lms .th-av { width: 38px; height: 38px; border-radius: 50%; display: grid; place-items: center; background: var(--c); color: var(--ci); font-weight: 700; font-size: 15px }
+.lms .th-an b { display: block; font-size: 14.5px; margin-top: 4px; line-height: 1.4 } .lms .th-an small { color: var(--muted); font-size: 12.5px; display: block }
+.lms .th-none { padding: 8px 6px }
+@media (max-width: 860px) { .lms .th-grid, .lms .th-row { grid-template-columns: minmax(0, 1fr) } }
