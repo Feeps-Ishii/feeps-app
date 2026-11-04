@@ -265,3 +265,44 @@
 .lms .dr-bar .btn.ghost { background: transparent; color: #fff; border-color: #5A625F }
 @media (max-width: 860px) { .lms .dr-grid { grid-template-columns: minmax(0, 1fr) } .lms .dr-hc { position: static } }
 @media (max-width: 760px) { .lms .dr-bar { bottom: 74px; flex-wrap: nowrap; gap: 10px; padding: 8px 8px 8px 16px } .lms .dr-sum { display: none } .lms .dr-st b { font-size: 13px } .lms .dr-bar .btn { margin-left: auto; flex: none; padding: 9px 18px } }
+
+/* ===== 窓（モーダル） ===== */
+.lms-shade { position: fixed; inset: 0; z-index: 65; background: rgba(31, 38, 36, .38); display: grid; place-items: center; padding: 16px }
+.lms-modal { width: min(var(--mw, 560px), 100%); max-height: calc(100vh - 32px); background: var(--paper); border-radius: 22px; display: grid; grid-template-rows: auto minmax(0, 1fr) auto; overflow: hidden; box-shadow: 0 30px 70px -30px rgba(31, 38, 36, .6) }
+.lms-modal > header { display: flex; gap: 10px; align-items: center; padding: 14px 20px; background: var(--card) }
+.lms-modal > header b { font-size: 16px } .lms-modal > header button { margin-left: auto; border: 0; background: none; font-size: 22px; line-height: 1; color: var(--muted) }
+.lms-modal .in { overflow: auto; padding: 16px 20px; display: grid; gap: 12px; align-content: start }
+.lms-modal > footer { display: flex; gap: 8px; justify-content: flex-end; flex-wrap: wrap; padding: 12px 20px; background: var(--card) }
+.lms-modal input { background: var(--card) !important }
+
+/* ===== 受講生の勤怠（モック attT2） ===== */
+.lms .ta-today, .lms .ta-mon { gap: 16px; align-content: start }
+.lms .ta-now { font-family: var(--num); font-weight: 300; font-size: 34px; letter-spacing: -.02em; line-height: 1 }
+.lms .ta-punch { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px }
+.lms .ta-p { display: grid; gap: 2px; justify-items: start; text-align: left; border: 0; border-radius: 18px; padding: 16px 18px; background: var(--paper); color: var(--ink) }
+.lms .ta-p span { font-size: 12.5px; font-weight: 700; color: var(--ink2) } .lms .ta-p b { font-size: 20px } .lms .ta-p small { font-size: 12px; color: var(--muted) }
+.lms .ta-p.done b { font-family: var(--num); font-weight: 300; font-size: 32px; letter-spacing: -.02em; line-height: 1.1 } .lms .ta-p.done small { color: var(--rep-i); font-weight: 700 }
+.lms .ta-p.go { background: var(--ink); color: #fff } .lms .ta-p.go span, .lms .ta-p.go small { color: #C9CFCB } .lms .ta-p.go:hover:not(:disabled) { background: #333B39 }
+.lms .ta-p:disabled { opacity: .5; cursor: default }
+.lms .ta-seg { flex-wrap: wrap; border-radius: 22px } .lms .ta-seg button:disabled { opacity: .5; cursor: default }
+.lms .ta-warn { display: grid; gap: 2px; border-radius: 14px; padding: 10px 14px; background: var(--att); color: var(--att-i); font-size: 13.5px }
+.lms .ta-fix { display: grid; gap: 12px; padding-top: 12px; border-top: 1px solid var(--line2) }
+.lms .ta-sum { display: flex; align-items: center; gap: 22px; flex-wrap: wrap }
+.lms .ta-lg { display: grid; gap: 8px; flex: 1; min-width: 160px }
+.lms .ta-lg span { display: flex; align-items: center; gap: 8px; font-size: 13.5px; color: var(--ink2) } .lms .ta-lg i { width: 10px; height: 10px; border-radius: 50%; background: var(--cd) } .lms .ta-lg b { margin-left: auto; font-size: 16px; font-weight: 600; color: var(--ink) }
+.lms .ta-note { display: grid; gap: 8px; padding-top: 12px; border-top: 1px solid var(--line2) }
+.lms .ta-note > div { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; font-size: 13.5px } .lms .ta-note b { font-weight: 600 }
+.lms .ta-g { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 8px }
+.lms .ta-w { font-size: 12px; font-weight: 700; color: var(--muted); text-align: center; padding-bottom: 2px } .lms .ta-w.we { color: #A3AAA6 }
+.lms .ta-c { display: grid; align-content: start; gap: 4px; min-height: 78px; border: 0; border-radius: 14px; padding: 8px 10px; background: var(--c, var(--paper)); text-align: left; color: var(--ink) }
+.lms .ta-c b { font-family: var(--num); font-size: 15px; font-weight: 600 }
+.lms .ta-c.blank { background: transparent } .lms .ta-c.off { background: transparent; color: #A3AAA6 } .lms .ta-c.off b { font-weight: 400 }
+.lms .ta-c.fut { background: transparent; box-shadow: inset 0 0 0 1px var(--line) } .lms .ta-c.fut b { color: var(--muted); font-weight: 400 }
+.lms button.ta-c:hover { box-shadow: 0 0 0 2px var(--cd) inset }
+.lms .ta-c.td { box-shadow: 0 0 0 2px var(--ink) inset }
+.lms .ta-cs { display: inline-flex; align-items: center; gap: 5px; font-size: 12px; font-weight: 700; color: var(--ci) } .lms .ta-cs i { width: 7px; height: 7px; border-radius: 50%; background: var(--cd) }
+.lms .ta-c small { font-size: 11px; color: var(--ink2) }
+@media (max-width: 760px) {
+  .lms .ta-g { gap: 4px } .lms .ta-c { min-height: 54px; padding: 6px 5px; border-radius: 10px } .lms .ta-c small { display: none } .lms .ta-cs { font-size: 0; gap: 0 } .lms .ta-cs i { width: 9px; height: 9px }
+  .lms .ta-punch { gap: 8px } .lms .ta-p { padding: 14px } .lms .ta-p.done b { font-size: 26px }
+}

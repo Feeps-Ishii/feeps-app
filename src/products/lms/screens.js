@@ -5,6 +5,7 @@ export const LMS_SCREENS = {
   trainee: {
     home: lazy(() => import("./trainee/Home.jsx")),
     report: lazy(() => import("./trainee/Report.jsx")),
+    att: lazy(() => import("./trainee/Attendance.jsx")),
   },
   instructor: {},
   client: {},

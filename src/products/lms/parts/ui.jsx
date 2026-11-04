@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useEffect } from "react";
 import { Icon } from "./icons.jsx";
 
 /* セージの共通部品（モックの th-hero・th-kpi・th-cal・ih-ring・xtool と同じ形）。
@@ -118,6 +118,24 @@ export function Soon({ k, label }) {
       <span className="ic"><Icon k={k} size={22} /></span>
       <b>{label}</b>
       <Chip>準備中</Chip>
+    </div>
+  );
+}
+
+// 窓：Esc と外側で閉じる
+export function Modal({ title, width, onClose, footer, children }) {
+  useEffect(() => {
+    const onKey = e => { if (e.key === "Escape") onClose(); };
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, [onClose]);
+  return (
+    <div className="lms-shade" onClick={e => { if (e.target === e.currentTarget) onClose(); }}>
+      <section className="lms-modal" role="dialog" aria-modal="true" aria-label={title} style={width ? { "--mw": `${width}px` } : undefined}>
+        <header><b>{title}</b><button type="button" aria-label="閉じる" onClick={onClose}>×</button></header>
+        <div className="in">{children}</div>
+        {footer && <footer>{footer}</footer>}
+      </section>
     </div>
   );
 }
