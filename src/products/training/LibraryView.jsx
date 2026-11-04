@@ -919,7 +919,7 @@ export default function LibraryView({ role, go, scope = null }) {
 
 /* コース内のグループ（2026-10-01）。講師・管理者が名前を付けて作り、コースの受講生を割り当てる。
    フォルダの「見える人を変える」でグループを選ぶと、そのグループの人だけが見られる（チーム開発演習など） */
-function GroupsModal({ courseId, courseName, onClose }) {
+export function GroupsModal({ courseId, courseName, onClose }) {
   const [groups, setGroups] = useState(null);
   const [trainees, setTrainees] = useState([]);
   const [selected, setSelected] = useState("");
@@ -1084,7 +1084,7 @@ function UseFolderModal({ node, initialMode, courses, linked, onClose, onSubmit 
 
 /* 見え方の一覧（2026-09-30）。役割×フォルダの表にせず、見え方ごとにまとめる。
    講師・管理者はいつでも見られるので列にしない。選んだコースで使うフォルダと、運営だけのフォルダを出す */
-function VisibilityOverview({ courses, initialCourseId, onOpen }) {
+export function VisibilityOverview({ courses, initialCourseId, onOpen }) {
   const [courseSel, setCourseSel] = useState(initialCourseId || "all");
   const [filter, setFilter] = useState("");
   const [rows, setRows] = useState(null);
@@ -1201,7 +1201,7 @@ function PlaceToCoursesModal({ node, courses, onClose, onPlace }) {
 /* 容量と費用（管理者）。**実測値で出す。**
    最初に見せた試算ページは仮の数字だったが、ここは本番のデータそのもの。
    誰が何GB落としたかは出さない。運用に要るのは「上限に近い人が何人か」まで。 */
-function UsageModal({ data, onClose }) {
+export function UsageModal({ data, onClose }) {
   const yen = v => "¥" + Math.round(Number(v) || 0).toLocaleString("ja-JP");
   const gb = b => (Number(b || 0) / 1024 / 1024 / 1024).toFixed(2) + " GB";
   return (

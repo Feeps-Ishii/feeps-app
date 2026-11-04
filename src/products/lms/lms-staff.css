@@ -104,6 +104,7 @@
 .lms .pick > button.unit { grid-template-columns: 52px minmax(0, 1fr) auto }
 .lms .msg { display: grid; gap: 2px; padding: 8px 10px; border-radius: 10px; background: var(--soft); font-size: 13.5px }
 .lms .msg b { font-size: 12px }
+.lms .folder { display: inline-block; width: 15px; height: 12px; border-radius: 2px 3px 3px 3px; background: var(--marker); vertical-align: -1px; margin-right: 8px }
 @media (max-width: 860px) {
   .lms .g2, .lms .g2e, .lms .side { grid-template-columns: minmax(0, 1fr) }
   .lms .g3, .lms .g4 { grid-template-columns: repeat(2, minmax(0, 1fr)) }
@@ -283,8 +284,42 @@
 @media (max-width: 560px) {
   .lms .fdrop { flex-wrap: wrap }
 }
+.lms .fsw { display: grid; grid-template-columns: 280px minmax(0, 1fr); gap: 16px; align-items: start }
+.lms .fs-tree { padding: 10px; display: grid; gap: 2px; align-content: start }
+.lms .fs-sec { display: flex; align-items: center; gap: 8px; padding: 10px 8px 4px }
+.lms .fs-sec:first-child { padding-top: 4px }
+.lms .fs-n, .lms .fs-c { display: flex; align-items: center; gap: 8px; width: 100%; border: 0; background: none; border-radius: 8px; padding: 7px 8px; text-align: left; color: var(--ink); font-size: 13.5px; font-weight: 700 }
+.lms .fs-n:hover, .lms .fs-c:hover { background: var(--soft) }
+.lms .fs-n[aria-current="true"] { background: var(--marker-soft); color: var(--mk-ink) }
+.lms .fs-n em { margin-left: auto; font-style: normal; font-size: 11px; color: var(--muted) }
+.lms .fs-c > span:not(.chip) { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1 }
+.lms .fs-c i { font-style: normal; width: 12px; color: var(--muted) }
+.lms .fs-kids { padding-left: 14px; display: grid; gap: 2px; border-left: 1px solid var(--line2); margin-left: 13px }
+.lms .fs-main { padding: 0; overflow: visible; position: relative }
+.lms .fs-top { display: flex; align-items: center; gap: 10px 14px; flex-wrap: wrap; justify-content: space-between; padding: 14px 18px; border-bottom: 1px solid var(--line) }
+.lms .fs-bc { display: flex; align-items: center; gap: 8px; font-size: 15px; min-width: 0 }
+.lms .fs-bc i { font-style: normal; color: var(--muted) }
+.lms .fs-scope { font-size: 12px; font-weight: 700; color: var(--mk-ink); background: var(--marker-soft); border-radius: 6px; padding: 2px 8px; max-width: 260px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap }
+.lms .fs-scope.cm { color: var(--ink); background: var(--soft); border: 1px solid var(--line) }
 .lms .fs-main .scroll { overflow: visible }
+.lms .fs-t td, .lms .fs-t th { white-space: nowrap }
+.lms .fs-name { display: inline-flex; align-items: center; gap: 10px; border: 0; background: none; padding: 0; font-weight: 700; color: var(--ink); text-align: left }
+.lms .fs-name:hover span { text-decoration: underline }
+.lms .fs-ic { width: 26px; height: 30px; border-radius: 4px; background: var(--fc); color: #fff; display: grid; place-items: center; font-size: 10.5px; font-weight: 700; font-family: var(--mono); flex: none }
+.lms .fs-inh { font-size: 12.5px; color: var(--muted) }
+.lms .fs-k { position: relative; width: 44px; text-align: right }
+.lms .kbtn { border: 1px solid transparent; background: none; border-radius: 8px; width: 32px; height: 30px; font-weight: 700; letter-spacing: 1px; color: var(--ink2) }
+.lms .kbtn:hover, .lms .kbtn[aria-expanded="true"] { background: var(--soft); border-color: var(--line) }
+.lms .kmenu { position: absolute; right: 8px; top: calc(100% - 4px); z-index: 30; min-width: 196px; background: var(--card); border: 1px solid var(--line); border-radius: 12px; box-shadow: 0 18px 40px -16px rgba(21,23,28,.35); padding: 6px; display: grid; text-align: left }
+.lms .kmenu button { border: 0; background: none; text-align: left; padding: 7px 10px; border-radius: 8px; font-size: 13.5px; font-weight: 700; color: var(--ink) }
+.lms .kmenu button:hover { background: var(--soft) }
+.lms .kmenu button.del { color: var(--red) }
+.lms .kmenu hr { border: 0; border-top: 1px solid var(--line2); margin: 4px 2px }
+.lms .fs-drop { display: none }
+.lms .fs-main.dropon { outline: 2px dashed var(--marker); outline-offset: -6px }
+.lms .fs-main.dropon .fs-drop { display: grid; place-items: center; position: absolute; inset: 0; background: rgba(221,243,240,.85); border-radius: 12px; font-weight: 700; color: var(--mk-ink) }
 @media (max-width: 900px) {
+  .lms .fsw { grid-template-columns: minmax(0, 1fr) }
   .lms .fs-main .scroll { overflow-x: auto }
 }
 .lms .rp-l { display: grid; gap: 8px }
@@ -444,8 +479,9 @@
   .lms .ceb-r { width: 100% }
 }
 .lms .lbi .pinc { width: 22px; height: 22px; flex: none }
+.lms .lb .fs-c em { font-style: normal; font-size: 11px; color: var(--muted) }
 .lms .g2, .lms .g2e, .lms .g3 { align-items: stretch }
-.lms .side { align-items: stretch }
+.lms .fsw, .lms .side { align-items: stretch }
 .lms .lbi .pinc { width: 20px; height: 20px; font-size: 12px }
 .lms .gsteps { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 0 }
 .lms .gsteps span { display: grid; gap: 2px; padding: 10px 14px; border: 1px solid var(--line); background: var(--card); margin-right: -1px }
@@ -472,6 +508,8 @@
   .lms .gest > div { grid-template-columns: 80px minmax(0, 1fr) }
   .lms .gest small { grid-column: 2 }
 }
+.lms .fs-n .kn { margin: 0; font-size: 11px; color: var(--muted); min-width: 14px }
+.lms .ku-r .fs-name { flex: 1; min-width: 0 }
 .lms .chip.co { background: var(--tst); color: var(--tst-i) }
 .lms .seg { border-radius: 999px }
 .lms .seg button { border-radius: 999px }
@@ -503,6 +541,8 @@
 .lms .tl-take .ttop .bar10 i { background: var(--tst-d) }
 .lms .dv-k.st-ok .dv-kn { background: var(--dev-d); color: #fff }
 .lms .dv-k.st-redo .dv-kn { background: var(--att); color: var(--att-i) }
+.lms .fd-f .fs-ic { width: 34px; height: 34px; border-radius: 10px }
+.lms .tm-file .fs-ic { width: 34px; height: 34px; border-radius: 10px }
 .lms .tmS-g { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 18px }
 .lms .tmS-c { display: grid; gap: 14px; align-content: start }
 .lms .tmS-h { display: grid; grid-template-columns: 44px minmax(0, 1fr) auto; gap: 12px; align-items: center }
@@ -806,7 +846,10 @@
 .lms .kt-r .th-cal b { font-size: 20px }
 .lms .kt-r { grid-template-columns: 54px minmax(0, 1fr) auto }
 .lms .hc-an { gap: 16px }
+.lms .fs-n .kn { width: 22px; height: 22px; min-width: 22px; border-radius: 50%; display: inline-grid; place-items: center; background: var(--paper); color: var(--ink2); font-size: 11px }
+.lms .fs-n[aria-current="true"] .kn { background: var(--tst-d); color: #fff }
 .lms .ku-t .tu-no { width: 30px; height: 30px; background: var(--tst-d); color: #fff; font-size: 13px }
+.lms .fs-t .ak { margin-right: 2px }
 .lms .an-hero .th-kpi b.num { font-size: 30px }
 .lms .an-sub { display: block; font-size: 11.5px; color: var(--muted); margin-top: 2px }
 .lms .bars s { height: 10px; border-radius: 999px; background: var(--paper) }

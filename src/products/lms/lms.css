@@ -701,3 +701,25 @@
 /* 講師のホームのタスク：幅が狭いと期限と担当が重なるので段を分ける */
 .lms .ih-tasks .tkl { align-content: start }
 @media (max-width: 1000px) { .lms .ih-cols .ih-tasks .tk .tkw { grid-column: 2; grid-row: 3; justify-self: start } .lms .ih-cols .ih-tasks .tk .tkd { grid-column: 2; grid-row: 2; white-space: normal } .lms .ih-cols .ih-tasks .tk > .btn, .lms .ih-cols .ih-tasks .tk .tkc { grid-row: 1 / span 3 } }
+
+/* フォルダ（講師・管理者） */
+.lms .st .fs-bar { padding-top: 0; border-bottom: 0 }
+.lms .st .fs-c > .folder, .lms .st .fs-n > .folder { flex: none; width: 15px; min-width: 15px }
+.lms .st .fsort { white-space: nowrap }
+.lms .st .fs-bar .fsearch { min-width: 180px }
+.lms .st .fs-bc { flex-wrap: wrap }
+.lms .st .fs-name { max-width: 420px; text-align: left; white-space: normal }
+.lms .st .fs-t td:first-child { white-space: normal }
+.lms .st .fs-t td:first-child .chip { margin-left: 6px }
+.lms .st .fs-path, .lms .st .fs-meta { display: block; font-size: 12px; font-weight: 400; color: var(--muted) }
+.lms .st .fs-meta { display: none }
+.lms .fs-pick { display: grid; gap: 6px; max-height: 320px; overflow: auto }
+.lms .fs-pr { justify-content: space-between; border: 1px solid var(--line); border-radius: 10px; padding: 6px 10px }
+.lms .fs-cq { max-width: none; flex: none; padding: 0 4px 6px; display: block }
+.lms .fs-cq input { width: 100% }
+@media (max-width: 900px) { .lms .st .fs-tree { max-height: 260px; overflow: auto } }
+@media (max-width: 760px) {
+  .lms .st .fs-main .scroll { overflow: visible }
+  .lms .st .fs-t th:not(:first-child):not(:last-child), .lms .st .fs-t td:not(:first-child):not(.fs-k) { display: none }
+  .lms .st .fs-meta { display: block }
+}
