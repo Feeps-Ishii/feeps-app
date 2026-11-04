@@ -836,3 +836,15 @@
   .lms .st .ce-exh { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) }
   .lms .st .ce-exh input[type=text] { grid-column: 1 / -1 }
 }
+
+/* 練習問題の編集 */
+.lms .st .pc-ck { align-self: end; padding-bottom: 8px }
+.lms .st .pc-qh { grid-template-columns: minmax(0, 1fr) 120px }
+.lms .pc-parts { padding: 12px; border-radius: 12px; background: var(--paper) }
+.lms .pc-h { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: 8px; align-items: start }
+.lms .pc-a { display: grid; grid-template-columns: 36px minmax(0, .8fr) minmax(0, 1.2fr); gap: 8px; align-items: start }
+.lms .pc-pts { margin: 4px 0 0; padding-left: 1.2em; display: grid; gap: 3px; font-size: 13.5px }
+.lms .st .pc-bar { width: 110px; flex: none }
+.lms .pc-q { display: block; max-width: none }
+.lms .pc-t td small { display: block; white-space: normal }
+@media (max-width: 560px) { .lms .pc-a { grid-template-columns: 30px minmax(0, 1fr) } .lms .pc-a textarea:last-child { grid-column: 2 } }

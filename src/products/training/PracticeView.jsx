@@ -105,7 +105,7 @@ export const Style = () => <style>{CSS}</style>;
 const esc = s => String(s ?? "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 // 1回でまとめて置きかえる（順に置きかえると、先に入れた <span class="k"> の "k" を文字列として拾ってしまう。2026-10-20）
 const hl = l => esc(l).replace(/(\/\*.*?\*\/|&lt;!--.*?--&gt;)|(&lt;\/?[!a-zA-Z0-9-]+)|("[^"\n]*")/g, (m, c, k, str) => (c ? `<span class="c">${c}</span>` : k ? `<span class="k">${k}</span>` : `<span class="s">${str}</span>`));
-function CodeBlock({ fn, code }) {
+export function CodeBlock({ fn, code }) {
   const lines = String(code || "").split("\n");
   return (
     <div className="pq-code"><div className="fn"><b>{fn || "コード"}</b><span>{lines.length} 行</span></div>
@@ -129,7 +129,7 @@ function Fig({ img, caption, images, onZoom }) {
     </figure>
   );
 }
-function Items({ items, images, onZoom }) {
+export function Items({ items, images, onZoom }) {
   return (items || []).map((it, i) => {
     if (it.t === "text") return <p key={i} className="pq-lead">{it.text}</p>;
     if (it.t === "note") return <div key={i} className="pq-note">{it.text}</div>;
