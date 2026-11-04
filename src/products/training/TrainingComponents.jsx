@@ -6268,6 +6268,8 @@ function Reports({ role, userProfile }) {
                 </div>
               ))}</div>
             ) : <div className="text-sm" style={{ color: T.textMuted }}>コメントはまだありません。</div>}
+            {/* 受講生の返事（新しい日報の画面から。2026-11-04） */}
+            {(detailReport.rawData?.replies || []).map((c, i) => <div key={c.replyId || i} className="mt-2 rounded-lg px-3 py-2 text-sm" style={{ background: T.accentSubtle, color: T.textSecondary }}><div className="mb-1 text-[11px] font-semibold" style={{ color: T.textMuted }}>受講生の返事 / {c.createdAt ? fmtTs(c.createdAt) : "日時未記録"}</div><div className="whitespace-pre-wrap">{c.text}</div></div>)}
           </div>
           {!canWrite && canCommentReport(detailReport) && <div className="mt-4 rounded-xl p-4" style={{ border: `1px solid ${T.border}` }}>
             {(role === "admin" || role === "instructor") && <div className="mb-4 rounded-xl p-3" style={{ background: T.accentSubtle }}><div className="mb-1.5 flex items-center gap-2 text-xs font-bold" style={{ color: T.accentHover }}><Sparkles size={14} />AIに伝えたいこと</div><textarea value={commentIntent[detailReport.id] || ""} onChange={e => setCommentIntent(state => ({ ...state, [detailReport.id]: e.target.value }))} rows={3} placeholder={'例：\n・Javaの変数を定着させる復習方法\n・今日できた点も褒めたい'} className="w-full resize-y rounded-xl bg-white px-3 py-2.5 text-sm outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary }} /><div className="mt-2 flex justify-end"><Btn kind="ai" size="sm" icon={Sparkles} disabled={!String(commentIntent[detailReport.id] || "").trim() || aiCommentBusy === detailReport.id} onClick={() => aiComment(detailReport.id)}>{aiCommentBusy === detailReport.id ? "生成中…" : "日報を読んで文章化"}</Btn></div></div>}
@@ -7319,6 +7321,7 @@ function reportDetailItems(r, fields = DEFAULT_REPORT_FIELDS) {
 
 export {
   Card, Badge, Btn, Avatar, Ring, Bar, Stat, SectionHead, EmptyState,
+  DEFAULT_REPORT_FIELDS,
   TraineeHome, InstructorGoalsDashboard, GoalsView, Curriculum,
   Tests, Attendance, Reports, TraineeList, Karte, ClientHome,
   ElearningView, ReadOnlyCompanies, ReadOnlyCourses, ReadOnlyInstructors,

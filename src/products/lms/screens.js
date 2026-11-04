@@ -4,6 +4,7 @@ import { lazy } from "react";
 export const LMS_SCREENS = {
   trainee: {
     home: lazy(() => import("./trainee/Home.jsx")),
+    report: lazy(() => import("./trainee/Report.jsx")),
   },
   instructor: {},
   client: {},

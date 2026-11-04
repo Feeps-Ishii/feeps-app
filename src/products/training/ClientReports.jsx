@@ -133,7 +133,7 @@ export default function ClientReports({ go }) {
           <PrismCard className="grid gap-4 p-5" style={{ borderRadius: 16 }}>
             {!open ? <p className="m-0 py-8 text-center text-sm" style={{ color: PRISM.sub }}>{list.length ? "左の一覧から日報を選んでください" : "—"}</p> : (() => {
               const nm = nameOf.get(open.traineeId) || open.traineeName || "受講生";
-              const comments = [...(open.comment ? [{ text: open.comment, authorRole: "instructor", createdAt: open.commentedAt }] : []), ...(open.comments || [])];
+              const comments = [...(open.comment ? [{ text: open.comment, authorRole: "instructor", createdAt: open.commentedAt }] : []), ...(open.comments || []), ...(open.replies || []).map(c => ({ ...c, commentId: c.replyId, authorName: nm, authorTitle: "受講生" }))].sort((a, b) => String(a.createdAt || "").localeCompare(String(b.createdAt || "")));
               return (
                 <>
                   <div className="flex flex-wrap items-center gap-3">

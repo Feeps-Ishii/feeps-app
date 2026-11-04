@@ -219,3 +219,49 @@
 .lms .th-an b { display: block; font-size: 14.5px; margin-top: 4px; line-height: 1.4 } .lms .th-an small { color: var(--muted); font-size: 12.5px; display: block }
 .lms .th-none { padding: 8px 6px }
 @media (max-width: 860px) { .lms .th-grid, .lms .th-row { grid-template-columns: minmax(0, 1fr) } }
+
+/* ===== 受講生の日報（モック reportT2） ===== */
+.lms-err { border-radius: 14px; padding: 10px 14px; background: var(--dev); color: var(--dev-i); font-size: 14px; font-weight: 600 }
+.lms .dr-grid { display: grid; grid-template-columns: minmax(0, 1.55fr) minmax(0, 1fr); gap: 18px; align-items: start }
+.lms .dr-l { display: grid; gap: 18px }
+.lms .dr-sec { gap: 16px }
+.lms .dr-h { display: flex; align-items: center; gap: 12px; flex-wrap: wrap } .lms .dr-h > div { flex: 1 1 auto; min-width: 150px } .lms .dr-h .r { margin-left: auto }
+.lms .dr-h .eyebrow { display: block; color: var(--ci) }
+.lms .dr-ic { width: 42px; height: 42px; border-radius: 50%; background: var(--c); color: var(--ci); display: grid; place-items: center; flex: none }
+.lms .dr-ic svg { width: 22px; height: 22px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round }
+.lms .dr-f { display: grid; gap: 7px }
+.lms .dr-fl { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; font-size: 13.5px; font-weight: 700; color: var(--ink) }
+.lms .dr-fl em { font-style: normal; width: 22px; height: 22px; border-radius: 50%; display: grid; place-items: center; background: var(--c); color: var(--ci); font-size: 11.5px; font-weight: 700 }
+.lms .dr-len, .lms .dr-cnt { margin-left: auto; font-size: 12px; font-weight: 500; color: var(--muted) }
+.lms .dr textarea { border-radius: 14px; padding: 11px 14px; line-height: 1.7; min-height: 0 }
+.lms .dr textarea.dr-big { font-size: 16px; font-weight: 700 }
+.lms .dr textarea:disabled, .lms .dr input:disabled { opacity: .6 }
+.lms .dr-goals { display: grid; gap: 6px }
+.lms .dr-goals label { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: 10px; align-items: center; background: var(--paper); border-radius: 12px; padding: 6px 10px }
+.lms .dr-goals input[type=checkbox] { width: 18px; height: 18px; accent-color: var(--ink) }
+.lms .dr-goals input[type=text] { background: transparent; padding: 5px 6px; font-weight: 600 }
+.lms .dr-goals label.on input[type=text] { color: var(--muted); text-decoration: line-through; font-weight: 500 }
+.lms .dr-goals button { border: 0; background: none; color: var(--muted); font-size: 16px; line-height: 1; padding: 2px 4px }
+.lms .dr-hc { position: sticky; top: 124px }
+.lms .dr-mo button:disabled { opacity: .35; cursor: default } .lms .dr-mo button[aria-pressed="true"] { min-width: 58px }
+.lms .dr-hl { display: grid }
+.lms .dr-hi { display: grid; grid-template-columns: 54px minmax(0, 1fr) auto; gap: 12px; align-items: center; border: 0; border-top: 1px solid var(--line2); background: none; padding: 9px 6px; text-align: left; color: var(--ink); width: 100% }
+.lms .dr-hi:first-child { border-top: 0 } .lms .dr-hi:hover { background: var(--soft); border-radius: 12px } .lms .dr-hi.on { background: var(--c); border-radius: 12px }
+.lms .dr-hi.on .cal { background: var(--card) } .lms .dr-hi .cal b { font-size: 20px }
+.lms .dr-hb { min-width: 0 } .lms .dr-hb b { display: block; font-size: 13.5px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap } .lms .dr-hb small { color: var(--muted); font-size: 12px }
+.lms .dr-nc { font-size: 12px; color: var(--muted) }
+.lms .dr-edit, .lms .dr-block { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; border-radius: 16px; padding: 10px 16px; font-weight: 700 } .lms .dr-edit { background: var(--cur); color: var(--cur-i) } .lms .dr-block { background: var(--att); color: var(--att-i) }
+.lms .dr-edit .btn, .lms .dr-block .btn { margin-left: auto }
+.lms .dr-th { gap: 12px } .lms .dr-tl { display: grid; gap: 8px }
+.lms .dr-m { border-radius: 16px; padding: 10px 14px; background: var(--c); max-width: min(620px, 92%) } .lms .dr-m.me { background: var(--paper); justify-self: end }
+.lms .dr-mh { display: flex; align-items: center; gap: 8px; flex-wrap: wrap } .lms .dr-mh b { font-size: 13px } .lms .dr-mh small { color: var(--muted); font-size: 11.5px; margin-left: auto }
+.lms .dr-m p { margin: 4px 0 0; font-size: 14px; white-space: pre-wrap }
+.lms .dr-nl { display: grid; gap: 8px } .lms .dr-n { display: grid; gap: 8px; justify-items: start; background: var(--paper); border-radius: 14px; padding: 10px 12px } .lms .dr-n.used { opacity: .55 } .lms .dr-n p { margin: 0; font-size: 13.5px; white-space: pre-wrap }
+.lms .dr-bar { position: sticky; bottom: 16px; z-index: 20; display: flex; align-items: center; gap: 16px; flex-wrap: wrap; padding: 10px 10px 10px 20px; border-radius: 999px; background: var(--ink); color: #fff; box-shadow: 0 18px 36px -18px rgba(20, 28, 26, .7) }
+.lms .dr-st { display: flex; align-items: center; gap: 10px } .lms .dr-st i { width: 10px; height: 10px; border-radius: 50%; background: var(--att-d); flex: none } .lms .dr-bar.done .dr-st i { background: var(--rep-d) }
+.lms .dr-st b { display: block; font-size: 14px } .lms .dr-st small { display: block; font-size: 12px; color: #B9C0BC; min-height: 1em }
+.lms .dr-sum { margin-left: auto; font-size: 13px; color: #D5DAD7; display: flex; gap: 8px; align-items: baseline } .lms .dr-sum b { color: #fff; font-weight: 600 }
+.lms .dr-bar .btn { background: #fff; color: var(--ink); border-color: #fff; padding: 10px 24px } .lms .dr-bar .btn:hover { background: #E7E9E4 }
+.lms .dr-bar .btn.ghost { background: transparent; color: #fff; border-color: #5A625F }
+@media (max-width: 860px) { .lms .dr-grid { grid-template-columns: minmax(0, 1fr) } .lms .dr-hc { position: static } }
+@media (max-width: 760px) { .lms .dr-bar { bottom: 74px; flex-wrap: nowrap; gap: 10px; padding: 8px 8px 8px 16px } .lms .dr-sum { display: none } .lms .dr-st b { font-size: 13px } .lms .dr-bar .btn { margin-left: auto; flex: none; padding: 9px 18px } }
