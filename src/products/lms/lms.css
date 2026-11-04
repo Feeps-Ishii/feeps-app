@@ -63,7 +63,7 @@
 .lms-pop button { border: 0; background: none; text-align: left; padding: 9px 12px; border-radius: 10px; font-weight: 600; font-size: 14px }
 .lms-pop button:hover { background: var(--soft) }
 .lms-sub { background: var(--paper); border-bottom: 1px solid var(--line) }
-.lms-sub .lms-wrap { display: flex; gap: 2px; overflow-x: auto; scrollbar-width: thin }
+.lms-sub .lms-wrap { display: flex; gap: 2px; overflow-x: auto; scrollbar-width: none }
 .lms-sub button { border: 0; background: none; padding: 10px 14px 11px; font-weight: 700; color: var(--muted); border-bottom: 3px solid transparent; white-space: nowrap }
 .lms-sub button[aria-current="page"] { color: var(--ink); border-bottom-color: var(--ink) }
 .lms-main { flex: 1; width: 100%; padding-block: 22px 56px; display: grid; gap: 18px; align-content: start }
@@ -306,3 +306,52 @@
   .lms .ta-g { gap: 4px } .lms .ta-c { min-height: 54px; padding: 6px 5px; border-radius: 10px } .lms .ta-c small { display: none } .lms .ta-cs { font-size: 0; gap: 0 } .lms .ta-cs i { width: 9px; height: 9px }
   .lms .ta-punch { gap: 8px } .lms .ta-p { padding: 14px } .lms .ta-p.done b { font-size: 26px }
 }
+
+/* ===== コースの切り替え（2 コース以上のときだけ） ===== */
+.lms-sub .lms-wrap { align-items: center }
+.lms-cs { margin-left: auto; flex: none; display: inline-flex; gap: 6px; align-items: center; font-size: 12.5px; font-weight: 700; color: var(--muted); padding-left: 12px }
+.lms-cs select { border: 0; background: var(--card); border-radius: 999px; padding: 5px 12px; font-size: 13px; max-width: 220px }
+
+/* ===== 受講生のカリキュラム（モック curT2） ===== */
+.lms .flip { transform: scaleX(-1) }
+.lms .tc-rw { position: relative; min-width: 0 }
+.lms .tc-road { display: flex; gap: 12px; overflow-x: auto; scrollbar-width: none; padding: 2px; margin: -2px } .lms .tc-road::-webkit-scrollbar { display: none }
+.lms .tc-u { flex: 0 0 214px; display: grid; gap: 4px; align-content: start; text-align: left; border: 0; border-radius: 18px; padding: 14px 16px; background: var(--card); color: var(--ink); box-shadow: 0 1px 0 rgba(31, 38, 36, .04) }
+.lms .tc-u:hover { box-shadow: 0 0 0 2px var(--line) inset } .lms .tc-u.on { background: var(--c); box-shadow: 0 0 0 2px var(--ci) inset }
+.lms .tc-ut { display: flex; align-items: center; justify-content: space-between; margin-bottom: 4px }
+.lms .tc-un { width: 26px; height: 26px; border-radius: 50%; display: grid; place-items: center; background: var(--c); color: var(--ci); font-size: 12px; font-weight: 700 } .lms .tc-u.on .tc-un { background: var(--ink); color: #fff }
+.lms .tc-ub { font-size: 11.5px; font-weight: 700; color: var(--ci) }
+.lms .tc-u b { font-size: 15.5px } .lms .tc-u small { font-size: 12px; color: var(--muted) }
+.lms .tc-ubar { height: 5px; border-radius: 3px; background: rgba(31, 38, 36, .08); overflow: hidden; margin-top: 6px } .lms .tc-ubar i { display: block; height: 100%; width: var(--w); background: var(--cd) }
+.lms .tc-nav { position: absolute; top: 50%; transform: translateY(-50%); z-index: 2; width: 36px; height: 36px; border-radius: 50%; border: 0; background: var(--card); color: var(--ink); display: grid; place-items: center; box-shadow: 0 8px 20px -10px rgba(31, 38, 36, .5) } .lms .tc-nav.l { left: -6px } .lms .tc-nav.r { right: -6px }
+.lms .tc-grid { display: grid; grid-template-columns: minmax(0, 1.55fr) minmax(0, 1fr); gap: 18px; align-items: start }
+.lms .tc-l { display: grid; gap: 18px }
+.lms .tc-body { white-space: pre-line; font-size: 14.5px }
+.lms .tc-goals { display: grid; gap: 8px; background: rgba(255, 255, 255, .7); border-radius: 16px; padding: 12px 14px }
+.lms .tc-goals > span:not(.eyebrow) { display: flex; gap: 10px; align-items: flex-start; font-size: 14.5px; font-weight: 600 }
+.lms .tc-goals i { width: 20px; height: 20px; border-radius: 50%; flex: none; display: grid; place-items: center; font-style: normal; font-size: 12px; background: var(--card); box-shadow: 0 0 0 1.5px var(--cd) inset; color: var(--ci); margin-top: 2px }
+.lms .tc-days { list-style: none; margin: 0; padding: 0; display: grid }
+.lms .tc-days li { display: grid; grid-template-columns: 54px minmax(0, 1fr) auto; gap: 14px; align-items: center; padding: 9px 6px; border-top: 1px solid var(--line2) } .lms .tc-days li:first-child { border-top: 0 }
+.lms .tc-days li.tdy { background: var(--cur); border-radius: 14px; border-top-color: transparent } .lms .tc-days li.tdy .cal { background: var(--card) } .lms .tc-days li.tdy + li { border-top-color: transparent }
+.lms .tc-days li.fut .tc-dt b { color: var(--ink2); font-weight: 500 }
+.lms .tc-noday { height: 58px; place-items: center } .lms .tc-noday b { font-size: 18px }
+.lms .tc-dt { display: grid; justify-items: start; min-width: 0 } .lms .tc-dn { font-size: 11.5px; color: var(--muted); font-weight: 600 } .lms .tc-dt b { font-size: 14.5px }
+.lms .tc-more { border: 0; background: none; padding: 0; font-size: 12px; font-weight: 700; color: var(--ci, var(--tm-i)); text-decoration: underline; text-underline-offset: 3px }
+.lms .tc-dc { font-size: 13.5px; color: var(--ink2); white-space: pre-line; margin-top: 4px }
+.lms .tc-da { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; justify-content: flex-end }
+.lms .tc-da .btn { max-width: 200px; overflow: hidden; text-overflow: ellipsis }
+.lms .tc-da em { font-style: normal; font-size: 11.5px; font-weight: 700; background: var(--ink); color: #fff; border-radius: 999px; padding: 1px 10px }
+.lms .tc-ok { width: 22px; height: 22px; border-radius: 50%; display: grid; place-items: center; background: var(--rep); color: var(--rep-i); font-size: 12px; font-weight: 700 }
+.lms .tc-exl { display: grid; gap: 8px }
+.lms .tc-ex { border-radius: 16px; background: var(--paper) } .lms .tc-exh { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; width: 100%; border: 0; background: none; padding: 10px 14px; text-align: left; color: var(--ink) } .lms .tc-exh b { flex: 1 1 160px; font-size: 14px }
+.lms .tc-cv { display: inline-flex; transition: transform .15s } .lms .tc-cv.on { transform: rotate(180deg) }
+.lms .tc-exb { display: grid; gap: 10px; padding: 0 14px 14px } .lms .tc-exb p { margin: 2px 0 0; font-size: 14px; white-space: pre-line }
+.lms .tc-ans { background: var(--rep); color: var(--rep-i); border-radius: 12px; padding: 10px 12px; margin-top: 8px !important }
+.lms .tc-uc { position: sticky; top: 124px }
+.lms .tc-rl { display: grid; gap: 10px }
+.lms .tc-r { display: grid; grid-template-columns: 42px minmax(0, 1fr) auto; gap: 12px; align-items: center; background: var(--c); border-radius: 16px; padding: 12px 14px } .lms .tc-pre { grid-template-columns: minmax(0, 1fr) }
+.lms .tc-ri { width: 42px; height: 42px; border-radius: 50%; background: rgba(255, 255, 255, .75); color: var(--ci); display: grid; place-items: center }
+.lms .tc-rb { display: grid; gap: 1px; min-width: 0; justify-items: start } .lms .tc-rb .eyebrow { color: var(--ci); font-size: 10.5px } .lms .tc-rb b { font-size: 14.5px } .lms .tc-rb small { font-size: 12px; color: var(--ink2) }
+.lms .tc-r .btn.ghost { background: rgba(255, 255, 255, .85); border-color: transparent }
+@media (max-width: 860px) { .lms .tc-grid { grid-template-columns: minmax(0, 1fr) } .lms .tc-uc { position: static } }
+@media (max-width: 760px) { .lms .tc-days li { grid-template-columns: 54px minmax(0, 1fr) } .lms .tc-da { grid-column: 2; justify-content: flex-start } .lms .tc-nav { display: none } }

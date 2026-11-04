@@ -4,6 +4,7 @@ import { DevHubMark } from "../../components/common/DevHubMark.jsx";
 import { LMS_BNAV, LMS_LEGACY, LMS_ROLE_LABEL, lmsGroups, lmsLabel } from "./LmsCatalog.js";
 import { Icon } from "./parts/icons.jsx";
 import { Soon } from "./parts/ui.jsx";
+import CourseSwitch from "./parts/CourseSwitch.jsx";
 import { LMS_SCREENS } from "./screens.js";
 
 /* 新しい LMS（セージ）の入口（2026-11-02、計画 docs/specs/lms-sage-plan.md）。
@@ -23,6 +24,7 @@ export default function LmsApp({ role, manager = false, displayName, unread = 0,
   const [sheet, setSheet] = useState(false);
   const [toast, setToast] = useState("");
   const [lastIn, setLastIn] = useState({});
+  const [courseV, setCourseV] = useState(0);   // コースを切り替えたら画面を読み直す
 
   const admin = role === "admin";
   const cur = groups.find(g => g[2].some(s => s[0] === screen)) || groups[0];
@@ -37,9 +39,9 @@ export default function LmsApp({ role, manager = false, displayName, unread = 0,
   const Screen = LMS_SCREENS[role]?.[screen];
   const legacyView = extra || LMS_LEGACY[role]?.[screen];
   const body = Screen
-    ? <Screen role={role} manager={manager} go={go} say={say} displayName={displayName} />
+    ? <Screen key={courseV} role={role} manager={manager} go={go} say={say} displayName={displayName} />
     : legacyView
-      ? <div className="lms-legacy" key={legacyView}>{renderLegacy(legacyView, goLegacy)}</div>
+      ? <div className="lms-legacy" key={`${legacyView}-${courseV}`}>{renderLegacy(legacyView, goLegacy)}</div>
       : <Soon k={screen} label={lmsLabel(role, screen)} />;
 
   const bnav = LMS_BNAV[role] || LMS_BNAV.trainee;
@@ -91,6 +93,7 @@ export default function LmsApp({ role, manager = false, displayName, unread = 0,
       <div className="lms-sub">
         <div className="lms-wrap" role="tablist" aria-label={cur[1]}>
           {cur[2].map(([k, t]) => <button key={k} type="button" role="tab" aria-current={screen === k && !extra ? "page" : undefined} aria-selected={screen === k && !extra} onClick={() => go(k)}>{t}</button>)}
+          {role === "trainee" && <CourseSwitch onChange={() => setCourseV(v => v + 1)} />}
         </div>
       </div>
       <main className="lms-main lms-wrap">

@@ -165,11 +165,6 @@ export default function TraineeReport({ say }) {
           <div><em>{p.m}月 ・ {weekday(p.m, p.d, p.y)}曜日</em><small>{isToday ? "今日の日報" : "これまでの日報"}</small></div>
         </div>
         <div className="th-att">
-          {r.courses.length > 1 && (
-            <label className="fsort">コース
-              <select value={r.courseId} onChange={e => r.changeCourse(e.target.value)}>{r.courses.map(c => <option key={c.courseId} value={c.courseId}>{c.name || c.title || c.courseName || c.courseId}</option>)}</select>
-            </label>
-          )}
           <span className={`th-pill${hasGoal ? " ok" : ""}`}><i aria-hidden="true" />朝の目標 <b>{hasGoal ? "済" : "まだ"}</b></span>
           <span className={`th-pill${filled === r.fields.length ? " ok" : ""}`}><i aria-hidden="true" />振り返り <b>{filled} / {r.fields.length}</b></span>
         </div>
