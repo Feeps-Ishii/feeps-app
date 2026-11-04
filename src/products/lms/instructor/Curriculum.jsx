@@ -6,6 +6,7 @@ import { testIdOf, todayStr } from "../../training/useTraining.js";
 import { setLibraryTarget, setTestBuildTarget } from "../../../utils/common/courseContext.js";
 import { Btn, Card, Chip, weekday } from "../parts/ui.jsx";
 import CurriculumEdit from "./CurriculumEdit.jsx";
+import CurriculumShelf from "../admin/CurriculumShelf.jsx";
 import { arr, md, useStaffCourse } from "../staff/common.js";
 
 /* カリキュラム（講師・管理者。モック curS の読むところ）：単元を 1 から順に、開くと目標・単元を通して・日ごと。
@@ -29,6 +30,7 @@ export default function InstructorCurriculum({ role, go, say }) {
   const [st, setSt] = useState({ state: "loading", sections: [], tests: null, materials: [] });
   const [open, setOpen] = useState({});
   const [edit, setEdit] = useState(false);
+  const [shelfOn, setShelfOn] = useState(false);
   const [err, setErr] = useState("");
   const [key, setKey] = useState(0);
   const practiceFor = usePracticeLinks(courseId);
@@ -53,6 +55,8 @@ export default function InstructorCurriculum({ role, go, say }) {
   const mats = useMemo(() => Object.fromEntries(st.materials.map(m => [m.materialId, m])), [st.materials]);
   const keys = role === "admin" ? { test: "ltest", doc: "cdoc", prac: "lprac" } : { test: "test", doc: "doc", prac: "prac" };
 
+  const seg = role === "admin" && <span className="seg"><button type="button" aria-pressed={!shelfOn} onClick={() => setShelfOn(false)}>コース別</button><button type="button" aria-pressed={shelfOn} onClick={() => setShelfOn(true)}>全コース共通の棚</button></span>;
+  if (shelfOn) return <div className="st"><div className="head"><div><div className="eyebrow">全コース共通</div><h1 className="h1">カリキュラム</h1></div><span className="r">{seg}</span></div><CurriculumShelf say={say} /></div>;
   if (sc.state === "loading") return <div className="soon card">読み込み中</div>;
   if (sc.state === "error") return <Card><div className="empty"><b>コースを確認できません</b><Btn kind="ghost sm" onClick={sc.reload}>再読み込み</Btn></div></Card>;
   if (!courseId) return <Card><div className="empty"><b>担当のコース</b><Chip>なし</Chip></div></Card>;
@@ -75,7 +79,7 @@ export default function InstructorCurriculum({ role, go, say }) {
   return (
     <div className="st">
       <div className="head"><div><div className="eyebrow">{sc.course.name}</div><h1 className="h1">カリキュラム</h1></div>
-        <span className="r">{st.sections.length > 0 && <Btn kind="ghost sm" onClick={() => setOpen(allOpen ? {} : Object.fromEntries(st.sections.map(s => [s.id, true])))}>{allOpen ? "すべて閉じる" : "すべて開く"}</Btn>}<Btn kind="sm" onClick={() => setEdit(true)}>編集する</Btn></span>
+        <span className="r">{seg}{st.sections.length > 0 && <Btn kind="ghost sm" onClick={() => setOpen(allOpen ? {} : Object.fromEntries(st.sections.map(s => [s.id, true])))}>{allOpen ? "すべて閉じる" : "すべて開く"}</Btn>}<Btn kind="sm" onClick={() => setEdit(true)}>編集する</Btn></span>
       </div>
       {err && <div className="lms-err" role="alert">{err}</div>}
       {st.tests === null && <div className="lms-err" role="alert">テストを確認できません</div>}

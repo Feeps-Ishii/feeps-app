@@ -37,7 +37,7 @@ async function downloadExcel({ company, course, rows }) {
   XLSX.writeFile(wb, `DevHub LMS アカウント_${company}_${today.replace(/-/g, "")}.xlsx`);
 }
 
-export default function RosterImport({ course, admin = true, onClose, onDone }) {
+export default function RosterImport({ course, admin = true, onClose, onDone, initialRows }) {
   const [rows, setRows] = useState(null);
   const [map, setMap] = useState(null);
   const [paste, setPaste] = useState("");
@@ -76,6 +76,7 @@ export default function RosterImport({ course, admin = true, onClose, onDone }) 
     }
     setRows(table); setMap(m);
   }
+  useEffect(() => { if (initialRows) load(initialRows); }, []); // eslint-disable-line react-hooks/exhaustive-deps
   async function onFile(f) {
     if (!f) return;
     try { await load(await readRosterFile(f)); } catch { setMsg("ファイルを読めませんでした。Excel（.xlsx）か CSV にしてください。"); }

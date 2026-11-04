@@ -875,3 +875,9 @@
 .lms .cc-r small { font-size: 12px; color: var(--muted) }
 .lms .st .cc-b { flex: 1 }
 @media (max-width: 560px) { .lms .cc-r { grid-template-columns: minmax(0, 1fr) auto } .lms .cc-r > span { grid-column: 1 / -1 } }
+
+/* コースを作る */
+.lms .cw-seg { display: inline-flex; flex-wrap: wrap }
+.lms .cw-a { justify-self: start; text-decoration: none }
+.lms .cw-u { display: grid; grid-template-columns: 22px minmax(0, 1fr) 76px auto; gap: 8px; align-items: center; margin-top: 6px }
+.lms .st input[type=time], .lms [role=dialog] input[type=time] { width: 100%; border: 0; border-radius: 12px; padding: 9px 12px; background: var(--paper); font: inherit }

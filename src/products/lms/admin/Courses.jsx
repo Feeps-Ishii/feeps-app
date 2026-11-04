@@ -5,6 +5,7 @@ import { todayStr } from "../../training/useTraining.js";
 import { Btn, Card, Chip, ListTool, Modal, matchName } from "../parts/ui.jsx";
 import { arr, errText, md } from "../staff/common.js";
 import InstructorSetting from "../instructor/Setting.jsx";
+import CourseCreate from "./CourseCreate.jsx";
 import { COL, dayOf, setupOf, stateOf } from "./Home.jsx";
 
 const RosterImport = lazy(() => import("../../console/RosterImport.jsx"));
@@ -12,34 +13,10 @@ const RosterImport = lazy(() => import("../../console/RosterImport.jsx"));
 /* 管理者のコース一覧とコースの管理（モック courseA・cadmS2）：状態で絞る・探す・並べ替え。押すと準備の一覧、設定、名簿、講師に渡す。
    企業のひも付けは companyId。作るのは名前と期間だけで、中身はカリキュラムの画面から */
 
-function Create({ companies, onClose, onDone }) {
-  const [v, setV] = useState({ name: "", companyId: "", startDate: "", endDate: "", kind: "shinjin" });
-  const [busy, setBusy] = useState(false); const [err, setErr] = useState("");
-  const f = (k, x) => setV(s => ({ ...s, [k]: x }));
-  const make = async () => {
-    if (!v.name.trim()) { setErr("コースの名前を入れてください"); return; }
-    setBusy(true); setErr("");
-    try {
-      const c = await apiPost("/courses", { name: v.name.trim(), kind: v.kind, description: "" });
-      const id = c?.courseId || c?.item?.courseId;
-      if (id) await apiPut(`/courses/${encodeURIComponent(id)}`, { name: v.name.trim(), type: v.kind, memo: "", startDate: v.startDate, endDate: v.endDate, companyId: v.companyId });
-      onDone(id);
-    } catch (e) { setErr(errText(e, "作れませんでした")); setBusy(false); }
-  };
-  return (
-    <Modal title="コースを作る" width={500} onClose={onClose} footer={<><Btn kind="ghost" onClick={onClose}>やめる</Btn><Btn disabled={busy} onClick={make}>{busy ? "作っています" : "作る"}</Btn></>}>
-      <label className="field">名前<input type="text" autoFocus maxLength={80} value={v.name} onChange={e => f("name", e.target.value)} /></label>
-      <label className="field">企業<select className="in" value={v.companyId} onChange={e => f("companyId", e.target.value)}><option value="">未定</option>{companies.map(c => <option key={c.companyId} value={c.companyId}>{c.name}</option>)}</select></label>
-      <div className="st-fg"><label className="field">開始日<input type="date" value={v.startDate} onChange={e => f("startDate", e.target.value)} /></label><label className="field">終了日<input type="date" value={v.endDate} onChange={e => f("endDate", e.target.value)} /></label></div>
-      {err && <div className="lms-err" role="alert">{err}</div>}
-    </Modal>
-  );
-}
-
-function Manage({ c, i, companies, go, say, onBack, reload }) {
+function Manage({ c, i, companies, go, say, onBack, reload, initialRoster, warn }) {
   const today = todayStr();
   const [view, setView] = useState("top");
-  const [roster, setRoster] = useState(false);
+  const [roster, setRoster] = useState(!!initialRoster);
   const [busy, setBusy] = useState(false); const [err, setErr] = useState(""); const [del, setDel] = useState(false);
   const su = setupOf(c), done = su.filter(x => x[1]).length, st0 = stateOf(c, today);
   const co = companies.find(x => x.companyId === c.companyId);
@@ -61,6 +38,7 @@ function Manage({ c, i, companies, go, say, onBack, reload }) {
     <div className="st">
       {band}
       <div className="head"><h1 className="h1">コースの管理</h1><span className="r"><Btn kind="ghost sm" onClick={() => setView("setting")}>コースの設定</Btn><Btn kind="ghost sm" onClick={() => go("lcur")}>カリキュラム</Btn><Btn kind="ghost sm" onClick={() => setDel(true)}>消す</Btn></span></div>
+      {(warn || []).map(w => <div key={w} className="lms-err" role="alert">{w}</div>)}
       {err && <div className="lms-err" role="alert">{err}</div>}
       <Card className="pad">
         <div className="head"><h2 className="h2">準備</h2><span className="r"><span className="cs-n num">{done} / {su.length}</span>{st0 !== "研修中" && st0 !== "終わった" && (c.handedAt ? <Chip tone="ok">講師に渡しました</Chip> : <Btn kind="sm" disabled={busy || done < su.length} onClick={async () => { if (await update({ handedAt: new Date().toISOString() })) say?.("講師に渡しました"); }}>講師に渡す</Btn>)}</span></div>
@@ -72,7 +50,7 @@ function Manage({ c, i, companies, go, say, onBack, reload }) {
           })}
         </div>
       </Card>
-      {roster && <Suspense fallback={null}><div className="lms-legacy"><RosterImport course={{ ...c, id: c.courseId }} onClose={() => setRoster(false)} onDone={() => { setRoster(false); reload(); }} /></div></Suspense>}
+      {roster && <Suspense fallback={null}><div className="lms-legacy"><RosterImport course={{ ...c, id: c.courseId }} initialRows={initialRoster} onClose={() => setRoster(false)} onDone={() => { setRoster(false); reload(); }} /></div></Suspense>}
       {del && <Modal title="コースを消す" width={420} onClose={() => setDel(false)} footer={<><Btn kind="ghost" onClick={() => setDel(false)}>やめる</Btn><Btn disabled={busy} onClick={async () => { setBusy(true); try { await apiDelete(`/courses/${encodeURIComponent(c.courseId)}`); say?.("コースを消しました"); setDel(false); onBack(); reload(); } catch (e) { setErr(errText(e, "消せませんでした")); setDel(false); } finally { setBusy(false); } }}>消す</Btn></>}><b>{c.name}</b></Modal>}
     </div>
   );
@@ -84,13 +62,14 @@ export default function AdminCourses({ go, say }) {
   const [companies, setCompanies] = useState([]);
   const [open, setOpen] = useState(() => { try { const v = sessionStorage.getItem("lms.courseOpen"); sessionStorage.removeItem("lms.courseOpen"); return v || ""; } catch { return ""; } });
   const [creating, setCreating] = useState(false);
+  const [made, setMade] = useState(null);
   const [tab, setTab] = useState("all"); const [q, setQ] = useState(""); const [sort, setSort] = useState("issue");
   const load = useCallback(() => apiGet("/admin/course-overview").then(r => setSt({ state: "ready", courses: arr(r?.courses) })).catch(() => setSt({ state: "error", courses: [] })), []);
   useEffect(() => { load(); apiGet("/companies").then(l => setCompanies(arr(l))).catch(() => setCompanies([])); }, [load]);
   if (st.state === "loading") return <div className="soon card">読み込み中</div>;
   if (st.state === "error") return <Card><div className="empty"><b>コースを確認できません</b><Btn kind="ghost sm" onClick={load}>再読み込み</Btn></div></Card>;
   const cur = st.courses.find(c => c.courseId === open);
-  if (cur) return <Manage key={cur.courseId} c={cur} i={st.courses.indexOf(cur)} companies={companies} go={go} say={say} onBack={() => setOpen("")} reload={load} />;
+  if (cur) return <Manage key={cur.courseId} initialRoster={made?.roster} warn={made?.warn} c={cur} i={st.courses.indexOf(cur)} companies={companies} go={go} say={say} onBack={() => setOpen("")} reload={load} />;
   const coName = id => companies.find(x => x.companyId === id)?.name || "";
   const kinds = ["研修中", "これから", "下書き", "終わった"];
   const issues = c => setupOf(c).filter(x => !x[1]).length;
@@ -118,7 +97,7 @@ export default function AdminCourses({ go, say }) {
         })}
         {!list.length && <tr><td colSpan={6}><Chip>なし</Chip></td></tr>}
       </tbody></table></div></Card>
-      {creating && <Create companies={companies} onClose={() => setCreating(false)} onDone={id => { setCreating(false); load().then(() => { if (id) { setActiveCourseId(id); setOpen(id); } }); say?.("コースを作りました"); }} />}
+      {creating && <CourseCreate companies={companies} courses={st.courses} onClose={() => setCreating(false)} onDone={(id, r) => { setCreating(false); setMade(r); load().then(() => { if (id) { setActiveCourseId(id); setOpen(id); } }); say?.("コースを下書きで作りました"); }} />}
     </div>
   );
 }

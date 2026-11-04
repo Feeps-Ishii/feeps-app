@@ -2,12 +2,13 @@ import React, { useEffect, useMemo, useRef, useState } from "react";
 import { apiGet, apiPost, apiPut } from "../../../api.js";
 import {
   CURRICULUM_EXCEL_HEADERS, buildLearningContext, curriculumExcelTemplateRows, curriculumSectionsFromExcelRows, curriculumUnitScope, flattenUnitDays, makeLocalId,
-  mergeCurriculumSections, normalizeCurriculumExercise, normalizeCurriculumSections, safeExcelFilename, sessionsFromSections, splitCurriculumList, summarizeCurriculumSections, testScopeIdOf, unitDaysOf,
+  mergeCurriculumSections, normalizeCurriculumExercise, normalizeCurriculumSections, safeExcelFilename, sessionsFromSections, splitCurriculumList, summarizeCurriculumSections, testCourseIdList, testScopeIdOf, unitDaysOf,
 } from "../../training/TrainingComponents.jsx";
 import { testIdOf } from "../../training/useTraining.js";
 import { setTestBuildTarget } from "../../../utils/common/courseContext.js";
 import { Btn, Card, Chip, Modal } from "../parts/ui.jsx";
 import { arr, errText, md } from "../staff/common.js";
+import { ShelfPicker } from "../admin/CurriculumShelf.jsx";
 
 /* カリキュラムの編集（モック curS の編集）：保存して初めて受講生に反映される。データの形・保存先は今の画面と同じ（/courses/{id}/curriculum）。
    日ごとの区切りは任意。テストは単元・日につなぐだけで、作る・直す・結果はテストの画面で開く */
@@ -88,6 +89,7 @@ export default function CurriculumEdit({ course, go, keys, onClose, say }) {
   const [busy, setBusy] = useState(false); const [err, setErr] = useState("");
   const [uploading, setUploading] = useState(""); const [aiBusy, setAiBusy] = useState({}); const [aiErr, setAiErr] = useState({});
   const [conf, setConf] = useState(null);
+  const [picking, setPicking] = useState(false);
   const [imp, setImp] = useState(null); const [impBusy, setImpBusy] = useState(false); const [sure, setSure] = useState(false);
   const saved = useRef("");
   const fileRef = useRef(null);
@@ -188,6 +190,28 @@ export default function CurriculumEdit({ course, go, keys, onClose, say }) {
       setSure(false); setImp({ fileName: file.name, sections: got, summary: summarizeCurriculumSections(got) });
     } catch (e) { setErr(errText(e, "Excel を読み込めませんでした")); } finally { setImpBusy(false); }
   };
+  // 棚の単元をコースへ。日付は空のまま。テストはこのコースにつなぐ（保存を待たずに）
+  const addFromShelf = async units => {
+    setPicking(false); setErr("");
+    const made = units.map(u => ({ ...newUnit(), title: u.title, content: u.content || "", learningGoals: arr(u.goals), exercises: arr(u.exercises).map(x => ({ ...x, id: makeLocalId("exercise") })) }));
+    setSections(xs => [...xs, ...made]);
+    setOpen(o => ({ ...o, ...Object.fromEntries(made.map(m => [m.id, true])) }));
+    const links = units.flatMap((u, i) => arr(u.testIds).map(id => ({ id, sec: made[i] })));
+    const failed = [];
+    for (const l of links) {
+      const t = tests.find(x => testIdOf(x) === l.id), scope = curriculumUnitScope(l.sec, null, null, "section").fields;
+      try {
+        // eslint-disable-next-line no-await-in-loop
+        const full = t || arr(await apiGet("/tests")).find(x => testIdOf(x) === l.id);
+        if (!full) throw new Error("not found");
+        // eslint-disable-next-line no-await-in-loop
+        await apiPut(`/tests/${encodeURIComponent(l.id)}`, { courseIds: [...new Set([...testCourseIdList(full), courseId])], courseScopes: { [courseId]: scope } });
+        setTests(ts => (ts.some(x => testIdOf(x) === l.id) ? ts.map(x => (testIdOf(x) === l.id ? { ...x, ...scope } : x)) : [...ts, { ...full, ...scope }]));
+      } catch { failed.push(l.id); }
+    }
+    if (failed.length) setErr(`テスト ${failed.length} 件をつなげませんでした`);
+    say?.(`${made.length} 単元を足しました ・ 保存はまだです`);
+  };
   const applyImp = mode => {
     if (mode === "replace" && sections.length && !sure) { setSure(true); return; }
     setSections(mode === "merge" ? flattenUnitDays(mergeCurriculumSections(sections, imp.sections)) : flattenUnitDays(imp.sections));
@@ -261,7 +285,9 @@ export default function CurriculumEdit({ course, go, keys, onClose, say }) {
           );
         })}
         <button type="button" className="ce-add" onClick={() => { const u = newUnit(); setSections(xs => [...xs, u]); setOpen(o => ({ ...o, [u.id]: true })); }}>＋ 単元を足す</button>
+        <button type="button" className="ce-add" onClick={() => setPicking(true)}>共通の棚から足す</button>
       </div>
+      {picking && <ShelfPicker onClose={() => setPicking(false)} onPick={addFromShelf} />}
       {conf && <Modal title={conf.title} width={440} onClose={() => setConf(null)} footer={<><Btn kind="ghost" onClick={() => setConf(null)}>やめる</Btn><Btn onClick={() => { const c = conf; setConf(null); c.run(); }}>{conf.ok}</Btn></>}><Chip tone="warn">{conf.ok === "消す" ? "保存するまで受講生には反映されない" : "保存していない変更は消える"}</Chip></Modal>}
       {imp && (
         <Modal title={`Excel の確認 ・ ${imp.fileName}`} width={520} onClose={() => setImp(null)} footer={<><Btn kind="ghost" onClick={() => setImp(null)}>やめる</Btn>{sections.length > 0 && <Btn kind="ghost" onClick={() => applyImp("merge")}>今の内容に足す</Btn>}<Btn onClick={() => applyImp("replace")}>{sure ? "本当に置き換える" : sections.length ? "今の内容と置き換える" : "反映する"}</Btn></>}>
