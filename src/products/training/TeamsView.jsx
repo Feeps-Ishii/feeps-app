@@ -299,7 +299,7 @@ function TeamList({ role, data, trainees, nameOf, onOpen, onJoin, onMembers, onA
 }
 
 /* ---------- チームを作る ---------- */
-function CreateModal({ courseId, onClose, onCreated }) {
+export function CreateModal({ courseId, onClose, onCreated }) {
   const [name, setName] = useState("");
   const [theme, setTheme] = useState("");
   const [busy, setBusy] = useState(false);
@@ -329,7 +329,7 @@ const SETTING_LABELS = [
   ["board", "ボードを使う"],
   ["staffWrite", "担当の講師・管理者は、チームに入らなくても書き込める"],
 ];
-function MembersModal({ team, course, teams, trainees, nameOf, me, isAdmin, onPut, act, onSetEnded, onClose, onDeleted }) {
+export function MembersModal({ team, course, teams, trainees, nameOf, me, isAdmin, onPut, act, onSetEnded, onClose, onDeleted }) {
   const [q, setQ] = useState("");
   const [name, setName] = useState(team.name);
   const [theme, setTheme] = useState(team.theme);
@@ -393,7 +393,7 @@ function MembersModal({ team, course, teams, trainees, nameOf, me, isAdmin, onPu
 }
 
 /* ---------- 割り当て表（ドラッグで移す） ---------- */
-function AssignBoard({ course, teams, trainees, nameOf, onPut, act, onBack, onCreate }) {
+export function AssignBoard({ course, teams, trainees, nameOf, onPut, act, onBack, onCreate }) {
   const [drag, setDrag] = useState(null);   // { userId, from }
   const [over, setOver] = useState("");
   const assigned = new Set(teams.flatMap(t => t.members));

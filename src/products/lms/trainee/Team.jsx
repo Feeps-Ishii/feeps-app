@@ -209,13 +209,51 @@ function Files({ team, say }) {
   );
 }
 
+// グループの部屋（受講生・講師で共通）。今日のカリキュラムのチーム演習があれば帯で出す
+export function TeamRoomSage({ team, me, nameOf, go, say }) {
+  const today = todayStr();
+  const [tab, setTab] = useState("chat");
+  const [exercises, setExercises] = useState([]);
+  useEffect(() => {
+    let alive = true;
+    setExercises([]);
+    if (isEnded(team)) return undefined;
+    apiGet(`/courses/${encodeURIComponent(team.courseId)}/curriculum`).then(item => {
+      const inDay = u => { const s = String(u?.startDate || "").slice(0, 10), e = String(u?.endDate || u?.startDate || "").slice(0, 10); return s && s <= today && today <= e; };
+      const out = [];
+      normalizeCurriculumSections(item).forEach(sec => {
+        const units = sec.unitMode === "section" ? [sec] : arr(sec.chapters).flatMap(ch => arr(ch.lessons));
+        units.filter(inDay).forEach(u => arr(u.exercises).filter(x => x.type === "team").forEach(x => out.push({ unit: u.title || sec.title, title: x.title || "チーム演習" })));
+      });
+      if (alive) setExercises(out);
+    }).catch(() => {});
+    return () => { alive = false; };
+  }, [team.teamId, team.status, today]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const tabs = [["chat", "チャット"], ...(team.settings?.board ? [["board", "ボード"]] : []), ["todo", "やること"], ["files", "フォルダ"]];
+  const cur = tabs.some(([k]) => k === tab) ? tab : "chat";
+  return (
+    <section className={`card tm-main c-${catOf(team)}`}>
+      <header className="tm-h">
+        <span className="tm-gi big" aria-hidden="true">{String(team.name).slice(0, 1)}</span>
+        <div className="tm-hb"><b>{team.name}</b><small className="num">{isEnded(team) ? `終了 ${md(team.endedAt)}` : team.theme || `${arr(team.members).length} 人`}</small></div>
+        <span className="tm-av" aria-label={arr(team.members).map(nameOf).join("、")}>{arr(team.members).slice(0, 8).map(id => <F key={id} name={nameOf(id)} />)}</span>
+        <span className="tm-seg tm-tabs">{tabs.map(([k, t]) => <button key={k} type="button" aria-pressed={cur === k} onClick={() => setTab(k)}>{t}</button>)}</span>
+      </header>
+      {exercises.map((x, i) => <div key={i} className="tm-ex"><span className="fd-fb"><span className="eyebrow">今日の演習</span><b>{x.title}</b><small>{x.unit}</small></span><Btn kind="ghost sm" onClick={() => go("cur")}>開く</Btn></div>)}
+      {cur === "chat" && <Chat key={team.teamId} team={team} me={me} nameOf={nameOf} />}
+      {cur === "board" && <div className="tm-board lms-legacy"><Suspense fallback={<div className="soon">読み込み中</div>}><TeamBoard key={team.teamId} team={team} nameOf={nameOf} /></Suspense></div>}
+      {cur === "todo" && <Todos key={team.teamId} team={team} me={me} nameOf={nameOf} />}
+      {cur === "files" && <Files key={team.teamId} team={team} say={say} />}
+    </section>
+  );
+}
+
 export default function TraineeTeam({ go, say }) {
   const today = todayStr();
   const [data, setData] = useState(null);
   const [fail, setFail] = useState(false);
   const [openId, setOpenId] = useState("");
-  const [tab, setTab] = useState("chat");
-  const [exercises, setExercises] = useState([]);
   const unread = useChatUnread(true);
 
   const load = useCallback(async () => {
@@ -227,7 +265,7 @@ export default function TraineeTeam({ go, say }) {
   // チャットの新着通知から開いたとき：そのチームのチャットを開く
   useEffect(() => {
     if (!data) return undefined;
-    const apply = () => { const id = takeTeamChatFocus(); if (id && data.teams.some(t => t.teamId === id)) { setOpenId(id); setTab("chat"); } };
+    const apply = () => { const id = takeTeamChatFocus(); if (id && data.teams.some(t => t.teamId === id)) setOpenId(id); };
     apply();
     window.addEventListener("feeps:team-chat-focus", apply);
     return () => window.removeEventListener("feeps:team-chat-focus", apply);
@@ -238,33 +276,14 @@ export default function TraineeTeam({ go, say }) {
   const past = mineAll.filter(isEnded).sort((a, b) => String(b.endedAt || "").localeCompare(String(a.endedAt || "")));
   const team = mineAll.find(t => t.teamId === openId) || now[0] || past[0] || null;
 
-  // 今日のカリキュラムのチーム演習（あれば帯で出す）
-  useEffect(() => {
-    let alive = true;
-    setExercises([]);
-    if (!team || isEnded(team)) return undefined;
-    apiGet(`/courses/${encodeURIComponent(team.courseId)}/curriculum`).then(item => {
-      const inDay = u => { const s = String(u?.startDate || "").slice(0, 10), e = String(u?.endDate || u?.startDate || "").slice(0, 10); return s && s <= today && today <= e; };
-      const out = [];
-      normalizeCurriculumSections(item).forEach(sec => {
-        const units = sec.unitMode === "section" ? [sec] : arr(sec.chapters).flatMap(ch => arr(ch.lessons));
-        units.filter(inDay).forEach(u => arr(u.exercises).filter(x => x.type === "team").forEach(x => out.push({ unit: u.title || sec.title, title: x.title || "チーム演習" })));
-      });
-      if (alive) setExercises(out);
-    }).catch(() => {});
-    return () => { alive = false; };
-  }, [team?.teamId, team?.status, today]); // eslint-disable-line react-hooks/exhaustive-deps
-
   if (fail && !data) return <Card><div className="empty"><b>チームを確認できません</b><Btn kind="ghost sm" onClick={load}>再読み込み</Btn></div></Card>;
   if (!data) return <div className="soon card">読み込み中</div>;
   if (!team) return <Card><div className="empty"><b>チーム</b><Chip>未所属</Chip></div></Card>;
 
   const nameOf = id => data.people[id]?.name || "名前未設定";
   const unreadOf = id => arr(unread?.teams).find(t => t.teamId === id)?.unread || 0;
-  const tabs = [["chat", "チャット"], ...(team.settings?.board ? [["board", "ボード"]] : []), ["todo", "やること"], ["files", "フォルダ"]];
-  const cur = tabs.some(([k]) => k === tab) ? tab : "chat";
   const grp = t => (
-    <button key={t.teamId} type="button" className={`tm-g c-${catOf(t)}`} aria-current={t === team} onClick={() => { setOpenId(t.teamId); setTab("chat"); }}>
+    <button key={t.teamId} type="button" className={`tm-g c-${catOf(t)}`} aria-current={t === team} onClick={() => setOpenId(t.teamId)}>
       <span className="tm-gi" aria-hidden="true">{String(t.name).slice(0, 1)}</span>
       <span className="tm-gb"><b>{t.name}</b><small className="num">{isEnded(t) ? `〜${md(t.endedAt)}` : `${arr(t.members).length} 人`}</small></span>
       {unreadOf(t.teamId) > 0 ? <em className="num">{unreadOf(t.teamId)}</em> : <span />}
@@ -297,19 +316,7 @@ export default function TraineeTeam({ go, say }) {
             </div>
           </Card>
         </div>
-        <section className={`card tm-main c-${catOf(team)}`}>
-          <header className="tm-h">
-            <span className="tm-gi big" aria-hidden="true">{String(team.name).slice(0, 1)}</span>
-            <div className="tm-hb"><b>{team.name}</b><small className="num">{isEnded(team) ? `終了 ${md(team.endedAt)}` : team.theme || `${arr(team.members).length} 人`}</small></div>
-            <span className="tm-av" aria-label={arr(team.members).map(nameOf).join("、")}>{arr(team.members).slice(0, 8).map(id => <F key={id} name={nameOf(id)} />)}</span>
-            <span className="tm-seg tm-tabs">{tabs.map(([k, t]) => <button key={k} type="button" aria-pressed={cur === k} onClick={() => setTab(k)}>{t}</button>)}</span>
-          </header>
-          {exercises.map((x, i) => <div key={i} className="tm-ex"><span className="fd-fb"><span className="eyebrow">今日の演習</span><b>{x.title}</b><small>{x.unit}</small></span><Btn kind="ghost sm" onClick={() => go("cur")}>開く</Btn></div>)}
-          {cur === "chat" && <Chat key={team.teamId} team={team} me={data.me} nameOf={nameOf} />}
-          {cur === "board" && <div className="tm-board lms-legacy"><Suspense fallback={<div className="soon">読み込み中</div>}><TeamBoard key={team.teamId} team={team} nameOf={nameOf} /></Suspense></div>}
-          {cur === "todo" && <Todos key={team.teamId} team={team} me={data.me} nameOf={nameOf} />}
-          {cur === "files" && <Files key={team.teamId} team={team} say={say} />}
-        </section>
+        <TeamRoomSage key={team.teamId} team={team} me={data.me} nameOf={nameOf} go={go} say={say} />
       </div>
     </div>
   );

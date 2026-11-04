@@ -644,7 +644,7 @@
 @media (max-width: 700px) { .lms .gl-hm { grid-template-columns: minmax(0, 1fr); justify-items: center; gap: 16px } .lms .gl-nx { width: 100% } }
 
 /* ===== 講師・企業担当者の共通（手で足したもの） ===== */
-.lms .st { display: grid; gap: 16px }
+.lms .st { display: grid; grid-template-columns: minmax(0, 1fr); gap: 16px } .lms .st > * { min-width: 0 }
 .lms .st-pre { white-space: pre-wrap } .lms .st-p { margin: 0; font-size: 14.5px; line-height: 1.8 }
 .lms .st-th { display: grid; gap: 10px; padding-top: 6px }
 .lms .st-mh { gap: 6px } .lms .st-mh b { font-size: 13px } .lms .st-mh small { font-size: 11.5px; color: var(--muted) }
@@ -682,3 +682,13 @@
 .lms .th-an { position: relative } .lms .th-an > .btn, .lms .th-an > .chip { align-self: center; justify-self: end }
 .lms .savebar { position: sticky; bottom: 12px; display: flex; align-items: center; gap: 10px; flex-wrap: wrap; padding: 12px 16px; border-radius: 16px; background: var(--ink); color: #fff } .lms .savebar small { color: rgba(255, 255, 255, .75) } .lms .savebar .btn.ghost { background: rgba(255, 255, 255, .15); border-color: transparent; color: #fff }
 @media (max-width: 640px) { .lms .st-rf { grid-template-columns: 22px minmax(0, 1fr) } .lms .st-rf > :nth-child(n+3) { grid-column: 2; justify-self: start } }
+.lms .st-tp { grid-template-columns: minmax(0, 1fr) auto }
+
+.lms .rv-w { display: grid; grid-template-columns: minmax(230px, 280px) minmax(0, 1fr); gap: 16px; align-items: start } .lms .rv-l { position: sticky; top: 124px; max-height: calc(100vh - 150px); overflow-y: auto }
+.lms .rv-ti { font-family: var(--display); font-size: 22px; font-weight: 700; border: 0; background: transparent; flex: 1 1 240px; min-width: 0 }
+.lms .rv-fr { display: flex; align-items: center; gap: 8px } .lms .rv-fr button { flex: 1; min-width: 0 } .lms .rv-fr small { flex: none; font-size: 11.5px; color: var(--muted) }
+.lms .rv-rq { display: grid; grid-template-columns: 64px minmax(0, 1fr) auto; gap: 8px; align-items: start } .lms .rv-ru { display: grid; grid-template-columns: minmax(0, 1fr) 72px auto; gap: 8px; align-items: start }
+.lms .rv-rr { display: grid; grid-template-columns: 28px minmax(0, 1fr); gap: 8px; font-size: 14px } .lms .rv-rr button { border: 0; background: none; padding: 0; font-weight: 800; font-size: 15px; cursor: pointer } .lms .rv-ok { color: var(--rep-i) } .lms .rv-pt { color: var(--att-i) } .lms .rv-ng { color: var(--dev-i) }
+.lms .dv-fxr { display: grid; gap: 4px; background: var(--paper); border-radius: 14px; padding: 10px 14px }
+.lms .dv-pv .st-lk { font-size: 13px; text-align: left }
+@media (max-width: 860px) { .lms .rv-w { grid-template-columns: minmax(0, 1fr) } .lms .rv-l { position: static; max-height: 300px } }
