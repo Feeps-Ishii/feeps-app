@@ -16,6 +16,14 @@ export const LMS_SCREENS = {
     goal: lazy(() => import("./trainee/Goal.jsx")),
   },
   instructor: {},
-  client: {},
+  client: {
+    home: lazy(() => import("./client/Home.jsx")),
+    report: lazy(() => import("./staff/Reports.jsx")),
+    att: lazy(() => import("./staff/Attendance.jsx")),
+    state: lazy(() => import("./client/State.jsx")),
+    people: lazy(() => import("./staff/People.jsx")),
+    done: lazy(() => import("./client/Done.jsx")),
+    ann: lazy(() => import("./client/Ann.jsx")),
+  },
   admin: {},
 };

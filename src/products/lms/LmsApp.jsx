@@ -1,4 +1,5 @@
 import React, { Suspense, useEffect, useState } from "react";
+import "./lms-staff.css";
 import "./lms.css";
 import { DevHubMark } from "../../components/common/DevHubMark.jsx";
 import { LMS_BNAV, LMS_LEGACY, LMS_ROLE_LABEL, lmsGroups, lmsLabel } from "./LmsCatalog.js";
@@ -94,7 +95,7 @@ export default function LmsApp({ role, manager = false, displayName, unread = 0,
       <div className="lms-sub">
         <div className="lms-wrap" role="tablist" aria-label={cur[1]}>
           {cur[2].map(([k, t]) => <button key={k} type="button" role="tab" aria-current={screen === k && !extra ? "page" : undefined} aria-selected={screen === k && !extra} onClick={() => go(k)}>{t}</button>)}
-          {role === "trainee" && <CourseSwitch onChange={() => setCourseV(v => v + 1)} />}
+          <CourseSwitch role={role} onChange={() => setCourseV(v => v + 1)} />
         </div>
       </div>
       <main className="lms-main lms-wrap">

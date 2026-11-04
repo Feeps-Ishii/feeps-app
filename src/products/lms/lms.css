@@ -642,3 +642,27 @@
 .lms .th-pill.gl-ng { background: var(--dev); color: var(--dev-i) }
 @media (max-width: 860px) { .lms .gl-g { grid-template-columns: minmax(0, 1fr) } }
 @media (max-width: 700px) { .lms .gl-hm { grid-template-columns: minmax(0, 1fr); justify-items: center; gap: 16px } .lms .gl-nx { width: 100% } }
+
+/* ===== 講師・企業担当者の共通（手で足したもの） ===== */
+.lms .st { display: grid; gap: 16px }
+.lms .st-pre { white-space: pre-wrap } .lms .st-p { margin: 0; font-size: 14.5px; line-height: 1.8 }
+.lms .st-th { display: grid; gap: 10px; padding-top: 6px }
+.lms .st-mh { gap: 6px } .lms .st-mh b { font-size: 13px } .lms .st-mh small { font-size: 11.5px; color: var(--muted) }
+.lms .dr-m p { margin: 2px 0 0 }
+.lms .st-end { justify-content: flex-end }
+.lms .st-dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: var(--tm-d); margin-right: 6px; vertical-align: 2px }
+.lms .st-fg { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px }
+.lms .st-nw { flex-wrap: nowrap } .lms .st-bar { min-width: 120px } .lms .st-bar .bar10 { flex: 1 }
+.lms .st-sel { width: auto }
+.lms .st-ck { display: inline-flex; align-items: center; gap: 6px; font-size: 13.5px; font-weight: 600 }
+.lms .tbl tr.on td { background: transparent }
+.lms .pick > button { width: 100% }
+.lms .ih-ring b small { font-size: 13px }
+.lms .ih-lg { display: flex; flex-wrap: wrap; gap: 4px 12px; font-size: 12.5px; color: var(--ink2) } .lms .ih-lg span { display: inline-flex; align-items: center; gap: 5px } .lms .ih-lg i { width: 8px; height: 8px; border-radius: 50% }
+.lms .face.sm { width: 24px; height: 24px; font-size: 11px }
+.lms .kc-seg i.c-rep { background: var(--rep-d) } .lms .kc-seg i.c-att { background: var(--att-d) } .lms .kc-seg i.c-dev { background: var(--dev-d) }
+.lms .kc-al i { background: var(--cd, var(--gy-d)) }
+.lms .kt-hero .hero-t { margin: 2px 0 8px }
+.lms .ct-ic { color: var(--ci) }
+.lms .ct { text-align: left; color: var(--ink) }
+@media (max-width: 560px) { .lms .st-fg { grid-template-columns: minmax(0, 1fr) } }
