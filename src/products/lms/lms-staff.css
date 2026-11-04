@@ -45,6 +45,7 @@
 .lms .ticks span.on { color: var(--mk-ink); font-weight: 700 }
 .lms .seg button:disabled { opacity: .35; cursor: default }
 .lms .pick .eyebrow { display: block; font-size: 10px }
+.lms .goalbox { display: grid; gap: 2px; background: var(--marker-soft); border-radius: 10px; padding: 10px 12px; font-size: 14px }
 .lms .dm-flow span i.co { border-radius: 2px; border: 0; background: #7B5FE0; width: 3px; height: 9px }
 .lms .tunits { display: grid; gap: 12px }
 .lms .trow { display: grid; grid-template-columns: minmax(180px, 260px) minmax(0, 1fr); gap: 16px; align-items: center; padding: 14px 16px }
@@ -272,6 +273,7 @@
 .lms .cu-h.ed:hover { background: none }
 .lms .cu-in { font-size: 16px; font-weight: 700; padding: 4px 8px; width: min(100%, 360px) }
 .lms .cu-in2 { font-weight: 700; padding: 3px 8px; flex: 1 1 220px; min-width: 0 }
+.lms .goalbox input.in { padding: 4px 8px; font-size: 13.5px; background: var(--card) }
 .lms .cu-iw { display: inline-flex; align-items: center; gap: 2px; max-width: 100% }
 .lms .cu-pen { font-style: normal; font-size: 11px; color: var(--muted) }
 .lms .cu-x { border: 0; background: none; width: 22px; height: 22px; border-radius: 6px; color: var(--muted); font-size: 15px; line-height: 1; padding: 0 }

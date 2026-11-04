@@ -748,7 +748,7 @@
 }
 
 /* 席替え */
-.lms .sx-w { overflow: hidden; border-radius: 10px }
+.lms .st .sx-w { overflow: auto; border-radius: 10px }
 .lms .sx-room { user-select: none }
 .lms .sx-room.ed { touch-action: none }
 .lms .sx-blank { position: absolute; inset: 0; display: grid; place-items: center; pointer-events: none }
@@ -805,3 +805,8 @@
 .lms .sx-kv small { color: var(--muted); font-size: 11.5px }
 .lms .sx-ph { display: flex; justify-content: space-between; margin-bottom: 8px; font-size: 14px }
 @media (max-width: 760px) { .lms .sx-pt { min-width: 860px } }
+
+/* カリキュラム（講師） */
+.lms .cu-memo { flex-basis: 100%; font-size: 12.5px; color: var(--muted) }
+.lms .cu-i .folder { flex: none }
+.lms .st .goalbox { align-content: start }

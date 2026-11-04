@@ -31,6 +31,7 @@ export const LMS_SCREENS = {
     doc: lazy(() => import("./staff/Folder.jsx")),
     test: lazy(() => import("./staff/Tests.jsx")),
     seat: lazy(() => import("./instructor/Seat.jsx")),
+    cur: lazy(() => import("./instructor/Curriculum.jsx")),
   },
   client: {
     home: lazy(() => import("./client/Home.jsx")),

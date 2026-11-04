@@ -143,7 +143,7 @@ function SeatingBoard({ data, courseId, setData, say }) {
 
   const fit = useCallback(() => {
     const w = wrapRef.current?.clientWidth || 1000;
-    setScale(Math.min(1, (w - 24) / (layout.room.w + 6)));
+    setScale(Math.max(0.6, Math.min(1, (w - 24) / (layout.room.w + 6))));
   }, [layout.room.w]);
   useLayoutEffect(() => { fit(); }, [fit]);
   useEffect(() => { const ro = new ResizeObserver(fit); if (wrapRef.current) ro.observe(wrapRef.current); return () => ro.disconnect(); }, [fit]);
