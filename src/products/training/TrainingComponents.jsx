@@ -2553,6 +2553,7 @@ function TestBuilder({ back, focus, student, onSaved, initialTest = null, duplic
   const pendingScopeRef = useRef(initialScope?.scopeId || testScopeIdOf(initialTest));
   const [type, setType] = useState(initialTest?.type || "quiz");
   const [limitMinutes, setLimitMinutes] = useState(initialTest?.limitMinutes ?? 20);
+  const [dueDate, setDueDate] = useState(initialTest?.dueDate || "");   // 締め切り（任意。2026-11-04）
   const [topics, setTopics] = useState(() => {
     const base = [
       { name: "変数・データ型", w: "多め" }, { name: "配列", w: "標準" }, { name: "条件分岐", w: "多め" }, { name: "反復（ループ）", w: "標準" },
@@ -3021,6 +3022,7 @@ function TestBuilder({ back, focus, student, onSaved, initialTest = null, duplic
         ...(courseId && linkedCourseIds.includes(courseId) ? { courseScopes: { [courseId]: selectedScope ? Object.fromEntries(TEST_SCOPE_KEYS.map(k => [k, selectedScope[k] || ""])) : null } } : {}),
         type,
         limitMinutes: Number(limitMinutes) || 0,
+        dueDate,
         questions,
         status,
       };
@@ -3056,6 +3058,7 @@ function TestBuilder({ back, focus, student, onSaved, initialTest = null, duplic
             <input value={name} onChange={e => setName(e.target.value)} placeholder="例：オブジェクト指向 確認テスト" aria-label="テスト名" className="mt-1 w-full rounded-xl px-3 py-2.5 text-sm outline-none focus:border-cyan-400" style={{ border: `1px solid ${T.border}`, color: T.textPrimary }} /></div>
           <Field label="作るときの参照コース"><select value={courseId} onChange={e => setCourseId(e.target.value)} className="w-full rounded-xl px-3 py-2.5 text-sm outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary }}><option value="">未指定</option>{courses.map(c => <option key={courseKey(c)} value={courseKey(c)}>{c.name || c.title || courseKey(c)}</option>)}</select></Field>
           <Field label="制限時間"><input type="number" min="0" value={limitMinutes} onChange={e => setLimitMinutes(e.target.value)} className="w-full rounded-xl px-3 py-2.5 text-sm outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary }} /></Field>
+          <Field label="締め切り（任意）"><input type="date" value={dueDate} onChange={e => setDueDate(e.target.value)} className="w-full rounded-xl px-3 py-2.5 text-sm outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary }} /></Field>
         </div>
         {courseId && curriculumItems.length > 0 && <div className="mt-3"><Field label="カリキュラムの単元"><select value={curriculumId} onChange={e => setCurriculumId(e.target.value)} className="w-full rounded-xl px-3 py-2.5 text-sm outline-none" style={{ border: `1px solid ${T.border}`, color: T.textPrimary }}><option value="">コース全体</option>{curriculumItems.map((item, i) => <option key={curriculumKey(item, i)} value={curriculumKey(item, i)}>{item.label}</option>)}</select></Field></div>}
 
@@ -7321,7 +7324,7 @@ function reportDetailItems(r, fields = DEFAULT_REPORT_FIELDS) {
 
 export {
   Card, Badge, Btn, Avatar, Ring, Bar, Stat, SectionHead, EmptyState,
-  DEFAULT_REPORT_FIELDS,
+  DEFAULT_REPORT_FIELDS, TestTaking, normalizeTest,
   TraineeHome, InstructorGoalsDashboard, GoalsView, Curriculum,
   Tests, Attendance, Reports, TraineeList, Karte, ClientHome,
   ElearningView, ReadOnlyCompanies, ReadOnlyCourses, ReadOnlyInstructors,

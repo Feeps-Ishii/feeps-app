@@ -355,3 +355,35 @@
 .lms .tc-r .btn.ghost { background: rgba(255, 255, 255, .85); border-color: transparent }
 @media (max-width: 860px) { .lms .tc-grid { grid-template-columns: minmax(0, 1fr) } .lms .tc-uc { position: static } }
 @media (max-width: 760px) { .lms .tc-days li { grid-template-columns: 54px minmax(0, 1fr) } .lms .tc-da { grid-column: 2; justify-content: flex-start } .lms .tc-nav { display: none } }
+
+/* ===== 受講生のテスト（モック testList2） ===== */
+.lms .tl-more { display: grid; gap: 6px; padding-top: 12px; border-top: 1px solid rgba(31, 38, 36, .08) } .lms .tl-more .eyebrow { color: var(--ci) }
+.lms .tl-more > div { display: flex; align-items: center; gap: 12px; background: rgba(255, 255, 255, .75); border-radius: 14px; padding: 10px 12px 10px 16px }
+.lms .tl-mb { display: grid; margin-right: auto; min-width: 0 } .lms .tl-mb b { font-size: 14.5px } .lms .tl-mb small { color: var(--muted); font-size: 12px }
+.lms .tl-res { gap: 14px }
+.lms .tl-u { display: grid; gap: 4px; padding-top: 12px; border-top: 1px solid var(--line2) } .lms .tl-u:first-of-type { border-top: 0; padding-top: 0 }
+.lms .tl-uh { display: flex; align-items: center; gap: 10px; width: 100%; border: 0; background: none; padding: 6px 4px; text-align: left; color: var(--ink); border-radius: 10px } .lms .tl-uh:hover { background: var(--soft) } .lms .tl-uh b { font-size: 14.5px }
+.lms .tl-us { margin-left: auto; display: flex; align-items: center; gap: 14px; font-size: 12.5px; color: var(--muted) } .lms .tl-us b { font-weight: 700; color: var(--ink) } .lms .tl-us .ng b { color: var(--dev-i) }
+.lms .tl-us i { display: grid; place-items: center; width: 26px; height: 26px; border-radius: 50%; background: var(--paper); color: var(--ink2); transition: transform .15s } .lms .tl-us i.up { transform: rotate(180deg) }
+.lms .tl-r { display: grid; grid-template-columns: 54px minmax(0, 1fr) auto auto auto; gap: 14px; align-items: center; padding: 8px 6px; border-radius: 12px } .lms .tl-r:hover { background: var(--soft) }
+.lms .tl-rb { min-width: 0 } .lms .tl-rb b { display: block; font-size: 14.5px } .lms .tl-rb small { color: var(--muted); font-size: 12px }
+.lms .tl-sc { display: flex; align-items: baseline; gap: 3px } .lms .tl-sc b { font-weight: 300; font-size: 30px; letter-spacing: -.02em; line-height: 1 } .lms .tl-sc small { color: var(--muted); font-size: 12px } .lms .tl-r.ng .tl-sc b { color: var(--dev-i) }
+.lms .tl-ra { display: flex; gap: 6px; justify-content: flex-end; flex-wrap: wrap }
+.lms .tl-side { position: sticky; top: 124px; gap: 14px }
+.lms .tl-lg { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; color: var(--muted) } .lms .tl-lg i { width: 14px; border-top: 2px dashed var(--ink2) }
+.lms .tl-rc { font-size: 12px; color: var(--muted); margin-top: -6px }
+.lms .tl-avg { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px }
+.lms .tl-avg > span { display: block; background: var(--paper); border-radius: 14px; padding: 10px 14px } .lms .tl-avg small { display: block; font-size: 12px; color: var(--ink2); font-weight: 600 }
+.lms .tl-avg b { font-weight: 300; font-size: 34px; line-height: 1.1; letter-spacing: -.02em } .lms .tl-avg em { font-style: normal; font-size: 13px; color: var(--muted); margin-left: 4px }
+.lms .tl-ch { display: grid; gap: 6px; padding-top: 18px }
+.lms .tl-pl { position: relative; height: 120px; display: flex; align-items: flex-end; gap: 10px; border-bottom: 1px solid var(--line) }
+.lms .tl-th { position: absolute; left: 0; right: 0; border-top: 2px dashed var(--ink2); opacity: .45 }
+.lms .tl-b { flex: 1; max-width: 34px; margin-inline: auto; border-radius: 8px 8px 3px 3px; background: var(--tst-d) } .lms .tl-b.ng { background: var(--dev-d) }
+.lms .tl-xl { display: flex; gap: 10px } .lms .tl-xl span { flex: 1; display: grid; justify-items: center; line-height: 1.25 } .lms .tl-xl b { font-size: 13px; font-weight: 700 } .lms .tl-xl .ng b { color: var(--dev-i) } .lms .tl-xl small { font-size: 10.5px; color: var(--muted) }
+.lms .tl-take { display: grid; gap: 12px; max-width: 980px; width: 100%; margin-inline: auto }
+@media (max-width: 860px) { .lms .tl-side { position: static } }
+@media (max-width: 760px) {
+  .lms .tl-r { grid-template-columns: 54px minmax(0, 1fr) auto; row-gap: 6px } .lms .tl-r .chip { display: none } .lms .tl-ra { grid-column: 2 / -1; justify-content: flex-start }
+  .lms .tl-uh { flex-wrap: wrap; row-gap: 2px } .lms .tl-uh > b { flex: 1; min-width: 0 } .lms .tl-us { flex-basis: 100%; margin-left: 0; justify-content: flex-start; gap: 12px; white-space: nowrap } .lms .tl-us i { margin-left: auto }
+  .lms .tl-more > div { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 4px 10px } .lms .tl-more > div > .btn { grid-column: 2; grid-row: 1 / span 2; align-self: center } .lms .tl-md { grid-column: 1 }
+}

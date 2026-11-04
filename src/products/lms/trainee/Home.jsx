@@ -43,8 +43,9 @@ export default function TraineeHome({ go }) {
   // 締め切り：個人開発の課題（締め切りあり・終わっていないもの）と未受験のテスト
   const dls = [
     ...(d.devs || []).filter(a => a.deadline && a.state !== "done" && a.status !== "done").map(a => ({ key: `dev-${a.id}`, date: a.deadline, title: a.title, kind: "個人開発", cat: "dev", go: "dev" })),
+    ...(dash.tests || []).filter(x => x.status === "unsubmitted" && x.dueDate).map(x => ({ key: `test-${x.testId}`, date: x.dueDate, title: x.title, kind: "テスト", cat: "tst", go: "test" })),
   ].sort((a, b) => String(a.date).localeCompare(String(b.date)));
-  const tests = (dash.tests || []).filter(x => x.status === "unsubmitted");
+  const tests = (dash.tests || []).filter(x => x.status === "unsubmitted" && !x.dueDate);
   const firstDl = dls[0] ? daysLeft(dls[0].date, today) : null;
 
   const hero = !isDay
