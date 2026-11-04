@@ -53,6 +53,8 @@ export const LMS_SCREENS = {
     ana: lazy(() => import("./admin/Ana.jsx")),
     cdoc: lazy(() => import("./staff/Folder.jsx").then(m => ({ default: m.AdminCourseFolder }))),
     ltest: lazy(() => import("./staff/Tests.jsx")),
+    lcur: lazy(() => import("./instructor/Curriculum.jsx")),
+    lprac: lazy(() => import("./instructor/Practice.jsx")),
     doc: lazy(() => import("./staff/Folder.jsx").then(m => ({ default: m.AdminSharedFolder }))),
     grant: lazy(() => import("./staff/Grant.jsx")),
   },

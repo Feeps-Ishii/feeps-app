@@ -7332,4 +7332,7 @@ export {
   normalizeCurriculumSections,
   // 新しい LMS のテストの画面（作る画面と単元の決まりは同じものを使う）
   TestBuilder, TEST_SCOPE_KEYS, flattenCurriculumScopes, testCourseIdList, testQuestionsOf, testScopeForCourse, testScopeIdOf, useNameMap,
+  // 新しい LMS のカリキュラムの編集（データの形は同じものを使う）
+  CURRICULUM_EXCEL_HEADERS, buildLearningContext, curriculumExcelTemplateRows, curriculumSectionsFromExcelRows, curriculumUnitScope, flattenUnitDays, makeLocalId,
+  mergeCurriculumSections, normalizeCurriculumExercise, safeExcelFilename, splitCurriculumList, summarizeCurriculumSections, unitDaysOf,
 };

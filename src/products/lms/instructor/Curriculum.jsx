@@ -1,15 +1,15 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { apiGet } from "../../../api.js";
-import { Curriculum as LegacyCurriculum, normalizeCurriculumSections } from "../../training/TrainingComponents.jsx";
+import { normalizeCurriculumSections } from "../../training/TrainingComponents.jsx";
 import { setPracticeFocus, usePracticeLinks } from "../../training/practiceLinks.js";
 import { testIdOf, todayStr } from "../../training/useTraining.js";
 import { setLibraryTarget, setTestBuildTarget } from "../../../utils/common/courseContext.js";
-import { Btn, Card, Chip, Modal, weekday } from "../parts/ui.jsx";
-import { LMS_LEGACY } from "../LmsCatalog.js";
+import { Btn, Card, Chip, weekday } from "../parts/ui.jsx";
+import CurriculumEdit from "./CurriculumEdit.jsx";
 import { arr, md, useStaffCourse } from "../staff/common.js";
 
-/* 講師のカリキュラム（モック curS の読むところ）：単元を 1 から順に、開くと目標・単元を通して・日ごと。
-   テスト・フォルダ・練習問題へはそのまま移る。編集は今の画面を中に出す（Excel の取り込み・演習の AI・資料のアップロードをそのまま使うため） */
+/* カリキュラム（講師・管理者。モック curS の読むところ）：単元を 1 から順に、開くと目標・単元を通して・日ごと。
+   テスト・フォルダ・練習問題へはそのまま移る。編集は CurriculumEdit.jsx。管理者はコースごと（上のコースの切り替え） */
 
 const dk = v => String(v || "").slice(0, 10);
 const isD = v => /^\d{4}-\d{2}-\d{2}$/.test(v);
@@ -22,14 +22,13 @@ const rangeOf = s => {
 const stateOf = (s, today) => { const r = rangeOf(s); return !r ? "" : r.start <= today && today <= r.end ? "now" : r.end < today ? "done" : ""; };
 const wd = d => { const [y, m, dd] = d.split("-").map(Number); return weekday(m, dd, y); };
 
-export default function InstructorCurriculum({ role, go }) {
+export default function InstructorCurriculum({ role, go, say }) {
   const today = todayStr();
   const sc = useStaffCourse();
   const courseId = sc.course?.courseId || "";
   const [st, setSt] = useState({ state: "loading", sections: [], tests: null, materials: [] });
   const [open, setOpen] = useState({});
   const [edit, setEdit] = useState(false);
-  const [leaving, setLeaving] = useState(false);
   const [err, setErr] = useState("");
   const [key, setKey] = useState(0);
   const practiceFor = usePracticeLinks(courseId);
@@ -52,21 +51,12 @@ export default function InstructorCurriculum({ role, go }) {
   }, [courseId, key, today]);
 
   const mats = useMemo(() => Object.fromEntries(st.materials.map(m => [m.materialId, m])), [st.materials]);
-  // 今の画面からの移動（カリキュラムの中のボタン）を新しい画面のキーへ
-  const legacyGo = v => { const k = Object.entries(LMS_LEGACY[role] || {}).find(([, lv]) => lv === v)?.[0]; if (k) go(k); };
+  const keys = role === "admin" ? { test: "ltest", doc: "cdoc", prac: "lprac" } : { test: "test", doc: "doc", prac: "prac" };
 
   if (sc.state === "loading") return <div className="soon card">読み込み中</div>;
   if (sc.state === "error") return <Card><div className="empty"><b>コースを確認できません</b><Btn kind="ghost sm" onClick={sc.reload}>再読み込み</Btn></div></Card>;
   if (!courseId) return <Card><div className="empty"><b>担当のコース</b><Chip>なし</Chip></div></Card>;
-  if (edit) {
-    return (
-      <div className="st">
-        <div className="head"><div><div className="eyebrow">{sc.course.name}</div><h1 className="h1">カリキュラムの編集</h1></div><span className="r"><Btn kind="ghost sm" onClick={() => setLeaving(true)}>編集を終える</Btn></span></div>
-        <div className="lms-legacy"><LegacyCurriculum role={role} go={legacyGo} /></div>
-        {leaving && <Modal title="編集を終える" width={420} onClose={() => setLeaving(false)} footer={<><Btn kind="ghost" onClick={() => setLeaving(false)}>編集に戻る</Btn><Btn onClick={() => { setLeaving(false); setEdit(false); setKey(k => k + 1); }}>終える</Btn></>}><Chip tone="warn">保存していない変更は消えます</Chip></Modal>}
-      </div>
-    );
-  }
+  if (edit) return <CurriculumEdit course={sc.course} go={go} keys={keys} say={say} onClose={() => { setEdit(false); setKey(k => k + 1); }} />;
   if (st.state === "error") return <Card><div className="empty"><b>カリキュラムを確認できません</b><Btn kind="ghost sm" onClick={() => setKey(k => k + 1)}>再読み込み</Btn></div></Card>;
   if (st.state === "loading") return <div className="soon card">読み込み中</div>;
 
@@ -76,8 +66,8 @@ export default function InstructorCurriculum({ role, go }) {
     try { const r = await apiGet(`/materials/view?courseId=${encodeURIComponent(courseId)}&materialId=${encodeURIComponent(id)}`); if (tab) tab.location.href = r.url; else window.open(r.url, "_blank"); }
     catch { if (tab) tab.close(); setErr("資料を開けませんでした"); }
   };
-  const toTest = t => { setTestBuildTarget({ courseId, testId: testIdOf(t), results: true }); go("test"); };
-  const toFolder = id => { setLibraryTarget({ courseId, nodeId: id }); go("doc"); };
+  const toTest = t => { setTestBuildTarget({ courseId, testId: testIdOf(t), results: true }); go(keys.test); };
+  const toFolder = id => { setLibraryTarget({ courseId, nodeId: id }); go(keys.doc); };
   const testChips = list => list.map(t => <button key={testIdOf(t)} type="button" className="cu-i test" onClick={() => toTest(t)}><span>{t.title}</span><em>{t.status === "published" ? "公開" : "下書き"}</em></button>);
   const matChips = ids => ids.filter(id => mats[id]).map(id => <button key={id} type="button" className="cu-i" onClick={() => openMat(id)}><span>{mats[id].title || mats[id].filename}</span></button>);
   const allOpen = st.sections.length > 0 && st.sections.every(s => open[s.id]);
@@ -114,7 +104,7 @@ export default function InstructorCurriculum({ role, go }) {
                       {folders.map(f => <button key={f.nodeId} type="button" className="cu-i" onClick={() => toFolder(f.nodeId)}><span className="folder" aria-hidden="true" /><span>{f.name || "フォルダ"}</span></button>)}
                       {matChips(secMats)}
                       {testChips(wholeT)}
-                      {practice.map(p => <button key={`${p.setId}:${p.no}`} type="button" className="cu-i prac" onClick={() => { setPracticeFocus({ courseId, setId: p.setId, qid: p.firstQ }); go("prac"); }}><span>{p.title}</span></button>)}
+                      {practice.map(p => <button key={`${p.setId}:${p.no}`} type="button" className="cu-i prac" onClick={() => { setPracticeFocus({ courseId, setId: p.setId, qid: p.firstQ }); go(keys.prac); }}><span>{p.title}</span></button>)}
                       {exs.length > 0 && <Chip>演習 {exs.length}</Chip>}
                       {!folders.length && !secMats.length && !wholeT.length && !practice.length && !exs.length && <Chip>なし</Chip>}
                     </div>
