@@ -746,3 +746,62 @@
   .lms .st .tx-rv { grid-template-columns: minmax(0, 1fr) }
   .lms .st .tr-t .scroll { overflow-x: auto }
 }
+
+/* 席替え */
+.lms .sx-w { overflow: hidden; border-radius: 10px }
+.lms .sx-room { user-select: none }
+.lms .sx-room.ed { touch-action: none }
+.lms .sx-blank { position: absolute; inset: 0; display: grid; place-items: center; pointer-events: none }
+.lms .sx-room .ldesk { z-index: 3; cursor: pointer }
+.lms .sx-room .lfx { z-index: 2 }
+.lms .sx-room .lst { position: absolute; z-index: 4; display: grid; place-content: center; justify-items: center; line-height: 1.2; border-radius: 8px; border: 1.5px solid transparent; cursor: grab; overflow: hidden; background: transparent; padding: 0; white-space: nowrap }
+.lms .sx-room .lst small { font-size: 9.5px; color: var(--muted) }
+.lms .sx-room .lst b { font-size: 14px; font-weight: 600; color: var(--ink) }
+.lms .sx-room .lst.empty { border: 1.5px dashed #C8D2CF; cursor: default }
+.lms .sx-room .lst.empty.pr { border-color: transparent }
+.lms .sx-room .lst.on { border-color: var(--marker); background: var(--marker-soft) }
+.lms .sx-room .lst.hl { border-color: var(--amber); background: #FFF8E6 }
+.lms .sx-room .lst.sx-t { cursor: default }
+.lms .sx-dot { position: absolute; right: 4px; top: 3px; width: 8px; height: 8px; border-radius: 50%; background: var(--red) }
+.lms .sx-pin { position: absolute; left: 4px; top: 3px; width: 8px; height: 8px; border-radius: 2px; background: var(--amber) }
+.lms .sx-ag { position: absolute; top: -9px; right: -9px; width: 18px; height: 18px; display: grid; place-items: center; border-radius: 50%; background: var(--red); color: #fff; font-size: 11px }
+.lms .sx-h { position: absolute; background: var(--marker); border: 2px solid #fff; border-radius: 4px; z-index: 6 }
+.lms .sx-h.e { right: -9px; top: 50%; width: 12px; height: 26px; margin-top: -13px; cursor: ew-resize }
+.lms .sx-h.s { bottom: -9px; left: 50%; width: 26px; height: 12px; margin-left: -13px; cursor: ns-resize }
+.lms .sx-h.se { right: -10px; bottom: -10px; width: 18px; height: 18px; cursor: nwse-resize }
+.lms .sx-tray { min-height: 48px }
+.lms .sx-br { flex-basis: 100% }
+.lms .sx-pp { border: 1px solid var(--line); background: var(--card); border-radius: 999px; padding: 3px 10px; font-size: 13px; cursor: grab }
+.lms .sx-pp small { color: var(--muted) }
+.lms .st .sx-round { width: auto; min-width: 150px; flex: none }
+.lms .st .sx-in { width: auto; min-width: 74px; padding: 4px 26px 4px 8px; font-size: 12.5px }
+.lms .sx-sp { flex: 1 }
+.lms .sx-nw { flex-wrap: nowrap }
+.lms .sx-nw input[type=text] { flex: 1; min-width: 0 }
+.lms .sx-lv { display: inline-flex; gap: 2px }
+.lms .sx-lv i { width: 12px; height: 7px; border-radius: 2px; background: var(--line) }
+.lms .sx-lv.a i.on { background: var(--marker) }
+.lms .sx-lv.b i.on { background: var(--mint) }
+.lms .sx-why { min-width: 240px; white-space: normal; font-size: 13px }
+.lms .sx-why small { display: block; color: var(--muted); font-size: 11.5px }
+.lms .sx-log { display: grid; gap: 8px; max-height: 240px; overflow-y: auto }
+.lms .sx-me, .lms .sx-ai { max-width: 82%; padding: 7px 12px; border-radius: 14px; font-size: 13.5px; white-space: pre-wrap; display: grid; gap: 6px }
+.lms .sx-me { justify-self: end; background: var(--ink); color: #fff }
+.lms .sx-ai { justify-self: start; background: var(--card) }
+.lms .sx-mv { display: grid; gap: 4px }
+.lms .sx-mv span { background: var(--paper); border-radius: 8px; padding: 4px 8px; font-size: 12.5px }
+.lms .sx-card { position: fixed; z-index: 50; display: flex; flex-direction: column; background: var(--card); border: 1px solid var(--line); border-radius: 16px; box-shadow: 0 16px 40px rgba(20, 30, 28, .22) }
+.lms .sx-ch { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 10px 14px; border-bottom: 1px solid var(--line2) }
+.lms .sx-ch > div { display: grid; min-width: 0 }
+.lms .sx-ch small { font-size: 11px; color: var(--muted) }
+.lms .sx-cb { display: grid; align-content: start; gap: 10px; padding: 10px 14px; overflow-y: auto; font-size: 13.5px }
+.lms .sx-rs { display: grid; gap: 4px }
+.lms .sx-rs p { margin: 0; padding: 6px 10px; border-radius: 10px; background: var(--paper); font-size: 13px }
+.lms .sx-rs small { color: var(--muted); font-size: 11.5px }
+.lms .sx-who { display: flex; width: 100%; align-items: center; justify-content: space-between; gap: 8px; border: 0; border-top: 1px solid var(--line2); background: none; padding: 6px 0; text-align: left }
+.lms .sx-sc { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px }
+.lms .sx-sc .eyebrow { flex-basis: 100% }
+.lms .sx-kv { display: grid; grid-template-columns: 70px minmax(0, 1fr); gap: 6px 8px; align-items: center }
+.lms .sx-kv small { color: var(--muted); font-size: 11.5px }
+.lms .sx-ph { display: flex; justify-content: space-between; margin-bottom: 8px; font-size: 14px }
+@media (max-width: 760px) { .lms .sx-pt { min-width: 860px } }

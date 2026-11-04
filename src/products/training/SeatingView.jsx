@@ -11,20 +11,20 @@ import { Check, FileDown, Move, Pin, Plus, RotateCcw, Sparkles, Send, Wifi, X, U
    - 名前のドラッグで入れ替え／「まだ席がない人」へ外す。机を押すと理由、名前を押すと評価
    - 「AIに頼む」：入れ替え案だけを返し、確かめてから反映
    - 「PDFで出力」：座席表（A4横）。回（第1回…）ごとに下書き → 確定。前回の机はひとつ前の確定した回 */
-const SEAT_W = 92, SEAT_H = 40;
-const DESK_KINDS = [
+export const SEAT_W = 92, SEAT_H = 40;
+export const DESK_KINDS = [
   { label: "縦の机（左右3席）", w: 66, h: 120, L: 3, R: 3, T: 0, B: 0 },
   { label: "縦の机（左右2席）", w: 66, h: 80, L: 2, R: 2, T: 0, B: 0 },
   { label: "横の机（上下3席）", w: 288, h: 56, L: 0, R: 0, T: 3, B: 3 },
   { label: "1人の机", w: 66, h: 44, L: 0, R: 1, T: 0, B: 0 },
 ];
-const FX_KINDS = [["入口", 70, 56], ["窓", 400, 18], ["スクリーン", 190, 18], ["TVモニター", 140, 18], ["柱", 40, 40], ["棚", 300, 18], ["ロッカー", 60, 120], ["講師卓", 120, 50], ["自由", 120, 24]];
-const GENDER_LABEL = { male: "男性", female: "女性", other: "その他", none: "答えない", "": "未設定" };
+export const FX_KINDS = [["入口", 70, 56], ["窓", 400, 18], ["スクリーン", 190, 18], ["TVモニター", 140, 18], ["柱", 40, 40], ["棚", 300, 18], ["ロッカー", 60, 120], ["講師卓", 120, 50], ["自由", 120, 24]];
+export const GENDER_LABEL = { male: "男性", female: "女性", other: "その他", none: "答えない", "": "未設定" };
 const errText = (e, f) => e?.errorMessage || e?.message || f;
-const snap = v => Math.round(v / 10) * 10;
-const seq = (() => { let n = 0; return () => `fx${Date.now().toString(36)}${(n++).toString(36)}`; })();
+export const snap = v => Math.round(v / 10) * 10;
+export const seq = (() => { let n = 0; return () => `fx${Date.now().toString(36)}${(n++).toString(36)}`; })();
 
-function seatsOf(d) {
+export function seatsOf(d) {
   const out = [], v = d.h / Math.max(d.L, d.R, 1), hz = d.w / Math.max(d.T, d.B, 1);
   for (let i = 0; i < d.T; i++) out.push({ id: `${d.id}-T${i}`, x: d.x + hz * i + (hz - SEAT_W) / 2, y: d.y - 44 });
   for (let i = 0; i < d.B; i++) out.push({ id: `${d.id}-B${i}`, x: d.x + hz * i + (hz - SEAT_W) / 2, y: d.y + d.h + 4 });
@@ -32,16 +32,16 @@ function seatsOf(d) {
   for (let i = 0; i < d.R; i++) out.push({ id: `${d.id}-R${i}`, x: d.x + d.w + 2, y: d.y + v * i + (v - SEAT_H) / 2 });
   return out;
 }
-const deskOfSeat = sid => String(sid).split("-")[0];
-function fitDesk(d) {
+export const deskOfSeat = sid => String(sid).split("-")[0];
+export function fitDesk(d) {
   if (d.T || d.B) d.w = Math.max(66, Math.max(d.T, d.B) * 96);
   if (d.L || d.R) d.h = Math.max(44, Math.max(d.L, d.R) * 40);
 }
-function nextDeskId(desks) { const used = new Set(desks.map(d => d.id)); for (const c of "ABCDEFGHIJKLMNOPQRSTUVWXYZ") if (!used.has(c)) return c; return `Z${desks.length}`; }
-function allSeatIds(desks) { return desks.flatMap(d => seatsOf(d).map(s => s.id).filter(id => id !== d.teacher)); }
+export function nextDeskId(desks) { const used = new Set(desks.map(d => d.id)); for (const c of "ABCDEFGHIJKLMNOPQRSTUVWXYZ") if (!used.has(c)) return c; return `Z${desks.length}`; }
+export function allSeatIds(desks) { return desks.flatMap(d => seatsOf(d).map(s => s.id).filter(id => id !== d.teacher)); }
 
 /* AIで配置（画面で計算）：実装の合計が小さい机・コミュが平均に近い机・同じ性別が少ない机へ、前回の机は避けて入れる */
-function autoAssign(desks, people, pins, prev, seed) {
+export function autoAssign(desks, people, pins, prev, seed) {
   const seatSet = new Set(allSeatIds(desks));
   const a = {};
   Object.entries(pins).forEach(([pid, sid]) => { if (seatSet.has(sid)) a[sid] = pid; });
@@ -68,12 +68,12 @@ function autoAssign(desks, people, pins, prev, seed) {
   });
   return a;
 }
-function deskStats(d, assign, byId, prev) {
+export function deskStats(d, assign, byId, prev) {
   const m = seatsOf(d).map(s => assign[s.id]).filter(Boolean).map(id => byId.get(id)).filter(Boolean);
   const avg = k => (m.length ? m.reduce((s, q) => s + q[k], 0) / m.length : 0);
   return { m, impl: avg("impl"), comm: avg("comm"), f: m.filter(q => q.gender === "female").length, ma: m.filter(q => q.gender === "male").length, again: m.filter(q => prev[q.id] === d.id) };
 }
-function reasonsOf(st) {
+export function reasonsOf(st) {
   const m = st.m;
   if (!m.length) return ["まだ誰も座っていません"];
   const sur = q => q.name.split(/[\s　]/)[0];
