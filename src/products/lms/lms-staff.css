@@ -4,6 +4,7 @@
 .lms .g2e { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 16px; align-items: start }
 .lms .g2e.cg { grid-auto-rows: 1fr; align-items: stretch }
 .lms .g2e.cg > .card { align-content: start }
+.lms .side { display: grid; grid-template-columns: minmax(220px, 300px) minmax(0, 1fr); gap: 16px; align-items: start }
 .lms .g3 { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px }
 .lms .g4 { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px }
 .lms .tbl { width: 100%; border-collapse: collapse; font-size: 14px }
@@ -50,6 +51,7 @@
   .lms .trow { grid-template-columns: minmax(0, 1fr) }
 }
 .lms .ftree .more { color: var(--muted) }
+.lms .tfold .side { grid-template-columns: minmax(180px, 220px) minmax(0, 1fr) }
 .lms .npop header .lnk { margin-left: auto }
 .lms .lnk { border: 0; background: none; color: var(--mk-ink); font-weight: 700; font-size: 13px; padding: 0 }
 .lms .amx td { padding: 4px 6px; text-align: center }
@@ -63,6 +65,10 @@
 .lms .psum { display: grid; gap: 8px }
 .lms .pbar { display: flex; gap: 10px; align-items: center }
 .lms .pbar small { color: var(--muted); font-size: 12px }
+.lms .rowsx { display: grid; border: 1px solid var(--line); border-radius: 10px; background: var(--card) }
+.lms .rowsx > div { display: grid; grid-template-columns: 90px minmax(0, 1fr); gap: 10px; padding: 8px 12px; border-top: 1px solid var(--line2); font-size: 13.5px }
+.lms .rowsx > div:first-child { border-top: 0 }
+.lms .rowsx span { color: var(--muted) }
 .lms .missbar { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; border: 1.5px solid var(--red); background: var(--red-soft); border-radius: 12px; padding: 10px 14px; font-size: 13.5px }
 .lms .missbar b { color: var(--red) }
 .lms .missbar span { flex: 1 1 200px; color: var(--ink2) }
@@ -87,14 +93,24 @@
   .lms .mcal i { font-size: 10px; padding: 0 3px; white-space: normal }
   .lms .mcal b { font-size: 12px }
 }
+.lms .bars { display: grid; gap: 8px }
+.lms .bars div { display: grid; grid-template-columns: 110px minmax(0, 1fr) 46px; gap: 10px; align-items: center; font-size: 13px }
+.lms .bars s { display: block; height: 10px; border-radius: 6px; background: var(--soft); text-decoration: none; overflow: hidden }
+.lms .bars s::after { content: ""; display: block; height: 100%; width: var(--w); background: var(--marker) }
+.lms .bars div.low s::after { background: var(--amber) }
 .lms .pick > button.unit { grid-template-columns: 52px minmax(0, 1fr) auto }
 .lms .msg { display: grid; gap: 2px; padding: 8px 10px; border-radius: 10px; background: var(--soft); font-size: 13.5px }
 .lms .msg b { font-size: 12px }
 @media (max-width: 860px) {
-  .lms .g2, .lms .g2e { grid-template-columns: minmax(0, 1fr) }
+  .lms .g2, .lms .g2e, .lms .side { grid-template-columns: minmax(0, 1fr) }
   .lms .g3, .lms .g4 { grid-template-columns: repeat(2, minmax(0, 1fr)) }
+  .lms .bars div { grid-template-columns: 80px minmax(0, 1fr) 40px }
 }
 .lms .field.need { border-left: 3px solid var(--amber); padding-left: 10px }
+.lms .bars.cost div { grid-template-columns: minmax(130px, 170px) minmax(0, 1fr) 62px }
+@media (max-width: 860px) {
+  .lms .bars.cost div { grid-template-columns: 110px minmax(0, 1fr) 56px }
+}
 .lms .chart { width: 100%; height: auto; display: block; overflow: visible }
 .lms .chart .gl { stroke: var(--line); stroke-width: 1 }
 .lms .chart .ax { fill: var(--muted); font-size: 10.5px; font-family: var(--mono) }
@@ -151,6 +167,24 @@
 .lms .ih-si { display: flex; align-items: center; gap: 10px; border: 0; border-top: 1px solid var(--line2); background: none; padding: 9px 2px; text-align: left; color: var(--ink); font-size: 14px }
 .lms .ih-si .mono { color: var(--muted); font-size: 12px }
 .lms .ih-rd { margin-left: auto; font-size: 12px; color: var(--muted); white-space: nowrap }
+.lms .tkl { display: grid; gap: 8px }
+.lms .tk { display: grid; grid-template-columns: 28px minmax(0, 1fr) auto auto auto; gap: 12px; align-items: center; border: 1px solid var(--line); border-left: 4px solid var(--line); border-radius: 12px; padding: 10px 12px; background: var(--card) }
+.lms .tk.imp-0 { border-left-color: var(--red) }
+.lms .tk.imp-1 { border-left-color: #E59A3A }
+.lms .tk.imp-2 { border-left-color: #B5BFBC }
+.lms .tkc { width: 26px; height: 26px; border-radius: 50%; border: 2px solid #B5BFBC; background: var(--card); color: #fff; font-weight: 700; font-size: 13px; display: grid; place-items: center; padding: 0 }
+.lms .tkc:hover { border-color: var(--mint) }
+.lms .tkc[aria-pressed="true"] { background: var(--mint); border-color: var(--mint) }
+.lms .tkb { min-width: 0; display: grid; gap: 2px }
+.lms .tkb b { font-size: 14.5px }
+.lms .tkb small { font-size: 12.5px; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap }
+.lms .tkd { font-size: 12.5px; color: var(--ink2); white-space: nowrap }
+.lms .tkd .late { color: var(--red) }
+.lms .tkd .soon { color: var(--amber) }
+.lms .tkw { display: inline-flex; align-items: center; gap: 6px; white-space: nowrap }
+.lms .tkw small { font-size: 12px; color: var(--muted) }
+.lms .tk.done { background: var(--soft) }
+.lms .tk.done .tkb b { text-decoration: line-through; color: var(--muted) }
 .lms .ih-tasks .tk { padding: 10px 14px; grid-template-columns: 28px minmax(0, 1fr) auto; row-gap: 4px }
 .lms .ih-tasks .tk .tkb { grid-column: 2; grid-row: 1 }
 .lms .ih-tasks .tk .tkd { grid-column: 2; grid-row: 2 }
@@ -205,6 +239,10 @@
   .lms .ih-pn > span > b { font-size: 32px }
   .lms .ih-off { grid-template-columns: minmax(0, 1fr) }
   .lms .ih-off .il { max-width: 160px }
+  .lms .tk { grid-template-columns: 28px minmax(0, 1fr) auto; row-gap: 6px }
+  .lms .tk .tkd { grid-column: 2 }
+  .lms .tk .tkw { grid-column: 2; grid-row: 3 }
+  .lms .tk > .btn { grid-column: 3; grid-row: 1 }
   .lms .cu-h { grid-template-columns: 34px minmax(0, 1fr) 16px; padding: 12px 14px }
   .lms .cu-h > .row { grid-column: 2; grid-row: 2 }
   .lms .cu-days li { grid-template-columns: 52px minmax(0, 1fr); }
@@ -232,11 +270,91 @@
   .lms .cu-ed { grid-template-columns: minmax(0, 1fr) }
   .lms .cu-shelf { position: static; max-height: none }
 }
+.lms .fdrop { display: flex; align-items: center; gap: 14px; border: 2px dashed #C8D2CF; border-radius: 14px; padding: 14px 18px; background: var(--card); color: var(--ink2) }
+.lms .fdrop > svg { width: 22px; height: 22px; flex: none; color: var(--mk-ink) }
+.lms .fdrop > span { flex: 1; min-width: 0; display: grid }
+.lms .fdrop b { font-size: 14px; color: var(--ink) }
+.lms .fdrop small { font-size: 12px; color: var(--muted) }
+.lms .fdrop.dropon { border-color: var(--marker); background: var(--marker-soft) }
+@media (max-width: 560px) {
+  .lms .fdrop { flex-wrap: wrap }
+}
 .lms .fs-main .scroll { overflow: visible }
 @media (max-width: 900px) {
   .lms .fs-main .scroll { overflow-x: auto }
 }
+.lms .rp-l { display: grid; gap: 8px }
+.lms .rp-f { display: grid; grid-template-columns: 26px minmax(0, 1fr) auto auto; gap: 12px; align-items: center; border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px }
+.lms .rp-f > span:nth-child(2) { display: grid; min-width: 0 }
+.lms .rp-f b { overflow: hidden; text-overflow: ellipsis; white-space: nowrap }
+.lms .rp-f small { font-size: 12px; color: var(--muted) }
+.lms .fdrop.dropon { border-color: var(--marker); background: var(--marker-soft) }
+@media (max-width: 640px) {
+  .lms .rp-f { grid-template-columns: 26px minmax(0, 1fr) }
+  .lms .rp-f > .chip, .lms .rp-f > .row { grid-column: 2 }
+}
+.lms .evw { display: grid; grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr); gap: 16px; align-items: start }
+.lms .evrc { position: sticky; top: 12px }
+.lms .evl { display: grid; gap: 8px }
+.lms .evr { border: 1px solid var(--line); border-radius: 12px; padding: 8px 10px 10px; display: grid; gap: 8px }
+.lms .evr.on { border-color: var(--ink); box-shadow: 0 0 0 1px var(--ink) }
+.lms .evn { display: flex; align-items: center; gap: 8px; border: 0; background: none; padding: 0; text-align: left; color: var(--ink) }
+.lms .evn .chip { margin-left: auto }
+.lms .evin { display: grid; grid-template-columns: 1fr 1fr; gap: 8px }
+.lms .evta { display: grid; gap: 3px; font-size: 11.5px; font-weight: 700; border-left: 3px solid var(--gc); padding-left: 8px }
+.lms .evta textarea { font-size: 13px; min-height: 70px }
+.lms .evta span { color: var(--gc) }
+.lms .evg { display: grid; gap: 8px; border-radius: 12px; background: var(--gs); padding: 10px 12px; border-left: 4px solid var(--gc) }
+.lms .evgh { font-size: 12px; font-weight: 700; color: var(--gc); letter-spacing: .04em }
+.lms .evo { display: grid; gap: 4px }
+.lms .evo b { font-size: 13px; display: inline-flex; align-items: center; gap: 6px }
+.lms .evo b::before { content: ""; width: 8px; height: 8px; border-radius: 2px; background: var(--gc) }
+.lms .evo textarea { background: #fff; font-size: 13.5px }
+.lms .evo p { margin: 0; font-size: 14px }
+.lms .evleg { margin-left: auto; display: inline-flex; gap: 12px; flex-wrap: wrap }
+.lms .evk { display: inline-flex; align-items: center; gap: 5px; font-size: 12.5px; font-weight: 700; color: var(--gc) }
+.lms .evk i { width: 10px; height: 10px; border-radius: 3px; background: var(--gc) }
+.lms .evc { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 14px; align-items: start }
+@media (max-width: 980px) {
+  .lms .evw { grid-template-columns: minmax(0, 1fr) }
+  .lms .evrc { position: static }
+}
+@media (max-width: 560px) {
+  .lms .evin { grid-template-columns: minmax(0, 1fr) }
+}
+.lms .evoh { display: flex; align-items: center; justify-content: space-between; gap: 8px }
+.lms .evsc { display: inline-flex; align-items: center; gap: 4px; font-family: var(--mono); font-size: 13px }
+.lms .evsc select, .lms .evsc input { width: auto; min-width: 54px; padding: 3px 6px; font-family: var(--mono); font-weight: 600; background: #fff; border: 1px solid var(--line); border-radius: 7px }
+.lms .evsc input { width: 64px; text-align: right }
+.lms .evsc small { color: var(--muted) }
+.lms .evgh { display: flex; align-items: center; justify-content: space-between }
+.lms .evgh em { font-style: normal; font-size: 12px; color: var(--ink2) }
+.lms .evtot { display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px 8px; border-radius: 12px; background: var(--soft); padding: 10px 12px }
+.lms .evtot > span:first-child { font-size: 12.5px; font-weight: 700; color: var(--ink2) }
+.lms .evtot > b { font-size: 26px; font-weight: 600 }
+.lms .evtot > small { color: var(--muted) }
+.lms .evbar { flex: 1 1 120px; height: 8px; border-radius: 6px; background: #fff; overflow: hidden; align-self: center }
+.lms .evbar i { display: block; height: 100%; width: var(--w); background: linear-gradient(90deg, #7B5FE0, #2457E6) }
+.lms .evk.tot { color: var(--ink2) }
+.lms .evct { font-size: 22px; font-weight: 600 }
+.lms .rp-up { border-color: var(--marker); box-shadow: 0 0 0 1px var(--marker) inset, 0 6px 20px rgba(21,23,28,.05) }
+.lms .rp-sec { padding-top: 6px; border-top: 1px dashed var(--line) }
+.lms .rowsx.rp-ov { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px 24px; border: 0; padding: 0; background: none }
+.lms .rowsx.rp-ov > div { display: grid; grid-template-columns: minmax(0, 1fr); gap: 2px; border: 0; padding: 0 }
+.lms .rowsx.rp-ov > div span { font-size: 12px; color: var(--muted) }
+@media (max-width: 760px) {
+  .lms .rowsx.rp-ov { grid-template-columns: minmax(0, 1fr) 1fr }
+}
+.lms .rp-ev { display: grid; gap: 10px }
+.lms .rp-evr { display: grid; grid-template-columns: minmax(90px, 120px) minmax(0, 1fr) 34px 30px; gap: 8px; align-items: center; font-size: 13px }
+.lms .rp-evr small { color: var(--muted) }
+.lms .rp-evb { height: 9px; border-radius: 6px; background: #fff; overflow: hidden }
+.lms .rp-evb i { display: block; height: 100%; width: var(--w); background: var(--gc) }
 .lms .rp-ch .chart { width: 100%; max-width: 440px; justify-self: center }
+.lms .rowsx.rp-dv > div { grid-template-columns: 150px minmax(0, 1fr) }
+.lms .rp-cm { display: grid; gap: 4px }
+.lms .rp-cm p { margin: 0; font-size: 13.5px; color: var(--ink2) }
+.lms .rp-sv .bars div { grid-template-columns: minmax(150px, 210px) minmax(0, 1fr) 40px }
 .lms .hc-go { align-items: stretch }
 .lms .hc-t { display: grid; grid-template-columns: 52px minmax(0, 1fr) auto; gap: 16px; align-items: center; padding: 20px 22px; text-align: left; color: var(--ink); cursor: pointer }
 .lms .hc-t:hover { border-color: var(--marker); box-shadow: 0 0 0 1px var(--marker) }
@@ -255,6 +373,12 @@
 .lms .pinc.on { background: var(--marker); border-color: var(--marker) }
 .lms tr.pinr td { background: #F4FBFA }
 .lms .pinm { display: inline-grid; place-items: center; width: 16px; height: 16px; border-radius: 4px; background: var(--marker); color: #fff; font-style: normal; font-size: 11px; margin-right: 6px; vertical-align: 1px }
+.lms .evrd { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px }
+.lms .evrdc { padding: 14px 16px; display: grid; gap: 4px; justify-items: start; text-align: left; color: var(--ink) }
+.lms .evrdc b { font-size: 16px }
+.lms .evrdc.on { border-color: var(--ink); box-shadow: 0 0 0 1px var(--ink) }
+.lms .evh th.on, .lms .evh td.on { background: var(--marker-soft) }
+.lms .evcc.hl { border-color: var(--marker); box-shadow: 0 0 0 2px var(--marker) }
 .lms .adpg .bar10 { width: 90px }
 .lms .ah-sec { display: flex; align-items: center; gap: 10px; margin-top: 6px }
 .lms .act-g { display: grid; grid-template-columns: repeat(auto-fill, minmax(290px, 1fr)); gap: 14px }
@@ -290,6 +414,7 @@
 .lms .xlt .tbl { margin: 0 }
 .lms .lbi .pinc { width: 22px; height: 22px; flex: none }
 .lms .g2, .lms .g2e, .lms .g3 { align-items: stretch }
+.lms .side { align-items: stretch }
 .lms .lbi .pinc { width: 20px; height: 20px; font-size: 12px }
 .lms .seg { border-radius: 999px }
 .lms .seg button { border-radius: 999px }
@@ -354,6 +479,16 @@
 .lms .ih-who small { color: var(--att-i) }
 .lms .ih-day > .ih-p:first-child .ih-ph .h2::before, .lms .ih-day > .ih-p:last-child .ih-ph .h2::before { content: ""; display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin-right: 8px; vertical-align: 2px; background: var(--rep-d) }
 .lms .ih-day > .ih-p:last-child .ih-ph .h2::before { background: var(--att-d) }
+.lms .tk { border: 0; border-radius: 14px; background: var(--paper); box-shadow: inset 4px 0 0 var(--line) }
+.lms .tk.imp-0 { box-shadow: inset 4px 0 0 var(--dev-d) }
+.lms .tk.imp-1 { box-shadow: inset 4px 0 0 var(--att-d) }
+.lms .tk.imp-2 { box-shadow: inset 4px 0 0 var(--line) }
+.lms .tkc { border: 1.5px solid var(--line); }
+.lms .tkc:hover { border-color: var(--rep-d) }
+.lms .tkc[aria-pressed="true"] { background: var(--rep-d); border-color: var(--rep-d) }
+.lms .tkd .late { color: var(--dev-i) }
+.lms .tkd .soon { color: var(--att-i) }
+.lms .tk.done { background: var(--soft); box-shadow: none }
 .lms .ih-si { border-top-color: var(--line2) }
 .lms .ih-si:hover { background: var(--paper); border-radius: 10px }
 .lms .rlist { gap: 0 }
@@ -411,6 +546,9 @@
   .lms .kt-g { grid-template-columns: minmax(0, 1fr) auto }
   .lms .kt-g .tp-bar { grid-column: 1 / -1 }
 }
+.lms .fdrop { border: 2px dashed var(--line); border-radius: 18px; background: transparent }
+.lms .fdrop > svg { color: var(--tst-d) }
+.lms .fdrop.dropon { border-color: var(--tst-d); background: var(--tst) }
 .lms .tunits { gap: 16px }
 .lms .tu-h { display: flex; align-items: center; gap: 12px }
 .lms .tu-no { width: 36px; height: 36px; border-radius: 50%; display: grid; place-items: center; flex: none; background: var(--paper); color: var(--ink2); font-weight: 700; font-size: 14px }
@@ -426,6 +564,16 @@
 .lms .checks label.on, .lms .checks .fxb.on { background: var(--tm); color: var(--tm-i) }
 .lms .checks .fxb.chg { outline-color: var(--att-d) }
 .lms .card .checks label:not(.on) { background: var(--paper) }
+.lms .evr { border: 0; border-radius: 16px; background: var(--paper); padding: 10px 12px 12px }
+.lms .evr.on { background: var(--card); border: 0; box-shadow: 0 0 0 2px var(--ink) }
+.lms .evta { border-left: 0; padding-left: 0 }
+.lms .evta span { display: inline-flex; align-items: center; gap: 6px }
+.lms .evta span::before { content: ""; width: 8px; height: 8px; border-radius: 50%; background: var(--gc) }
+.lms .evta textarea { background: var(--card) }
+.lms .evr.on .evta textarea { background: var(--paper) }
+.lms .evg { border-left: 0; border-radius: 16px }
+.lms .evo b::before, .lms .evk i { border-radius: 50% }
+.lms .evo textarea { background: var(--card) }
 .lms .pt-ng { color: var(--dev-i) }
 .lms .hc-c { align-content: start }
 .lms .hc-pl, .lms .hc-al { display: grid; gap: 8px }
@@ -561,6 +709,11 @@
 .lms .ku-t .tu-no { width: 30px; height: 30px; background: var(--tst-d); color: #fff; font-size: 13px }
 .lms .an-hero .th-kpi b.num { font-size: 30px }
 .lms .an-sub { display: block; font-size: 11.5px; color: var(--muted); margin-top: 2px }
+.lms .bars s { height: 10px; border-radius: 999px; background: var(--paper) }
+.lms .bars s::after { background: var(--tm-d); border-radius: 999px }
+.lms .bars div.low s::after { background: var(--att-d) }
+.lms .bars div.low > span:last-child { color: var(--att-i); font-weight: 700 }
+.lms .bars.cost s::after { background: var(--tst-d) }
 .lms .gr-dc { display: inline-flex; align-items: center; gap: 8px; min-width: 110px }
 .lms .gr-dc .bar10 { flex: 1 }
 .lms .gr-dc .bar10 i { background: var(--rep-d) }

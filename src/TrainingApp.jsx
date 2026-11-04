@@ -478,6 +478,9 @@ async function loadRoleNotifications(role) {
       loadAcks().catch(e => { console.warn("notifications trainee acks failed", e); return null; }),
     ]);
     if (!acks) return result;
+    // 講師からのリマインド・声かけ（2026-11-04。確認するまで残す）
+    const notices = await apiGet("/notifications/notices").then(r => (Array.isArray(r?.items) ? r.items : [])).catch(() => []);
+    notices.filter(n => !acks[`ntc#${n.id}`]).reverse().forEach(n => add(result, { id: notifId(role, "notice", n.id), severity: "medium", category: "連絡", title: n.message, to: n.kind === "remind" && n.date ? "reports" : "home", ackKey: `ntc#${n.id}` }));
     (Array.isArray(myReports) ? myReports : [])
       .filter(r => hasStaffComment(r) && !acks[ackKey.reportComment(r)])
       .sort((a, b) => String(b.date).localeCompare(String(a.date)))

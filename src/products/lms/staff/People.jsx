@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useState } from "react";
 import { apiGet, apiPost, apiPut, apiDelete } from "../../../api.js";
 import { kindOf } from "../trainee/useTraineeAttendance.js";
 import { todayStr } from "../../training/useTraining.js";
-import { Btn, Card, Cal, Chip, Hero, Kpi, ListTool, matchName } from "../parts/ui.jsx";
+import { Btn, Card, Cal, Chip, Hero, Kpi, ListTool, Modal, matchName } from "../parts/ui.jsx";
 import { arr, errText, md, saveXlsx, setStaffFocus, usePins, useRoster, useStaffCourse, useStats, useWorkdays } from "./common.js";
 import { TestRow } from "./parts.jsx";
 
@@ -17,6 +17,10 @@ function Karte({ person, stats, ro, pinned, onPin, onBack, go, say, today, evalS
   const [memos, setMemos] = useState(null);
   const [memoText, setMemoText] = useState(""); const [memoShare, setMemoShare] = useState("staff"); const [busy, setBusy] = useState(false); const [err, setErr] = useState("");
   const [todayAtt, setTodayAtt] = useState(undefined);
+  const [goals, setGoals] = useState(undefined);
+  const [talk, setTalk] = useState(null); // 声をかける文
+  const [talkBusy, setTalkBusy] = useState("");
+  const [memoBusy, setMemoBusy] = useState(false);
   const courseId = stats?.courseId;
   const wd = useWorkdays(courseId, today.slice(0, 7));
   const id = person.id;
@@ -30,6 +34,29 @@ function Karte({ person, stats, ro, pinned, onPin, onBack, go, say, today, evalS
   }, [wd.state, wd.dates, today, id]);
   const loadMemos = () => apiGet(`/karte/${id}`).then(l => setMemos(arr(l))).catch(() => setMemos(null));
   useEffect(() => { loadMemos(); apiGet(`/attendance?date=${today}`).then(l => setTodayAtt(arr(l).find(r => r.traineeId === id && r.deleted !== true) || null)).catch(() => setTodayAtt(undefined)); }, [id, today]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => {
+    if (ro) return;
+    apiGet(`/tasks/${id}`).then(t => setGoals({ goals: arr(t?.goals), done: t?.done || {} })).catch(() => setGoals(null));
+  }, [ro, id]);
+  const memoDraft = async () => {
+    if (!memoText.trim()) { setErr("メモを書いてください"); return; }
+    setMemoBusy(true); setErr("");
+    try {
+      const k = person.stat;
+      const r = await apiPost("/ai/staff-draft", { kind: "karte", courseId, text: memoText, context: { name: person.name, attendanceRate: k?.attendanceRate, reportRate: k?.reportRate, testAverage: k?.testAverage } });
+      setMemoText(r.text);
+    } catch (e) { setErr(errText(e, "下書きを作れませんでした")); } finally { setMemoBusy(false); }
+  };
+  const talkDraft = async () => {
+    setTalkBusy("ai");
+    try { const r = await apiPost("/ai/staff-draft", { kind: "talk", courseId, text: talk || "最近の様子を気にかけていることを伝える", context: { name: person.name } }); setTalk(r.text); }
+    catch (e) { setErr(errText(e, "下書きを作れませんでした")); } finally { setTalkBusy(""); }
+  };
+  const talkSend = async () => {
+    setTalkBusy("send");
+    try { await apiPost("/trainees/notify", { courseId, kind: "talk", traineeIds: [id], message: talk.trim() }); say?.("送りました"); setTalk(null); }
+    catch (e) { setErr(errText(e, "送れませんでした")); setTalk(null); } finally { setTalkBusy(""); }
+  };
   const addMemo = async () => {
     if (!memoText.trim() || busy) return;
     setBusy(true); setErr("");
@@ -62,7 +89,7 @@ function Karte({ person, stats, ro, pinned, onPin, onBack, go, say, today, evalS
               {k?.testAverage != null && k.testAverage < LOW && <Chip tone="bad">点が低い</Chip>}
             </span>
           </div>
-          <span className="kt-act">{ro && <Btn kind="ghost" onClick={onPin}>{pinned ? "担当から外す" : "担当にする"}</Btn>}<Btn kind="ghost" onClick={onBack}>一覧へ</Btn></span>
+          <span className="kt-act">{ro ? <Btn kind="ghost" onClick={onPin}>{pinned ? "担当から外す" : "担当にする"}</Btn> : <Btn kind="ghost" onClick={() => setTalk("")}>声をかける</Btn>}<Btn kind="ghost" onClick={onBack}>一覧へ</Btn></span>
         </div>
         <Kpi items={[
           { label: "出席率", value: k?.attendanceRate ?? "—", unit: k?.attendanceRate != null ? "%" : "", pct: k?.attendanceRate ?? undefined },
@@ -101,20 +128,34 @@ function Karte({ person, stats, ro, pinned, onPin, onBack, go, say, today, evalS
             <div className="head"><h2 className="h2">評価表</h2><span className="r"><Btn kind="ghost sm" onClick={() => go("eval")}>評価表</Btn></span></div>
             {evalScore ? <div className="kc-ev"><b className="num">{evalScore.got}<small> / {evalScore.max}</small></b><span className="tp-bar"><i style={{ "--w": `${Math.round(evalScore.got / evalScore.max * 100)}%` }} /></span></div> : <div className="kc-ev none"><Chip>公開待ち</Chip></div>}
           </Card>
+          {!ro && (
+            <Card className="pad kt-c">
+              <div className="head"><h2 className="h2">目標</h2></div>
+              {goals === null && <Chip>確認できません</Chip>}
+              <div className="kt-l">{arr(goals?.goals).map((g, i) => { const ts = arr(g.tasks), n = ts.filter(t => goals.done[t.id]).length; return <div key={g.id || i} className={`kt-g c-${["cur", "att", "tst", "dev", "tm"][i % 5]}`}><span>{g.custom ? `自分の目標：${g.title}` : g.title}</span><span className="tp-bar sm"><i style={{ "--w": `${ts.length ? Math.round(n / ts.length * 100) : 0}%` }} /></span><b className="num">{n} / {ts.length}</b></div>; })}{goals && !arr(goals.goals).length && <Chip>なし</Chip>}</div>
+            </Card>
+          )}
           {(memos === null || (memos && (memos.length > 0 || !ro))) && (
             <Card className="pad kt-c">
-              <div className="head"><h2 className="h2">{ro ? "講師の記録" : "カルテのメモ"}</h2></div>
+              <div className="head"><h2 className="h2">{ro ? "講師の記録" : "講師メモ"}</h2>{!ro && <span className="r"><Chip>本人には見えません</Chip></span>}</div>
               {memos === null && <Chip>確認できません</Chip>}
               <div className="kt-l">{arr(memos).map(m => <div key={m.memoId || m.id || m.createdAt} className="dr-m c-tm"><span className="row st-mh"><small className="num">{md(m.createdAt)}</small>{!ro && <Chip>{m.visibility === "client" || m.visibility === "shared" ? "企業にも見える" : "講師だけ"}</Chip>}{!ro && <button type="button" className="tm-del" onClick={() => delMemo(m)}>消す</button>}</span><p>{m.text || m.note}</p></div>)}</div>
               {!ro && <>
                 <textarea value={memoText} rows={3} placeholder="メモを残す" aria-label="メモ" onChange={e => setMemoText(e.target.value)} />
-                <span className="row st-end"><select className="in st-sel" value={memoShare} aria-label="見える人" onChange={e => setMemoShare(e.target.value)}><option value="staff">講師だけ</option><option value="client">企業にも見える</option></select><Btn kind="sm" disabled={busy || !memoText.trim()} onClick={addMemo}>残す</Btn></span>
+                <span className="row st-end"><Btn kind="ghost sm" disabled={memoBusy} onClick={memoDraft}>{memoBusy ? "書いています" : "AI でカルテに下書き"}</Btn><select className="in st-sel" value={memoShare} aria-label="見える人" onChange={e => setMemoShare(e.target.value)}><option value="staff">講師だけ</option><option value="client">企業にも見える</option></select><Btn kind="sm" disabled={busy || !memoText.trim()} onClick={addMemo}>残す</Btn></span>
                 {err && <div className="lms-err" role="alert">{err}</div>}
               </>}
             </Card>
           )}
         </div>
       </div>
+      {talk != null && (
+        <Modal title={`${person.name} さんに声をかける`} width={480} onClose={() => setTalk(null)} footer={<><Btn kind="ghost" onClick={() => setTalk(null)}>やめる</Btn><Btn disabled={!!talkBusy || !talk.trim()} onClick={talkSend}>{talkBusy === "send" ? "送っています" : "送る"}</Btn></>}>
+          <div className="row"><Chip>本人の通知だけに届く</Chip></div>
+          <textarea rows={4} value={talk} aria-label="文" placeholder="伝えたいこと" onChange={e => setTalk(e.target.value)} />
+          <span className="row st-end"><Btn kind="ghost sm" disabled={!!talkBusy} onClick={talkDraft}>{talkBusy === "ai" ? "書いています" : "AI で下書き"}</Btn></span>
+        </Modal>
+      )}
     </div>
   );
 }

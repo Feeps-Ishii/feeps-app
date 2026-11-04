@@ -39,7 +39,7 @@ function ReportModal({ row, date, order, onMove, onClose, ro, fields, onComment,
   };
   const draft = async () => {
     setBusy("ai"); setErr("");
-    try { const d = await apiPost("/ai/reports/comment-draft", { traineeId: r.traineeId, date, intent: "encourage" }); setText(d?.comment || ""); }
+    try { const d = await apiPost("/ai/reports/comment-draft", { traineeId: r.traineeId, date, intent: text.trim() || "がんばりを認めて、次の一歩をひとこと" }); setText(d?.comment || ""); }
     catch (e) { setErr(errText(e, "下書きを作れませんでした")); } finally { setBusy(""); }
   };
   return (
@@ -78,7 +78,7 @@ function RemindModal({ people, date, courseId, onClose, say }) {
   const [err, setErr] = useState("");
   const send = async () => {
     setBusy(true); setErr("");
-    try { await apiPost("/reports/remind", { courseId, date, traineeIds: people.map(p => p.id), message: text.trim() }); say?.(`${people.length} 人にリマインドを送りました`); onClose(); }
+    try { await apiPost("/trainees/notify", { courseId, date, kind: "remind", traineeIds: people.map(p => p.id), message: text.trim() }); say?.(`${people.length} 人にリマインドを送りました`); onClose(); }
     catch (e) { setErr(errText(e, "送れませんでした")); } finally { setBusy(false); }
   };
   return (

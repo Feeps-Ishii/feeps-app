@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import { apiGet } from "../../../api.js";
 import { todayStr } from "../../training/useTraining.js";
 import { getActiveCourseId } from "../../../utils/common/courseContext.js";
+import { loadAcks } from "../../training/acks.js";
 
 /* 受講生のホームのデータ。取れなかったものは null（0 件・未提出と混ぜない） */
 export function useTraineeHome() {
@@ -17,7 +18,9 @@ export function useTraineeHome() {
       apiGet(`/dashboard/trainee?date=${today}`),
       apiGet("/reports/me"),
       apiGet("/announcements/me"),
-    ]).then(async ([dashR, repR, annR]) => {
+      loadAcks(),
+      apiGet("/notifications/notices"),
+    ]).then(async ([dashR, repR, annR, ackR, noticeR]) => {
       const dash = dashR.status === "fulfilled" ? dashR.value : null;
       const reports = repR.status === "fulfilled" && Array.isArray(repR.value) ? repR.value : null;
       const anns = annR.status === "fulfilled" && Array.isArray(annR.value?.items) ? annR.value.items : null;
@@ -34,7 +37,7 @@ export function useTraineeHome() {
       if (!alive) return;
       setData({
         state: dash ? "ready" : "error",
-        today, dash, course, devs, practice, anns,
+        today, dash, course, devs, practice, anns, acks: ackR.status === "fulfilled" ? ackR.value : null, notices: noticeR.status === "fulfilled" && Array.isArray(noticeR.value?.items) ? noticeR.value.items : [],
         reportToday: reports ? reports.find(r => r.date === today) || null : undefined,
       });
     });

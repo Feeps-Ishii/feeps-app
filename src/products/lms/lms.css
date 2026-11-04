@@ -666,3 +666,19 @@
 .lms .ct-ic { color: var(--ci) }
 .lms .ct { text-align: left; color: var(--ink) }
 @media (max-width: 560px) { .lms .st-fg { grid-template-columns: minmax(0, 1fr) } }
+
+/* ===== 講師（手で足したもの） ===== */
+.lms .an-ai { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 8px; align-items: center }
+.lms .st-lk { border: 0; background: none; padding: 0; cursor: pointer; text-decoration: underline; text-underline-offset: 3px } .lms .st-lk:disabled { text-decoration: none; cursor: default }
+.lms .tkd .late { color: var(--dev-i) } .lms .tkd .soon { color: var(--att-i) }
+.lms .ev-sr { display: grid; grid-template-columns: minmax(0, 1fr) 140px 140px auto; gap: 6px; align-items: center } .lms .ev-si { display: grid; grid-template-columns: minmax(0, 1fr) 170px 84px auto; gap: 6px; align-items: center }
+@media (max-width: 640px) { .lms .ev-sr, .lms .ev-si { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) } .lms .ev-sr > :first-child, .lms .ev-si > :first-child { grid-column: 1 / -1 } }
+
+.lms .st-g { display: grid; gap: 12px }
+.lms .st-rf { display: grid; grid-template-columns: 22px minmax(0, 1fr) auto auto auto; gap: 8px; align-items: center }
+.lms .st-pr { grid-template-columns: minmax(0, 1fr) 110px auto auto !important }
+.lms .st-note { min-width: 240px } .lms .st-note textarea { min-width: 220px }
+.lms .st-fn { color: var(--ink); font-size: 14px; font-weight: 700; text-align: left; overflow-wrap: anywhere }
+.lms .th-an { position: relative } .lms .th-an > .btn, .lms .th-an > .chip { align-self: center; justify-self: end }
+.lms .savebar { position: sticky; bottom: 12px; display: flex; align-items: center; gap: 10px; flex-wrap: wrap; padding: 12px 16px; border-radius: 16px; background: var(--ink); color: #fff } .lms .savebar small { color: rgba(255, 255, 255, .75) } .lms .savebar .btn.ghost { background: rgba(255, 255, 255, .15); border-color: transparent; color: #fff }
+@media (max-width: 640px) { .lms .st-rf { grid-template-columns: 22px minmax(0, 1fr) } .lms .st-rf > :nth-child(n+3) { grid-column: 2; justify-self: start } }

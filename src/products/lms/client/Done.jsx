@@ -1,12 +1,37 @@
 import React, { useEffect, useState } from "react";
 import { apiGet } from "../../../api.js";
-import { Btn, Card, Chip, Hero, Kpi, ListTool, matchName } from "../parts/ui.jsx";
+import { Btn, Card, Chip, FileIcon, Hero, Kpi, ListTool, matchName } from "../parts/ui.jsx";
 import { arr, md, useStaffCourse } from "../staff/common.js";
 import { TestRow } from "../staff/parts.jsx";
 
 /* 企業担当者の修了レポート（モック doneC）：確定したものを読む。全体の数字・テストの平均・受講生ごと・講師の所見 */
 
 const pct = v => (v == null ? "—" : `${v}%`);
+const SENT_FOLDER = "修了レポート（送信済み）";
+
+function SentFiles({ courseId }) {
+  const space = `course#${courseId}`;
+  const [files, setFiles] = useState(undefined);
+  const [err, setErr] = useState("");
+  useEffect(() => {
+    let alive = true;
+    apiGet(`/library?spaceId=${encodeURIComponent(space)}`).then(d => {
+      const nodes = arr(d?.nodes), f = nodes.find(n => n.type === "folder" && n.name === SENT_FOLDER);
+      if (alive) setFiles(f ? nodes.filter(n => n.parentId === f.nodeId && n.type === "file") : []);
+    }).catch(() => { if (alive) setFiles(null); });
+    return () => { alive = false; };
+  }, [space]);
+  if (files === undefined || (files && !files.length)) return null;
+  if (files === null) return <div className="lms-err" role="alert">ファイルを確認できません</div>;
+  const get = async f => { try { const r = await apiGet(`/library/download?spaceId=${encodeURIComponent(space)}&nodeId=${encodeURIComponent(f.nodeId)}&mode=download`); window.open(r.url, "_blank", "noopener"); } catch { setErr(`「${f.name}」を開けませんでした`); } };
+  return (
+    <Card className="pad sc-c">
+      <div className="head"><h2 className="h2">修了レポートのファイル</h2><span className="r"><Chip>{files.length}</Chip></span></div>
+      <div className="fd-l">{files.map(f => <div key={f.nodeId} className="fd-f"><FileIcon name={f.name} /><span className="fd-fb"><b>{f.name}</b><small className="num">{md(f.updatedAt)}</small></span><span /><Btn kind="ghost sm" onClick={() => get(f)}>ダウンロード</Btn></div>)}</div>
+      {err && <div className="lms-err" role="alert">{err}</div>}
+    </Card>
+  );
+}
 
 export default function ClientDone() {
   const sc = useStaffCourse();
@@ -30,6 +55,7 @@ export default function ClientDone() {
   if (!d?.published) {
     return (
       <div className="st">{head}
+        <SentFiles courseId={courseId} />
         <Hero cat="gy" className="dc-hero" eyebrow="修了レポート" step={sc.course.endDate ? `${md(sc.course.endDate)} 公開予定` : undefined} title="未公開" />
       </div>
     );
@@ -49,6 +75,7 @@ export default function ClientDone() {
             { label: "受講生", value: o.traineeCount ?? "—", unit: " 人" },
           ]} />
         </Hero>
+        <SentFiles courseId={courseId} />
         {d.report?.summary && <Card className="pad sc-c"><div className="head"><h2 className="h2">講師の所見</h2>{d.report.confirmedByName && <span className="r"><Chip tone="mk">{d.report.confirmedByName}</Chip></span>}</div><p className="st-pre st-p">{d.report.summary}</p></Card>}
         <Card className="pad sc-c">
           <div className="head"><h2 className="h2">テストの平均</h2><span className="r"><Chip>合格 70 点</Chip></span></div>

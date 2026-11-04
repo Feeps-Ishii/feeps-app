@@ -1,4 +1,5 @@
-import React from "react";
+import React, { useState } from "react";
+import { ackKeys } from "../../training/acks.js";
 import { useTraineeHome } from "./useTraineeHome.js";
 import { Btn, Cal, Card, Chip, Hero, Kpi, weekday } from "../parts/ui.jsx";
 import { Icon } from "../parts/icons.jsx";
@@ -29,6 +30,9 @@ function steps(d) {
 
 export default function TraineeHome({ go }) {
   const d = useTraineeHome();
+  const [acked, setAcked] = useState({});
+  const ack = key => { setAcked(m => ({ ...m, [key]: true })); ackKeys(key).catch(() => setAcked(m => ({ ...m, [key]: false }))); };
+  const isAcked = key => acked[key] || !!d.acks?.[key];
   if (d.state === "loading") return <div className="soon card">読み込み中</div>;
   if (d.state === "error") return <Card className="pad"><div className="empty"><b>ホームの情報を確認できません</b><Btn kind="ghost sm" onClick={d.reload}>再読み込み</Btn></div></Card>;
 
@@ -145,6 +149,13 @@ export default function TraineeHome({ go }) {
           <div className="head"><h2 className="h2">お知らせ</h2>{d.anns?.length > 0 && <span className="r"><Chip>{d.anns.length}</Chip></span>}</div>
           {d.anns === null && <div className="empty"><b>お知らせを確認できません</b><Btn kind="ghost sm" onClick={d.reload}>再読み込み</Btn></div>}
           <div className="th-l">
+            {(d.notices || []).filter(n => !isAcked(`ntc#${n.id}`)).slice(-3).reverse().map(n => (
+              <div key={n.id} className="th-an">
+                <span className="th-av c-tm">{String(n.byName || "講").slice(0, 1)}</span>
+                <span><span className="row" style={{ gap: 6 }}><Chip tone="mk">{n.kind === "remind" ? "リマインド" : "講師から"}</Chip></span><b>{n.message}</b><small>{n.byName || ""}</small></span>
+                <Btn kind="ghost sm" onClick={() => ack(`ntc#${n.id}`)}>確認</Btn>
+              </div>
+            ))}
             {(d.anns || []).slice(0, 4).map(a => {
               const [label, tone, cat] = FROM[a.authorRole] || FROM.instructor;
               return (
@@ -155,6 +166,7 @@ export default function TraineeHome({ go }) {
                     <b>{a.title}</b>
                     <small>{a.authorName || ""}{a.publishedAt ? ` ・ ${String(a.publishedAt).slice(5, 10).replace("-", "/")}` : ""}</small>
                   </span>
+                  {d.acks && (isAcked(`anc#${a.announcementId}`) ? <Chip tone="ok">確認済み</Chip> : <Btn kind="ghost sm" onClick={() => ack(`anc#${a.announcementId}`)}>確認</Btn>)}
                 </div>
               );
             })}
