@@ -4,6 +4,7 @@ import { DevHubMark } from "../../components/common/DevHubMark.jsx";
 import { LMS_BNAV, LMS_LEGACY, LMS_ROLE_LABEL, lmsGroups, lmsLabel } from "./LmsCatalog.js";
 import { Icon } from "./parts/icons.jsx";
 import { Soon } from "./parts/ui.jsx";
+import { ChatToasts } from "../training/ChatNotifier.jsx";
 import CourseSwitch from "./parts/CourseSwitch.jsx";
 import { LMS_SCREENS } from "./screens.js";
 
@@ -15,7 +16,7 @@ const LOC_KEY = "feeps.lms.loc";
 const readLoc = () => { try { return window.sessionStorage.getItem(LOC_KEY) || "home"; } catch { return "home"; } };
 const saveLoc = s => { try { window.sessionStorage.setItem(LOC_KEY, s); } catch { /* 読み直すとホームに戻るだけ */ } };
 
-export default function LmsApp({ role, manager = false, displayName, unread = 0, onLogout, onLegacy, renderLegacy }) {
+export default function LmsApp({ role, manager = false, displayName, unread = 0, tasks, onLogout, onLegacy, renderLegacy }) {
   const groups = lmsGroups(role);
   const keys = groups.flatMap(g => g[2].map(s => s[0]));
   const [screen, setScreen] = useState(() => { const s = readLoc(); return keys.includes(s) ? s : "home"; });
@@ -39,7 +40,7 @@ export default function LmsApp({ role, manager = false, displayName, unread = 0,
   const Screen = LMS_SCREENS[role]?.[screen];
   const legacyView = extra || LMS_LEGACY[role]?.[screen];
   const body = Screen
-    ? <Screen key={courseV} role={role} manager={manager} go={go} say={say} displayName={displayName} />
+    ? <Screen key={courseV} role={role} manager={manager} go={go} say={say} displayName={displayName} tasks={tasks} />
     : legacyView
       ? <div className="lms-legacy" key={`${legacyView}-${courseV}`}>{renderLegacy(legacyView, goLegacy)}</div>
       : <Soon k={screen} label={lmsLabel(role, screen)} />;
@@ -116,6 +117,7 @@ export default function LmsApp({ role, manager = false, displayName, unread = 0,
         </div>
       )}
       {toast && <div className="lms-toast" role="status">{toast}</div>}
+      <ChatToasts role={role} onOpenTeams={() => go("team")} />
     </div>
   );
 }

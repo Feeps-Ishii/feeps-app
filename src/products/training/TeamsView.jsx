@@ -1,11 +1,11 @@
-import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import ReactMarkdown from "react-markdown";
 import { apiDelete, apiGet, apiPost, apiPut } from "../../api.js";
 import { T, NOVA, Card, Btn, Badge, Modal, EmptyState, SectionHead, SkeletonRows, PrismErrorRetryCard } from "../../components/common";
 import { setLibraryTarget } from "../../utils/common/courseContext.js";
 import { normalizeCurriculumSections } from "./TrainingComponents.jsx";
-import { markTeamChatRead, setOpenChatTeam, takeTeamChatFocus } from "./ChatNotifier.jsx";
-import { FALLBACK_POLL_MS, isLive, onLiveChange, onSignal, watchChannels } from "../../realtime.js";
+import { takeTeamChatFocus } from "./ChatNotifier.jsx";
+import { useTeamChat, MAX_CHAT_FILES, MAX_CHAT_TEXT } from "./useTeamChat.js";
 import {
   Archive, Briefcase, Check, ChevronDown, ChevronLeft, ChevronRight, Code, Copy, Crown, Download, Eye, FileText, Folder, History, ListTodo, Lock, LogIn, LogOut, MessageSquare, Paperclip, PenTool, Plus, RotateCcw, Search, Send, Shuffle, Trash2, Upload, Users, X, Columns3,
 } from "lucide-react";
@@ -520,10 +520,8 @@ function TeamRoom({ team, me, nameOf, isStaff, role, go, chatFocus }) {
 }
 
 /* ---------- チャット（②）。2026-10-14：Markdown表示・コードブロック・チームのフォルダのファイル添付・さかのぼり ---------- */
-const MAX_CHAT_TEXT = 8000;
-const MAX_CHAT_FILES = 5;
-const hm = iso => { const d = new Date(iso); return Number.isNaN(d.getTime()) ? "" : `${d.getHours()}:${String(d.getMinutes()).padStart(2, "0")}`; };
-const dayLabel = iso => { const d = new Date(iso); if (Number.isNaN(d.getTime())) return ""; const t = new Date(); const same = (a, b) => a.toDateString() === b.toDateString(); const y = new Date(t); y.setDate(t.getDate() - 1); return same(d, t) ? "今日" : same(d, y) ? "昨日" : `${d.getMonth() + 1}月${d.getDate()}日`; };
+export const hm = iso => { const d = new Date(iso); return Number.isNaN(d.getTime()) ? "" : `${d.getHours()}:${String(d.getMinutes()).padStart(2, "0")}`; };
+export const dayLabel = iso => { const d = new Date(iso); if (Number.isNaN(d.getTime())) return ""; const t = new Date(); const same = (a, b) => a.toDateString() === b.toDateString(); const y = new Date(t); y.setDate(t.getDate() - 1); return same(d, t) ? "今日" : same(d, y) ? "昨日" : `${d.getMonth() + 1}月${d.getDate()}日`; };
 const teamSpace = team => `course#${team.courseId}`;
 const hastText = n => (n?.type === "text" ? n.value : (n?.children || []).map(hastText).join(""));
 
@@ -549,7 +547,7 @@ const MD_COMPONENTS = {
   a: ({ node: _n, ...p }) => <a {...p} target="_blank" rel="noopener noreferrer" />,
   img: ({ src, alt }) => <a href={src} target="_blank" rel="noopener noreferrer">{alt || src}</a>,
 };
-function MsgBody({ text }) {
+export function MsgBody({ text }) {
   return (
     <div className="feeps-lesson-md min-w-0 max-w-full break-words [&_li]:whitespace-pre-wrap [&_p]:whitespace-pre-wrap">
       <ReactMarkdown skipHtml components={MD_COMPONENTS}>{text}</ReactMarkdown>
@@ -574,137 +572,7 @@ function FileChip({ file, onOpen, onRemove }) {
 }
 
 function ChatTab({ team, me, nameOf }) {
-  const ended = isEnded(team);
-  const [msgs, setMsgs] = useState(null);
-  const [canPost, setCanPost] = useState(false);
-  const [hasMore, setHasMore] = useState(false);
-  const [older, setOlder] = useState(false);
-  const [err, setErr] = useState("");
-  const [text, setText] = useState("");
-  const [files, setFiles] = useState([]);       // 送る前の添付
-  const [picking, setPicking] = useState(false);
-  const [sending, setSending] = useState(false);
-  const [code, setCode] = useState(null);      // コードを貼る欄（null＝閉じている）。送るときに ``` で囲んで本文の後ろに付ける
-  const codeRef = useRef(null);
-  const listRef = useRef(null);
-  const inputRef = useRef(null);
-  const cursorRef = useRef("");
-  const stickRef = useRef(true);
-  const keepRef = useRef(null);                 // さかのぼったとき、見ていた位置を保つ
-  const base = `/teams/${encodeURIComponent(team.teamId)}/messages`;
-  const cq = `courseId=${encodeURIComponent(team.courseId)}`;
-  const markedRef = useRef("");
-  // 開いている間はこのチームを新着通知に数えない。読んだところまで既読にする
-  useEffect(() => { setOpenChatTeam(team.teamId); return () => setOpenChatTeam(""); }, [team.teamId]);
-  useEffect(() => {
-    const last = msgs?.length ? msgs[msgs.length - 1].id : "";
-    if (ended || msgs == null || document.visibilityState !== "visible" || (last && last === markedRef.current)) return;
-    markedRef.current = last || "-";
-    markTeamChatRead(team, last);
-  }, [msgs, team, ended]);
-  const addMsgs = useCallback(list => {
-    if (!list.length) return;
-    cursorRef.current = list[list.length - 1].id > cursorRef.current ? list[list.length - 1].id : cursorRef.current;
-    setMsgs(cur => { const seen = new Set((cur || []).map(m => m.id)); return [...(cur || []), ...list.filter(m => !seen.has(m.id))]; });
-  }, []);
-  const load = useCallback(async () => {
-    try {
-      const d = await apiGet(`${base}?${cq}`);
-      const list = Array.isArray(d?.messages) ? d.messages : [];
-      cursorRef.current = list.length ? list[list.length - 1].id : "";
-      setMsgs(list); setCanPost(!!d?.canPost); setHasMore(!!d?.hasMore); setErr("");
-    } catch (e) { setErr(errText(e, "チャットを読み込めませんでした。")); }
-  }, [base, cq]);
-  useEffect(() => { load(); }, [load, ended]);
-  // 新着は、チームのチャンネルの合図を受けて読む（2026-10-25、ADR 0032。それまでは4秒ごと）。
-  // 合図が届かないあいだだけ60秒ごと。見えているときだけ読み、タブに戻ったら読む。終了したチームは読まない
-  const fetchNew = useCallback(async () => {
-    if (document.visibilityState !== "visible") return;
-    try {
-      const d = await apiGet(`${base}?${cq}${cursorRef.current ? `&after=${encodeURIComponent(cursorRef.current)}` : ""}`);
-      addMsgs(Array.isArray(d?.messages) ? d.messages : []);
-    } catch { /* 次の合図・次の回で読み直す */ }
-  }, [base, cq, addMsgs]);
-  useEffect(() => {
-    if (msgs == null || ended) return undefined;
-    const unwatch = watchChannels([team.rt]);
-    let timer = 0;
-    const setFallback = live => { window.clearInterval(timer); timer = live ? 0 : window.setInterval(fetchNew, FALLBACK_POLL_MS); };
-    setFallback(isLive());
-    const offLive = onLiveChange(setFallback);
-    const offSignal = onSignal(ev => {
-      if (ev?.t !== "chat" || ev.team !== team.teamId) return;
-      // 消された発言は、その場で消して見せる（それまでは開き直すまで残っていた）
-      if (ev.del) setMsgs(cur => (cur || []).map(m => (m.id === ev.del ? { ...m, deleted: true, text: "", attachments: [] } : m)));
-      else fetchNew();
-    });
-    const onVisible = () => { if (document.visibilityState === "visible") fetchNew(); };
-    document.addEventListener("visibilitychange", onVisible);
-    return () => { window.clearInterval(timer); offLive(); offSignal(); unwatch(); document.removeEventListener("visibilitychange", onVisible); };
-  }, [msgs == null, ended, team.rt, team.teamId, fetchNew]); // eslint-disable-line react-hooks/exhaustive-deps
-  // さかのぼったときは位置を保つ。下を見ているときだけ、新着で下へ送る
-  useLayoutEffect(() => {
-    const el = listRef.current;
-    if (!el) return;
-    if (keepRef.current != null) { el.scrollTop = el.scrollHeight - keepRef.current; keepRef.current = null; return; }
-    if (stickRef.current) el.scrollTop = el.scrollHeight;
-  }, [msgs]);
-  async function loadOlder() {
-    if (older || !msgs?.length) return;
-    setOlder(true);
-    try {
-      const d = await apiGet(`${base}?${cq}&before=${encodeURIComponent(msgs[0].id)}`);
-      const list = Array.isArray(d?.messages) ? d.messages : [];
-      const el = listRef.current;
-      keepRef.current = el ? el.scrollHeight - el.scrollTop : null;
-      setMsgs(cur => { const seen = new Set((cur || []).map(m => m.id)); return [...list.filter(m => !seen.has(m.id)), ...(cur || [])]; });
-      setHasMore(!!d?.hasMore);
-    } catch (e) { setErr(errText(e, "読み込めませんでした。")); }
-    finally { setOlder(false); }
-  }
-  const composed = () => {
-    const t = text.trim();
-    const c = (code || "").replace(/\s+$/, "").replace(/^\n+/, "");
-    return [t, c.trim() ? "```\n" + c + "\n```" : ""].filter(Boolean).join("\n");
-  };
-  async function send() {
-    const v = composed();
-    if ((!v && !files.length) || sending) return;
-    if (v.length > MAX_CHAT_TEXT) { setErr(`長すぎます（${MAX_CHAT_TEXT}文字まで）。`); return; }
-    setSending(true); setErr("");
-    try {
-      const m = await apiPost(base, { courseId: team.courseId, text: v, attachments: files.map(f => ({ nodeId: f.nodeId })) });
-      setText(""); setCode(null); setFiles([]); stickRef.current = true; addMsgs([m]);
-    } catch (e) { setErr(errText(e, "送れませんでした。")); }
-    finally { setSending(false); }
-  }
-  async function remove(m) {
-    if (!window.confirm("この発言を消しますか？")) return;
-    try { await apiDelete(`${base}?${cq}&id=${encodeURIComponent(m.id)}`); setMsgs(cur => (cur || []).map(x => (x.id === m.id ? { ...x, deleted: true, text: "", attachments: [] } : x))); }
-    catch (e) { setErr(errText(e, "消せませんでした。")); }
-  }
-  async function openFile(f) {
-    setErr("");
-    try {
-      const r = await apiGet(`/library/download?spaceId=${encodeURIComponent(teamSpace(team))}&nodeId=${encodeURIComponent(f.nodeId)}&mode=download`);
-      window.open(r.url, "_blank", "noopener");
-    } catch (e) { setErr(errText(e, "ファイルを開けませんでした。")); }
-  }
-  // 「コード」：入力欄の上にコードを貼る欄を開く（2026-10-15 ユーザー指定）。送るときに ``` で囲んで付ける
-  function insertCode() {
-    if (code == null) setCode("");
-    requestAnimationFrame(() => codeRef.current?.focus());
-  }
-  // コードの欄の Tab は字下げ（2文字）にする
-  function codeKey(e) {
-    if (e.key !== "Tab") return;
-    e.preventDefault();
-    const el = e.currentTarget, st = el.selectionStart, en = el.selectionEnd;
-    const next = (code || "").slice(0, st) + "  " + (code || "").slice(en);
-    setCode(next);
-    requestAnimationFrame(() => el.setSelectionRange(st + 2, st + 2));
-  }
-  const inFence = (v, pos) => (v.slice(0, pos).match(/```/g) || []).length % 2 === 1;
+  const { ended, msgs, canPost, hasMore, older, err, text, setText, files, setFiles, picking, setPicking, sending, code, setCode, codeRef, listRef, inputRef, stickRef, load, loadOlder, send, remove, openFile, insertCode, codeKey, inFence } = useTeamChat({ team });
   if (msgs == null) return err ? <PrismErrorRetryCard message={err} onRetry={load} /> : <Card className="p-4"><SkeletonRows rows={4} /></Card>;
   let lastDay = "";
   const attachList = (m, end) => (m.attachments?.length ? (
@@ -792,7 +660,7 @@ function ChatTab({ team, me, nameOf }) {
 }
 
 /* チャットに添付するファイルを、チームのフォルダから選ぶ／新しく置く（置いたファイルはそのまま選んだ状態にする） */
-function AttachPicker({ team, picked, onClose, onDone }) {
+export function AttachPicker({ team, picked, onClose, onDone }) {
   const spaceId = teamSpace(team);
   const [nodes, setNodes] = useState(null);
   const [err, setErr] = useState("");

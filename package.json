@@ -13,6 +13,7 @@
     "@excalidraw/excalidraw": "^0.18.1",
     "acorn": "^8.12.1",
     "aws-amplify": "^6.18.0",
+    "docx": "^9.15.2",
     "lucide-react": "^0.460.0",
     "pdfjs-dist": "^4.10.38",
     "qrcode": "^1.5.4",

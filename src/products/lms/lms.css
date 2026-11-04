@@ -500,3 +500,145 @@
   .lms .fd-f { grid-template-columns: 34px minmax(0, 1fr) } .lms .fd-f > span:empty { display: none } .lms .fd-f > .chip, .lms .fd-f > .fd-ac, .lms .fd-f > .btn { grid-column: 2; justify-self: start } .lms .fd-ac { justify-content: flex-start }
   .lms .fd-dl { width: 34px; height: 30px; padding: 0; justify-content: center } .lms .fd-dl span { display: none }
 }
+
+/* ===== 受講生のチーム（モック teamTrainee） ===== */
+.lms .tm-w { display: grid; grid-template-columns: minmax(230px, 270px) minmax(0, 1fr); gap: 18px; align-items: start }
+.lms .tm-l { display: grid; gap: 18px; position: sticky; top: 124px }
+.lms .tm-nav { display: grid; gap: 2px; padding: 10px }
+.lms .tm-sec { padding: 10px 10px 4px; font-size: 10.5px }
+.lms .tm-g { display: grid; grid-template-columns: 34px minmax(0, 1fr) auto; gap: 10px; align-items: center; border: 0; background: none; border-radius: 14px; padding: 8px 10px; text-align: left; color: var(--ink); cursor: pointer }
+.lms .tm-g:hover { background: var(--paper) } .lms .tm-g[aria-current="true"] { background: var(--c) }
+.lms .tm-gi { width: 34px; height: 34px; border-radius: 11px; display: grid; place-items: center; background: var(--c); color: var(--ci); font-family: var(--num); font-weight: 700; font-size: 14px }
+.lms .tm-g[aria-current="true"] .tm-gi { background: var(--card) }
+.lms .tm-gi.big { width: 44px; height: 44px; border-radius: 14px; font-size: 18px; background: var(--c) }
+.lms .tm-gb { display: grid; min-width: 0 } .lms .tm-gb b { font-size: 14px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap } .lms .tm-gb small { font-size: 11.5px; color: var(--muted) }
+.lms .tm-g em { font-style: normal; min-width: 22px; height: 22px; border-radius: 11px; display: grid; place-items: center; padding: 0 6px; background: var(--ink); color: #fff; font-size: 11.5px; font-weight: 700 }
+.lms .tm-mem { display: grid; gap: 12px }
+.lms .tm-ml { display: grid; gap: 8px } .lms .tm-ml > div { display: grid; grid-template-columns: 30px minmax(0, 1fr) auto; gap: 10px; align-items: center }
+.lms .tm-ml b { font-size: 14px; font-weight: 600 } .lms .tm-ml b small { margin-left: 6px; font-size: 11.5px; color: var(--muted) }
+.lms .tm-f { width: 30px; height: 30px; border-radius: 50%; display: grid; place-items: center; flex: none; background: var(--paper); color: var(--ink2); font-size: 12.5px; font-weight: 700 }
+.lms .tm-f.me { background: var(--ink); color: #fff } .lms .tm-f.st { background: var(--rep); color: var(--rep-i) }
+.lms .tm-main { padding: 0; display: grid; grid-template-rows: auto auto minmax(0, 1fr); overflow: hidden; min-height: 640px; align-content: start }
+.lms .tm-h { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; padding: 14px 18px; border-bottom: 1px solid var(--line2) }
+.lms .tm-hb { display: grid; min-width: 0 } .lms .tm-hb b { font-family: var(--display); font-size: 19px } .lms .tm-hb small { font-size: 12px; color: var(--muted) }
+.lms .tm-av { display: flex; margin-left: 6px } .lms .tm-av .tm-f { width: 28px; height: 28px; font-size: 11.5px; box-shadow: 0 0 0 2px var(--card); margin-left: -6px; background: var(--c); color: var(--ci) }
+.lms .tm-seg { display: inline-flex; gap: 2px; padding: 3px; border-radius: 999px; background: var(--paper) }
+.lms .tm-seg button { border: 0; background: none; border-radius: 999px; padding: 6px 14px; font-size: 13px; font-weight: 600; color: var(--ink2); cursor: pointer; white-space: nowrap }
+.lms .tm-seg button[aria-pressed="true"] { background: var(--ink); color: #fff }
+.lms .tm-tabs { margin-left: auto }
+.lms .tm-ex { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 10px 18px; background: var(--c); } .lms .tm-ex .eyebrow { color: var(--ci) }
+.lms .tm-pad { padding: 40px 16px }
+.lms .tm-body { display: grid; grid-template-rows: minmax(0, 1fr) auto; min-height: 0 }
+.lms .tm-chat { padding: 18px 20px; display: grid; gap: 16px; align-content: start; overflow: auto; height: min(560px, calc(100vh - 300px)); min-height: 320px; background: var(--card) }
+.lms .tm-more { display: flex; justify-content: center }
+.lms .tm-day { display: flex; align-items: center; gap: 12px; color: var(--muted); font-size: 11.5px; font-weight: 600 } .lms .tm-day::before, .lms .tm-day::after { content: ""; flex: 1; height: 1px; background: var(--line2) }
+.lms .tm-m { display: grid; grid-template-columns: 30px minmax(0, 1fr); gap: 10px; align-items: start; max-width: 78%; min-width: 0 }
+.lms .tm-m.me { grid-template-columns: minmax(0, 1fr); justify-self: end }
+.lms .tm-mb { display: grid; grid-template-columns: minmax(0, 1fr); gap: 6px; min-width: 0 } .lms .tm-m.me .tm-mb { justify-items: end }
+.lms .tm-mh { display: flex; align-items: center; gap: 8px; flex-wrap: wrap } .lms .tm-mh b { font-size: 13px } .lms .tm-mh small { font-size: 11.5px; color: var(--muted) }
+.lms .tm-del { border: 0; background: none; padding: 0; font-size: 11.5px; color: var(--muted); cursor: pointer } .lms .tm-del:hover { color: var(--dev-i) }
+.lms .tm-t { margin: 0; max-width: 100%; min-width: 0; background: var(--paper); border-radius: 4px 16px 16px 16px; padding: 9px 14px; font-size: 14.5px; line-height: 1.65; overflow-wrap: anywhere }
+.lms .tm-t > div { color: inherit } .lms .tm-t pre { margin: 6px 0 0; overflow-x: auto; background: var(--ink); color: #E8EDEB; border-radius: 10px; padding: 10px 12px; font-size: 12.5px; line-height: 1.6 }
+.lms .tm-t p { margin: 0 } .lms .tm-t p + p { margin-top: 6px }
+.lms .tm-m.me .tm-t { background: var(--c); border-radius: 16px 4px 16px 16px } .lms .tm-t.tm-gone { color: var(--muted); font-size: 13px }
+.lms .tm-file { display: grid; grid-template-columns: 34px minmax(0, 1fr) auto; gap: 10px; align-items: center; background: var(--paper); border-radius: 14px; padding: 8px 10px; min-width: 260px; max-width: 100% } .lms .tm-file .btn.ghost { background: var(--card) }
+.lms .tm-cerr { margin: 8px 16px 0 }
+.lms .tm-cp { border-top: 1px solid var(--line2); padding: 12px 16px; display: grid; gap: 8px; background: var(--card) }
+.lms .tm-cp .msgin { border: 0; background: var(--paper); border-radius: 16px; padding: 12px 14px; min-height: 64px; resize: vertical; width: 100% }
+.lms .tm-pick { display: inline-flex; align-items: center; gap: 6px; max-width: 100%; background: var(--paper); border-radius: 999px; padding: 4px 10px; font-size: 12.5px } .lms .tm-pick span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap } .lms .tm-pick button { border: 0; background: none; color: var(--muted); padding: 0; font-size: 15px; line-height: 1; cursor: pointer }
+.lms .tm-code { border-radius: 14px; overflow: hidden; background: var(--ink) } .lms .tm-code > div { display: flex; justify-content: space-between; align-items: center; padding: 6px 12px; color: #9AA5A2; font-size: 11.5px; font-weight: 700 } .lms .tm-code button { border: 0; background: none; color: #9AA5A2; font-size: 16px; line-height: 1; cursor: pointer }
+.lms .tm-code textarea, .lms .tm-code textarea:focus { display: block; width: 100%; border: 0; border-radius: 0; background: transparent; color: #E8EDEB; font-family: ui-monospace, Consolas, monospace; font-size: 13px; line-height: 1.6; padding: 8px 12px; white-space: pre; overflow-x: auto; resize: vertical; tab-size: 2 }
+.lms .tm-ct { display: flex; align-items: center; gap: 6px; flex-wrap: wrap } .lms .tm-ct .tb { border: 0; background: var(--paper); border-radius: 999px; padding: 6px 12px; font-size: 12.5px; font-weight: 600; color: var(--ink2); cursor: pointer } .lms .tm-ct .tb[aria-pressed="true"] { background: var(--ink); color: #fff } .lms .tm-ct .tb:disabled { opacity: .45 }
+.lms .tm-ro { border-top: 1px solid var(--line2); padding: 12px 16px; display: flex; justify-content: center }
+.lms .tm-board { padding: 14px 18px 18px; min-width: 0 }
+.lms .tm-fd { padding: 16px 18px 18px; display: grid; gap: 14px; align-content: start }
+.lms .tm-fh { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; justify-content: space-between } .lms .tm-fn { font-size: 15px }
+.lms .tm-fp { display: flex; gap: 6px; flex-wrap: wrap }
+.lms .tm-fc { display: inline-flex; align-items: center; gap: 6px; border: 0; border-radius: 999px; padding: 6px 12px; background: var(--paper); font-size: 13px; font-weight: 600; color: var(--ink); cursor: pointer } .lms .tm-fc .dv-folder { margin-right: 0 } .lms .tm-fc em { font-style: normal; color: var(--muted); font-size: 12px }
+.lms .tm-td { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; background: var(--paper); border-radius: 14px; padding: 9px 14px; font-size: 14px; cursor: pointer } .lms .tm-td > span:first-of-type { flex: 1 1 140px; min-width: 0; overflow-wrap: anywhere } .lms .tm-td.dn > span:first-of-type { color: var(--muted); text-decoration: line-through }
+.lms .tm-tf { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; gap: 8px; align-items: center }
+@media (max-width: 860px) {
+  .lms .tm-w { grid-template-columns: minmax(0, 1fr) } .lms .tm-l { position: static }
+  .lms .tm-nav { display: flex; overflow-x: auto; padding: 8px; gap: 6px; scrollbar-width: none } .lms .tm-nav::-webkit-scrollbar { display: none }
+  .lms .tm-sec { display: none } .lms .tm-g { flex: none; width: auto }
+}
+@media (max-width: 700px) {
+  .lms .tm-h { padding: 12px 14px } .lms .tm-av { display: none } .lms .tm-tabs { margin-left: 0; width: 100% } .lms .tm-tabs button { flex: 1; padding-inline: 6px }
+  .lms .tm-chat { padding: 14px } .lms .tm-m { max-width: 92% } .lms .tm-file { min-width: 0 }
+  .lms .tm-main { min-height: 0 } .lms .tm-tf { grid-template-columns: minmax(0, 1fr) auto }  .lms .tm-tf input { grid-column: 1 / -1 }
+}
+
+/* ===== 受講生のノート（モック noteT2） ===== */
+.lms .nt .th-att { align-items: center }
+.lms .nt-w { display: grid; grid-template-columns: minmax(250px, 300px) minmax(0, 1fr); gap: 18px; align-items: start }
+.lms .nt-nav { position: sticky; top: 124px; display: grid; gap: 10px; padding: 12px; align-content: start }
+.lms .nt-q { max-width: none } .lms .nt-q input { width: 100%; background: var(--paper); box-shadow: none }
+.lms .nt-gs { width: 100% } .lms .nt-gs button { flex: 1 }
+.lms .nt-l { display: grid; gap: 2px; max-height: calc(100vh - 300px); overflow-y: auto; margin-inline: -4px; padding-inline: 4px }
+.lms .nt-gh { display: flex; align-items: center; gap: 8px; padding: 10px 8px 4px; font-size: 11.5px; font-weight: 700; color: var(--muted); letter-spacing: .04em }
+.lms .nt-gh em { font-style: normal; font-weight: 600 } .lms .nt-gh.now { color: var(--cur-i) } .lms .nt-none { padding: 8px }
+.lms .nt-i { display: grid; gap: 1px; border: 0; background: none; border-radius: 12px; padding: 8px 10px; text-align: left; color: var(--ink); cursor: pointer; min-width: 0 }
+.lms .nt-i:hover { background: var(--paper) } .lms .nt-i[aria-current="true"] { background: var(--ink); color: #fff } .lms .nt-i[aria-current="true"] small { color: rgba(255, 255, 255, .7) }
+.lms .nt-i b { font-size: 14px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap } .lms .nt-i small { font-size: 11.5px; color: var(--muted) }
+.lms .nt-ed { display: grid; gap: 14px; align-content: start; min-width: 0 }
+.lms .nt-h { display: flex; align-items: flex-start; gap: 12px; flex-wrap: wrap; justify-content: space-between }
+.lms .nt-meta { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; min-width: 0 } .lms .nt-meta .eyebrow { margin-right: 4px }
+.lms select.in.nt-un { border: 0; width: auto; max-width: 100%; border-radius: 999px; padding: 4px 12px; background: var(--tst); color: var(--tst-i); font-size: 12.5px; font-weight: 600 }
+.lms .nt-src { display: inline-flex; align-items: center; gap: 6px; border: 0; border-radius: 999px; padding: 4px 12px; background: var(--paper); color: var(--ink2); font-size: 12.5px; font-weight: 600; cursor: pointer; overflow-wrap: anywhere; text-align: left } .lms .nt-src:hover { background: var(--line2) }
+.lms .nt-ed input.nt-ti, .lms .nt-ed input.nt-ti:focus { width: 100%; height: auto; border: 0; border-radius: 0; background: none; padding: 0; font-family: var(--display); font-size: clamp(24px, 2.6vw, 30px); font-weight: 700; color: var(--ink) }
+.lms .nt-ed textarea.nt-ta, .lms .nt-ed textarea.nt-ta:focus { border: 0; background: var(--paper); border-radius: 16px; padding: 16px 18px; min-height: 420px; width: 100%; font-family: ui-monospace, Consolas, "Zen Kaku Gothic New", monospace; font-size: 14.5px; line-height: 1.85; resize: vertical }
+.lms .nt-tt { margin: 0; font-family: var(--display); font-size: clamp(24px, 2.6vw, 30px); overflow-wrap: anywhere }
+.lms .nt-rd { font-size: 15px; line-height: 1.8; min-height: 200px; overflow-wrap: anywhere }
+.lms .nt-f { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; font-size: 12.5px; color: var(--muted); border-top: 1px solid var(--line2); padding-top: 12px }
+.lms .nt-ok { display: inline-flex; align-items: center; gap: 6px; color: var(--rep-i); font-weight: 600 } .lms .nt-ok i { width: 18px; height: 18px; border-radius: 50%; display: grid; place-items: center; background: var(--rep); font-style: normal; font-size: 10.5px }
+.lms .nt-ng { display: inline-flex; align-items: center; gap: 8px; color: var(--dev-i); font-weight: 600 }
+.lms .nt-x { display: grid; gap: 10px; min-width: 0 }
+.lms .nt-os { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; margin-bottom: 6px }
+.lms .nt-o { position: relative; display: grid; gap: 2px; text-align: left; border: 0; border-radius: 14px; padding: 10px 14px; background: var(--card); color: var(--ink); cursor: pointer; min-width: 0 }
+.lms .nt-o b { font-size: 14px } .lms .nt-o small { font-size: 12px; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; padding-right: 18px }
+.lms .nt-o em { position: absolute; top: 10px; right: 12px; font-style: normal; font-size: 12px; font-weight: 700; color: var(--muted) }
+.lms .nt-o[aria-pressed="true"] { box-shadow: 0 0 0 2px var(--ink) inset }
+.lms .nt-fn { display: flex; align-items: center; gap: 8px; font-size: 13px; padding: 4px 2px } .lms .nt-fn b { overflow-wrap: anywhere; min-width: 0 } .lms .nt-fn span { margin-left: auto; color: var(--muted); flex: none }
+.lms .nt-pv { margin: 0; max-height: 180px; overflow: auto; background: #1F2624; color: #E7ECE9; border-radius: 14px; padding: 12px 14px; font-size: 12.5px; line-height: 1.7; white-space: pre-wrap; overflow-wrap: anywhere }
+@media (max-width: 860px) {
+  .lms .nt-w { grid-template-columns: minmax(0, 1fr) } .lms .nt-nav { position: static } .lms .nt-l { max-height: 260px }
+  .lms .nt .th-att { width: 100%; margin-left: 0 }
+}
+@media (max-width: 700px) {
+  .lms .nt-ed textarea.nt-ta { min-height: 300px } .lms .nt-o { padding: 9px 12px } .lms .nt-o small { white-space: normal }
+}
+
+/* ===== 受講生の目標（モック goalT2） ===== */
+.lms .gl { display: grid; gap: 18px }
+.lms .gl-hm { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 28px; align-items: center }
+.lms .gl-ring { position: relative; width: var(--s); height: var(--s); display: grid; place-items: center; flex: none }
+.lms .gl-ring svg { position: absolute; inset: 0; width: 100%; height: 100% } .lms .gl-ring circle { fill: none; stroke-width: 10; stroke-linecap: round } .lms .gl-ring .tr { stroke: rgba(255, 255, 255, .7) } .lms .gl-ring .fg { stroke: var(--cd) }
+.lms .gl-ring b { position: relative; font-family: var(--num); font-weight: 300; font-size: 34px; letter-spacing: -.02em } .lms .gl-ring b small { font-size: 14px; color: var(--muted); font-weight: 500; margin-left: 3px }
+.lms .gl-nx { display: grid; gap: 6px; background: rgba(255, 255, 255, .7); border-radius: 18px; padding: 12px 14px; min-width: 0 } .lms .gl-nx .eyebrow { color: var(--ci) }
+.lms .gl-nx .gl-t small { display: block; font-size: 11.5px; color: var(--muted); font-weight: 500 }
+.lms .gl-all { color: var(--ci) }
+.lms .gl-pl { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px }
+.lms .gl-pl > span { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 6px 10px; align-items: center; background: rgba(255, 255, 255, .7); border-radius: 14px; padding: 10px 12px; min-width: 0 }
+.lms .gl-pl b { font-size: 13px; overflow-wrap: anywhere } .lms .gl-pl em { font-style: normal; font-size: 12px; color: var(--muted) } .lms .gl-pl .tp-bar { grid-column: 1 / -1 } .lms .gl-pl .tp-bar i { background: var(--cd) }
+.lms .gl-sh { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-top: 8px }
+.lms .gl-g { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 18px; align-items: start }
+.lms .gl-c { display: grid; gap: 12px; align-content: start; min-width: 0 }
+.lms .gl-eq { align-items: stretch } .lms .gl-c .tp-bar i { background: var(--cd) } .lms .c-tm .tp-bar i, .lms .gl-c.c-tm .tp-bar i { background: var(--tm-d) }
+.lms .gl-ch { display: grid; grid-template-columns: 38px minmax(0, 1fr) auto; gap: 12px; align-items: center }
+.lms .gl-ch b { display: block; font-size: 16px; overflow-wrap: anywhere } .lms .gl-ch small { display: block; font-size: 12.5px; color: var(--muted) }
+.lms .gl-no { width: 38px; height: 38px; border-radius: 12px; display: grid; place-items: center; background: var(--c, var(--paper)); color: var(--ci, var(--ink2)); font-weight: 700; font-size: 15px }
+.lms .gl-n { font-size: 13px; font-weight: 700; color: var(--ci) }
+.lms .gl-ts { display: grid; gap: 2px } .lms .gl-tr { display: flex; align-items: center; gap: 6px } .lms .gl-tr .gl-t { flex: 1; min-width: 0 }
+.lms .gl-t { position: relative; display: grid; grid-template-columns: 22px minmax(0, 1fr); gap: 10px; align-items: start; padding: 7px 8px; border-radius: 12px; cursor: pointer; font-size: 14px; line-height: 1.5; overflow-wrap: anywhere }
+.lms .gl-t:hover { background: var(--paper) }
+.lms .gl-t input { position: absolute; opacity: 0; width: 1px; height: 1px }
+.lms .gl-b { width: 22px; height: 22px; border-radius: 50%; display: grid; place-items: center; font-size: 11px; font-weight: 700; color: transparent; box-shadow: 0 0 0 1.5px var(--line) inset; background: var(--card) }
+.lms .gl-t.on .gl-b { background: var(--cd, var(--rep-d)); color: #fff; box-shadow: none } .lms .gl-t.on > span:last-child { color: var(--muted) }
+.lms .gl-t input:focus-visible + .gl-b { outline: 2px solid var(--ink); outline-offset: 2px }
+.lms .gl-nx .gl-t:hover { background: rgba(255, 255, 255, .8) }
+.lms .gl-ed { display: inline-flex; gap: 8px; flex: none } .lms .gl-ed button { border: 0; background: none; padding: 0; font-size: 12px; color: var(--muted); cursor: pointer; white-space: nowrap } .lms .gl-ed button:hover { color: var(--ink) } .lms .gl-eg { justify-self: end }
+.lms .gl-add { display: flex; gap: 8px; align-items: center } .lms .gl-add input { flex: 1; min-width: 0 }
+.lms .gl-new { display: grid; gap: 10px; align-content: start; background: transparent; box-shadow: 0 0 0 2px var(--line) inset } .lms .gl-new .gl-no { background: var(--card) }
+.lms .th-pill.gl-ng { background: var(--dev); color: var(--dev-i) }
+@media (max-width: 860px) { .lms .gl-g { grid-template-columns: minmax(0, 1fr) } }
+@media (max-width: 700px) { .lms .gl-hm { grid-template-columns: minmax(0, 1fr); justify-items: center; gap: 16px } .lms .gl-nx { width: 100% } }

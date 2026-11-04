@@ -29,6 +29,13 @@ export function Card({ className = "pad", children, ...rest }) {
 }
 
 // 色の面：上の小さな見出し・右の札・大きな見出し・中身
+// ファイルの種類の印（モック fsIcon）
+const FS_KIND = { pdf: ["PDF", "#D9483B"], doc: ["W", "#2457E6"], docx: ["W", "#2457E6"], xls: ["X", "#11966F"], xlsx: ["X", "#11966F"], ppt: ["P", "#B4590F"], pptx: ["P", "#B4590F"] };
+export function FileIcon({ name }) {
+  const [t, c] = FS_KIND[(String(name).split(".").pop() || "").toLowerCase()] || ["F", "#767D8C"];
+  return <span className="fs-ic" style={{ "--fc": c }} aria-hidden="true">{t}</span>;
+}
+
 // 色の面の絵（モック heroArt）
 const ART = {
   rep: <><rect x="34" y="16" width="62" height="70" rx="8" fill="var(--cd)" opacity=".45" /><g className="hero-al"><rect x="24" y="8" width="62" height="70" rx="8" fill="#fff" /><path d="M36 26h38M36 38h38M36 50h24" /><path d="M78 56l14-14 6 6-14 14h-6z" /></g></>,

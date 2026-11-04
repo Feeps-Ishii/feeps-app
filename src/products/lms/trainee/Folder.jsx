@@ -4,7 +4,7 @@ import { normalizeCurriculumSections } from "../../training/TrainingComponents.j
 import { fmtSize } from "../../training/DevReview.jsx";
 import { getActiveCourseId, setActiveCourseId, takeLibraryTarget } from "../../../utils/common/courseContext.js";
 import { todayStr } from "../../training/useTraining.js";
-import { Btn, Card, Chip, Modal } from "../parts/ui.jsx";
+import { Btn, Card, Chip, FileIcon, Modal } from "../parts/ui.jsx";
 
 const MaterialViewer = lazy(() => import("../../training/MaterialViewer.jsx"));
 
@@ -19,7 +19,6 @@ const isD = v => /^\d{4}-\d{2}-\d{2}$/.test(v);
 const md = v => { const [, m, d] = dk(v).split("-").map(Number); return m ? `${m}/${d}` : ""; };
 const ext = n => (String(n).split(".").pop() || "").toLowerCase();
 const isPdf = n => ext(n.name) === "pdf" || n.contentType === "application/pdf";
-const FS_KIND = { pdf: ["PDF", "#D9483B"], doc: ["W", "#2457E6"], docx: ["W", "#2457E6"], xls: ["X", "#11966F"], xlsx: ["X", "#11966F"], ppt: ["P", "#B4590F"], pptx: ["P", "#B4590F"] };
 const isNew = (n, today) => n.updatedAt && Math.abs(Date.parse(today) - Date.parse(dk(n.updatedAt))) <= 3 * 86400000;
 const byName = (a, b) => String(a.name).localeCompare(String(b.name), "ja");
 const nameOf = n => (n.type === "shortcut" ? n.targetName || n.name : n.name);
@@ -29,11 +28,6 @@ const rangeOf = s => {
   return ds.length ? { start: ds[0], end: ds[ds.length - 1] } : null;
 };
 const spaceQuery = sp => `spaceId=${encodeURIComponent(sp.spaceId)}${sp.via ? `&via=${encodeURIComponent(sp.via)}` : ""}`;
-
-function FileIcon({ name }) {
-  const [t, c] = FS_KIND[ext(name)] || ["F", "#767D8C"];
-  return <span className="fs-ic" style={{ "--fc": c }} aria-hidden="true">{t}</span>;
-}
 
 export default function TraineeFolder({ go, say }) {
   const today = todayStr();

@@ -136,6 +136,14 @@ function Toasts({ onOpen }) {
   );
 }
 
+// トーストだけ出す（新しい LMS。件数のボタンはヘッダーを持つ側で出す）
+export function ChatToasts({ role, onOpenTeams }) {
+  const enabled = role === "trainee" || role === "instructor" || role === "admin";
+  useChatUnread(enabled);
+  if (!enabled) return null;
+  return <Toasts onOpen={teamId => { focusTeam = teamId || ""; onOpenTeams?.(); window.dispatchEvent(new Event("feeps:team-chat-focus")); }} />;
+}
+
 export default function ChatNotifier({ role, onOpenTeams, compact = false, toasts = false }) {
   const enabled = role === "trainee" || role === "instructor" || role === "admin";
   const s = useChatUnread(enabled);
