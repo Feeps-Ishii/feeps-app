@@ -3,11 +3,12 @@ import { apiGet, apiPut } from "../../../api.js";
 import { Btn, Card, Chip } from "../parts/ui.jsx";
 import { arr, errText, md, useStaffCourse, useWorkdays } from "../staff/common.js";
 import { todayStr } from "../../training/useTraining.js";
+import CourseConfig from "../staff/CourseConfig.jsx";
 
 /* コースの設定（モック settingX）：基本・研修日・日報の項目・担当。変えたら下の帯から保存する。
    研修日を変えられるのは管理者だけ（API の決まり）。講師は見るだけ */
 
-const TABS = [["base", "基本"], ["days", "研修日"], ["rf", "日報の項目"], ["who", "担当"]];
+const TABS = [["base", "基本"], ["days", "研修日"], ["rf", "日報の項目"], ["who", "担当"], ["fx", "使う機能"], ["notice", "リマインド"], ["ai", "AI"]];
 
 function Days({ courseId, canEdit, say }) {
   const today = todayStr();
@@ -115,6 +116,9 @@ export default function InstructorSetting({ role, say }) {
       </Card>
     ),
     days: <Days courseId={courseId} canEdit={role === "admin"} say={say} />,
+    fx: <CourseConfig courseId={courseId} part="fx" say={say} />,
+    notice: <CourseConfig courseId={courseId} part="notice" say={say} />,
+    ai: <CourseConfig courseId={courseId} part="ai" say={say} />,
     rf: (
       <Card className="pad st-g">
         <h2 className="h2">日報の項目（夕方）</h2>

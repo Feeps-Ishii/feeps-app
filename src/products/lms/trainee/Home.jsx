@@ -3,6 +3,7 @@ import { ackKeys } from "../../training/acks.js";
 import { useTraineeHome } from "./useTraineeHome.js";
 import { Btn, Cal, Card, Chip, Hero, Kpi, weekday } from "../parts/ui.jsx";
 import { Icon } from "../parts/icons.jsx";
+import { SurveyPrompt } from "../staff/Survey.jsx";
 
 /* 受講生のホーム（モック homeT）：上に日付と出勤・終わり、左に「次にやること」の色の面、右に今日の流れ、
    下に締め切りとお知らせ。次にやることは 出勤 → 今日の目標 → 単元を学ぶ → 日報 → 退勤 の順 */
@@ -28,7 +29,7 @@ function steps(d) {
   ];
 }
 
-export default function TraineeHome({ go }) {
+export default function TraineeHome({ go, say }) {
   const d = useTraineeHome();
   const [acked, setAcked] = useState({});
   const ack = key => { setAcked(m => ({ ...m, [key]: true })); ackKeys(key).catch(() => setAcked(m => ({ ...m, [key]: false }))); };
@@ -119,6 +120,7 @@ export default function TraineeHome({ go }) {
         )}
       </div>
 
+      <SurveyPrompt say={say} />
       <div className="th-row">
         <Card className="pad">
           <div className="head"><h2 className="h2">締め切り</h2>{dls.length > 0 && <span className="r"><Chip>{dls.length}</Chip></span>}</div>

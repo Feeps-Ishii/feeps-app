@@ -4,6 +4,8 @@ import { uploadToFolder } from "../../training/DevReview.jsx";
 import { Btn, Card, Chip, FileIcon, Hero, Kpi, ListTool, Modal, matchName } from "../parts/ui.jsx";
 import { arr, errText, md, saveXlsx, useStaffCourse } from "../staff/common.js";
 import { BarChart } from "../staff/parts.jsx";
+import { CertModal } from "../staff/Cert.jsx";
+import { SurveyCard } from "../staff/Survey.jsx";
 
 /* 講師・コース担当者の修了レポート（モック done）：企業担当者に送るファイル、研修全体の数字、受講生ごとの一言、講師の所見、確定。
    ファイルはコースのフォルダの「修了レポート」に置く（送るまで企業担当者には見えない） */
@@ -74,6 +76,7 @@ export default function InstructorDone({ say }) {
   const [summary, setSummary] = useState(""); const [notes, setNotes] = useState({}); const [dirty, setDirty] = useState(false);
   const [busy, setBusy] = useState(""); const [err, setErr] = useState(""); const [conf, setConf] = useState(false);
   const [q, setQ] = useState(""); const [sort, setSort] = useState("name");
+  const [cert, setCert] = useState(false);
   useEffect(() => {
     if (!courseId) return undefined;
     let alive = true;
@@ -100,7 +103,7 @@ export default function InstructorDone({ say }) {
     <div className="st">
       <div className="head">
         <div><div className="eyebrow">{sc.course.name}</div><h1 className="h1">修了レポート</h1></div>
-        <span className="r">{confirmed ? <Chip tone="ok">確定 ・ 企業担当者に公開中</Chip> : <Chip tone="warn">下書き</Chip>}{dirty && <Chip tone="warn">保存していない変更</Chip>}<Btn kind="ghost sm" onClick={xlsx}>まとめを Excel で受け取る</Btn>{!confirmed && <Btn kind="ghost sm" disabled={!!busy} onClick={() => save("save")}>保存</Btn>}{confirmed ? <Btn kind="ghost sm" disabled={!!busy} onClick={() => save("unconfirm")}>確定を取り消す</Btn> : <Btn kind="sm" disabled={!!busy} onClick={() => setConf(true)}>確定する</Btn>}</span>
+        <span className="r">{confirmed ? <Chip tone="ok">確定 ・ 企業担当者に公開中</Chip> : <Chip tone="warn">下書き</Chip>}{dirty && <Chip tone="warn">保存していない変更</Chip>}{confirmed && <Btn kind="ghost sm" onClick={() => setCert(true)}>修了証</Btn>}<Btn kind="ghost sm" onClick={xlsx}>まとめを Excel で受け取る</Btn>{!confirmed && <Btn kind="ghost sm" disabled={!!busy} onClick={() => save("save")}>保存</Btn>}{confirmed ? <Btn kind="ghost sm" disabled={!!busy} onClick={() => save("unconfirm")}>確定を取り消す</Btn> : <Btn kind="sm" disabled={!!busy} onClick={() => setConf(true)}>確定する</Btn>}</span>
       </div>
       {err && <div className="lms-err" role="alert">{err}</div>}
       {d.unknown && <div className="lms-err" role="alert">一部の受講生を確認できません（数字が少なく出ている場合があります）</div>}
@@ -114,6 +117,7 @@ export default function InstructorDone({ say }) {
         ]} />
       </Hero>
       {tests.length > 0 && <Card className="pad rp-ch"><div className="head"><h2 className="h3">テストの平均</h2><span className="r"><Chip>受けた順</Chip></span></div><BarChart vals={tests.map(t => t.average)} labels={tests.map(t => t.title)} /></Card>}
+      <SurveyCard courseId={courseId} say={say} />
       <Card className="pad">
         <div className="head"><h2 className="h3">講師の所見</h2></div>
         {editable ? <textarea rows={6} maxLength={4000} value={summary} aria-label="講師の所見" onChange={e => { setSummary(e.target.value); setDirty(true); }} /> : <p className="st-pre st-p">{summary || "—"}</p>}
@@ -127,6 +131,7 @@ export default function InstructorDone({ say }) {
         ))}
         {!list.length && <tr><td colSpan={6}><Chip>見つかりません</Chip></td></tr>}
       </tbody></table></div></Card>
+      {cert && <CertModal people={arr(d.trainees)} course={d.courseName} start={d.period?.startDate} end={d.period?.endDate} confirmedAt={r.confirmedAt} onClose={() => setCert(false)} />}
       {conf && <Modal title="修了レポートを確定しますか？" width={440} onClose={() => setConf(false)} footer={<><Btn kind="ghost" onClick={() => setConf(false)}>やめる</Btn><Btn onClick={() => save("confirm")}>確定する</Btn></>}><div className="row"><Chip>企業担当者が読めます</Chip><Chip>あとで取り消せます</Chip></div></Modal>}
     </div>
   );

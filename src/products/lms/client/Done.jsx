@@ -3,6 +3,8 @@ import { apiGet } from "../../../api.js";
 import { Btn, Card, Chip, FileIcon, Hero, Kpi, ListTool, matchName } from "../parts/ui.jsx";
 import { arr, md, useStaffCourse } from "../staff/common.js";
 import { TestRow } from "../staff/parts.jsx";
+import { CertModal } from "../staff/Cert.jsx";
+import { SurveyCard } from "../staff/Survey.jsx";
 
 /* 企業担当者の修了レポート（モック doneC）：確定したものを読む。全体の数字・テストの平均・受講生ごと・講師の所見 */
 
@@ -39,6 +41,7 @@ export default function ClientDone() {
   const [st, setSt] = useState({ state: "loading", data: null });
   const [key, setKey] = useState(0);
   const [q, setQ] = useState(""); const [sort, setSort] = useState("name");
+  const [cert, setCert] = useState(false);
   useEffect(() => {
     if (!courseId) return undefined;
     let alive = true;
@@ -51,7 +54,7 @@ export default function ClientDone() {
   if (sc.state === "error" || st.state === "error") return <Card><div className="empty"><b>修了レポートを確認できません</b><Btn kind="ghost sm" onClick={() => { sc.reload(); setKey(k => k + 1); }}>再読み込み</Btn></div></Card>;
   if (!sc.course) return <Card><div className="empty"><b>修了レポート</b><Chip>コースなし</Chip></div></Card>;
   const d = st.data;
-  const head = <div className="head"><div><div className="eyebrow">{sc.course.name}</div><h1 className="h1">修了レポート</h1></div>{d?.published && <span className="r"><Btn kind="ghost sm" onClick={() => window.print()}>PDF で受け取る</Btn></span>}</div>;
+  const head = <div className="head"><div><div className="eyebrow">{sc.course.name}</div><h1 className="h1">修了レポート</h1></div>{d?.published && <span className="r"><Btn kind="ghost sm" onClick={() => setCert(true)}>修了証</Btn><Btn kind="ghost sm" onClick={() => window.print()}>PDF で受け取る</Btn></span>}</div>;
   if (!d?.published) {
     return (
       <div className="st">{head}
@@ -77,6 +80,7 @@ export default function ClientDone() {
         </Hero>
         <SentFiles courseId={courseId} />
         {d.report?.summary && <Card className="pad sc-c"><div className="head"><h2 className="h2">講師の所見</h2>{d.report.confirmedByName && <span className="r"><Chip tone="mk">{d.report.confirmedByName}</Chip></span>}</div><p className="st-pre st-p">{d.report.summary}</p></Card>}
+        <SurveyCard courseId={courseId} />
         <Card className="pad sc-c">
           <div className="head"><h2 className="h2">テストの平均</h2><span className="r"><Chip>合格 70 点</Chip></span></div>
           <div className="kt-l">{arr(d.tests).map(t => <TestRow key={t.testId} title={t.title} sub={`${t.takers} 人`} score={t.average} />)}{!arr(d.tests).length && <Chip>なし</Chip>}</div>
@@ -87,6 +91,7 @@ export default function ClientDone() {
           {!list.length && <tr><td colSpan={6}><Chip>見つかりません</Chip></td></tr>}
         </tbody></table></div></Card>
       </div>
+      {cert && <CertModal people={arr(d.trainees)} course={d.courseName} start={d.period?.startDate} end={d.period?.endDate} confirmedAt={d.report?.confirmedAt} onClose={() => setCert(false)} />}
     </div>
   );
 }

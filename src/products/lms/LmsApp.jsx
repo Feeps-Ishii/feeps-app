@@ -1,4 +1,6 @@
-import React, { Suspense, useEffect, useState } from "react";
+import React, { Suspense, useEffect, useMemo, useState } from "react";
+import { apiGet } from "../../api.js";
+import { getActiveCourseId } from "../../utils/common/courseContext.js";
 import "./lms-staff.css";
 import "./lms.css";
 import { DevHubMark } from "../../components/common/DevHubMark.jsx";
@@ -18,7 +20,8 @@ const readLoc = () => { try { return window.sessionStorage.getItem(LOC_KEY) || "
 const saveLoc = s => { try { window.sessionStorage.setItem(LOC_KEY, s); } catch { /* 読み直すとホームに戻るだけ */ } };
 
 export default function LmsApp({ role, manager = false, displayName, unread = 0, tasks, onLogout, onLegacy, renderLegacy }) {
-  const groups = lmsGroups(role);
+  const [off, setOff] = useState([]);          // コースの設定で切った機能（読めないときは全部出す）
+  const groups = useMemo(() => lmsGroups(role).map(g => [g[0], g[1], g[2].filter(s => !off.includes(s[0]))]).filter(g => g[2].length), [role, off]);
   const keys = groups.flatMap(g => g[2].map(s => s[0]));
   const [screen, setScreen] = useState(() => { const s = readLoc(); return keys.includes(s) ? s : "home"; });
   const [extra, setExtra] = useState(null); // 通知・プロフィールなど、メニューに無い画面
@@ -32,6 +35,19 @@ export default function LmsApp({ role, manager = false, displayName, unread = 0,
   const cur = groups.find(g => g[2].some(s => s[0] === screen)) || groups[0];
   const go = k => { setExtra(null); setScreen(k); saveLoc(k); setPop(""); setSheet(false); const g = groups.find(x => x[2].some(s => s[0] === k)); if (g) setLastIn(m => ({ ...m, [g[0]]: k })); window.scrollTo?.(0, 0); };
   const say = t => setToast(t);
+  useEffect(() => {
+    if (role === "admin") return undefined;
+    let alive = true;
+    apiGet(role === "trainee" ? "/me/courses" : "/completion-report/courses").then(async list => {
+      const rows = Array.isArray(list) ? list : Array.isArray(list?.courses) ? list.courses : [];
+      const c = rows.find(x => x.courseId === getActiveCourseId()) || rows[0];
+      if (!c?.courseId) return;
+      const r = await apiGet(`/course-config?courseId=${encodeURIComponent(c.courseId)}`);
+      if (alive) setOff(Object.entries(r?.features || {}).filter(([, on]) => on === false).map(([k]) => k));
+    }).catch(() => { /* 読めないときは全部出す */ });
+    return () => { alive = false; };
+  }, [role, courseV]);
+  useEffect(() => { if (off.includes(screen)) go("home"); }, [off]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => { if (!toast) return undefined; const t = setTimeout(() => setToast(""), 3200); return () => clearTimeout(t); }, [toast]);
   useEffect(() => { if (!pop) return undefined; const close = e => { if (!e.target.closest?.(".lms-me")) setPop(""); }; document.addEventListener("click", close); return () => document.removeEventListener("click", close); }, [pop]);
 
@@ -46,7 +62,7 @@ export default function LmsApp({ role, manager = false, displayName, unread = 0,
       ? <div className="lms-legacy" key={`${legacyView}-${courseV}`}>{renderLegacy(legacyView, goLegacy)}</div>
       : <Soon k={screen} label={lmsLabel(role, screen)} />;
 
-  const bnav = LMS_BNAV[role] || LMS_BNAV.trainee;
+  const bnav = (LMS_BNAV[role] || LMS_BNAV.trainee).filter(k => !off.includes(k));
   return (
     <div className="lms">
       <header className={`lms-bar${admin ? " admin" : ""}`}>
