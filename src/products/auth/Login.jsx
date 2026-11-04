@@ -1,19 +1,16 @@
 import React, { useState, useRef, useEffect } from "react";
 import { signIn, signOut, confirmSignIn, resetPassword, confirmResetPassword, rememberDevice } from "aws-amplify/auth";
-import {
-  Mail, Lock, Eye, EyeOff, ArrowLeft, CheckCircle2, ShieldCheck,
-  Sparkles, GraduationCap, NotebookPen, Clock, Calendar, ClipboardCheck, Users,
-  LogIn, Send,
-} from "lucide-react";
-import { T, NOVA, PRISM, BrandMark } from "../../components/common";
+import { DevHubMark } from "../../components/common/DevHubMark.jsx";
 import { StandaloneLegalPage } from "../../components/common/LegalPages.jsx";
 import { TotpSetupPanel, TotpChallengePanel } from "./MfaSetup.jsx";
 import { TermsCheckbox, recordTermsAgreement } from "../../components/common/TermsConsent.jsx";
-import "./devhubAuth.css";
+import { Btn, Modal } from "../lms/parts/ui.jsx";
+import "../lms/lms.css";
+import "./loginSage.css";
 
 // Cognito User Pool (ap-northeast-1_QG4KZb06z) の実設定を確認のうえ表示（Phase7-4b）。
 // ハードコードではなく、実際のPasswordPolicy（MinimumLength:8, RequireUppercase/Lowercase/Numbers/Symbols:true）と一致させている。
-const PASSWORD_REQUIREMENTS = ["8文字以上", "英大文字を含む", "英小文字を含む", "数字を含む", "記号を含む"];
+const PASSWORD_REQUIREMENTS = [["8 文字以上", v => v.length >= 8], ["英大文字", v => /[A-Z]/.test(v)], ["英小文字", v => /[a-z]/.test(v)], ["数字", v => /\d/.test(v)], ["記号", v => /[^A-Za-z0-9]/.test(v)]];
 
 const RESEND_COOLDOWN_SECONDS = 45;
 
@@ -34,101 +31,84 @@ function friendlyAuthError(e) {
   }
 }
 
-const loginFieldVars = {
-  "--field-bg": T.bgSurface,
-  "--field-border": T.border,
-  "--field-text": PRISM.ink,
-  "--field-focus": PRISM.accent,
-  "--field-focus-ring": PRISM.accentSubtle,
-};
-
-// 2026-10-12: DevHub LMS のログイン（D 案）。青一色、押すと沈む
-const ctaStyle = { background: "#1F5FD6", boxShadow: "0 5px 0 #123E96" };
-const ctaClass = "feeps-auth-primary feeps-prism-cta w-full rounded-xl px-4 py-3 text-sm font-bold text-white disabled:opacity-60";
-
-function AuthMeta({ step }) {
+// 2026-11-04: ログインをセージに（モック loginPage）。左にロゴ・ひとこと・PC とスマホの絵、右に入力。ログインの処理は変えない
+const KINDS = [["日報", "rep"], ["勤怠", "att"], ["カリキュラム", "cur"], ["テスト", "tst"], ["個人開発", "dev"], ["チーム", "tm"]];
+const FLOW = [["出勤", "09:02", "d"], ["今日の目標", "済", "d"], ["単元を学ぶ", "いま", "n"], ["練習問題", "0 / 3", ""], ["日報", "18:00 まで", ""]];
+function FlowRows({ rows }) {
+  return rows.map(([t, v, k]) => <span key={t} className={k}><i />{t}<em>{v}</em></span>);
+}
+function Devices() {
   return (
-    <div className="feeps-auth-card-top">
-      <span className="feeps-auth-security" style={{ color: PRISM.sub }}>
-        <ShieldCheck size={15} aria-hidden="true" /> SECURE ACCESS
-      </span>
-      <span className="feeps-auth-step" style={{ color: PRISM.sub, background: PRISM.neutralSubtle, borderColor: PRISM.line2 }}>
-        {step}
-      </span>
+    <div className="ldev" aria-hidden="true">
+      <span className="lmp">マルチプラットフォーム対応</span>
+      <div className="ldev-art">
+        <div className="dv-pc">
+          <div className="dv-scr">
+            <div className="dm-bar"><i className="dm-logo" /><b>DevHub <em>LMS</em></b><span className="dm-nav"><u className="on">毎日</u><u>研修</u><u>自分用</u></span><i className="dm-me" /></div>
+            <div className="dm-body">
+              <div className="dm-hero"><small>次にやること</small><b>単元を学ぶ</b><span>Spring Boot ② REST API</span><i className="dm-btn">スライドを開く</i></div>
+              <div className="dm-flow"><small>今日の流れ</small><FlowRows rows={FLOW} /></div>
+              <div className="dm-flow"><small>締め切り</small><span>確認テスト Spring 基礎<em className="w">あと 2 日</em></span><span>練習問題 問題 7〜9<em className="w">あと 2 日</em></span></div>
+              <div className="dm-flow"><small>お知らせ</small><span><i className="mk" />明日は 10時開始です</span><span><i className="co" />配属面談の日程について</span></div>
+            </div>
+          </div>
+          <div className="dv-base" />
+        </div>
+        <div className="dv-ph">
+          <div className="dv-pscr">
+            <i className="dv-notch" />
+            <div className="dm-bar sm"><i className="dm-logo" /><b>DevHub</b><i className="dm-me" /></div>
+            <div className="dm-hero sm"><small>次にやること</small><b>単元を学ぶ</b><i className="dm-btn">スライドを開く</i></div>
+            <div className="dm-flow sm"><FlowRows rows={FLOW.slice(0, 4)} /></div>
+            <div className="dm-bnav"><span className="on" /><span /><span /><span /></div>
+          </div>
+        </div>
+      </div>
     </div>
   );
 }
 
-// 2026-10-12: ログイン画面を一新（モック docs/design/mockups/devhub-lms-2026-10/devhub-login.html の D 案）。
-// 真ん中にロゴと入力のカード。まわりに機能のアイコンが浮かび、点線でカードにつながる（ロゴの「ハブ」）。
-// その奥に、日報・勤怠・カリキュラム・テストの画面のかけらを薄くぼかして敷く（ユーザー指定）。
-// 文章は置かない。狭い画面では背景を出さず、ロゴとカードだけ。
-const ORBIT = [
-  { Icon: GraduationCap, c: "#1F5FD6", x: 15, y: 30 },
-  { Icon: NotebookPen, c: "#2B6BE0", x: 22, y: 74 },
-  { Icon: Clock, c: "#11966F", x: 8, y: 54 },
-  { Icon: Calendar, c: "#6B4FD8", x: 85, y: 26 },
-  { Icon: ClipboardCheck, c: "#D9822B", x: 91, y: 54 },
-  { Icon: Users, c: "#0E8F8A", x: 79, y: 79 },
-];
-function AuthBackdrop() {
+function Pw({ label, value, onChange, onEnter, placeholder, autoComplete }) {
+  const [show, setShow] = useState(false);
   return (
-    <div className="dh-auth-bg" aria-hidden="true">
-      <div className="dh-shot dh-shot-1">
-        <b><span className="dh-ic" style={{ "--c": "#2B6BE0" }}><NotebookPen size={14} /></span>日報</b>
-        {[["#1F5FD6", 4], ["#11966F", 3], ["#D9483B", 0], ["#1F5FD6", 5]].map(([c, lv], i) => (
-          <span key={i} className="dh-row"><i className="dh-av" /><i className="dh-line" /><span className="dh-lv">{[1, 2, 3, 4, 5].map(k => <i key={k} className={k <= lv ? "on" : ""} />)}</span><i className="dh-dot" style={{ background: c }} /></span>
-        ))}
-      </div>
-      <div className="dh-shot dh-shot-2">
-        <b><span className="dh-ic" style={{ "--c": "#6B4FD8" }}><Calendar size={14} /></span>カリキュラム</b>
-        {["09:00", "09:30", "13:00", "14:00", "17:00"].map((t, i) => <span key={t} className={`dh-tl ${i === 1 ? "on" : ""}`}><small>{t}</small><i /><i className="dh-line" /></span>)}
-      </div>
-      <div className="dh-shot dh-shot-3">
-        <b><span className="dh-ic" style={{ "--c": "#11966F" }}><Clock size={14} /></span>勤怠</b>
-        <span className="dh-week">{["on", "on", "late", "on", "now"].map((k, i) => <i key={i} className={k} />)}</span>
-        <svg width="74" height="74" viewBox="0 0 58 58"><circle cx="29" cy="29" r="23" fill="none" stroke="#EFF3F9" strokeWidth="8" /><circle cx="29" cy="29" r="23" fill="none" stroke="#11966F" strokeWidth="8" strokeLinecap="round" strokeDasharray="128 145" transform="rotate(-90 29 29)" /></svg>
-      </div>
-      <div className="dh-shot dh-shot-4">
-        <b><span className="dh-ic" style={{ "--c": "#D9822B" }}><ClipboardCheck size={14} /></span>テスト</b>
-        <span className="dh-bars">{[62, 84, 71, 90, 78, 88].map((h, i) => <i key={i} style={{ height: `${h}%` }} />)}</span>
-      </div>
-      <svg className="dh-lines">{ORBIT.map(({ x, y }, i) => <line key={i} x1="50%" y1="50%" x2={`${x}%`} y2={`${y}%`} />)}</svg>
-      {ORBIT.map(({ Icon, c, x, y }, i) => (
-        <span key={i} className="dh-orb" style={{ "--c": c, left: `calc(${x}% - 29px)`, top: `calc(${y}% - 29px)`, animationDelay: `-${i * 0.8}s` }}><Icon size={26} /></span>
+    <label className="lg-f">
+      <span>{label}</span>
+      <span className="lg-pw">
+        <input type={show ? "text" : "password"} value={value} placeholder={placeholder} autoComplete={autoComplete} onChange={e => onChange(e.target.value)} onKeyDown={e => { if (e.key === "Enter" && onEnter) onEnter(); }} />
+        <button type="button" aria-pressed={show} aria-label={show ? "パスワードを隠す" : "パスワードを表示"} onClick={() => setShow(v => !v)}>{show ? "隠す" : "表示"}</button>
+      </span>
+    </label>
+  );
+}
+function Rules({ value }) {
+  return <div className="lg-rl" aria-label="パスワードの条件">{PASSWORD_REQUIREMENTS.map(([t, ok]) => <span key={t} className={ok(value) ? "on" : ""}><i aria-hidden="true">{ok(value) ? "✓" : ""}</i>{t}</span>)}</div>;
+}
+function Steps({ k }) {
+  return <ol className="lg-st" aria-label="手順">{["メール", "コード", "完了"].map((t, i) => <li key={t} className={i < k ? "dn" : i === k ? "on" : ""}><i className="num">{i < k ? "✓" : i + 1}</i>{t}</li>)}</ol>;
+}
+// 確認コード 6 桁。貼り付けと、打つと次の桁へ
+function Otp({ value, onChange }) {
+  const refs = useRef([]);
+  const set = (i, v) => {
+    const digits = v.replace(/\D/g, "");
+    if (!digits) { onChange(value.slice(0, i) + value.slice(i + 1)); return; }
+    const next = (value.slice(0, i) + digits + value.slice(i + digits.length)).slice(0, 6);
+    onChange(next);
+    refs.current[Math.min(i + digits.length, 5)]?.focus();
+  };
+  return (
+    <div className="lg-otp">
+      {[0, 1, 2, 3, 4, 5].map(i => (
+        <input key={i} ref={el => { refs.current[i] = el; }} type="text" inputMode="numeric" autoComplete={i === 0 ? "one-time-code" : "off"} aria-label={`${i + 1} 桁目`} className={value.length === i ? "on" : ""} value={value[i] || ""}
+          onChange={e => set(i, e.target.value)} onKeyDown={e => { if (e.key === "Backspace" && !value[i] && i > 0) refs.current[i - 1]?.focus(); }} />
       ))}
     </div>
   );
 }
 
-function PasswordField({ label, value, onChange, onEnter, placeholder, autoComplete }) {
-  const [show, setShow] = useState(false);
-  return (
-    <label className="feeps-auth-field block">
-      <div className="mb-1.5 text-sm font-semibold" style={{ color: PRISM.ink }}>{label}</div>
-      <div className="feeps-auth-input-wrap feeps-login-field flex items-center gap-2 rounded-xl px-3" style={loginFieldVars}>
-        <Lock size={16} style={{ color: PRISM.mut }} />
-        <input
-          type={show ? "text" : "password"}
-          value={value}
-          onChange={e => onChange(e.target.value)}
-          onKeyDown={e => { if (e.key === "Enter" && onEnter) onEnter(); }}
-          placeholder={placeholder}
-          autoComplete={autoComplete}
-          className="feeps-auth-input w-full bg-transparent py-3 text-sm outline-none"
-          style={{ color: PRISM.ink }}
-        />
-        <button type="button" onClick={() => setShow(v => !v)} aria-label={show ? "パスワードを隠す" : "パスワードを表示"} aria-pressed={show} className="feeps-auth-password-toggle flex h-11 w-11 shrink-0 -mr-2 items-center justify-center rounded" style={{ color: PRISM.sub }}>
-          {show ? <EyeOff size={16} /> : <Eye size={16} />}
-        </button>
-      </div>
-    </label>
-  );
-}
-
 /* ===== パスワード再設定フロー（Step1: メール入力→Step2: コード+新パスワード→Step3: 完了） ===== */
-function ForgotPasswordFlow({ onBack }) {
-  const [step, setStep] = useState("email"); // "email" | "code" | "done"
+function ForgotPasswordFlow({ onBack, startStep = "email" }) {
+  const [step, setStep] = useState(startStep); // "email" | "code" | "done"
   const [email, setEmail] = useState("");
   const [code, setCode] = useState("");
   const [newPw, setNewPw] = useState("");
@@ -211,102 +191,59 @@ function ForgotPasswordFlow({ onBack }) {
 
   if (step === "done") {
     return (
-      <div className="feeps-auth-view feeps-auth-complete w-full">
-        <AuthMeta step="RESET · 03" />
-        <div className="feeps-auth-success" style={{ background: PRISM.gradCta, color: PRISM.surface, boxShadow: PRISM.heroShadow }} role="status" aria-label="パスワード変更完了">
-          <CheckCircle2 size={38} aria-hidden="true" />
-        </div>
-        <div className="feeps-auth-heading">
-          <h2 style={{ color: PRISM.ink }}>パスワードを変更しました</h2>
-          <p style={{ color: PRISM.sub }}>新しいパスワードでDevHub LMS をご利用いただけます。</p>
-        </div>
-        <button type="button" onClick={onBack} className={`${ctaClass} mt-7`} style={ctaStyle}>
-          <LogIn size={17} aria-hidden="true" />ログイン画面へ戻る
-        </button>
-        <div className="feeps-auth-note mt-4" style={{ background: PRISM.accentSubtle, color: PRISM.ink, borderColor: PRISM.line2 }}>
-          <ShieldCheck size={17} aria-hidden="true" />
-          <span>セキュリティのため、ほかの端末では再ログインが必要になる場合があります。</span>
-        </div>
-      </div>
+      <>
+        <span className="eyebrow">パスワード再設定</span>
+        <h1 className="lg-h">変更完了</h1>
+        <Steps k={3} />
+        <div className="lg-ok" role="status"><span className="lg-oki" aria-hidden="true">✓</span><b>パスワード変更済み</b><span>他の端末は再ログイン</span></div>
+        <Btn kind="big full" onClick={onBack}>ログインへ</Btn>
+      </>
     );
   }
 
   if (step === "code") {
     return (
-      <div className="feeps-auth-view w-full">
-        <AuthMeta step="RESET · 02" />
-        <div className="feeps-auth-heading">
-          <h2 style={{ color: PRISM.ink }}>確認コードを入力</h2>
-          <p style={{ color: PRISM.sub }}>6桁のコードと、新しいパスワードを入力してください。</p>
-        </div>
-        <div className="feeps-auth-form">
-          {notice && <div className="feeps-auth-note" style={{ background: PRISM.okSubtle, color: PRISM.ink, borderColor: PRISM.line2 }} role="status" aria-live="polite"><Mail size={17} aria-hidden="true" /><span>{notice}<strong className="block">送信先: {email}</strong></span></div>}
-          {err && <div className="feeps-auth-alert" style={{ background: PRISM.badSubtle, color: PRISM.ink, borderColor: PRISM.badLine }} role="alert">{err}</div>}
-          <label className="feeps-auth-field block">
-            <div className="mb-1.5 text-sm font-semibold" style={{ color: PRISM.ink }}>6桁の確認コード</div>
-            <div className="feeps-auth-input-wrap feeps-login-field flex items-center gap-2 rounded-xl px-3" style={loginFieldVars}>
-              <input value={code} onChange={e => setCode(e.target.value)} inputMode="numeric" maxLength={6} autoComplete="one-time-code" placeholder="123456" aria-invalid={Boolean(err)} className="feeps-auth-input feeps-auth-code w-full bg-transparent py-3 text-sm outline-none" style={{ color: PRISM.ink }} />
-            </div>
-          </label>
-          <PasswordField label="新しいパスワード" value={newPw} onChange={setNewPw} placeholder="新しいパスワード" autoComplete="new-password" />
-          <PasswordField label="新しいパスワード（確認）" value={newPw2} onChange={setNewPw2} onEnter={submitNewPassword} placeholder="新しいパスワード（確認）" autoComplete="new-password" />
-          <ul className="feeps-auth-checks" style={{ background: PRISM.neutralSubtle, color: PRISM.sub }} aria-label="パスワード条件">
-            {PASSWORD_REQUIREMENTS.map(requirement => <li key={requirement}><CheckCircle2 size={14} aria-hidden="true" />{requirement}</li>)}
-          </ul>
-          <button type="button" onClick={submitNewPassword} disabled={busy} aria-busy={busy} className={ctaClass} style={ctaStyle}>
-            <ShieldCheck size={17} aria-hidden="true" />{busy ? "変更中…" : "パスワードを変更"}
-          </button>
-          <div className="feeps-auth-field-row">
-            <button type="button" onClick={() => { setErr(""); setNotice(""); setStep("email"); }} className="feeps-auth-link" style={{ color: PRISM.accentDeep }}>
-              <ArrowLeft size={14} aria-hidden="true" />メールアドレスを変更
-            </button>
-            <button type="button" onClick={resendCode} disabled={busy || cooldown > 0} className="feeps-auth-link disabled:opacity-50" style={{ color: PRISM.accentDeep }}>
-              {cooldown > 0 ? `コードを再送（${cooldown}秒後）` : "コードを再送"}
-            </button>
-          </div>
-        </div>
-      </div>
+      <>
+        <span className="eyebrow">パスワード再設定</span>
+        <h1 className="lg-h">確認コード入力</h1>
+        <Steps k={1} />
+        <div className="lg-kv"><span>送信先</span><b>{email}</b></div>
+        {notice && <div className="lg-msg" role="status" aria-live="polite">{notice}</div>}
+        {err && <div className="lg-err" role="alert"><b>{err}</b></div>}
+        <Otp value={code} onChange={setCode} />
+        <Pw label="新しいパスワード" value={newPw} onChange={setNewPw} placeholder="8 文字以上" autoComplete="new-password" />
+        <Rules value={newPw} />
+        <Pw label="新しいパスワード（確認）" value={newPw2} onChange={setNewPw2} onEnter={submitNewPassword} placeholder="確認用" autoComplete="new-password" />
+        <Btn kind="big full" disabled={busy} aria-busy={busy} onClick={submitNewPassword}>{busy ? "変更中" : "パスワードを変更"}</Btn>
+        <span className="lg-sec">
+          <button type="button" className="lg-lk" onClick={() => { setErr(""); setNotice(""); setStep("email"); }}>メールアドレスを変更</button>
+          <button type="button" className="lg-lk" disabled={busy || cooldown > 0} onClick={resendCode}>{cooldown > 0 ? `コード再送（${cooldown} 秒後）` : "コード再送"}</button>
+        </span>
+      </>
     );
   }
 
   return (
-    <div className="feeps-auth-view w-full">
-      <AuthMeta step="RESET · 01" />
-      <div className="feeps-auth-heading">
-        <h2 style={{ color: PRISM.ink }}>パスワードを再設定</h2>
-        <p style={{ color: PRISM.sub }}>登録済みのメールアドレスへ、確認コードを送信します。</p>
-      </div>
-      <div className="feeps-auth-form">
-        {err && <div className="feeps-auth-alert" style={{ background: PRISM.badSubtle, color: PRISM.ink, borderColor: PRISM.badLine }} role="alert">{err}</div>}
-        <label className="feeps-auth-field block">
-          <div className="mb-1.5 text-sm font-semibold" style={{ color: PRISM.ink }}>メールアドレス</div>
-          <div className="feeps-auth-input-wrap feeps-login-field flex items-center gap-2 rounded-xl px-3" style={loginFieldVars}>
-            <Mail size={16} style={{ color: PRISM.mut }} />
-            <input value={email} onChange={e => setEmail(e.target.value)} onKeyDown={e => { if (e.key === "Enter") sendCode(); }} type="email" autoComplete="username" autoFocus placeholder="name@example.com" className="feeps-auth-input w-full bg-transparent py-3 text-sm outline-none" style={{ color: PRISM.ink }} />
-          </div>
-        </label>
-        <div className="feeps-auth-note" style={{ background: PRISM.accentSubtle, color: PRISM.ink, borderColor: PRISM.line2 }}>
-          <ShieldCheck size={17} aria-hidden="true" /><span>アカウントの有無にかかわらず、同じご案内を表示します。</span>
-        </div>
-        <button type="button" onClick={sendCode} disabled={busy} aria-busy={busy} className={ctaClass} style={ctaStyle}>
-          <Send size={17} aria-hidden="true" />{busy ? "送信中…" : "確認コードを送信"}
-        </button>
-        <button type="button" onClick={onBack} className="feeps-auth-secondary" style={{ color: PRISM.ink, background: PRISM.surface, borderColor: PRISM.line2 }}>
-          <ArrowLeft size={15} aria-hidden="true" />ログイン画面へ戻る
-        </button>
-      </div>
-    </div>
+    <>
+      <span className="eyebrow">パスワード再設定</span>
+      <h1 className="lg-h">メール確認</h1>
+      <Steps k={0} />
+      {err && <div className="lg-err" role="alert"><b>{err}</b></div>}
+      <label className="lg-f"><span>登録メールアドレス</span><input value={email} type="email" autoComplete="username" autoFocus placeholder="name@example.co.jp" onChange={e => setEmail(e.target.value)} onKeyDown={e => { if (e.key === "Enter") sendCode(); }} /></label>
+      <Btn kind="big full" disabled={busy} aria-busy={busy} onClick={sendCode}>{busy ? "送信中" : "確認コードを送信"}</Btn>
+      <button type="button" className="lg-lk c" onClick={onBack}>ログインへ戻る</button>
+    </>
   );
 }
 
-export default function Login({ onLogin }) {
-  const [screen, setScreen] = useState("login"); // "login" | "forgot" | "legal:terms" | "legal:privacy"
+export default function Login({ onLogin, preview = {} }) {
+  const [screen, setScreen] = useState(preview.screen || "login"); // "login" | "forgot" | "legal:terms" | "legal:privacy"
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [showPassword, setShowPassword] = useState(false);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState("");
-  const [needNewPw, setNeedNewPw] = useState(false);
+  const [needNewPw, setNeedNewPw] = useState(!!preview.first);
+  const [help, setHelp] = useState(false);
   const [newPw, setNewPw] = useState("");
   // 初回パスワード設定のときだけ、規約への同意を必須にする（同意はログイン成立後に記録する）
   const [agreedTerms, setAgreedTerms] = useState(false);
@@ -418,111 +355,70 @@ export default function Login({ onLogin }) {
     return <StandaloneLegalPage doc={screen === "legal:privacy" ? "privacy" : "terms"} onBack={() => setScreen("login")} />;
   }
 
-  return (
-    <div className="dh-auth" style={{ color: PRISM.ink, "--auth-line": NOVA.line, "--auth-soft": NOVA.soft, "--auth-card": NOVA.card, "--auth-ink": NOVA.ink, "--auth-muted": NOVA.muted, "--auth-accent": NOVA.accent, "--auth-shadow": NOVA.shadowMd }}>
-      <AuthBackdrop />
-      <main className="dh-auth-col">
-        <div className="dh-auth-logo"><BrandMark size={50} withWordmark wordmarkSize={27} /></div>
-        <div className="feeps-auth-card dh-auth-card">
-          {screen === "forgot" ? (
-            <ForgotPasswordFlow onBack={() => setScreen("login")} />
-          ) : mfaStep ? (
-            <div className="feeps-auth-view w-full">
-              <AuthMeta step="AUTH · 03" />
-              <div className="feeps-auth-heading">
-                <h2 style={{ color: PRISM.ink }}>{mfaStep === "setup" ? "二要素認証を設定します" : "二要素認証"}</h2>
-                <p style={{ color: PRISM.sub }}>
-                  {mfaStep === "setup"
-                    ? "パスワードだけで入れないよう、認証アプリを登録してください。設定は最初の1回だけです。"
-                    : "このデバイスからは初回のみ確認します。以降14日間はコードの入力を省略できます。"}
-                </p>
-              </div>
-              <div className="feeps-auth-form">
-                {mfaStep === "setup"
-                  ? <TotpSetupPanel email={email.trim()} sharedSecret={totpSetup.sharedSecret} setupUri={totpSetup.uri} onVerify={handleTotpCode} busy={busy} error={err} submitLabel="設定を完了してログイン" />
-                  : <TotpChallengePanel onVerify={handleTotpCode} busy={busy} error={err} />}
-                <button type="button" onClick={cancelMfa} className="feeps-auth-secondary" style={{ color: PRISM.ink, background: PRISM.surface, borderColor: PRISM.line2 }}>
-                  <ArrowLeft size={15} aria-hidden="true" />ログイン画面へ戻る
-                </button>
-              </div>
-            </div>
-          ) : needNewPw ? (
-            <div className="feeps-auth-view w-full">
-              <AuthMeta step="AUTH · 02" />
-              <div className="feeps-auth-heading">
-                <h2 style={{ color: PRISM.ink }}>DevHub LMS へようこそ</h2>
-                <p style={{ color: PRISM.sub }}>最初に、ご自身のパスワードを設定してください。</p>
-              </div>
-              <div className="feeps-auth-form">
-                <div className="feeps-auth-note" style={{ background: PRISM.accentSubtle, color: PRISM.ink, borderColor: PRISM.line2 }}>
-                  <Mail size={17} aria-hidden="true" /><span>招待先 <strong>{email}</strong></span>
-                </div>
-                {err && (
-                  <div className={err.startsWith("初回ログイン") ? "feeps-auth-note" : "feeps-auth-alert"}
-                    style={{ background: err.startsWith("初回ログイン") ? PRISM.accentSubtle : PRISM.badSubtle, color: PRISM.ink, borderColor: err.startsWith("初回ログイン") ? PRISM.line2 : PRISM.badLine }}
-                    role={err.startsWith("初回ログイン") ? "status" : "alert"}>
-                    {err}
-                  </div>
-                )}
-                <PasswordField label="新しいパスワード" value={newPw} onChange={setNewPw} onEnter={handleNewPassword} placeholder="新しいパスワード" autoComplete="new-password" />
-                <ul className="feeps-auth-checks" style={{ background: PRISM.neutralSubtle, color: PRISM.sub }} aria-label="パスワード条件">
-                  {PASSWORD_REQUIREMENTS.map(requirement => <li key={requirement}><CheckCircle2 size={14} aria-hidden="true" />{requirement}</li>)}
-                </ul>
-                <TermsCheckbox checked={agreedTerms} onChange={setAgreedTerms} />
-                <button type="button" onClick={handleNewPassword} disabled={busy || !agreedTerms} aria-busy={busy} className={ctaClass} style={{ ...ctaStyle, opacity: agreedTerms ? 1 : 0.6 }}>
-                  <Sparkles size={17} aria-hidden="true" />{busy ? "設定中…" : "パスワードを設定してはじめる"}
-                </button>
-              </div>
-            </div>
-          ) : (
-            <div className="feeps-auth-view w-full">
-              <AuthMeta step="AUTH · 01" />
-              <div className="feeps-auth-heading">
-                {/* 2026-09-09: 「おかえりなさい」をやめた。毎日見る画面で情緒に寄ると白々しくなる */}
-                <h2 style={{ color: PRISM.ink }}>ログイン</h2>
-              </div>
-              <div className="feeps-auth-form" role="form" aria-label="ログイン">
-                {err && <div className="feeps-auth-alert" style={{ background: PRISM.badSubtle, color: PRISM.ink, borderColor: PRISM.badLine }} role="alert">{err}</div>}
-                <label className="feeps-auth-field block">
-                  <div className="mb-1.5 text-sm font-semibold" style={{ color: PRISM.ink }}>メールアドレス</div>
-                  <div className="feeps-auth-input-wrap feeps-login-field flex items-center gap-2 rounded-xl px-3" style={loginFieldVars}>
-                    <Mail size={16} style={{ color: PRISM.mut }} />
-                    <input value={email} onChange={e => setEmail(e.target.value)} placeholder="name@example.com" type="email" autoComplete="username" className="feeps-auth-input w-full bg-transparent py-3 text-sm outline-none" style={{ color: PRISM.ink }} />
-                  </div>
-                </label>
-                <label className="feeps-auth-field block">
-                  <div className="feeps-auth-field-row mb-1.5">
-                    <span className="text-sm font-semibold" style={{ color: PRISM.ink }}>パスワード</span>
-                    <button type="button" onClick={() => { setErr(""); setScreen("forgot"); }} className="feeps-auth-link" style={{ color: PRISM.accentDeep }}>パスワードをお忘れですか？</button>
-                  </div>
-                  <div className="feeps-auth-input-wrap feeps-login-field flex items-center gap-2 rounded-xl px-3" style={loginFieldVars}>
-                    <Lock size={16} style={{ color: PRISM.mut }} />
-                    <input type={showPassword ? "text" : "password"} value={password} onChange={e => setPassword(e.target.value)} onKeyDown={e => { if (e.key === "Enter") handleLogin(); }} placeholder="パスワード" autoComplete="current-password" className="feeps-auth-input w-full bg-transparent py-3 text-sm outline-none" style={{ color: PRISM.ink }} />
-                    <button type="button" onClick={() => setShowPassword(v => !v)} aria-label={showPassword ? "パスワードを隠す" : "パスワードを表示"} aria-pressed={showPassword} className="feeps-auth-password-toggle flex h-11 w-11 shrink-0 -mr-2 items-center justify-center rounded" style={{ color: PRISM.sub }}>
-                      {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
-                    </button>
-                  </div>
-                </label>
-                <button type="button" onClick={handleLogin} disabled={busy} aria-busy={busy} className={ctaClass} style={ctaStyle}>
-                  {/* 2026-09-09: 「Feeps One にログイン」から製品名を外した。
-                      名前が変わる可能性があるので、触る箇所を増やさない（ユーザー指示） */}
-                  <LogIn size={17} aria-hidden="true" />{busy ? "ログイン中…" : "ログイン"}
-                </button>
-                <div className="feeps-auth-divider" style={{ background: PRISM.line2 }} />
-                <div className="feeps-auth-note" style={{ background: PRISM.accentSubtle, color: PRISM.ink, borderColor: PRISM.line2 }}>
-                  <Mail size={17} aria-hidden="true" /><span>初めて利用する方は、招待メールに記載された仮パスワードでログインしてください。</span>
-                </div>
-              </div>
-            </div>
-          )}
-
+  const body = screen === "forgot" ? <ForgotPasswordFlow onBack={() => setScreen("login")} startStep={preview.step} />
+    : mfaStep ? (
+      <>
+        <span className="eyebrow">二要素認証</span>
+        <h1 className="lg-h">{mfaStep === "setup" ? "認証アプリの登録" : "コード入力"}</h1>
+        <div className="lms-legacy lg-mfa">
+          {mfaStep === "setup"
+            ? <TotpSetupPanel email={email.trim()} sharedSecret={totpSetup.sharedSecret} setupUri={totpSetup.uri} onVerify={handleTotpCode} busy={busy} error={err} submitLabel="設定を完了してログイン" />
+            : <TotpChallengePanel onVerify={handleTotpCode} busy={busy} error={err} />}
         </div>
-        <footer className="feeps-auth-foot dh-auth-foot" style={{ color: PRISM.sub }}>
-          <button type="button" onClick={() => setScreen("legal:terms")}>利用規約</button>
-          <button type="button" onClick={() => setScreen("legal:privacy")}>プライバシーポリシー</button>
-          <span>© 2026 Feeps</span>
-        </footer>
-      </main>
+        <button type="button" className="lg-lk c" onClick={cancelMfa}>ログインへ戻る</button>
+      </>
+    ) : needNewPw ? (
+      <>
+        <span className="eyebrow">初回ログイン</span>
+        <h1 className="lg-h">パスワード設定</h1>
+        <div className="lg-kv"><span>招待先</span><b>{email}</b></div>
+        {err && !err.startsWith("初回ログイン") && <div className="lg-err" role="alert"><b>{err}</b></div>}
+        <Pw label="新しいパスワード" value={newPw} onChange={setNewPw} onEnter={handleNewPassword} placeholder="8 文字以上" autoComplete="new-password" />
+        <Rules value={newPw} />
+        <TermsCheckbox checked={agreedTerms} onChange={setAgreedTerms} />
+        <Btn kind="big full" disabled={busy || !agreedTerms} aria-busy={busy} onClick={handleNewPassword}>{busy ? "設定中" : "設定してはじめる"}</Btn>
+      </>
+    ) : (
+      <>
+        <span className="eyebrow">ようこそ</span>
+        <h1 className="lg-h">ログイン</h1>
+        {err && <div className="lg-err" role="alert"><b>ログイン失敗</b><span>{err}</span></div>}
+        <label className={`lg-f${err ? " ng" : ""}`}><span>メールアドレス</span><input value={email} type="email" autoComplete="username" placeholder="name@example.co.jp" onChange={e => setEmail(e.target.value)} /></label>
+        <Pw label="パスワード" value={password} onChange={setPassword} onEnter={handleLogin} placeholder="パスワード" autoComplete="current-password" />
+        <div className="lg-row"><span /><button type="button" className="lg-lk" onClick={() => { setErr(""); setScreen("forgot"); }}>パスワードをお忘れの方</button></div>
+        <Btn kind="big full" disabled={busy} aria-busy={busy} onClick={handleLogin}>{busy ? "ログイン中" : "ログイン"}</Btn>
+      </>
+    );
+
+  return (
+    <div className="lms lgw">
+      <div className="login lg2">
+        <section className="lbrand">
+          <span className="lg-blob b1" aria-hidden="true" /><span className="lg-blob b2" aria-hidden="true" />
+          <div className="lg-top"><div className="lmark"><DevHubMark product="teal" size={48} /></div><span className="wm">Dev<b>Hub</b><i>LMS</i></span></div>
+          <p className="lcopy">研修の毎日を、<br />ひとつに。</p>
+          <div className="lg-kd">{KINDS.map(([t, c]) => <span key={t} className={`c-${c}`}><i aria-hidden="true" />{t}</span>)}</div>
+          <Devices />
+        </section>
+        <main className="lform">
+          <div className="lcard">{body}</div>
+          <footer className="lfoot">
+            <button type="button" onClick={() => setScreen("legal:terms")}>利用規約</button>
+            <button type="button" onClick={() => setScreen("legal:privacy")}>プライバシーポリシー</button>
+            <button type="button" onClick={() => setHelp(true)}>困ったとき</button>
+            <span>© 2026 Feeps</span>
+          </footer>
+        </main>
+      </div>
+      {help && (
+        <Modal title="困ったとき" width={460} onClose={() => setHelp(false)} footer={<Btn kind="ghost" onClick={() => setHelp(false)}>閉じる</Btn>}>
+          <div className="lg-help">
+            <div><b>初めてログインする</b><small>招待メールの仮パスワードでログイン</small></div>
+            <div><b>パスワードを忘れた</b><small><button type="button" className="lg-lk" onClick={() => { setHelp(false); setErr(""); setScreen("forgot"); }}>パスワード再設定へ</button></small></div>
+            <div><b>メールが届かない・ログインできない</b><small>研修の担当者へ連絡</small></div>
+          </div>
+        </Modal>
+      )}
     </div>
   );
 }

@@ -1,0 +1,175 @@
+/* ログイン（モック loginPage のセージ。.lgw の中だけに効かせる） */
+.lgw { --lms-word: #0A857D; --mono: ui-monospace, Consolas, monospace; --soft: var(--paper); min-height: 100vh; background: var(--paper) }
+.lgw button { cursor: pointer }
+.lgw .login { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); min-height: 780px }
+.lgw .lbrand { background: linear-gradient(160deg, #0E9F96, #0A6F69); color: #fff; padding: 56px 48px; display: grid; align-content: center; gap: 18px; position: relative; overflow: hidden; background-image: linear-gradient(rgba(255,255,255,.07) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,.07) 1px, transparent 1px), linear-gradient(160deg, #0E9F96, #0A6F69); background-size: 32px 32px, 32px 32px, auto }
+.lgw .lcopy { margin: 0; font-size: 22px; font-weight: 700 }
+.lgw .lform { display: grid; align-content: center; justify-items: center; padding: 40px 24px; gap: 18px }
+.lgw .lcard { width: min(420px, 100%); background: var(--card); border: 1px solid var(--line); border-radius: 16px; padding: 28px; display: grid; gap: 14px; box-shadow: 0 1px 2px rgba(21,23,28,.04), 0 18px 40px -24px rgba(21,23,28,.25) }
+.lgw .lmp { justify-self: start; font-size: 12.5px; font-weight: 700; letter-spacing: .06em; border: 1px solid rgba(255,255,255,.55); border-radius: 999px; padding: 3px 12px; background: rgba(255,255,255,.12) }
+.lgw .ldev-art { position: relative; height: 290px; max-width: 520px }
+.lgw .dv-pc { position: absolute; left: 0; top: 0; width: 420px }
+.lgw .dv-scr { height: 254px; border: 9px solid #1B1E24; border-bottom-width: 12px; border-radius: 12px 12px 4px 4px; background: #F7FAF9; color: #15171C; overflow: hidden; display: grid; grid-template-rows: auto 1fr; box-shadow: 0 24px 40px -24px rgba(0,0,0,.5) }
+.lgw .dv-base { height: 12px; margin: 0 -26px; background: linear-gradient(#D5DCDA, #AEB8B5); border-radius: 0 0 14px 14px; position: relative }
+.lgw .dv-base::after { content: ""; position: absolute; left: 50%; top: 0; transform: translateX(-50%); width: 70px; height: 5px; border-radius: 0 0 6px 6px; background: #9AA5A2 }
+.lgw .dm-bar { display: flex; align-items: center; gap: 6px; padding: 6px 9px; background: #fff; border-bottom: 1px solid #DFE6E4; font-size: 8.5px }
+.lgw .dm-bar b { font-family: "Bricolage Grotesque", sans-serif; font-size: 9.5px }
+.lgw .dm-bar b em { font-style: normal; color: #0A857D }
+.lgw .dm-logo { width: 13px; height: 13px; border-radius: 4px; background: #0E9F96 }
+.lgw .dm-nav { display: flex; gap: 4px; margin-left: 8px }
+.lgw .dm-nav u { text-decoration: none; padding: 2px 6px; border-radius: 4px; color: #454B57; font-weight: 700 }
+.lgw .dm-nav u.on { background: #15171C; color: #fff }
+.lgw .dm-me { margin-left: auto; width: 14px; height: 14px; border-radius: 50%; background: #DDF3F0 }
+.lgw .dm-body { display: grid; grid-template-columns: 1.3fr 1fr; gap: 8px; padding: 9px; align-content: start }
+.lgw .dm-hero { border: 1.5px solid #15171C; border-radius: 8px; background: #fff; padding: 9px; display: grid; gap: 3px; align-content: start; position: relative; overflow: hidden }
+.lgw .dm-hero::after { content: ""; position: absolute; right: -14px; top: -14px; width: 46px; height: 46px; border-radius: 50%; background: #A9E2DB; opacity: .6 }
+.lgw .dm-hero small, .lgw .dm-flow small { font-family: var(--mono); font-size: 6.5px; letter-spacing: .1em; color: #767D8C }
+.lgw .dm-hero b { font-size: 14px; line-height: 1.2 }
+.lgw .dm-hero span { font-size: 7.5px; color: #454B57 }
+.lgw .dm-btn { justify-self: start; font-style: normal; margin-top: 4px; font-size: 7.5px; font-weight: 700; color: #fff; background: #0E9F96; border-radius: 5px; padding: 3px 7px }
+.lgw .dm-flow { border: 1px solid #DFE6E4; border-radius: 8px; background: #fff; padding: 8px; display: grid; gap: 4px; align-content: start }
+.lgw .dm-flow span { display: flex; align-items: center; gap: 5px; font-size: 7.5px; font-weight: 700 }
+.lgw .dm-flow span i { width: 8px; height: 8px; border-radius: 50%; border: 1.5px solid #C8D2CF; flex: none }
+.lgw .dm-flow span.d i { background: #11966F; border-color: #11966F }
+.lgw .dm-flow span.n i { background: #0E9F96; border-color: #0E9F96; box-shadow: 0 0 0 2px #DDF3F0 }
+.lgw .dm-flow span em.w { color: #B4590F; font-weight: 700 }
+.lgw .dm-flow span i.mk { border-radius: 2px; border: 0; background: #0E9F96; width: 3px; height: 9px }
+.lgw .dm-flow span i.co { border-radius: 2px; border: 0; background: #7B5FE0; width: 3px; height: 9px }
+.lgw .dm-flow span em { margin-left: auto; font-style: normal; font-weight: 400; color: #767D8C; font-size: 7px }
+.lgw .dv-ph { position: absolute; left: 360px; top: 54px; width: 128px; height: 236px; border: 6px solid #1B1E24; border-radius: 22px; background: #1B1E24; box-shadow: -14px 24px 34px -18px rgba(0,0,0,.55) }
+.lgw .dv-pscr { position: relative; height: 100%; border-radius: 16px; background: #F7FAF9; color: #15171C; overflow: hidden; display: grid; grid-template-rows: auto auto 1fr auto; gap: 6px; padding-top: 12px }
+.lgw .dv-notch { position: absolute; left: 50%; top: 4px; transform: translateX(-50%); width: 34px; height: 6px; border-radius: 4px; background: #1B1E24 }
+.lgw .dm-bar.sm { padding: 4px 7px; font-size: 7px }
+.lgw .dm-bar.sm b { font-size: 8px }
+.lgw .dm-hero.sm { margin: 0 7px; padding: 7px }
+.lgw .dm-hero.sm b { font-size: 11px }
+.lgw .dm-flow.sm { margin: 0 7px; padding: 6px; gap: 3px }
+.lgw .dm-flow.sm span { font-size: 6.5px }
+.lgw .dm-flow.sm span em { font-size: 6px }
+.lgw .dm-bnav { display: grid; grid-template-columns: repeat(4, 1fr); background: #fff; border-top: 1px solid #DFE6E4; padding: 5px 4px 7px }
+.lgw .dm-bnav span { display: grid; place-items: center; color: #9AA3A0 }
+.lgw .dm-bnav span.on { color: #0E9F96 }
+.lgw .dm-bnav svg { width: 12px; height: 12px }
+.lgw .ldev-k { display: flex; flex-wrap: wrap; gap: 6px }
+.lgw .ldev-k span { display: inline-flex; align-items: center; gap: 5px; font-size: 12.5px; font-weight: 700; background: rgba(255,255,255,.14); border-radius: 8px; padding: 4px 10px }
+.lgw .ldev-k svg { width: 15px; height: 15px }
+@media (max-width: 1100px) {
+.lgw .ldev-art { transform: scale(.82); transform-origin: 0 0; height: 240px }
+}
+@media (max-width: 860px) {
+.lgw .ldev-art { transform: scale(.66); height: 196px }
+}
+.lgw .lfoot { display: flex; gap: 14px; font-size: 12.5px; color: var(--muted) }
+.lgw .lfoot a { color: var(--muted); text-decoration: underline }
+@media (max-width: 860px) {
+.lgw .login { grid-template-columns: minmax(0, 1fr) }
+.lgw .lbrand { padding: 32px 24px }
+.lgw .notep .nbody { grid-template-columns: minmax(0, 1fr) }
+.lgw .notep nav { display: none }
+}
+.lgw .login.lg2 { min-height: 760px; background: var(--paper); border-radius: 28px; overflow: hidden }
+.lgw .lg2 .lbrand { background: var(--tm); background-image: none; color: var(--ink); padding: 48px 48px 40px; align-content: start; gap: 20px }
+.lgw .lg2 .lg-blob { position: absolute; border-radius: 50%; pointer-events: none }
+.lgw .lg2 .b1 { width: 340px; height: 340px; right: -120px; top: -120px; background: var(--cur); opacity: .8 }
+.lgw .lg2 .b2 { width: 220px; height: 220px; left: -80px; bottom: -90px; background: var(--att); opacity: .9 }
+.lgw .lg-top { position: relative; display: flex; align-items: center; gap: 14px }
+.lgw .lg2 .wm { font-family: "Bricolage Grotesque", system-ui, sans-serif; font-size: 34px; letter-spacing: -0.035em; line-height: 1 }
+.lgw .lg2 .wm b { font-weight: 800 }
+.lgw .lg2 .wm i { font-style: normal; font-weight: 700; margin-left: .28em; color: var(--lms-word) }
+.lgw .lg2 .lcopy { position: relative; margin: 6px 0 0; font-family: var(--display); font-size: clamp(30px, 3.2vw, 44px); line-height: 1.25; font-weight: 700; letter-spacing: .02em }
+.lgw .lg-kd { position: relative; display: flex; flex-wrap: wrap; gap: 6px }
+.lgw .lg-kd span { display: inline-flex; align-items: center; gap: 6px; height: 28px; padding: 0 12px; border-radius: 999px; background: var(--card); font-size: 12.5px; font-weight: 700; color: var(--ink2) }
+.lgw .lg-kd i { width: 8px; height: 8px; border-radius: 50%; background: var(--cd) }
+.lgw .lg2 .ldev { position: relative; margin-top: 6px }
+.lgw .lg2 .lmp { border: 0; background: var(--ink); color: #fff }
+.lgw .lg2 .ldev-k span { background: rgba(255, 255, 255, .7); color: var(--ink2); border-radius: 999px }
+.lgw .lg2 .dv-scr, .lgw .lg2 .dv-pscr { background: var(--paper); color: var(--ink) }
+.lgw .lg2 .dv-scr { border-color: var(--ink); box-shadow: 0 30px 50px -30px rgba(31, 38, 36, .5) }
+.lgw .lg2 .dv-ph { border-color: var(--ink); background: var(--ink) }
+.lgw .lg2 .dv-notch { background: var(--ink) }
+.lgw .lg2 .dm-bar { border-bottom-color: var(--line2) }
+.lgw .lg2 .dm-logo { background: var(--ink); border-radius: 50% }
+.lgw .lg2 .dm-bar b em { color: var(--lms-word) }
+.lgw .lg2 .dm-me { background: var(--tm) }
+.lgw .lg2 .dm-nav u.on { background: var(--ink); border-radius: 999px }
+.lgw .lg2 .dm-hero { border: 0; background: var(--cur); border-radius: 10px }
+.lgw .lg2 .dm-hero::after { background: rgba(255, 255, 255, .55); opacity: 1 }
+.lgw .lg2 .dm-btn { background: var(--ink); border-radius: 999px }
+.lgw .lg2 .dm-flow { border: 0; border-radius: 10px }
+.lgw .lg2 .dm-flow span.d i { background: var(--rep-d); border-color: var(--rep-d) }
+.lgw .lg2 .dm-flow span.n i { background: var(--ink); border-color: var(--ink); box-shadow: 0 0 0 2px var(--cur) }
+.lgw .lg2 .dm-flow span em.w { color: var(--att-i) }
+.lgw .lg2 .dm-flow span i.mk { background: var(--tm-d) }
+.lgw .lg2 .dm-flow span i.co { background: var(--tst-d) }
+.lgw .lg2 .dm-bnav { border-top-color: var(--line2) }
+.lgw .lg2 .dm-bnav span.on { color: var(--ink) }
+.lgw .lg2 .lform { gap: 20px }
+.lgw .lg2 .lcard { width: min(440px, 100%); border: 0; border-radius: 24px; padding: 32px; gap: 16px; box-shadow: 0 1px 0 rgba(31, 38, 36, .04), 0 24px 48px -30px rgba(31, 38, 36, .35) }
+.lgw .lg-h { margin: -8px 0 0; font-family: var(--display); font-size: 28px; font-weight: 700; line-height: 1.3 }
+.lgw .lg-kv { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; background: var(--paper); border-radius: 12px; padding: 10px 14px; font-size: 13.5px }
+.lgw .lg-kv span { font-size: 12px; font-weight: 700; color: var(--muted) }
+.lgw .lg-kv b { overflow-wrap: anywhere }
+.lgw .lg-m { margin: 0; color: var(--ink2); font-size: 14px; line-height: 1.7 }
+.lgw .lg-f { display: grid; gap: 6px }
+.lgw .lg-f > span:first-child { font-size: 12.5px; font-weight: 700; color: var(--ink2) }
+.lgw .lg2 .lg-f input, .lgw .lg2 .lg-pw input { width: 100%; height: 48px; border: 0; border-radius: 14px; background: var(--paper); padding: 0 16px; font-size: 15px; color: var(--ink); box-shadow: none }
+.lgw .lg2 .lg-f input:focus, .lgw .lg2 .lg-pw input:focus { outline: none; box-shadow: 0 0 0 2px var(--ink) inset; background: var(--card) }
+.lgw .lg2 .lg-f.ng input { box-shadow: 0 0 0 2px var(--dev-d) inset; background: var(--card) }
+.lgw .lg-pw { position: relative; display: block }
+.lgw .lg2 .lg-pw input { padding-right: 70px }
+.lgw .lg-pw button { position: absolute; right: 6px; top: 6px; height: 36px; border: 0; border-radius: 10px; padding: 0 12px; background: var(--card); font-size: 12.5px; font-weight: 700; color: var(--ink2); cursor: pointer }
+.lgw .lg-pw button[aria-pressed="true"] { background: var(--ink); color: #fff }
+.lgw .lg-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap }
+.lgw .lg-keep { position: relative; display: inline-flex; align-items: center; gap: 8px; font-size: 13px; color: var(--ink2); cursor: pointer }
+.lgw .lg-keep input { position: absolute; opacity: 0; width: 1px; height: 1px }
+.lgw .lg-keep i { width: 20px; height: 20px; border-radius: 6px; display: grid; place-items: center; font-style: normal; font-size: 11px; font-weight: 700; background: var(--paper); color: transparent; box-shadow: 0 0 0 1.5px var(--line) inset }
+.lgw .lg-keep input:checked + i { background: var(--ink); color: #fff; box-shadow: none }
+.lgw .lg-keep input:focus-visible + i { outline: 2px solid var(--ink); outline-offset: 2px }
+.lgw .lg-lk { border: 0; background: none; padding: 0; font-size: 13px; font-weight: 700; color: var(--ink); text-decoration: underline; text-underline-offset: 3px; cursor: pointer }
+.lgw .lg-lk.c { justify-self: center }
+.lgw .lg2 .btn.big.full { height: 50px; font-size: 15px }
+.lgw .lg-err { display: grid; gap: 2px; background: var(--dev); color: var(--dev-i); border-radius: 14px; padding: 12px 14px; font-size: 13px; line-height: 1.6 }
+.lgw .lg-err b { font-size: 14px }
+.lgw .lg-rl { display: flex; flex-wrap: wrap; gap: 6px; margin-top: -6px }
+.lgw .lg-rl span { display: inline-flex; align-items: center; gap: 5px; height: 26px; padding: 0 10px 0 6px; border-radius: 999px; background: var(--paper); font-size: 12px; font-weight: 600; color: var(--muted) }
+.lgw .lg-rl i { width: 16px; height: 16px; border-radius: 50%; display: grid; place-items: center; font-style: normal; font-size: 9px; box-shadow: 0 0 0 1.5px var(--line) inset }
+.lgw .lg-rl span.on { background: var(--rep); color: var(--rep-i) }
+.lgw .lg-rl span.on i { background: var(--rep-d); color: #fff; box-shadow: none }
+.lgw .lg-st { list-style: none; margin: 0; padding: 0; display: flex; align-items: center; gap: 8px; font-size: 12px; font-weight: 700; color: var(--muted) }
+.lgw .lg-st li { display: inline-flex; align-items: center; gap: 6px }
+.lgw .lg-st li:not(:last-child)::after { content: ""; width: 22px; height: 2px; border-radius: 1px; background: var(--line); margin-left: 2px }
+.lgw .lg-st i { width: 22px; height: 22px; border-radius: 50%; display: grid; place-items: center; font-style: normal; font-size: 11px; background: var(--paper) }
+.lgw .lg-st li.on { color: var(--ink) }
+.lgw .lg-st li.on i { background: var(--ink); color: #fff }
+.lgw .lg-st li.dn i { background: var(--rep-d); color: #fff }
+.lgw .lg-st li.dn:not(:last-child)::after { background: var(--rep-d) }
+.lgw .lg-otp { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 8px }
+.lgw .lg2 .lg-otp input { height: 56px; border: 0; border-radius: 14px; background: var(--paper); text-align: center; font-family: var(--num); font-size: 24px; font-weight: 600; color: var(--ink); padding: 0 }
+.lgw .lg2 .lg-otp input.on { background: var(--card); box-shadow: 0 0 0 2px var(--ink) inset }
+.lgw .lg-rs { justify-self: center; font-size: 12.5px; color: var(--muted) }
+.lgw .lg-ok { display: grid; justify-items: center; gap: 6px; text-align: center; background: var(--rep); border-radius: 18px; padding: 22px 16px; color: var(--rep-i) }
+.lgw .lg-ok b { font-size: 16px; color: var(--ink) }
+.lgw .lg-ok > span:last-child { font-size: 13px; color: var(--ink2) }
+.lgw .lg-oki { width: 48px; height: 48px; border-radius: 50%; display: grid; place-items: center; background: var(--rep-d); color: #fff; font-size: 22px; font-weight: 700 }
+.lgw .lg2 .lfoot a { color: var(--muted) }
+@media (max-width: 860px) {
+.lgw .login.lg2 { border-radius: 0; min-height: 0 }
+.lgw .lg2 .lbrand { padding: 28px 20px 24px; gap: 12px }
+.lgw .lg2 .ldev, .lgw .lg2 .lg-kd { display: none }
+.lgw .lg2 .lcopy { font-size: 26px; margin: 0 }
+.lgw .lg2 .lcopy br { display: none }
+.lgw .lg2 .wm { font-size: 28px }
+.lgw .lg2 .lform { padding: 24px 16px 32px; align-content: start }
+.lgw .lg2 .lcard { padding: 24px 20px }
+.lgw .lg2 .lfoot { flex-wrap: wrap; justify-content: center }
+}
+
+.lgw .lbrand { position: relative; overflow: hidden }
+.lgw .lg-note { background: var(--tm); border-radius: 14px; padding: 12px 14px; font-size: 13px; line-height: 1.6 }
+.lgw .lg-msg { background: var(--rep); color: var(--rep-i); border-radius: 14px; padding: 12px 14px; font-size: 13px; font-weight: 600 }
+.lgw .lg-sec { justify-self: center; display: flex; gap: 14px; flex-wrap: wrap; justify-content: center }
+.lgw .lfoot { display: flex; align-items: center; gap: 16px; font-size: 12.5px; color: var(--muted) } .lgw .lfoot button { border: 0; background: none; padding: 0; color: var(--muted); font-size: 12.5px }
+.lgw .lcard { display: grid; background: var(--card) }
+.lgw .lg-help { display: grid; gap: 8px } .lgw .lg-help > div { display: grid; gap: 2px; background: var(--card); border-radius: 14px; padding: 12px 14px; font-size: 14px } .lgw .lg-help small { color: var(--muted); font-size: 12.5px }
+.lgw .login.lg2 { min-height: 100vh; border-radius: 0 }
+@media (max-width: 860px) { .lgw .login.lg2 { grid-template-columns: minmax(0, 1fr); align-content: start } }
