@@ -44,24 +44,25 @@ export default function TraineeHome({ go }) {
   const dls = [
     ...(d.devs || []).filter(a => a.deadline && a.state !== "done" && a.status !== "done").map(a => ({ key: `dev-${a.id}`, date: a.deadline, title: a.title, kind: "個人開発", cat: "dev", go: "dev" })),
     ...(dash.tests || []).filter(x => x.status === "unsubmitted" && x.dueDate).map(x => ({ key: `test-${x.testId}`, date: x.dueDate, title: x.title, kind: "テスト", cat: "tst", go: "test" })),
+    ...(d.practice || []).filter(s => s.status === "published" && s.dueDate && (s.doneCount || 0) < (s.counts?.questions || 0)).map(s => ({ key: `prac-${s.id}`, date: s.dueDate, title: s.title, kind: "練習問題", cat: "tst", go: "prac" })),
   ].sort((a, b) => String(a.date).localeCompare(String(b.date)));
   const tests = (dash.tests || []).filter(x => x.status === "unsubmitted" && !x.dueDate);
   const firstDl = dls[0] ? daysLeft(dls[0].date, today) : null;
 
   const hero = !isDay
     ? (
-      <Hero cat="gy" eyebrow="今日" title="研修のない日" sub={dash.nextTrainingDay ? `次の研修日 ${dash.nextTrainingDay.date.slice(5).replace("-", "/")}${dash.nextTrainingDay.lessonTitle ? ` ・ ${dash.nextTrainingDay.lessonTitle}` : ""}` : undefined}>
+      <Hero cat="gy" art="gy" eyebrow="今日" title="研修のない日" sub={dash.nextTrainingDay ? `次の研修日 ${dash.nextTrainingDay.date.slice(5).replace("-", "/")}${dash.nextTrainingDay.lessonTitle ? ` ・ ${dash.nextTrainingDay.lessonTitle}` : ""}` : undefined}>
         <div className="row"><Btn kind="ghost" onClick={() => go("cur")}>カリキュラム</Btn><Btn kind="ghost" onClick={() => go("note")}>ノート</Btn></div>
       </Hero>
     )
     : allDone
       ? (
-        <Hero cat="gy" eyebrow="今日" step={`${list.length} / ${list.length}`} title="おつかれさまでした">
+        <Hero cat="gy" art="gy" eyebrow="今日" step={`${list.length} / ${list.length}`} title="おつかれさまでした">
           <div className="row th-chips"><Chip>出勤 {att.clockIn}</Chip><Chip>退勤 {att.clockOut}</Chip><Chip tone="ok">日報 提出済み</Chip></div>
         </Hero>
       )
       : (
-        <Hero cat={next.cat} eyebrow="次にやること" step={`${nextI + 1} / ${list.length}`} title={next.t} sub={next.sub}>
+        <Hero cat={next.cat} art={next.cat} eyebrow="次にやること" step={`${nextI + 1} / ${list.length}`} title={next.t} sub={next.sub}>
           <div className="row">
             <Btn kind="big" onClick={() => go(next.go)}>{next.act}</Btn>
             {next.k !== "lesson" ? <Btn kind="ghost big th-ghost" onClick={() => go("cur")}>今日の単元</Btn> : <Btn kind="ghost big th-ghost" onClick={() => go("doc")}>フォルダ</Btn>}

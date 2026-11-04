@@ -24,16 +24,17 @@ export function useTraineeHome() {
       const courses = Array.isArray(dash?.activeCourses) ? dash.activeCourses : [];
       const schedCourse = dash?.todayCompletion?.schedule?.courseId;
       const course = courses.find(c => c.courseId === schedCourse) || courses.find(c => c.courseId === getActiveCourseId()) || courses[0] || null;
-      let devs = null;
+      let devs = null, practice = [];
       if (course?.courseId) {
         devs = await apiGet(`/dev-assignments?courseId=${encodeURIComponent(course.courseId)}`)
           .then(r => (Array.isArray(r) ? r : Array.isArray(r?.items) ? r.items : []))
           .catch(() => null);
+        practice = await apiGet(`/practice?courseId=${encodeURIComponent(course.courseId)}`).then(r => (Array.isArray(r?.items) ? r.items : [])).catch(() => []);
       }
       if (!alive) return;
       setData({
         state: dash ? "ready" : "error",
-        today, dash, course, devs, anns,
+        today, dash, course, devs, practice, anns,
         reportToday: reports ? reports.find(r => r.date === today) || null : undefined,
       });
     });

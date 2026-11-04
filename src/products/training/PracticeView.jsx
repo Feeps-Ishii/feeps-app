@@ -331,7 +331,7 @@ function Editor({ courseId, id, back }) {
   async function save(andPublish) {
     setBusy(andPublish ? "公開しています…" : "保存しています…"); setMsg({ kind: "", text: "" });
     try {
-      let r = await api.put(courseId, id, { title: set.title, lessons: set.lessons, warnings: set.warnings || [], showAnswers: meta.showAnswers !== false });
+      let r = await api.put(courseId, id, { title: set.title, lessons: set.lessons, warnings: set.warnings || [], showAnswers: meta.showAnswers !== false, dueDate: meta.dueDate || "" });
       if (andPublish) r = await api.publish(courseId, id);
       setMeta(r.item); setDirty(false);
       setMsg({ kind: "ok", text: andPublish ? "公開しました。受講生の「練習問題」とカリキュラムに出ます。" : "保存しました。" });
@@ -364,6 +364,7 @@ function Editor({ courseId, id, back }) {
         <Card className="grid gap-3 p-4">
           <div className="flex flex-wrap items-center gap-3">
             <input className="pq-in" style={{ maxWidth: 480, fontWeight: 700, fontSize: 15 }} value={set.title} aria-label="題名" onChange={e => edit(n => { n.title = e.target.value.slice(0, 120); })} />
+            <label className="flex items-center gap-1.5 text-sm" style={{ color: T.textSecondary }}>締め切り<input type="date" aria-label="締め切り" value={meta?.dueDate || ""} onChange={e => { setMeta(m => ({ ...m, dueDate: e.target.value })); setDirty(true); }} className="rounded-lg px-2 py-1 text-sm" style={{ border: `1px solid ${T.border}` }} /></label>
             <label className="flex items-center gap-1.5 text-sm" style={{ color: T.textSecondary }}><input type="checkbox" checked={meta?.showAnswers !== false} onChange={e => { setMeta(m => ({ ...m, showAnswers: e.target.checked })); setDirty(true); }} />受講生に解答を見せる</label>
             {set.source?.problem && <span className="text-xs" style={{ color: T.textMuted }}>元：{set.source.problem}{set.source.answer ? ` ・ ${set.source.answer}` : ""}</span>}
           </div>

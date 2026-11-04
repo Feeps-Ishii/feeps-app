@@ -29,10 +29,20 @@ export function Card({ className = "pad", children, ...rest }) {
 }
 
 // 色の面：上の小さな見出し・右の札・大きな見出し・中身
-export function Hero({ cat = "tm", eyebrow, step, title, sub, children, className = "" }) {
+// 色の面の絵（モック heroArt）
+const ART = {
+  rep: <><rect x="34" y="16" width="62" height="70" rx="8" fill="var(--cd)" opacity=".45" /><g className="hero-al"><rect x="24" y="8" width="62" height="70" rx="8" fill="#fff" /><path d="M36 26h38M36 38h38M36 50h24" /><path d="M78 56l14-14 6 6-14 14h-6z" /></g></>,
+  att: <><circle cx="64" cy="50" r="32" fill="var(--cd)" opacity=".45" /><g className="hero-al"><circle cx="56" cy="44" r="32" fill="#fff" /><path d="M56 26v18l12 8" /><path d="M28 14l-8 8M84 14l8 8" /></g></>,
+  cur: <><rect x="30" y="20" width="74" height="52" rx="8" fill="var(--cd)" opacity=".45" /><g className="hero-al"><rect x="20" y="12" width="74" height="52" rx="8" fill="#fff" /><path d="M49 28l16 10-16 10z" /><path d="M57 64v14M41 80h32" /></g></>,
+  tst: <><rect x="32" y="18" width="66" height="66" rx="10" fill="var(--cd)" opacity=".45" /><g className="hero-al"><rect x="22" y="10" width="66" height="66" rx="10" fill="#fff" /><path d="M34 28l5 5 9-9M34 48l5 5 9-9" /><path d="M56 30h20M56 50h20" /></g></>,
+  dev: <><rect x="30" y="18" width="76" height="60" rx="9" fill="var(--cd)" opacity=".45" /><g className="hero-al"><rect x="20" y="10" width="76" height="60" rx="9" fill="#fff" /><path d="M20 24h76" /><path d="M46 38l-9 8 9 8M70 38l9 8-9 8M62 34l-8 24" /></g></>,
+  gy: <><circle cx="64" cy="50" r="30" fill="var(--cd)" opacity=".45" /><g className="hero-al"><path d="M30 60c6-22 20-34 44-36-2 24-16 38-44 36z" fill="#fff" /><path d="M30 60c10-12 22-20 34-26" /></g></>,
+};
+export function Hero({ cat = "tm", eyebrow, step, title, sub, art, children, className = "" }) {
   return (
-    <section className={`hero c-${cat} ${className}`}>
+    <section className={`hero c-${cat}${art ? " has-art" : ""} ${className}`}>
       {(eyebrow || step) && <div className="hero-h">{eyebrow ? <span className="eyebrow">{eyebrow}</span> : <span />}{step && <span className="hero-step">{step}</span>}</div>}
+      {art && <svg className="hero-art" viewBox="0 0 120 92" aria-hidden="true">{ART[art] || ART.cur}</svg>}
       {title && <h2 className="hero-t">{title}</h2>}
       {sub && <p className="hero-s">{sub}</p>}
       {children}

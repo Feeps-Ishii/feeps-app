@@ -120,7 +120,7 @@ export default function TraineeTests({ go, say }) {
         <div className="tc-l">
           {nx
             ? (
-              <Hero cat="tst" eyebrow="未受験のテスト" step={nx.t.dueDate ? (daysLeft(nx.t.dueDate, today) < 0 ? "期限切れ" : `あと ${daysLeft(nx.t.dueDate, today)} 日`) : undefined} title={nx.t.title || nx.t.name} sub={unitLine(nx)}>
+              <Hero cat="tst" art="tst" eyebrow="未受験のテスト" step={nx.t.dueDate ? (daysLeft(nx.t.dueDate, today) < 0 ? "期限切れ" : `あと ${daysLeft(nx.t.dueDate, today)} 日`) : undefined} title={nx.t.title || nx.t.name} sub={unitLine(nx)}>
                 <div className="row"><Btn kind="big" onClick={() => start(nx)}>{label(nx)}</Btn>{nx.ui >= 0 && <Btn kind="ghost big th-ghost" onClick={() => go("cur")}>カリキュラム</Btn>}</div>
                 <div className="row th-chips"><Chip>{nx.t.q} 問</Chip>{Number(nx.t.limitMinutes) > 0 && <Chip>目安 {nx.t.limitMinutes} 分</Chip>}<Due t={nx.t} today={today} /><Chip>合格は {PASS} 点</Chip></div>
                 {todo.length > 1 && (
