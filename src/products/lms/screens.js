@@ -38,6 +38,7 @@ export const LMS_SCREENS = {
     done: lazy(() => import("./client/Done.jsx")),
     ann: lazy(() => import("./staff/Ann.jsx")),
     eval: lazy(() => import("./staff/Eval.jsx")),
+    grant: lazy(() => import("./staff/Grant.jsx")),
   },
   admin: {
     home: lazy(() => import("./admin/Home.jsx")),
@@ -46,5 +47,6 @@ export const LMS_SCREENS = {
     sann: lazy(() => import("./admin/Sann.jsx")),
     course: lazy(() => import("./admin/Courses.jsx")),
     ana: lazy(() => import("./admin/Ana.jsx")),
+    grant: lazy(() => import("./staff/Grant.jsx")),
   },
 };

@@ -7,6 +7,7 @@ import { Btn, Card, Chip, weekday } from "../parts/ui.jsx";
 import { arr, md, useRoster, useStaffCourse, useWorkdays } from "../staff/common.js";
 import { PRing, PSeg } from "../staff/parts.jsx";
 import { TaskList, useTasks } from "./Task.jsx";
+import WeeklyCard from "./Weekly.jsx";
 
 /* 講師・コース担当者のホーム（モック homeI）：今日の日報と勤怠、タスク、出したお知らせ */
 
@@ -80,6 +81,7 @@ export default function InstructorHome({ go, say }) {
           {anns && !sent.length && <Chip>なし</Chip>}
         </Card>
       </div>
+      <WeeklyCard courseId={courseId} say={say} />
     </div>
   );
 }

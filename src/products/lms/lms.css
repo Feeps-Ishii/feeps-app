@@ -693,3 +693,11 @@
 .lms .dv-pv .st-lk { font-size: 13px; text-align: left }
 @media (max-width: 860px) { .lms .rv-w { grid-template-columns: minmax(0, 1fr) } .lms .rv-l { position: static; max-height: 300px } }
 .lms .th.sc { grid-template-columns: minmax(0, 1fr) } .lms .th.sc > * { min-width: 0 }
+
+/* 助成金 */
+.lms .st .gsteps { grid-template-columns: repeat(3, minmax(0, 1fr)) }
+@media (max-width: 560px) { .lms .st .gsteps small { font-size: 11px; font-family: inherit } }
+
+/* 講師のホームのタスク：幅が狭いと期限と担当が重なるので段を分ける */
+.lms .ih-tasks .tkl { align-content: start }
+@media (max-width: 1000px) { .lms .ih-cols .ih-tasks .tk .tkw { grid-column: 2; grid-row: 3; justify-self: start } .lms .ih-cols .ih-tasks .tk .tkd { grid-column: 2; grid-row: 2; white-space: normal } .lms .ih-cols .ih-tasks .tk > .btn, .lms .ih-cols .ih-tasks .tk .tkc { grid-row: 1 / span 3 } }

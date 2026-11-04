@@ -435,7 +435,10 @@
 .lms .checks .fxb { display: inline-flex; gap: 6px; align-items: center; border: 1px solid var(--line); background: var(--card); border-radius: 10px; padding: 5px 10px; font-size: 13px; font-weight: 700; color: var(--ink2) }
 .lms .checks .fxb.on { border-color: var(--marker); background: var(--marker-soft); color: var(--mk-ink) }
 .lms .checks .fxb.chg { outline: 2px dashed #E59A3A; outline-offset: 1px }
+.lms .xlt { max-height: 320px; overflow: auto; border: 1px solid var(--line); border-radius: 10px }
 .lms .xlt .tbl { margin: 0 }
+.lms .xlt tr.xlw td { background: #FFF8E6 }
+.lms .xlok { color: #0B7A5E; font-weight: 800 }
 @media (max-width: 760px) {
   .lms .ceb-t b { font-size: 17px }
   .lms .ceb-r { width: 100% }
@@ -444,6 +447,31 @@
 .lms .g2, .lms .g2e, .lms .g3 { align-items: stretch }
 .lms .side { align-items: stretch }
 .lms .lbi .pinc { width: 20px; height: 20px; font-size: 12px }
+.lms .gsteps { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 0 }
+.lms .gsteps span { display: grid; gap: 2px; padding: 10px 14px; border: 1px solid var(--line); background: var(--card); margin-right: -1px }
+.lms .gsteps span:first-child { border-radius: 10px 0 0 10px }
+.lms .gsteps span:last-child { border-radius: 0 10px 10px 0 }
+.lms .gsteps b { font-size: 13.5px }
+.lms .gsteps small { font-size: 12px; color: var(--muted); font-family: var(--mono) }
+.lms .gsteps .done b { color: #0B7A5E }
+.lms .gsteps .on { background: var(--ink); border-color: var(--ink) }
+.lms .gsteps .on b, .lms .gsteps .on small { color: #fff }
+.lms tr.gmine td { background: #FFF8E6 }
+.lms .gro { display: block; font-weight: 600; padding: 6px 0 }
+.lms .gpt { max-height: 420px }
+.lms .gin { width: 150px }
+.lms .gest { display: grid; gap: 10px }
+.lms .gest > div { display: grid; grid-template-columns: 90px auto minmax(0, 1fr); gap: 10px; align-items: baseline }
+.lms .gest span { color: var(--muted); font-size: 13px }
+.lms .gest b { font-size: 17px }
+.lms .gest small { color: var(--muted); font-size: 12px }
+.lms .gest .t { padding-top: 10px; border-top: 1px solid var(--line2) }
+.lms .gest .t b { font-size: 21px }
+@media (max-width: 760px) {
+  .lms .gsteps { grid-template-columns: repeat(2, minmax(0, 1fr)) }
+  .lms .gest > div { grid-template-columns: 80px minmax(0, 1fr) }
+  .lms .gest small { grid-column: 2 }
+}
 .lms .chip.co { background: var(--tst); color: var(--tst-i) }
 .lms .seg { border-radius: 999px }
 .lms .seg button { border-radius: 999px }
@@ -695,6 +723,20 @@
 .lms div.hc-an:hover { background: transparent }
 .lms .hc-ab { flex: 1 }
 .lms .hc-rd { font-size: 12px; color: var(--muted); white-space: nowrap; align-self: center }
+.lms .gsteps span { border: 0; background: transparent; margin: 0; padding: 30px 6px 0; position: relative; justify-items: center; text-align: center; border-radius: 0 !important }
+.lms .gsteps span::before { content: ""; position: absolute; top: 9px; left: 0; right: 0; height: 3px; background: var(--line) }
+.lms .gsteps span:first-child::before { left: 50% }
+.lms .gsteps span:last-child::before { right: 50% }
+.lms .gsteps span::after { content: ""; position: absolute; top: 1px; left: calc(50% - 10px); width: 20px; height: 20px; border-radius: 50%; background: var(--card); box-shadow: inset 0 0 0 3px var(--line) }
+.lms .gsteps .done::before { background: var(--rep-d) }
+.lms .gsteps .done::after { background: var(--rep-d); box-shadow: none }
+.lms .gsteps .on::after { background: var(--att-d); box-shadow: 0 0 0 5px var(--att) }
+.lms .gsteps .on::before { background: linear-gradient(90deg, var(--rep-d) 50%, var(--line) 50%) }
+.lms .gsteps .on { background: transparent }
+.lms .gsteps .on b { color: var(--att-i) }
+.lms .gsteps .on small { color: var(--muted) }
+.lms .gsteps .done b { color: var(--rep-i) }
+.lms tr.gmine td { background: color-mix(in srgb, var(--att) 55%, transparent) }
 .lms .act { border: 0; border-radius: 22px; padding: 18px 20px; box-shadow: inset 0 5px 0 var(--cc, transparent), 0 12px 32px -26px rgba(31, 38, 36, .3) }
 .lms .act:hover { box-shadow: inset 0 5px 0 var(--cc, transparent), 0 16px 36px -22px rgba(31, 38, 36, .35) }
 .lms .act.bad { box-shadow: inset 0 5px 0 var(--cc, transparent), inset 0 0 0 2px color-mix(in srgb, var(--dev-d) 55%, transparent) }
