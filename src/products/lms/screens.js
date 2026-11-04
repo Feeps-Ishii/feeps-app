@@ -29,6 +29,7 @@ export const LMS_SCREENS = {
     dev: lazy(() => import("./instructor/Dev.jsx")),
     team: lazy(() => import("./instructor/Team.jsx")),
     doc: lazy(() => import("./staff/Folder.jsx")),
+    test: lazy(() => import("./staff/Tests.jsx")),
   },
   client: {
     home: lazy(() => import("./client/Home.jsx")),
@@ -49,6 +50,7 @@ export const LMS_SCREENS = {
     course: lazy(() => import("./admin/Courses.jsx")),
     ana: lazy(() => import("./admin/Ana.jsx")),
     cdoc: lazy(() => import("./staff/Folder.jsx").then(m => ({ default: m.AdminCourseFolder }))),
+    ltest: lazy(() => import("./staff/Tests.jsx")),
     doc: lazy(() => import("./staff/Folder.jsx").then(m => ({ default: m.AdminSharedFolder }))),
     grant: lazy(() => import("./staff/Grant.jsx")),
   },

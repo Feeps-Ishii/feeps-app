@@ -270,7 +270,28 @@
 .lms .cu-dz, .lms .cu-end span { display: none }
 .lms .cu-end { display: flex; align-items: center; justify-content: center; gap: 12px; border: 2px dashed #C8D2CF; border-radius: 14px; padding: 16px; color: var(--muted); font-size: 13px }
 .lms .cu-end.dropon { border-color: var(--marker) }
+.lms .tr-t { padding: 0 }
 .lms .tr-t .tbl th, .lms .tr-t .tbl td { white-space: nowrap }
+.lms .tr-t .qc { text-align: center; width: 34px; padding-inline: 4px; font-family: var(--mono); font-size: 12.5px }
+.lms .tr-t td.qc.o { color: var(--mint) }
+.lms .tr-t td.qc.x { color: var(--red); background: var(--red-soft) }
+.lms .tr-t td.qc.low { color: var(--amber); font-weight: 700 }
+.lms .tr-pt { font-size: 16px }
+.lms .tr-pt.ng { color: var(--red) }
+.lms .tr-none td { color: var(--muted) }
+.lms .tr-rate td { background: var(--soft); font-size: 12.5px }
+.lms .th-s { border: 0; background: none; padding: 0; font: inherit; font-weight: 700; color: inherit; white-space: nowrap }
+.lms .th-s[aria-pressed="true"] { color: var(--mk-ink) }
+.lms .tr-nav { display: flex; align-items: center; gap: 8px; flex-wrap: wrap }
+.lms .tr-nav select { width: auto; min-width: 200px }
+.lms .tr-who { display: flex; align-items: center; gap: 14px; flex-wrap: wrap }
+.lms .tr-who > span:nth-child(2) { display: grid }
+.lms .tr-who > span:nth-child(2) b { font-size: 17px }
+.lms .tr-who > span:nth-child(2) small { font-size: 12.5px; color: var(--muted) }
+.lms .tr-sc { margin-left: auto }
+.lms .tr-sc b { font-size: 34px; font-weight: 600 }
+.lms .tr-sc small { color: var(--muted); margin-left: 2px }
+.lms .tr-sc.ng b { color: var(--red) }
 @media (max-width: 1100px) {
   .lms .cu-ed { grid-template-columns: minmax(0, 1fr) }
   .lms .cu-shelf { position: static; max-height: none }
@@ -532,6 +553,7 @@
 .lms .pick > button[aria-current="true"] { background: var(--ink); color: #fff }
 .lms .pick > button[aria-current="true"] small, .lms .pick > button[aria-current="true"] .eyebrow { color: rgba(255, 255, 255, .7) }
 .lms .pick .grp { border-top: 0; padding: 12px 12px 4px; font-size: 11px; letter-spacing: .06em }
+.lms .th-s { margin: 6px 0 0; color: var(--ink2); font-size: 15px }
 .lms .th-kpi .bar10 { background: rgba(31, 38, 36, .08) }
 .lms .th-kpi .bar10 i { background: var(--ci) }
 @media (max-width: 560px) {
@@ -541,6 +563,7 @@
 .lms .tl-take .ttop .bar10 i { background: var(--tst-d) }
 .lms .dv-k.st-ok .dv-kn { background: var(--dev-d); color: #fff }
 .lms .dv-k.st-redo .dv-kn { background: var(--att); color: var(--att-i) }
+.lms .dv-hero .th-s { white-space: normal }
 .lms .fd-f .fs-ic { width: 34px; height: 34px; border-radius: 10px }
 .lms .tm-file .fs-ic { width: 34px; height: 34px; border-radius: 10px }
 .lms .tmS-g { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 18px }

@@ -723,3 +723,26 @@
   .lms .st .fs-t th:not(:first-child):not(:last-child), .lms .st .fs-t td:not(:first-child):not(.fs-k) { display: none }
   .lms .st .fs-meta { display: block }
 }
+
+/* テスト（講師・管理者） */
+.lms .st .tx-card { padding: 0; overflow: visible }
+.lms .st .tx-card .scroll { overflow: visible }
+.lms .st .tx-card .fs-name { max-width: 340px }
+.lms .st .tx-h { padding: 16px 20px 10px; margin: 0; display: flex; flex-wrap: nowrap; justify-content: space-between; align-items: center; gap: 10px }
+.lms .st .tx-h > .r { margin-left: auto; flex: none }
+.lms .st .tx-e { padding: 0 20px 16px }
+.lms .st .tx-cs { white-space: normal }
+.lms .st .tx-cs .chip { margin: 0 4px 4px 0 }
+.lms .tx-as { display: grid; gap: 6px; justify-content: stretch }
+.lms .st .tx-rv { display: grid; grid-template-columns: 120px minmax(0, 1fr) auto; gap: 10px; align-items: end }
+.lms .tx-rl { display: grid; gap: 10px }
+.lms .st .tx-q.ng { box-shadow: inset 4px 0 0 var(--dev-d) }
+.lms .st .tx-q.ok { box-shadow: inset 4px 0 0 var(--rep-d) }
+.lms .tx-a { display: grid; gap: 2px }
+.lms .tx-a pre { margin: 0; white-space: pre-wrap; word-break: break-word; font: inherit; font-size: 14px }
+@media (max-width: 760px) {
+  .lms .st .tx-t th:nth-child(n+2):nth-child(-n+5), .lms .st .tx-t td:nth-child(n+2):nth-child(-n+5) { display: none }
+  .lms .st .tx-t .fs-meta { display: block }
+  .lms .st .tx-rv { grid-template-columns: minmax(0, 1fr) }
+  .lms .st .tr-t .scroll { overflow-x: auto }
+}

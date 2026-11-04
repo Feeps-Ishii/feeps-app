@@ -7329,5 +7329,7 @@ export {
   Tests, Attendance, Reports, TraineeList, Karte, ClientHome,
   ElearningView, ReadOnlyCompanies, ReadOnlyCourses, ReadOnlyInstructors,
   // ノート画面もカリキュラムの木を同じ形で読む。作り直すと片方だけ直す事故が起きる
-  normalizeCurriculumSections
+  normalizeCurriculumSections,
+  // 新しい LMS のテストの画面（作る画面と単元の決まりは同じものを使う）
+  TestBuilder, TEST_SCOPE_KEYS, flattenCurriculumScopes, testCourseIdList, testQuestionsOf, testScopeForCourse, testScopeIdOf, useNameMap,
 };
