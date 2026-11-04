@@ -692,3 +692,4 @@
 .lms .dv-fxr { display: grid; gap: 4px; background: var(--paper); border-radius: 14px; padding: 10px 14px }
 .lms .dv-pv .st-lk { font-size: 13px; text-align: left }
 @media (max-width: 860px) { .lms .rv-w { grid-template-columns: minmax(0, 1fr) } .lms .rv-l { position: static; max-height: 300px } }
+.lms .th.sc { grid-template-columns: minmax(0, 1fr) } .lms .th.sc > * { min-width: 0 }
