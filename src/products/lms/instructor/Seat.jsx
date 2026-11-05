@@ -68,7 +68,7 @@ function PeopleTable({ data, courseId, setData, say }) {
   async function score() {
     if (busy) return;
     setBusy(true); setErr("");
-    try { const r = await apiPost("/seating/score", { courseId }); setData(d => ({ ...d, people: r.people })); say?.(`${r.scored} 人分を読み取りました`); }
+    try { const r = await apiPost("/seating/score", { courseId }); setData(d => ({ ...d, people: r.people || d.people })); say?.(`${r.scored} 人分を読み取りました`); }
     catch (e) { setErr(errText(e, "読み取れませんでした")); }
     finally { setBusy(false); }
   }

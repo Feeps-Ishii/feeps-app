@@ -87,7 +87,7 @@ function Setup({ courseId, id, back, toReview, say }) {
   useEffect(() => { load(); }, [courseId, id]); // eslint-disable-line react-hooks/exhaustive-deps
   if (st.state === "error") return <Card><div className="empty"><b>課題を確認できません</b><Btn kind="ghost sm" onClick={load}>再読み込み</Btn></div></Card>;
   if (st.state === "loading" || !f) return <div className="soon card">読み込み中</div>;
-  const { problem, answer } = st.d;
+  const problem = arr(st.d.problem), answer = arr(st.d.answer);
   const set = (k, v) => setF(x => ({ ...x, [k]: v }));
   const total = arr(f.rubric).reduce((s, r) => s + (Number(r.weight) || 0), 0);
   const body = () => ({ title: f.title, deadline: f.deadline ? new Date(f.deadline).toISOString() : "", scope: f.scope, requirements: f.requirements, rubric: f.rubric, outOfScope: f.outOfScope, summary: f.summary });

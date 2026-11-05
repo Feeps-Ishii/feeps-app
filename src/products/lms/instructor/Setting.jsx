@@ -52,7 +52,7 @@ function Days({ courseId, canEdit, say }) {
   );
 }
 
-export default function InstructorSetting({ role, say }) {
+export default function InstructorSetting({ role, manager, say }) {
   const sc = useStaffCourse();
   const courseId = sc.course?.courseId || "";
   const [tab, setTab] = useState("base");
@@ -92,6 +92,8 @@ export default function InstructorSetting({ role, say }) {
   if (!sc.course) return <Card><div className="empty"><b>コースの設定</b><Chip>コースなし</Chip></div></Card>;
   if (st.state === "error") return <Card><div className="empty"><b>設定を確認できません</b><Btn kind="ghost sm" onClick={() => setKey(k => k + 1)}>再読み込み</Btn></div></Card>;
   if (st.state === "loading" || !v) return <div className="soon card">読み込み中</div>;
+  // 名前・期間・時間・担当を変えられるのは管理者とコース担当者だけ（API の決まり）。講師は見るだけ
+  const canCourse = role === "admin" || !!manager;
   const f = (k, val) => setV(x => ({ ...x, [k]: val }));
   const setField = (i, patch) => f("fields", v.fields.map((x, j) => (j === i ? { ...x, ...patch } : x)));
   const moveField = (i, n) => { const l = [...v.fields], [x] = l.splice(i, 1); l.splice(i + n, 0, x); f("fields", l); };
@@ -109,10 +111,10 @@ export default function InstructorSetting({ role, say }) {
   const inTab = {
     base: (
       <Card className="pad st-g">
-        <h2 className="h2">基本</h2>
-        <label className="field">名前<input type="text" maxLength={80} value={v.name} onChange={e => f("name", e.target.value)} /></label>
-        <div className="st-fg"><label className="field">開始日<input type="date" value={v.startDate} onChange={e => f("startDate", e.target.value)} /></label><label className="field">終了日<input type="date" value={v.endDate} onChange={e => f("endDate", e.target.value)} /></label></div>
-        <div className="st-fg"><label className="field">始まり<input type="time" value={v.standardClockIn} onChange={e => f("standardClockIn", e.target.value)} /></label><label className="field">終わり<input type="time" value={v.standardClockOut} onChange={e => f("standardClockOut", e.target.value)} /></label></div>
+        <div className="head"><h2 className="h2">基本</h2>{!canCourse && <span className="r"><Chip>管理者が変更</Chip></span>}</div>
+        <label className="field">名前<input type="text" maxLength={80} disabled={!canCourse} value={v.name} onChange={e => f("name", e.target.value)} /></label>
+        <div className="st-fg"><label className="field">開始日<input type="date" disabled={!canCourse} value={v.startDate} onChange={e => f("startDate", e.target.value)} /></label><label className="field">終了日<input type="date" disabled={!canCourse} value={v.endDate} onChange={e => f("endDate", e.target.value)} /></label></div>
+        <div className="st-fg"><label className="field">始まり<input type="time" disabled={!canCourse} value={v.standardClockIn} onChange={e => f("standardClockIn", e.target.value)} /></label><label className="field">終わり<input type="time" disabled={!canCourse} value={v.standardClockOut} onChange={e => f("standardClockOut", e.target.value)} /></label></div>
       </Card>
     ),
     days: <Days courseId={courseId} canEdit={role === "admin"} say={say} />,
@@ -132,8 +134,8 @@ export default function InstructorSetting({ role, say }) {
     ),
     who: (
       <Card className="pad st-g">
-        <h2 className="h2">担当</h2>
-        <div className="field">講師{people.instructors === null ? <span className="dv-mt">読み込み中</span> : <span className="row">{people.instructors.map(p => <label key={p.userId} className="st-ck"><input type="checkbox" checked={v.instructorIds.includes(p.userId)} onChange={e => check("instructorIds", p.userId, e.target.checked)} />{p.name || "名前未設定"}</label>)}{!people.instructors.length && <Chip>なし</Chip>}</span>}</div>
+        <div className="head"><h2 className="h2">担当</h2>{!canCourse && <span className="r"><Chip>管理者が変更</Chip></span>}</div>
+        <div className="field">講師{people.instructors === null ? <span className="dv-mt">読み込み中</span> : <span className="row">{people.instructors.map(p => <label key={p.userId} className="st-ck"><input type="checkbox" disabled={!canCourse} checked={v.instructorIds.includes(p.userId)} onChange={e => check("instructorIds", p.userId, e.target.checked)} />{p.name || "名前未設定"}</label>)}{!people.instructors.length && <Chip>なし</Chip>}</span>}</div>
         {role === "admin" && <div className="field">コース担当者{people.managers === null ? <span className="dv-mt">読み込み中</span> : <span className="row">{people.managers.map(p => <label key={p.userId} className="st-ck"><input type="checkbox" checked={v.managerIds.includes(p.userId)} onChange={e => check("managerIds", p.userId, e.target.checked)} />{p.name || "名前未設定"}</label>)}{!people.managers.length && <Chip>なし</Chip>}</span>}</div>}
       </Card>
     ),

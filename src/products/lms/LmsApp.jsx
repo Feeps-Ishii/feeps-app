@@ -15,6 +15,18 @@ import { LMS_SCREENS } from "./screens.js";
    上の帯にまとまり（カーソルで中の画面が出る）、その下に画面のタブ。スマホは下のメニュー。
    作り直した画面は LMS_SCREENS から、まだの画面は今の画面（renderLegacy）を中に出す */
 
+// 画面の中で落ちても、上の帯とメニューは残す（別の画面へ移ると戻る）
+class ScreenBoundary extends React.Component {
+  constructor(props) { super(props); this.state = { failed: false }; }
+  static getDerivedStateFromError() { return { failed: true }; }
+  componentDidCatch(error, info) { console.error("lms screen failed", error, info); }
+  componentDidUpdate(prev) { if (prev.resetKey !== this.props.resetKey && this.state.failed) this.setState({ failed: false }); }
+  render() {
+    if (!this.state.failed) return this.props.children;
+    return <div className="card lms-crash"><div className="empty"><b>この画面を開けませんでした</b><button type="button" className="btn ghost sm" onClick={() => window.location.reload()}>再読み込み</button></div></div>;
+  }
+}
+
 const LOC_KEY = "feeps.lms.loc";
 const readLoc = () => { try { return window.sessionStorage.getItem(LOC_KEY) || "home"; } catch { return "home"; } };
 const saveLoc = s => { try { window.sessionStorage.setItem(LOC_KEY, s); } catch { /* 読み直すとホームに戻るだけ */ } };
@@ -115,7 +127,7 @@ export default function LmsApp({ role, manager = false, displayName, unread = 0,
         </div>
       </div>
       <main className="lms-main lms-wrap">
-        <Suspense fallback={<div className="soon">読み込み中</div>}>{body}</Suspense>
+        <ScreenBoundary resetKey={`${screen}|${extra || ""}|${courseV}`}><Suspense fallback={<div className="soon">読み込み中</div>}>{body}</Suspense></ScreenBoundary>
       </main>
       <nav className="lms-bnav" aria-label="メニュー">
         {bnav.map(k => <button key={k} type="button" aria-current={screen === k && !extra ? "page" : undefined} onClick={() => go(k)}><Icon k={k} size={20} />{lmsLabel(role, k)}</button>)}
