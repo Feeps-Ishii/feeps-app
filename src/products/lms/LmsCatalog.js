@@ -11,29 +11,29 @@ export const LMS_GROUPS = {
   instructor: [
     ["day", "毎日", [["home", "ホーム"], ["task", "タスク"], ["report", "日報"], ["att", "勤怠"]]],
     ["learn", "研修", [["cur", "カリキュラム"], ["test", "テスト"], ["prac", "練習問題"], ["doc", "フォルダ"], ["dev", "個人開発"]]],
-    ["room", "教室", [["ann", "お知らせ"], ["team", "チーム"], ["seat", "席替え"], ["people", "受講生"], ["eval", "評価表"], ["done", "修了レポート"], ["setting", "コースの設定"]]],
+    ["room", "教室", [["ann", "お知らせ"], ["team", "チーム"], ["seat", "席替え"], ["people", "受講生"], ["eval", "評価表"], ["done", "修了レポート"], ["resv", "面談・報告会"], ["setting", "コースの設定"]]],
   ],
   client: [
     ["day", "毎日", [["home", "ホーム"], ["report", "日報"], ["att", "勤怠"]]],
     ["state", "研修の様子", [["state", "様子"], ["people", "受講生"], ["eval", "評価表"], ["done", "修了レポート"]]],
     ["talk", "連絡", [["ann", "お知らせ"]]],
-    ["grant", "助成金", [["grant", "助成金"]]],
+    ["grant", "助成金", [["grant", "助成金"], ["resv", "面談・報告会"]]],
   ],
   admin: [
     ["run", "準備", [["home", "ホーム"], ["cos", "企業"], ["users", "ユーザー"], ["sann", "お知らせ"]]],
     ["cmg", "コース管理", [["course", "コース一覧"]]],
     ["kmg", "カリキュラム管理", [["lcur", "カリキュラム"], ["ltest", "テスト"], ["lprac", "練習問題"]]],
     ["fmg", "フォルダ管理", [["cdoc", "コース別フォルダ"], ["doc", "共有フォルダ"]]],
-    ["num", "分析・助成金", [["ana", "分析"], ["grant", "助成金"]]],
+    ["num", "分析・助成金", [["ana", "分析"], ["grant", "助成金"], ["resv", "面談・報告会"]]],
   ],
 };
 
 // まだ作り直していない画面は、今の画面（TrainingProduct などの view）をそのまま中に出す。null は今の画面にも無いもの
 export const LMS_LEGACY = {
   trainee: { home: "home", report: "reports", att: "attendance", cur: "curriculum", test: "tests", prac: "practice", dev: "devreview", doc: "materials", team: "teams", note: "notes", goal: "goals" },
-  instructor: { home: "home", task: null, report: "reports", att: "attendance", cur: "curriculum", test: "tests", prac: "practice", doc: "materials", dev: "devreview", ann: "announcements", team: "teams", seat: "seating", people: "trainees", eval: null, done: "completion", setting: null },
-  client: { home: "home", report: "reports", att: "state", state: "state", people: "trainees", eval: "evaluation", done: "completion", ann: "announcements", grant: "grants" },
-  admin: { home: "home", cos: "companies", users: "users", sann: "announcements", course: "courses", lcur: "curriculum", ltest: "tests", lprac: "practice", cdoc: "materials", doc: "materials", ana: "analytics", grant: "grants" },
+  instructor: { home: "home", resv: "reservations", task: null, report: "reports", att: "attendance", cur: "curriculum", test: "tests", prac: "practice", doc: "materials", dev: "devreview", ann: "announcements", team: "teams", seat: "seating", people: "trainees", eval: null, done: "completion", setting: null },
+  client: { home: "home", resv: "reservations", report: "reports", att: "state", state: "state", people: "trainees", eval: "evaluation", done: "completion", ann: "announcements", grant: "grants" },
+  admin: { home: "home", resv: "reservations", cos: "companies", users: "users", sann: "announcements", course: "courses", lcur: "curriculum", ltest: "tests", lprac: "practice", cdoc: "materials", doc: "materials", ana: "analytics", grant: "grants" },
 };
 
 // スマホの下のメニュー（最後に「メニュー」が付く。受講生は 4 つだけ）

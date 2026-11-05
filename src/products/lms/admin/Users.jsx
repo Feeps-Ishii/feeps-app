@@ -41,7 +41,30 @@ function NewUser({ companies, courses, defaultCompany, onClose, onDone }) {
   );
 }
 
-function EditUser({ u, companies, courses, onClose, onDone, say }) {
+// 管理者の段階（スーパー管理者だけが変えられる。API が確かめる）
+function AdminPerm({ u, courses, say, onDone }) {
+  const [v, setV] = useState({ tier: u.adminTier === "standard" ? "standard" : "super", edit: u.canEditReportsAttendance === true, ids: arr(u.assignedCourseIds) });
+  const [busy, setBusy] = useState(false); const [err, setErr] = useState("");
+  const save = async () => {
+    setBusy(true); setErr("");
+    try { await apiPut(`/admin/users/${u.userId}/admin-permissions`, { adminTier: v.tier, canEditReportsAttendance: v.tier === "standard" && v.edit, assignedCourseIds: v.tier === "standard" ? v.ids : [] }); say?.("権限を保存しました"); onDone(); }
+    catch (e) { setErr(errText(e, "保存できませんでした")); } finally { setBusy(false); }
+  };
+  return (
+    <div className="ce-b">
+      <div className="head"><h4 className="h3">管理者の権限</h4><span className="r"><Chip tone={v.tier === "super" ? "bad" : "blue"}>{v.tier === "super" ? "スーパー管理者" : "一般管理者"}</Chip></span></div>
+      <label className="field">種別<select className="in" value={v.tier} onChange={e => setV(x => ({ ...x, tier: e.target.value }))}><option value="standard">一般管理者</option><option value="super">スーパー管理者</option></select></label>
+      {v.tier === "standard" && <>
+        <label className="st-ck"><input type="checkbox" checked={v.edit} onChange={e => setV(x => ({ ...x, edit: e.target.checked }))} />日報・勤怠の修正と削除</label>
+        <div className="field">担当コース<span className="row">{courses.map(c => <label key={c.courseId} className="st-ck"><input type="checkbox" checked={v.ids.includes(c.courseId)} onChange={e => setV(x => ({ ...x, ids: e.target.checked ? [...x.ids, c.courseId] : x.ids.filter(id => id !== c.courseId) }))} />{c.name}</label>)}</span></div>
+      </>}
+      {err && <div className="lms-err" role="alert">{err}</div>}
+      <span className="row st-end"><Btn kind="sm" disabled={busy} onClick={save}>権限を保存</Btn></span>
+    </div>
+  );
+}
+
+function EditUser({ u, companies, courses, isSuper, onClose, onDone, say }) {
   const [mine, setMine] = useState(null);
   useEffect(() => { if (u.role === "trainee" || u.role === "instructor") apiGet(`/admin/users/${u.userId}/courses`).then(l => setMine(arr(l?.courseIds || l).map(x => x.courseId || x))).catch(() => setMine(undefined)); }, [u.userId, u.role]);
   const [v, setV] = useState({ name: u.name || "", role: u.role, company: u.company || "" });
@@ -56,6 +79,7 @@ function EditUser({ u, companies, courses, onClose, onDone, say }) {
         <label className="field">企業<select className="in" value={v.company} onChange={e => f("company", e.target.value)}><option value="">なし</option>{companies.map(c => <option key={c.companyId} value={c.companyId}>{c.name}</option>)}</select></label>
       </div>
       {mine !== null && (u.role === "trainee" || u.role === "instructor") && <div className="field">コース{mine === undefined ? <Chip>確認できません</Chip> : <span className="row">{courses.map(c => <label key={c.courseId} className="st-ck"><input type="checkbox" checked={mine.includes(c.courseId)} disabled={busy} onChange={e => { const next = e.target.checked ? [...mine, c.courseId] : mine.filter(x => x !== c.courseId); run(async () => { await apiPut(`/admin/users/${u.userId}/courses`, { courseIds: next }); setMine(next); say?.("コースを変えました"); }); }} />{c.name}</label>)}</span>}</div>}
+      {isSuper && u.role === "admin" && <AdminPerm u={u} courses={courses} say={say} onDone={onDone} />}
       <div className="row">
         <Btn kind="ghost sm" disabled={busy} onClick={() => run(async () => { const r = await apiPost(`/admin/users/${u.userId}/temp-password`, {}); setTemp(r.password); })}>仮パスワードを出す</Btn>
         <Btn kind="ghost sm" disabled={busy} onClick={() => run(async () => { await apiPut(`/admin/users/${u.userId}/status`, { disabled: !u.disabled }); say?.(u.disabled ? "利用を再開しました" : "利用を止めました"); onDone(); })}>{u.disabled ? "利用を再開する" : "利用を止める"}</Btn>
@@ -70,6 +94,8 @@ export default function AdminUsers({ say }) {
   const [st, setSt] = useState({ state: "loading", users: [] });
   const [companies, setCompanies] = useState([]);
   const [courses, setCourses] = useState([]);
+  const [isSuper, setIsSuper] = useState(false);
+  useEffect(() => { apiGet("/profile/me").then(p => setIsSuper(p?.role === "admin" && p?.adminTier !== "standard")).catch(() => {}); }, []);
   const [tab, setTab] = useState("all"); const [status, setStatus] = useState("all"); const [q, setQ] = useState(""); const [sort, setSort] = useState("role");
   const [sel, setSel] = useState({}); const [adding, setAdding] = useState(false); const [edit, setEdit] = useState(""); const [busy, setBusy] = useState(false); const [temps, setTemps] = useState(null); const [err, setErr] = useState(""); const [stopConfirm, setStopConfirm] = useState(false);
   const load = useCallback(() => apiGet("/admin/users").then(l => setSt({ state: "ready", users: arr(l).map(u => ({ ...u, kana: u.nameKana || "" })) })).catch(() => setSt({ state: "error", users: [] })), []);
@@ -119,7 +145,7 @@ export default function AdminUsers({ say }) {
         {!list.length && <tr><td colSpan={7}><Chip>該当なし</Chip></td></tr>}
       </tbody></table></div></Card>
       {adding && <NewUser companies={companies} courses={courses} onClose={() => setAdding(false)} onDone={() => { setAdding(false); say?.("ユーザーを作りました"); load(); }} />}
-      {editing && <EditUser key={editing.userId} u={editing} companies={companies} courses={courses} say={say} onClose={() => setEdit("")} onDone={() => { setEdit(""); load(); }} />}
+      {editing && <EditUser key={editing.userId} u={editing} companies={companies} courses={courses} isSuper={isSuper} say={say} onClose={() => setEdit("")} onDone={() => { setEdit(""); load(); }} />}
       {stopConfirm && <Modal title={`${picked.length} 人の利用を止める`} width={460} onClose={() => setStopConfirm(false)} footer={<><Btn kind="ghost" onClick={() => setStopConfirm(false)}>やめる</Btn><Btn disabled={busy} onClick={() => { setStopConfirm(false); bulk(async () => { for (const id of picked) await apiPut(`/admin/users/${id}/status`, { disabled: true }); setSel({}); say?.(`${picked.length} 人の利用を止めました`); await load(); }); }}>止める</Btn></>}><div className="row">{picked.slice(0, 12).map(id => <Chip key={id}>{nameOf(id)}</Chip>)}{picked.length > 12 && <Chip>ほか {picked.length - 12} 人</Chip>}</div></Modal>}
       {temps && <Modal title="仮パスワード ・ 今だけ表示" width={500} onClose={() => { setTemps(null); setSel({}); }} footer={<Btn kind="ghost" onClick={() => { setTemps(null); setSel({}); }}>閉じる</Btn>}><div className="st-g">{temps.map(([n, p]) => <div key={n} className="fd-f st-tp"><span className="fd-fb"><b>{n}</b></span><b className="dv-mono">{p}</b></div>)}</div></Modal>}
     </div>

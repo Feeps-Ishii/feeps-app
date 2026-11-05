@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { apiGet, apiPost, apiPut } from "../../../api.js";
-import { makeLocalId, sessionsFromSections, testCourseIdList } from "../../training/TrainingComponents.jsx";
+import { curriculumUnitScope, makeLocalId, sessionsFromSections, testCourseIdList } from "../../training/TrainingComponents.jsx";
 import { relayoutCurriculum } from "../../console/materials.js";
 import { extractPdfPageTexts } from "../../training/pdfText.js";
 import { Btn, Chip, Modal } from "../parts/ui.jsx";
@@ -75,18 +75,28 @@ async function readDocText(file) {
     const wb = XLSX.read(await file.arrayBuffer(), { type: "array" });
     return wb.SheetNames.slice(0, 6).map(n => `# ${n}\n${XLSX.utils.sheet_to_csv(wb.Sheets[n])}`).join("\n");
   }
+  if (/\.docx$/.test(name)) {
+    // docx は zip。本文は word/document.xml
+    const XLSX = await import("xlsx");
+    const zip = XLSX.CFB.read(new Uint8Array(await file.arrayBuffer()), { type: "array" }), entry = zip.FileIndex[zip.FullPaths.findIndex(x => /word\/document\.xml$/.test(x))];
+    if (!entry) throw new Error("Word の本文を読めませんでした");
+    const xml = new TextDecoder("utf-8").decode(entry.content instanceof Uint8Array ? entry.content : new Uint8Array(entry.content));
+    return xml.replace(/<\/w:p>/g, "\n").replace(/<\/w:tc>/g, "\t").replace(/<[^>]+>/g, "").replace(/&amp;/g, "&").replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&quot;/g, "\"");
+  }
   if (/\.txt$/.test(name)) return file.text();
-  throw new Error("PDF・Excel・テキストにしてください（Word は PDF にしてから）");
+  throw new Error("PDF・Word・Excel・テキストにしてください（古い .doc は .docx で保存し直してください）");
 }
 
-export default function CourseCreate({ companies, courses, onClose, onDone }) {
-  const [step, setStep] = useState(1);
-  const [src, setSrc] = useState("blank");
+export default function CourseCreate({ companies: companies0, courses, initial, onClose, onDone }) {
+  const [companies, setCompanies] = useState(companies0);
+  const [newCo, setNewCo] = useState(null);
+  const [step, setStep] = useState(initial ? 2 : 1);
+  const [src, setSrc] = useState(initial ? "shelf" : "blank");
   const [text, setText] = useState("");
   const [file, setFile] = useState(null);
   const [from, setFrom] = useState(courses[0]?.courseId || "");
   const [take, setTake] = useState({ cur: true, tests: true, rf: true, fx: true, ins: true });
-  const [v, setV] = useState({ ...EMPTY });
+  const [v, setV] = useState({ ...EMPTY, ...(initial || {}) });
   const [people, setPeople] = useState({ ins: [], mgr: [] });
   const [busy, setBusy] = useState(""); const [err, setErr] = useState(""); const [note, setNote] = useState("");
   const [offText, setOffText] = useState("");
@@ -169,6 +179,12 @@ export default function CourseCreate({ companies, courses, onClose, onDone }) {
           return { id: makeLocalId("section"), title: u.title, description: u.note || "", unitMode: "section", content: "", learningGoals: u.goal ? [u.goal] : [], preparationItems: [], exercises: [], materialIds: [], startDate: a, endDate: b, durationLabel: "", chapters: [] };
         });
         await apiPut(`/courses/${encodeURIComponent(id)}/curriculum`, { sections, sessions: sessionsFromSections(sections) });
+        // 棚の単元につないであるテストは、このコースにもつなぐ
+        const tests = v.units.some(u => arr(u.testIds).length) ? arr(await apiGet("/tests")) : [];
+        await Promise.all(v.units.flatMap((u, i) => arr(u.testIds).map(async tid => {
+          const t = tests.find(x => x.testId === tid);
+          if (t) await apiPut(`/tests/${encodeURIComponent(tid)}`, { courseIds: [...new Set([...testCourseIdList(t), id])], courseScopes: { [id]: curriculumUnitScope(sections[i], null, null, "section").fields } });
+        })));
       });
     }
     setBusy("");
@@ -181,7 +197,7 @@ export default function CourseCreate({ companies, courses, onClose, onDone }) {
       <Modal title="コースを作る" width={560} onClose={onClose} footer={<><Btn kind="ghost" onClick={onClose}>やめる</Btn><Btn disabled={!!busy} onClick={next}>{busy ? "読んでいます" : "次へ"}</Btn></>}>
         <div className="field">何から作る<span className="seg cw-seg">{SOURCES.map(([k, t]) => <button key={k} type="button" aria-pressed={src === k} onClick={() => { setSrc(k); setFile(null); setErr(""); }}>{t}</button>)}</span></div>
         {src === "excel" && <><a className="btn ghost sm cw-a" href="/templates/training-template.xlsx" download="研修情報ひな形.xlsx">ひな形を受け取る</a><label className="field">埋めた Excel<input type="file" accept=".xlsx,.xls" onChange={e => setFile(e.target.files?.[0] || null)} /></label></>}
-        {src === "doc" && <><label className="field">研修計画書（PDF・Excel・テキスト）<input type="file" accept=".pdf,.xlsx,.xls,.csv,.txt" onChange={e => setFile(e.target.files?.[0] || null)} /></label><Chip tone="mk">AI が読み取る ・ 次で確かめる</Chip></>}
+        {src === "doc" && <><label className="field">研修計画書（PDF・Word・Excel・テキスト）<input type="file" accept=".pdf,.docx,.xlsx,.xls,.csv,.txt" onChange={e => setFile(e.target.files?.[0] || null)} /></label><Chip tone="mk">AI が読み取る ・ 次で確かめる</Chip></>}
         {src === "text" && <><label className="field">決まっていること<textarea rows={4} maxLength={6000} value={text} placeholder="例：2027/4/1〜6/30、月〜金 9時〜18時。講師は山口さん" onChange={e => setText(e.target.value)} /></label><Chip tone="mk">AI が読み取る ・ 次で確かめる</Chip></>}
         {src === "copy" && (
           <>
@@ -195,10 +211,11 @@ export default function CourseCreate({ companies, courses, onClose, onDone }) {
     );
   }
   return (
-    <Modal title="確かめて作る" width={680} onClose={onClose} footer={<><Btn kind="ghost" disabled={!!busy} onClick={() => setStep(1)}>← 戻る</Btn><Btn disabled={!!busy} onClick={make}>{busy ? "作っています" : "下書きで作る"}</Btn></>}>
+    <Modal title="確かめて作る" width={680} onClose={onClose} footer={<>{!initial && <Btn kind="ghost" disabled={!!busy} onClick={() => setStep(1)}>← 戻る</Btn>}<Btn disabled={!!busy} onClick={make}>{busy ? "作っています" : "下書きで作る"}</Btn></>}>
       {note && <Chip tone="mk">{note}</Chip>}
       <label className="field">名前<input type="text" maxLength={80} value={v.name} onChange={e => set({ name: e.target.value })} /></label>
       <label className="field">企業{v.companyName && !v.companyId && <Chip tone="warn">「{v.companyName}」が見つかりません</Chip>}<select className="in" value={v.companyId} onChange={e => set({ companyId: e.target.value })}><option value="">未定</option>{companies.map(c => <option key={c.companyId} value={c.companyId}>{c.name}</option>)}</select></label>
+      {newCo === null ? <span><Btn kind="ghost sm" onClick={() => setNewCo(v.companyName || "")}>＋ 新しい企業</Btn></span> : <span className="row sx-nw"><input type="text" value={newCo} placeholder="企業の名前" aria-label="企業の名前" onChange={e => setNewCo(e.target.value)} /><Btn kind="sm" disabled={!newCo.trim() || !!busy} onClick={async () => { setBusy("co"); setErr(""); try { const r = await apiPost("/companies", { name: newCo.trim() }); setCompanies(l => [...l, { companyId: r.companyId, name: newCo.trim() }]); set({ companyId: r.companyId }); setNewCo(null); } catch (e) { setErr(errText(e, "企業を作れませんでした")); } finally { setBusy(""); } }}>作る</Btn><Btn kind="ghost sm" onClick={() => setNewCo(null)}>やめる</Btn></span>}
       <div className="st-fg"><label className="field">開始日<input type="date" value={v.startDate} onChange={e => set({ startDate: e.target.value })} /></label><label className="field">終了日<input type="date" value={v.endDate} onChange={e => set({ endDate: e.target.value })} /></label></div>
       <div className="ce-g3"><label className="field">研修の曜日<select className="in" value={v.week} onChange={e => set({ week: e.target.value })}>{Object.keys(WEEK).map(k => <option key={k}>{k}</option>)}</select></label><label className="field">始まり<input type="time" value={v.clockIn} onChange={e => set({ clockIn: e.target.value })} /></label><label className="field">終わり<input type="time" value={v.clockOut} onChange={e => set({ clockOut: e.target.value })} /></label></div>
       <div className="row"><label className="st-ck"><input type="checkbox" checked={v.noHolidays} onChange={e => set({ noHolidays: e.target.checked })} />祝日を休みにする</label><Chip tone={days.length ? "mk" : "warn"}>研修日 {days.length} 日</Chip></div>

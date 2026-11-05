@@ -29,6 +29,7 @@ export const LMS_SCREENS = {
     dev: lazy(() => import("./instructor/Dev.jsx")),
     team: lazy(() => import("./instructor/Team.jsx")),
     doc: lazy(() => import("./staff/Folder.jsx")),
+    resv: lazy(() => import("./staff/Resv.jsx")),
     test: lazy(() => import("./staff/Tests.jsx")),
     seat: lazy(() => import("./instructor/Seat.jsx")),
     cur: lazy(() => import("./instructor/Curriculum.jsx")),
@@ -43,6 +44,7 @@ export const LMS_SCREENS = {
     ann: lazy(() => import("./staff/Ann.jsx")),
     eval: lazy(() => import("./staff/Eval.jsx")),
     grant: lazy(() => import("./staff/Grant.jsx")),
+    resv: lazy(() => import("./staff/Resv.jsx")),
   },
   admin: {
     home: lazy(() => import("./admin/Home.jsx")),
@@ -54,6 +56,7 @@ export const LMS_SCREENS = {
     cdoc: lazy(() => import("./staff/Folder.jsx").then(m => ({ default: m.AdminCourseFolder }))),
     ltest: lazy(() => import("./staff/Tests.jsx")),
     lcur: lazy(() => import("./instructor/Curriculum.jsx")),
+    resv: lazy(() => import("./staff/Resv.jsx")),
     lprac: lazy(() => import("./instructor/Practice.jsx")),
     doc: lazy(() => import("./staff/Folder.jsx").then(m => ({ default: m.AdminSharedFolder }))),
     grant: lazy(() => import("./staff/Grant.jsx")),

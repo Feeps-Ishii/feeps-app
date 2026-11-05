@@ -3,7 +3,8 @@ import { apiGet, apiPut } from "../../../api.js";
 import { flattenUnitDays, makeLocalId, normalizeCurriculumSections, unitDaysOf } from "../../training/TrainingComponents.jsx";
 import { testIdOf } from "../../training/useTraining.js";
 import { Btn, Card, Chip, Modal } from "../parts/ui.jsx";
-import { arr, errText } from "../staff/common.js";
+import { arr, errText, saveXlsx } from "../staff/common.js";
+import CourseCreate from "./CourseCreate.jsx";
 
 /* 全コース共通のカリキュラム（モック lcurS）：カリキュラムごとに単元を持つ棚。コースの編集から足す。
    日付は持たない（足したあとにコースで決める）。テストはつなぐだけで、コピーしない。API は /curriculum-library */
@@ -69,7 +70,7 @@ function ImportModal({ courses, onClose, onPick }) {
   );
 }
 
-export default function CurriculumShelf({ say }) {
+export default function CurriculumShelf({ say, go }) {
   const shelf = useShelf();
   const [items, setItems] = useState([]);
   const [base, setBase] = useState("[]");
@@ -77,11 +78,13 @@ export default function CurriculumShelf({ say }) {
   const [cur, setCur] = useState(""); const [unitId, setUnitId] = useState("");
   const [courses, setCourses] = useState([]); const [tests, setTests] = useState([]);
   const [busy, setBusy] = useState(false); const [err, setErr] = useState("");
+  const [making, setMaking] = useState(null); const [companies, setCompanies] = useState([]);
   const [imp, setImp] = useState(false); const [conf, setConf] = useState(null); const [goalText, setGoalText] = useState("");
   useEffect(() => { if (shelf.state === "ready") { setItems(shelf.items); setBase(JSON.stringify(shelf.items)); setUpdatedAt(shelf.updatedAt); setCur(c => c || shelf.items[0]?.id || ""); } }, [shelf.state, shelf.items, shelf.updatedAt]);
   useEffect(() => {
     apiGet("/completion-report/courses").then(r => setCourses(arr(r?.courses))).catch(() => {});
     apiGet("/tests").then(l => setTests(arr(l).filter(t => t.status !== "archived"))).catch(() => {});
+    apiGet("/companies").then(l => setCompanies(arr(l))).catch(() => {});
   }, []);
   const K = items.find(x => x.id === cur) || null, U = arr(K?.units).find(u => u.id === unitId) || null;
   const dirty = JSON.stringify(items) !== base;
@@ -116,7 +119,7 @@ export default function CurriculumShelf({ say }) {
             <label className="field">カリキュラムの名前<input type="text" maxLength={80} value={K.name} onChange={e => setK({ name: e.target.value })} /></label>
             <label className="field">説明<input type="text" maxLength={300} value={K.note || ""} onChange={e => setK({ note: e.target.value })} /></label>
             <div className="scroll"><table className="tbl"><thead><tr><th>No</th><th>単元</th><th>日数</th><th>テスト</th><th>演習</th></tr></thead><tbody>{arr(K.units).map((u, i) => <tr key={u.id} className="crow" onClick={() => setUnitId(u.id)}><td className="num">{i + 1}</td><td><b>{u.title || "名前なし"}</b></td><td className="num">{u.days}</td><td className="num">{arr(u.testIds).length}</td><td className="num">{arr(u.exercises).length}</td></tr>)}{!arr(K.units).length && <tr><td colSpan={5}><Chip>なし</Chip></td></tr>}</tbody></table></div>
-            <span className="row st-end"><Btn kind="ghost sm" onClick={() => setConf({ title: `「${K.name}」を消す`, run: () => { setItems(l => l.filter(x => x.id !== cur)); setCur(""); } })}>このカリキュラムを消す</Btn></span>
+            <span className="row st-end"><Btn kind="ghost sm" onClick={() => saveXlsx(`カリキュラム_${K.name}`, "カリキュラム", [["No", "単元", "日数", "目標", "テスト"], ...arr(K.units).map((u, i) => [i + 1, u.title, u.days, arr(u.goals).join(" / "), arr(u.testIds).map(id => testName[id] || "").filter(Boolean).join(" / ")])])}>Excel に書き出す</Btn><Btn kind="sm" disabled={!arr(K.units).length || dirty} onClick={() => setMaking(K)}>このカリキュラムでコースを作る</Btn><Btn kind="ghost sm" onClick={() => setConf({ title: `「${K.name}」を消す`, run: () => { setItems(l => l.filter(x => x.id !== cur)); setCur(""); } })}>このカリキュラムを消す</Btn></span>
           </Card>
         )}
         {U && (
@@ -131,6 +134,7 @@ export default function CurriculumShelf({ say }) {
           </Card>
         )}
       </div>
+      {making && <CourseCreate companies={companies} courses={courses} initial={{ name: making.name, units: arr(making.units).map(u => ({ title: u.title, days: u.days, goal: arr(u.goals)[0] || "", note: "", testIds: arr(u.testIds) })) }} onClose={() => setMaking(null)} onDone={id => { setMaking(null); say?.("コースを下書きで作りました"); try { sessionStorage.setItem("lms.courseOpen", id); } catch { /* 一覧から開ける */ } go?.("course"); }} />}
       {imp && <ImportModal courses={courses} onClose={() => setImp(false)} onPick={us => { setK({ units: [...arr(K.units), ...us] }); setImp(false); }} />}
       {conf && <Modal title={conf.title} width={420} onClose={() => setConf(null)} footer={<><Btn kind="ghost" onClick={() => setConf(null)}>やめる</Btn><Btn onClick={() => { const c = conf; setConf(null); c.run(); }}>消す</Btn></>}><Chip>コースに足した単元はそのまま残る</Chip></Modal>}
     </>

@@ -166,6 +166,32 @@ function Results({ test, courses, fixedCourse, canGrade, onBack, say }) {
   );
 }
 
+// 共通から足す：ほかのコースのテストをこのコースの単元につなぐ（コピーしない）
+function AddFromOthers({ tests, courseId, sections, onClose, onDone }) {
+  const [id, setId] = useState(testIdOf(tests[0] || {}) || "");
+  const opts = useMemo(() => flattenCurriculumScopes(sections), [sections]);
+  const [scope, setScope] = useState("");
+  const [q, setQ] = useState("");
+  const [busy, setBusy] = useState(false); const [err, setErr] = useState("");
+  const list = tests.filter(t => !q.trim() || String(t.title).includes(q.trim()));
+  const save = async () => {
+    const t = tests.find(x => testIdOf(x) === id);
+    if (!t) { setErr("テストを選んでください"); return; }
+    setBusy(true); setErr("");
+    const o = opts.find(x => x.id === scope);
+    try { await apiPut(`/tests/${testIdOf(t)}`, { courseIds: [...new Set([...testCourseIdList(t), courseId])], courseScopes: { [courseId]: o ? Object.fromEntries(TEST_SCOPE_KEYS.map(k => [k, o[k] || ""])) : null } }); emitNotificationRefresh(); onDone(t); }
+    catch (e) { setErr(errText(e, "足せませんでした")); setBusy(false); }
+  };
+  return (
+    <Modal title="共通から足す" width={520} onClose={onClose} footer={<><Btn kind="ghost" onClick={onClose}>やめる</Btn><Btn disabled={busy || !id} onClick={save}>このコースに足す</Btn></>}>
+      <span className="fsearch pc-q"><input type="search" value={q} placeholder="テストを探す" aria-label="テストを探す" onChange={e => setQ(e.target.value)} /></span>
+      <div className="fs-pick">{list.map(t => <label key={testIdOf(t)} className="st-ck fs-pr"><input type="radio" name="tx-pick" checked={id === testIdOf(t)} onChange={() => setId(testIdOf(t))} />{t.title}</label>)}{!list.length && <Chip>なし</Chip>}</div>
+      <label className="field">つなぐ単元<select className="in" value={scope} onChange={e => setScope(e.target.value)}><option value="">コース全体</option>{opts.map(o => <option key={o.id} value={o.id}>{o.label}</option>)}</select></label>
+      {err && <div className="lms-err" role="alert">{err}</div>}
+    </Modal>
+  );
+}
+
 export default function StaffTests({ role, go, say }) {
   const admin = role === "admin";
   const today = todayStr();
@@ -182,6 +208,7 @@ export default function StaffTests({ role, go, say }) {
   const [results, setResults] = useState(null);
   const [assign, setAssign] = useState(null);
   const [del, setDel] = useState(null);
+  const [adding, setAdding] = useState(false);
   const [err, setErr] = useState("");
   const [fromCur, setFromCur] = useState(!!handoff);
   const [tab, setTab] = useState("all"); const [q, setQ] = useState(""); const [sort, setSort] = useState("new");
@@ -201,7 +228,8 @@ export default function StaffTests({ role, go, say }) {
       if (!alive) return;
       const tests = arr(ts).filter(t => t.status !== "archived").map(normalizeTest);
       const loose = arr(all).filter(t => t.status !== "archived" && !testCourseIdList(t).length).map(normalizeTest);
-      setSt({ state: "ready", tests, loose, sections: cur ? normalizeCurriculumSections(cur) : [], courses: arr(cs).filter(c => c?.courseId) });
+      const others = arr(all).filter(t => t.status !== "archived" && !tests.some(x => testIdOf(x) === testIdOf(t)) && testCourseIdList(t).length).map(normalizeTest);
+      setSt({ state: "ready", tests, loose, others, sections: cur ? normalizeCurriculumSections(cur) : [], courses: arr(cs).filter(c => c?.courseId) });
       const every = [...tests, ...loose];
       const pairs = await Promise.all(every.map(t => apiGet(`/tests/${testIdOf(t)}/results`).then(r => [testIdOf(t), arr(r)]).catch(() => [testIdOf(t), null])));
       if (alive) setRes(Object.fromEntries(pairs));
@@ -312,7 +340,7 @@ export default function StaffTests({ role, go, say }) {
   const curIdx = st.sections.findIndex(s => { const r = rangeOf(s); return r && r.start <= today && today <= r.end; });
   return (
     <div className="st">
-      <div className="head"><div><div className="eyebrow">{sc.course?.name}</div><h1 className="h1">テスト</h1></div><span className="r"><Btn kind="ghost sm" onClick={() => setBuild({ mode: "ai", scope: { courseId, scopeId: "", title: "" } })}>AI で作る</Btn><Btn kind="sm" onClick={() => setBuild({ mode: "manual", scope: { courseId, scopeId: "", title: "" } })}>テストを作る</Btn></span></div>
+      <div className="head"><div><div className="eyebrow">{sc.course?.name}</div><h1 className="h1">テスト</h1></div><span className="r">{arr(st.others).length > 0 && <Btn kind="ghost sm" onClick={() => setAdding(true)}>共通から足す</Btn>}<Btn kind="ghost sm" onClick={() => setBuild({ mode: "ai", scope: { courseId, scopeId: "", title: "" } })}>AI で作る</Btn><Btn kind="sm" onClick={() => setBuild({ mode: "manual", scope: { courseId, scopeId: "", title: "" } })}>テストを作る</Btn></span></div>
       {err && <div className="lms-err" role="alert">{err}</div>}
       {roster === null && <div className="lms-err" role="alert">受講生を確認できません</div>}
       <div className="tunits">
@@ -329,6 +357,7 @@ export default function StaffTests({ role, go, say }) {
         {st.loose.length > 0 && <section className="card tx-card"><div className="head pad tx-h"><h2 className="h3">どのコースにも出していない</h2></div>{table(st.loose)}</section>}
         {!st.sections.length && !whole.length && !st.loose.length && <Card className="pad"><Chip>なし</Chip></Card>}
       </div>
+      {adding && <AddFromOthers tests={arr(st.others)} courseId={courseId} sections={st.sections} onClose={() => setAdding(false)} onDone={t => { setAdding(false); say?.(`${t.title} を足しました`); reload(); }} />}
       {modals}
     </div>
   );
