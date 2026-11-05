@@ -109,7 +109,7 @@ export default function LmsApp({ role, manager = false, displayName, unread = 0,
                   <div className="lms-dc" role="menu" aria-label={gt}>
                     <div className="lms-dh">{gt}</div>
                     {subs.map(([k, t]) => (
-                      <button key={k} type="button" role="menuitem" className="lms-di" aria-current={screen === k && !extra ? "page" : undefined} onClick={() => go(k)}>
+                      <button key={k} type="button" role="menuitem" className="lms-di" aria-current={screen === k && !extra ? "page" : undefined} onClick={e => { e.currentTarget.blur(); go(k); }}>
                         <span className="ic"><Icon k={k} /></span><span>{t}</span>
                       </button>
                     ))}
