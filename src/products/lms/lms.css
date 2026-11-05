@@ -886,3 +886,25 @@
 .lms .wl-s { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px }
 .lms .wl-s li { display: grid; grid-template-columns: 26px minmax(0, 1fr) auto; gap: 10px; align-items: center; padding: 8px 10px; border-radius: 12px; background: var(--paper) }
 .lms .wl-s i { width: 24px; height: 24px; display: grid; place-items: center; border-radius: 50%; background: var(--card); font-style: normal; font-size: 12.5px; font-weight: 700 }
+
+/* 探す・使い方（2026-11-05） */
+.lms-ask { position: relative; width: 230px; flex: none }
+.lms-ask input { width: 100%; height: 34px; border-radius: 999px; border: 1px solid var(--line); background: var(--soft); color: var(--ink); padding: 0 14px; font-size: 13px }
+.lms-ask .lms-pop { left: auto; right: 0; width: 330px; max-width: calc(100vw - 32px); display: grid; gap: 2px }
+.lms-ask .lms-pop button { display: grid; gap: 1px; width: 100% }
+.lms-ask .lms-pop button[aria-selected="true"] { background: var(--soft) }
+.lms-ask .lms-pop small { font-size: 11.5px; font-weight: 500; color: var(--muted) }
+.lms-ask .lms-pop .none { padding: 9px 12px }
+@media (max-width: 1280px) { .lms-bar .lms-ask { display: none } }
+.lms-sheet .lms-ask { width: 100% }
+.lms-sheet .lms-ask .lms-pop { position: static; width: 100%; margin-top: 6px; box-shadow: none }
+.lms-help-q { display: flex; gap: 8px }
+.lms-help-q input { flex: 1; min-width: 0 }
+.lms-help-a { display: grid; gap: 10px; border: 1px solid var(--line); border-radius: 14px; padding: 14px }
+.lms-help-a ol { margin: 0; padding-left: 20px; display: grid; gap: 6px }
+.lms-help-l { display: grid; gap: 2px }
+.lms-help-l button { border: 0; background: none; text-align: left; padding: 9px 10px; border-radius: 10px; font-weight: 600; font-size: 13.5px; color: var(--ink) }
+.lms-help-l button:hover { background: var(--soft) }
+.lms .st .tx-cat { width: auto; max-width: 240px }
+.lms .gm-t { max-height: 52vh; overflow: auto }
+.lms .gm-t small { display: block }

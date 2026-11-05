@@ -123,7 +123,7 @@ export default function TraineeHome({ go, say }) {
       </div>
 
       <SurveyPrompt say={say} />
-      {wel && (() => { const rows = steps(d).filter(x => x.k === "in" || x.k === "goal"); return rows.every(x => x.done) ? null : <Modal title="はじめての日" width={460} onClose={closeWel} footer={<Btn kind="ghost" onClick={closeWel}>あとで</Btn>}><ol className="wl-s"><li className="done"><i>✓</i><b>パスワードを決める</b><Chip tone="ok">済</Chip></li>{rows.map((x, i) => <li key={x.k} className={x.done ? "done" : ""}><i>{x.done ? "✓" : i + 2}</i><b>{x.k === "in" ? "出勤する" : "今日の目標を書く"}</b>{x.done ? <Chip tone="ok">済</Chip> : <Btn kind="sm" onClick={() => { closeWel(); go(x.go); }}>する →</Btn>}</li>)}</ol></Modal>; })()}
+      {wel && (() => { const rows = steps(d).filter(x => x.k === "in" || x.k === "goal"); return rows.every(x => x.done) ? null : <Modal title="はじめての日" width={460} onClose={closeWel} footer={<><Btn kind="ghost" onClick={closeWel}>あとで</Btn><Btn kind="ghost" onClick={() => { closeWel(); window.dispatchEvent(new Event("lms:help")); }}>使い方を見る</Btn></>}><ol className="wl-s"><li className="done"><i>✓</i><b>パスワードを決める</b><Chip tone="ok">済</Chip></li>{rows.map((x, i) => <li key={x.k} className={x.done ? "done" : ""}><i>{x.done ? "✓" : i + 2}</i><b>{x.k === "in" ? "出勤する" : "今日の目標を書く"}</b>{x.done ? <Chip tone="ok">済</Chip> : <Btn kind="sm" onClick={() => { closeWel(); go(x.go); }}>する →</Btn>}</li>)}</ol></Modal>; })()}
       <div className="th-row">
         <Card className="pad">
           <div className="head"><h2 className="h2">締め切り</h2>{dls.length > 0 && <span className="r"><Chip>{dls.length}</Chip></span>}</div>

@@ -4,7 +4,7 @@ import { addMaterialToCurriculumTarget, normalizeCurriculumSections, sessionsFro
 import { fmtSize } from "../../training/DevReview.jsx";
 import { getActiveCourseId, setActiveCourseId, takeLibraryTarget } from "../../../utils/common/courseContext.js";
 import { Btn, Chip, FileIcon, Modal } from "../parts/ui.jsx";
-import { arr, errText, md } from "./common.js";
+import { arr, copyText, errText, md } from "./common.js";
 
 const MaterialViewer = lazy(() => import("../../training/MaterialViewer.jsx"));
 const GroupsModal = lazy(() => import("../../training/LibraryView.jsx").then(m => ({ default: m.GroupsModal })));
@@ -77,16 +77,16 @@ function AclModal({ node, isRoot, sid, groups, onCreateGroup, onClose, onSave })
   );
 }
 
-function MoveModal({ node, nodes, onClose, onMove }) {
+function MoveModal({ node, nodes, copy, onClose, onMove }) {
   const byId = useMemo(() => new Map(nodes.map(n => [n.nodeId, n])), [nodes]);
   const under = id => { let c = byId.get(id); const seen = new Set(); while (c && !seen.has(c.nodeId)) { if (c.nodeId === node.nodeId) return true; seen.add(c.nodeId); c = byId.get(c.parentId); } return false; };
   const label = n => { const out = []; let c = n; const seen = new Set(); while (c && c.nodeId !== ROOT && !seen.has(c.nodeId)) { out.unshift(c.name); seen.add(c.nodeId); c = byId.get(c.parentId); } return out.join(" / ") || "いちばん上"; };
-  const opts = nodes.filter(n => n.type === "folder" && n.canWrite && n.nodeId !== node.parentId && !under(n.nodeId)).sort((a, b) => label(a).localeCompare(label(b), "ja"));
-  const [to, setTo] = useState(""); const [err, setErr] = useState(""); const [busy, setBusy] = useState(false);
-  const go = async () => { setBusy(true); setErr(""); try { await onMove(to); onClose(); } catch (e) { setErr(errText(e, "移動できませんでした")); setBusy(false); } };
+  const opts = nodes.filter(n => n.type === "folder" && n.canWrite && (copy || n.nodeId !== node.parentId) && !under(n.nodeId)).sort((a, b) => label(a).localeCompare(label(b), "ja"));
+  const [to, setTo] = useState(copy ? node.parentId : ""); const [err, setErr] = useState(""); const [busy, setBusy] = useState(false);
+  const go = async () => { setBusy(true); setErr(""); try { await onMove(to); onClose(); } catch (e) { setErr(errText(e, copy ? "コピーできませんでした" : "移動できませんでした")); setBusy(false); } };
   return (
-    <Modal title={`移動 ・ ${nameOf(node)}`} width={460} onClose={onClose} footer={<><Btn kind="ghost" onClick={onClose}>やめる</Btn><Btn disabled={!to || busy} onClick={go}>移動する</Btn></>}>
-      {opts.length ? <label className="field">移動先<select className="in" value={to} onChange={e => setTo(e.target.value)}><option value="">選ぶ</option>{opts.map(n => <option key={n.nodeId} value={n.nodeId}>{label(n)}</option>)}</select></label> : <Chip>移動先なし</Chip>}
+    <Modal title={`${copy ? "コピー" : "移動"} ・ ${nameOf(node)}`} width={460} onClose={onClose} footer={<><Btn kind="ghost" onClick={onClose}>やめる</Btn><Btn disabled={!to || busy} onClick={go}>{copy ? "コピーする" : "移動する"}</Btn></>}>
+      {opts.length ? <label className="field">{copy ? "コピー先" : "移動先"}<select className="in" value={to} onChange={e => setTo(e.target.value)}><option value="">選ぶ</option>{opts.map(n => <option key={n.nodeId} value={n.nodeId}>{label(n) || "いちばん上"}</option>)}</select></label> : <Chip>{copy ? "コピー先なし" : "移動先なし"}</Chip>}
       {err && <div className="lms-err" role="alert">{err}</div>}
     </Modal>
   );
@@ -154,9 +154,10 @@ function StaffFolder({ role, say, view = "all" }) {
       const cs = arr(list).filter(c => c?.courseId);
       setCourses(cs);
       const pref = target?.courseId || getActiveCourseId();
-      const first = showCourses ? (cs.some(c => c.courseId === pref) ? pref : cs[0]?.courseId) : "";
+      const toShared = target?.courseId === "shared" && showCommon;  // 共有フォルダへのリンクから来たとき
+      const first = showCourses && !toShared ? (cs.some(c => c.courseId === pref) ? pref : cs[0]?.courseId) : "";
       if (first) setOpen({ [first]: true });
-      setCur({ sid: first ? `course#${first}` : "shared", id: target?.courseId === first && target?.nodeId ? target.nodeId : ROOT });
+      setCur({ sid: first ? `course#${first}` : "shared", id: target?.nodeId && (toShared || target.courseId === first) ? target.nodeId : ROOT });
     }).catch(() => { if (alive) { setCourses(null); if (showCommon) setCur({ sid: "shared", id: ROOT }); } });
     if (showCommon) { loadSpace("shared"); loadSpace("ops"); }
     loadLinks();
@@ -190,7 +191,8 @@ function StaffFolder({ role, say, view = "all" }) {
   const data = cur ? spaces[cur.sid] : undefined;
   const nodes = useMemo(() => arr(data?.nodes), [data]);
   const byId = useMemo(() => new Map(nodes.map(n => [n.nodeId, n])), [nodes]);
-  const here = cur ? byId.get(cur.id) || byId.get(ROOT) : null;
+  const here0 = cur ? byId.get(cur.id) || byId.get(ROOT) : null;
+  const here = here0?.type === "file" ? byId.get(here0.parentId) || byId.get(ROOT) : here0;  // ファイルへのリンクは入っているフォルダを開く
   const chain = useMemo(() => { const out = []; let c = here; const seen = new Set(); while (c && !seen.has(c.nodeId)) { out.unshift(c); seen.add(c.nodeId); c = byId.get(c.parentId); } return out; }, [here, byId]);
   const courseName = id => arr(courses).find(c => c.courseId === id)?.name || "コース";
   const scopeName = sid => (sid === "shared" ? "共有（全社）" : sid === "ops" ? "運営だけ" : courseName(courseIdOf(sid)));
@@ -289,6 +291,10 @@ function StaffFolder({ role, say, view = "all" }) {
   const canWriteHere = !!here?.canWrite && !q0;
   const k = here ? visKey(here.acl) : "staff";
   const mi = (t, fn, cls) => <button type="button" className={cls} onClick={() => { setMenu(""); fn(); }}>{t}</button>;
+  const copyLink = n => {
+    const url = `${window.location.origin}/?lms=on&fc=${encodeURIComponent(cid || "shared")}&fn=${encodeURIComponent(n.nodeId)}`;
+    Promise.resolve(copyText(url)).then(() => say?.("リンクをコピーしました")).catch(() => setErr("コピーできませんでした"));
+  };
 
   return (
     <div className="st">
@@ -358,7 +364,7 @@ function StaffFolder({ role, say, view = "all" }) {
                     {list.map(n => {
                       const v = nodeVis(n), used = cur.sid === "shared" ? (links?.[n.nodeId]?.shortcuts?.length || 0) + (links?.[n.nodeId]?.copies?.length || 0) : 0;
                       return (
-                        <tr key={n.nodeId} className={menu === n.nodeId ? "on" : ""}>
+                        <tr key={n.nodeId} className={menu === n.nodeId || cur.id === n.nodeId ? "on" : ""}>
                           <td><button type="button" className="fs-name" onClick={() => (isDir(n) ? enter(n) : openFile(n))}>{isDir(n) ? <span className="folder" aria-hidden="true" /> : <FileIcon name={n.name} />}<span>{nameOf(n)}{q0 && pathOf(n) && <small className="fs-path">{pathOf(n)}</small>}<small className="fs-meta num">{md(n.updatedAt)}{n.sizeBytes ? ` ・ ${fmtSize(n.sizeBytes)}` : ""} ・ {VIS[v][0]}</small></span></button>{n.type === "shortcut" && <Chip tone="mk">共有</Chip>}{n.ownAcl && <Chip>専用の範囲</Chip>}{used > 0 && <Chip tone="blue">{used} コース</Chip>}</td>
                           <td className="num">{md(n.updatedAt) || "—"}</td>
                           <td className="num">{n.type === "file" ? fmtSize(n.sizeBytes) : "—"}</td>
@@ -369,10 +375,12 @@ function StaffFolder({ role, say, view = "all" }) {
                               <div className="kmenu" role="menu">
                                 {mi("開く", () => (isDir(n) ? enter(n) : openFile(n)))}
                                 {n.type === "file" && mi("ダウンロード", () => openFile(n, true))}
+                                {n.type !== "shortcut" && (cid || cur.sid === "shared") && mi("リンクをコピー", () => copyLink(n))}
                                 {cur.sid === "shared" && n.type !== "shortcut" && mi("コースで使う", () => setDlg({ kind: "place", node: n }))}
                                 {n.canWrite && <hr />}
                                 {n.canWrite && n.type !== "shortcut" && mi("名前を変更", () => { setText(n.name); setDlg({ kind: "rename", node: n }); })}
                                 {n.canWrite && n.type !== "shortcut" && mi("移動", () => setDlg({ kind: "move", node: n }))}
+                                {n.canWrite && n.type !== "shortcut" && mi("コピー", () => setDlg({ kind: "copy", node: n }))}
                                 {n.canWrite && mi("公開範囲", () => setDlg({ kind: "acl", node: n }))}
                                 {n.canWrite && <hr />}
                                 {n.canWrite && mi(n.type === "shortcut" ? "外す" : "消す", () => setDlg({ kind: "delete", node: n }), "del")}
@@ -397,6 +405,7 @@ function StaffFolder({ role, say, view = "all" }) {
           onSave={async acl => { await apiPut(`/library/nodes/${encodeURIComponent(dlg.node.nodeId)}`, { spaceId: cur.sid, acl }); await loadSpace(cur.sid); say?.("公開範囲を変えました"); }} />
       )}
       {dlg?.kind === "move" && <MoveModal node={dlg.node} nodes={nodes} onClose={() => setDlg(null)} onMove={async to => { await apiPut(`/library/nodes/${encodeURIComponent(dlg.node.nodeId)}`, { spaceId: cur.sid, parentId: to }); await loadSpace(cur.sid); say?.("移動しました"); }} />}
+      {dlg?.kind === "copy" && <MoveModal copy node={dlg.node} nodes={nodes} onClose={() => setDlg(null)} onMove={async to => { await apiPost("/library/copy", { spaceId: cur.sid, nodeId: dlg.node.nodeId, parentId: to }); await loadSpace(cur.sid); say?.("コピーしました"); }} />}
       {dlg?.kind === "place" && <PlaceModal node={dlg.node} courses={arr(courses)} linked={links?.[dlg.node.nodeId]} onClose={() => setDlg(null)} onPlace={(mode, ids) => place(dlg.node, mode, ids)} onUnlink={unlink} />}
       {dlg && ["folder", "rename", "delete"].includes(dlg.kind) && (
         <Modal title={dlg.kind === "folder" ? "新しいフォルダ" : dlg.kind === "rename" ? "名前を変更" : dlg.node.type === "shortcut" ? "外す" : "消す"} width={420} onClose={() => setDlg(null)}

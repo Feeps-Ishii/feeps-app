@@ -308,14 +308,15 @@ function SeatingBoard({ data, courseId, setData, say }) {
       p => { Object.keys(p).forEach(pid => { if (pid === a0) p[pid] = toSeat; if (pid === b0) p[pid] = from.seat; }); return p; });
   }
 
-  async function newRound(force) {
-    if (!force && (dirty.round || dirty.layout)) { setConf({ title: "保存していない変更があります", ok: "変更を捨てて新しい回へ", run: () => newRound(true) }); return; }
+  async function newRound(force, copy) {
+    if (!force && (dirty.round || dirty.layout)) { setConf({ title: "保存していない変更があります", ok: "変更を捨てて新しい回へ", run: () => newRound(true, copy) }); return; }
     setBusy("new"); setMsg("");
     try {
       if (dirty.layout) await saveLayout();
       const r = await apiPost("/seating/rounds", { courseId, startDate: "" });
-      setData(d => ({ ...d, rounds: [...d.rounds, r] }));
-      setRoundId(r.roundId);
+      const made = copy ? await apiPut(`/seating/rounds/${encodeURIComponent(r.roundId)}`, { courseId, assign: round?.assign || {}, pins: round?.pins || {} }) : r;
+      setData(d => ({ ...d, rounds: [...d.rounds, made] }));
+      setRoundId(made.roundId);
     } catch (e) { setErr(errText(e, "新しい回を作れませんでした")); }
     finally { setBusy(""); }
   }
@@ -374,6 +375,7 @@ function SeatingBoard({ data, courseId, setData, say }) {
           <span className="row">
             {rounds.length ? <select className="in sx-round" aria-label="回" value={roundId} onChange={e => pickRound(e.target.value)}>{rounds.map(r => <option key={r.roundId} value={r.roundId}>{r.title}{r.status === "confirmed" ? "（確定）" : "（下書き）"}</option>)}</select> : <Chip>回なし</Chip>}
             <Btn kind="ghost sm" disabled={!!busy} onClick={() => newRound(false)}>＋ 新しい回</Btn>
+            {Object.keys(round?.assign || {}).length > 0 && <Btn kind="ghost sm" disabled={!!busy} onClick={() => newRound(false, true)}>この並びを写して新しい回へ</Btn>}
             <Chip>席 {seatCount} ・ 教室 {people.length - online.length} 人</Chip>
             {layout.desks.length > 0 && <Chip tone={totAgain ? "bad" : "ok"}>前回と同じ机 {totAgain} 人</Chip>}
             {(dirty.layout || dirty.round) && <Chip tone="warn">保存していない変更</Chip>}

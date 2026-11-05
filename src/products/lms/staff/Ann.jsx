@@ -38,11 +38,12 @@ export default function StaffAnn({ role, say }) {
     setErr(""); setCheck(true);
   };
   const ai = async kind => {
-    const text = kind === "rewrite" ? `${v.title}\n${v.body}` : points;
-    if (!text.trim()) { setErr(kind === "rewrite" ? "本文を書いてください" : "伝えたいことを書いてください"); return; }
+    const re = kind.startsWith("rewrite");
+    const text = re ? `${v.title}\n${v.body}` : points;
+    if (!text.trim()) { setErr(re ? "本文を書いてください" : "伝えたいことを書いてください"); return; }
     setBusy(kind); setErr("");
     try {
-      const r = await apiPost("/ai/staff-draft", { kind: kind === "rewrite" ? "rewrite" : "announcement", courseId, text });
+      const r = await apiPost("/ai/staff-draft", { kind: re ? kind : "announcement", courseId, text });
       f("body", r.text);
     } catch (e) { setErr(errText(e, "下書きを作れませんでした")); } finally { setBusy(""); }
   };
@@ -91,7 +92,7 @@ export default function StaffAnn({ role, say }) {
           <label className="field">件名<input type="text" value={v.title} onChange={e => f("title", e.target.value)} /></label>
           {!ro && <div className="an-ai"><input type="text" value={points} placeholder="伝えたいこと（例：明日は 10 時開始）" aria-label="伝えたいこと" onChange={e => setPoints(e.target.value)} /><Btn kind="ghost sm" disabled={!!busy} onClick={() => ai("draft")}>{busy === "draft" ? "書いています" : "AI で書く"}</Btn></div>}
           <label className="field">本文<textarea rows={5} value={v.body} onChange={e => f("body", e.target.value)} /></label>
-          {!ro && <span><Btn kind="ghost sm" disabled={!!busy || !v.body.trim()} onClick={() => ai("rewrite")}>{busy === "rewrite" ? "言い換えています" : "言い換える"}</Btn></span>}
+          {!ro && <span className="row">{[["rewrite", "言い換える"], ["rewriteSoft", "やさしく"], ["rewriteShort", "短く"], ["rewriteEn", "英語も添える"]].map(([k, t]) => <Btn key={k} kind="ghost sm" disabled={!!busy || !v.body.trim()} onClick={() => ai(k)}>{busy === k ? "作っています" : t}</Btn>)}</span>}
           <div className="st-fg">
             <label className="field">いつ<select className="in" value={v.when} onChange={e => f("when", e.target.value)}><option value="now">すぐに出す</option><option value="at">日時を決める</option></select></label>
             {v.when === "at" && <label className="field">日時<input type="datetime-local" value={v.at} onChange={e => f("at", e.target.value)} /></label>}

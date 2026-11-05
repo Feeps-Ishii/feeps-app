@@ -31,7 +31,30 @@ function Steps({ stages }) {
   );
 }
 
+// 様式の欄と LMS の項目の対応（見るだけ）
+function MapModal({ onClose }) {
+  const [st, setSt] = useState({ state: "loading", forms: [] }); const [key, setKey] = useState("plan");
+  const load = () => { setSt({ state: "loading", forms: [] }); apiGet("/grants/form-mappings").then(r => setSt({ state: "ready", forms: arr(r?.forms) })).catch(() => setSt({ state: "error", forms: [] })); };
+  useEffect(load, []);
+  const form = st.forms.find(f => f.key === key);
+  const K = { auto: ["LMS から", "ok"], manual: ["人が入れる", "warn"], fixed: ["固定", ""] };
+  return (
+    <Modal title="様式の対応表" width={780} onClose={onClose} footer={<Btn kind="ghost" onClick={onClose}>閉じる</Btn>}>
+      {st.state === "loading" ? <div className="soon">読み込み中</div> : st.state === "error" ? <div className="empty"><b>対応表を確認できません</b><Btn kind="ghost sm" onClick={load}>再読み込み</Btn></div> : (
+        <>
+          <span className="seg gm-seg">{st.forms.map(f => <button key={f.key} type="button" aria-pressed={key === f.key} onClick={() => setKey(f.key)}>{{ plan: "計画", henkou: "変更", shikyu: "支給", offjt: "OFF-JT" }[f.key] || f.key}</button>)}</span>
+          {form && <span className="row"><Chip tone="mk">{form.label}</Chip>{form.formVersion && <Chip>{form.formVersion} 版</Chip>}</span>}
+          <div className="scroll gm-t"><table className="tbl"><thead><tr><th>様式の欄</th><th>セル</th><th>入り方</th><th>LMS の項目</th></tr></thead><tbody>
+            {arr(form?.rows).map((r, i) => <tr key={`${r.cell}-${r.label}-${i}`}><td><b>{r.label}</b>{r.sheet && <small className="dv-sub">{r.sheet}</small>}</td><td className="num">{r.cell || "—"}</td><td><Chip tone={K[r.kind]?.[1]}>{K[r.kind]?.[0]}</Chip></td><td>{r.kind === "fixed" ? r.value : r.kind === "manual" ? <small>{r.reason || "—"}</small> : <span className="dv-mono">{r.source}</span>}</td></tr>)}
+          </tbody></table></div>
+        </>
+      )}
+    </Modal>
+  );
+}
+
 function DocsTab({ grant, isAdmin, docs, nextActions, say }) {
+  const [mapOpen, setMapOpen] = useState(false);
   const { generate, generating, error: genErr, clearError, lastResult } = useGrantExports(grant.grantId);
   const [formType, setFormType] = useState(FORM_TYPE_OPTIONS[0].value);
   const [up, setUp] = useState({ type: DOCUMENT_TYPE_SUGGESTIONS[0], custom: "", due: "", note: "" });
@@ -70,7 +93,8 @@ function DocsTab({ grant, isAdmin, docs, nextActions, say }) {
     <>
       {nextActions.length > 0 && <Card className="pad st-g"><span className="eyebrow">次にやること</span>{nextActions.map(a => <span key={a} className="dr-block"><b>{a}</b></span>)}</Card>}
       <Card className="pad st-g">
-        <div className="head"><h2 className="h3">書類</h2><span className="r"><Chip>{docs.items.length} 件</Chip>{docs.items.length > 0 && <Btn kind="ghost sm" disabled={busy} onClick={zipAll}>まとめて受け取る（zip）</Btn>}</span></div>
+        {mapOpen && <MapModal onClose={() => setMapOpen(false)} />}
+        <div className="head"><h2 className="h3">書類</h2><span className="r"><Chip>{docs.items.length} 件</Chip>{isAdmin && <Btn kind="ghost sm" onClick={() => setMapOpen(true)}>様式の対応表</Btn>}{docs.items.length > 0 && <Btn kind="ghost sm" disabled={busy} onClick={zipAll}>まとめて受け取る（zip）</Btn>}</span></div>
         {docs.error ? <div className="empty"><b>書類を確認できません</b><Btn kind="ghost sm" onClick={docs.reload}>再読み込み</Btn></div> : docs.loading ? <div className="dv-mt">読み込み中</div> : (
           <div className="fd-l">
             {docs.items.map(d => (

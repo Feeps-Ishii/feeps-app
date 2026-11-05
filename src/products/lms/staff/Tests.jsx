@@ -167,13 +167,29 @@ function Results({ test, courses, fixedCourse, canGrade, onBack, say }) {
 }
 
 // 共通から足す：ほかのコースのテストをこのコースの単元につなぐ（コピーしない）
+function CategoryModal({ test, cats, onClose, onDone }) {
+  const [v, setV] = useState(test.category || "");
+  const [busy, setBusy] = useState(false); const [err, setErr] = useState("");
+  const save = async () => {
+    setBusy(true); setErr("");
+    try { await apiPut(`/tests/${testIdOf(test)}`, { category: v.trim() }); onDone(); }
+    catch (e) { setErr(errText(e, "保存できませんでした")); setBusy(false); }
+  };
+  return (
+    <Modal title={`分類 ・ ${test.title}`} width={420} onClose={onClose} footer={<><Btn kind="ghost" onClick={onClose}>やめる</Btn><Btn disabled={busy} onClick={save}>保存</Btn></>}>
+      <label className="field">分類<input type="text" list="tx-cats" maxLength={40} value={v} placeholder="Java" onChange={e => setV(e.target.value)} /><datalist id="tx-cats">{cats.map(c => <option key={c} value={c} />)}</datalist></label>
+      {err && <div className="lms-err" role="alert">{err}</div>}
+    </Modal>
+  );
+}
+
 function AddFromOthers({ tests, courseId, sections, onClose, onDone }) {
   const [id, setId] = useState(testIdOf(tests[0] || {}) || "");
   const opts = useMemo(() => flattenCurriculumScopes(sections), [sections]);
   const [scope, setScope] = useState("");
   const [q, setQ] = useState("");
   const [busy, setBusy] = useState(false); const [err, setErr] = useState("");
-  const list = tests.filter(t => !q.trim() || String(t.title).includes(q.trim()));
+  const list = tests.filter(t => !q.trim() || String(t.title).includes(q.trim()) || String(t.category || "").includes(q.trim()));
   const save = async () => {
     const t = tests.find(x => testIdOf(x) === id);
     if (!t) { setErr("テストを選んでください"); return; }
@@ -212,6 +228,7 @@ export default function StaffTests({ role, go, say }) {
   const [err, setErr] = useState("");
   const [fromCur, setFromCur] = useState(!!handoff);
   const [tab, setTab] = useState("all"); const [q, setQ] = useState(""); const [sort, setSort] = useState("new");
+  const [catOf, setCatOf] = useState(null); const [catF, setCatF] = useState("");
 
   const reload = useCallback(() => setKey(k => k + 1), []);
   useEffect(() => {
@@ -292,6 +309,7 @@ export default function StaffTests({ role, go, say }) {
           <button type="button" onClick={() => { setMenu(""); setBuild({ mode: "manual", test: t }); }}>直す</button>
           <button type="button" onClick={() => { setMenu(""); setBuild({ mode: "manual", test: t, duplicate: true }); }}>複製</button>
           <button type="button" onClick={() => { setMenu(""); setAssign(t); }}>コースと単元</button>
+          {admin && <button type="button" onClick={() => { setMenu(""); setCatOf(t); }}>分類</button>}
           <button type="button" onClick={() => { setMenu(""); setTaking(t); }}>試しに受ける</button>
           <button type="button" onClick={() => setStatus(t)}>{t.status === "published" ? "下書きに戻す" : "公開する"}</button>
           <hr />
@@ -304,7 +322,7 @@ export default function StaffTests({ role, go, say }) {
     const s = statOf(t);
     return (
       <tr key={testIdOf(t)} className={menu === testIdOf(t) ? "on" : ""}>
-        <td><button type="button" className="fs-name" onClick={() => setResults(t)}><span><b>{t.title}</b><small className="fs-meta num">{statusLabel(t.status)} ・ 受けた {s.state === "ready" ? s.n : "—"}{N ? ` / ${N}` : ""} ・ 平均 {s.avg ?? "—"}</small></span></button></td>
+        <td><button type="button" className="fs-name" onClick={() => setResults(t)}><span><b>{t.title}</b><small className="fs-meta num">{t.category ? `${t.category} ・ ` : ""}{statusLabel(t.status)} ・ 受けた {s.state === "ready" ? s.n : "—"}{N ? ` / ${N}` : ""} ・ 平均 {s.avg ?? "—"}</small></span></button></td>
         {admin ? <td className="tx-cs">{courseNames(t).length ? courseNames(t).map(n => <Chip key={n}>{n}</Chip>) : <Chip tone="warn">どこにも出していない</Chip>}</td> : <td>{dueOf(t)}</td>}
         <td>{statusCell(t)}</td><td className="num">{tookCell(s)}</td><td className="num">{avgCell(s)}</td>
         <td><Btn kind="ghost sm" onClick={() => setResults(t)}>結果</Btn></td>
@@ -312,22 +330,25 @@ export default function StaffTests({ role, go, say }) {
       </tr>
     );
   };
+  const cats = [...new Set(st.tests.map(t => t.category).filter(Boolean))].sort((a, b) => a.localeCompare(b, "ja"));
   const table = ts => <div className="scroll"><table className="tbl fs-t tx-t"><thead><tr><th>テスト</th><th>{admin ? "使用中のコース" : "実施"}</th><th>状態</th><th>受けた</th><th>平均</th><th /><th aria-label="操作" /></tr></thead><tbody>{ts.map(row)}</tbody></table></div>;
   const modals = (
     <>
+      {catOf && <CategoryModal test={catOf} cats={cats} onClose={() => setCatOf(null)} onDone={() => { setCatOf(null); say?.("保存しました"); reload(); }} />}
       {assign && <AssignModal test={assign} courses={st.courses} canAssign={canAssign} onClose={() => setAssign(null)} onSaved={() => { setAssign(null); say?.("保存しました"); reload(); }} />}
       {del && <Modal title="テストを消す" width={420} onClose={() => setDel(null)} footer={<><Btn kind="ghost" onClick={() => setDel(null)}>やめる</Btn><Btn onClick={remove}>消す</Btn></>}><b>{del.title}</b>{statOf(del).n > 0 && <div className="row"><Chip tone="warn">受けた人 {statOf(del).n} 人</Chip></div>}</Modal>}
     </>
   );
 
   if (admin) {
-    const hit = st.tests.filter(t => (!q.trim() || String(t.title).includes(q.trim())) && (tab === "all" || (tab === "none" ? !testCourseIdList(t).length : t.status === tab)));
+    const hit = st.tests.filter(t => (!q.trim() || String(t.title).includes(q.trim())) && (tab === "all" || (tab === "none" ? !testCourseIdList(t).length : t.status === tab)) && (!catF || (catF === "-" ? !t.category : t.category === catF)));
     const list = [...hit].sort({ new: (a, b) => String(b.updatedAt || b.createdAt || "").localeCompare(String(a.updatedAt || a.createdAt || "")), name: (a, b) => String(a.title).localeCompare(String(b.title), "ja"), used: (a, b) => testCourseIdList(b).length - testCourseIdList(a).length }[sort]);
     return (
       <div className="st">
         <div className="head"><div><div className="eyebrow">全コース共通</div><h1 className="h1">テスト</h1></div><span className="r"><Btn kind="ghost sm" onClick={() => setBuild({ mode: "ai" })}>AI で作る</Btn><Btn kind="sm" onClick={() => setBuild({ mode: "manual" })}>テストを作る</Btn></span></div>
         {err && <div className="lms-err" role="alert">{err}</div>}
         <ListTool tabs={[["all", "すべて", st.tests.length], ["published", "公開", st.tests.filter(t => t.status === "published").length, "ok"], ["draft", "下書き", st.tests.filter(t => t.status === "draft").length, "warn"], ["none", "コース未設定", st.tests.filter(t => !testCourseIdList(t).length).length]]} tab={tab} onTab={setTab} q={q} onQ={setQ} placeholder="テストを探す" sorts={[["new", "新しい順"], ["name", "名前順"], ["used", "使っているコースの多い順"]]} sort={sort} onSort={setSort} />
+        {cats.length > 0 && <span className="row"><select className="in tx-cat" aria-label="分類" value={catF} onChange={e => setCatF(e.target.value)}><option value="">すべての分類</option>{cats.map(c => <option key={c} value={c}>{c}</option>)}<option value="-">分類なし</option></select></span>}
         <section className="card tx-card">{list.length ? table(list) : <div className="pad"><Chip>なし</Chip></div>}</section>
         {modals}
       </div>

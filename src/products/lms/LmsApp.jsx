@@ -1,12 +1,13 @@
 import React, { Suspense, useEffect, useMemo, useState } from "react";
 import { apiGet } from "../../api.js";
-import { getActiveCourseId } from "../../utils/common/courseContext.js";
+import { getActiveCourseId, setLibraryTarget } from "../../utils/common/courseContext.js";
 import "./lms-staff.css";
 import "./lms.css";
 import { DevHubMark } from "../../components/common/DevHubMark.jsx";
 import { LMS_BNAV, LMS_LEGACY, LMS_ROLE_LABEL, lmsGroups, lmsLabel } from "./LmsCatalog.js";
 import { Icon } from "./parts/icons.jsx";
 import { Soon } from "./parts/ui.jsx";
+import { AskBar, HelpPanel, PasswordModal } from "./parts/Ask.jsx";
 import { ChatToasts } from "../training/ChatNotifier.jsx";
 import CourseSwitch from "./parts/CourseSwitch.jsx";
 import { LMS_SCREENS } from "./screens.js";
@@ -27,6 +28,18 @@ class ScreenBoundary extends React.Component {
   }
 }
 
+// フォルダの「リンクをコピー」の URL（?fc=コース&fn=ファイル）から来たとき。読み込みで 1 回だけ読む
+const FOLDER_LINK = (() => {
+  try {
+    const u = new URL(window.location.href), c = u.searchParams.get("fc"), n = u.searchParams.get("fn");
+    if (!c || !n) return "";
+    setLibraryTarget({ courseId: c, nodeId: n });
+    u.searchParams.delete("fc"); u.searchParams.delete("fn");
+    window.history.replaceState(null, "", u.toString());
+    return c;
+  } catch { return ""; }
+})();
+
 const LOC_KEY = "feeps.lms.loc";
 const readLoc = () => { try { return window.sessionStorage.getItem(LOC_KEY) || "home"; } catch { return "home"; } };
 const saveLoc = s => { try { window.sessionStorage.setItem(LOC_KEY, s); } catch { /* 読み直すとホームに戻るだけ */ } };
@@ -35,7 +48,9 @@ export default function LmsApp({ role, manager = false, displayName, unread = 0,
   const [off, setOff] = useState([]);          // コースの設定で切った機能（読めないときは全部出す）
   const groups = useMemo(() => lmsGroups(role).map(g => [g[0], g[1], g[2].filter(s => !off.includes(s[0]))]).filter(g => g[2].length), [role, off]);
   const keys = groups.flatMap(g => g[2].map(s => s[0]));
-  const [screen, setScreen] = useState(() => { const s = readLoc(); return keys.includes(s) ? s : "home"; });
+  const [screen, setScreen] = useState(() => { const s = FOLDER_LINK ? (role === "admin" && FOLDER_LINK !== "shared" ? "cdoc" : "doc") : readLoc(); return keys.includes(s) ? s : "home"; });
+  const [help, setHelp] = useState(null);      // 使い方（null は閉じている）
+  const [pwOpen, setPwOpen] = useState(false);
   const [extra, setExtra] = useState(null); // 通知・プロフィールなど、メニューに無い画面
   const [pop, setPop] = useState("");
   const [sheet, setSheet] = useState(false);
@@ -47,6 +62,7 @@ export default function LmsApp({ role, manager = false, displayName, unread = 0,
   const cur = groups.find(g => g[2].some(s => s[0] === screen)) || groups[0];
   const go = k => { setExtra(null); setScreen(k); saveLoc(k); setPop(""); setSheet(false); const g = groups.find(x => x[2].some(s => s[0] === k)); if (g) setLastIn(m => ({ ...m, [g[0]]: k })); window.scrollTo?.(0, 0); };
   const say = t => setToast(t);
+  useEffect(() => { const open = () => setHelp(""); window.addEventListener("lms:help", open); return () => window.removeEventListener("lms:help", open); }, []);
   useEffect(() => {
     if (role === "admin") return undefined;
     let alive = true;
@@ -103,6 +119,7 @@ export default function LmsApp({ role, manager = false, displayName, unread = 0,
             ))}
           </nav>
           <div className="lms-me">
+            <AskBar role={role} groups={groups} onGo={go} onHelp={setHelp} />
             <button type="button" className="lms-bell" aria-label="通知" onClick={() => { setExtra("notifications"); setPop(""); }}>
               <Icon k="bell" />{unread > 0 && <em>{unread}</em>}
             </button>
@@ -113,6 +130,8 @@ export default function LmsApp({ role, manager = false, displayName, unread = 0,
             {pop === "me" && (
               <div className="lms-pop" role="menu">
                 <button type="button" role="menuitem" onClick={() => { setExtra("profile"); setPop(""); }}>プロフィール</button>
+                <button type="button" role="menuitem" onClick={() => { setPwOpen(true); setPop(""); }}>パスワードを変える</button>
+                <button type="button" role="menuitem" onClick={() => { setHelp(""); setPop(""); }}>ヘルプ・使い方</button>
                 <button type="button" role="menuitem" onClick={() => onLegacy()}>前の画面に戻す</button>
                 <button type="button" role="menuitem" onClick={onLogout}>ログアウト</button>
               </div>
@@ -136,6 +155,7 @@ export default function LmsApp({ role, manager = false, displayName, unread = 0,
       {sheet && (
         <div className="lms-sheet" onClick={e => { if (e.target === e.currentTarget) setSheet(false); }}>
           <div role="dialog" aria-label="メニュー">
+            <AskBar role={role} groups={groups} onGo={go} onHelp={q => { setSheet(false); setHelp(q); }} />
             {groups.map(([gk, gt, subs]) => (
               <section key={gk} style={{ display: "grid", gap: 8 }}>
                 <h3>{gt}</h3>
@@ -145,6 +165,8 @@ export default function LmsApp({ role, manager = false, displayName, unread = 0,
           </div>
         </div>
       )}
+      {help !== null && <HelpPanel role={role} groups={groups} initial={help} onClose={() => setHelp(null)} onGo={k => { setHelp(null); go(k); }} onPassword={() => { setHelp(null); setPwOpen(true); }} />}
+      {pwOpen && <PasswordModal onClose={() => setPwOpen(false)} say={say} />}
       {toast && <div className="lms-toast" role="status">{toast}</div>}
       <ChatToasts role={role} onOpenTeams={() => go("team")} />
     </div>
