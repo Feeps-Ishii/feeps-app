@@ -881,3 +881,8 @@
 .lms .cw-a { justify-self: start; text-decoration: none }
 .lms .cw-u { display: grid; grid-template-columns: 22px minmax(0, 1fr) 76px auto; gap: 8px; align-items: center; margin-top: 6px }
 .lms .st input[type=time], .lms [role=dialog] input[type=time] { width: 100%; border: 0; border-radius: 12px; padding: 9px 12px; background: var(--paper); font: inherit }
+
+/* はじめての案内 */
+.lms .wl-s { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px }
+.lms .wl-s li { display: grid; grid-template-columns: 26px minmax(0, 1fr) auto; gap: 10px; align-items: center; padding: 8px 10px; border-radius: 12px; background: var(--paper) }
+.lms .wl-s i { width: 24px; height: 24px; display: grid; place-items: center; border-radius: 50%; background: var(--card); font-style: normal; font-size: 12.5px; font-weight: 700 }

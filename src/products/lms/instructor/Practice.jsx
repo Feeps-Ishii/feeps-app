@@ -59,6 +59,33 @@ function CreateModal({ courseId, onClose, onMade }) {
   );
 }
 
+function ReplaceModal({ courseId, id, onClose, onDone }) {
+  const [prob, setProb] = useState(null); const [ans, setAns] = useState(null);
+  const [busy, setBusy] = useState(""); const [err, setErr] = useState("");
+  const run = async () => {
+    if (!prob) { setErr("問題の Word を選んでください"); return; }
+    setErr(""); setBusy("Word を送っています");
+    try {
+      const c = await apiPost(`/practice/${pid(id)}/uploads${q(courseId)}`, {});
+      await putFile(c.uploads.problem, prob, c.uploads.contentType);
+      if (ans) await putFile(c.uploads.answer, ans, c.uploads.contentType);
+      setBusy("AI が問題集にしています");
+      const { jobId } = await apiPost(`/practice/${pid(id)}/build${q(courseId)}`, { hasAnswer: !!ans, problemName: prob.name, answerName: ans?.name || "" });
+      await waitJob(courseId, id, jobId, i => setBusy(`AI が問題集にしています（${(i + 1) * 5} 秒）`));
+      onDone();
+    } catch (e) { setErr(errText(e, "取り込めませんでした")); setBusy(""); }
+  };
+  return (
+    <Modal title="Word から取り込み直す" width={480} onClose={() => !busy && onClose()} footer={<><Btn kind="ghost" disabled={!!busy} onClick={onClose}>やめる</Btn><Btn disabled={!!busy} onClick={run}>取り込み直す</Btn></>}>
+      <label className="field">問題の Word（必須）<input type="file" accept=".docx" disabled={!!busy} onChange={e => setProb(e.target.files?.[0] || null)} /></label>
+      <label className="field">解答の Word<input type="file" accept=".docx" disabled={!!busy} onChange={e => setAns(e.target.files?.[0] || null)} /></label>
+      <Chip tone="warn">直した中身は新しい取り込みで置き換わる</Chip>
+      {busy && <Chip tone="mk">{busy}</Chip>}
+      {err && <div className="lms-err" role="alert">{err}</div>}
+    </Modal>
+  );
+}
+
 function Editor({ courseId, id, onBack, say }) {
   const [st, setSt] = useState("loading");
   const [set, setSet] = useState(null); const [meta, setMeta] = useState(null);
@@ -68,12 +95,13 @@ function Editor({ courseId, id, onBack, say }) {
   const [dirty, setDirty] = useState(false);
   const [busy, setBusy] = useState(""); const [err, setErr] = useState("");
   const [conf, setConf] = useState(null);
+  const [replacing, setReplacing] = useState(false); const [ver, setVer] = useState(0);
   useEffect(() => {
     let alive = true;
     apiGet(`/practice/${pid(id)}${q(courseId)}`).then(r => { if (!alive) return; setMeta(r.item); setSet(r.set); setQid(r.set?.lessons?.[0]?.questions?.[0]?.id || ""); setSt("ready"); }).catch(() => { if (alive) setSt("error"); });
     apiGet(`/courses/${encodeURIComponent(courseId)}/curriculum`).then(c => { if (alive) setSections(arr(c?.sections).map(s => ({ id: s.id, title: s.title || s.categoryTitle || "" })).filter(s => s.id)); }).catch(() => {});
     return () => { alive = false; };
-  }, [courseId, id]);
+  }, [courseId, id, ver]);
   const cur = useMemo(() => set?.lessons.flatMap(l => l.questions).find(x => x.id === qid) || null, [set, qid]);
   const edit = fn => { setSet(s => { const n = structuredClone(s); fn(n); return n; }); setDirty(true); };
   const editQ = fn => edit(n => { n.lessons.forEach(l => l.questions.forEach(x => { if (x.id === qid) fn(x); })); });
@@ -96,7 +124,7 @@ function Editor({ courseId, id, onBack, say }) {
     <div className="st">
       <Style />
       <div className="head"><div><div className="eyebrow">練習問題</div><h1 className="h1">{set.title || "題名なし"}</h1></div>
-        <span className="r"><Btn kind="ghost sm" onClick={back}>← 一覧</Btn><Btn kind="ghost sm" onClick={() => setPreview(p => !p)}>{preview ? "直す画面へ" : "受講生の見え方"}</Btn>{meta?.status === "published" && <Btn kind="ghost sm" disabled={!!busy} onClick={hide}>公開をやめる</Btn>}<Btn kind="ghost sm" onClick={() => setConf({ title: "この練習問題を消す", ok: "消す", note: "受講生の「できた」も見えなくなる", run: remove })}>消す</Btn><Btn kind="ghost sm" disabled={!!busy || !dirty} onClick={() => save(false)}>保存</Btn><Btn kind="sm" disabled={!!busy} onClick={() => save(true)}>{meta?.status === "published" ? "公開し直す" : "公開する"}</Btn></span>
+        <span className="r"><Btn kind="ghost sm" onClick={back}>← 一覧</Btn><Btn kind="ghost sm" onClick={() => setReplacing(true)}>Word から取り込み直す</Btn><Btn kind="ghost sm" onClick={() => setPreview(p => !p)}>{preview ? "直す画面へ" : "受講生の見え方"}</Btn>{meta?.status === "published" && <Btn kind="ghost sm" disabled={!!busy} onClick={hide}>公開をやめる</Btn>}<Btn kind="ghost sm" onClick={() => setConf({ title: "この練習問題を消す", ok: "消す", note: "受講生の「できた」も見えなくなる", run: remove })}>消す</Btn><Btn kind="ghost sm" disabled={!!busy || !dirty} onClick={() => save(false)}>保存</Btn><Btn kind="sm" disabled={!!busy} onClick={() => save(true)}>{meta?.status === "published" ? "公開し直す" : "公開する"}</Btn></span>
       </div>
       <div className="row"><Chip tone={tone}>{label}</Chip>{meta?.hasDraftChanges && <Chip tone="warn">公開中のものと違う下書き</Chip>}{dirty && <Chip tone="warn">保存していない変更</Chip>}{set.source?.problem && <Chip>元 {set.source.problem}{set.source.answer ? ` ・ ${set.source.answer}` : ""}</Chip>}</div>
       {err && <div className="lms-err" role="alert">{err}</div>}
@@ -138,6 +166,7 @@ function Editor({ courseId, id, onBack, say }) {
           </div>
         </>
       )}
+      {replacing && <ReplaceModal courseId={courseId} id={id} onClose={() => setReplacing(false)} onDone={() => { setReplacing(false); setDirty(false); setVer(x => x + 1); say?.("取り込み直しました"); }} />}
       {conf && <Modal title={conf.title} width={440} onClose={() => setConf(null)} footer={<><Btn kind="ghost" onClick={() => setConf(null)}>やめる</Btn><Btn onClick={() => { const c = conf; setConf(null); c.run(); }}>{conf.ok}</Btn></>}><Chip tone="warn">{conf.note}</Chip></Modal>}
     </div>
   );

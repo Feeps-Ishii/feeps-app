@@ -1,5 +1,5 @@
 import React, { Suspense, lazy, useEffect, useMemo, useRef, useState } from "react";
-import { apiGet } from "../../../api.js";
+import { apiGet, apiPost } from "../../../api.js";
 import {
   APPLICATION_TYPE_OPTIONS, DOCUMENT_TYPE_SUGGESTIONS, EMPLOYMENT_TYPE_OPTIONS, EMPTY_GRANT_FORM, ENTERPRISE_SIZE_OPTIONS, FORM_TYPE_OPTIONS, GRADUATE_STATUS_OPTIONS,
   GRANT_STATUS_OPTIONS, GRANT_TYPE_SUGGESTIONS, IT_EXPERIENCE_OPTIONS, applicationTypeLabel, documentStatusLabel, employmentTypeLabel, grantStatusLabel,
@@ -7,7 +7,7 @@ import {
 import { useCompanyCourses, useCompanyProfile, useCompanyTrainees, useGrantCalculationDraft, useGrantCompanies, useGrantCoursesMap, useGrantDocuments, useGrantExports, useGrantsList } from "../../grants/useGrants.js";
 import { computeGrantStages, computeNextActions } from "../../grants/grantStages.js";
 import { Btn, Card, Chip, FileIcon, ListTool, Modal, matchName } from "../parts/ui.jsx";
-import { arr, errText, md } from "./common.js";
+import { arr, errText, md, saveBlob, zipStore } from "./common.js";
 
 const GrantRateMaster = lazy(() => import("../../grants/GrantsComponents.jsx").then(m => ({ default: m.GrantRateMaster })));
 
@@ -47,13 +47,30 @@ function DocsTab({ grant, isAdmin, docs, nextActions, say }) {
   };
   const view = async d => { try { const url = await docs.viewDocument(d.documentId); if (url) window.open(url, "_blank", "noopener,noreferrer"); } catch { setErr("書類を開けませんでした"); } };
   const make = async () => { clearError(); try { await generate(formType); await docs.reload(); } catch { /* genErr に出る */ } };
+  const zipAll = async () => {
+    setBusy(true); setErr("");
+    try {
+      const used = {}, files = [];
+      for (const d of docs.items) {
+        // eslint-disable-next-line no-await-in-loop
+        const url = await docs.viewDocument(d.documentId);
+        // eslint-disable-next-line no-await-in-loop
+        const r = await fetch(url);
+        if (!r.ok) throw new Error(`「${d.fileName}」を読めませんでした`);
+        const base = d.fileName || d.documentId, k = used[base] = (used[base] || 0) + 1;
+        // eslint-disable-next-line no-await-in-loop
+        files.push({ name: k > 1 ? `${k}_${base}` : base, data: new Uint8Array(await r.arrayBuffer()) });
+      }
+      saveBlob(zipStore(files), `助成金の書類_${grant.grantType || "申請"}.zip`);
+    } catch (e) { setErr(errText(e, "まとめられませんでした")); } finally { setBusy(false); }
+  };
   const decide = async s => { setBusy(true); try { await docs.reviewDocument(review.documentId, s, note); setReview(null); setNote(""); say?.(s === "accepted" ? "受理しました" : "差し戻しました"); } catch (x) { setErr(errText(x, "保存できませんでした")); } finally { setBusy(false); } };
   const remove = async () => { setBusy(true); try { await docs.removeDocument(del.documentId); setDel(null); say?.("消しました"); } catch (x) { setErr(errText(x, "消せませんでした")); setDel(null); } finally { setBusy(false); } };
   return (
     <>
       {nextActions.length > 0 && <Card className="pad st-g"><span className="eyebrow">次にやること</span>{nextActions.map(a => <span key={a} className="dr-block"><b>{a}</b></span>)}</Card>}
       <Card className="pad st-g">
-        <div className="head"><h2 className="h3">書類</h2><span className="r"><Chip>{docs.items.length} 件</Chip></span></div>
+        <div className="head"><h2 className="h3">書類</h2><span className="r"><Chip>{docs.items.length} 件</Chip>{docs.items.length > 0 && <Btn kind="ghost sm" disabled={busy} onClick={zipAll}>まとめて受け取る（zip）</Btn>}</span></div>
         {docs.error ? <div className="empty"><b>書類を確認できません</b><Btn kind="ghost sm" onClick={docs.reload}>再読み込み</Btn></div> : docs.loading ? <div className="dv-mt">読み込み中</div> : (
           <div className="fd-l">
             {docs.items.map(d => (
@@ -108,11 +125,28 @@ function TraineeModal({ t, isAdmin, onClose, onSave }) {
   );
 }
 
+const excelDate = v => { if (typeof v === "number") return new Date(Date.UTC(1899, 11, 30) + Math.round(v) * 86400000).toISOString().slice(0, 10); const m = String(v || "").match(/^(\d{4})[-/.](\d{1,2})[-/.](\d{1,2})/); return m ? `${m[1]}-${m[2].padStart(2, "0")}-${m[3].padStart(2, "0")}` : ""; };
+const squeeze = t => String(t || "").replace(/[\s　]/g, "");
+// 助成金ひな形（public/templates/grant-template.xlsx）を読む
+async function readGrantExcel(file) {
+  const XLSX = await import("xlsx");
+  const wb = XLSX.read(await file.arrayBuffer(), { type: "array" });
+  const rows = name => (wb.Sheets[name] ? XLSX.utils.sheet_to_json(wb.Sheets[name], { header: 1, defval: "", raw: true }) : null);
+  const info = rows("企業情報"), people = rows("受講者");
+  if (!info && !people) throw new Error("「企業情報」「受講者」のシートがありません。ひな形から作ってください");
+  const get = label => arr(info).find(r => squeeze(r[0]) === squeeze(label))?.[1];
+  const capital = Number(get("資本金（万円）")), workers = Number(get("常時雇用する労働者数"));
+  const profile = { ...(String(get("企業名") || "").trim() ? { name: String(get("企業名")).trim() } : {}), ...(capital > 0 ? { capitalAmount: capital * 10000 } : {}), ...(workers > 0 ? { employeeCount: workers } : {}), ...(get("担当者の名前") ? { grantContactName: String(get("担当者の名前")).trim() } : {}), ...(get("担当者のメール") ? { grantContactEmail: String(get("担当者のメール")).trim() } : {}) };
+  const list = arr(people).filter(r => squeeze(r[0]) !== "例" && squeeze(r[1]) && squeeze(r[1]) !== "氏名").map(r => ({ name: String(r[1]).trim(), no: String(r[2] || "").trim(), type: EMPLOYMENT_TYPE_OPTIONS.find(o => squeeze(o.label) === squeeze(r[3]))?.value || "", hire: excelDate(r[4]) }));
+  return { profile, list };
+}
+
 function InputTab({ grant, isAdmin, say }) {
   const companyId = isAdmin ? grant.companyId : "";
   const pf = useCompanyProfile(companyId, true);
   const tr = useCompanyTrainees(companyId, true);
   const [form, setForm] = useState(null); const [busy, setBusy] = useState(false); const [err, setErr] = useState(""); const [edit, setEdit] = useState(null);
+  const [imp, setImp] = useState(null); const xlRef = useRef(null);
   useEffect(() => { setForm(pf.profile ? { ...pf.profile } : null); }, [pf.profile]);
   if (pf.error) return <Card><div className="empty"><b>企業の情報を確認できません</b><Btn kind="ghost sm" onClick={pf.reload}>再読み込み</Btn></div></Card>;
   if (!form) return <div className="soon card">読み込み中</div>;
@@ -124,6 +158,28 @@ function InputTab({ grant, isAdmin, say }) {
     ["companyId", "updatedAt", "updatedByRole"].forEach(k => delete payload[k]);
     ["capitalAmount", "employeeCount"].forEach(k => { if (payload[k] === "" || payload[k] == null) delete payload[k]; else payload[k] = Number(payload[k]); });
     try { await pf.save(payload); say?.("保存しました"); } catch (e) { setErr(errText(e, "保存できませんでした")); } finally { setBusy(false); }
+  };
+  const onXl = async e => {
+    const file = e.target.files?.[0]; e.target.value = "";
+    if (!file) return;
+    setErr("");
+    try { setImp(await readGrantExcel(file)); } catch (x) { setErr(errText(x, "Excel を読めませんでした")); }
+  };
+  const applyImp = async () => {
+    setBusy(true); setErr("");
+    const miss = [];
+    try {
+      setForm(f => ({ ...f, ...imp.profile }));
+      for (const r of imp.list) {
+        const t = tr.trainees.find(x => squeeze(x.name) === squeeze(r.name));
+        if (!t) { miss.push(r.name); continue; }
+        // eslint-disable-next-line no-await-in-loop
+        await tr.updateTrainee(t.userId, { employmentInsuranceNumber: r.no || t.employmentInsuranceNumber || "", employmentType: r.type || t.employmentType || "", hireDate: r.hire || t.hireDate || "", graduateStatus: t.graduateStatus || "", itExperienceLevel: t.itExperienceLevel || "", gender: t.gender || "" });
+      }
+      setImp(null);
+      say?.("読み込みました ・ 企業の情報は保存を押してください");
+      if (miss.length) setErr(`見つからない受講者：${miss.join("、")}`);
+    } catch (x) { setErr(errText(x, "保存できませんでした")); } finally { setBusy(false); }
   };
   const targets = arr(grant.targetTraineeIds);
   const people = tr.trainees.filter(t => !targets.length || targets.includes(t.userId));
@@ -146,7 +202,8 @@ function InputTab({ grant, isAdmin, say }) {
         <span className="row st-end"><Btn kind="sm" disabled={busy} onClick={save}>{busy ? "保存しています" : "保存"}</Btn></span>
       </Card>
       <Card className="pad st-g">
-        <div className="head"><h2 className="h2">受講者 ・ {people.length} 人</h2><span className="r">{missNo ? <Chip tone="bad">被保険者番号がない {missNo} 人</Chip> : <Chip tone="ok">全員分</Chip>}</span></div>
+        <div className="head"><h2 className="h2">受講者 ・ {people.length} 人</h2><span className="r">{missNo ? <Chip tone="bad">被保険者番号がない {missNo} 人</Chip> : <Chip tone="ok">全員分</Chip>}<a className="btn ghost sm cw-a" href="/templates/grant-template.xlsx" download="助成金ひな形.xlsx">助成金ひな形</a><Btn kind="ghost sm" onClick={() => xlRef.current?.click()}>Excel で入れる</Btn></span></div>
+        <input ref={xlRef} type="file" accept=".xlsx,.xls" className="lms-sr" aria-label="助成金ひな形を選ぶ" onChange={onXl} />
         {tr.error ? <div className="empty"><b>受講者を確認できません</b><Btn kind="ghost sm" onClick={tr.reload}>再読み込み</Btn></div> : (
           <div className="scroll"><table className="tbl"><thead><tr><th>受講者</th><th>被保険者番号</th><th>雇用形態</th><th>対象</th><th>チェック</th><th /></tr></thead><tbody>
             {people.map(t => <tr key={t.userId} className={!t.employmentInsuranceNumber ? "xlw" : ""}><td><b>{t.name}</b></td><td className="num">{t.employmentInsuranceNumber || "—"}</td><td>{employmentTypeLabel(t.employmentType) || "—"}</td><td>{t.grantEligible ? <Chip tone="ok">対象</Chip> : <Chip>未確定</Chip>}</td><td>{check(t)}</td><td><Btn kind="ghost sm" onClick={() => setEdit(t)}>直す</Btn></td></tr>)}
@@ -154,6 +211,7 @@ function InputTab({ grant, isAdmin, say }) {
           </tbody></table></div>
         )}
       </Card>
+      {imp && (() => { const hit = imp.list.filter(r => tr.trainees.some(x => squeeze(x.name) === squeeze(r.name))), none = imp.list.filter(r => !hit.includes(r)); return <Modal title="Excel の確認" width={480} onClose={() => setImp(null)} footer={<><Btn kind="ghost" onClick={() => setImp(null)}>やめる</Btn><Btn disabled={busy} onClick={applyImp}>{busy ? "入れています" : "入れる"}</Btn></>}><div className="row"><Chip tone="ok">受講者 {hit.length} 人</Chip>{none.length > 0 && <Chip tone="warn">見つからない {none.length} 人</Chip>}{Object.keys(imp.profile).length > 0 && <Chip>企業の情報 {Object.keys(imp.profile).length} 項目</Chip>}</div>{none.length > 0 && <div className="row">{none.slice(0, 12).map(r => <Chip key={r.name}>{r.name}</Chip>)}</div>}</Modal>; })()}
       {edit && <TraineeModal t={edit} isAdmin={isAdmin} onClose={() => setEdit(null)} onSave={async (id, p) => { await tr.updateTrainee(id, p); say?.("保存しました"); }} />}
     </>
   );
@@ -240,13 +298,19 @@ function Detail({ grant, course, companyName, role, onBack, onSave, onDelete, sa
   const pf = useCompanyProfile(isAdmin ? grant.companyId : "", true);
   const [tab, setTab] = useState("doc");
   const [del, setDel] = useState(false);
+  const [note, setNote] = useState(null); const [noteErr, setNoteErr] = useState(""); const [noteBusy, setNoteBusy] = useState(false);
+  const sendNote = async () => {
+    setNoteBusy(true); setNoteErr("");
+    try { const r = await apiPost(`/grants/${encodeURIComponent(grant.grantId)}/notify`, { message: note }); setNote(null); say?.(`企業担当者 ${r.count} 人に知らせました`); }
+    catch (e) { setNoteErr(errText(e, "送れませんでした")); } finally { setNoteBusy(false); }
+  };
   const stages = useMemo(() => computeGrantStages(grant, course), [grant, course]);
   const nextActions = useMemo(() => computeNextActions({ grant, stages, course, company: pf.profile, documents: docs.loading ? undefined : docs.items }), [grant, stages, course, pf.profile, docs.items, docs.loading]);
   const tabs = isAdmin ? [["doc", "書類"], ["in", "お客様の入力"], ["att", "受講状況"], ["out", "集計と出力"]] : [["doc", "やること"], ["in", "入力"], ["att", "受講状況"], ["out", "受け取る"]];
   const plan = stages.find(s => s.key === "plan"), pay = stages.find(s => s.key === "shikyu");
   return (
     <div className="st">
-      <div className="head"><div><div className="eyebrow">{[companyName, course?.name || grant.courseId].filter(Boolean).join(" ・ ")}</div><h1 className="h1">助成金</h1></div><span className="r">{onBack && <Btn kind="ghost sm" onClick={onBack}>← 助成金の一覧</Btn>}{isAdmin && <Btn kind="ghost sm" onClick={() => setDel(true)}>消す</Btn>}</span></div>
+      <div className="head"><div><div className="eyebrow">{[companyName, course?.name || grant.courseId].filter(Boolean).join(" ・ ")}</div><h1 className="h1">助成金</h1></div><span className="r">{onBack && <Btn kind="ghost sm" onClick={onBack}>← 助成金の一覧</Btn>}{isAdmin && <Btn kind="ghost sm" onClick={() => setNote(nextActions[0] || "")}>お客様に知らせる</Btn>}{isAdmin && <Btn kind="ghost sm" onClick={() => setDel(true)}>消す</Btn>}</span></div>
       <Card className="pad st-g">
         <div className="head"><h2 className="h2">{grant.grantType || "助成金"} ・ {applicationTypeLabel(grant.applicationType)}</h2><span className="r"><Chip>{grantStatusLabel(grant.status)}</Chip>{plan?.deadline && !["accepted", "submitted", "under_review"].includes(plan.state.value) && <Chip tone={plan.deadline.overdue ? "bad" : plan.deadline.daysRemaining <= 30 ? "warn" : ""}>{plan.deadline.overdue ? "計画届の期限を過ぎました" : `計画届の期限まで あと ${plan.deadline.daysRemaining} 日`}</Chip>}{pay?.deadline && <Chip>支給申請の期限 {md(pay.deadline.date)}</Chip>}</span></div>
         <Steps stages={stages} />
@@ -256,6 +320,7 @@ function Detail({ grant, course, companyName, role, onBack, onSave, onDelete, sa
       {tab === "in" && <InputTab grant={grant} isAdmin={isAdmin} say={say} />}
       {tab === "att" && <AttendTab grant={grant} />}
       {tab === "out" && <OutTab grant={grant} isAdmin={isAdmin} onSave={onSave} say={say} />}
+      {note !== null && <Modal title={`お客様に知らせる ・ ${companyName}`} width={480} onClose={() => setNote(null)} footer={<><Btn kind="ghost" onClick={() => setNote(null)}>やめる</Btn><Btn disabled={noteBusy || !note.trim()} onClick={sendNote}>確かめて送る</Btn></>}><label className="field">本文<textarea rows={4} maxLength={500} value={note} onChange={e => setNote(e.target.value)} /></label><Chip>企業担当者の通知に出る</Chip>{noteErr && <div className="lms-err" role="alert">{noteErr}</div>}</Modal>}
       {del && <Modal title="申請を消す" width={420} onClose={() => setDel(false)} footer={<><Btn kind="ghost" onClick={() => setDel(false)}>やめる</Btn><Btn onClick={() => { setDel(false); onDelete(); }}>消す</Btn></>}><b>{grant.grantType} ・ {companyName}</b></Modal>}
     </div>
   );

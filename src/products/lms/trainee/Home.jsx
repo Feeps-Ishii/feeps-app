@@ -1,7 +1,7 @@
 import React, { useState } from "react";
 import { ackKeys } from "../../training/acks.js";
 import { useTraineeHome } from "./useTraineeHome.js";
-import { Btn, Cal, Card, Chip, Hero, Kpi, weekday } from "../parts/ui.jsx";
+import { Btn, Cal, Card, Chip, Hero, Kpi, Modal, weekday } from "../parts/ui.jsx";
 import { Icon } from "../parts/icons.jsx";
 import { SurveyPrompt } from "../staff/Survey.jsx";
 
@@ -32,6 +32,8 @@ function steps(d) {
 export default function TraineeHome({ go, say }) {
   const d = useTraineeHome();
   const [acked, setAcked] = useState({});
+  const [wel, setWel] = useState(() => { try { return !window.localStorage.getItem("feeps.lms.welcomed"); } catch { return false; } });
+  const closeWel = () => { setWel(false); try { window.localStorage.setItem("feeps.lms.welcomed", "1"); } catch { /* 次回もう一度出るだけ */ } };
   const ack = key => { setAcked(m => ({ ...m, [key]: true })); ackKeys(key).catch(() => setAcked(m => ({ ...m, [key]: false }))); };
   const isAcked = key => acked[key] || !!d.acks?.[key];
   if (d.state === "loading") return <div className="soon card">読み込み中</div>;
@@ -121,6 +123,7 @@ export default function TraineeHome({ go, say }) {
       </div>
 
       <SurveyPrompt say={say} />
+      {wel && (() => { const rows = steps(d).filter(x => x.k === "in" || x.k === "goal"); return rows.every(x => x.done) ? null : <Modal title="はじめての日" width={460} onClose={closeWel} footer={<Btn kind="ghost" onClick={closeWel}>あとで</Btn>}><ol className="wl-s"><li className="done"><i>✓</i><b>パスワードを決める</b><Chip tone="ok">済</Chip></li>{rows.map((x, i) => <li key={x.k} className={x.done ? "done" : ""}><i>{x.done ? "✓" : i + 2}</i><b>{x.k === "in" ? "出勤する" : "今日の目標を書く"}</b>{x.done ? <Chip tone="ok">済</Chip> : <Btn kind="sm" onClick={() => { closeWel(); go(x.go); }}>する →</Btn>}</li>)}</ol></Modal>; })()}
       <div className="th-row">
         <Card className="pad">
           <div className="head"><h2 className="h2">締め切り</h2>{dls.length > 0 && <span className="r"><Chip>{dls.length}</Chip></span>}</div>

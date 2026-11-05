@@ -123,3 +123,25 @@ export function stepDate(date, n, dates) {
   do { d.setDate(d.getDate() + n); } while (d.getDay() === 0 || d.getDay() === 6);
   return ymd(d);
 }
+
+// 圧縮しない zip（書類をまとめて受け取る）。名前は UTF-8
+const CRC = Array.from({ length: 256 }, (_, i) => { let c = i; for (let k = 0; k < 8; k++) c = c & 1 ? 0xEDB88320 ^ (c >>> 1) : c >>> 1; return c >>> 0; });
+const crc32 = b => { let c = 0xFFFFFFFF; for (let i = 0; i < b.length; i++) c = CRC[(c ^ b[i]) & 255] ^ (c >>> 8); return (c ^ 0xFFFFFFFF) >>> 0; };
+export function zipStore(files) {
+  const enc = new TextEncoder(), parts = [], dir = [];
+  let off = 0;
+  const head = (sig, f, extra) => { const u = new Uint8Array(extra), v = new DataView(u.buffer); v.setUint32(0, sig, true); return [u, v]; };
+  files.forEach(f => {
+    const name = enc.encode(f.name), crc = crc32(f.data), [u, v] = head(0x04034b50, f, 30);
+    v.setUint16(4, 20, true); v.setUint16(6, 0x0800, true); v.setUint32(14, crc, true); v.setUint32(18, f.data.length, true); v.setUint32(22, f.data.length, true); v.setUint16(26, name.length, true);
+    parts.push(u, name, f.data);
+    const [c, w] = head(0x02014b50, f, 46);
+    w.setUint16(4, 20, true); w.setUint16(6, 20, true); w.setUint16(8, 0x0800, true); w.setUint32(16, crc, true); w.setUint32(20, f.data.length, true); w.setUint32(24, f.data.length, true); w.setUint16(28, name.length, true); w.setUint32(42, off, true);
+    dir.push(c, name);
+    off += u.length + name.length + f.data.length;
+  });
+  const size = dir.reduce((a, x) => a + x.length, 0), [e, x] = head(0x06054b50, null, 22);
+  x.setUint16(8, files.length, true); x.setUint16(10, files.length, true); x.setUint32(12, size, true); x.setUint32(16, off, true);
+  return new Blob([...parts, ...dir, e], { type: "application/zip" });
+}
+export function saveBlob(blob, name) { const u = URL.createObjectURL(blob), a = document.createElement("a"); a.href = u; a.download = name; a.click(); setTimeout(() => URL.revokeObjectURL(u), 5000); }

@@ -1,16 +1,17 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
-import { apiGet, apiPut } from "../../../api.js";
+import { apiGet, apiPost, apiPut } from "../../../api.js";
 import { Btn, Card, Chip } from "../parts/ui.jsx";
 import { arr, errText, md, useStaffCourse, useWorkdays } from "../staff/common.js";
 import { todayStr } from "../../training/useTraining.js";
 import CourseConfig from "../staff/CourseConfig.jsx";
+import { JP_HOLIDAYS } from "../parts/jpHolidays.js";
 
 /* コースの設定（モック settingX）：基本・研修日・日報の項目・担当。変えたら下の帯から保存する。
    研修日を変えられるのは管理者だけ（API の決まり）。講師は見るだけ */
 
 const TABS = [["base", "基本"], ["days", "研修日"], ["rf", "日報の項目"], ["who", "担当"], ["fx", "使う機能"], ["notice", "リマインド"], ["ai", "AI"]];
 
-function Days({ courseId, canEdit, say }) {
+function Days({ courseId, canEdit, say, startDate, endDate }) {
   const today = todayStr();
   const [month, setMonth] = useState(today.slice(0, 7));
   const [key, setKey] = useState(0);
@@ -29,10 +30,23 @@ function Days({ courseId, canEdit, say }) {
     try { await apiPut(`/courses/${encodeURIComponent(courseId)}/calendar`, { items: [{ date: iso, type: on ? "training" : "holiday", isTrainingDay: on }] }); setExtra(x => ({ ...x, [iso]: on })); say?.(`${md(iso)} を${on ? "研修日" : "休み"}にしました`); }
     catch (e) { setErr(errText(e, "保存できませんでした")); } finally { setBusy(""); }
   };
+  const putHolidays = async () => {
+    const days = Object.keys(JP_HOLIDAYS).filter(d => d >= startDate && d <= endDate);
+    if (!days.length) { say?.("期間に祝日はありません"); return; }
+    setBusy("hol"); setErr("");
+    try {
+      for (let i = 0; i < days.length; i += 20) {
+        // eslint-disable-next-line no-await-in-loop
+        await apiPut(`/courses/${encodeURIComponent(courseId)}/calendar`, { items: days.slice(i, i + 20).map(date => ({ date, type: "holiday", isTrainingDay: false, title: JP_HOLIDAYS[date] })) });
+      }
+      setExtra(x => ({ ...x, ...Object.fromEntries(days.map(d => [d, false])) }));
+      say?.(`祝日 ${days.length} 日を休みにしました`);
+    } catch (e) { setErr(errText(e, "保存できませんでした")); } finally { setBusy(""); }
+  };
   const n = Array.from({ length: last }, (_, i) => `${month}-${String(i + 1).padStart(2, "0")}`).filter(isOn).length;
   return (
     <Card className="pad">
-      <div className="head"><h2 className="h2">研修日 ・ <span className="num">{wd.state === "ready" ? n : "—"}</span> 日</h2><span className="r"><span className="seg"><button type="button" onClick={() => move(-1)}>‹</button><button type="button" aria-pressed="true" className="num">{y}/{m}</button><button type="button" onClick={() => move(1)}>›</button></span>{!canEdit && <Chip>管理者が変更</Chip>}</span></div>
+      <div className="head"><h2 className="h2">研修日 ・ <span className="num">{wd.state === "ready" ? n : "—"}</span> 日</h2><span className="r"><span className="seg"><button type="button" onClick={() => move(-1)}>‹</button><button type="button" aria-pressed="true" className="num">{y}/{m}</button><button type="button" onClick={() => move(1)}>›</button></span>{canEdit && startDate && endDate && <Btn kind="ghost sm" disabled={!!busy} onClick={putHolidays}>{busy === "hol" ? "入れています" : "祝日を入れる"}</Btn>}{!canEdit && <Chip>管理者が変更</Chip>}</span></div>
       {wd.state === "error" && <div className="empty"><b>研修日を確認できません</b><Btn kind="ghost sm" onClick={() => setKey(k => k + 1)}>再読み込み</Btn></div>}
       {wd.state === "setup_required" && <Chip tone="warn">研修の期間が未設定</Chip>}
       {wd.state === "ready" && (
@@ -64,6 +78,8 @@ export default function InstructorSetting({ role, manager, say }) {
   const [err, setErr] = useState("");
   const [nf, setNf] = useState("");
   const [key, setKey] = useState(0);
+  const [rfSug, setRfSug] = useState(null); const [rfBusy, setRfBusy] = useState(false);
+  const [ask, setAsk] = useState(""); const [askBusy, setAskBusy] = useState(false); const [prop, setProp] = useState(null);
   const load = useCallback(async () => {
     if (!courseId) return;
     setSt({ state: "loading" });
@@ -108,6 +124,47 @@ export default function InstructorSetting({ role, manager, say }) {
       setBase(v); say?.("保存しました");
     } catch (e) { setErr(errText(e, "保存できませんでした")); } finally { setBusy(false); }
   };
+  const suggestRf = async () => {
+    setRfBusy(true); setErr("");
+    try { const r = await apiPost("/ai/staff-draft", { kind: "reportFields", courseId, text: v.fields.map(x => x.label).join("、") }); setRfSug(String(r.text || "").split(/\r?\n/).map(x => x.replace(/^[・\-\d.\s]+/, "").trim()).filter(Boolean).slice(0, 3)); }
+    catch (e) { setErr(errText(e, "案を作れませんでした")); } finally { setRfBusy(false); }
+  };
+  const propose = async () => {
+    setAskBusy(true); setErr(""); setProp(null);
+    try {
+      const r = await apiPost("/ai/course-setting", { courseId, text: ask, current: { today: todayStr(), name: v.name, startDate: v.startDate, endDate: v.endDate, clockIn: v.standardClockIn, clockOut: v.standardClockOut, fields: v.fields.map(x => x.label) } });
+      const p = r?.plan || {}, rows = [];
+      const same = (a, b) => !a || a === b;
+      if (canCourse) {
+        if (!same(p.name, v.name)) rows.push({ t: "名前", to: p.name, patch: { name: p.name } });
+        if (!same(p.startDate, v.startDate)) rows.push({ t: "開始日", to: p.startDate, patch: { startDate: p.startDate } });
+        if (!same(p.endDate, v.endDate)) rows.push({ t: "終了日", to: p.endDate, patch: { endDate: p.endDate } });
+        if (!same(p.clockIn, v.standardClockIn)) rows.push({ t: "始まり", to: p.clockIn, patch: { standardClockIn: p.clockIn } });
+        if (!same(p.clockOut, v.standardClockOut)) rows.push({ t: "終わり", to: p.clockOut, patch: { standardClockOut: p.clockOut } });
+      }
+      arr(p.addFields).filter(x => x && !v.fields.some(f => f.label === x)).forEach(x => rows.push({ t: "日報の項目を足す", to: x, field: x }));
+      if (role === "admin") {
+        arr(p.offDays).forEach(d => rows.push({ t: "休みにする", to: d, day: [d, false] }));
+        arr(p.onDays).forEach(d => rows.push({ t: "研修日にする", to: d, day: [d, true] }));
+      }
+      if (p.remindReport) rows.push({ t: "日報のリマインド", to: p.remindReport, remind: { repOn: true, rep: p.remindReport } });
+      if (p.remindAttendance) rows.push({ t: "出勤のリマインド", to: p.remindAttendance, remind: { attOn: true, att: p.remindAttendance } });
+      setProp(rows.map(x => ({ ...x, on: true })));
+    } catch (e) { setErr(errText(e, "案を作れませんでした")); } finally { setAskBusy(false); }
+  };
+  const applyProp = async () => {
+    const use = prop.filter(x => x.on);
+    setAskBusy(true); setErr("");
+    try {
+      setV(x => { let n = x; use.forEach(r => { if (r.patch) n = { ...n, ...r.patch }; if (r.field) n = { ...n, fields: [...n.fields, { id: `custom_${Date.now()}_${n.fields.length}`, label: r.field, required: false, placeholder: "" }] }; }); return n; });
+      const days = use.filter(r => r.day);
+      if (days.length) await apiPut(`/courses/${encodeURIComponent(courseId)}/calendar`, { items: days.map(r => ({ date: r.day[0], type: r.day[1] ? "training" : "holiday", isTrainingDay: r.day[1] })) });
+      const rems = use.filter(r => r.remind);
+      if (rems.length) { const c = await apiGet(`/course-config?courseId=${encodeURIComponent(courseId)}`); await apiPut("/course-config", { courseId, features: c.features, remind: rems.reduce((a, r) => ({ ...a, ...r.remind }), c.remind) }); }
+      setProp(null); setAsk("");
+      say?.(use.some(r => r.patch || r.field) ? "反映しました ・ 下の帯から保存してください" : "反映しました");
+    } catch (e) { setErr(errText(e, "反映できませんでした")); } finally { setAskBusy(false); }
+  };
   const inTab = {
     base: (
       <Card className="pad st-g">
@@ -117,13 +174,14 @@ export default function InstructorSetting({ role, manager, say }) {
         <div className="st-fg"><label className="field">始まり<input type="time" disabled={!canCourse} value={v.standardClockIn} onChange={e => f("standardClockIn", e.target.value)} /></label><label className="field">終わり<input type="time" disabled={!canCourse} value={v.standardClockOut} onChange={e => f("standardClockOut", e.target.value)} /></label></div>
       </Card>
     ),
-    days: <Days courseId={courseId} canEdit={role === "admin"} say={say} />,
+    days: <Days courseId={courseId} canEdit={role === "admin"} say={say} startDate={v.startDate} endDate={v.endDate} />,
     fx: <CourseConfig courseId={courseId} part="fx" say={say} />,
     notice: <CourseConfig courseId={courseId} part="notice" say={say} />,
     ai: <CourseConfig courseId={courseId} part="ai" say={say} />,
     rf: (
       <Card className="pad st-g">
-        <h2 className="h2">日報の項目（夕方）</h2>
+        <div className="head"><h2 className="h2">日報の項目（夕方）</h2><span className="r"><Btn kind="ghost sm" disabled={rfBusy} onClick={suggestRf}>{rfBusy ? "考えています" : "項目の案を出す"}</Btn></span></div>
+        {arr(rfSug).length > 0 && <div className="row">{rfSug.map(x => <button key={x} type="button" className="chip qk" onClick={() => { f("fields", [...v.fields, { id: `custom_${Date.now()}`, label: x, required: false, placeholder: "" }]); setRfSug(l => l.filter(y => y !== x)); }}>＋ {x}</button>)}</div>}
         <div className="st-g">
           {v.fields.map((x, i) => (
             <div key={x.id} className="st-rf"><span className="num">{i + 1}</span><input type="text" aria-label="項目の名前" value={x.label || ""} onChange={e => setField(i, { label: e.target.value })} /><label className="st-ck"><input type="checkbox" checked={!!x.required} onChange={e => setField(i, { required: e.target.checked })} />必須</label><span className="seg"><button type="button" aria-label="上へ" disabled={i === 0} onClick={() => moveField(i, -1)}>↑</button><button type="button" aria-label="下へ" disabled={i === v.fields.length - 1} onClick={() => moveField(i, 1)}>↓</button></span><Btn kind="ghost sm" disabled={v.fields.length <= 1} onClick={() => f("fields", v.fields.filter((_, j) => j !== i))}>消す</Btn></div>
@@ -143,6 +201,14 @@ export default function InstructorSetting({ role, manager, say }) {
   return (
     <div className="st">
       <div className="head"><div><div className="eyebrow">{sc.course.name}</div><h1 className="h1">コースの設定</h1></div></div>
+      <div className="aip">
+        <div className="row"><b>AI に頼んで変える</b></div>
+        <div className="row sx-nw"><input type="text" value={ask} maxLength={1000} placeholder="例：11/24 を休みに。金曜は 17時まで" aria-label="AI に頼む" onChange={e => setAsk(e.target.value)} /><Btn kind="sm" disabled={askBusy || !ask.trim()} onClick={propose}>{askBusy ? "考えています" : "案を出す"}</Btn></div>
+        {prop && (prop.length ? <>
+          {prop.map((r, i) => <label key={i} className="st-ck"><input type="checkbox" checked={r.on} onChange={e => setProp(l => l.map((x, j) => (j === i ? { ...x, on: e.target.checked } : x)))} /><b>{r.t}</b> → {r.to}</label>)}
+          <span className="row st-end"><Btn kind="ghost sm" onClick={() => setProp(null)}>やめる</Btn><Btn kind="sm" disabled={askBusy || !prop.some(x => x.on)} onClick={applyProp}>{prop.filter(x => x.on).length} 件を反映する</Btn></span>
+        </> : <Chip tone="warn">読み取れませんでした</Chip>)}
+      </div>
       <div className="side">
         <div className="card pick">{TABS.map(([k, t]) => <button key={k} type="button" className="nf" aria-current={tab === k} onClick={() => setTab(k)}><span><b>{t}</b></span>{diff[k] && <Chip tone="warn">変更</Chip>}</button>)}</div>
         <div className="st">{inTab[tab]}</div>

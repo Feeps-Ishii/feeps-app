@@ -2,7 +2,7 @@ import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { apiGet, apiPost, apiPut } from "../../../api.js";
 import { AssignBoard, CreateModal, MembersModal } from "../../training/TeamsView.jsx";
 import { takeTeamChatFocus } from "../../training/ChatNotifier.jsx";
-import { Btn, Card, Chip, ListTool } from "../parts/ui.jsx";
+import { Btn, Card, Chip, ListTool, Modal } from "../parts/ui.jsx";
 import { arr, errText, md, useStaffCourse } from "../staff/common.js";
 import { TeamRoomSage } from "../trainee/Team.jsx";
 
@@ -12,6 +12,43 @@ import { TeamRoomSage } from "../trainee/Team.jsx";
 const CATS = ["tm", "cur", "att", "tst", "rep", "dev"];
 const isEnded = t => t?.status === "ended";
 
+function AiSplit({ courseId, roster, nameOf, onClose, onDone }) {
+  const [count, setCount] = useState(3); const [text, setText] = useState("");
+  const [plan, setPlan] = useState(null);
+  const [busy, setBusy] = useState(""); const [err, setErr] = useState("");
+  const propose = async () => {
+    setBusy("ai"); setErr("");
+    try {
+      const st = await apiGet(`/completion-report/stats?courseId=${encodeURIComponent(courseId)}`).catch(() => null);
+      const people = roster.map(p => { const t = arr(st?.trainees).find(x => x.id === p.userId); return { id: p.userId, testAverage: t?.testAverage ?? null, attendanceRate: t?.attendanceRate ?? null }; });
+      const r = await apiPost("/ai/team-split", { courseId, count, text, people });
+      setPlan(arr(r?.teams));
+    } catch (e) { setErr(errText(e, "案を作れませんでした")); } finally { setBusy(""); }
+  };
+  const make = async () => {
+    setBusy("make"); setErr("");
+    try {
+      for (const t of plan) {
+        // eslint-disable-next-line no-await-in-loop
+        const made = await apiPost("/teams", { courseId, name: t.name, theme: "" });
+        // eslint-disable-next-line no-await-in-loop
+        await apiPut(`/teams/${encodeURIComponent(made.teamId || made.team?.teamId)}`, { courseId, members: t.members });
+      }
+      onDone(plan.length);
+    } catch (e) { setErr(errText(e, "作れませんでした")); setBusy(""); }
+  };
+  return (
+    <Modal title="AI で分ける" width={560} onClose={onClose} footer={<><Btn kind="ghost" onClick={onClose}>やめる</Btn>{plan ? <Btn disabled={!!busy} onClick={make}>{busy === "make" ? "作っています" : `${plan.length} チームを作る`}</Btn> : <Btn disabled={!!busy || !roster.length} onClick={propose}>{busy === "ai" ? "考えています" : "案を出す"}</Btn>}</>}>
+      {!plan ? <>
+        <label className="field">チームの数<input type="number" min="2" max="20" value={count} onChange={e => setCount(Number(e.target.value) || 2)} /></label>
+        <label className="field">頼みたいこと<input type="text" maxLength={500} value={text} placeholder="例：テストの点が同じくらいになるように" onChange={e => setText(e.target.value)} /></label>
+        <Chip>テストの平均と出席率を使う ・ 作るのは確かめたあと</Chip>
+      </> : <div className="fs-pick">{plan.map(t => <div key={t.name} className="fs-pr tx-as"><b>{t.name} ・ {t.members.length} 人</b><small>{t.members.map(nameOf).join("、")}</small>{t.why && <small>{t.why}</small>}</div>)}</div>}
+      {err && <div className="lms-err" role="alert">{err}</div>}
+    </Modal>
+  );
+}
+
 export default function InstructorTeam({ role, go, say }) {
   const sc = useStaffCourse();
   const courseId = sc.course?.courseId || "";
@@ -20,6 +57,7 @@ export default function InstructorTeam({ role, go, say }) {
   const [open, setOpen] = useState("");
   const [members, setMembers] = useState(""); const [creating, setCreating] = useState(false); const [assign, setAssign] = useState(false);
   const [tab, setTab] = useState("now"); const [q, setQ] = useState(""); const [msg, setMsg] = useState("");
+  const [aiOn, setAiOn] = useState(false);
   const load = useCallback(async () => {
     try { const d = await apiGet("/teams"); setData({ me: d?.me || "", courses: arr(d?.courses), teams: arr(d?.teams), people: d?.people || {} }); return d; }
     catch { setData(null); return null; }
@@ -79,10 +117,11 @@ export default function InstructorTeam({ role, go, say }) {
     <div className="st">
       <div className="head">
         <div><div className="eyebrow">{sc.course.name}</div><h1 className="h1">チーム</h1></div>
-        <span className="r">{unassigned == null ? <Chip>受講生を確認できません</Chip> : unassigned ? <Chip tone="warn">未所属 {unassigned} 人</Chip> : <Chip tone="ok">全員所属</Chip>}{canManage && <Btn kind="ghost sm" onClick={() => setAssign(true)}>割り当て表</Btn>}<Btn kind="ghost sm" onClick={() => go("seat")}>席替えから作り直す</Btn>{canManage && <Btn kind="sm" onClick={() => setCreating(true)}>チームを作る</Btn>}</span>
+        <span className="r">{unassigned == null ? <Chip>受講生を確認できません</Chip> : unassigned ? <Chip tone="warn">未所属 {unassigned} 人</Chip> : <Chip tone="ok">全員所属</Chip>}{canManage && roster && <Btn kind="ghost sm" onClick={() => setAiOn(true)}>AI で分ける</Btn>}{canManage && <Btn kind="ghost sm" onClick={() => setAssign(true)}>割り当て表</Btn>}<Btn kind="ghost sm" onClick={() => go("seat")}>席替えから作り直す</Btn>{canManage && <Btn kind="sm" onClick={() => setCreating(true)}>チームを作る</Btn>}</span>
       </div>
       <ListTool tabs={[["now", "今のチーム", now.length], ["past", "終わったチーム", past.length]]} tab={tab} onTab={setTab} q={q} onQ={setQ} placeholder="チーム・テーマ・名前で探す" />
       {msg && <div className="lms-err" role="alert">{msg}</div>}
+      {aiOn && <AiSplit courseId={courseId} roster={roster} nameOf={id => roster.find(p => p.userId === id)?.name || "名前未設定"} onClose={() => setAiOn(false)} onDone={n => { setAiOn(false); say?.(`${n} チームを作りました`); load(); }} />}
       <div className="tmS-g">
         {list.map((t, i) => (
           <section key={t.teamId} className={`card pad tmS-c c-${isEnded(t) ? "gy" : CATS[(Number(t.color) || i) % CATS.length]}`}>

@@ -541,6 +541,9 @@ async function loadRoleNotifications(role) {
       apiGet("/attendance?date=" + date).catch(e => { console.warn("notifications client attendance failed", e); return []; }),
       apiGet("/tests").catch(e => { console.warn("notifications client tests failed", e); return []; }),
     ]);
+    // 運営からの連絡（助成金の書類など。確認するまで残す）
+    const [clientNotices, clientAcks] = await Promise.all([apiGet("/notifications/notices").then(r => (Array.isArray(r?.items) ? r.items : [])).catch(() => []), loadAcks().catch(() => null)]);
+    if (clientAcks) clientNotices.filter(n => !clientAcks[`ntc#${n.id}`]).reverse().forEach(n => add(result, { id: notifId(role, "notice", n.id), severity: "medium", category: "連絡", title: n.message, to: n.kind === "grant" ? "grants" : "home", ackKey: `ntc#${n.id}` }));
     const members = Array.isArray(trainees) ? trainees : [];
     const ids = new Set(members.map(traineeIdOf));
     const reportsToday = (Array.isArray(reports) ? reports : []).filter(r => ids.has(r.traineeId || r.userId));
