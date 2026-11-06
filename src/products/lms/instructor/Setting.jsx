@@ -46,7 +46,7 @@ function Days({ courseId, canEdit, say, startDate, endDate }) {
   const n = Array.from({ length: last }, (_, i) => `${month}-${String(i + 1).padStart(2, "0")}`).filter(isOn).length;
   return (
     <Card className="pad">
-      <div className="head"><h2 className="h2">研修日 ・ <span className="num">{wd.state === "ready" ? n : "—"}</span> 日</h2><span className="r"><span className="seg"><button type="button" onClick={() => move(-1)}>‹</button><button type="button" aria-pressed="true" className="num">{y}/{m}</button><button type="button" onClick={() => move(1)}>›</button></span>{canEdit && startDate && endDate && <Btn kind="ghost sm" disabled={!!busy} onClick={putHolidays}>{busy === "hol" ? "休みにしています" : "祝日を休みにする"}</Btn>}{!canEdit && <Chip>管理者が変更</Chip>}</span></div>
+      <div className="head"><h2 className="h2">研修日 ・ <span className="num">{wd.state === "ready" ? n : "—"}</span> 日</h2><span className="r"><span className="seg"><button type="button" onClick={() => move(-1)}>‹</button><button type="button" aria-pressed="true" className="num">{y}/{m}</button><button type="button" onClick={() => move(1)}>›</button></span>{canEdit && startDate && endDate && <Btn kind="ghost sm" disabled={!!busy} onClick={putHolidays}>{busy === "hol" ? "入れています" : "祝日を入れる"}</Btn>}{!canEdit && <Chip>管理者が変更</Chip>}</span></div>
       {wd.state === "error" && <div className="empty"><b>研修日を確認できません</b><Btn kind="ghost sm" onClick={() => setKey(k => k + 1)}>再読み込み</Btn></div>}
       {wd.state === "setup_required" && <Chip tone="warn">研修の期間が未設定</Chip>}
       {wd.state === "ready" && (

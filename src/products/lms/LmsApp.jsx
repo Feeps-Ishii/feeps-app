@@ -8,6 +8,7 @@ import { LMS_BNAV, LMS_LEGACY, LMS_ROLE_LABEL, lmsGroups, lmsLabel } from "./Lms
 import { Icon } from "./parts/icons.jsx";
 import { Soon } from "./parts/ui.jsx";
 import { HelpPanel, PasswordModal } from "./parts/Ask.jsx";
+import { BellPop, Face, NotifScreen, useNotifRead } from "./parts/Notif.jsx";
 import Profile from "./parts/Profile.jsx";
 import { ChatToasts } from "../training/ChatNotifier.jsx";
 import CourseSwitch from "./parts/CourseSwitch.jsx";
@@ -45,7 +46,7 @@ const LOC_KEY = "feeps.lms.loc";
 const readLoc = () => { try { return window.sessionStorage.getItem(LOC_KEY) || "home"; } catch { return "home"; } };
 const saveLoc = s => { try { window.sessionStorage.setItem(LOC_KEY, s); } catch { /* 読み直すとホームに戻るだけ */ } };
 
-export default function LmsApp({ role, manager = false, displayName, unread = 0, badges = {}, tasks, onLogout, onLegacy, renderLegacy }) {
+export default function LmsApp({ role, manager = false, displayName, badges = {}, tasks, onLogout, onLegacy, renderLegacy, notifications = [], notifLoading = false, notifError = "", notifDismissedAll = false, onReadAll, onRetryNotifs, onOpenNotif, photoAt = "" }) {
   const [off, setOff] = useState([]);          // コースの設定で切った機能（読めないときは全部出す）
   const groups = useMemo(() => lmsGroups(role).map(g => [g[0], g[1], g[2].filter(s => !off.includes(s[0]))]).filter(g => g[2].length), [role, off]);
   const keys = groups.flatMap(g => g[2].map(s => s[0]));
@@ -59,6 +60,8 @@ export default function LmsApp({ role, manager = false, displayName, unread = 0,
   const [lastIn, setLastIn] = useState({});
   const [courseV, setCourseV] = useState(0);   // コースを切り替えたら画面を読み直す
   const [mail, setMail] = useState("");
+  const [photo, setPhoto] = useState("");
+  const nst = useNotifRead(notifications, notifDismissedAll, onReadAll);
 
   const admin = role === "admin";
   const cur = groups.find(g => g[2].some(s => s[0] === screen)) || groups[0];
@@ -68,6 +71,8 @@ export default function LmsApp({ role, manager = false, displayName, unread = 0,
   const nOf = k => { if (role !== "instructor") return 0; const v = LMS_LEGACY[role]?.[k]; return (v && badges?.[v]) || 0; };
   useEffect(() => { const open = () => setHelp(""); window.addEventListener("lms:help", open); return () => window.removeEventListener("lms:help", open); }, []);
   useEffect(() => { const open = () => { setExtra("notifications"); window.scrollTo?.(0, 0); }; window.addEventListener("lms:notifications", open); return () => window.removeEventListener("lms:notifications", open); }, []);
+  useEffect(() => { const up = e => setPhoto(e.detail || ""); window.addEventListener("lms:photo", up); return () => window.removeEventListener("lms:photo", up); }, []);
+  useEffect(() => { if (!photoAt) return; apiGet("/profile/me/photo").then(r => setPhoto(r?.photo || "")).catch(() => {}); }, [photoAt]);
   useEffect(() => { if (pop !== "me" || mail) return; apiGet("/profile/me").then(p => setMail(p?.email || p?.username || "")).catch(() => {}); }, [pop, mail]);
   useEffect(() => {
     if (role === "admin") return undefined;
@@ -90,8 +95,11 @@ export default function LmsApp({ role, manager = false, displayName, unread = 0,
   const label = manager ? LMS_ROLE_LABEL.manager : LMS_ROLE_LABEL[role];
   const Screen = LMS_SCREENS[role]?.[screen];
   const legacyView = extra || LMS_LEGACY[role]?.[screen];
+  const openNotif = n => { nst.read(n); setPop(""); setExtra(null); onOpenNotif?.(n, goLegacy); };
   const body = extra === "profile" || extra === "profile:pw"
-    ? <Profile key={extra} role={role} label={label} initialTab={extra === "profile:pw" ? "pw" : "info"} say={say} />
+    ? <Profile key={extra} role={role} label={label} initialTab={extra === "profile:pw" ? "pw" : "info"} say={say} photo={photo} />
+    : extra === "notifications"
+    ? <NotifScreen items={notifications} loading={notifLoading} error={notifError} st={nst} onOpen={openNotif} onRetry={onRetryNotifs} />
     : !extra && Screen
     ? <Screen key={courseV} role={role} manager={manager} go={go} say={say} displayName={displayName} tasks={tasks} />
     : legacyView
@@ -127,16 +135,17 @@ export default function LmsApp({ role, manager = false, displayName, unread = 0,
             ))}
           </nav>
           <div className="lms-me">
-            <button type="button" className="lms-bell" aria-label="通知" onClick={() => { setExtra("notifications"); setPop(""); }}>
-              <Icon k="bell" />{unread > 0 && <em>{unread}</em>}
+            <button type="button" className="lms-bell" aria-label="通知" aria-expanded={pop === "bell"} onClick={() => setPop(p => (p === "bell" ? "" : "bell"))}>
+              <Icon k="bell" />{nst.unread > 0 && <em>{nst.unread}</em>}
             </button>
             <button type="button" className="lms-um" aria-expanded={pop === "me"} onClick={() => setPop(p => (p === "me" ? "" : "me"))}>
-              <span className="face" style={{ width: 28, height: 28, fontSize: 12 }}>{String(displayName || "?").slice(0, 1)}</span>
+              <Face name={displayName} photo={photo} size={28} />
               <span><b>{displayName}</b><small>{label}</small></span><i aria-hidden="true">≡</i>
             </button>
+            {pop === "bell" && <BellPop items={notifications} loading={notifLoading} error={notifError} st={nst} onOpen={openNotif} onAll={() => { setExtra("notifications"); setPop(""); window.scrollTo?.(0, 0); }} onRetry={onRetryNotifs} />}
             {pop === "me" && (
               <div className="lms-pop" role="menu">
-                <div className="mh"><span className="face">{String(displayName || "?").slice(0, 1)}</span><span><b>{displayName}</b>{mail && <small>{mail}</small>}</span></div>
+                <div className="mh"><Face name={displayName} photo={photo} /><span><b>{displayName}</b>{mail && <small>{mail}</small>}</span></div>
                 <div className="mrow"><span className="chip mk">{label}</span></div>
                 <button type="button" role="menuitem" onClick={() => { setExtra("profile"); setPop(""); }}>プロフィール</button>
                 <button type="button" role="menuitem" onClick={() => { setExtra("profile:pw"); setPop(""); }}>パスワードを変える</button>

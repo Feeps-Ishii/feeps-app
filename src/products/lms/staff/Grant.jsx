@@ -12,7 +12,7 @@ import { arr, errText, md, saveBlob, zipStore } from "./common.js";
 
 /* 助成金（管理者・企業担当者。モック grantList・grantD）：管理者は一覧 → 申請ごと、企業担当者は自社の申請。
    書類・入力・受講状況・集計と出力。期限と段階は grantStages.js、計算は /grants/{id}/calculation-draft、帳票は /exports（今の決まりのまま）。
-   8 割の判定は勤怠の日数からの目安（正式な訓練時間は計算の下書きが見る）。確定の項目は管理者だけ */
+   8 割の判定は受講時間（帳票と同じ計算）。確定の項目は管理者だけ */
 
 const yen = v => (v == null ? "—" : `¥${Number(v).toLocaleString("ja-JP")}`);
 const THRESHOLD = 80;
@@ -252,6 +252,7 @@ function InputTab({ grant, isAdmin, onNotify, say }) {
         <div className="head"><h2 className="h2">企業の情報</h2><span className="r">{form.enterpriseSize ? <Chip tone="ok">{ENTERPRISE_SIZE_OPTIONS.find(o => o.value === form.enterpriseSize)?.label}</Chip> : <Chip tone="warn">企業規模が未設定</Chip>}</span></div>
         <div className="g3">
           {field("name", "会社名")}{field("address", "住所")}{field("tel", "TEL")}
+          {field("industry", "業種")}{field("insuranceOfficeNumber", "雇用保険の事業所番号")}{field("applicantBy", "申請するのは")}{field("laborConsultantOffice", "社労士の事務所名")}
           {field("representativeTitle", "代表者役職")}{field("representativeName", "代表者氏名")}{field("corporateNumber", "法人番号（13 桁）")}
           {field("capitalAmount", "資本金（円）", "number")}{field("employeeCount", "従業員数", "number")}
           <label className="field">企業規模<select className="in" value={form.enterpriseSize || ""} onChange={e => s("enterpriseSize", e.target.value)}><option value="">未設定</option>{ENTERPRISE_SIZE_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}</select></label>
@@ -291,18 +292,20 @@ function AttendTab({ grant }) {
   if (st.state === "loading") return <div className="soon card">読み込み中</div>;
   if (st.state !== "ready") return <Card><div className="empty"><b>受講状況を確認できません</b></div></Card>;
   const p = st.data.period || {}, targets = arr(grant.targetTraineeIds);
+  const H = p.scheduledMinutes > 0 ? p.scheduledMinutes / 60 : null, T = p.totalMinutes > 0 ? p.totalMinutes / 60 : null, dayH = T && p.totalDays ? T / p.totalDays : 8;
+  const hr = v => Math.round(v * 10) / 10;
   const rows = arr(st.data.trainees).filter(t => !targets.length || targets.includes(t.id)).map(t => {
-    const missed = t.absent + t.missing, total = p.totalDays || p.trainingDays || 0;
-    return { ...t, rate: t.attendanceRate, left: total ? Math.floor(total * (1 - THRESHOLD / 100)) - missed : null };
+    const got = (Number(t.trainedMinutes) || 0) / 60;
+    return { ...t, got, rate: H ? Math.round(got / H * 100) : null, left: H && T ? T * (1 - THRESHOLD / 100) - (H - got) : null };
   });
   const kind = r => verdict(r.rate)[1] || "x";
   const list = rows.filter(r => matchName(r.name, "", q) && (tab === "all" || kind(r) === tab)).sort(sort === "low" ? (a, b) => (a.rate ?? 101) - (b.rate ?? 101) : (a, b) => a.name.localeCompare(b.name, "ja"));
   return (
     <>
-      <div className="row"><Chip>研修 {p.trainingDays ?? 0}{p.totalDays ? ` / ${p.totalDays}` : ""} 日</Chip><Chip tone="mk">勤怠から自動で集計</Chip><Chip>日数の目安</Chip></div>
+      <div className="row"><Chip>研修 {p.trainingDays ?? 0}{p.totalDays ? ` / ${p.totalDays}` : ""} 日{H != null ? ` ・ ${hr(H)}${T ? ` / ${hr(T)}` : ""} 時間` : ""}</Chip><Chip tone="mk">勤怠から自動で集計</Chip>{H == null && <Chip tone="warn">研修の時刻が未設定</Chip>}</div>
       <ListTool tabs={[["all", "すべて", rows.length], ["bad", "要件外の可能性", rows.filter(r => kind(r) === "bad").length, "bad"], ["warn", "注意", rows.filter(r => kind(r) === "warn").length, "warn"], ["ok", "OK", rows.filter(r => kind(r) === "ok").length, "ok"]]} tab={tab} onTab={setTab} q={q} onQ={setQ} placeholder="名前で探す" sorts={[["low", "受講率の低い順"], ["name", "名前順"]]} sort={sort} onSort={setSort} />
-      <Card className=""><div className="scroll"><table className="tbl"><thead><tr><th>受講者</th><th>出席</th><th>受講率（いま）</th><th>8 割まで休める日数</th><th>見通し</th></tr></thead><tbody>
-        {list.map(r => { const [t, c] = verdict(r.rate); return <tr key={r.id}><td><b>{r.name}</b></td><td className="num">{r.attended} / {p.trainingDays ?? 0} 日</td><td className="num">{r.rate == null ? "—" : `${r.rate}%`}</td><td className="num">{r.left == null ? "—" : r.left < 0 ? "超過" : `${r.left} 日`}</td><td><Chip tone={c}>{t}</Chip></td></tr>; })}
+      <Card className=""><div className="scroll"><table className="tbl"><thead><tr><th>受講者</th><th>受講時間</th><th>受講率（いま）</th><th>8 割まで休める時間</th><th>見通し</th></tr></thead><tbody>
+        {list.map(r => { const [t, c] = verdict(r.rate); return <tr key={r.id}><td><b>{r.name}</b></td><td className="num">{H == null ? "—" : `${hr(r.got)} / ${hr(H)} 時間`}</td><td className="num">{r.rate == null ? "—" : `${r.rate}%`}</td><td className="num">{r.left == null ? "—" : r.left < 0 ? "超過" : `${hr(r.left)} 時間（${Math.floor(r.left / dayH)} 日）`}</td><td><Chip tone={c}>{t}</Chip></td></tr>; })}
         {!list.length && <tr><td colSpan={5}><Chip>該当なし</Chip></td></tr>}
       </tbody></table></div></Card>
     </>

@@ -14,13 +14,29 @@ export const takeTestFiles = files => {
   return { ans, prob: list.find(f => f !== ans) || null };
 };
 
-function DropBox({ label, file, onFile, disabled }) {
+export function DropBox({ label, file, onFile, disabled }) {
   return (
     <label className={`drop${file ? " on" : ""}`} onDragOver={e => e.preventDefault()} onDrop={e => { e.preventDefault(); const f = e.dataTransfer.files?.[0]; if (f && !disabled) onFile(f); }}>
       <b>{label}</b><span>{file?.name || "ここに落とす"}</span>
       <input type="file" accept=".docx,.xlsx,.xls,.csv" className="lms-sr" disabled={disabled} aria-label={label} onChange={e => { const f = e.target.files?.[0]; e.target.value = ""; if (f) onFile(f); }} />
     </label>
   );
+}
+
+// 問題と解答のファイルを AI に読ませる（作る窓・直す窓で同じ）
+export async function readTestFiles({ courseId, title, prob, ans, alive }) {
+  const [problemText, answerText] = await Promise.all([readDocText(prob), ans ? readDocText(ans) : Promise.resolve("")]);
+  const { jobId } = await apiPost("/ai/test-read", { courseId, title: String(title || "").trim(), problemText, answerText });
+  for (let i = 0; i < 100 && alive.current; i += 1) {
+    // eslint-disable-next-line no-await-in-loop
+    await new Promise(r => setTimeout(r, 3000));
+    // eslint-disable-next-line no-await-in-loop
+    const r = await apiGet(`/ai/test-read/${encodeURIComponent(jobId)}`);
+    if (r.status === "error") throw new Error(r.error || "読み取れませんでした");
+    if (r.status === "done") return { questions: arr(r.questions), warnings: arr(r.warnings) };
+  }
+  if (!alive.current) return null;
+  throw new Error("読み取りに時間がかかっています。もう一度お試しください");
 }
 
 export function TestFileModal({ courseId = "", sections = [], initial, onClose, onSaved }) {
@@ -39,17 +55,8 @@ export function TestFileModal({ courseId = "", sections = [], initial, onClose, 
     if (!prob) { setErr("問題のファイルを入れてください"); return; }
     setErr(""); setStep(2);
     try {
-      const [problemText, answerText] = await Promise.all([readDocText(prob), ans ? readDocText(ans) : Promise.resolve("")]);
-      const { jobId } = await apiPost("/ai/test-read", { courseId, title: v.title.trim(), problemText, answerText });
-      for (let i = 0; i < 100 && alive.current; i += 1) {
-        // eslint-disable-next-line no-await-in-loop
-        await new Promise(r => setTimeout(r, 3000));
-        // eslint-disable-next-line no-await-in-loop
-        const r = await apiGet(`/ai/test-read/${encodeURIComponent(jobId)}`);
-        if (r.status === "error") throw new Error(r.error || "読み取れませんでした");
-        if (r.status === "done") { if (alive.current) { setQs(arr(r.questions)); setWarn(arr(r.warnings)); setStep(3); } return; }
-      }
-      throw new Error("読み取りに時間がかかっています。もう一度お試しください");
+      const r = await readTestFiles({ courseId, title: v.title, prob, ans, alive });
+      if (r && alive.current) { setQs(r.questions); setWarn(r.warnings); setStep(3); }
     } catch (e) { if (alive.current) { setErr(errText(e, "読み取れませんでした")); setStep(1); } }
   };
 
@@ -59,7 +66,7 @@ export function TestFileModal({ courseId = "", sections = [], initial, onClose, 
     const fields = scope ? Object.fromEntries(TEST_SCOPE_KEYS.map(k => [k, scope[k] || ""])) : {};
     try {
       const made = await apiPost("/tests", {
-        title: v.title.trim(), description: "", type: "quiz", limitMinutes: Number(v.min) || 0, dueDate: v.date, startAt: v.date && v.time ? `${v.date}T${v.time}` : "", status,
+        title: v.title.trim(), description: "", type: "quiz", limitMinutes: Number(v.min) || 0, dueDate: v.date, startAt: v.date && v.time ? `${v.date}T${v.time}` : "", aiGrade: v.ai !== false, status,
         courseIds: courseId ? [courseId] : [], courseId, ...fields, ...(courseId ? { courseScopes: { [courseId]: scope ? fields : null } } : { common: true }),
         questions: qs.map(q => ({
           type: q.type, answerMode: q.answerMode, question: q.question, options: q.choices, correctIndex: Math.max(0, q.choices.indexOf(q.answer)),
@@ -89,8 +96,9 @@ export function TestFileModal({ courseId = "", sections = [], initial, onClose, 
             {courseId ? <label className="field">始める時刻<input type="time" value={v.time} onChange={e => set({ time: e.target.value })} /></label> : null}
             <label className="field">目安の時間<select className="in" value={v.min} onChange={e => set({ min: e.target.value })}>{[10, 15, 20, 30, 45, 60].map(m => <option key={m} value={m}>{m}分</option>)}</select></label>
           </div>
-          <div className="row"><Chip tone="mk">書く問題は AI で点をつける（解答例と照らす）</Chip></div>
           <div className="g2e"><DropBox label="問題の Word・Excel" file={prob} onFile={setProb} /><DropBox label="解答の Word・Excel" file={ans} onFile={setAns} /></div>
+          <div className="rowsx"><div><span>点のつけ方</span><b>解答と照らして自動でつける</b></div></div>
+          <span className="checks"><label className={v.ai !== false ? "on" : ""}><input type="checkbox" checked={v.ai !== false} onChange={e => set({ ai: e.target.checked })} />書く問題は AI で点をつける（解答例と照らす）</label></span>
         </>
       )}
       {step === 2 && <><div className="empty">問題と解答を読み取っています…</div><span className="bar10"><i style={{ "--w": "64%" }} /></span></>}

@@ -971,3 +971,122 @@
 @media (max-width: 560px) {
   .lms .sysb .x2 { grid-column: 2; grid-row: 1 }
 }
+
+/* テストを受ける（モック testTake・testResult・testReview） */
+.lms .st-sp { flex: 1 }
+.lms .st-between { justify-content: space-between }
+.lms .ttop { display: flex; gap: 14px; align-items: center; flex-wrap: wrap; background: var(--card); border-radius: 999px; padding: 10px 18px; box-shadow: 0 1px 0 rgba(31, 38, 36, .04) }
+.lms .timer { display: inline-flex; align-items: baseline; gap: 6px; font-size: 13px; color: var(--muted) }
+.lms .timer b { color: var(--ink); font-size: 16px; font-family: var(--num); font-weight: 500 }
+.lms .timer small { font-size: 12px; color: var(--muted); margin-left: 4px }
+.lms .timer.over b { color: var(--amber) }
+.lms .tk-bar { flex: 1 1 160px }
+.lms .tk-q { line-height: 1.5 }
+.lms .tk-r { margin-left: auto }
+.lms .tk-c { justify-content: center }
+.lms .tk-nav { justify-content: space-between }
+.lms .tk-ta { width: 100%; min-width: 0 }
+.lms .tk-ta.code, .lms .tk-pre { font-family: var(--mono); font-size: 13px }
+.lms .tk-pre { margin: 0; white-space: pre-wrap; overflow-wrap: anywhere }
+.lms .tk-list { display: grid; gap: 12px }
+.lms .choices { display: grid; gap: 8px }
+.lms .choices button { display: flex; gap: 12px; align-items: center; text-align: left; border: 0; background: var(--paper); border-radius: 16px; padding: 14px 16px; font-size: 15px; color: var(--ink); transition: background .15s }
+.lms .choices button:hover { background: var(--tst) }
+.lms .choices button .k { width: 28px; height: 28px; border-radius: 50%; background: var(--card); display: grid; place-items: center; font-family: var(--num); font-weight: 700; flex: none }
+.lms .choices button[aria-pressed="true"] { background: var(--tst); box-shadow: 0 0 0 2px var(--tst-d) inset }
+.lms .choices button[aria-pressed="true"] .k { background: var(--ink); color: #fff }
+.lms .qmap { display: flex; gap: 6px; flex-wrap: wrap }
+.lms .qmap button { width: 34px; height: 34px; border: 0; border-radius: 50%; background: var(--paper); font-family: var(--num); font-weight: 600; font-size: 13px; color: var(--ink) }
+.lms .qmap button.on { background: var(--tst); color: var(--tst-i) }
+.lms .qmap button.cur { box-shadow: 0 0 0 2px var(--ink) inset }
+.lms .qmap.sm button { width: auto; min-width: 26px; padding: 0 5px; height: 26px; font-size: 11.5px }
+.lms .result { display: grid; justify-items: center; gap: 8px; padding: 14px 0 }
+.lms .result > b { font-size: 56px; line-height: 1 }
+.lms .result > b small { font-size: 18px; color: var(--muted) }
+.lms .result .meta { color: var(--muted); font-size: 13px }
+.lms .rq.ng { box-shadow: inset 4px 0 0 var(--dev-d) }
+.lms .rq.ok { box-shadow: inset 4px 0 0 var(--rep-d) }
+.lms .rq .qn { width: 28px; height: 28px; border-radius: 50%; background: var(--paper); display: grid; place-items: center; font-family: var(--num); font-weight: 600 }
+.lms .ans { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 8px }
+.lms .ans > span { border-radius: 12px; padding: 8px 12px; background: var(--paper); font-size: 14px; min-width: 0 }
+.lms .ans > span.right { background: var(--rep) }
+.lms .ans small, .lms .ex small { display: block; font-size: 11.5px; color: var(--muted); font-weight: 700 }
+.lms .ex { border-radius: 12px; padding: 8px 12px; background: var(--cur); font-size: 14px }
+
+/* 練習問題を解く（モック pracPage・pracDrawer） */
+.lms .pracp { background: var(--paper); border-radius: 20px; overflow: hidden; gap: 0 }
+.lms .pr-h { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; padding: 10px 16px; background: var(--card); border-bottom: 1px solid var(--line) }
+.lms .pracp .pbody { display: grid; grid-template-columns: 240px minmax(0, 1fr); min-height: 0 }
+.lms .pracp nav { background: var(--card); border-right: 1px solid var(--line); display: grid; align-content: start; padding: 6px 0 }
+.lms .pracp nav button { border: 0; background: none; text-align: left; padding: 10px 14px; display: grid; grid-template-columns: 22px minmax(0, 1fr); gap: 10px; align-items: center; border-radius: 12px; margin: 2px 8px; color: var(--ink) }
+.lms .pracp nav button[aria-current="true"] { background: var(--tst) }
+.lms .pracp nav small { display: block; color: var(--muted); font-size: 12px }
+.lms .pracp nav .ck { width: 22px; height: 22px; border-radius: 50%; display: grid; place-items: center; font-weight: 800; font-size: 12px; color: #fff; box-shadow: 0 0 0 1.5px var(--line) inset }
+.lms .pracp nav .ck.on { background: var(--tst-d); box-shadow: none }
+.lms .pracp section { padding: 18px 22px; display: grid; gap: 14px; align-content: start; min-width: 0 }
+.lms .pqa { background: var(--card); border-radius: 20px; padding: 20px 22px; display: grid; gap: 10px; scroll-margin-top: 12px; min-width: 0; box-shadow: 0 1px 0 rgba(31, 38, 36, .04), 0 12px 32px -24px rgba(31, 38, 36, .28) }
+.lms .pqa.dn { box-shadow: inset 4px 0 0 var(--tst-d), 0 12px 32px -24px rgba(31, 38, 36, .28) }
+.lms .hint { background: var(--att); border-radius: 12px; padding: 10px 14px; font-size: 14px }
+.lms .hint b { color: var(--att-i) }
+.lms .shade { position: fixed; inset: 0; z-index: 60; background: rgba(21, 23, 28, .38); display: grid; place-items: stretch end; padding: 0 }
+.lms .drawer { width: min(520px, 100vw); height: 100vh; height: 100dvh; background: var(--paper); display: grid; grid-template-rows: auto minmax(0, 1fr) auto; box-shadow: -20px 0 50px -30px rgba(21, 23, 28, .5) }
+.lms .drawer > header, .lms .drawer > footer { display: flex; gap: 8px; align-items: center; padding: 12px 16px; background: var(--card); border-bottom: 1px solid var(--line) }
+.lms .drawer > footer { border-top: 1px solid var(--line); border-bottom: 0; justify-content: flex-end; flex-wrap: wrap }
+.lms .drawer > header .x { margin-left: auto; color: var(--muted); border: 0; background: none; font-size: 22px; line-height: 1 }
+.lms .drawer .in { overflow: auto; padding: 16px; display: grid; gap: 12px; align-content: start; min-width: 0 }
+.lms .fchip { border: 1px solid var(--line); background: var(--card); border-radius: 999px; padding: 2px 11px; font-size: 12.5px; font-weight: 700; color: var(--ink2) }
+.lms .fchip[aria-pressed="true"] { background: var(--ink); color: #fff; border-color: var(--ink) }
+@media (max-width: 860px) {
+  .lms .pracp .pbody { grid-template-columns: minmax(0, 1fr) }
+  .lms .pracp nav { display: none }
+  .lms .pracp section { padding: 12px }
+  .lms .tk-nav .qmap { order: 3; flex-basis: 100% }
+}
+
+/* 通知（モック bellPop・notif） */
+.lms .pop { position: absolute; right: 0; top: calc(100% + 8px); z-index: 50; background: var(--card); border: 1px solid var(--line); border-radius: 14px; box-shadow: 0 18px 40px -16px rgba(21, 23, 28, .35); color: var(--ink); text-align: left; overflow: hidden }
+.lms .npop { width: min(380px, calc(100vw - 32px)) }
+.lms .npop header, .lms .npop footer { display: flex; gap: 8px; align-items: center; padding: 10px 14px }
+.lms .npop header { border-bottom: 1px solid var(--line2) }
+.lms .npop footer { border-top: 1px solid var(--line2); justify-content: center }
+.lms .pop .lnk { border: 0; background: none; color: var(--mk-ink); font-weight: 700; font-size: 12.5px; padding: 0 }
+.lms .nlist { display: grid }
+.lms .npad { display: flex; gap: 8px; align-items: center; justify-content: center; padding: 18px 14px }
+.lms .nrow { display: grid; grid-template-columns: 32px minmax(0, 1fr) 8px; gap: 10px; align-items: center; border: 0; border-bottom: 1px solid var(--line2); background: none; text-align: left; padding: 10px 14px; color: var(--ink); width: 100% }
+.lms .nrow:last-child { border-bottom: 0 }
+.lms .nrow:hover { background: var(--soft) }
+.lms .nrow.un { background: #F3FBFA }
+.lms .nrow .nic { width: 32px; height: 32px; border-radius: 10px; background: var(--marker-soft); color: var(--mk-ink); display: grid; place-items: center; font-weight: 800; font-size: 13px }
+.lms .nrow b { display: block; font-size: 13.5px; font-weight: 700; overflow-wrap: anywhere }
+.lms .nrow small { display: block; color: var(--muted); font-size: 12px; overflow-wrap: anywhere }
+.lms .nrow i { width: 8px; height: 8px; border-radius: 50%; background: var(--marker) }
+.lms .nlist.big .nrow { padding: 14px 18px }
+.lms .nlist.big .empty { padding: 28px }
+/* 顔の写真 */
+.lms .face.ph { overflow: hidden; padding: 0 }
+.lms .face.ph img { width: 100%; height: 100%; object-fit: cover; display: block }
+.lms .pf-h .face { width: 48px; height: 48px; font-size: 18px }
+.lms .pf-h { align-items: center; gap: 12px }
+
+/* テストを直す（モック xtedit） */
+.lms .tqe { display: grid; gap: 6px; margin-top: 4px }
+.lms .tqe > div:not(.tqe-e) { display: grid; grid-template-columns: 28px minmax(0, 1fr) auto auto; gap: 8px; align-items: center; background: var(--paper); border-radius: 12px; padding: 8px 10px; font-weight: 500 }
+.lms .tqe .qn { width: 26px; height: 26px; border-radius: 50%; background: var(--card); display: grid; place-items: center; font-family: var(--num); font-weight: 600; font-size: 12.5px }
+.lms .tqe-e { background: var(--paper); border-radius: 12px; padding: 12px }
+.lms .tqe-c { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 8px; align-items: center }
+.lms .th-s { border: 0; background: none; padding: 0; font: inherit; color: inherit; cursor: pointer }
+.lms .th-s[aria-pressed="true"] { color: var(--ink) }
+@media (max-width: 560px) { .lms .tqe > div:not(.tqe-e) { grid-template-columns: 26px minmax(0, 1fr) } }
+
+.lms .stsel { display: flex; gap: 6px; flex-wrap: wrap }
+.lms .stsel button { border: 0; background: var(--paper); border-radius: 999px; padding: 6px 14px; font-weight: 700; font-size: 13.5px; color: var(--ink2) }
+.lms .stsel button[aria-pressed="true"] { background: var(--ink); color: #fff }
+
+/* これまでの日報の窓（モック dayModal） */
+.lms .mgoal { display: grid; gap: 6px; background: var(--paper); border-radius: 14px; padding: 12px 14px }
+.lms .ticks { display: flex; gap: 6px 12px; flex-wrap: wrap; font-size: 13px; color: var(--muted) }
+.lms .ticks .on { color: var(--rep-i); font-weight: 600 }
+.lms .kv { display: grid; gap: 8px; margin: 0 }
+.lms .kv > div { display: grid; gap: 2px }
+.lms .kv dt { font-size: 12px; color: var(--muted); font-weight: 700 }
+.lms .kv dd { margin: 0; white-space: pre-wrap; overflow-wrap: anywhere }

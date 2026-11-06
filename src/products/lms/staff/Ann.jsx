@@ -131,7 +131,7 @@ export default function StaffAnn({ role, say }) {
       )}
       {del && <Modal title="お知らせを消す" width={420} onClose={() => setDel(null)} footer={<><Btn kind="ghost" onClick={() => setDel(null)}>やめる</Btn><Btn onClick={() => remove(del)}>消す</Btn></>}><b>{del.title}</b></Modal>}
       {unread && (
-        <Modal title={`まだの人 ・ ${unread.a.title}`} width={460} onClose={() => setUnread(null)} footer={<><Btn kind="ghost" onClick={() => setUnread(null)}>閉じる</Btn>{arr(unread.items).length > 0 && <Btn disabled={!!busy} onClick={notifyAgain}>もう一度知らせる</Btn>}</>}>
+        <Modal title={`まだの人 ・ ${unread.a.title}`} width={460} onClose={() => setUnread(null)} footer={<><Btn kind="ghost" onClick={() => setUnread(null)}>閉じる</Btn>{arr(unread.items).length > 0 && <Btn disabled={!!busy} onClick={notifyAgain}>この人たちにもう一度知らせる</Btn>}</>}>
           {unread.items === null ? <div className="dv-mt">読み込み中</div> : unread.items === undefined ? <Chip>確認できません</Chip> : unread.items.length ? <div className="row">{unread.items.map(p => <Chip key={p.id}>{p.name}</Chip>)}</div> : <Chip tone="ok">全員確認済み</Chip>}
         </Modal>
       )}

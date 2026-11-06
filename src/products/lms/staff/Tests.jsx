@@ -7,11 +7,17 @@ import { Btn, Card, Chip, ListTool, Modal, matchName } from "../parts/ui.jsx";
 import { TestFileModal, takeTestFiles } from "./TestFile.jsx";
 import { arr, errText, md, useRoster, useStaffCourse } from "./common.js";
 
+import { TestEditModal } from "./TestEdit.jsx";
 /* テスト（モック testS・libS・testResultS）：講師は担当コースの単元ごと、管理者は全部の一覧。
    結果は一覧と一人ずつ、採点は /tests/{id}/results/{traineeId}/review。作る・直す・試し受験は今の画面を中に出す（採点の決まりを変えないため） */
 
 const PASS = 70;
 const scoreOf = r => { const v = r?.officialScore ?? r?.teacherScore ?? r?.score; return v == null ? null : Number(v); };
+const elapsed = s => `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
+function SortH({ k, sort, onSort, children }) {
+  const on = sort === k || (k === "desc" && sort === "asc");
+  return <button type="button" className="th-s" aria-pressed={on} onClick={() => onSort(k === "desc" && sort === "desc" ? "asc" : k)}>{children}{k === "desc" ? (sort === "asc" ? " ▲" : sort === "desc" ? " ▼" : "") : sort === k ? " ▼" : ""}</button>;
+}
 const waiting = r => !r?.reviewedAt && (Number(r?.needsReview) > 0 || Object.values(r?.answers || {}).some(a => a?.needsReview));
 const rangeOf = s => {
   const ds = [s, ...arr(s.chapters).flatMap(c => arr(c.lessons))].flatMap(x => [String(x.startDate || "").slice(0, 10), String(x.endDate || x.startDate || "").slice(0, 10)]).filter(d => /^\d{4}-/.test(d)).sort();
@@ -86,7 +92,7 @@ function Results({ test, courses, fixedCourse, canGrade, onBack, say }) {
   const scored = took.filter(p => p.score != null);
   const avg = scored.length ? Math.round(scored.reduce((a, p) => a + p.score, 0) / scored.length) : null;
   const list = people.filter(p => matchName(p.name, p.kana, q) && (tab === "all" || (tab === "ng" ? p.r && p.score != null && p.score < PASS : tab === "none" ? !p.r : p.r && waiting(p.r))))
-    .sort((a, b) => (a.r ? 0 : 1) - (b.r ? 0 : 1) || { desc: (b.score ?? -1) - (a.score ?? -1), asc: (a.score ?? 999) - (b.score ?? 999), name: String(a.kana || a.name).localeCompare(String(b.kana || b.name), "ja") }[sort]);
+    .sort((a, b) => (a.r ? 0 : 1) - (b.r ? 0 : 1) || { desc: (b.score ?? -1) - (a.score ?? -1), asc: (a.score ?? 999) - (b.score ?? 999), name: String(a.kana || a.name).localeCompare(String(b.kana || b.name), "ja"), time: (Number(a.r?.elapsedSec) || 1e9) - (Number(b.r?.elapsedSec) || 1e9) }[sort]);
   const rates = qs.map((_, i) => { const has = took.filter(p => p.r.answers?.[i]); return has.length ? Math.round(has.filter(p => p.r.answers[i].correct).length / has.length * 100) : null; });
   const seq = list.filter(p => p.r);
   const one = people.find(p => p.id === cur) || seq[0] || null;
@@ -112,19 +118,20 @@ function Results({ test, courses, fixedCourse, canGrade, onBack, say }) {
           </div>
           {mode === "list" ? (
             <>
-              <ListTool tabs={[["all", "すべて", people.length], ["ng", "不合格", took.filter(p => p.score != null && p.score < PASS).length, "bad"], ["wait", "採点待ち", took.filter(p => waiting(p.r)).length, "warn"], ["none", "まだ", people.length - took.length]]} tab={tab} onTab={setTab} q={q} onQ={setQ} placeholder="名前で探す" sorts={[["desc", "点の高い順"], ["asc", "点の低い順"], ["name", "名前順"]]} sort={sort} onSort={setSort} />
-              <Card className="tr-t"><div className="scroll"><table className="tbl"><thead><tr><th>受講生</th><th>点</th><th>合否</th>{qs.map((_, i) => <th key={i} className="qc">{i + 1}</th>)}<th /></tr></thead><tbody>
+              <ListTool tabs={[["all", "すべて", people.length], ["ng", "不合格", took.filter(p => p.score != null && p.score < PASS).length, "bad"], ["wait", "採点待ち", took.filter(p => waiting(p.r)).length, "warn"], ["none", "まだ", people.length - took.length]]} tab={tab} onTab={setTab} q={q} onQ={setQ} placeholder="名前で探す" sorts={[["desc", "点の高い順"], ["asc", "点の低い順"], ["name", "名前順"], ["time", "経過の短い順"]]} sort={sort} onSort={setSort} />
+              <Card className="tr-t"><div className="scroll"><table className="tbl"><thead><tr><th><SortH k="name" sort={sort} onSort={setSort}>受講生</SortH></th><th><SortH k="desc" sort={sort} onSort={setSort}>点</SortH></th><th>合否</th><th><SortH k="time" sort={sort} onSort={setSort}>経過</SortH></th>{qs.map((_, i) => <th key={i} className="qc">{i + 1}</th>)}<th /></tr></thead><tbody>
                 {list.map(p => (
                   <tr key={p.id} className={p.r ? "" : "tr-none"}>
                     <td><b>{p.name}</b></td>
                     <td className="num">{p.r ? <b className={`tr-pt${p.score != null && p.score < PASS ? " ng" : ""}`}>{p.score ?? "—"}</b> : "—"}</td>
                     <td>{!p.r ? <Chip>まだ</Chip> : waiting(p.r) ? <Chip tone="warn">採点待ち</Chip> : p.score >= PASS ? <Chip tone="ok">合格</Chip> : <Chip tone="bad">不合格</Chip>}</td>
+                    <td className="num">{p.r?.elapsedSec ? elapsed(p.r.elapsedSec) : ""}</td>
                     {qs.map((_, i) => { const a = p.r?.answers?.[i]; return <td key={i} className={`qc${a ? (a.needsReview ? "" : a.correct ? " o" : " x") : ""}`}>{a ? (a.needsReview ? "?" : a.correct ? "○" : "×") : ""}</td>; })}
-                    <td>{p.r && <Btn kind="ghost sm" onClick={() => open(p.id)}>{canGrade && waiting(p.r) ? "採点" : "見る"}</Btn>}</td>
+                    <td>{p.r && <Btn kind="ghost sm" onClick={() => open(p.id)}>{canGrade && waiting(p.r) ? "採点" : "個別に見る"}</Btn>}</td>
                   </tr>
                 ))}
-                {!list.length && <tr><td colSpan={qs.length + 4}><Chip>該当なし</Chip></td></tr>}
-                {qs.length > 0 && took.length > 0 && <tr className="tr-rate"><td><b>正答率</b></td><td /><td />{rates.map((x, i) => <td key={i} className={`qc num${x != null && x < 60 ? " low" : ""}`}>{x ?? ""}</td>)}<td /></tr>}
+                {!list.length && <tr><td colSpan={qs.length + 5}><Chip>該当なし</Chip></td></tr>}
+                {qs.length > 0 && took.length > 0 && <tr className="tr-rate"><td><b>正答率</b></td><td /><td /><td />{rates.map((x, i) => <td key={i} className={`qc num${x != null && x < 60 ? " low" : ""}`}>{x ?? ""}</td>)}<td /></tr>}
               </tbody></table></div></Card>
             </>
           ) : !one ? <Card className="pad"><Chip>まだ受けた人はいません</Chip></Card> : (
@@ -221,6 +228,7 @@ export default function StaffTests({ role, go, say }) {
   const [key, setKey] = useState(0);
   const [menu, setMenu] = useState("");
   const [build, setBuild] = useState(null);     // { mode, test?, duplicate?, scope? }
+  const [editT, setEditT] = useState(null);
   const [taking, setTaking] = useState(null);
   const [results, setResults] = useState(null);
   const [assign, setAssign] = useState(null);
@@ -263,7 +271,7 @@ export default function StaffTests({ role, go, say }) {
     if (handoff.testId) {
       const t = st.tests.find(x => testIdOf(x) === handoff.testId);
       if (!t) { setFromCur(false); return; }
-      if (handoff.results) setResults(t); else setBuild({ mode: "manual", test: t });
+      if (handoff.results) setResults(t); else setEditT(t);
       return;
     }
     setBuild({ mode: handoff.mode, scope: { courseId: handoff.courseId, scopeId: handoff.scopeId, title: handoff.title } });
@@ -291,6 +299,8 @@ export default function StaffTests({ role, go, say }) {
   const setStatus = async t => { setErr(""); setMenu(""); try { await apiPut(`/tests/${testIdOf(t)}`, { status: t.status === "published" ? "draft" : "published" }); emitNotificationRefresh(); say?.(t.status === "published" ? "下書きに戻しました" : "公開しました"); reload(); } catch (e) { setErr(errText(e, "状態を変えられませんでした")); } };
   const remove = async () => { const t = del; setDel(null); setErr(""); try { await apiDelete(`/tests/${testIdOf(t)}`); emitNotificationRefresh(); say?.("消しました"); reload(); } catch (e) { setErr(errText(e, "消せませんでした")); } };
 
+  const closeEdit = () => { setEditT(null); if (fromCur) { setFromCur(false); go?.(admin ? "lcur" : "cur"); return; } reload(); };
+  const editModal = editT && <TestEditModal test={editT} unitName={editT.sectionTitle || ""} courseId={courseId || ""} onClose={closeEdit} onSaved={() => { emitNotificationRefresh(); say?.("直しました"); closeEdit(); }} />;
   if (build) return <div className="lms-legacy"><TestBuilder mode={build.mode} initialScope={build.scope || null} initialTest={build.test || null} duplicate={!!build.duplicate} back={closeSub} onSaved={reload} /></div>;
   if (taking) return <div className="lms-legacy"><TestTaking key={testIdOf(taking)} test={taking} preview back={() => { setTaking(null); }} onDone={async () => true} go={() => setTaking(null)} /></div>;
   if (results) return <Results test={results} courses={st.courses} fixedCourse={courseId} canGrade={admin || mine.size > 0} onBack={closeSub} say={say} />;
@@ -308,7 +318,7 @@ export default function StaffTests({ role, go, say }) {
       <button type="button" className="kbtn" aria-label={`${t.title} の操作`} aria-expanded={menu === testIdOf(t)} onClick={() => setMenu(m => (m === testIdOf(t) ? "" : testIdOf(t)))}>…</button>
       {menu === testIdOf(t) && (
         <div className="kmenu" role="menu">
-          <button type="button" onClick={() => { setMenu(""); setBuild({ mode: "manual", test: t }); }}>直す</button>
+          <button type="button" onClick={() => { setMenu(""); setEditT(t); }}>直す</button>
           <button type="button" onClick={() => { setMenu(""); setBuild({ mode: "manual", test: t, duplicate: true }); }}>複製</button>
           <button type="button" onClick={() => { setMenu(""); setAssign(t); }}>コースと単元</button>
           {admin && <button type="button" onClick={() => { setMenu(""); setCatOf(t); }}>分類</button>}
@@ -328,7 +338,7 @@ export default function StaffTests({ role, go, say }) {
         <td><b>{t.title}</b>{t.common && <> <Chip tone="mk">共通</Chip></>}<small className="sm2">{testQuestionsOf(t).length}問</small></td>
         <td className="num tat">{t.dueDate ? md(t.dueDate) : "—"}{t.limitMinutes ? <small className="sm2">目安 {t.limitMinutes}分</small> : null}</td>
         <td>{statusCell(t)}</td><td className="num">{tookCell(s)}</td><td className="num">{avgCell(s)}</td>
-        <td><span className="row st-nw"><Btn kind="ghost sm" onClick={() => setResults(t)}>結果</Btn><Btn kind="ghost sm" onClick={() => setBuild({ mode: "manual", test: t })}>直す</Btn>{!t.common && <Btn kind="ghost sm" onClick={() => toCommon(t)}>全コース共通にする</Btn>}</span></td>
+        <td><span className="row st-nw"><Btn kind="ghost sm" onClick={() => setResults(t)}>結果</Btn><Btn kind="ghost sm" onClick={() => setEditT(t)}>直す</Btn>{!t.common && <Btn kind="ghost sm" onClick={() => toCommon(t)}>全コース共通にする</Btn>}</span></td>
       </tr>
     );
     return (
@@ -347,7 +357,7 @@ export default function StaffTests({ role, go, say }) {
     <>
       {catOf && <CategoryModal test={catOf} cats={cats} onClose={() => setCatOf(null)} onDone={() => { setCatOf(null); say?.("保存しました"); reload(); }} />}
       {assign && <AssignModal test={assign} courses={st.courses} canAssign={canAssign} onClose={() => setAssign(null)} onSaved={() => { setAssign(null); say?.("保存しました"); reload(); }} />}
-      {del && <Modal title="テストを消す" width={420} onClose={() => setDel(null)} footer={<><Btn kind="ghost" onClick={() => setDel(null)}>やめる</Btn><Btn onClick={remove}>消す</Btn></>}><b>{del.title}</b>{statOf(del).n > 0 && <div className="row"><Chip tone="warn">受けた人 {statOf(del).n} 人</Chip></div>}</Modal>}
+      {editModal}{del && <Modal title="テストを消す" width={420} onClose={() => setDel(null)} footer={<><Btn kind="ghost" onClick={() => setDel(null)}>やめる</Btn><Btn onClick={remove}>消す</Btn></>}><b>{del.title}</b>{statOf(del).n > 0 && <div className="row"><Chip tone="warn">受けた人 {statOf(del).n} 人</Chip></div>}</Modal>}
     </>
   );
 

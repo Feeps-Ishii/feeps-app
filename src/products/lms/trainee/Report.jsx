@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useState } from "react";
 import { apiGet } from "../../../api.js";
 import { isWrittenNote } from "../../training/notesLessons.js";
 import { fieldValue, threadOf, useTraineeReport } from "./useTraineeReport.js";
-import { Btn, Cal, Card, Chip, ListTool, weekday } from "../parts/ui.jsx";
+import { Btn, Cal, Card, Chip, ListTool, Modal, weekday } from "../parts/ui.jsx";
 
 /* 受講生の日報（モック reportT2）：上に日付と書けた数、朝（今日の目標・小目標）と夕方（振り返り）を分け、
    提出は下に残るバーで。右はこれまでの日報（月ごと・絞り込み）。「今日のノートを見る」で右をノートに切り替える */
@@ -41,12 +41,30 @@ function Thread({ report, onSend, say }) {
       </div>
       <label className="dr-f"><span className="dr-fl">返事</span><textarea id="lms-report-reply" rows={2} value={text} onChange={e => setText(e.target.value)} /></label>
       {err && <div className="lms-err" role="alert">{err}</div>}
-      <span className="row" style={{ justifyContent: "flex-end" }}><Btn kind="sm" disabled={busy || !text.trim()} onClick={send}>{busy ? "送信中" : "送る"}</Btn></span>
+      <span className="row" style={{ justifyContent: "flex-end" }}><Btn kind="sm" disabled={busy || !text.trim()} onClick={send}>{busy ? "送信中" : "返事する"}</Btn></span>
     </Card>
   );
 }
 
-function History({ r }) {
+// これまでの日報の窓（モック dayModal）：読む → この日を書く・直す
+function DayModal({ r, row, say, onClose }) {
+  const rep = row.rep, p = parts(row.d), goals = rep?.goalItems || [];
+  return (
+    <Modal title={`${p.md}（${weekday(p.m, p.d, p.y)}）の日報`} width={640} onClose={onClose} footer={<><Btn kind="ghost" onClick={onClose}>閉じる</Btn><Btn onClick={() => { onClose(); r.goDate(row.d); window.scrollTo?.(0, 0); }}>{rep ? "この日を直す" : "この日を書く"}</Btn></>}>
+      <div className="row">{rep ? <Chip tone="ok">提出済み</Chip> : <Chip tone="warn">まだ</Chip>}</div>
+      {rep && (
+        <>
+          {(rep.morningGoal || goals.length > 0) && <div className="mgoal"><span className="eyebrow">朝 ・ 今日の目標</span>{rep.morningGoal && <b>{rep.morningGoal}</b>}{goals.length > 0 && <div className="ticks">{goals.map(g => <span key={g.id} className={g.done ? "on" : ""}>{g.done ? "✓" : "・"} {g.text}</span>)}</div>}</div>}
+          <dl className="kv">{r.fields.map(f => <div key={f.id}><dt>{f.label}</dt><dd>{String(fieldValue(rep, f.id) || "").trim() || "—"}</dd></div>)}</dl>
+          <Thread key={row.d} report={rep} onSend={t => r.sendReply(t, row.d)} say={say} />
+        </>
+      )}
+    </Modal>
+  );
+}
+
+function History({ r, say }) {
+  const [view, setView] = useState(null);
   const [tab, setTab] = useState("all");
   const [all, setAll] = useState(false);
   const rows = useMemo(() => r.days.dates.filter(d => d.startsWith(r.month) && d <= r.today).sort((a, b) => b.localeCompare(a)).map(d => {
@@ -78,7 +96,7 @@ function History({ r }) {
               {list.map(x => {
                 const k = !x.rep ? "att" : x.comments ? "rep" : "gy", p = parts(x.d);
                 return (
-                  <button key={x.d} type="button" className={`dr-hi c-${k}${x.d === r.date ? " on" : ""}`} aria-current={x.d === r.date ? "date" : undefined} onClick={() => r.goDate(x.d)}>
+                  <button key={x.d} type="button" className={`dr-hi c-${k}${x.d === r.date ? " on" : ""}`} aria-current={x.d === r.date ? "date" : undefined} onClick={() => setView(x.d)}>
                     <Cal date={p.md} year={p.y} cat={k} />
                     <span className="dr-hb"><b>{x.rep ? x.title : "未提出"}</b><small>{x.rep ? (x.goals ? `小目標 ${x.done} / ${x.goals}` : "提出済み") : x.draft ? "書きかけあり" : "後から記入可"}</small></span>
                     {!x.rep ? <Chip tone="warn">まだ</Chip> : x.comments ? <Chip tone="ok">コメント {x.comments}</Chip> : <span className="dr-nc">コメントなし</span>}
@@ -90,6 +108,7 @@ function History({ r }) {
             {shown.length > LIMIT && <div className="row" style={{ justifyContent: "center" }}><Btn kind="ghost sm" onClick={() => setAll(v => !v)}>{all ? "たたむ" : `残り ${shown.length - LIMIT} 日を見る`}</Btn></div>}
           </>
         )}
+      {view && rows.some(x => x.d === view) && <DayModal r={r} row={rows.find(x => x.d === view)} say={say} onClose={() => setView(null)} />}
     </Card>
   );
 }
@@ -219,7 +238,7 @@ export default function TraineeReport({ say }) {
             })}
           </section>
         </div>
-        {showNotes ? <Notes r={r} onClose={() => setShowNotes(false)} /> : <History r={r} />}
+        {showNotes ? <Notes r={r} onClose={() => setShowNotes(false)} /> : <History say={say} r={r} />}
       </div>
 
       {r.err && <div className="lms-err" role="alert">{r.err}</div>}

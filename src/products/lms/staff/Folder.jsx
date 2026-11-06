@@ -426,8 +426,8 @@ function StaffFolder({ role, say, view = "all" }) {
       {dlg?.kind === "copy" && <MoveModal copy node={dlg.node} nodes={nodes} onClose={() => setDlg(null)} onMove={async to => { await apiPost("/library/copy", { spaceId: cur.sid, nodeId: dlg.node.nodeId, parentId: to }); await loadSpace(cur.sid); say?.("コピーしました"); }} />}
       {dlg?.kind === "place" && <PlaceModal node={dlg.node} courses={arr(courses)} linked={links?.[dlg.node.nodeId]} onClose={() => setDlg(null)} onPlace={(mode, ids) => place(dlg.node, mode, ids)} onUnlink={unlink} />}
       {dlg && ["folder", "rename", "delete"].includes(dlg.kind) && (
-        <Modal title={dlg.kind === "folder" ? "新しいフォルダ" : dlg.kind === "rename" ? "名前を変更" : dlg.node.type === "shortcut" ? "外す" : "削除"} width={420} onClose={() => setDlg(null)}
-          footer={<><Btn kind="ghost" onClick={() => setDlg(null)}>やめる</Btn><Btn onClick={confirmDlg}>{dlg.kind === "delete" ? (dlg.node.type === "shortcut" ? "外す" : "削除") : "決める"}</Btn></>}>
+        <Modal title={dlg.kind === "folder" ? "新しいフォルダ" : dlg.kind === "rename" ? "名前を変更" : dlg.node.type === "shortcut" ? "外す" : "削除しますか？"} width={420} onClose={() => setDlg(null)}
+          footer={<><Btn kind="ghost" onClick={() => setDlg(null)}>やめる</Btn><Btn onClick={confirmDlg}>{dlg.kind === "delete" ? (dlg.node.type === "shortcut" ? "外す" : "削除する") : dlg.kind === "rename" ? "変更する" : "決める"}</Btn></>}>
           {dlg.kind === "delete"
             ? <b>{nameOf(dlg.node)}{dlg.node.type === "folder" && nodes.some(x => x.parentId === dlg.node.nodeId) ? "（中身ごと）" : ""}</b>
             : <input type="text" value={text} autoFocus aria-label="名前" onChange={e => setText(e.target.value)} onKeyDown={e => { if (e.key === "Enter") confirmDlg(); }} />}

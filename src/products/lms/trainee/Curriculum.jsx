@@ -1,7 +1,8 @@
 import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
-import { apiGet } from "../../../api.js";
+import { apiGet, apiPut } from "../../../api.js";
 import { normalizeCurriculumSections } from "../../training/TrainingComponents.jsx";
 import { setPracticeFocus, usePracticeLinks } from "../../training/practiceLinks.js";
+import { PracticeDrawer } from "./PracticeQ.jsx";
 import { testIdOf, todayStr } from "../../training/useTraining.js";
 import { getActiveCourseId, setActiveCourseId, setLibraryTarget, setTestFocus } from "../../../utils/common/courseContext.js";
 import { Btn, Cal, Card, Chip } from "../parts/ui.jsx";
@@ -101,6 +102,7 @@ export default function TraineeCurriculum({ go }) {
   const [edge, setEdge] = useState({ l: false, r: false });
   const practiceFor = usePracticeLinks(courseId);
   const [devs, setDevs] = useState([]);
+  const [prac, setPrac] = useState(null); // { item, set, done, start }
 
   useEffect(() => {
     let alive = true;
@@ -137,6 +139,15 @@ export default function TraineeCurriculum({ go }) {
     syncEdge();
   }, [sections, sel, syncEdge]);
 
+  const openPrac = async p => {
+    try { const r = await apiGet(`/practice/${encodeURIComponent(p.setId)}?courseId=${encodeURIComponent(courseId)}`); setPrac({ item: r.item, set: r.set, done: r.done || {}, start: `${p.setId}:${p.firstQ}`, setId: p.setId }); }
+    catch { setPracticeFocus({ courseId, setId: p.setId, qid: p.firstQ }); go("prac"); }
+  };
+  const markPrac = (setId, qid, v) => {
+    const put = val => setPrac(x => (x ? { ...x, done: { ...x.done, [qid]: val } } : x));
+    put(v);
+    apiPut(`/practice/${encodeURIComponent(setId)}/done?courseId=${encodeURIComponent(courseId)}`, { qid, done: v }).catch(() => put(!v));
+  };
   const openMat = async id => {
     const tab = window.open("", "_blank");
     try {
@@ -231,7 +242,7 @@ export default function TraineeCurriculum({ go }) {
               <div key={m} className="tc-r c-cur"><span className="tc-ri"><Icon k="report" size={19} /></span><span className="tc-rb"><span className="eyebrow">資料</span><b>{mats[m].title}</b></span><Btn kind="ghost sm" onClick={() => openMat(m)}>開く</Btn></div>
             ))}
             {practice.map(p => (
-              <div key={`${p.setId}:${p.no}`} className="tc-r c-tst"><span className="tc-ri"><Icon k="prac" size={19} /></span><span className="tc-rb"><span className="eyebrow">練習問題</span><b>{p.title || "練習問題"}</b><small>{p.label}</small></span><Btn kind="sm" onClick={() => { setPracticeFocus({ courseId, setId: p.setId, qid: p.firstQ }); go("prac"); }}>解く</Btn></div>
+              <div key={`${p.setId}:${p.no}`} className="tc-r c-tst"><span className="tc-ri"><Icon k="prac" size={19} /></span><span className="tc-rb"><span className="eyebrow">練習問題</span><b>{p.title || "練習問題"}</b><small>{p.label}</small></span><Btn kind="sm" onClick={() => openPrac(p)}>解く</Btn></div>
             ))}
             {unitTests.map(t => {
               const id = testIdOf(t), r = results?.[id];
@@ -253,6 +264,10 @@ export default function TraineeCurriculum({ go }) {
           </div>
         </Card>
       </div>
+      {prac && (() => {
+        const qs = prac.set.lessons.filter(l => l.sectionId === unit.id || !prac.set.lessons.some(y => y.sectionId === unit.id)).flatMap(l => l.questions).map(q => ({ q, setId: prac.setId, done: !!prac.done[q.id] }));
+        return <PracticeDrawer key={prac.start} title={unit.title} qs={qs} metaOf={() => ({ images: prac.set.images, showAnswers: prac.item?.showAnswers !== false })} start={prac.start} onDone={markPrac} onClose={() => setPrac(null)} onOpenPage={x => { setPracticeFocus({ courseId, setId: x.setId, qid: x.q.id }); go("prac"); }} />;
+      })()}
     </div>
   );
 }

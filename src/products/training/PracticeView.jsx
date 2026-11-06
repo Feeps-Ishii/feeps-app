@@ -114,7 +114,7 @@ export function CodeBlock({ fn, code }) {
   );
 }
 // `code` を <code> に
-function Rich({ text }) {
+export function Rich({ text }) {
   const parts = String(text || "").split(/(`[^`]+`)/g);
   return <>{parts.map((p, i) => (p.startsWith("`") && p.endsWith("`") && p.length > 2 ? <code key={i}>{p.slice(1, -1)}</code> : <React.Fragment key={i}>{p}</React.Fragment>))}</>;
 }
@@ -142,7 +142,7 @@ export function Items({ items, images, onZoom }) {
     return null;
   });
 }
-function Answer({ a }) {
+export function Answer({ a }) {
   return (
     <div className="pq-ans"><b>{a.files?.length ? "模範解答" : "解答・解説"}</b>
       {a.rows?.length > 0 && <div className="pq-rows">{a.rows.map((r, i) => <div key={i}><i>({i + 1})</i><span><span className="a1">{ascii(r[0]) ? <code>{r[0]}</code> : r[0]}</span>{r[1] && <small>{r[1]}</small>}</span></div>)}</div>}

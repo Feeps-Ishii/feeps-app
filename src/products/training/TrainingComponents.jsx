@@ -3429,7 +3429,10 @@ function TestTaking({ test, back, onDone, preview = false, go, inline = false, s
       let aiEvaluation = null;
       let ok = isChoice ? val === q.c : isFill ? !!text && !!model && text === model : !!text && !!model && text === model;
       let qScore = ok ? 100 : 0;
-      if (aiTarget && text && !preview) {
+      if (aiTarget && text && !preview && test.aiGrade === false) {
+        aiEvaluation = { status: "pending", comment: "", score: null, strengths: [], improvements: [], reviewPoint: q.reviewPoint || "", weakAreas: [] };
+        needsReview++; ok = false; qScore = 0;
+      } else if (aiTarget && text && !preview) {
         try {
           aiEvaluation = await apiPost("/ai/tests/evaluate", {
             testId: testIdOf(test),
@@ -7331,7 +7334,7 @@ export {
   // ノート画面もカリキュラムの木を同じ形で読む。作り直すと片方だけ直す事故が起きる
   normalizeCurriculumSections,
   // 新しい LMS のテストの画面（作る画面と単元の決まりは同じものを使う）
-  TestBuilder, TEST_SCOPE_KEYS, flattenCurriculumScopes, testCourseIdList, testQuestionsOf, testScopeForCourse, testScopeIdOf, useNameMap,
+  TestBuilder, TEST_SCOPE_KEYS, flattenCurriculumScopes, answerModeOf, questionPoints, testCourseIdList, testQuestionsOf, testScopeForCourse, testScopeIdOf, useNameMap,
   // 新しい LMS のカリキュラムの編集（データの形は同じものを使う）
   CURRICULUM_EXCEL_HEADERS, buildLearningContext, curriculumExcelTemplateRows, curriculumSectionsFromExcelRows, curriculumUnitScope, flattenUnitDays, makeLocalId,
   mergeCurriculumSections, normalizeCurriculumExercise, safeExcelFilename, splitCurriculumList, summarizeCurriculumSections, unitDaysOf,

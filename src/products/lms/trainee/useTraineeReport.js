@@ -211,9 +211,9 @@ export function useTraineeReport() {
     } finally { setSaving(false); }
   }, [canEdit, draft, fields, date, courseId, report]);
 
-  const sendReply = useCallback(async text => {
-    const res = await apiPut("/reports/me/reply", { date, text });
-    setReports(cur => cur.map(r => (r.date === date ? { ...r, replies: [...(r.replies || []), res.reply] } : r)));
+  const sendReply = useCallback(async (text, day = date) => {
+    const res = await apiPut("/reports/me/reply", { date: day, text });
+    setReports(cur => cur.map(r => (r.date === day ? { ...r, replies: [...(r.replies || []), res.reply] } : r)));
   }, [date]);
 
   return {

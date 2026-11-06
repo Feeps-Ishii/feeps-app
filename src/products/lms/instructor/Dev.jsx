@@ -140,7 +140,7 @@ function Board({ courseId, course, initial, openSetup, say }) {
                 <div className="dv-r">
                   {err && <div className="lms-err" role="alert">{err}</div>}
                   <Card className="pad st-g">
-                    <div className="head"><div><h3 className="h3">{row.name}</h3><small className="dv-sm num">提出 {batchesOf(row).length} 回 ・ 最新 {fmtDate(row.lastUpload)}</small></div><span className="r"><Btn kind="sm" disabled={!!busy || !sel.size} onClick={runAi}>{busy === "ai" ? "AI がレビューしています" : rev ? "AI でやり直す" : "AI でレビューする"}</Btn><button type="button" className="x2" aria-label="閉じる" onClick={() => { setPick(""); setRev(null); setErr(""); }}>×</button></span></div>
+                    <div className="head"><div><h3 className="h3">{row.name}</h3><small className="dv-sm num">提出 {batchesOf(row).length} 回 ・ 最新 {fmtDate(row.lastUpload)}</small></div><span className="r">{row.files.some(f => f.name.startsWith(`${newest}/`)) && <Btn kind="ghost sm" onClick={() => { const f = row.files.find(x => x.name.startsWith(`${newest}/`)); openFile(courseId, f.nodeId).catch(() => setErr(`「${f.name}」を開けませんでした`)); }}>コードを開く ↗</Btn>}<Btn kind="sm" disabled={!!busy || !sel.size} onClick={runAi}>{busy === "ai" ? "AI がレビューしています" : rev ? "AI でやり直す" : "AI でレビューする"}</Btn><button type="button" className="x2" aria-label="閉じる" onClick={() => { setPick(""); setRev(null); setErr(""); }}>×</button></span></div>
                     <Files files={shown} courseId={courseId} select={sel} onToggle={nid => setSel(s => { const n = new Set(s); if (n.has(nid)) n.delete(nid); else n.add(nid); return n; })} onError={setErr} />
                   </Card>
                   {rev && (

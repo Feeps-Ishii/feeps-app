@@ -80,7 +80,7 @@ function Today({ a, say }) {
       <div className="row">
         {!off && <Btn kind="ghost sm" disabled={!ok} onClick={() => setFix(f => (f ? null : { in: inT, out: outT, why: "" }))}>{fix ? "やめる" : "時刻を直す"}</Btn>}
         <span style={{ marginLeft: "auto" }} />
-        {changed && <Btn kind="sm" disabled={!ok || a.saving} onClick={record}>この内容で記録</Btn>}
+        {changed && <Btn kind="sm" disabled={!ok || a.saving} onClick={record}>この内容で記録する</Btn>}
       </div>
       {fix && (
         <div className="ta-fix">
@@ -103,7 +103,7 @@ function DayModal({ a, date, onClose, say }) {
   const save = async () => { if (await a.save(date, v)) { say("記録しました"); onClose(); } };
   return (
     <Modal title={`${p.m}/${p.d}（${weekday(p.m, p.d, p.y)}）の勤怠`} onClose={onClose}
-      footer={<><Btn kind="ghost" onClick={onClose}>やめる</Btn><Btn disabled={a.saving} onClick={save}>{a.saving ? "保存中" : "記録する"}</Btn></>}>
+      footer={<><Btn kind="ghost" onClick={onClose}>やめる</Btn><Btn disabled={a.saving} onClick={save}>{a.saving ? "保存中" : row ? "この内容で直す" : "この内容で記録する"}</Btn></>}>
       <div className="dr-f"><span className="dr-fl">状態</span>
         <span className="seg ta-seg">{ATT_STATES.map(x => <button key={x} type="button" aria-pressed={v.status === x} onClick={() => setV(c => ({ ...c, status: x }))}>{x}</button>)}</span>
       </div>

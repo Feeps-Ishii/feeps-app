@@ -61,12 +61,12 @@ function SettingModal({ doc, onClose, onSave }) {
   const setI = (i, k, v) => setItems(l => l.map((r, j) => (j === i ? { ...r, [k]: v } : r)));
   return (
     <Modal title="回と項目の設定" width={640} onClose={onClose} footer={<><Btn kind="ghost" onClick={onClose}>やめる</Btn><Btn onClick={() => onSave({ rounds, items })}>決める</Btn></>}>
-      <span className="eyebrow">回</span>
+      <span className="eyebrow">評価の回</span>
       {rounds.map((r, i) => <div key={r.id} className="ev-sr"><input type="text" aria-label="回の名前" value={r.name} onChange={e => setR(i, "name", e.target.value)} /><input type="date" aria-label="始まり" value={r.from} onChange={e => setR(i, "from", e.target.value)} /><input type="date" aria-label="終わり" value={r.to} onChange={e => setR(i, "to", e.target.value)} /><Btn kind="ghost sm" onClick={() => setRounds(l => l.filter((_, j) => j !== i))}>消す</Btn></div>)}
       <span><Btn kind="ghost sm" onClick={() => setRounds(l => [...l, { id: `r${Date.now()}`, name: `第${l.length + 1}回`, from: "", to: "", publishedAt: "" }])}>回を足す</Btn></span>
       <span className="eyebrow">項目</span>
       {items.map((x, i) => <div key={x.id} className="ev-si"><input type="text" aria-label="項目の名前" value={x.name} onChange={e => setI(i, "name", e.target.value)} /><select className="in" aria-label="面" value={x.group} onChange={e => setI(i, "group", e.target.value)}><option value="com">{G.com}</option><option value="tech">{G.tech}</option></select><select className="in" aria-label="満点" value={x.max} onChange={e => setI(i, "max", Number(e.target.value))}>{[3, 4, 5, 10, 100].map(n => <option key={n} value={n}>{n} 点</option>)}</select><Btn kind="ghost sm" onClick={() => setItems(l => l.filter((_, j) => j !== i))}>消す</Btn></div>)}
-      <span><Btn kind="ghost sm" onClick={() => setItems(l => [...l, { id: `i${Date.now()}`, name: "", group: "com", max: 5 }])}>項目を足す</Btn></span>
+      <span className="row"><Btn kind="ghost sm" onClick={() => setItems(l => [...l, { id: `i${Date.now()}`, name: "", group: "tech", max: 5 }])}>＋ 技術の項目</Btn><Btn kind="ghost sm" onClick={() => setItems(l => [...l, { id: `i${Date.now()}`, name: "", group: "com", max: 5 }])}>＋ コミュニケーションの項目</Btn></span>
     </Modal>
   );
 }

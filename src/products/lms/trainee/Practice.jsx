@@ -1,15 +1,15 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { apiGet, apiPut } from "../../../api.js";
 import { normalizeCurriculumSections } from "../../training/TrainingComponents.jsx";
-import { Sheet, Style } from "../../training/PracticeView.jsx";
 import { PRACTICE_FOCUS_KEY } from "../../training/practiceLinks.js";
 import { todayStr } from "../../training/useTraining.js";
 import { getActiveCourseId, setActiveCourseId } from "../../../utils/common/courseContext.js";
 import { Btn, Card, Chip, Ring } from "../parts/ui.jsx";
 import { Icon } from "../parts/icons.jsx";
+import { PracticePage } from "./PracticeQ.jsx";
 
 /* 受講生の練習問題（モック pracList2）：上に今の単元、下に単元ごとの問題と「できた」、右に全体の進み。
-   単元を押しても順番は入れ替えない。解く画面は今の Sheet（ヒント・解答・図）をそのまま使う */
+   単元を押しても順番は入れ替えない。解く画面は PracticePage */
 
 const arr = v => (Array.isArray(v) ? v : []);
 const isD = v => /^\d{4}-\d{2}-\d{2}$/.test(v);
@@ -34,7 +34,7 @@ export default function TraineePractice() {
   const [courseName, setCourseName] = useState("");
   const [sections, setSections] = useState([]);
   const [sets, setSets] = useState([]); // { item, set, done }
-  const [open, setOpen] = useState(null); // { setId, qid }
+  const [open, setOpen] = useState(null); // { start: "setId:qid", mode }
   const [opened, setOpened] = useState({});
   const [key, setKey] = useState(0);
 
@@ -53,7 +53,7 @@ export default function TraineePractice() {
       setCourseId(c.courseId); setCourseName(c.name || c.courseName || "");
       setSections(cur ? normalizeCurriculumSections(cur) : []);
       setSets(full.filter(x => x.set));
-      if (focus?.setId) setOpen({ setId: focus.setId, qid: focus.qid });
+      if (focus?.setId) setOpen({ start: `${focus.setId}:${focus.qid}`, mode: "one" });
       setState("ready");
     }).catch(() => { if (alive) setState("error"); });
     return () => { alive = false; };
@@ -81,15 +81,10 @@ export default function TraineePractice() {
   }, [courseId]);
 
   if (open) {
-    const s = sets.find(x => x.item.id === open.setId);
-    if (s) {
-      return (
-        <div className="tl-take tp-sheet">
-          <Style />
-          <div><Btn kind="ghost sm" onClick={() => setOpen(null)}>練習問題の一覧</Btn></div>
-          <Sheet meta={s.item} set={s.set} done={s.done} onDone={(qid, v) => mark(s.item.id, qid, v)} focusQ={open.qid} showAnswers={s.item.showAnswers !== false} />
-        </div>
-      );
+    const u = units.find(y => y.qs.some(x => `${x.setId}:${x.q.id}` === open.start)) || units.find(y => y.k === open.k);
+    if (u) {
+      const metaOf = id => { const m = sets.find(x => x.item.id === id); return { images: m?.set?.images, showAnswers: m?.item?.showAnswers !== false }; };
+      return <div className="tl-take"><PracticePage title={u.title} qs={u.qs} metaOf={metaOf} start={open.start} startMode={open.mode} onDone={mark} onClose={() => setOpen(null)} /></div>;
     }
   }
   if (state === "loading") return <div className="soon card">読み込み中</div>;
@@ -98,7 +93,7 @@ export default function TraineePractice() {
 
   const nextOf = u => u.qs.find(x => !x.done);
   const startLabel = u => (u.qs.some(x => x.done) ? "続きから" : `問題 ${u.qs[0].q.n} から`);
-  const go = x => setOpen({ setId: x.setId, qid: x.q.id });
+  const go = x => setOpen({ start: `${x.setId}:${x.q.id}`, mode: "one" });
   const dues = sets.filter(s => s.item.dueDate && Object.values(s.done).filter(Boolean).length < (s.item.counts?.questions || 0)).sort((a, b) => dk(a.item.dueDate).localeCompare(dk(b.item.dueDate)));
 
   return (
@@ -134,7 +129,7 @@ export default function TraineePractice() {
                   </button>
                   {op && (
                     <div className="tp-uo">
-                      <div className="tp-row"><Sum n={n} of={u.qs.length} />{nx ? <Btn kind={isCur ? "sm" : "ghost sm"} onClick={() => go(nx)}>{startLabel(u)}</Btn> : <Chip tone="ok">✓ 全問できた</Chip>}<Btn kind="ghost sm" onClick={() => go(u.qs[0])}>まとめて開く</Btn></div>
+                      <div className="tp-row"><Sum n={n} of={u.qs.length} />{nx ? <Btn kind={isCur ? "sm" : "ghost sm"} onClick={() => go(nx)}>{startLabel(u)}</Btn> : <Chip tone="ok">✓ 全問できた</Chip>}<Btn kind="ghost sm" onClick={() => setOpen({ start: `${u.qs[0].setId}:${u.qs[0].q.id}`, mode: "all" })}>まとめて開く</Btn></div>
                       <div className="tp-qs">
                         {u.qs.map(x => (
                           <button key={`${x.setId}:${x.q.id}`} type="button" className={`tp-q${x.done ? " dn" : ""}`} onClick={() => go(x)}>

@@ -1,7 +1,9 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { updatePassword } from "aws-amplify/auth";
 import { apiGet, apiPut } from "../../../api.js";
-import { Btn, Card, Chip } from "./ui.jsx";
+import { MfaSettingsCard, useMfaStatus } from "../../auth/MfaSetup.jsx";
+import { Btn, Card, Chip, Modal } from "./ui.jsx";
+import { Face } from "./Notif.jsx";
 
 /* プロフィール（モック profile）：基本の情報とパスワード。名前を直せない受講生は講師に伝える。メールはログインの ID なのでここでは変えない */
 
@@ -33,7 +35,35 @@ function Password({ say }) {
   );
 }
 
-export default function Profile({ role, label, initialTab = "info", say }) {
+// 顔の写真は小さくしてから送る（真ん中を正方形に切る）
+const toSmall = file => new Promise((res, rej) => {
+  const url = URL.createObjectURL(file), im = new Image();
+  im.onload = () => {
+    const n = Math.min(im.width, im.height), c = document.createElement("canvas");
+    c.width = c.height = 192;
+    c.getContext("2d").drawImage(im, (im.width - n) / 2, (im.height - n) / 2, n, n, 0, 0, 192, 192);
+    URL.revokeObjectURL(url);
+    res(c.toDataURL("image/jpeg", 0.85));
+  };
+  im.onerror = () => { URL.revokeObjectURL(url); rej(new Error("画像を読めませんでした")); };
+  im.src = url;
+});
+
+function Mfa({ role, email }) {
+  const { status } = useMfaStatus(true);
+  const [open, setOpen] = useState(false);
+  const on = status === "enabled";
+  return (
+    <div className="li"><span>二要素認証</span>
+      {role === "trainee" && !on ? <Chip>使っていません</Chip> : <span className="row">{on && <Chip tone="ok">使っています</Chip>}<Btn kind="ghost sm" onClick={() => setOpen(true)}>{on ? "直す" : "設定する"}</Btn></span>}
+      {open && <Modal title="二要素認証" width={560} onClose={() => setOpen(false)} footer={<Btn kind="ghost" onClick={() => setOpen(false)}>閉じる</Btn>}><div className="lms-legacy"><MfaSettingsCard email={email} /></div></Modal>}
+    </div>
+  );
+}
+
+export default function Profile({ role, label, initialTab = "info", say, photo = "" }) {
+  const fileRef = useRef(null);
+  const [pbusy, setPbusy] = useState(false);
   const [tab, setTab] = useState(initialTab);
   const [st, setSt] = useState({ state: "loading", p: null, co: "", courses: [] });
   const [key, setKey] = useState(0);
@@ -56,6 +86,12 @@ export default function Profile({ role, label, initialTab = "info", say }) {
     try { await apiPut("/profile/me", { name: name.trim() }); say?.("保存しました"); setKey(k => k + 1); }
     catch (e) { setErr(e?.message || "保存できませんでした"); } finally { setBusy(false); }
   };
+  const setPhoto = async v => {
+    setPbusy(true); setErr("");
+    try { await apiPut("/profile/me/photo", { photo: v }); window.dispatchEvent(new CustomEvent("lms:photo", { detail: v || "" })); say?.(v ? "写真を入れました" : "写真を外しました"); }
+    catch (e) { setErr(e?.message || "写真を保存できませんでした"); } finally { setPbusy(false); }
+  };
+  const pick = async e => { const f = e.target.files?.[0]; e.target.value = ""; if (!f) return; try { await setPhoto(await toSmall(f)); } catch (x) { setErr(x.message); } };
   const courseNames = arr(st.courses).map(c => c.name || c.courseName).filter(Boolean).join(" ・ ");
   return (
     <div className="st">
@@ -63,7 +99,7 @@ export default function Profile({ role, label, initialTab = "info", say }) {
       <div className="side">
         <div className="card pick">{[["info", "基本の情報"], ["pw", "パスワード"]].map(([k, t]) => <button key={k} type="button" className="nf" aria-current={tab === k} onClick={() => setTab(k)}><span><b>{t}</b></span></button>)}</div>
         <Card className="pad st-g">
-          <div className="head"><span className="ua-n"><span className="face">{String(p.name || "?").slice(0, 1)}</span><span><h2 className="h2">{p.name || "名前未設定"}</h2><small className="adsm">{label}</small></span></span></div>
+          <div className="head"><span className="ua-n pf-h"><Face name={p.name} photo={photo} size={48} /><span><h2 className="h2">{p.name || "名前未設定"}</h2><small className="adsm">{label}</small></span></span><span className="r"><input ref={fileRef} type="file" accept="image/*" hidden onChange={pick} /><Btn kind="ghost sm" disabled={pbusy} onClick={() => (photo ? setPhoto(null) : fileRef.current?.click())}>{photo ? "写真を外す" : "写真を入れる"}</Btn></span></div>
           {tab === "pw" ? <Password say={say} /> : (
             <>
               <div className="g2e"><label className="field">お名前<input type="text" maxLength={40} disabled={locked} value={name} onChange={e => setName(e.target.value)} /></label><label className="field">メールアドレス<input type="text" disabled value={p.email || p.username || ""} /></label></div>
@@ -72,6 +108,7 @@ export default function Profile({ role, label, initialTab = "info", say }) {
                 <div className="li"><span>ロール</span><Chip tone="mk">{label}</Chip></div>
                 {st.co && <div className="li"><span>企業</span><span>{st.co}</span></div>}
                 {role !== "admin" && <div className="li"><span>{role === "trainee" ? "コース" : "担当のコース"}</span>{st.courses === null ? <Chip>確認できません</Chip> : <span>{courseNames || "—"}</span>}</div>}
+                <Mfa role={role} email={p.email || ""} />
               </div>
               {err && <div className="lms-err" role="alert">{err}</div>}
               {!locked && <span className="row st-end"><Btn disabled={busy || !name.trim() || name.trim() === p.name} onClick={save}>保存</Btn></span>}

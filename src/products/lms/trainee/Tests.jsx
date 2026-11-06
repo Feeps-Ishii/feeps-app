@@ -1,13 +1,16 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { Suspense, lazy, useEffect, useMemo, useState } from "react";
 import { apiGet, apiPut } from "../../../api.js";
-import { TestTaking, normalizeCurriculumSections, normalizeTest } from "../../training/TrainingComponents.jsx";
+import { normalizeCurriculumSections, normalizeTest } from "../../training/TrainingComponents.jsx";
 import { emitNotificationRefresh, testIdOf, todayStr } from "../../training/useTraining.js";
 import { clearTraineeTestDraft, getActiveCourseId, getTraineeTestDraft, setActiveCourseId, takeTestFocus } from "../../../utils/common/courseContext.js";
 import { Btn, Cal, Card, Chip, Hero } from "../parts/ui.jsx";
 import { Icon } from "../parts/icons.jsx";
+import TestTake from "./TestTake.jsx";
+
+const MaterialViewer = lazy(() => import("../../training/MaterialViewer.jsx"));
 
 /* 受講生のテスト（モック testList2）：上に未受験のテスト（大きく）、下に受けたテストを単元ごと（テストのない単元は出さない）、
-   右に点数の推移。受ける画面と結果は今の TestTaking をそのまま使う（解答の下書き・AI 採点・送信の決まりを変えないため） */
+   右に点数の推移。受ける画面と結果は TestTake */
 
 const PASS = 70;
 const arr = v => (Array.isArray(v) ? v : []);
@@ -32,6 +35,8 @@ export default function TraineeTests({ go, say }) {
   const [sections, setSections] = useState([]);
   const [courseName, setCourseName] = useState("");
   const [taking, setTaking] = useState(null);
+  const [viewing, setViewing] = useState(null);
+  const [courseId, setCourseId] = useState("");
   const [opened, setOpened] = useState({});
   const [err, setErr] = useState("");
   const [key, setKey] = useState(0);
@@ -49,6 +54,7 @@ export default function TraineeTests({ go, say }) {
       setResults(Object.fromEntries(arr(rs).map(r => [String(r.testId), r])));
       setSections(cur ? normalizeCurriculumSections(cur) : []);
       setCourseName(c.name || c.courseName || "");
+      setCourseId(c.courseId);
       setState("ready");
     }).catch(() => { if (alive) setState("error"); });
     return () => { alive = false; };
@@ -82,7 +88,7 @@ export default function TraineeTests({ go, say }) {
   const submit = async result => {
     const id = testIdOf(taking.test), isNum = typeof result === "number";
     try {
-      await apiPut(`/tests/${id}/results/me`, { score: isNum ? result : result?.score, total: isNum ? 100 : result?.total, answers: isNum ? {} : result?.answers, needsReview: isNum ? 0 : result?.needsReview || 0, weakAreas: isNum ? [] : result?.weakAreas || [] });
+      await apiPut(`/tests/${id}/results/me`, { score: isNum ? result : result?.score, total: isNum ? 100 : result?.total, answers: isNum ? {} : result?.answers, needsReview: isNum ? 0 : result?.needsReview || 0, weakAreas: isNum ? [] : result?.weakAreas || [], elapsedSec: isNum ? undefined : result?.elapsedSec });
       emitNotificationRefresh();
       return true;
     } catch (e) { setErr("テスト結果を送れませんでした。もう一度お試しください"); throw e; }
@@ -92,9 +98,8 @@ export default function TraineeTests({ go, say }) {
     return (
       <div className="tl-take">
         {err && <div className="lms-err" role="alert">{err}</div>}
-        <div className="lms-legacy">
-          <TestTaking key={`${testIdOf(taking.test)}:${taking.saved ? "saved" : "take"}`} test={taking.test} savedResult={taking.saved} back={() => { setTaking(null); setKey(k => k + 1); }} onDone={submit} go={v => { setTaking(null); go(v === "curriculum" ? "cur" : "test"); }} />
-        </div>
+        <TestTake key={`${testIdOf(taking.test)}:${taking.saved ? "saved" : "take"}`} test={taking.test} saved={taking.saved} onBack={() => { setTaking(null); setKey(k => k + 1); }} onDone={submit} onMaterial={(materialId, page) => setViewing({ materialId, page })} />
+        {viewing && <Suspense fallback={null}><div className="lms-legacy"><MaterialViewer courseId={taking.test.courseId || courseId} material={{ materialId: viewing.materialId, title: taking.test.title, mode: "view" }} initialPage={viewing.page} onClose={() => setViewing(null)} canAnnotate /></div></Suspense>}
       </div>
     );
   }

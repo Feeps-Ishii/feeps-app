@@ -46,7 +46,7 @@ function ReportModal({ row, date, order, onMove, onClose, ro, fields, onComment,
     <Modal title={`${row.name} ・ ${dayLabel(date)} の日報`} width={680} onClose={onClose}
       footer={<><span className="mpos">{k + 1} / {order.length}</span><Btn kind="ghost" disabled={k <= 0} onClick={() => onMove(-1)}>‹ 前の人</Btn><Btn kind="ghost" disabled={k >= order.length - 1} onClick={() => onMove(1)}>次の人 ›</Btn></>}>
       {!r ? (
-        <div className="empty"><Chip tone="bad">未提出</Chip>{!ro && onRemind && <Btn kind="ghost sm" onClick={() => onRemind([row])}>この人にリマインド</Btn>}</div>
+        <div className="empty"><Chip tone="bad">未提出</Chip>{!ro && onRemind && <Btn kind="ghost sm" onClick={() => onRemind([row])}>この人にリマインドを送る</Btn>}</div>
       ) : (
         <>
           <div className="row">{hm(r.submittedAt || r.updatedAt) && <Chip>{hm(r.submittedAt || r.updatedAt)} 提出</Chip>}{!ro && String(r.question || "").trim() && <Chip tone="warn">質問あり</Chip>}</div>

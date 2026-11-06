@@ -226,7 +226,7 @@ export default function CurriculumEdit({ course, go, keys, onClose, say }) {
   return (
     <div className="st">
       <div className="head"><div><div className="eyebrow">{course.name}</div><h1 className="h1">カリキュラムの編集</h1></div>
-        <span className="r">{dirty ? <Chip tone="warn">保存していない変更</Chip> : <Chip>保存済み</Chip>}<Btn kind="ghost sm" onClick={exportTemplate}>Excel ひな形</Btn><Btn kind="ghost sm" disabled={impBusy} onClick={() => fileRef.current?.click()}>{impBusy ? "読んでいます" : "Excel 読み込み"}</Btn><Btn kind="ghost sm" onClick={() => leaveTo(onClose)}>編集を終える</Btn><Btn kind="sm" disabled={busy || !dirty} onClick={save}>{busy ? "保存しています" : "保存"}</Btn></span>
+        <span className="r">{dirty ? <Chip tone="warn">保存していない変更</Chip> : <Chip>保存済み</Chip>}<Btn kind="ghost sm" onClick={exportTemplate}>Excel ひな形</Btn><Btn kind="ghost sm" disabled={impBusy} onClick={() => fileRef.current?.click()}>{impBusy ? "読んでいます" : "Excel 読み込み"}</Btn><Btn kind="ghost sm" onClick={() => leaveTo(onClose)}>やめる</Btn><Btn kind="sm" disabled={busy || !dirty} onClick={save}>{busy ? "保存しています" : "確定する"}</Btn></span>
       </div>
       <input ref={fileRef} type="file" accept=".xlsx,.xls" className="lms-sr" aria-label="Excel を選ぶ" onChange={e => { const f = e.target.files?.[0]; e.target.value = ""; if (f) readExcel(f); }} />
       {err && <div className="lms-err" role="alert">{err}</div>}
@@ -278,13 +278,13 @@ export default function CurriculumEdit({ course, go, keys, onClose, say }) {
                     })}
                     {!days.length && <Chip>なし</Chip>}
                   </div>
-                  <span className="row st-end"><Btn kind="ghost sm" onClick={() => setConf({ title: `「${s.title || "この単元"}」を消す`, ok: "消す", run: () => setSections(xs => xs.filter((_, i) => i !== si)) })}>この単元を消す</Btn></span>
+                  <span className="row st-end"><Btn kind="ghost sm" onClick={() => setConf({ title: `「${s.title || "この単元"}」を消す`, ok: "消す", run: () => setSections(xs => xs.filter((_, i) => i !== si)) })}>この単元を外す</Btn></span>
                 </div>
               )}
             </section>
           );
         })}
-        <button type="button" className="ce-add" onClick={() => { const u = newUnit(); setSections(xs => [...xs, u]); setOpen(o => ({ ...o, [u.id]: true })); }}>＋ 単元を足す</button>
+        <button type="button" className="ce-add" onClick={() => { const u = newUnit(); setSections(xs => [...xs, u]); setOpen(o => ({ ...o, [u.id]: true })); }}>空の単元を足す</button>
         <button type="button" className="ce-add" onClick={() => setPicking(true)}>共通の棚から足す</button>
       </div>
       {picking && <ShelfPicker onClose={() => setPicking(false)} onPick={addFromShelf} />}
