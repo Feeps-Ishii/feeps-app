@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { apiGet, apiPut } from "../../../api.js";
 import { relayoutCurriculum } from "../../console/materials.js";
-import { normalizeCurriculumSections } from "../../training/TrainingComponents.jsx";
+import { normalizeCurriculumSections, sessionsFromSections } from "../../training/TrainingComponents.jsx";
 import { setPracticeFocus, usePracticeLinks } from "../../training/practiceLinks.js";
 import { testIdOf, todayStr } from "../../training/useTraining.js";
 import { setLibraryTarget, setTestBuildTarget } from "../../../utils/common/courseContext.js";
@@ -64,6 +64,8 @@ export default function InstructorCurriculum({ role, go, say }) {
   const [err, setErr] = useState("");
   const [key, setKey] = useState(0);
   const practiceFor = usePracticeLinks(courseId);
+  const [devs, setDevs] = useState([]);
+  const [memo, setMemo] = useState({});
 
   useEffect(() => {
     if (!courseId) return undefined;
@@ -79,6 +81,7 @@ export default function InstructorCurriculum({ role, go, say }) {
     }).catch(() => { if (alive) setSt(s => ({ ...s, state: "error" })); });
     apiGet(`/tests?courseId=${encodeURIComponent(courseId)}`).then(l => { if (alive) setSt(s => ({ ...s, tests: arr(l).filter(t => t.status !== "archived") })); }).catch(() => { if (alive) setSt(s => ({ ...s, tests: null })); });
     apiGet(`/materials?courseId=${encodeURIComponent(courseId)}`).then(l => { if (alive) setSt(s => ({ ...s, materials: arr(l) })); }).catch(() => {});
+    apiGet(`/dev-assignments?courseId=${encodeURIComponent(courseId)}`).then(d => { if (alive) setDevs(arr(d?.items)); }).catch(() => { if (alive) setDevs([]); });
     return () => { alive = false; };
   }, [courseId, key, today]);
 
@@ -103,6 +106,17 @@ export default function InstructorCurriculum({ role, go, say }) {
   const testChips = list => list.map(t => <button key={testIdOf(t)} type="button" className="cu-i test" onClick={() => toTest(t)}><span>{t.title}</span><em>{t.status === "published" ? "公開" : "下書き"}</em></button>);
   const matChips = ids => ids.filter(id => mats[id]).map(id => <button key={id} type="button" className="cu-i" onClick={() => openMat(id)}><span>{mats[id].title || mats[id].filename}</span></button>);
   const allOpen = st.sections.length > 0 && st.sections.every(s => open[s.id]);
+  // 単元の講師メモ：最新を読み直して、その単元だけ書き換える（受講生には返さない）
+  const saveMemo = async (id, text) => {
+    setErr("");
+    try {
+      const fresh = normalizeCurriculumSections(await apiGet(`/courses/${encodeURIComponent(courseId)}/curriculum`));
+      const next = fresh.map(x => (x.id === id ? { ...x, memo: text } : x));
+      await apiPut(`/courses/${encodeURIComponent(courseId)}/curriculum`, { sections: next, sessions: sessionsFromSections(next) });
+      setSt(s => ({ ...s, sections: s.sections.map(x => (x.id === id ? { ...x, memo: text } : x)) }));
+      say?.("講師メモを保存しました");
+    } catch (e) { setErr(errText(e, "講師メモを保存できませんでした")); }
+  };
 
   return (
     <div className="st">
@@ -120,12 +134,14 @@ export default function InstructorCurriculum({ role, go, say }) {
           const secMats = uniq(arr(s.materialIds));
           const exs = [...arr(s.exercises), ...days.flatMap(d => arr(d.exercises))];
           const goals = arr(s.learningGoals);
+          // 個人開発は単元を持たないので、締め切りがこの単元の期間にある課題を出す
+          const unitDevs = r ? devs.filter(a => { const d = dk(a.deadline); return isD(d) && d >= r.start && d <= r.end; }) : [];
           return (
             <section key={s.id} className={`card cu-u ${state}${on ? " on" : ""}`}>
               <button type="button" className="cu-h" aria-expanded={on} onClick={() => setOpen(o => ({ ...o, [s.id]: !o[s.id] }))}>
                 <span className="cu-n num">{i + 1}</span>
                 <span className="cu-t"><b>{s.title || "名称未設定"}</b><small className="num">{r ? `${md(r.start)}〜${md(r.end)}` : "日程未設定"}{days.length ? ` ・ ${days.length} 日` : ""}</small></span>
-                <span className="row">{ts.length > 0 && <Chip>テスト {ts.length}</Chip>}{practice.length > 0 && <Chip>練習問題</Chip>}{state === "now" ? <Chip tone="mk">今の単元</Chip> : state === "done" ? <Chip tone="ok">済</Chip> : null}</span>
+                <span className="row">{ts.length > 0 && <Chip>テスト {ts.length}</Chip>}{practice.length > 0 && <Chip>練習問題</Chip>}{unitDevs.length > 0 && <Chip>個人開発</Chip>}{state === "now" ? <Chip tone="mk">今の単元</Chip> : state === "done" ? <Chip tone="ok">済</Chip> : null}</span>
                 <i className="cu-cv" aria-hidden="true">▾</i>
               </button>
               {on && (
@@ -133,12 +149,13 @@ export default function InstructorCurriculum({ role, go, say }) {
                   <div className="cu-top">
                     <div className="goalbox"><span className="eyebrow">この単元の目標</span>{goals.length ? goals.map((g, x) => <span key={x}>・{g}</span>) : <Chip>なし</Chip>}</div>
                     <div className="cu-all"><span className="eyebrow">単元を通して</span>
+                      {unitDevs.map(a => <button key={a.id} type="button" className="cu-i dev" onClick={() => go("dev")}><span>個人開発 {a.title}</span><em>{md(dk(a.deadline))} まで</em></button>)}
                       {folders.map(f => <button key={f.nodeId} type="button" className="cu-i" onClick={() => toFolder(f.nodeId)}><span className="folder" aria-hidden="true" /><span>{f.name || "フォルダ"}</span></button>)}
                       {matChips(secMats)}
                       {testChips(wholeT)}
                       {practice.map(p => <button key={`${p.setId}:${p.no}`} type="button" className="cu-i prac" onClick={() => { setPracticeFocus({ courseId, setId: p.setId, qid: p.firstQ }); go(keys.prac); }}><span>{p.title}</span></button>)}
                       {exs.length > 0 && <Chip>演習 {exs.length}</Chip>}
-                      {!folders.length && !secMats.length && !wholeT.length && !practice.length && !exs.length && <Chip>なし</Chip>}
+                      {!folders.length && !secMats.length && !wholeT.length && !practice.length && !exs.length && !unitDevs.length && <Chip>なし</Chip>}
                     </div>
                   </div>
                   {days.length > 0 && (
@@ -157,6 +174,7 @@ export default function InstructorCurriculum({ role, go, say }) {
                       })}
                     </ol>
                   )}
+                  {state === "now" && <label className="field">講師メモ（受講生に非公開）<textarea rows={2} value={memo[s.id] ?? s.memo ?? ""} onChange={e => setMemo(m => ({ ...m, [s.id]: e.target.value }))} onBlur={e => { if (memo[s.id] !== undefined && e.target.value !== (s.memo || "")) saveMemo(s.id, e.target.value); }} /></label>}
                 </div>
               )}
             </section>

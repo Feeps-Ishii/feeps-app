@@ -105,6 +105,9 @@ export default function TraineeTests({ go, say }) {
   const recent = seq.slice(-10);
   const lastK = groups[groups.length - 1]?.k;
   const label = x => (getTraineeTestDraft(x.id) ? "続きから" : "受ける");
+  // 始める時刻の前は受けられない（教室で講師が始める）
+  const before = x => (x.t.startAt && new Date(x.t.startAt) > new Date() ? x.t.startAt : "");
+  const startLabel = x => { const b = before(x); return b ? `${md(b.slice(0, 10))} ${b.slice(11)} から` : label(x); };
   const unitLine = x => (x.ui >= 0 ? `単元 ${x.ui + 1} ・ ${sections[x.ui].title}` : "コース全体");
 
   return (
@@ -121,7 +124,7 @@ export default function TraineeTests({ go, say }) {
           {nx
             ? (
               <Hero cat="tst" art="tst" eyebrow="未受験のテスト" step={nx.t.dueDate ? (daysLeft(nx.t.dueDate, today) < 0 ? "期限切れ" : `あと ${daysLeft(nx.t.dueDate, today)} 日`) : undefined} title={nx.t.title || nx.t.name} sub={unitLine(nx)}>
-                <div className="row"><Btn kind="big" onClick={() => start(nx)}>{label(nx)}</Btn>{nx.ui >= 0 && <Btn kind="ghost big th-ghost" onClick={() => go("cur")}>単元を見る</Btn>}</div>
+                <div className="row"><Btn kind="big" disabled={!!before(nx)} onClick={() => start(nx)}>{startLabel(nx)}</Btn>{nx.ui >= 0 && <Btn kind="ghost big th-ghost" onClick={() => go("cur")}>単元を見る</Btn>}</div>
                 <div className="row th-chips"><Chip>{nx.t.q} 問</Chip>{Number(nx.t.limitMinutes) > 0 && <Chip>目安 {nx.t.limitMinutes} 分</Chip>}<Due t={nx.t} today={today} /><Chip>合格は {PASS} 点</Chip></div>
                 {todo.length > 1 && (
                   <div className="tl-more">
@@ -130,7 +133,7 @@ export default function TraineeTests({ go, say }) {
                       <div key={x.id}>
                         <span className="tl-mb"><b>{x.t.title || x.t.name}</b><small>{x.ui >= 0 ? `単元 ${x.ui + 1} ・ ` : ""}{x.t.q} 問{Number(x.t.limitMinutes) > 0 ? ` ・ 目安 ${x.t.limitMinutes} 分` : ""}</small></span>
                         <span className="tl-md"><Due t={x.t} today={today} /></span>
-                        <Btn kind="ghost sm" onClick={() => start(x)}>{label(x)}</Btn>
+                        <Btn kind="ghost sm" disabled={!!before(x)} onClick={() => start(x)}>{startLabel(x)}</Btn>
                       </div>
                     ))}
                   </div>

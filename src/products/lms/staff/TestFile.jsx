@@ -25,7 +25,7 @@ function DropBox({ label, file, onFile, disabled }) {
 
 export function TestFileModal({ courseId = "", sections = [], initial, onClose, onSaved }) {
   const [step, setStep] = useState(1);
-  const [v, setV] = useState({ sectionId: initial?.sectionId || sections[0]?.id || "", title: "", date: "", min: "20" });
+  const [v, setV] = useState({ sectionId: initial?.sectionId || sections[0]?.id || "", title: "", date: "", time: "", min: "20" });
   const [prob, setProb] = useState(initial?.prob || null); const [ans, setAns] = useState(initial?.ans || null);
   const [qs, setQs] = useState([]); const [warn, setWarn] = useState([]);
   const [busy, setBusy] = useState(false); const [err, setErr] = useState("");
@@ -59,7 +59,7 @@ export function TestFileModal({ courseId = "", sections = [], initial, onClose, 
     const fields = scope ? Object.fromEntries(TEST_SCOPE_KEYS.map(k => [k, scope[k] || ""])) : {};
     try {
       const made = await apiPost("/tests", {
-        title: v.title.trim(), description: "", type: "quiz", limitMinutes: Number(v.min) || 0, dueDate: v.date, status,
+        title: v.title.trim(), description: "", type: "quiz", limitMinutes: Number(v.min) || 0, dueDate: v.date, startAt: v.date && v.time ? `${v.date}T${v.time}` : "", status,
         courseIds: courseId ? [courseId] : [], courseId, ...fields, ...(courseId ? { courseScopes: { [courseId]: scope ? fields : null } } : { common: true }),
         questions: qs.map(q => ({
           type: q.type, answerMode: q.answerMode, question: q.question, options: q.choices, correctIndex: Math.max(0, q.choices.indexOf(q.answer)),
@@ -86,8 +86,10 @@ export function TestFileModal({ courseId = "", sections = [], initial, onClose, 
           </div>
           <div className="g2e">
             {courseId ? <label className="field">実施する日<input type="date" value={v.date} onChange={e => set({ date: e.target.value })} /></label> : null}
+            {courseId ? <label className="field">始める時刻<input type="time" value={v.time} onChange={e => set({ time: e.target.value })} /></label> : null}
             <label className="field">目安の時間<select className="in" value={v.min} onChange={e => set({ min: e.target.value })}>{[10, 15, 20, 30, 45, 60].map(m => <option key={m} value={m}>{m}分</option>)}</select></label>
           </div>
+          <div className="row"><Chip tone="mk">書く問題は AI で点をつける（解答例と照らす）</Chip></div>
           <div className="g2e"><DropBox label="問題の Word・Excel" file={prob} onFile={setProb} /><DropBox label="解答の Word・Excel" file={ans} onFile={setAns} /></div>
         </>
       )}

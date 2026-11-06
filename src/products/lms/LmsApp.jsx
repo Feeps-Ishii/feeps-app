@@ -8,6 +8,7 @@ import { LMS_BNAV, LMS_LEGACY, LMS_ROLE_LABEL, lmsGroups, lmsLabel } from "./Lms
 import { Icon } from "./parts/icons.jsx";
 import { Soon } from "./parts/ui.jsx";
 import { HelpPanel, PasswordModal } from "./parts/Ask.jsx";
+import Profile from "./parts/Profile.jsx";
 import { ChatToasts } from "../training/ChatNotifier.jsx";
 import CourseSwitch from "./parts/CourseSwitch.jsx";
 import { LMS_SCREENS } from "./screens.js";
@@ -89,7 +90,9 @@ export default function LmsApp({ role, manager = false, displayName, unread = 0,
   const label = manager ? LMS_ROLE_LABEL.manager : LMS_ROLE_LABEL[role];
   const Screen = LMS_SCREENS[role]?.[screen];
   const legacyView = extra || LMS_LEGACY[role]?.[screen];
-  const body = Screen
+  const body = extra === "profile" || extra === "profile:pw"
+    ? <Profile key={extra} role={role} label={label} initialTab={extra === "profile:pw" ? "pw" : "info"} say={say} />
+    : !extra && Screen
     ? <Screen key={courseV} role={role} manager={manager} go={go} say={say} displayName={displayName} tasks={tasks} />
     : legacyView
       ? <div className="lms-legacy" key={`${legacyView}-${courseV}`}>{renderLegacy(legacyView, goLegacy)}</div>
@@ -136,7 +139,7 @@ export default function LmsApp({ role, manager = false, displayName, unread = 0,
                 <div className="mh"><span className="face">{String(displayName || "?").slice(0, 1)}</span><span><b>{displayName}</b>{mail && <small>{mail}</small>}</span></div>
                 <div className="mrow"><span className="chip mk">{label}</span></div>
                 <button type="button" role="menuitem" onClick={() => { setExtra("profile"); setPop(""); }}>プロフィール</button>
-                <button type="button" role="menuitem" onClick={() => { setPwOpen(true); setPop(""); }}>パスワードを変える</button>
+                <button type="button" role="menuitem" onClick={() => { setExtra("profile:pw"); setPop(""); }}>パスワードを変える</button>
                 <button type="button" role="menuitem" onClick={() => { setHelp(""); setPop(""); }}>ヘルプ・使い方</button>
                 <button type="button" role="menuitem" onClick={() => onLegacy()}>前の画面に戻す</button>
                 <button type="button" role="menuitem" onClick={onLogout}>ログアウト</button>

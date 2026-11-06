@@ -70,6 +70,9 @@ function grantRows(grant, stages, facts) {
     } else if (d.kind === "out") {
       const p = stats?.period, on = (p?.trainingDays || 0) > 0;
       st = wait || (doc ? ["ok", `${md(doc.uploadedAt)} に作りました`] : d.form === "offjt" && on ? ["auto", `自動で集計中（${p.trainingDays}${p.totalDays ? ` / ${p.totalDays}` : ""} 日）`] : d.form === "offjt" ? ["off", "これから"] : ["no", "まだ作っていません"]);
+    } else if (d.type === "雇用契約書") {
+      const n = ppl.filter(t => arr(docs).some(x => x.source !== "generated" && (x.documentType === `雇用契約書（${t.name}）`))).length;
+      st = wait || (trainees === undefined ? ["unk", "読み込み中"] : trainees === null ? ["unk", "確認できません"] : ppl.length && n === ppl.length ? ["ok", "全員分"] : n ? ["warn", `${n} / ${ppl.length} 人`] : doc ? ["ok", "アップロード済み"] : ["no", "まだ"]);
     } else if (d.kind === "upf") {
       st = wait || (doc ? ["ok", "アップロード済み"] : ["off", "研修後に発行"]);
     } else {
@@ -78,6 +81,7 @@ function grantRows(grant, stages, facts) {
     return { ...d, doc, due, tone: st[0], text: st[1] };
   });
 }
+const contractType = name => `雇用契約書（${name}）`;
 const matchedDoc = d => (d.source === "generated" ? ["plan", "offjt"].includes(d.formType) : GD.some(x => x.re && x.re.test(d.documentType || "")));
 
 // 様式の欄と LMS の項目の対応（見るだけ）
@@ -125,7 +129,7 @@ function DocsTab({ grant, stages, facts, isAdmin, docs, setTab, onNotify, say })
       if (r.who === "Feeps") return open || null;
       if (r.tone === "ok") return r.kind === "up" ? open : null;
       if (r.tone === "off" || r.tone === "unk") return null;
-      if (r.kind === "co" || r.kind === "pp") return <Btn kind="sm" onClick={() => setTab("in")}>入れる</Btn>;
+      if (r.kind === "co" || r.kind === "pp" || r.type === "雇用契約書") return <Btn kind="sm" onClick={() => setTab("in")}>入れる</Btn>;
       if (r.kind === "up") return <Btn kind="sm" disabled={busy} onClick={() => pick(r.type)}>アップロード</Btn>;
       return null;
     }
@@ -156,7 +160,7 @@ function DocsTab({ grant, stages, facts, isAdmin, docs, setTab, onNotify, say })
 }
 
 function TraineeModal({ t, isAdmin, onClose, onSave }) {
-  const [f, setF] = useState({ employmentType: t.employmentType || "", graduateStatus: t.graduateStatus || "", itExperienceLevel: t.itExperienceLevel || "", gender: t.gender || "", hireDate: t.hireDate || "", employmentInsuranceNumber: t.employmentInsuranceNumber || "", grantEligible: !!t.grantEligible, grantEligibilityNote: t.grantEligibilityNote || "" });
+  const [f, setF] = useState({ employmentType: t.employmentType || "", graduateStatus: t.graduateStatus || "", itExperienceLevel: t.itExperienceLevel || "", gender: t.gender || "", hireDate: t.hireDate || "", employmentInsuranceNumber: t.employmentInsuranceNumber || "", trainingWagePaid: t.trainingWagePaid !== false, grantEligible: !!t.grantEligible, grantEligibilityNote: t.grantEligibilityNote || "" });
   const [busy, setBusy] = useState(false); const [err, setErr] = useState("");
   const s = (k, v) => setF(x => ({ ...x, [k]: v }));
   const sel = (k, label, opts) => <label className="field">{label}<select className="in" value={f[k]} onChange={e => s(k, e.target.value)}><option value="">未設定</option>{opts.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}</select></label>;
@@ -164,6 +168,7 @@ function TraineeModal({ t, isAdmin, onClose, onSave }) {
   return (
     <Modal title={`${t.name} の情報`} width={520} onClose={onClose} footer={<><Btn kind="ghost" onClick={onClose}>やめる</Btn><Btn disabled={busy} onClick={save}>保存</Btn></>}>
       <label className="field">雇用保険の被保険者番号<input type="text" value={f.employmentInsuranceNumber} placeholder="1234-567890-1" onChange={e => s("employmentInsuranceNumber", e.target.value)} /></label>
+      <label className="field">研修中の賃金<select className="in" value={f.trainingWagePaid ? "yes" : "no"} onChange={e => s("trainingWagePaid", e.target.value === "yes")}><option value="yes">払う</option><option value="no">払わない</option></select></label>
       <div className="st-fg">{sel("employmentType", "雇用形態", EMPLOYMENT_TYPE_OPTIONS)}{sel("graduateStatus", "新卒／既卒", GRADUATE_STATUS_OPTIONS)}{sel("itExperienceLevel", "IT 経験", IT_EXPERIENCE_OPTIONS)}<label className="field">入社日<input type="date" value={f.hireDate} onChange={e => s("hireDate", e.target.value)} /></label></div>
       {isAdmin ? <><label className="st-ck"><input type="checkbox" checked={f.grantEligible} onChange={e => s("grantEligible", e.target.checked)} />助成金の対象として確定</label><label className="field">対象外の理由<input type="text" value={f.grantEligibilityNote} onChange={e => s("grantEligibilityNote", e.target.value)} /></label></> : <div className="row"><Chip tone={f.grantEligible ? "ok" : ""}>{f.grantEligible ? "対象" : "対象外／未確定"}</Chip></div>}
       {err && <div className="lms-err" role="alert">{err}</div>}
@@ -191,6 +196,8 @@ function InputTab({ grant, isAdmin, onNotify, say }) {
   const companyId = isAdmin ? grant.companyId : "";
   const pf = useCompanyProfile(companyId, true);
   const tr = useCompanyTrainees(companyId, true);
+  const docs = useGrantDocuments(grant.grantId, true);
+  const ctRef = useRef(null); const [ctFor, setCtFor] = useState(null); const [ctBusy, setCtBusy] = useState(false);
   const [form, setForm] = useState(null); const [busy, setBusy] = useState(false); const [err, setErr] = useState(""); const [edit, setEdit] = useState(null);
   const [imp, setImp] = useState(null); const xlRef = useRef(null);
   useEffect(() => { setForm(pf.profile ? { ...pf.profile } : null); }, [pf.profile]);
@@ -230,7 +237,15 @@ function InputTab({ grant, isAdmin, onNotify, say }) {
   const targets = arr(grant.targetTraineeIds);
   const people = tr.trainees.filter(t => !targets.length || targets.includes(t.userId));
   const missNo = people.filter(t => !t.employmentInsuranceNumber).length;
-  const check = t => (!t.employmentInsuranceNumber ? <Chip tone="bad">被保険者番号がありません</Chip> : !t.employmentType ? <Chip tone="warn">雇用形態がまだ</Chip> : <span className="xlok">✓</span>);
+  const contractOf = t => docs.items.find(d => d.source !== "generated" && d.documentType === contractType(t.name));
+  const check = t => (!t.employmentInsuranceNumber ? <Chip tone="bad">被保険者番号がありません</Chip> : t.trainingWagePaid === false ? <Chip tone="bad">賃金を払わないと対象外</Chip> : !t.employmentType ? <Chip tone="warn">雇用形態がまだ</Chip> : !contractOf(t) ? <Chip tone="warn">雇用契約書がまだ</Chip> : <span className="xlok">✓</span>);
+  const onContract = async e => {
+    const file = e.target.files?.[0]; e.target.value = "";
+    if (!file || !ctFor) return;
+    setCtBusy(true); setErr("");
+    try { await docs.uploadDocument({ file, documentType: contractType(ctFor.name), dueDate: "", note: "" }); say?.(`${ctFor.name} の雇用契約書をアップロードしました`); }
+    catch (x) { setErr(errText(x, "アップロードできませんでした")); } finally { setCtBusy(false); setCtFor(null); }
+  };
   return (
     <>
       <Card className="pad st-g">
@@ -250,10 +265,11 @@ function InputTab({ grant, isAdmin, onNotify, say }) {
       <Card className="pad st-g">
         <div className="head"><h2 className="h2">受講者 ・ {people.length} 人</h2><span className="r">{missNo ? <Chip tone="bad">被保険者番号がない {missNo} 人</Chip> : <Chip tone="ok">全員分</Chip>}{isAdmin ? <Btn kind="ghost sm" onClick={() => onNotify("受講者の情報を入れてください")}>お客様に知らせる</Btn> : <><a className="btn ghost sm cw-a" href="/templates/grant-template.xlsx" download="助成金ひな形.xlsx">助成金ひな形</a><Btn kind="sm" onClick={() => xlRef.current?.click()}>Excel で入れる</Btn></>}</span></div>
         <input ref={xlRef} type="file" accept=".xlsx,.xls" className="lms-sr" aria-label="助成金ひな形を選ぶ" onChange={onXl} />
+        <input ref={ctRef} type="file" className="lms-sr" aria-label="雇用契約書を選ぶ" onChange={onContract} />
         {tr.error ? <div className="empty"><b>受講者を確認できません</b><Btn kind="ghost sm" onClick={tr.reload}>再読み込み</Btn></div> : (
-          <div className="scroll"><table className="tbl"><thead><tr><th>受講者</th><th>被保険者番号</th><th>雇用形態</th><th>対象</th><th>チェック</th><th /></tr></thead><tbody>
-            {people.map(t => <tr key={t.userId} className={!t.employmentInsuranceNumber ? "xlw" : ""}><td><b>{t.name}</b></td><td className="num">{t.employmentInsuranceNumber || "—"}</td><td>{employmentTypeLabel(t.employmentType) || "—"}</td><td>{t.grantEligible ? <Chip tone="ok">対象</Chip> : <Chip>未確定</Chip>}</td><td>{check(t)}</td><td><Btn kind="ghost sm" onClick={() => setEdit(t)}>直す</Btn></td></tr>)}
-            {!people.length && <tr><td colSpan={6}><Chip>なし</Chip></td></tr>}
+          <div className="scroll"><table className="tbl"><thead><tr><th>受講者</th><th>雇用保険の被保険者番号</th><th>雇用形態</th><th>研修中の賃金</th><th>雇用契約書</th><th>対象</th><th>チェック</th><th /></tr></thead><tbody>
+            {people.map(t => <tr key={t.userId} className={!t.employmentInsuranceNumber ? "xlw" : ""}><td><b>{t.name}</b></td><td className="num">{t.employmentInsuranceNumber || "—"}</td><td>{employmentTypeLabel(t.employmentType) || "—"}</td><td>{t.trainingWagePaid === false ? "払わない" : "払う"}</td><td>{contractOf(t) ? <Chip tone="ok">あり</Chip> : isAdmin ? <Chip tone="warn">まだ</Chip> : <Btn kind="ghost sm" disabled={ctBusy} onClick={() => { setCtFor(t); ctRef.current?.click(); }}>アップロード</Btn>}</td><td>{t.grantEligible ? <Chip tone="ok">対象</Chip> : <Chip>未確定</Chip>}</td><td>{check(t)}</td><td><Btn kind="ghost sm" onClick={() => setEdit(t)}>直す</Btn></td></tr>)}
+            {!people.length && <tr><td colSpan={8}><Chip>なし</Chip></td></tr>}
           </tbody></table></div>
         )}
       </Card>

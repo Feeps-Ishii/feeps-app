@@ -100,6 +100,7 @@ export default function TraineeCurriculum({ go }) {
   const centered = useRef(false);
   const [edge, setEdge] = useState({ l: false, r: false });
   const practiceFor = usePracticeLinks(courseId);
+  const [devs, setDevs] = useState([]);
 
   useEffect(() => {
     let alive = true;
@@ -118,6 +119,7 @@ export default function TraineeCurriculum({ go }) {
       setState("ready");
       apiGet(`/materials?courseId=${c.courseId}`).then(l => { if (alive) setMaterials(arr(l)); }).catch(() => { if (alive) setMaterials([]); });
       apiGet(`/tests?courseId=${c.courseId}`).then(l => { if (alive) setTests(arr(l).filter(t => t.status !== "archived")); }).catch(() => { if (alive) setTests(null); });
+      apiGet(`/dev-assignments?courseId=${c.courseId}`).then(d => { if (alive) setDevs(arr(d?.items)); }).catch(() => { if (alive) setDevs([]); });
       apiGet("/tests/me").then(rows => { if (alive) setResults(Object.fromEntries(arr(rows).map(r => [String(r.testId), r]))); }).catch(() => { if (alive) setResults(null); });
     }).catch(() => { if (alive) setState("error"); });
     return () => { alive = false; };
@@ -163,7 +165,9 @@ export default function TraineeCurriculum({ go }) {
   const practice = practiceFor(unit.id);
   const body = [unit.description, unit.content].filter(Boolean);
   const scrollBy = n => { const r = road.current; if (r) r.scrollBy({ left: n * Math.max(240, r.clientWidth * 0.7), behavior: "smooth" }); };
-  const hasUse = unitMats.length || folders.length || unitTests.length || practice.length || prep.length;
+  const unitRange = rangeOf(unit);
+  const unitDevs = unitRange ? devs.filter(a => { const d = dk(a.deadline); return isD(d) && d >= unitRange.start && d <= unitRange.end; }) : [];
+  const hasUse = unitMats.length || folders.length || unitTests.length || practice.length || prep.length || unitDevs.length;
 
   return (
     <div className="th tc">
@@ -236,6 +240,9 @@ export default function TraineeCurriculum({ go }) {
                   <Btn kind={r ? "ghost sm" : "sm"} onClick={() => { setTestFocus({ courseId, testId: id }); go("test"); }}>{r ? "結果を見る" : "受ける"}</Btn></div>
               );
             })}
+            {unitDevs.map(a => (
+              <div key={a.id} className="tc-r c-dev"><span className="tc-ri"><Icon k="dev" size={19} /></span><span className="tc-rb"><span className="eyebrow">個人開発</span><b>{a.title}</b><small>{md(dk(a.deadline))} まで</small></span><Btn kind="ghost sm" onClick={() => go("dev")}>開く</Btn></div>
+            ))}
             {folders.map(f => (
               <div key={f.nodeId} className="tc-r c-gy"><span className="tc-ri"><Icon k="doc" size={19} /></span><span className="tc-rb"><span className="eyebrow">フォルダ</span><b>{f.name || "フォルダ"}</b></span><Btn kind="ghost sm" onClick={() => { setLibraryTarget({ courseId, nodeId: f.nodeId }); go("doc"); }}>開く</Btn></div>
             ))}

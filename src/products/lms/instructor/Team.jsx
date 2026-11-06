@@ -2,7 +2,7 @@ import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { apiGet, apiPost, apiPut } from "../../../api.js";
 import { AssignBoard, CreateModal, MembersModal } from "../../training/TeamsView.jsx";
 import { takeTeamChatFocus } from "../../training/ChatNotifier.jsx";
-import { Btn, Card, Chip, ListTool, Modal } from "../parts/ui.jsx";
+import { Btn, Card, Chip, Modal } from "../parts/ui.jsx";
 import { arr, errText, md, useStaffCourse } from "../staff/common.js";
 import { TeamRoomSage } from "../trainee/Team.jsx";
 
@@ -56,7 +56,7 @@ export default function InstructorTeam({ role, go, say }) {
   const [roster, setRoster] = useState(null);
   const [open, setOpen] = useState("");
   const [members, setMembers] = useState(""); const [creating, setCreating] = useState(false); const [assign, setAssign] = useState(false);
-  const [tab, setTab] = useState("now"); const [q, setQ] = useState(""); const [msg, setMsg] = useState("");
+  const [round, setRound] = useState(""); const [msg, setMsg] = useState("");
   const [aiOn, setAiOn] = useState(false);
   const load = useCallback(async () => {
     try { const d = await apiGet("/teams"); setData({ me: d?.me || "", courses: arr(d?.courses), teams: arr(d?.teams), people: d?.people || {} }); return d; }
@@ -110,8 +110,11 @@ export default function InstructorTeam({ role, go, say }) {
   const now = teams.filter(t => !isEnded(t)), past = teams.filter(isEnded).sort((a, b) => String(b.endedAt || "").localeCompare(String(a.endedAt || "")));
   const assigned = new Set(now.flatMap(t => arr(t.members)));
   const unassigned = roster ? roster.filter(p => !assigned.has(p.userId)).length : null;
-  const hit = t => !q.trim() || `${t.name}${t.theme || ""}${arr(t.members).map(nameOf).join("")}`.includes(q.trim());
-  const list = (tab === "now" ? now : past).filter(hit);
+  // 同じ日に作ったチームをひとつの回にする。新しい回が左
+  const days = [...new Set(teams.map(t => String(t.createdAt || "").slice(0, 10)))].sort();
+  const rounds = days.map((d, i) => ({ d, n: i + 1 })).reverse();
+  const curRound = rounds.some(r => r.d === round) ? round : rounds[0]?.d ?? "";
+  const list = teams.filter(t => String(t.createdAt || "").slice(0, 10) === curRound);
   const canManage = course.canManage !== false;
   return (
     <div className="st">
@@ -119,7 +122,7 @@ export default function InstructorTeam({ role, go, say }) {
         <div><div className="eyebrow">{sc.course.name}</div><h1 className="h1">チーム</h1></div>
         <span className="r">{unassigned == null ? <Chip>受講生を確認できません</Chip> : unassigned ? <Chip tone="warn">未所属 {unassigned} 人</Chip> : <Chip tone="ok">全員所属</Chip>}<Btn kind="ghost sm" onClick={() => go("seat")}>席替えから作り直す</Btn></span>
       </div>
-      <ListTool tabs={[["now", "今のチーム", now.length], ["past", "終わったチーム", past.length]]} tab={tab} onTab={setTab} q={q} onQ={setQ} placeholder="チーム・テーマ・名前で探す" />
+      {rounds.length > 1 && <span className="seg">{rounds.map((r, i) => <button key={r.d} type="button" aria-pressed={curRound === r.d} onClick={() => setRound(r.d)}>第{r.n}回{i === 0 && r.d ? ` ${md(r.d)}〜` : ""}</button>)}</span>}
       {msg && <div className="lms-err" role="alert">{msg}</div>}
       {aiOn && <AiSplit courseId={courseId} roster={roster} nameOf={id => roster.find(p => p.userId === id)?.name || "名前未設定"} onClose={() => setAiOn(false)} onDone={n => { setAiOn(false); say?.(`${n} チームを作りました`); load(); }} />}
       <div className="tmS-g">

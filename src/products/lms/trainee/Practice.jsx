@@ -134,7 +134,7 @@ export default function TraineePractice() {
                   </button>
                   {op && (
                     <div className="tp-uo">
-                      <div className="tp-row"><Sum n={n} of={u.qs.length} />{nx ? <Btn kind={isCur ? "sm" : "ghost sm"} onClick={() => go(nx)}>{startLabel(u)}</Btn> : <Chip tone="ok">✓ 全問できた</Chip>}</div>
+                      <div className="tp-row"><Sum n={n} of={u.qs.length} />{nx ? <Btn kind={isCur ? "sm" : "ghost sm"} onClick={() => go(nx)}>{startLabel(u)}</Btn> : <Chip tone="ok">✓ 全問できた</Chip>}<Btn kind="ghost sm" onClick={() => go(u.qs[0])}>まとめて開く</Btn></div>
                       <div className="tp-qs">
                         {u.qs.map(x => (
                           <button key={`${x.setId}:${x.q.id}`} type="button" className={`tp-q${x.done ? " dn" : ""}`} onClick={() => go(x)}>

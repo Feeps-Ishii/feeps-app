@@ -986,3 +986,13 @@
 .lms .fs-main > *, .lms .fs-main { min-width: 0 }
 .lms .ku-b { grid-template-columns: minmax(0, 1fr); min-width: 0 }
 .lms .st .fs-main .ku-b > .scroll { overflow-x: auto; min-width: 0 }
+
+/* 公開範囲の窓（モック xfsacl） */
+.lms .acl-l { display: grid; gap: 6px }
+.lms .acl-r { display: grid; grid-template-columns: 32px minmax(0, 1fr) auto auto; gap: 10px; align-items: center; border: 1px solid var(--line); border-radius: 10px; padding: 6px 8px }
+.lms .acl-r > span:nth-child(2) { display: grid; font-weight: 700; font-size: 14px; min-width: 0; overflow-wrap: anywhere }
+.lms .acl-r small { font-size: 11.5px; color: var(--muted); font-weight: 400 }
+.lms .acl-r select { width: auto; padding: 4px 8px }
+.lms .acl-ic { width: 30px; height: 30px; border-radius: 50%; display: grid; place-items: center; font-weight: 700; font-size: 12px; background: var(--soft) }
+.lms .acl-ic.g { border-radius: 8px; background: var(--blue-soft); color: var(--blue) }
+.lms .acl-s { display: flex; flex-wrap: wrap; gap: 6px }

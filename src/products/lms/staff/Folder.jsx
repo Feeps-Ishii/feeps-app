@@ -6,13 +6,13 @@ import { Btn, Chip, FileIcon, Modal } from "../parts/ui.jsx";
 import { arr, copyText, errText, hm, md } from "./common.js";
 
 const MaterialViewer = lazy(() => import("../../training/MaterialViewer.jsx"));
+const GroupsModal = lazy(() => import("../../training/LibraryView.jsx").then(m => ({ default: m.GroupsModal })));
 
 
 /* 講師・管理者のフォルダ（モック docS）：左に全コース共通とコース別、右に中身の表と行の操作。
-   公開範囲は今の決まりのまま「だれ（役割）とどの範囲（コース・グループ・全コース）」で決める（人ごとの指定は持っていない）。 */
+   公開範囲はフォルダとファイルごとに、ユーザー・グループを足して「見る／編集できる」を決める（モック xfsacl）。判定は API の libraryAcl.mjs */
 
 const ROOT = "root";
-const ROLES = [["trainee", "受講生"], ["instructor", "講師"], ["client", "企業担当者"]];
 const VIS = { all: ["受講生に見える", "ok"], client: ["企業担当者にも見える", "blue"], group: ["チームだけ", "blue"], staff: ["講師・運営だけ", "warn"] };
 const VIS_ORDER = ["all", "client", "group", "staff"];
 const visKey = acl => { const r = acl?.roles || {}; return r.trainee && acl?.scope === "groups" ? "group" : r.client ? "client" : r.trainee ? "all" : "staff"; };
@@ -27,47 +27,97 @@ const SORTS = {
   size: (a, b) => (b.sizeBytes || 0) - (a.sizeBytes || 0),
 };
 
-function AclModal({ node, isRoot, sid, groups, onCreateGroup, onClose, onSave }) {
-  const ops = sid === "ops", cid = courseIdOf(sid);
-  const [mode, setMode] = useState(!node.ownAcl && !isRoot ? "inherit" : "own");
-  const [d, setD] = useState({
-    scope: ["org", "groups"].includes(node.acl?.scope) ? node.acl.scope : "course",
-    groups: arr(node.acl?.groups),
-    roles: { trainee: !!node.acl?.roles?.trainee, instructor: !!node.acl?.roles?.instructor, client: !!node.acl?.roles?.client },
-    traineeWrite: !!node.acl?.traineeWrite,
-  });
-  const [name, setName] = useState(""); const [err, setErr] = useState(""); const [busy, setBusy] = useState(false);
-  const add = async () => {
-    if (!name.trim()) return;
-    setErr("");
-    try { const g = await onCreateGroup(name.trim()); setName(""); setD(x => ({ ...x, scope: "groups", groups: [...new Set([...x.groups, g.groupId])] })); }
-    catch (e) { setErr(errText(e, "グループを作れませんでした")); }
+// 公開範囲の指定 ⇄ 窓の行。行は [種類, キー, 名前, 編集できるか]
+const G_NAME = { trainee: "受講生 全員", instructor: "講師", manager: "コース担当者", client: "企業担当者" };
+const aclRows = (acl, groups, names) => {
+  if (!acl) return [];
+  const r = acl.roles || {}, rows = [], vo = acl.viewOnly || {}, tw = !!acl.traineeWrite;
+  if (r.trainee) {
+    if (acl.scope === "groups") arr(acl.groups).forEach(id => rows.push({ t: "g", k: `group:${id}`, n: arr(groups).find(g => g.groupId === id)?.name || "グループ", edit: tw }));
+    else rows.push({ t: "g", k: "trainee", n: G_NAME.trainee, edit: tw });
+  }
+  if (r.instructor) rows.push({ t: "g", k: "instructor", n: G_NAME.instructor, edit: !vo.instructor });
+  if (r.manager ?? r.instructor) rows.push({ t: "g", k: "manager", n: G_NAME.manager, edit: !vo.manager });
+  if (r.client) rows.push({ t: "g", k: "client", n: G_NAME.client, edit: false });
+  arr(acl.people).forEach(x => rows.push({ t: "u", k: x.id, n: names?.[x.id] || "ユーザー", edit: !!x.edit }));
+  return rows;
+};
+const rowsToAcl = (rows, base) => {
+  const has = k => rows.some(x => x.k === k), gs = rows.filter(x => x.k.startsWith("group:")), tr = rows.filter(x => x.k === "trainee" || x.k.startsWith("group:"));
+  const baseScope = base?.scope === "org" ? "org" : "course";
+  const ed = k => !!rows.find(x => x.k === k)?.edit;
+  return {
+    scope: !has("trainee") && gs.length ? "groups" : baseScope,
+    groups: !has("trainee") && gs.length ? gs.map(x => x.k.slice(6)) : null,
+    roles: { trainee: tr.length > 0, instructor: has("instructor"), manager: has("manager"), client: has("client") },
+    traineeWrite: tr.some(x => x.edit),
+    viewOnly: { instructor: has("instructor") && !ed("instructor"), manager: has("manager") && !ed("manager") },
+    people: rows.filter(x => x.t === "u").map(x => ({ id: x.k, edit: !!x.edit })),
   };
+};
+const aclText = (acl, groups, names) => {
+  const l = aclRows(acl, groups, names).map(x => x.n);
+  return !l.length ? "管理者だけ" : l.slice(0, 2).join("・") + (l.length > 2 ? ` ほか ${l.length - 2}` : "");
+};
+
+function AclModal({ node, isRoot, sid, place, groups, names, onGroups, onClose, onSave }) {
+  const cid = courseIdOf(sid), ops = sid === "ops", isFile = node.type === "file";
+  const [mode, setMode] = useState(!node.ownAcl && !isRoot ? "inherit" : "own");
+  const [known, setKnown] = useState(names || {});
+  const start = useMemo(() => aclRows(node.ownAcl || node.parentAcl || node.acl, groups, names), []); // eslint-disable-line react-hooks/exhaustive-deps
+  const [rows, setRows] = useState(start);
+  const [people, setPeople] = useState(undefined);
+  const [q, setQ] = useState(""); const [err, setErr] = useState(""); const [busy, setBusy] = useState(false);
+  useEffect(() => {
+    let alive = true;
+    apiGet(`/library/people?spaceId=${encodeURIComponent(sid)}`).then(r => {
+      if (!alive) return;
+      const l = arr(r?.people);
+      setPeople(l);
+      const m = Object.fromEntries(l.map(x => [x.id, x.name]));
+      setKnown(k => ({ ...k, ...m }));
+      setRows(rs => rs.map(x => (x.t === "u" && m[x.k] ? { ...x, n: m[x.k] } : x)));
+    }).catch(() => { if (alive) setPeople(null); });
+    return () => { alive = false; };
+  }, [sid]);
+  const roleOf = id => arr(people).find(x => x.id === id)?.role;
+  const shown = mode === "inherit" ? aclRows(node.parentAcl, groups, known) : rows;
+  const gCand = [["trainee", G_NAME.trainee], ...arr(groups).map(g => [`group:${g.groupId}`, g.name]), ["instructor", G_NAME.instructor], ["manager", G_NAME.manager], ["client", G_NAME.client]].filter(([k]) => !ops || k === "instructor" || k === "manager");
+  const q0 = q.trim();
+  const cand = [
+    ...gCand.filter(([k, n]) => !rows.some(x => x.k === k) && (!q0 || n.includes(q0))).map(([k, n]) => ({ t: "g", k, n })),
+    ...arr(people).filter(x => !rows.some(r => r.k === x.id) && (!q0 || x.name.includes(q0) || String(x.kana || "").includes(q0))).map(x => ({ t: "u", k: x.id, n: x.name })),
+  ].slice(0, 10);
+  const add = c => { const staff = c.k === "instructor" || c.k === "manager" || ["instructor", "manager", "admin"].includes(roleOf(c.k)); setRows(l => [...l, { ...c, edit: staff }]); setQ(""); };
+  const setEdit = (k, v) => setRows(l => l.map(x => (x.k === k ? { ...x, edit: v } : x)));
+  const fixedView = x => x.k === "client" || roleOf(x.k) === "client";
   const save = async () => {
     setBusy(true); setErr("");
-    try { await onSave(mode === "inherit" ? null : d); onClose(); } catch (e) { setErr(errText(e, "保存できませんでした")); setBusy(false); }
+    try { await onSave(mode === "inherit" ? null : rowsToAcl(rows, node.ownAcl || node.parentAcl)); onClose(); } catch (e) { setErr(errText(e, "保存できませんでした")); setBusy(false); }
   };
-  const seen = mode === "inherit" ? node.parentAcl : d;
+  const noStaff = mode === "own" && !rows.some(x => x.k === "instructor" || x.k === "manager");
   return (
-    <Modal title={`公開範囲 ・ ${node.name}`} width={540} onClose={onClose} footer={<><Btn kind="ghost" onClick={onClose}>やめる</Btn><Btn disabled={busy || (mode === "own" && d.scope === "groups" && !d.groups.length)} onClick={save}>保存</Btn></>}>
-      {!isRoot && <span className="seg"><button type="button" aria-pressed={mode === "inherit"} onClick={() => setMode("inherit")}>親フォルダと同じ</button><button type="button" aria-pressed={mode === "own"} onClick={() => setMode("own")}>ここで決める</button></span>}
-      {mode === "own" && (
-        <>
-          {cid && <label className="field">範囲<select className="in" value={d.scope} onChange={e => setD(x => ({ ...x, scope: e.target.value }))}><option value="course">このコース</option><option value="groups">コース内のグループ</option><option value="org">全コース</option></select></label>}
-          {cid && d.scope === "groups" && (
-            <div className="field">グループ
-              <span className="row">{groups.map(g => <label key={g.groupId} className="st-ck"><input type="checkbox" checked={d.groups.includes(g.groupId)} onChange={e => setD(x => ({ ...x, groups: e.target.checked ? [...x.groups, g.groupId] : x.groups.filter(v => v !== g.groupId) }))} />{g.name}<small className="num"> {g.memberCount} 人</small></label>)}{!groups.length && <Chip>なし</Chip>}</span>
-              <span className="row"><input type="text" value={name} placeholder="新しいグループの名前" aria-label="新しいグループの名前" onChange={e => setName(e.target.value)} /><Btn kind="ghost sm" onClick={add}>作る</Btn></span>
-            </div>
-          )}
-          <div className="field">見せる人
-            <span className="row">{ROLES.filter(([k]) => !ops || k === "instructor").map(([k, t]) => <label key={k} className="st-ck"><input type="checkbox" checked={d.roles[k]} onChange={e => setD(x => ({ ...x, roles: { ...x.roles, [k]: e.target.checked } }))} />{t}</label>)}</span>
+    <Modal title={`公開範囲 ・ ${node.name}`} width={560} onClose={onClose} footer={<><Btn kind="ghost" onClick={onClose}>やめる</Btn><Btn disabled={busy} onClick={save}>この内容にする</Btn></>}>
+      <div className="rowsx"><div><span>場所</span><b>{place}</b></div></div>
+      {!isRoot && <span className="seg"><button type="button" aria-pressed={mode === "inherit"} onClick={() => setMode("inherit")}>{isFile ? "フォルダと同じ" : "親フォルダと同じ"}</button><button type="button" aria-pressed={mode === "own"} onClick={() => setMode("own")}>{isFile ? "このファイルだけ決める" : "このフォルダで決める"}</button></span>}
+      {ops && <div className="row"><Chip>運営だけ（受講生・企業担当者は入れられない）</Chip></div>}
+      <div className="acl-l">
+        {shown.map(x => (
+          <div key={x.k} className="acl-r">
+            <span className={`acl-ic ${x.t}`}>{x.t === "g" ? "G" : String(x.n).slice(0, 1)}</span>
+            <span>{x.n}<small>{x.t === "g" ? "グループ" : "ユーザー"}</small></span>
+            {mode === "own" && !fixedView(x) ? <select className="in" aria-label={`${x.n} の権限`} value={x.edit ? "edit" : "view"} onChange={e => setEdit(x.k, e.target.value === "edit")}><option value="view">見る</option><option value="edit">編集できる</option></select> : <Chip>{x.edit ? "編集できる" : "見る"}</Chip>}
+            {mode === "own" ? <button type="button" className="cu-x" aria-label={`${x.n} を外す`} onClick={() => setRows(l => l.filter(y => y.k !== x.k))}>×</button> : <span />}
           </div>
-          {!ops && d.roles.trainee && <label className="st-ck"><input type="checkbox" checked={d.traineeWrite} onChange={e => setD(x => ({ ...x, traineeWrite: e.target.checked }))} />受講生も置ける</label>}
-        </>
-      )}
-      {seen && <div className="row"><Chip tone={VIS[visKey(seen)][1]}>{VIS[visKey(seen)][0]}</Chip></div>}
-      <div className="row"><Chip>管理者はいつでも見られる</Chip><Chip>親より広くはできない</Chip></div>
+        ))}
+        {!shown.length && <Chip>管理者だけ</Chip>}
+      </div>
+      {mode === "own" && <>
+        <label className="field">ユーザー・グループを足す<input type="text" value={q} placeholder="名前・グループ など" onChange={e => setQ(e.target.value)} /></label>
+        {people === null && <Chip tone="warn">ユーザーを確認できません</Chip>}
+        <div className="acl-s">{cand.map(c => <button key={c.k} type="button" className="chip qk" onClick={() => add(c)}>{c.t === "g" ? "G " : ""}{c.n}</button>)}{people !== undefined && !cand.length && <Chip>見つかりません</Chip>}</div>
+      </>}
+      <div className="row"><Chip>管理者はいつでも見られる</Chip><Chip>親より広くはできない</Chip>{noStaff && <Chip tone="warn">講師にも見えなくなります</Chip>}{cid && mode === "own" && <Btn kind="ghost sm" onClick={onGroups}>グループを直す</Btn>}</div>
       {err && <div className="lms-err" role="alert">{err}</div>}
     </Modal>
   );
@@ -270,7 +320,8 @@ function StaffFolder({ role, say, view = "all" }) {
 
   if (courses === undefined && !cur) return <div className="soon card">読み込み中</div>;
   const canWriteHere = !!here?.canWrite && !q0;
-  const k = here ? visKey(here.acl) : "staff";
+  // 自分か親のうち、いちばん近い指定
+  const nearestAcl = n => { let c = n; const seen = new Set(); while (c && !seen.has(c.nodeId)) { if (c.ownAcl) return c.ownAcl; seen.add(c.nodeId); c = byId.get(c.parentId); } return n?.acl || null; };
   const mi = (t, fn, cls) => <button type="button" className={cls} onClick={() => { setMenu(""); fn(); }}>{t}</button>;
   const copyLink = n => {
     const url = `${window.location.origin}/?lms=on&fc=${encodeURIComponent(cid || "shared")}&fn=${encodeURIComponent(n.nodeId)}`;
@@ -322,7 +373,7 @@ function StaffFolder({ role, say, view = "all" }) {
                       {chain.filter(c => c.nodeId !== ROOT).map((c, i, l) => <React.Fragment key={c.nodeId}><i aria-hidden="true">›</i>{i === l.length - 1 ? <b>{c.name}</b> : <button type="button" className="lnk" onClick={() => go(cur.sid, c.nodeId)}>{c.name}</button>}</React.Fragment>)}
                     </div>
                     <span className="row">
-                      <Chip tone={VIS[k][1]}>公開範囲：{VIS[k][0]}</Chip>
+                      <Chip tone={cid ? "mk" : ""}>公開範囲：{aclText(nearestAcl(here), groups, data.names)}</Chip>
                       {here.canWrite && <Btn kind="ghost sm" onClick={() => setDlg({ kind: "acl", node: here })}>このフォルダの公開範囲</Btn>}
                       <span className="fsearch"><input type="search" value={q} placeholder="このフォルダで探す" aria-label="このフォルダで探す" onChange={e => setQ(e.target.value)} /></span>
                     </span>
@@ -335,7 +386,7 @@ function StaffFolder({ role, say, view = "all" }) {
                           <td><button type="button" className="fs-name" onClick={() => (isDir(n) ? enter(n) : openFile(n))}>{isDir(n) ? <span className="folder" aria-hidden="true" /> : <FileIcon name={n.name} />}<span>{nameOf(n)}{q0 && pathOf(n) && <small className="fs-path">{pathOf(n)}</small>}<small className="fs-meta num">{md(n.updatedAt)}{n.sizeBytes ? ` ・ ${fmtSize(n.sizeBytes)}` : ""} ・ {VIS[v][0]}</small></span></button>{n.type === "shortcut" && <Chip tone="mk">共有</Chip>}{used > 0 && <Chip tone="blue">{used} コース</Chip>}</td>
                           <td className="num">{n.updatedAt ? `${md(n.updatedAt)} ${hm(n.updatedAt)}` : "—"}</td>
                           <td>{data.names?.[n.createdBy] || "—"}</td>
-                          <td>{n.ownAcl ? <Chip tone={VIS[v][1]}>{VIS[v][0]}</Chip> : <span className="fs-inh">フォルダと同じ</span>}</td>
+                          <td>{n.type === "shortcut" ? <Chip tone={VIS[v][1]}>{VIS[v][0]}</Chip> : n.ownAcl ? <Chip tone="mk">{aclText(n.ownAcl, groups, data.names)}</Chip> : <span className="fs-inh">フォルダと同じ</span>}</td>
                           <td className="fs-k">
                             <button type="button" className="kbtn" aria-label={`${nameOf(n)} の操作`} aria-expanded={menu === n.nodeId} onClick={() => setMenu(m => (m === n.nodeId ? "" : n.nodeId))}>…</button>
                             {menu === n.nodeId && (
@@ -365,8 +416,9 @@ function StaffFolder({ role, say, view = "all" }) {
           </section>
         </div>
       {dlg?.kind === "acl" && (
-        <AclModal node={{ ...dlg.node, parentAcl: byId.get(dlg.node.parentId)?.acl }} isRoot={dlg.node.nodeId === ROOT} sid={cur.sid} groups={groups}
-          onCreateGroup={name => apiPost("/library/groups", { courseId: cid, name }).then(g => { loadGroups(); return g; })}
+        <AclModal node={{ ...dlg.node, parentAcl: nearestAcl(byId.get(dlg.node.parentId)) }} isRoot={dlg.node.nodeId === ROOT} sid={cur.sid} groups={groups} names={data?.names}
+          place={[scopeName(cur.sid), ...chain.filter(c => c.nodeId !== ROOT && c.nodeId !== dlg.node.nodeId).map(c => c.name)].join(" › ")}
+          onGroups={() => setDlg({ kind: "groups" })}
           onClose={() => setDlg(null)}
           onSave={async acl => { await apiPut(`/library/nodes/${encodeURIComponent(dlg.node.nodeId)}`, { spaceId: cur.sid, acl }); await loadSpace(cur.sid); say?.("公開範囲を変えました"); }} />
       )}
@@ -381,6 +433,7 @@ function StaffFolder({ role, say, view = "all" }) {
             : <input type="text" value={text} autoFocus aria-label="名前" onChange={e => setText(e.target.value)} onKeyDown={e => { if (e.key === "Enter") confirmDlg(); }} />}
         </Modal>
       )}
+      {dlg?.kind === "groups" && <div className="lms-legacy"><Suspense fallback={null}><GroupsModal courseId={cid} courseName={courseName(cid)} onClose={() => { setDlg(null); loadGroups(); }} /></Suspense></div>}
       {viewing && <Suspense fallback={null}><div className="lms-legacy"><MaterialViewer courseId={cid} material={{ materialId: viewing.materialId, title: viewing.name, mode: "view" }} onClose={() => setViewing(null)} canAnnotate /></div></Suspense>}
     </div>
   );

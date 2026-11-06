@@ -47,7 +47,7 @@ export function NewUser({ companies, courses, initial, onClose, onDone }) {
   if (made) return <Modal title="ユーザーを足しました" width={460} onClose={onDone} footer={<Btn onClick={onDone}>閉じる</Btn>}><div className="mgoal"><span className="eyebrow">{v.name} の仮パスワード ・ 今だけ表示</span><b className="dv-mono">{made}</b></div></Modal>;
   return (
     <Modal title="ユーザーを足す" width={520} onClose={onClose} footer={<><Btn kind="ghost" onClick={onClose}>やめる</Btn><Btn disabled={busy || why === null} onClick={save}>{busy ? "足しています" : "足す"}</Btn></>}>
-      <label className="field">メールアドレス<span className="row st-nw"><input type="email" className="nuin" autoFocus value={v.email} onChange={e => f("email", e.target.value)} onKeyDown={e => { if (e.key === "Enter" && !e.nativeEvent.isComposing) read(); }} /><Btn kind="ghost sm" onClick={read}>読み取る</Btn></span></label>
+      <label className="field">メールアドレス<span className="row st-nw"><input type="email" className="nuin" autoFocus value={v.email} onChange={e => f("email", e.target.value)} onKeyDown={e => { if (e.key === "Enter" && !e.nativeEvent.isComposing) read(); }} /><Btn kind="ghost sm" onClick={read}>読み取る</Btn><Btn kind="ghost sm" onClick={() => { setErr(""); setWhy("仮メール ・ 初回ログインで本人が登録"); setV(s => ({ ...s, email: `temp-${Date.now().toString(36)}@id.devhub-lms.com` })); }}>仮メールにする</Btn></span></label>
       <label className="field">名前<input type="text" value={v.name} onChange={e => f("name", e.target.value)} /></label>
       {why !== null && (
         <div className="aip">
