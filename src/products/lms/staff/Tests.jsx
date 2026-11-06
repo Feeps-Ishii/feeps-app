@@ -4,6 +4,7 @@ import { TEST_SCOPE_KEYS, TestBuilder, TestTaking, flattenCurriculumScopes, norm
 import { emitNotificationRefresh, testIdOf, todayStr } from "../../training/useTraining.js";
 import { takeTestBuildTarget } from "../../../utils/common/courseContext.js";
 import { Btn, Card, Chip, ListTool, Modal, matchName } from "../parts/ui.jsx";
+import { TestFileModal, takeTestFiles } from "./TestFile.jsx";
 import { arr, errText, md, useRoster, useStaffCourse } from "./common.js";
 
 /* テスト（モック testS・libS・testResultS）：講師は担当コースの単元ごと、管理者は全部の一覧。
@@ -229,6 +230,7 @@ export default function StaffTests({ role, go, say }) {
   const [fromCur, setFromCur] = useState(!!handoff);
   const [tab, setTab] = useState("all"); const [q, setQ] = useState(""); const [sort, setSort] = useState("new");
   const [catOf, setCatOf] = useState(null); const [catF, setCatF] = useState("");
+  const [fileNew, setFileNew] = useState(null); const [dropOn, setDropOn] = useState(false);
 
   const reload = useCallback(() => setKey(k => k + 1), []);
   useEffect(() => {
@@ -245,7 +247,7 @@ export default function StaffTests({ role, go, say }) {
       if (!alive) return;
       const tests = arr(ts).filter(t => t.status !== "archived").map(normalizeTest);
       const loose = arr(all).filter(t => t.status !== "archived" && !testCourseIdList(t).length).map(normalizeTest);
-      const others = arr(all).filter(t => t.status !== "archived" && !tests.some(x => testIdOf(x) === testIdOf(t)) && testCourseIdList(t).length).map(normalizeTest);
+      const others = arr(all).filter(t => t.status !== "archived" && !tests.some(x => testIdOf(x) === testIdOf(t)) && (t.common || !testCourseIdList(t).length)).map(normalizeTest);
       setSt({ state: "ready", tests, loose, others, sections: cur ? normalizeCurriculumSections(cur) : [], courses: arr(cs).filter(c => c?.courseId) });
       const every = [...tests, ...loose];
       const pairs = await Promise.all(every.map(t => apiGet(`/tests/${testIdOf(t)}/results`).then(r => [testIdOf(t), arr(r)]).catch(() => [testIdOf(t), null])));
@@ -370,9 +372,13 @@ export default function StaffTests({ role, go, say }) {
   const curIdx = st.sections.findIndex(s => { const r = rangeOf(s); return r && r.start <= today && today <= r.end; });
   return (
     <div className="st">
-      <div className="head"><div><div className="eyebrow">{sc.course?.name}</div><h1 className="h1">テスト</h1></div><span className="r"><Btn kind="ghost sm" onClick={() => setAdding(true)}>共通から足す</Btn><Btn kind="sm" onClick={() => setBuild({ mode: "manual", scope: { courseId, scopeId: "", title: "" } })}>テストを作る</Btn></span></div>
+      <div className="head"><div><div className="eyebrow">{sc.course?.name}</div><h1 className="h1">テスト</h1></div><span className="r"><Btn kind="ghost sm" onClick={() => setAdding(true)}>共通から足す</Btn><Btn kind="sm" onClick={() => setFileNew({})}>テストを作る</Btn></span></div>
       {err && <div className="lms-err" role="alert">{err}</div>}
       {roster === null && <div className="lms-err" role="alert">受講生を確認できません</div>}
+      <div className={`fdrop${dropOn ? " dropon" : ""}`} onDragOver={e => { e.preventDefault(); setDropOn(true); }} onDragLeave={() => setDropOn(false)} onDrop={e => { e.preventDefault(); setDropOn(false); if (e.dataTransfer.files.length) setFileNew(takeTestFiles(e.dataTransfer.files)); }}>
+        <span className="fd-t"><b>問題と解答のファイルをここに落とす</b><small>Word・Excel ・ このコースだけに足す</small></span>
+        <label className="btn ghost sm">ファイルを選ぶ<input type="file" accept=".docx,.xlsx,.xls,.csv" multiple className="lms-sr" onChange={e => { const fs = e.target.files; if (fs?.length) setFileNew(takeTestFiles(fs)); e.target.value = ""; }} /></label>
+      </div>
       {curIdx >= 0 && (
         <div className="tp-now c-tst tu-now">
           <span className="tp-nl"><span className="eyebrow">今の単元</span><b>単元 {curIdx + 1} ・ {st.sections[curIdx].title}</b><small className="num">{(r => (r ? `${md(r.start)}〜${md(r.end)} ・ ` : ""))(rangeOf(st.sections[curIdx]))}テスト {st.tests.filter(t => t.sectionId === st.sections[curIdx].id).length}</small></span>
@@ -385,7 +391,7 @@ export default function StaffTests({ role, go, say }) {
           const ts = st.tests.filter(t => t.sectionId === s.id), r = rangeOf(s);
           return (
             <section key={s.id} id={`tu-test-${s.id}`} className={`card tx-card${i === curIdx ? " tu-cur" : ""}`}>
-              <div className="head pad tx-h"><div className="tu-h"><span className="tu-no num" aria-hidden="true">{i + 1}</span><div><span className="eyebrow num">単元 {i + 1} ・ {r ? `${md(r.start)}〜${md(r.end)}` : "日程未設定"}</span><h2 className="h3">{s.title}</h2></div></div><span className="r"><Btn kind="ghost sm" onClick={() => setBuild({ mode: "manual", scope: { courseId, scopeId: `section:${s.id}`, title: s.title } })}>この単元で作る</Btn></span></div>
+              <div className="head pad tx-h"><div className="tu-h"><span className="tu-no num" aria-hidden="true">{i + 1}</span><div><span className="eyebrow num">単元 {i + 1} ・ {r ? `${md(r.start)}〜${md(r.end)}` : "日程未設定"}</span><h2 className="h3">{s.title}</h2></div></div><span className="r"><Btn kind="ghost sm" onClick={() => setFileNew({ sectionId: s.id })}>この単元で作る</Btn></span></div>
               {ts.length ? table(ts) : <div className="tx-e"><Chip>なし</Chip></div>}
             </section>
           );
@@ -393,6 +399,7 @@ export default function StaffTests({ role, go, say }) {
         {whole.length > 0 && <section className="card tx-card"><div className="head pad tx-h"><h2 className="h3">コース全体</h2></div>{table(whole)}</section>}
         {!st.sections.length && !whole.length && <Card className="pad"><Chip>なし</Chip></Card>}
       </div>
+      {fileNew && <TestFileModal courseId={courseId} sections={st.sections} initial={fileNew} onClose={() => setFileNew(null)} onSaved={(t, s) => { setFileNew(null); emitNotificationRefresh(); say?.(s === "published" ? `「${t.title}」を公開しました` : `「${t.title}」を下書きで保存しました`); reload(); }} />}
       {adding && <AddFromOthers tests={arr(st.others)} courseId={courseId} sections={st.sections} onClose={() => setAdding(false)} onDone={t => { setAdding(false); say?.(`${t.title} を足しました`); reload(); }} />}
       {modals}
     </div>

@@ -30,7 +30,7 @@ async function putFile(url, file, contentType) {
   if (!r.ok) throw new Error(`「${file.name}」を送れませんでした（${r.status}）`);
 }
 
-function CreateModal({ courseId, initial, onClose, onMade }) {
+export function CreateModal({ courseId, initial, onClose, onMade }) {
   const [title, setTitle] = useState("");
   const [prob, setProb] = useState(initial?.prob || null); const [ans, setAns] = useState(initial?.ans || null);
   const [busy, setBusy] = useState(""); const [err, setErr] = useState("");
@@ -93,7 +93,7 @@ function ReplaceModal({ courseId, id, onClose, onDone }) {
   );
 }
 
-function Editor({ courseId, id, onBack, say }) {
+export function Editor({ courseId, id, onBack, say }) {
   const [st, setSt] = useState("loading");
   const [set, setSet] = useState(null); const [meta, setMeta] = useState(null);
   const [sections, setSections] = useState([]);
@@ -131,7 +131,7 @@ function Editor({ courseId, id, onBack, say }) {
     <div className="st">
       <Style />
       <div className="head"><div><div className="eyebrow">練習問題</div><h1 className="h1">{set.title || "題名なし"}</h1></div>
-        <span className="r"><Btn kind="ghost sm" onClick={back}>← 一覧</Btn><Btn kind="ghost sm" onClick={() => setReplacing(true)}>Word から取り込み直す</Btn><Btn kind="ghost sm" onClick={() => setPreview(p => !p)}>{preview ? "直す画面へ" : "受講生の見え方"}</Btn>{meta?.status === "published" && <Btn kind="ghost sm" disabled={!!busy} onClick={hide}>公開をやめる</Btn>}<Btn kind="ghost sm" onClick={() => setConf({ title: "この練習問題を消す", ok: "消す", note: "受講生の「できた」も見えなくなる", run: remove })}>消す</Btn><Btn kind="ghost sm" disabled={!!busy || !dirty} onClick={() => save(false)}>保存</Btn><Btn kind="sm" disabled={!!busy} onClick={() => save(true)}>{meta?.status === "published" ? "公開し直す" : "公開する"}</Btn></span>
+        <span className="r"><Btn kind="ghost sm" onClick={back}>← 一覧</Btn><Btn kind="ghost sm" onClick={() => setReplacing(true)}>Word から取り込み直す</Btn><Btn kind="ghost sm" onClick={() => setPreview(p => !p)}>{preview ? "直す画面へ" : "受講生の見え方"}</Btn>{courseId !== "common" && meta?.status === "published" && <Btn kind="ghost sm" disabled={!!busy} onClick={hide}>公開をやめる</Btn>}<Btn kind="ghost sm" onClick={() => setConf({ title: "この練習問題を消す", ok: "消す", note: "受講生の「できた」も見えなくなる", run: remove })}>消す</Btn><Btn kind="ghost sm" disabled={!!busy || !dirty} onClick={() => save(false)}>保存</Btn>{courseId !== "common" && <Btn kind="sm" disabled={!!busy} onClick={() => save(true)}>{meta?.status === "published" ? "公開し直す" : "公開する"}</Btn>}</span>
       </div>
       <div className="row"><Chip tone={tone}>{label}</Chip>{meta?.hasDraftChanges && <Chip tone="warn">公開中のものと違う下書き</Chip>}{dirty && <Chip tone="warn">保存していない変更</Chip>}{set.source?.problem && <Chip>元 {set.source.problem}{set.source.answer ? ` ・ ${set.source.answer}` : ""}</Chip>}</div>
       {err && <div className="lms-err" role="alert">{err}</div>}
@@ -183,6 +183,49 @@ const rangeOf = s => {
   const ds = [s, ...arr(s.chapters).flatMap(c => arr(c.lessons))].flatMap(x => [String(x.startDate || "").slice(0, 10), String(x.endDate || x.startDate || "").slice(0, 10)]).filter(d => /^\d{4}-/.test(d)).sort();
   return ds.length ? { start: ds[0], end: ds[ds.length - 1] } : null;
 };
+// 共通から足す（モック xtlib）
+function AddCommon({ courseId, sections, onClose, onDone }) {
+  const [st, setSt] = useState({ state: "loading", items: [] });
+  const [id, setId] = useState(""); const [unit, setUnit] = useState(sections[0]?.id || ""); const [busy, setBusy] = useState(false); const [err, setErr] = useState(""); const [text, setText] = useState("");
+  useEffect(() => { let alive = true; apiGet("/practice/common").then(r => { if (alive) setSt({ state: "ready", items: arr(r?.items).filter(x => x.status !== "new" && x.status !== "building") }); }).catch(() => { if (alive) setSt({ state: "error", items: [] }); }); return () => { alive = false; }; }, []);
+  const add = async () => {
+    setBusy(true); setErr("");
+    try { await apiPost(`/practice/common/${pid(id)}/add`, { courseId, sectionId: unit }); onDone(st.items.find(x => x.id === id)); }
+    catch (e) { setErr(errText(e, "足せませんでした")); setBusy(false); }
+  };
+  const list = st.items.filter(x => !text.trim() || String(x.title).includes(text.trim()) || String(x.category || "").includes(text.trim()));
+  return (
+    <Modal title="共通から足す" width={600} onClose={onClose} footer={<><Btn kind="ghost" onClick={onClose}>やめる</Btn><Btn disabled={busy || !id} onClick={add}>このコースに足す</Btn></>}>
+      {st.state === "loading" ? <div className="dv-mt">読み込み中</div> : st.state === "error" ? <div className="empty"><b>共通の練習問題を確認できません</b></div> : (
+        <>
+          <span className="fsearch pc-q"><input type="search" value={text} placeholder="名前で探す" aria-label="名前で探す" onChange={e => setText(e.target.value)} /></span>
+          <div className="fs-pick">{list.map(x => <label key={x.id} className="st-ck fs-pr"><input type="radio" name="pc-common" checked={id === x.id} onChange={() => setId(x.id)} />{x.title || "題名なし"}<small className="num"> {x.counts?.questions || 0}問 ・ 解答つき ・ {arr(x.usedIn).length} コースで使用</small></label>)}{!list.length && <Chip>なし</Chip>}</div>
+          <label className="field">単元<select className="in" value={unit} onChange={e => setUnit(e.target.value)}><option value="">コース全体</option>{sections.map(u => <option key={u.id} value={u.id}>{u.title}</option>)}</select></label>
+        </>
+      )}
+      {err && <div className="lms-err" role="alert">{err}</div>}
+    </Modal>
+  );
+}
+
+// 全コース共通にする（モック xlibup）
+function LibUp({ set, courseId, qn, onClose, onDone }) {
+  const [t, setT] = useState(set.title || ""); const [busy, setBusy] = useState(false); const [err, setErr] = useState("");
+  const ok = async () => {
+    if (!t.trim()) { setErr("名前を入れてください"); return; }
+    setBusy(true); setErr("");
+    try { await apiPost(`/practice/${pid(set.id)}/common${q(courseId)}`, { title: t.trim() }); onDone(); }
+    catch (e) { setErr(errText(e, "共通にできませんでした")); setBusy(false); }
+  };
+  return (
+    <Modal title="コース共通にする" width={520} onClose={onClose} footer={<><Btn kind="ghost" onClick={onClose}>やめる</Btn><Btn disabled={busy} onClick={ok}>全コース共通にする</Btn></>}>
+      <div className="rowsx"><div><span>名前</span><b>{set.title || "題名なし"}</b></div><div><span>種類</span><b>練習問題</b></div><div><span>中身</span><b>{qn}問 ・ ヒント・解答</b></div><div><span>使えるコース</span><b>すべてのコース</b></div></div>
+      <label className="field">共通での名前<input type="text" maxLength={120} value={t} onChange={e => setT(e.target.value)} /></label>
+      {err && <div className="lms-err" role="alert">{err}</div>}
+    </Modal>
+  );
+}
+
 const takeFiles = files => {
   const list = [...files], ans = list.find(f => /解答|answer/i.test(f.name)) || null;
   return { ans, prob: list.find(f => f !== ans) || null };
@@ -198,6 +241,7 @@ export default function InstructorPractice({ say }) {
   const [making, setMaking] = useState(null);
   const [editing, setEditing] = useState("");
   const [dropOn, setDropOn] = useState(false);
+  const [adding, setAdding] = useState(false); const [up, setUp] = useState(null);
   useEffect(() => {
     if (!courseId) return undefined;
     let alive = true;
@@ -226,11 +270,11 @@ export default function InstructorPractice({ say }) {
         const [label, tone] = STATUS[s.status] || STATUS.draft, wip = s.status === "new" || s.status === "building";
         return (
           <tr key={s.id}>
-            <td><b>{s.title || "題名なし"}</b><small className="sm2">{qn}問 ・ ヒント・解答つき</small></td>
+            <td><b>{s.title || "題名なし"}</b>{s.commonId && <> <Chip tone="mk">共通</Chip></>}<small className="sm2">{qn}問 ・ ヒント・解答つき</small></td>
             <td className="num">{s.dueDate ? `${md(s.dueDate)} まで` : "単元を通して"}</td>
             <td><span className="row"><Chip tone={tone}>{label}</Chip>{s.hasDraftChanges && <Chip tone="warn">変更あり</Chip>}</span></td>
             <td>{s.status !== "published" ? "—" : s.rows === null ? <Chip tone="bad">確認できません</Chip> : <span className="row sx-nw"><span className="tp-bar sm pc-bar"><i style={{ "--w": `${avgOf(s)}%` }} /></span><b className="num">{avgOf(s)}%</b></span>}</td>
-            <td><Btn kind="ghost sm" disabled={wip} onClick={() => setEditing(s.id)}>中身を確かめる ↗</Btn></td>
+            <td><span className="row st-nw"><Btn kind="ghost sm" disabled={wip} onClick={() => setEditing(s.id)}>中身を確かめる ↗</Btn>{!s.commonId && !wip && <Btn kind="ghost sm" onClick={() => setUp({ s, qn: s.counts?.questions || qn })}>全コース共通にする</Btn>}</span></td>
           </tr>
         );
       })}
@@ -239,7 +283,7 @@ export default function InstructorPractice({ say }) {
   const whole = rowsOf("");
   return (
     <div className="st">
-      <div className="head"><div><div className="eyebrow">{sc.course?.name}</div><h1 className="h1">練習問題</h1></div><span className="r"><Btn kind="sm" onClick={() => setMaking({})}>練習問題を作る</Btn></span></div>
+      <div className="head"><div><div className="eyebrow">{sc.course?.name}</div><h1 className="h1">練習問題</h1></div><span className="r"><Btn kind="ghost sm" onClick={() => setAdding(true)}>共通から足す</Btn><Btn kind="sm" onClick={() => setMaking({})}>練習問題を作る</Btn></span></div>
       {sets === null ? <Card><div className="empty"><b>練習問題を確認できません</b><Btn kind="ghost sm" onClick={() => setKey(k => k + 1)}>再読み込み</Btn></div></Card> : sets === undefined ? <div className="soon card">読み込み中</div> : (
         <>
           <div className={`fdrop${dropOn ? " dropon" : ""}`} onDragOver={e => { e.preventDefault(); setDropOn(true); }} onDragLeave={() => setDropOn(false)} onDrop={e => { e.preventDefault(); setDropOn(false); if (e.dataTransfer.files.length) setMaking(takeFiles(e.dataTransfer.files)); }}>
@@ -268,6 +312,8 @@ export default function InstructorPractice({ say }) {
           </div>
         </>
       )}
+      {adding && <AddCommon courseId={courseId} sections={sections} onClose={() => setAdding(false)} onDone={x => { setAdding(false); say?.(`${x?.title || "練習問題"} を下書きで足しました`); setKey(k => k + 1); }} />}
+      {up && <LibUp set={up.s} courseId={courseId} qn={up.qn} onClose={() => setUp(null)} onDone={() => { setUp(null); say?.("全コース共通にしました"); setKey(k => k + 1); }} />}
       {making && <CreateModal courseId={courseId} initial={making} onClose={() => setMaking(null)} onMade={id => { setMaking(null); setEditing(id); }} />}
     </div>
   );

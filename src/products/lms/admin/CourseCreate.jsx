@@ -64,7 +64,7 @@ async function readExcel(file) {
   };
 }
 
-async function readDocText(file) {
+export async function readDocText(file) {
   const name = file.name.toLowerCase();
   if (/\.pdf$/.test(name)) {
     const url = URL.createObjectURL(file);
@@ -87,14 +87,14 @@ async function readDocText(file) {
   throw new Error("PDF・Word・Excel・テキストにしてください（古い .doc は .docx で保存し直してください）");
 }
 
-export default function CourseCreate({ companies: companies0, courses, initial, onClose, onDone }) {
+export default function CourseCreate({ companies: companies0, courses, initial, copyFrom, onClose, onDone }) {
   const [companies, setCompanies] = useState(companies0);
   const [newCo, setNewCo] = useState(null);
   const [step, setStep] = useState(initial ? 2 : 1);
-  const [src, setSrc] = useState(initial ? "shelf" : "blank");
+  const [src, setSrc] = useState(initial ? "shelf" : copyFrom ? "copy" : "blank");
   const [text, setText] = useState("");
   const [file, setFile] = useState(null);
-  const [from, setFrom] = useState(courses[0]?.courseId || "");
+  const [from, setFrom] = useState(copyFrom || courses[0]?.courseId || "");
   const [take, setTake] = useState({ cur: true, tests: true, rf: true, fx: true, ins: true });
   const [v, setV] = useState({ ...EMPTY, ...(initial || {}) });
   const [people, setPeople] = useState({ ins: [], mgr: [] });
@@ -185,6 +185,10 @@ export default function CourseCreate({ companies: companies0, courses, initial, 
           const t = tests.find(x => x.testId === tid);
           if (t) await apiPut(`/tests/${encodeURIComponent(tid)}`, { courseIds: [...new Set([...testCourseIdList(t), id])], courseScopes: { [id]: curriculumUnitScope(sections[i], null, null, "section").fields } });
         })));
+        // 棚の単元の練習問題は下書きで足し、資料はコースのフォルダに置く
+        await Promise.all(v.units.flatMap((u, i) => arr(u.pracIds).map(pid => apiPost(`/practice/common/${encodeURIComponent(pid)}/add`, { courseId: id, sectionId: sections[i].id }))));
+        const nodes = [...new Set(v.units.flatMap(u => arr(u.files).map(f => f.nodeId)))];
+        await Promise.all(nodes.map(nodeId => apiPost("/library/link-to-course", { spaceId: "shared", nodeId, courseIds: [id] })));
       });
     }
     setBusy("");
