@@ -2,8 +2,7 @@ import React, { useMemo, useState } from "react";
 import { updatePassword } from "aws-amplify/auth";
 import { Btn, Chip, Modal } from "./ui.jsx";
 
-/* 上の帯の「探す」と、使い方、パスワードの変更（モック askBar / helpDrawer / profile）。
-   探すは画面と使い方を引くだけで、AI には聞かない。使い方は下の HELP が全部 */
+/* 使い方とパスワードの変更（モック helpDrawer / profile）。使い方は下の HELP が全部 */
 
 // r: s=講師・管理者 c=企業担当者 t=受講生。go はその画面のキー（そのロールに無い画面の項目は出さない）
 const HELP = [
@@ -13,11 +12,11 @@ const HELP = [
   { r: "s", k: ["席替え", "席", "並び"], q: "席替えをしたい", a: ["席替え を開く", "名前をドラッグして入れ替える。AI に頼んで案を出すこともできる", "保存して確定する"], go: "seat" },
   { r: "s", k: ["練習問題", "Word", "取り込"], q: "練習問題を Word から入れたい", a: ["練習問題 を開く", "「Word から作る」で問題と解答の Word を選ぶ", "できた問題集を確かめて公開する"], go: "prac" },
   { r: "s", k: ["欠勤", "勤怠", "打刻", "遅刻"], q: "受講生の勤怠を直したい", a: ["勤怠 を開く", "名前の行を押す", "状態と時刻を直し、直す理由を書いて保存する"], go: "att" },
-  { r: "s", k: ["お知らせ", "取り消", "間違"], q: "出したお知らせを直したい", a: ["お知らせ を開く", "出したお知らせの「直す」を押す", "直して出し直す"], go: "ann" },
+  { r: "s", k: ["お知らせ", "取り消", "間違"], q: "送信済みのお知らせを直したい", a: ["お知らせ を開く", "送信済みのお知らせの「直す」を押す", "直して出し直す"], go: "ann" },
   { r: "c", k: ["面談", "予約", "報告会"], q: "面談を予約したい", a: ["面談・報告会 を開く", "空いている枠を選ぶ", "予約する"], go: "resv" },
   { r: "c", k: ["日報", "読む"], q: "自社の受講生の日報を読みたい", a: ["日報 を開く", "日付を選ぶ", "名前を押すと全文を読める"], go: "report" },
   { r: "c", k: ["助成金", "書類", "賃金"], q: "助成金に出す書類をそろえたい", a: ["助成金 を開く", "「書類」で足りないものを見る", "自社で用意するものを入れる"], go: "grant" },
-  { r: "t", k: ["日報", "直す", "前の日"], q: "前の日の日報を直したい", a: ["日報 を開く", "日付を選ぶ", "直して「直して提出」を押す"], go: "report" },
+  { r: "t", k: ["日報", "直す", "前の日"], q: "前の日の日報を直したい", a: ["日報 を開く", "日付を選ぶ", "直して「直して提出する」を押す"], go: "report" },
   { r: "t", k: ["遅刻", "休む", "遅れる", "勤怠", "連絡"], q: "遅れる・休むとき", a: ["先に講師へ連絡する", "勤怠 を開く", "実際の時刻と理由を記録する"], go: "att" },
   { r: "scta", k: ["パスワード", "変える"], q: "自分のパスワードを変えたい", a: ["右上の名前を押す", "「パスワードを変える」を押す", "いまのパスワードと新しいパスワードを入れる"], pw: true },
 ];
@@ -28,41 +27,6 @@ const helpFor = (role, screens) => {
 };
 const goOf = (h, screens) => (screens.some(([k]) => k === h.go) ? h.go : "lprac");
 const scoreOf = (h, q) => h.k.reduce((n, k) => n + (q.includes(k) ? k.length + 1 : 0), 0) + (h.q.includes(q) ? q.length : 0);
-
-export function AskBar({ role, groups, onGo, onHelp }) {
-  const [q, setQ] = useState(""); const [open, setOpen] = useState(false); const [sel, setSel] = useState(0);
-  const screens = useMemo(() => groups.flatMap(g => g[2]), [groups]);
-  const qq = q.trim();
-  const items = useMemo(() => {
-    if (!qq) return screens.slice(0, 6).map(([k, t]) => ({ t, go: k }));
-    const scr = screens.filter(([, t]) => t.includes(qq) || qq.includes(t)).map(([k, t]) => ({ t, go: k }));
-    const hs = helpFor(role, screens).map(h => [h, scoreOf(h, qq)]).filter(([, n]) => n > 0).sort((a, b) => b[1] - a[1]).map(([h]) => ({ t: h.q, sub: "使い方", help: h.q }));
-    return [...scr, ...hs].slice(0, 7);
-  }, [qq, screens, role]);
-  const run = it => { if (!it) return; setQ(""); setOpen(false); setSel(0); if (it.help !== undefined) onHelp(it.help); else onGo(it.go); };
-  const onKey = e => {
-    if (e.key === "ArrowDown") { e.preventDefault(); setSel(s => Math.min(s + 1, items.length - 1)); }
-    else if (e.key === "ArrowUp") { e.preventDefault(); setSel(s => Math.max(s - 1, 0)); }
-    else if (e.key === "Enter") { e.preventDefault(); run(items[sel]); }
-    else if (e.key === "Escape") setOpen(false);
-  };
-  return (
-    <div className="lms-ask">
-      <input type="search" value={q} placeholder="探す（例：日報 ／ 席替え）" aria-label="画面と使い方を探す" autoComplete="off"
-        onChange={e => { setQ(e.target.value); setOpen(true); setSel(0); }} onFocus={() => setOpen(true)} onBlur={() => setOpen(false)} onKeyDown={onKey} />
-      {open && (
-        <div className="lms-pop" role="listbox" aria-label="探した結果">
-          {items.map((it, i) => (
-            <button key={`${it.t}-${i}`} type="button" role="option" aria-selected={i === sel} onMouseDown={e => { e.preventDefault(); run(it); }}>
-              <span>{it.t}</span>{it.sub && <small>{it.sub}</small>}
-            </button>
-          ))}
-          {!items.length && <span className="none"><Chip>見つかりません</Chip></span>}
-        </div>
-      )}
-    </div>
-  );
-}
 
 export function HelpPanel({ role, groups, initial = "", onClose, onGo, onPassword }) {
   const screens = useMemo(() => groups.flatMap(g => g[2]), [groups]);

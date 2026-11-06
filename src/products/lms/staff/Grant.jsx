@@ -288,7 +288,7 @@ function OutTab({ grant, isAdmin, onSave, say }) {
   return (
     <div className="g2e">
       <Card className="pad st-g">
-        <div className="head"><h2 className="h3">見込み（下書き）</h2><span className="r"><Btn kind="sm" disabled={calculating} onClick={() => calculate().catch(() => {})}>{calculating ? "計算しています" : "計算する"}</Btn></span></div>
+        <div className="head"><h2 className="h3">見込み（目安）</h2><span className="r"><Btn kind="sm" disabled={calculating} onClick={() => calculate().catch(() => {})}>{calculating ? "計算しています" : "計算する"}</Btn></span></div>
         {!result && grant.calculatedAmountDraft != null && <div className="row"><Chip>前回 {yen(grant.calculatedAmountDraft)}{grant.calculatedAmountDraftAt ? ` ・ ${md(grant.calculatedAmountDraftAt)}` : ""}</Chip></div>}
         {error && <div className="lms-err" role="alert">{error}</div>}
         {result && (
@@ -403,7 +403,7 @@ export default function StaffGrant({ role, say }) {
       <div className="head"><div><div className="eyebrow">{isAdmin ? "すべての企業" : ""}</div><h1 className="h1">助成金</h1></div><span className="r">{total > 0 && <Chip tone="mk">見込み合計 {yen(total)}</Chip>}{isAdmin && <Btn kind="ghost sm" onClick={() => setMaster(true)}>助成金マスタ</Btn>}{isAdmin && <Btn kind="sm" onClick={() => setCreating(true)}>申請を作る</Btn>}</span></div>
       {list.actionError && <div className="lms-err" role="alert">{list.actionError}</div>}
       <ListTool tabs={[["all", "すべて", rows.length], ["open", "進行中", rows.filter(r => !["paid", "rejected", "cancelled"].includes(r.g.status)).length], ["over", "期限超過", rows.filter(over).length, "bad"], ["paid", "支給済み", rows.filter(r => r.g.status === "paid").length, "ok"]]} tab={tab} onTab={setTab} q={q} onQ={setQ} placeholder="企業・コースで探す" sorts={[["deadline", "期限の近い順"], ["amount", "見込みの多い順"], ["name", "企業の名前順"]]} sort={sort} onSort={setSort} />
-      <Card className=""><div className="scroll"><table className="tbl"><thead><tr><th>コース</th>{isAdmin && <th>企業</th>}<th>制度</th><th>今の段階</th><th>期限</th><th>状態</th><th>見込み（下書き）</th><th /></tr></thead><tbody>
+      <Card className=""><div className="scroll"><table className="tbl"><thead><tr><th>コース</th>{isAdmin && <th>企業</th>}<th>制度</th><th>今の段階</th><th>期限</th><th>状態</th><th>見込み（目安）</th><th /></tr></thead><tbody>
         {shown.map(r => { const s = r.stages.find(x => x.current), d = s?.deadline; return (
           <tr key={r.g.grantId} className={over(r) ? "on" : ""}>
             <td><b>{r.c?.name || r.g.courseId}</b></td>{isAdmin && <td>{coName(r.g.companyId)}</td>}

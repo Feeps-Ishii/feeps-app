@@ -206,7 +206,7 @@ export default function TraineeReport({ say }) {
 
           <section className="card pad dr-sec c-cur">
             <div className="dr-h"><span className="dr-ic">{MOON}</span><div><span className="eyebrow">夕方</span><h2 className="h2">振り返り</h2></div>
-              <span className="r"><Btn kind="ghost sm" onClick={() => setShowNotes(v => !v)}>{showNotes ? "ノートを閉じる" : "この日のノートを見る"}</Btn></span>
+              <span className="r"><Btn kind="ghost sm" onClick={() => setShowNotes(v => !v)}>{showNotes ? "ノートを閉じる" : isToday ? "今日のノートを見る" : "この日のノートを見る"}</Btn></span>
             </div>
             {r.fields.map((f, i) => {
               const v = fieldValue(draft, f.id);
@@ -226,7 +226,7 @@ export default function TraineeReport({ say }) {
       <div className={`dr-bar${done && !dirty ? " done" : ""}`} role="status">
         <span className="dr-st"><i aria-hidden="true" /><span><b>{dirty ? "変更を未提出" : done ? "提出済み" : "未提出"}</b><small>{saveText || (report?.updatedAt ? `提出 ${stamp(report.updatedAt)}` : "")}</small></span></span>
         <span className="dr-sum">{draft.goalItems.length > 0 && <>小目標 <b className="num">{goalsDone} / {draft.goalItems.length}</b><span aria-hidden="true">・</span></>}振り返り <b className="num">{filled} / {r.fields.length}</b></span>
-        <Btn kind={done ? "ghost" : ""} disabled={!canEdit} onClick={submit}>{r.saving ? "提出中" : done ? "直して提出" : "提出"}</Btn>
+        <Btn kind={done ? "ghost" : ""} disabled={!canEdit} onClick={submit}>{r.saving ? "提出中" : done ? "直して提出する" : "提出する"}</Btn>
       </div>
     </div>
   );

@@ -375,7 +375,7 @@ function SeatingBoard({ data, courseId, setData, say }) {
           <span className="row">
             {rounds.length ? <select className="in sx-round" aria-label="回" value={roundId} onChange={e => pickRound(e.target.value)}>{rounds.map(r => <option key={r.roundId} value={r.roundId}>{r.title}{r.status === "confirmed" ? "（確定）" : "（下書き）"}</option>)}</select> : <Chip>回なし</Chip>}
             <Btn kind="ghost sm" disabled={!!busy} onClick={() => newRound(false)}>＋ 新しい回</Btn>
-            {Object.keys(round?.assign || {}).length > 0 && <Btn kind="ghost sm" disabled={!!busy} onClick={() => newRound(false, true)}>この並びを写して新しい回へ</Btn>}
+            {round?.status === "confirmed" && <Btn kind="ghost sm" disabled={!!busy} onClick={() => newRound(false, true)}>この並びを写して第{rounds.length + 1}回へ</Btn>}
             <Chip>席 {seatCount} ・ 教室 {people.length - online.length} 人</Chip>
             {layout.desks.length > 0 && <Chip tone={totAgain ? "bad" : "ok"}>前回と同じ机 {totAgain} 人</Chip>}
             {(dirty.layout || dirty.round) && <Chip tone="warn">保存していない変更</Chip>}
@@ -383,7 +383,7 @@ function SeatingBoard({ data, courseId, setData, say }) {
           <span className="r">
             <Btn kind="ghost sm" onClick={async () => { if (edit && dirty.layout) await saveLayout(); setEdit(v => !v); setSel(null); }}>{edit ? "編集を終える" : "レイアウトを編集"}</Btn>
             <Btn kind="ghost sm" disabled={!history.length} onClick={undo}>戻す</Btn>
-            <Btn kind="ghost sm" onClick={() => window.print()}>座席表を印刷</Btn>
+            <Btn kind="ghost sm" onClick={() => window.print()}>PDF で出力</Btn>
           </span>
         </div>
         {err && <div className="lms-err" role="alert">{err}</div>}
@@ -408,7 +408,7 @@ function SeatingBoard({ data, courseId, setData, say }) {
       </Card>
       {!edit && (
         <Card className="pad st-g">
-          <div className="head"><h2 className="h2">配置</h2><span className="r"><Btn kind="ghost sm" disabled={!seatCount} onClick={runAuto}>{Object.keys(assign).length ? "AI で配置し直す" : "AI で配置"}</Btn><Btn kind="ghost sm" disabled={!!busy} onClick={() => saveRound("")}>{busy === "round" ? "保存しています" : "保存"}</Btn><Btn kind="sm" disabled={!!busy} onClick={() => saveRound("confirmed")}>{busy === "confirmed" ? "確定しています" : "確定"}</Btn></span></div>
+          <div className="head"><h2 className="h2">配置</h2><span className="r"><Btn kind="ghost sm" disabled={!seatCount} onClick={runAuto}>{Object.keys(assign).length ? "AI で配置し直す" : "AI で配置"}</Btn><Btn kind="ghost sm" disabled={!!busy} onClick={() => saveRound("")}>{busy === "round" ? "保存しています" : "保存"}</Btn><Btn kind="sm" disabled={!!busy} onClick={() => saveRound("confirmed")}>{busy === "confirmed" ? "確定しています" : "確定する"}</Btn></span></div>
           {layout.desks.length > 0 && <AskBox chat={chat} busy={busy === "ask"} onAsk={ask} onApply={applyMoves} onReject={i => { setChat(c => c.map((x, j) => (j === i ? { ...x, state: "rejected" } : x))); setPending(null); }} />}
         </Card>
       )}
@@ -442,10 +442,10 @@ function AskBox({ chat, busy, onAsk, onApply, onReject }) {
             )))}
           {busy && <Chip>考えています</Chip>}
         </div>
-      ) : <div className="row">{["前回同じ机の人を離す", "○○さんを前の席に", "○○さんと○○さんを別の机に"].map(t => <button key={t} type="button" className="chip qk" onClick={() => setText(t)}>{t}</button>)}</div>}
+      ) : <div className="row">{["前回同じ机の人を離す", "テストの点が近い人を同じ机に", "質問が多い人を前の机に"].map(t => <button key={t} type="button" className="chip qk" onClick={() => setText(t)}>{t}</button>)}</div>}
       <form className="row sx-nw" onSubmit={e => { e.preventDefault(); if (!text.trim()) return; onAsk(text); setText(""); }}>
-        <input type="text" value={text} maxLength={400} placeholder="例：田中さんと山口さんは離したい" aria-label="AI に頼む" onChange={e => setText(e.target.value)} />
-        <Btn kind="sm" type="submit" disabled={busy || !text.trim()}>送る</Btn>
+        <input type="text" value={text} maxLength={400} placeholder="例：前回同じ机の人を離す" aria-label="AI に頼む" onChange={e => setText(e.target.value)} />
+        <Btn kind="sm" type="submit" disabled={busy || !text.trim()}>案を出す</Btn>
       </form>
     </div>
   );

@@ -89,19 +89,19 @@ export default function StaffAnn({ role, say }) {
           {ro ? <div className="field">宛先<span className="row"><span className="th-pill ok"><i aria-hidden="true" />{to}</span></span></div> : (
             <div className="field">宛先<span className="row"><label className="st-ck"><input type="checkbox" checked={v.toTrainee} onChange={e => f("toTrainee", e.target.checked)} />受講生{n != null ? ` ${n} 人` : ""}</label><label className="st-ck"><input type="checkbox" checked={v.toClient} onChange={e => f("toClient", e.target.checked)} />企業担当者</label></span></div>
           )}
-          <label className="field">件名<input type="text" value={v.title} onChange={e => f("title", e.target.value)} /></label>
+          <label className="field">件名<input type="text" value={v.title} placeholder="例：明日の開始時間について" onChange={e => f("title", e.target.value)} /></label>
           {!ro && <div className="an-ai"><input type="text" value={points} placeholder="伝えたいこと（例：明日は 10 時開始）" aria-label="伝えたいこと" onChange={e => setPoints(e.target.value)} /><Btn kind="ghost sm" disabled={!!busy} onClick={() => ai("draft")}>{busy === "draft" ? "書いています" : "AI で書く"}</Btn></div>}
-          <label className="field">本文<textarea rows={5} value={v.body} onChange={e => f("body", e.target.value)} /></label>
+          <label className="field">本文<textarea rows={5} value={v.body} placeholder="本文" onChange={e => f("body", e.target.value)} /></label>
           {!ro && <span className="row">{[["rewrite", "言い換える"], ["rewriteSoft", "やさしく"], ["rewriteShort", "短く"], ["rewriteEn", "英語も添える"]].map(([k, t]) => <Btn key={k} kind="ghost sm" disabled={!!busy || !v.body.trim()} onClick={() => ai(k)}>{busy === k ? "作っています" : t}</Btn>)}</span>}
           <div className="st-fg">
-            <label className="field">いつ<select className="in" value={v.when} onChange={e => f("when", e.target.value)}><option value="now">すぐに出す</option><option value="at">日時を決める</option></select></label>
+            <div className="field">出す時<span className="seg"><button type="button" aria-pressed={v.when === "now"} onClick={() => f("when", "now")}>すぐ</button><button type="button" aria-pressed={v.when === "at"} onClick={() => f("when", "at")}>日時を決める</button></span></div>
             {v.when === "at" && <label className="field">日時<input type="datetime-local" value={v.at} onChange={e => f("at", e.target.value)} /></label>}
           </div>
           <span className="row"><label className="st-ck"><input type="checkbox" checked={v.important} onChange={e => f("important", e.target.checked)} />重要</label><span style={{ marginLeft: "auto" }} /><Btn onClick={open}>確かめて出す</Btn></span>
           {err && <div className="lms-err" role="alert">{err}</div>}
         </Card>
         <Card className="pad hc-c">
-          <div className="head"><h2 className="h2">{ro ? "お知らせ" : "出したお知らせ"}</h2><span className="r"><Chip>{list.length}</Chip></span></div>
+          <div className="head"><h2 className="h2">{ro ? "お知らせ" : "送信済みのお知らせ"}</h2><span className="r"><Chip>{list.length}</Chip></span></div>
           {(mine === null || recv === null) && <div className="empty"><b>お知らせを確認できません</b><Btn kind="ghost sm" onClick={load}>再読み込み</Btn></div>}
           <div className="hc-al">
             {list.map(a => {

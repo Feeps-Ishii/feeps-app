@@ -58,7 +58,7 @@ function Today({ a, say }) {
             : <button type="button" className="ta-p go" disabled={!ok || a.saving} onClick={() => punch({ in: nowHM() }, "出勤しました")}><span>出勤</span><b>出勤する</b><small>今の時刻で記録</small></button>}
           {outT
             ? <div className="ta-p done"><span>退勤</span><b className="num">{outT}</b><small>✓ 記録済み</small></div>
-            : <button type="button" className={`ta-p ${inT ? "go" : "wait"}`} disabled={!ok || !inT || a.saving} onClick={() => punch({ out: nowHM() }, "退勤しました")}><span>退勤</span><b>退勤する</b><small>{inT ? "日報のあと" : "出勤のあと"}</small></button>}
+            : <button type="button" className={`ta-p ${inT ? "go" : "wait"}`} disabled={!ok || !inT || a.saving} onClick={() => punch({ out: nowHM() }, "退勤しました")}><span>退勤</span><b>退勤する</b><small>{inT ? "日報を出してから" : "出勤のあと"}</small></button>}
         </div>
       )}
       {!off && ((!inT && standardIn(course)) || (inT && !outT && standardOut(course))) && (

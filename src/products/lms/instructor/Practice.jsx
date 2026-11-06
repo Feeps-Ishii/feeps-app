@@ -208,8 +208,8 @@ export default function InstructorPractice({ say }) {
       <div className="head"><div><div className="eyebrow">{sc.course?.name}</div><h1 className="h1">練習問題</h1></div><span className="r"><Btn kind="sm" onClick={() => setMaking(true)}>Word から作る</Btn></span></div>
       {sets === null ? <Card><div className="empty"><b>練習問題を確認できません</b><Btn kind="ghost sm" onClick={() => setKey(k => k + 1)}>再読み込み</Btn></div></Card> : sets === undefined ? <div className="soon card">読み込み中</div> : (
         <>
-          <ListTool tabs={[["all", "すべて", all.length], ["published", "公開中", all.filter(s => s.status === "published").length, "ok"], ["draft", "下書き", all.filter(s => s.status === "draft").length, "warn"]]} tab={tab} onTab={setTab} q={text} onQ={setText} placeholder="問題集を探す" sorts={[["low", "進みの低い順"], ["due", "締め切りの近い順"], ["name", "名前順"]]} sort={sort} onSort={setSort} />
-          <Card className=""><div className="scroll"><table className="tbl pc-t"><thead><tr><th>問題集</th><th>状態</th><th>問題</th><th>締め切り</th><th>できた（平均）</th><th /></tr></thead><tbody>
+          <ListTool tabs={[["all", "すべて", all.length], ["published", "公開中", all.filter(s => s.status === "published").length, "ok"], ["draft", "下書き", all.filter(s => s.status === "draft").length, "warn"]]} tab={tab} onTab={setTab} q={text} onQ={setText} placeholder="練習問題を探す" sorts={[["low", "進みの低い順"], ["due", "締め切りの近い順"], ["name", "名前順"]]} sort={sort} onSort={setSort} />
+          <Card className=""><div className="scroll"><table className="tbl pc-t"><thead><tr><th>練習問題</th><th>状態</th><th>問題</th><th>締め切り</th><th>できた（平均）</th><th /></tr></thead><tbody>
             {list.map(s => {
               const [label, tone] = STATUS[s.status] || STATUS.draft, wip = s.status === "new" || s.status === "building";
               return (

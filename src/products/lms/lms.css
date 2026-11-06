@@ -15,7 +15,7 @@
   --body: "Zen Kaku Gothic New", "Hiragino Kaku Gothic ProN", "Yu Gothic UI", Meiryo, system-ui, sans-serif;
   --display: "Zen Kaku Gothic Antique", "Zen Kaku Gothic New", sans-serif;
   --num: Manrope, "Helvetica Neue", Arial, sans-serif;
-  min-height: 100vh; background: var(--bg); color: var(--ink); font-family: var(--body); font-size: 15px; line-height: 1.65;
+  min-height: 100vh; background: var(--paper); color: var(--ink); font-family: var(--body); font-size: 15px; line-height: 1.65;
   word-break: auto-phrase; line-break: strict; overflow-wrap: anywhere; display: flex; flex-direction: column;
 }
 .lms *, .lms *::before, .lms *::after { box-sizing: border-box }
@@ -45,7 +45,7 @@
 .lms-bar.admin .lms-ng > button { color: #C9CFD6 }
 .lms-ng > button[aria-current="page"] { background: var(--ink); color: #fff }
 .lms-bar.admin .lms-ng > button[aria-current="page"] { background: var(--tm-d); color: #fff }
-.lms-ng > button .cv { opacity: .55; display: inline-flex }
+.lms-ng > button .cv { font-size: 10px; opacity: .55; margin-left: -2px }
 .lms-drop { display: none; position: absolute; top: 100%; left: -10px; z-index: 45; padding-top: 10px; min-width: 248px }
 .lms-ng:hover .lms-drop { display: block }
 .lms-ng:has(:focus-visible) .lms-drop { display: block } /* キーボードのときだけ。マウスで押したあとは残さない */
@@ -71,7 +71,7 @@
 .lms-bnav { display: none }
 .lms-mode, .lms-me, .lms-logo { flex: none } .lms-nav { flex-wrap: nowrap; min-width: 0 } .lms-um b, .lms-um small { white-space: nowrap }
 @media (max-width: 1100px) {
-  .lms-um > span:last-child { display: none } .lms-um { padding: 4px }
+  .lms-um > span:nth-of-type(2), .lms-um > i { display: none } .lms-um { padding: 4px }
   .lms-ng > button { padding: 6px 10px } .lms-ng > button .cv { display: none }
 }
 .lms-sheet { position: fixed; inset: 0; z-index: 60; background: rgba(31, 38, 36, .38); display: grid; align-items: end }
@@ -888,17 +888,7 @@
 .lms .wl-s li { display: grid; grid-template-columns: 26px minmax(0, 1fr) auto; gap: 10px; align-items: center; padding: 8px 10px; border-radius: 12px; background: var(--paper) }
 .lms .wl-s i { width: 24px; height: 24px; display: grid; place-items: center; border-radius: 50%; background: var(--card); font-style: normal; font-size: 12.5px; font-weight: 700 }
 
-/* 探す・使い方（2026-11-05） */
-.lms-ask { position: relative; width: 230px; flex: none }
-.lms-ask input { width: 100%; height: 34px; border-radius: 999px; border: 1px solid var(--line); background: var(--soft); color: var(--ink); padding: 0 14px; font-size: 13px }
-.lms-ask .lms-pop { left: auto; right: 0; width: 330px; max-width: calc(100vw - 32px); display: grid; gap: 2px }
-.lms-ask .lms-pop button { display: grid; gap: 1px; width: 100% }
-.lms-ask .lms-pop button[aria-selected="true"] { background: var(--soft) }
-.lms-ask .lms-pop small { font-size: 11.5px; font-weight: 500; color: var(--muted) }
-.lms-ask .lms-pop .none { padding: 9px 12px }
-@media (max-width: 1280px) { .lms-bar .lms-ask { display: none } }
-.lms-sheet .lms-ask { width: 100% }
-.lms-sheet .lms-ask .lms-pop { position: static; width: 100%; margin-top: 6px; box-shadow: none }
+/* 使い方（2026-11-05） */
 .lms-help-q { display: flex; gap: 8px }
 .lms-help-q input { flex: 1; min-width: 0 }
 .lms-help-a { display: grid; gap: 10px; border: 1px solid var(--line); border-radius: 14px; padding: 14px }
@@ -909,3 +899,10 @@
 .lms .st .tx-cat { width: auto; max-width: 240px }
 .lms .gm-t { max-height: 52vh; overflow: auto }
 .lms .gm-t small { display: block }
+
+/* モックに合わせる（2026-11-06）：コードの文字、メニューの件数の印、右上の ≡ */
+.lms.lms { --mono: "JetBrains Mono", ui-monospace, monospace }
+.lms-ng .n { font-family: var(--mono); font-size: 11px; background: var(--red); color: #fff; border-radius: 999px; padding: 0 6px; line-height: 1.6 }
+.lms-di .n { margin-left: auto }
+.lms-sub .n { font-family: var(--mono); font-size: 11px; background: var(--amber-soft); color: var(--amber); border-radius: 999px; padding: 0 6px; margin-left: 6px }
+.lms-um > i { font-style: normal }

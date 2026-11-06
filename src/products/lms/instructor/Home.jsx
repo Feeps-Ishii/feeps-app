@@ -9,7 +9,7 @@ import { PRing, PSeg } from "../staff/parts.jsx";
 import { TaskList, useTasks } from "./Task.jsx";
 import WeeklyCard from "./Weekly.jsx";
 
-/* 講師・コース担当者のホーム（モック homeI）：今日の日報と勤怠、タスク、出したお知らせ */
+/* 講師・コース担当者のホーム（モック homeI）：今日の日報と勤怠、タスク、送信済みのお知らせ */
 
 export default function InstructorHome({ go, say }) {
   const today = todayStr();
@@ -75,7 +75,7 @@ export default function InstructorHome({ go, say }) {
           <TaskList t={tasks} list={tasks.open.slice(0, 4)} today={today} say={say} />
         </Card>
         <Card className="pad">
-          <div className="head"><h2 className="h2">出したお知らせ</h2><span className="r"><Btn kind="sm" onClick={() => go("ann")}>お知らせを出す</Btn></span></div>
+          <div className="head"><h2 className="h2">送信済みのお知らせ</h2><span className="r"><Btn kind="sm" onClick={() => go("ann")}>お知らせを出す</Btn></span></div>
           {anns === null && <div className="empty"><b>お知らせを確認できません</b><Btn kind="ghost sm" onClick={() => setKey(k => k + 1)}>再読み込み</Btn></div>}
           <div className="ih-sent">{sent.map(a => <button key={a.announcementId} type="button" className="ih-si" onClick={() => go("ann")}><span className="num">{md(a.publishedAt || a.createdAt)}</span><b>{a.title}</b>{a.importance === "important" && <Chip tone="bad">重要</Chip>}{a.targetCount != null && <span className="ih-rd num">既読 {a.readCount}/{a.targetCount}</span>}</button>)}</div>
           {anns && !sent.length && <Chip>なし</Chip>}

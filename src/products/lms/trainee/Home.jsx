@@ -3,7 +3,6 @@ import { ackKeys } from "../../training/acks.js";
 import { useTraineeHome } from "./useTraineeHome.js";
 import { Btn, Cal, Card, Chip, Hero, Kpi, Modal, weekday } from "../parts/ui.jsx";
 import { Icon } from "../parts/icons.jsx";
-import { SurveyPrompt } from "../staff/Survey.jsx";
 
 /* 受講生のホーム（モック homeT）：上に日付と出勤・終わり、左に「次にやること」の色の面、右に今日の流れ、
    下に締め切りとお知らせ。次にやることは 出勤 → 今日の目標 → 単元を学ぶ → 日報 → 退勤 の順 */
@@ -122,7 +121,6 @@ export default function TraineeHome({ go, say }) {
         )}
       </div>
 
-      <SurveyPrompt say={say} />
       {wel && (() => { const rows = steps(d).filter(x => x.k === "in" || x.k === "goal"); return rows.every(x => x.done) ? null : <Modal title="はじめての日" width={460} onClose={closeWel} footer={<><Btn kind="ghost" onClick={closeWel}>あとで</Btn><Btn kind="ghost" onClick={() => { closeWel(); window.dispatchEvent(new Event("lms:help")); }}>使い方を見る</Btn></>}><ol className="wl-s"><li className="done"><i>✓</i><b>パスワードを決める</b><Chip tone="ok">済</Chip></li>{rows.map((x, i) => <li key={x.k} className={x.done ? "done" : ""}><i>{x.done ? "✓" : i + 2}</i><b>{x.k === "in" ? "出勤する" : "今日の目標を書く"}</b>{x.done ? <Chip tone="ok">済</Chip> : <Btn kind="sm" onClick={() => { closeWel(); go(x.go); }}>する →</Btn>}</li>)}</ol></Modal>; })()}
       <div className="th-row">
         <Card className="pad">

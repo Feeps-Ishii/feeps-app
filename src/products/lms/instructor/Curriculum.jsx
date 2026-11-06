@@ -111,7 +111,7 @@ export default function InstructorCurriculum({ role, go, say }) {
   return (
     <div className="st">
       <div className="head"><div><div className="eyebrow">{sc.course.name}</div><h1 className="h1">カリキュラム</h1></div>
-        <span className="r">{seg}{st.sections.length > 0 && <Btn kind="ghost sm" onClick={() => setOpen(allOpen ? {} : Object.fromEntries(st.sections.map(s => [s.id, true])))}>{allOpen ? "すべて閉じる" : "すべて開く"}</Btn>}{st.sections.length > 0 && <Btn kind="ghost sm" onClick={() => setLay("move")}>日程を並べ直す</Btn>}{st.sections.length > 0 && <Btn kind="ghost sm" onClick={() => setLay("copy")}>別のコースに写す</Btn>}<Btn kind="sm" onClick={() => setEdit(true)}>編集する</Btn></span>
+        <span className="r">{seg}{st.sections.length > 0 && <Btn kind="ghost sm" onClick={() => setOpen(allOpen ? {} : Object.fromEntries(st.sections.map(s => [s.id, true])))}>{allOpen ? "すべて閉じる" : "すべて開く"}</Btn>}{st.sections.length > 0 && <Btn kind="ghost sm" onClick={() => setLay("move")}>日程を並べ直す</Btn>}{st.sections.length > 0 && <Btn kind="ghost sm" onClick={() => setLay("copy")}>別のコースに写す</Btn>}<Btn kind="sm" onClick={() => setEdit(true)}>✎ 編集する</Btn></span>
       </div>
       {err && <div className="lms-err" role="alert">{err}</div>}
       {st.tests === null && <div className="lms-err" role="alert">テストを確認できません</div>}

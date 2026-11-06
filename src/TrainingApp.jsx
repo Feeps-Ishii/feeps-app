@@ -1804,7 +1804,7 @@ export default function App() {
     };
     return (
       <Suspense fallback={<PageLoading />}>
-        <LmsApp role={role} manager={isManager && role === "instructor"} displayName={displayName} unread={notif} onLogout={logout}
+        <LmsApp role={role} manager={isManager && role === "instructor"} displayName={displayName} unread={notif} badges={navBadges} onLogout={logout}
           tasks={{ done: taskDone, goals, toggle, setGoals: handleSetGoals, saveState: taskSaveState, dataState: taskDataState, retry: () => setTaskReloadKey(value => value + 1) }}
           onLegacy={() => { storageSet("feeps.lms", "off"); setLmsPref("off"); }} renderLegacy={renderLmsLegacy} />
       </Suspense>

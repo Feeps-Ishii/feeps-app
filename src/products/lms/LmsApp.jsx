@@ -7,7 +7,7 @@ import { DevHubMark } from "../../components/common/DevHubMark.jsx";
 import { LMS_BNAV, LMS_LEGACY, LMS_ROLE_LABEL, lmsGroups, lmsLabel } from "./LmsCatalog.js";
 import { Icon } from "./parts/icons.jsx";
 import { Soon } from "./parts/ui.jsx";
-import { AskBar, HelpPanel, PasswordModal } from "./parts/Ask.jsx";
+import { HelpPanel, PasswordModal } from "./parts/Ask.jsx";
 import { ChatToasts } from "../training/ChatNotifier.jsx";
 import CourseSwitch from "./parts/CourseSwitch.jsx";
 import { LMS_SCREENS } from "./screens.js";
@@ -44,7 +44,7 @@ const LOC_KEY = "feeps.lms.loc";
 const readLoc = () => { try { return window.sessionStorage.getItem(LOC_KEY) || "home"; } catch { return "home"; } };
 const saveLoc = s => { try { window.sessionStorage.setItem(LOC_KEY, s); } catch { /* 読み直すとホームに戻るだけ */ } };
 
-export default function LmsApp({ role, manager = false, displayName, unread = 0, tasks, onLogout, onLegacy, renderLegacy }) {
+export default function LmsApp({ role, manager = false, displayName, unread = 0, badges = {}, tasks, onLogout, onLegacy, renderLegacy }) {
   const [off, setOff] = useState([]);          // コースの設定で切った機能（読めないときは全部出す）
   const groups = useMemo(() => lmsGroups(role).map(g => [g[0], g[1], g[2].filter(s => !off.includes(s[0]))]).filter(g => g[2].length), [role, off]);
   const keys = groups.flatMap(g => g[2].map(s => s[0]));
@@ -62,6 +62,8 @@ export default function LmsApp({ role, manager = false, displayName, unread = 0,
   const cur = groups.find(g => g[2].some(s => s[0] === screen)) || groups[0];
   const go = k => { setExtra(null); setScreen(k); saveLoc(k); setPop(""); setSheet(false); const g = groups.find(x => x[2].some(s => s[0] === k)); if (g) setLastIn(m => ({ ...m, [g[0]]: k })); window.scrollTo?.(0, 0); };
   const say = t => setToast(t);
+  // メニューの件数の印（モックと同じく講師・コース担当者だけ。数は今の画面のメニューと同じ通知から）
+  const nOf = k => { if (role !== "instructor") return 0; const v = LMS_LEGACY[role]?.[k]; return (v && badges?.[v]) || 0; };
   useEffect(() => { const open = () => setHelp(""); window.addEventListener("lms:help", open); return () => window.removeEventListener("lms:help", open); }, []);
   useEffect(() => {
     if (role === "admin") return undefined;
@@ -103,14 +105,14 @@ export default function LmsApp({ role, manager = false, displayName, unread = 0,
             {groups.map(([gk, gt, subs]) => (
               <div className="lms-ng" key={gk}>
                 <button type="button" aria-current={cur[0] === gk ? "page" : undefined} aria-haspopup="true" onClick={() => go(lastIn[gk] || subs[0][0])}>
-                  {gt}<span className="cv"><Icon k="down" size={12} /></span>
+                  {gt}<span className="cv" aria-hidden="true">▾</span>{cur[0] !== gk && subs.reduce((n, s) => n + nOf(s[0]), 0) > 0 && <span className="n">{subs.reduce((n, s) => n + nOf(s[0]), 0)}</span>}
                 </button>
                 <div className="lms-drop">
                   <div className="lms-dc" role="menu" aria-label={gt}>
                     <div className="lms-dh">{gt}</div>
                     {subs.map(([k, t]) => (
                       <button key={k} type="button" role="menuitem" className="lms-di" aria-current={screen === k && !extra ? "page" : undefined} onClick={e => { e.currentTarget.blur(); go(k); }}>
-                        <span className="ic"><Icon k={k} /></span><span>{t}</span>
+                        <span className="ic"><Icon k={k} /></span><span>{t}</span>{nOf(k) > 0 && <span className="n">{nOf(k)}</span>}
                       </button>
                     ))}
                   </div>
@@ -119,13 +121,12 @@ export default function LmsApp({ role, manager = false, displayName, unread = 0,
             ))}
           </nav>
           <div className="lms-me">
-            <AskBar role={role} groups={groups} onGo={go} onHelp={setHelp} />
             <button type="button" className="lms-bell" aria-label="通知" onClick={() => { setExtra("notifications"); setPop(""); }}>
               <Icon k="bell" />{unread > 0 && <em>{unread}</em>}
             </button>
             <button type="button" className="lms-um" aria-expanded={pop === "me"} onClick={() => setPop(p => (p === "me" ? "" : "me"))}>
               <span className="face" style={{ width: 28, height: 28, fontSize: 12 }}>{String(displayName || "?").slice(0, 1)}</span>
-              <span><b>{displayName}</b><small>{label}</small></span>
+              <span><b>{displayName}</b><small>{label}</small></span><i aria-hidden="true">≡</i>
             </button>
             {pop === "me" && (
               <div className="lms-pop" role="menu">
@@ -141,7 +142,7 @@ export default function LmsApp({ role, manager = false, displayName, unread = 0,
       </header>
       <div className="lms-sub">
         <div className="lms-wrap" role="tablist" aria-label={cur[1]}>
-          {cur[2].map(([k, t]) => <button key={k} type="button" role="tab" aria-current={screen === k && !extra ? "page" : undefined} aria-selected={screen === k && !extra} onClick={() => go(k)}>{t}</button>)}
+          {cur[2].map(([k, t]) => <button key={k} type="button" role="tab" aria-current={screen === k && !extra ? "page" : undefined} aria-selected={screen === k && !extra} onClick={() => go(k)}>{t}{nOf(k) > 0 && <span className="n">{nOf(k)}</span>}</button>)}
           <CourseSwitch role={role} onChange={() => setCourseV(v => v + 1)} />
         </div>
       </div>
@@ -155,7 +156,6 @@ export default function LmsApp({ role, manager = false, displayName, unread = 0,
       {sheet && (
         <div className="lms-sheet" onClick={e => { if (e.target === e.currentTarget) setSheet(false); }}>
           <div role="dialog" aria-label="メニュー">
-            <AskBar role={role} groups={groups} onGo={go} onHelp={q => { setSheet(false); setHelp(q); }} />
             {groups.map(([gk, gt, subs]) => (
               <section key={gk} style={{ display: "grid", gap: 8 }}>
                 <h3>{gt}</h3>

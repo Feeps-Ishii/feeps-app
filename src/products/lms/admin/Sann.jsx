@@ -74,7 +74,7 @@ export default function AdminSann({ say }) {
                 <td className="num">{md(a.publishedAt || a.createdAt)}{a.expiresAt ? `〜${md(a.expiresAt)}` : ""}</td>
                 <td className="num">{a.targetCount != null ? `${a.readCount} / ${a.targetCount}` : "—"}</td>
                 <td><Chip tone={stateOf(a) === "公開中" ? "ok" : stateOf(a) === "予約" ? "warn" : ""}>{stateOf(a)}</Chip></td>
-                <td><span className="row st-nw"><Btn kind="ghost sm" onClick={() => setV({ ...EMPTY, id: a.announcementId, kind: a.kind || (a.importance === "important" ? "重要" : "お知らせ"), roles: { [a.audience]: true }, courseId: a.courseId || "", to: String(a.expiresAt || "").slice(0, 10), title: a.title || "", body: a.body || "" })}>直す</Btn><Btn kind="ghost sm" onClick={() => setDel(a)}>消す</Btn></span></td>
+                <td><span className="row st-nw"><Btn kind="ghost sm" onClick={() => setV({ ...EMPTY, id: a.announcementId, kind: a.kind || (a.importance === "important" ? "重要" : "お知らせ"), roles: { [a.audience]: true }, courseId: a.courseId || "", to: String(a.expiresAt || "").slice(0, 10), title: a.title || "", body: a.body || "" })}>直す</Btn><Btn kind="ghost sm" onClick={() => setDel(a)}>削除</Btn></span></td>
               </tr>
             ))}
             {!list.length && <tr><td colSpan={7}><Chip>なし</Chip></td></tr>}
@@ -82,7 +82,7 @@ export default function AdminSann({ say }) {
         </>
       )}
       {check && <Modal title="確かめて出す" width={500} onClose={() => setCheck(false)} footer={<><Btn kind="ghost" onClick={() => setCheck(false)}>直す</Btn><Btn disabled={busy} onClick={send}>{busy ? "出しています" : "出す"}</Btn></>}><dl className="kv"><div><dt>宛先</dt><dd>{picked.map(x => x[1]).join("・")}{v.courseId ? ` ・ ${courseName(v.courseId)}` : ""}</dd></div><div><dt>種類</dt><dd>{v.kind}</dd></div><div><dt>件名</dt><dd>{v.title}</dd></div><div><dt>本文</dt><dd className="st-pre">{v.body}</dd></div></dl></Modal>}
-      {del && <Modal title="お知らせを消す" width={420} onClose={() => setDel(null)} footer={<><Btn kind="ghost" onClick={() => setDel(null)}>やめる</Btn><Btn onClick={() => remove(del)}>消す</Btn></>}><b>{del.title}</b></Modal>}
+      {del && <Modal title="お知らせを削除" width={420} onClose={() => setDel(null)} footer={<><Btn kind="ghost" onClick={() => setDel(null)}>やめる</Btn><Btn onClick={() => remove(del)}>削除</Btn></>}><b>{del.title}</b></Modal>}
     </div>
   );
 }

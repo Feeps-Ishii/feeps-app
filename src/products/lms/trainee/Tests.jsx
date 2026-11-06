@@ -121,7 +121,7 @@ export default function TraineeTests({ go, say }) {
           {nx
             ? (
               <Hero cat="tst" art="tst" eyebrow="未受験のテスト" step={nx.t.dueDate ? (daysLeft(nx.t.dueDate, today) < 0 ? "期限切れ" : `あと ${daysLeft(nx.t.dueDate, today)} 日`) : undefined} title={nx.t.title || nx.t.name} sub={unitLine(nx)}>
-                <div className="row"><Btn kind="big" onClick={() => start(nx)}>{label(nx)}</Btn>{nx.ui >= 0 && <Btn kind="ghost big th-ghost" onClick={() => go("cur")}>カリキュラム</Btn>}</div>
+                <div className="row"><Btn kind="big" onClick={() => start(nx)}>{label(nx)}</Btn>{nx.ui >= 0 && <Btn kind="ghost big th-ghost" onClick={() => go("cur")}>単元を見る</Btn>}</div>
                 <div className="row th-chips"><Chip>{nx.t.q} 問</Chip>{Number(nx.t.limitMinutes) > 0 && <Chip>目安 {nx.t.limitMinutes} 分</Chip>}<Due t={nx.t} today={today} /><Chip>合格は {PASS} 点</Chip></div>
                 {todo.length > 1 && (
                   <div className="tl-more">
@@ -166,7 +166,7 @@ export default function TraineeTests({ go, say }) {
                           {wait ? <Chip>採点待ち</Chip> : <Chip tone={ok ? "ok" : "bad"}>{ok ? "合格" : "不合格"}</Chip>}
                           <span className="tl-ra">
                             <Btn kind="ghost sm" onClick={() => start(x, { saved: x.r })}>振り返る</Btn>
-                            <Btn kind={ok || wait ? "ghost sm" : "sm"} onClick={() => start(x, { fresh: true })}>もう一度</Btn>
+                            <Btn kind={ok || wait ? "ghost sm" : "sm"} onClick={() => start(x, { fresh: true })}>もう一度受ける</Btn>
                           </span>
                         </div>
                       );

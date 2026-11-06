@@ -150,7 +150,7 @@ export default function TraineeNote({ go, say }) {
   if (st.state === "nocourse") return <Card><div className="empty"><b>ノート</b><Chip>コースなし</Chip></div></Card>;
 
   const cu = d ? lessons.find(l => l.id === resolveUnitId(lessons, d.lessonId)) : null;
-  const when = d?.createdAt ? `${md(String(d.createdAt).slice(0, 10))} ${hhmm(d)}` : "いま";
+  const when = d?.createdAt ? `${Number(String(d.createdAt).slice(5, 7))} 月 ${Number(String(d.createdAt).slice(8, 10))} 日 ・ ${hhmm(d)}` : "いま";
   const mat = d?.materialId ? mats[d.materialId] : null;
 
   // 書き出すもの

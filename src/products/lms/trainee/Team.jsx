@@ -230,7 +230,7 @@ export function TeamRoomSage({ team, me, nameOf, go, say }) {
     return () => { alive = false; };
   }, [team.teamId, team.status, today]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const tabs = [["chat", "チャット"], ...(team.settings?.board ? [["board", "ボード"]] : []), ["todo", "やること"], ["files", "フォルダ"]];
+  const tabs = [["chat", "チャット"], ...(team.settings?.board ? [["board", "ボード"]] : []), ["files", "フォルダ"]];
   const cur = tabs.some(([k]) => k === tab) ? tab : "chat";
   return (
     <section className={`card tm-main c-${catOf(team)}`}>

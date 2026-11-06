@@ -123,9 +123,9 @@ export default function InstructorDone({ say }) {
         {editable ? <textarea rows={6} maxLength={4000} value={summary} aria-label="講師の所見" onChange={e => { setSummary(e.target.value); setDirty(true); }} /> : <p className="st-pre st-p">{summary || "—"}</p>}
       </Card>
       <ListTool q={q} onQ={setQ} placeholder="名前で探す" sorts={[["name", "名前順"], ["att", "出席率の低い順"], ["thi", "テスト平均の高い順"]]} sort={sort} onSort={setSort} />
-      <Card className=""><div className="scroll"><table className="tbl"><thead><tr><th>受講生</th><th>出席率</th><th>遅・早・欠</th><th>日報</th><th>テスト平均</th><th>一言</th></tr></thead><tbody>
+      <Card className=""><div className="scroll"><table className="tbl"><thead><tr><th>受講生</th><th>出席率</th><th>遅刻・欠勤</th><th>日報</th><th>テスト平均</th><th>一言</th></tr></thead><tbody>
         {list.map(t => (
-          <tr key={t.id}><td><b>{t.name}</b></td><td className="num">{pct(t.attendanceRate)}</td><td className="num">{t.late} ・ {t.early} ・ {t.absent}</td><td className="num">{pct(t.reportRate)}</td><td className="num">{t.testAverage == null ? "—" : `${t.testAverage} 点`}</td>
+          <tr key={t.id}><td><b>{t.name}</b></td><td className="num">{pct(t.attendanceRate)}</td><td className="num">{[t.late > 0 && `遅刻 ${t.late}`, t.early > 0 && `早退 ${t.early}`, t.absent > 0 && `欠勤 ${t.absent}`].filter(Boolean).join(" ・ ") || "0"}</td><td className="num">{pct(t.reportRate)}</td><td className="num">{t.testAverage == null ? "—" : `${t.testAverage} 点`}</td>
             <td className="st-note">{editable ? <textarea rows={2} maxLength={600} value={notes[t.id] || ""} aria-label={`${t.name}への一言`} onChange={e => { setNotes(n => ({ ...n, [t.id]: e.target.value })); setDirty(true); }} /> : <span className="st-pre">{notes[t.id] || "—"}</span>}</td>
           </tr>
         ))}

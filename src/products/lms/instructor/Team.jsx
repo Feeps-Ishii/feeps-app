@@ -117,7 +117,7 @@ export default function InstructorTeam({ role, go, say }) {
     <div className="st">
       <div className="head">
         <div><div className="eyebrow">{sc.course.name}</div><h1 className="h1">チーム</h1></div>
-        <span className="r">{unassigned == null ? <Chip>受講生を確認できません</Chip> : unassigned ? <Chip tone="warn">未所属 {unassigned} 人</Chip> : <Chip tone="ok">全員所属</Chip>}{canManage && roster && <Btn kind="ghost sm" onClick={() => setAiOn(true)}>AI で分ける</Btn>}{canManage && <Btn kind="ghost sm" onClick={() => setAssign(true)}>割り当て表</Btn>}<Btn kind="ghost sm" onClick={() => go("seat")}>席替えから作り直す</Btn>{canManage && <Btn kind="sm" onClick={() => setCreating(true)}>チームを作る</Btn>}</span>
+        <span className="r">{unassigned == null ? <Chip>受講生を確認できません</Chip> : unassigned ? <Chip tone="warn">未所属 {unassigned} 人</Chip> : <Chip tone="ok">全員所属</Chip>}<Btn kind="ghost sm" onClick={() => go("seat")}>席替えから作り直す</Btn></span>
       </div>
       <ListTool tabs={[["now", "今のチーム", now.length], ["past", "終わったチーム", past.length]]} tab={tab} onTab={setTab} q={q} onQ={setQ} placeholder="チーム・テーマ・名前で探す" />
       {msg && <div className="lms-err" role="alert">{msg}</div>}

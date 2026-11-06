@@ -200,9 +200,10 @@ function StaffFolder({ role, say, view = "all" }) {
 
   const q0 = q.trim().toLowerCase();
   const list = useMemo(() => {
-    const base = q0 ? nodes.filter(n => n.nodeId !== ROOT && nameOf(n).toLowerCase().includes(q0)) : nodes.filter(n => here && n.parentId === here.nodeId);
+    const inHere = n => { let c = n; const seen = new Set(); while (c && !seen.has(c.nodeId)) { if (c.nodeId === here?.nodeId) return true; seen.add(c.nodeId); c = byId.get(c.parentId); } return false; };
+    const base = q0 ? nodes.filter(n => n.nodeId !== ROOT && n.nodeId !== here?.nodeId && inHere(n) && nameOf(n).toLowerCase().includes(q0)) : nodes.filter(n => here && n.parentId === here.nodeId);
     return [...base].sort((a, b) => (isDir(a) === isDir(b) ? SORTS[sort](a, b) : isDir(a) ? -1 : 1));
-  }, [nodes, here, q0, sort]);
+  }, [nodes, byId, here, q0, sort]);
 
   const unitOpts = useMemo(() => units.flatMap(s => [{ v: `section:${s.id}`, t: s.title || "名称未設定" }, ...arr(s.chapters).flatMap(c => arr(c.lessons).map(l => ({ v: `lesson:${l.id}`, t: `　${c.title || "章"} / ${l.title || "名称未設定"}` })))]), [units]);
 
@@ -299,7 +300,7 @@ function StaffFolder({ role, say, view = "all" }) {
   return (
     <div className="st">
       <div className="head"><h1 className="h1">フォルダ</h1>
-        <span className="r">{showCourses && arr(courses).length > 0 && <Btn kind="ghost sm" onClick={() => setOverview(v => !v)}>{overview ? "フォルダへ戻る" : "見え方の一覧"}</Btn>}{admin && <Btn kind="ghost sm" onClick={openUsage}>容量と費用</Btn>}</span>
+        <span className="r">{showCourses && arr(courses).length > 0 && <Btn kind="ghost sm" onClick={() => setOverview(v => !v)}>{overview ? "フォルダへ戻る" : "見え方の一覧"}</Btn>}</span>
       </div>
       {courses === null && <div className="lms-err" role="alert">コースを確認できません</div>}
       {err && <div className="lms-err" role="alert">{err}</div>}
@@ -357,7 +358,7 @@ function StaffFolder({ role, say, view = "all" }) {
                     <span className="row">
                       {data.quotaBytes > 0 && <Chip><span className="num">{fmtSize(data.usedBytes || 0)} / {fmtSize(data.quotaBytes)}</span></Chip>}
                       <label className="fsort">並べ替え<select className="in" value={sort} onChange={e => setSort(e.target.value)}><option value="name">名前順</option><option value="new">新しい順</option><option value="size">大きい順</option></select></label>
-                      <span className="fsearch"><input type="search" value={q} placeholder="この置き場から探す" aria-label="この置き場から探す" onChange={e => setQ(e.target.value)} /></span>
+                      <span className="fsearch"><input type="search" value={q} placeholder="このフォルダで探す" aria-label="このフォルダで探す" onChange={e => setQ(e.target.value)} /></span>
                     </span>
                   </div>
                   <div className="scroll"><table className="tbl fs-t"><thead><tr><th>名前</th><th>更新日</th><th>大きさ</th><th>公開範囲</th><th aria-label="操作" /></tr></thead><tbody>
