@@ -17,7 +17,7 @@ const rangeOf = s => {
   return ds.length ? { start: ds[0], end: ds[ds.length - 1] } : null;
 };
 const statusTone = s => (s === "published" ? "ok" : s === "draft" ? "warn" : "");
-const statusLabel = s => (s === "published" ? "公開" : s === "draft" ? "下書き" : s === "archived" ? "保管" : "未設定");
+const statusLabel = s => (s === "published" ? "公開中" : s === "draft" ? "下書き" : s === "archived" ? "保管" : "未設定");
 
 function AssignModal({ test, courses, canAssign, onClose, onSaved }) {
   const [ids, setIds] = useState(testCourseIdList(test));
@@ -318,8 +318,17 @@ export default function StaffTests({ role, go, say }) {
       )}
     </td>
   );
+  const toCommon = async t => { setErr(""); try { await apiPut(`/tests/${testIdOf(t)}`, { common: true }); say?.("全コース共通にしました"); reload(); } catch (e) { setErr(errText(e, "共通にできませんでした")); } };
   const row = t => {
     const s = statOf(t);
+    if (!admin) return (
+      <tr key={testIdOf(t)}>
+        <td><b>{t.title}</b>{t.common && <> <Chip tone="mk">共通</Chip></>}<small className="sm2">{testQuestionsOf(t).length}問</small></td>
+        <td className="num tat">{t.dueDate ? md(t.dueDate) : "—"}{t.limitMinutes ? <small className="sm2">目安 {t.limitMinutes}分</small> : null}</td>
+        <td>{statusCell(t)}</td><td className="num">{tookCell(s)}</td><td className="num">{avgCell(s)}</td>
+        <td><span className="row st-nw"><Btn kind="ghost sm" onClick={() => setResults(t)}>結果</Btn><Btn kind="ghost sm" onClick={() => setBuild({ mode: "manual", test: t })}>直す</Btn>{!t.common && <Btn kind="ghost sm" onClick={() => toCommon(t)}>全コース共通にする</Btn>}</span></td>
+      </tr>
+    );
     return (
       <tr key={testIdOf(t)} className={menu === testIdOf(t) ? "on" : ""}>
         <td><button type="button" className="fs-name" onClick={() => setResults(t)}><span><b>{t.title}</b><small className="fs-meta num">{t.category ? `${t.category} ・ ` : ""}{statusLabel(t.status)} ・ 受けた {s.state === "ready" ? s.n : "—"}{N ? ` / ${N}` : ""} ・ 平均 {s.avg ?? "—"}</small></span></button></td>
@@ -331,7 +340,7 @@ export default function StaffTests({ role, go, say }) {
     );
   };
   const cats = [...new Set(st.tests.map(t => t.category).filter(Boolean))].sort((a, b) => a.localeCompare(b, "ja"));
-  const table = ts => <div className="scroll"><table className="tbl fs-t tx-t"><thead><tr><th>テスト</th><th>{admin ? "使用中のコース" : "実施"}</th><th>状態</th><th>受けた</th><th>平均</th><th /><th aria-label="操作" /></tr></thead><tbody>{ts.map(row)}</tbody></table></div>;
+  const table = ts => <div className="scroll"><table className="tbl fs-t tx-t"><thead><tr><th>テスト</th><th>{admin ? "使用中のコース" : "実施"}</th><th>状態</th><th>受けた</th><th>平均</th><th />{admin && <th aria-label="操作" />}</tr></thead><tbody>{ts.map(row)}</tbody></table></div>;
   const modals = (
     <>
       {catOf && <CategoryModal test={catOf} cats={cats} onClose={() => setCatOf(null)} onDone={() => { setCatOf(null); say?.("保存しました"); reload(); }} />}
@@ -361,22 +370,28 @@ export default function StaffTests({ role, go, say }) {
   const curIdx = st.sections.findIndex(s => { const r = rangeOf(s); return r && r.start <= today && today <= r.end; });
   return (
     <div className="st">
-      <div className="head"><div><div className="eyebrow">{sc.course?.name}</div><h1 className="h1">テスト</h1></div><span className="r">{arr(st.others).length > 0 && <Btn kind="ghost sm" onClick={() => setAdding(true)}>共通から足す</Btn>}<Btn kind="ghost sm" onClick={() => setBuild({ mode: "ai", scope: { courseId, scopeId: "", title: "" } })}>AI で作る</Btn><Btn kind="sm" onClick={() => setBuild({ mode: "manual", scope: { courseId, scopeId: "", title: "" } })}>テストを作る</Btn></span></div>
+      <div className="head"><div><div className="eyebrow">{sc.course?.name}</div><h1 className="h1">テスト</h1></div><span className="r"><Btn kind="ghost sm" onClick={() => setAdding(true)}>共通から足す</Btn><Btn kind="sm" onClick={() => setBuild({ mode: "manual", scope: { courseId, scopeId: "", title: "" } })}>テストを作る</Btn></span></div>
       {err && <div className="lms-err" role="alert">{err}</div>}
       {roster === null && <div className="lms-err" role="alert">受講生を確認できません</div>}
+      {curIdx >= 0 && (
+        <div className="tp-now c-tst tu-now">
+          <span className="tp-nl"><span className="eyebrow">今の単元</span><b>単元 {curIdx + 1} ・ {st.sections[curIdx].title}</b><small className="num">{(r => (r ? `${md(r.start)}〜${md(r.end)} ・ ` : ""))(rangeOf(st.sections[curIdx]))}テスト {st.tests.filter(t => t.sectionId === st.sections[curIdx].id).length}</small></span>
+          <span style={{ marginLeft: "auto" }} />
+          <Btn kind="ghost sm" onClick={() => document.getElementById(`tu-test-${st.sections[curIdx].id}`)?.scrollIntoView({ behavior: "smooth", block: "start" })}>一覧で見る ↓</Btn>
+        </div>
+      )}
       <div className="tunits">
         {st.sections.map((s, i) => {
           const ts = st.tests.filter(t => t.sectionId === s.id), r = rangeOf(s);
           return (
-            <section key={s.id} className={`card tx-card${i === curIdx ? " tu-cur" : ""}`}>
-              <div className="head pad tx-h"><div className="tu-h"><span className="tu-no num" aria-hidden="true">{i + 1}</span><div><span className="eyebrow num">{r ? `${md(r.start)}〜${md(r.end)}` : "日程未設定"}</span><h2 className="h3">{s.title}</h2></div></div><span className="r"><Btn kind="ghost sm" onClick={() => setBuild({ mode: "manual", scope: { courseId, scopeId: `section:${s.id}`, title: s.title } })}>＋ テスト</Btn></span></div>
+            <section key={s.id} id={`tu-test-${s.id}`} className={`card tx-card${i === curIdx ? " tu-cur" : ""}`}>
+              <div className="head pad tx-h"><div className="tu-h"><span className="tu-no num" aria-hidden="true">{i + 1}</span><div><span className="eyebrow num">単元 {i + 1} ・ {r ? `${md(r.start)}〜${md(r.end)}` : "日程未設定"}</span><h2 className="h3">{s.title}</h2></div></div><span className="r"><Btn kind="ghost sm" onClick={() => setBuild({ mode: "manual", scope: { courseId, scopeId: `section:${s.id}`, title: s.title } })}>この単元で作る</Btn></span></div>
               {ts.length ? table(ts) : <div className="tx-e"><Chip>なし</Chip></div>}
             </section>
           );
         })}
         {whole.length > 0 && <section className="card tx-card"><div className="head pad tx-h"><h2 className="h3">コース全体</h2></div>{table(whole)}</section>}
-        {st.loose.length > 0 && <section className="card tx-card"><div className="head pad tx-h"><h2 className="h3">どのコースにも出していない</h2></div>{table(st.loose)}</section>}
-        {!st.sections.length && !whole.length && !st.loose.length && <Card className="pad"><Chip>なし</Chip></Card>}
+        {!st.sections.length && !whole.length && <Card className="pad"><Chip>なし</Chip></Card>}
       </div>
       {adding && <AddFromOthers tests={arr(st.others)} courseId={courseId} sections={st.sections} onClose={() => setAdding(false)} onDone={t => { setAdding(false); say?.(`${t.title} を足しました`); reload(); }} />}
       {modals}

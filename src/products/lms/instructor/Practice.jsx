@@ -1,9 +1,10 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { apiDelete, apiGet, apiPost, apiPut } from "../../../api.js";
 import { CodeBlock, Items, Sheet, Style } from "../../training/PracticeView.jsx";
-import { practiceNumLabel as numLabel } from "../../training/practiceLinks.js";
-import { Btn, Card, Chip, ListTool, Modal, matchName } from "../parts/ui.jsx";
+import { normalizeCurriculumSections } from "../../training/TrainingComponents.jsx";
+import { Btn, Card, Chip, Modal } from "../parts/ui.jsx";
 import { arr, errText, md, useRoster, useStaffCourse } from "../staff/common.js";
+import { todayStr } from "../../training/useTraining.js";
 
 /* 練習問題（講師・管理者。モック pracS）：問題集の一覧と受講生の「できた」の進み、Word から作る、直す・公開。
    問題の見え方は受講生と同じ部品（training/PracticeView.jsx）。API は routes/practice.mjs */
@@ -29,9 +30,9 @@ async function putFile(url, file, contentType) {
   if (!r.ok) throw new Error(`「${file.name}」を送れませんでした（${r.status}）`);
 }
 
-function CreateModal({ courseId, onClose, onMade }) {
+function CreateModal({ courseId, initial, onClose, onMade }) {
   const [title, setTitle] = useState("");
-  const [prob, setProb] = useState(null); const [ans, setAns] = useState(null);
+  const [prob, setProb] = useState(initial?.prob || null); const [ans, setAns] = useState(initial?.ans || null);
   const [busy, setBusy] = useState(""); const [err, setErr] = useState("");
   const isDocx = f => !f || /\.docx$/i.test(f.name);
   const make = async () => {
@@ -45,13 +46,19 @@ function CreateModal({ courseId, onClose, onMade }) {
       setBusy("AI が問題集にしています");
       const { jobId } = await apiPost(`/practice/${pid(c.item.id)}/build${q(courseId)}`, { hasAnswer: !!ans, problemName: prob.name, answerName: ans?.name || "" });
       await waitJob(courseId, c.item.id, jobId, i => setBusy(`AI が問題集にしています（${(i + 1) * 5} 秒）`));
+      // 単元から作ったときは、その単元に結ぶ
+      if (initial?.sectionId) {
+        const g = await apiGet(`/practice/${pid(c.item.id)}${q(courseId)}`);
+        await apiPut(`/practice/${pid(c.item.id)}${q(courseId)}`, { title: g.set.title, lessons: g.set.lessons.map(l => ({ ...l, sectionId: initial.sectionId })), warnings: g.set.warnings || [], showAnswers: g.item.showAnswers !== false, dueDate: g.item.dueDate || "" });
+      }
       onMade(c.item.id);
     } catch (e) { setErr(errText(e, "作れませんでした")); setBusy(""); }
   };
   return (
     <Modal title="練習問題を作る" width={520} onClose={() => !busy && onClose()} footer={<><Btn kind="ghost" disabled={!!busy} onClick={onClose}>やめる</Btn><Btn disabled={!!busy} onClick={make}>問題集を作る</Btn></>}>
-      <label className="field">問題の Word（必須）<input type="file" accept=".docx" disabled={!!busy} onChange={e => setProb(e.target.files?.[0] || null)} /></label>
-      <label className="field">解答の Word<input type="file" accept=".docx" disabled={!!busy} onChange={e => setAns(e.target.files?.[0] || null)} /></label>
+      {initial?.sectionTitle && <span><Chip tone="mk">単元：{initial.sectionTitle}</Chip></span>}
+      <label className="field">問題の Word（必須）<input type="file" accept=".docx" disabled={!!busy} onChange={e => setProb(e.target.files?.[0] || null)} />{prob && <small className="adsm">{prob.name}</small>}</label>
+      <label className="field">解答の Word<input type="file" accept=".docx" disabled={!!busy} onChange={e => setAns(e.target.files?.[0] || null)} />{ans && <small className="adsm">{ans.name}</small>}</label>
       <label className="field">題名（空なら Word から）<input type="text" maxLength={120} value={title} disabled={!!busy} onChange={e => setTitle(e.target.value)} /></label>
       {busy && <Chip tone="mk">{busy}</Chip>}
       {err && <div className="lms-err" role="alert">{err}</div>}
@@ -172,20 +179,30 @@ function Editor({ courseId, id, onBack, say }) {
   );
 }
 
+const rangeOf = s => {
+  const ds = [s, ...arr(s.chapters).flatMap(c => arr(c.lessons))].flatMap(x => [String(x.startDate || "").slice(0, 10), String(x.endDate || x.startDate || "").slice(0, 10)]).filter(d => /^\d{4}-/.test(d)).sort();
+  return ds.length ? { start: ds[0], end: ds[ds.length - 1] } : null;
+};
+const takeFiles = files => {
+  const list = [...files], ans = list.find(f => /解答|answer/i.test(f.name)) || null;
+  return { ans, prob: list.find(f => f !== ans) || null };
+};
+
 export default function InstructorPractice({ say }) {
   const sc = useStaffCourse();
   const courseId = sc.course?.courseId || "";
   const { list: roster } = useRoster(courseId);
   const [sets, setSets] = useState(undefined);
+  const [sections, setSections] = useState([]);
   const [key, setKey] = useState(0);
-  const [making, setMaking] = useState(false);
+  const [making, setMaking] = useState(null);
   const [editing, setEditing] = useState("");
-  const [open, setOpen] = useState(null);
-  const [tab, setTab] = useState("all"); const [text, setText] = useState(""); const [sort, setSort] = useState("low"); const [pq, setPq] = useState("");
+  const [dropOn, setDropOn] = useState(false);
   useEffect(() => {
     if (!courseId) return undefined;
     let alive = true;
     setSets(undefined);
+    apiGet(`/courses/${encodeURIComponent(courseId)}/curriculum`).then(c => { if (alive) setSections(normalizeCurriculumSections(c)); }).catch(() => { if (alive) setSections([]); });
     apiGet(`/practice${q(courseId)}`).then(async r => {
       const items = arr(r?.items);
       const full = await Promise.all(items.map(s => (s.status === "published" ? apiGet(`/practice/${pid(s.id)}/progress${q(courseId)}`).then(p => ({ ...s, rows: arr(p?.items) })).catch(() => ({ ...s, rows: null })) : Promise.resolve(s))));
@@ -197,45 +214,61 @@ export default function InstructorPractice({ say }) {
   if (sc.state === "error") return <Card><div className="empty"><b>コースを確認できません</b><Btn kind="ghost sm" onClick={sc.reload}>再読み込み</Btn></div></Card>;
   if (!courseId) return <Card><div className="empty"><b>担当のコース</b><Chip>なし</Chip></div></Card>;
   if (editing) return <Editor courseId={courseId} id={editing} say={say} onBack={() => { setEditing(""); setKey(k => k + 1); }} />;
-  const n = roster?.length || 0;
+  const n = roster?.length || 0, today = todayStr();
   const avgOf = s => { const c = s.counts?.questions || 0; return c && n && s.rows ? Math.round(s.rows.reduce((a, r) => a + r.done, 0) / (c * n) * 100) : 0; };
-  const all = arr(sets);
-  const list = all.filter(s => (!text.trim() || String(s.title || "").includes(text.trim())) && (tab === "all" || s.status === tab)).sort(
-    sort === "due" ? (a, b) => String(a.dueDate || "9").localeCompare(String(b.dueDate || "9")) : sort === "name" ? (a, b) => String(a.title || "").localeCompare(String(b.title || ""), "ja") : (a, b) => avgOf(a) - avgOf(b),
+  const all = arr(sets), ids = new Set(sections.map(s => s.id));
+  // 問題集は Lesson ごとに単元と結ぶ。結んでいないものは「コース全体」に出す
+  const rowsOf = sid => all.flatMap(s => { const ls = arr(s.lessons).filter(l => (sid ? l.sectionId === sid : !ids.has(l.sectionId))); return ls.length ? [{ s, qn: ls.reduce((a, l) => a + arr(l.nums).length, 0) }] : arr(s.lessons).length || sid ? [] : [{ s, qn: 0 }]; });
+  const curIdx = sections.findIndex(s => { const r = rangeOf(s); return r && r.start <= today && today <= r.end; });
+  const table = rows => (
+    <div className="scroll"><table className="tbl pc-t"><thead><tr><th>練習問題</th><th>使う日</th><th>状態</th><th>できた（平均）</th><th /></tr></thead><tbody>
+      {rows.map(({ s, qn }) => {
+        const [label, tone] = STATUS[s.status] || STATUS.draft, wip = s.status === "new" || s.status === "building";
+        return (
+          <tr key={s.id}>
+            <td><b>{s.title || "題名なし"}</b><small className="sm2">{qn}問 ・ ヒント・解答つき</small></td>
+            <td className="num">{s.dueDate ? `${md(s.dueDate)} まで` : "単元を通して"}</td>
+            <td><span className="row"><Chip tone={tone}>{label}</Chip>{s.hasDraftChanges && <Chip tone="warn">変更あり</Chip>}</span></td>
+            <td>{s.status !== "published" ? "—" : s.rows === null ? <Chip tone="bad">確認できません</Chip> : <span className="row sx-nw"><span className="tp-bar sm pc-bar"><i style={{ "--w": `${avgOf(s)}%` }} /></span><b className="num">{avgOf(s)}%</b></span>}</td>
+            <td><Btn kind="ghost sm" disabled={wip} onClick={() => setEditing(s.id)}>中身を確かめる ↗</Btn></td>
+          </tr>
+        );
+      })}
+    </tbody></table></div>
   );
+  const whole = rowsOf("");
   return (
     <div className="st">
-      <div className="head"><div><div className="eyebrow">{sc.course?.name}</div><h1 className="h1">練習問題</h1></div><span className="r"><Btn kind="sm" onClick={() => setMaking(true)}>Word から作る</Btn></span></div>
+      <div className="head"><div><div className="eyebrow">{sc.course?.name}</div><h1 className="h1">練習問題</h1></div><span className="r"><Btn kind="sm" onClick={() => setMaking({})}>練習問題を作る</Btn></span></div>
       {sets === null ? <Card><div className="empty"><b>練習問題を確認できません</b><Btn kind="ghost sm" onClick={() => setKey(k => k + 1)}>再読み込み</Btn></div></Card> : sets === undefined ? <div className="soon card">読み込み中</div> : (
         <>
-          <ListTool tabs={[["all", "すべて", all.length], ["published", "公開中", all.filter(s => s.status === "published").length, "ok"], ["draft", "下書き", all.filter(s => s.status === "draft").length, "warn"]]} tab={tab} onTab={setTab} q={text} onQ={setText} placeholder="練習問題を探す" sorts={[["low", "進みの低い順"], ["due", "締め切りの近い順"], ["name", "名前順"]]} sort={sort} onSort={setSort} />
-          <Card className=""><div className="scroll"><table className="tbl pc-t"><thead><tr><th>練習問題</th><th>状態</th><th>問題</th><th>締め切り</th><th>できた（平均）</th><th /></tr></thead><tbody>
-            {list.map(s => {
-              const [label, tone] = STATUS[s.status] || STATUS.draft, wip = s.status === "new" || s.status === "building";
+          <div className={`fdrop${dropOn ? " dropon" : ""}`} onDragOver={e => { e.preventDefault(); setDropOn(true); }} onDragLeave={() => setDropOn(false)} onDrop={e => { e.preventDefault(); setDropOn(false); if (e.dataTransfer.files.length) setMaking(takeFiles(e.dataTransfer.files)); }}>
+            <span className="fd-t"><b>問題と解答のファイルをここに落とす</b><small>Word ・ このコースだけに足す</small></span>
+            <label className="btn ghost sm">ファイルを選ぶ<input type="file" accept=".docx" multiple className="lms-sr" onChange={e => { const fs = e.target.files; if (fs?.length) setMaking(takeFiles(fs)); e.target.value = ""; }} /></label>
+          </div>
+          {curIdx >= 0 && (
+            <div className="tp-now c-tst tu-now">
+              <span className="tp-nl"><span className="eyebrow">今の単元</span><b>単元 {curIdx + 1} ・ {sections[curIdx].title}</b><small className="num">{(r => (r ? `${md(r.start)}〜${md(r.end)} ・ ` : ""))(rangeOf(sections[curIdx]))}練習問題 {rowsOf(sections[curIdx].id).reduce((a, x) => a + x.qn, 0)} 問</small></span>
+              <span style={{ marginLeft: "auto" }} />
+              <Btn kind="ghost sm" onClick={() => document.getElementById(`tu-prac-${sections[curIdx].id}`)?.scrollIntoView({ behavior: "smooth", block: "start" })}>一覧で見る ↓</Btn>
+            </div>
+          )}
+          <div className="tunits">
+            {sections.map((u, i) => {
+              const r = rangeOf(u), rows = rowsOf(u.id);
               return (
-                <tr key={s.id}>
-                  <td><b>{s.title || "題名なし"}</b><small className="adsm">{arr(s.lessons).map(l => `${l.no} ${numLabel(l.nums)}`).join(" / ")}</small></td>
-                  <td><span className="row"><Chip tone={tone}>{label}</Chip>{s.hasDraftChanges && <Chip tone="warn">変更あり</Chip>}{arr(s.warnings).length > 0 && <Chip tone="warn">注意 {s.warnings.length}</Chip>}</span></td>
-                  <td className="num">{s.counts?.questions || 0}</td>
-                  <td className="num">{s.dueDate ? md(s.dueDate) : "—"}</td>
-                  <td>{s.status !== "published" ? "—" : s.rows === null ? <Chip tone="bad">確認できません</Chip> : <span className="row sx-nw"><span className="tp-bar sm pc-bar"><i style={{ "--w": `${avgOf(s)}%` }} /></span><b className="num">{avgOf(s)}%</b></span>}</td>
-                  <td><span className="row sx-nw">{s.status === "published" && s.rows && <Btn kind="ghost sm" onClick={() => { setPq(""); setOpen(s); }}>人ごと</Btn>}<Btn kind="ghost sm" disabled={wip} onClick={() => setEditing(s.id)}>直す</Btn></span></td>
-                </tr>
+                <section key={u.id} id={`tu-prac-${u.id}`} className={`card tx-card${i === curIdx ? " tu-cur" : ""}`}>
+                  <div className="head pad tx-h"><div className="tu-h"><span className="tu-no num" aria-hidden="true">{i + 1}</span><div><span className="eyebrow num">単元 {i + 1} ・ {r ? `${md(r.start)}〜${md(r.end)}` : "日程未設定"}</span><h2 className="h3">{u.title}</h2></div></div><span className="r"><Btn kind="ghost sm" onClick={() => setMaking({ sectionId: u.id, sectionTitle: u.title })}>この単元で作る</Btn></span></div>
+                  {rows.length ? table(rows) : <div className="tx-e"><Chip>なし</Chip></div>}
+                </section>
               );
             })}
-            {!list.length && <tr><td colSpan={6}><Chip>なし</Chip></td></tr>}
-          </tbody></table></div></Card>
+            {whole.length > 0 && <section className="card tx-card"><div className="head pad tx-h"><h2 className="h3">コース全体</h2></div>{table(whole)}</section>}
+            {!sections.length && !whole.length && <Card className="pad"><Chip>なし</Chip></Card>}
+          </div>
         </>
       )}
-      {making && <CreateModal courseId={courseId} onClose={() => setMaking(false)} onMade={id => { setMaking(false); setEditing(id); }} />}
-      {open && (
-        <Modal title={open.title} width={520} onClose={() => setOpen(null)} footer={<Btn kind="ghost" onClick={() => setOpen(null)}>閉じる</Btn>}>
-          <span className="fsearch pc-q"><input type="search" value={pq} placeholder="名前で探す" aria-label="名前で探す" onChange={e => setPq(e.target.value)} /></span>
-          <div className="tp-ub">
-            {arr(roster).filter(p => matchName(p.name, p.kana, pq)).map(p => ({ ...p, done: open.rows.find(r => r.traineeId === p.id)?.done || 0 })).sort((a, b) => a.done - b.done).map(p => { const c = open.counts?.questions || 0; return <div key={p.id} className="st-pr"><span>{p.name}</span><span className="tp-bar sm"><i style={{ "--w": `${c ? Math.round(p.done / c * 100) : 0}%` }} /></span><b className="num">{p.done} / {c}</b></div>; })}
-          </div>
-        </Modal>
-      )}
+      {making && <CreateModal courseId={courseId} initial={making} onClose={() => setMaking(null)} onMade={id => { setMaking(null); setEditing(id); }} />}
     </div>
   );
 }
