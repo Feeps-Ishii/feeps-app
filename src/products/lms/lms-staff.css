@@ -1090,3 +1090,40 @@
 .lms .kv > div { display: grid; gap: 2px }
 .lms .kv dt { font-size: 12px; color: var(--muted); font-weight: 700 }
 .lms .kv dd { margin: 0; white-space: pre-wrap; overflow-wrap: anywhere }
+
+/* カリキュラムの編集（モック curS の編集・cuShelf） */
+.lms .cu-ed { display: grid; grid-template-columns: minmax(0, 1fr) 320px; gap: 16px; align-items: start }
+.lms .cu-shelf { position: sticky; top: 12px; padding: 16px; display: grid; gap: 10px; max-height: calc(100vh - 24px); overflow: auto; min-width: 0 }
+.lms .cu-shelf input[type="search"] { border: 1px solid var(--line); border-radius: 9px; padding: 6px 10px; background: var(--card); width: 100% }
+.lms .cu-shelf .seg { width: 100%; display: flex } .lms .cu-shelf .seg button { flex: 1; padding-inline: 4px; white-space: nowrap }
+.lms .sh-l { display: grid; gap: 6px }
+.lms .sh-i { display: grid; grid-template-columns: auto 30px minmax(0, 1fr); gap: 8px; align-items: center; border-radius: 12px; padding: 8px 10px; background: var(--paper); text-align: left; color: var(--ink); width: 100%; min-width: 0 }
+.lms .sh-i[draggable="true"] { cursor: grab } .lms .sh-i[draggable="true"]:active { cursor: grabbing }
+.lms .sh-i:hover { background: var(--soft) }
+.lms .sh-g { color: #B5BFBC; font-size: 14px; letter-spacing: -2px }
+.lms .sh-l.pick .sh-i { grid-template-columns: 30px minmax(0, 1fr) auto }
+.lms .sh-ic { width: 30px; height: 30px; border-radius: 8px; display: grid; place-items: center; background: var(--card) }
+.lms .sh-i.test .sh-ic { background: var(--tst); color: var(--tst-i) } .lms .sh-i.prac .sh-ic { background: var(--rep); color: var(--rep-i) } .lms .sh-i.unit .sh-ic { background: var(--cur); color: var(--cur-i) }
+.lms .sh-t { min-width: 0 } .lms .sh-t b { display: block; font-size: 13.5px; overflow-wrap: anywhere } .lms .sh-t small { display: block; font-size: 11.5px; color: var(--muted) }
+.lms .cu-h.ed { cursor: default } .lms .cu-h.ed:hover { background: none }
+.lms .cu-h.ed { grid-template-columns: 38px minmax(0, 1fr) auto }
+.lms .cu-in { font-size: 16px; font-weight: 700; padding: 4px 8px; width: min(100%, 360px) }
+.lms .cu-in2 { font-weight: 700; padding: 3px 8px; flex: 1 1 220px; min-width: 0; width: 100% }
+.lms .goalbox input.in { padding: 4px 8px; font-size: 13.5px; background: var(--card); width: 100%; min-width: 0 }
+.lms .cu-iw { display: inline-flex; align-items: center; gap: 2px; max-width: 100%; min-width: 0 }
+.lms .cu-pen { font-style: normal; font-size: 11px; color: var(--muted) }
+.lms .lbm { font-style: normal; font-size: 10.5px; font-weight: 700; color: var(--mk-ink); background: var(--marker-soft); border-radius: 6px; padding: 0 5px }
+.lms .cu-x { border: 0; background: none; width: 22px; height: 22px; border-radius: 6px; color: var(--muted); font-size: 15px; line-height: 1; padding: 0; flex: none }
+.lms .cu-x:hover { background: var(--red-soft); color: var(--red) }
+.lms .cu-dz, .lms .cu-end span:first-child { display: none }
+.lms .cu-ed.dragging [data-drop] { outline: 2px dashed #9FD6CF; outline-offset: -2px; border-radius: 10px }
+.lms .cu-ed.dragging .cu-dz { display: block; font-size: 12px; color: var(--mk-ink); padding: 6px 10px; border-radius: 8px; background: var(--marker-soft) }
+.lms .cu-ed.dragging .cu-end span:first-child { display: inline }
+.lms [data-drop][data-on] { outline: 2px solid var(--marker) !important; background: var(--marker-soft) }
+.lms .cu-end { display: flex; align-items: center; justify-content: center; gap: 12px; border: 2px dashed #C8D2CF; border-radius: 14px; padding: 16px; color: var(--muted); font-size: 13px }
+.lms .ce { display: grid; gap: 12px; min-width: 0 }
+@media (max-width: 1100px) { .lms .cu-ed { grid-template-columns: minmax(0, 1fr) } .lms .cu-shelf { position: static; max-height: none } }
+@media (max-width: 560px) { .lms .cu-h.ed { grid-template-columns: 38px minmax(0, 1fr) } .lms .cu-h.ed > .row { grid-column: 1 / -1 } }
+
+.lms .btn.danger { background: var(--red); color: #fff }
+.lms .btn.danger:hover { filter: brightness(.95) }
