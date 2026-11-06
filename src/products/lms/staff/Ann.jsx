@@ -4,7 +4,7 @@ import { Btn, Cal, Card, Chip, Modal } from "../parts/ui.jsx";
 import { arr, errText, hm, md, useStaffCourse, useRoster } from "./common.js";
 
 /* お知らせ（講師・コース担当者・企業担当者で共通。モック annC・annX）：左で出す（確かめて出す・日時を決めて予約も）、右に一覧と既読数。
-   講師は宛先に企業担当者を足せる・AI で書く／言い換える・未読の人を見てもう一度知らせる（既読は ADR 0033）。
+   講師は宛先に企業担当者を足せる・AI で書く／やさしく／短く／英語も添える・まだの人を見てもう一度知らせる（既読は ADR 0033）。
    企業担当者の宛先は自社の受講生 */
 
 const EMPTY = { announcementId: "", title: "", body: "", important: false, when: "now", at: "", toTrainee: true, toClient: false };
@@ -14,6 +14,8 @@ export default function StaffAnn({ role, say }) {
   const sc = useStaffCourse();
   const courseId = sc.course?.courseId || "";
   const { list: roster } = useRoster(courseId);
+  const [coName, setCoName] = useState("");
+  useEffect(() => { if (ro) apiGet("/companies").then(l => setCoName(arr(l)[0]?.name || "")).catch(() => {}); }, [ro]);
   const [mine, setMine] = useState(undefined);
   const [recv, setRecv] = useState(undefined);
   const [v, setV] = useState(EMPTY);
@@ -22,7 +24,6 @@ export default function StaffAnn({ role, say }) {
   const [err, setErr] = useState("");
   const [del, setDel] = useState(null);
   const [unread, setUnread] = useState(null); // { a, items }
-  const [points, setPoints] = useState("");
   const load = useCallback(() => {
     apiGet("/announcements").then(r => setMine(arr(r?.items))).catch(() => setMine(null));
     if (ro) apiGet("/announcements/me").then(r => setRecv(arr(r?.items))).catch(() => setRecv(null));
@@ -39,8 +40,8 @@ export default function StaffAnn({ role, say }) {
   };
   const ai = async kind => {
     const re = kind.startsWith("rewrite");
-    const text = re ? `${v.title}\n${v.body}` : points;
-    if (!text.trim()) { setErr(re ? "本文を書いてください" : "伝えたいことを書いてください"); return; }
+    const text = re ? `${v.title}\n${v.body}` : [v.title, v.body].filter(Boolean).join("\n");
+    if (!text.trim()) { setErr("件名か本文に伝えたいことを書いてください"); return; }
     setBusy(kind); setErr("");
     try {
       const r = await apiPost("/ai/staff-draft", { kind: re ? kind : "announcement", courseId, text });
@@ -57,7 +58,7 @@ export default function StaffAnn({ role, say }) {
         if (!ro && v.toClient) await apiPost("/announcements", { audience: "client", courseId: "", ...base });
       }
       say?.(v.when === "at" ? "予約しました" : "お知らせを出しました");
-      setV(EMPTY); setPoints(""); setCheck(false); load();
+      setV(EMPTY); setCheck(false); load();
     } catch (e) { setErr(errText(e, "出せませんでした")); setCheck(false); } finally { setBusy(""); }
   };
   const remove = async a => {
@@ -79,25 +80,25 @@ export default function StaffAnn({ role, say }) {
   const mineIds = new Set(arr(mine).map(a => a.announcementId));
   const list = [...arr(mine), ...arr(recv).filter(a => !mineIds.has(a.announcementId))].filter(a => ro || !a.courseId || !courseId || a.courseId === courseId).sort((a, b) => String(b.publishedAt || b.createdAt || "").localeCompare(String(a.publishedAt || a.createdAt || "")));
   const now = Date.now();
-  const to = [v.toTrainee && (ro ? `自社の受講生${n != null ? ` ${n} 人` : ""}` : `受講生${n != null ? ` ${n} 人` : ""}`), !ro && v.toClient && "企業担当者"].filter(Boolean).join("・");
+  const to = [v.toTrainee && (ro ? `${coName || "自社"}の受講生${n != null ? ` ${n} 人` : ""}` : `受講生${n != null ? ` ${n} 人` : ""}`), !ro && v.toClient && "企業担当者"].filter(Boolean).join("・");
   return (
     <div className="st">
       <div className="head"><div>{sc.course && <div className="eyebrow">{sc.course.name}</div>}<h1 className="h1">お知らせ</h1></div></div>
       <div className="g2">
         <Card className="pad hc-c">
-          <div className="head"><h2 className="h2">{v.announcementId ? "お知らせを直す" : ro ? "自社の受講生へ出す" : "お知らせを出す"}</h2>{v.announcementId && <span className="r"><Btn kind="ghost sm" onClick={() => setV(EMPTY)}>やめる</Btn></span>}</div>
-          {ro ? <div className="field">宛先<span className="row"><span className="th-pill ok"><i aria-hidden="true" />{to}</span></span></div> : (
-            <div className="field">宛先<span className="row"><label className="st-ck"><input type="checkbox" checked={v.toTrainee} onChange={e => f("toTrainee", e.target.checked)} />受講生{n != null ? ` ${n} 人` : ""}</label><label className="st-ck"><input type="checkbox" checked={v.toClient} onChange={e => f("toClient", e.target.checked)} />企業担当者</label></span></div>
+          <div className="head"><h2 className="h2">{v.announcementId ? "お知らせを直す" : ro ? "自社の受講生へ出す" : "お知らせを出す"}</h2>{v.announcementId && <span className="r"><Btn kind="ghost sm" onClick={() => setV(EMPTY)}>直すのをやめる</Btn><Btn kind="ghost sm" onClick={() => setDel(list.find(a => a.announcementId === v.announcementId))}>消す</Btn></span>}</div>
+          {ro ? <div className="row"><Chip tone="mk">宛先：{to}</Chip></div> : (
+            <div className="field">宛先<span className="row"><label className="st-ck"><input type="checkbox" checked={v.toTrainee} onChange={e => f("toTrainee", e.target.checked)} />受講生{n != null ? ` ${n}` : ""}</label><label className="st-ck"><input type="checkbox" checked={v.toClient} onChange={e => f("toClient", e.target.checked)} />企業担当者</label></span></div>
           )}
-          <label className="field">件名<input type="text" value={v.title} placeholder="例：明日の開始時間について" onChange={e => f("title", e.target.value)} /></label>
-          {!ro && <div className="an-ai"><input type="text" value={points} placeholder="伝えたいこと（例：明日は 10 時開始）" aria-label="伝えたいこと" onChange={e => setPoints(e.target.value)} /><Btn kind="ghost sm" disabled={!!busy} onClick={() => ai("draft")}>{busy === "draft" ? "書いています" : "AI で書く"}</Btn></div>}
-          <label className="field">本文<textarea rows={5} value={v.body} placeholder="本文" onChange={e => f("body", e.target.value)} /></label>
-          {!ro && <span className="row">{[["rewrite", "言い換える"], ["rewriteSoft", "やさしく"], ["rewriteShort", "短く"], ["rewriteEn", "英語も添える"]].map(([k, t]) => <Btn key={k} kind="ghost sm" disabled={!!busy || !v.body.trim()} onClick={() => ai(k)}>{busy === k ? "作っています" : t}</Btn>)}</span>}
+          <label className="field">件名<input type="text" value={v.title} placeholder={ro ? undefined : "例：明日の開始時間について"} onChange={e => f("title", e.target.value)} /></label>
+          <div className="field"><span className="row ann-bh">本文{!ro && <span className="row">{[["draft", "AI で書く"], ["rewriteSoft", "やさしく"], ["rewriteShort", "短く"], ["rewriteEn", "英語も添える"]].map(([k, t]) => <Btn key={k} kind="ghost sm" disabled={!!busy || (k !== "draft" && !v.body.trim())} onClick={() => ai(k)}>{busy === k ? "作っています" : t}</Btn>)}</span>}</span><textarea rows={5} aria-label="本文" value={v.body} placeholder={ro ? undefined : "本文"} onChange={e => f("body", e.target.value)} /></div>
+          {!ro && (
           <div className="st-fg">
             <div className="field">出す時<span className="seg"><button type="button" aria-pressed={v.when === "now"} onClick={() => f("when", "now")}>すぐ</button><button type="button" aria-pressed={v.when === "at"} onClick={() => f("when", "at")}>日時を決める</button></span></div>
             {v.when === "at" && <label className="field">日時<input type="datetime-local" value={v.at} onChange={e => f("at", e.target.value)} /></label>}
           </div>
-          <span className="row"><label className="st-ck"><input type="checkbox" checked={v.important} onChange={e => f("important", e.target.checked)} />重要</label><span style={{ marginLeft: "auto" }} /><Btn onClick={open}>確かめて出す</Btn></span>
+          )}
+          <span className="row">{!ro && <label className="st-ck"><input type="checkbox" checked={v.important} onChange={e => f("important", e.target.checked)} />重要</label>}<span style={{ marginLeft: "auto" }} /><Btn onClick={open}>確かめて出す</Btn></span>
           {err && <div className="lms-err" role="alert">{err}</div>}
         </Card>
         <Card className="pad hc-c">
@@ -113,9 +114,9 @@ export default function StaffAnn({ role, say }) {
                     <span className="row" style={{ gap: 6 }}>{ro ? <Chip tone={own ? "co" : "mk"}>{own ? "自社から" : "講師から"}</Chip> : <Chip>{a.audience === "client" ? "企業担当者" : "受講生"}</Chip>}{a.importance === "important" && <Chip tone="bad">重要</Chip>}{before && <Chip tone="warn">予約 {md(a.publishedAt)} {hm(a.publishedAt)}</Chip>}</span>
                     <b>{a.title}</b>
                     <small>{a.authorName || ""}</small>
-                    {own && <span className="gl-ed"><button type="button" onClick={() => setV({ ...EMPTY, announcementId: a.announcementId, title: a.title || "", body: a.body || "", important: a.importance === "important", toTrainee: a.audience !== "client", toClient: a.audience === "client" })}>直す</button><button type="button" onClick={() => setDel(a)}>消す</button></span>}
+                    {a.targetCount != null && <span className="row ann-rd"><span className="bar10"><i style={{ "--w": `${a.targetCount ? Math.round(a.readCount / a.targetCount * 100) : 0}%` }} /></span><small className="num">既読 {a.readCount}/{a.targetCount}</small></span>}
                   </span>
-                  {a.targetCount != null && <button type="button" className="hc-rd num st-lk" disabled={ro} onClick={() => showUnread(a)}>既読 {a.readCount} / {a.targetCount}</button>}
+                  {own && !ro && <span className="row st-nw">{a.targetCount != null && a.readCount < a.targetCount && <Btn kind="ghost sm" onClick={() => showUnread(a)}>まだの人</Btn>}<Btn kind="ghost sm" onClick={() => setV({ ...EMPTY, announcementId: a.announcementId, title: a.title || "", body: a.body || "", important: a.importance === "important", toTrainee: a.audience !== "client", toClient: a.audience === "client" })}>直す</Btn></span>}
                 </div>
               );
             })}
@@ -130,7 +131,7 @@ export default function StaffAnn({ role, say }) {
       )}
       {del && <Modal title="お知らせを消す" width={420} onClose={() => setDel(null)} footer={<><Btn kind="ghost" onClick={() => setDel(null)}>やめる</Btn><Btn onClick={() => remove(del)}>消す</Btn></>}><b>{del.title}</b></Modal>}
       {unread && (
-        <Modal title={`未読 ・ ${unread.a.title}`} width={460} onClose={() => setUnread(null)} footer={<><Btn kind="ghost" onClick={() => setUnread(null)}>閉じる</Btn>{arr(unread.items).length > 0 && <Btn disabled={!!busy} onClick={notifyAgain}>もう一度知らせる</Btn>}</>}>
+        <Modal title={`まだの人 ・ ${unread.a.title}`} width={460} onClose={() => setUnread(null)} footer={<><Btn kind="ghost" onClick={() => setUnread(null)}>閉じる</Btn>{arr(unread.items).length > 0 && <Btn disabled={!!busy} onClick={notifyAgain}>もう一度知らせる</Btn>}</>}>
           {unread.items === null ? <div className="dv-mt">読み込み中</div> : unread.items === undefined ? <Chip>確認できません</Chip> : unread.items.length ? <div className="row">{unread.items.map(p => <Chip key={p.id}>{p.name}</Chip>)}</div> : <Chip tone="ok">全員確認済み</Chip>}
         </Modal>
       )}

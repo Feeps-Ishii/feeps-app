@@ -1,15 +1,45 @@
 import React, { useEffect, useMemo, useState } from "react";
-import { apiGet } from "../../../api.js";
+import { apiGet, apiPost } from "../../../api.js";
 import { hasStaffComment } from "../../training/acks.js";
 import { kindOf, noClock } from "../trainee/useTraineeAttendance.js";
 import { todayStr } from "../../training/useTraining.js";
-import { Btn, Card, Chip, weekday } from "../parts/ui.jsx";
-import { arr, md, useRoster, useStaffCourse, useWorkdays } from "../staff/common.js";
+import { Btn, Card, Chip, Modal, SysBanner, weekday } from "../parts/ui.jsx";
+import { arr, errText, md, useRoster, useStaffCourse, useWorkdays } from "../staff/common.js";
 import { PRing, PSeg } from "../staff/parts.jsx";
-import { TaskList, useTasks } from "./Task.jsx";
+import { TaskList, TaskModal, useTasks } from "./Task.jsx";
 import WeeklyCard from "./Weekly.jsx";
 
-/* 講師・コース担当者のホーム（モック homeI）：今日の日報と勤怠、タスク、送信済みのお知らせ */
+/* 講師・コース担当者のホーム（モック homeI）：今日の日報と勤怠、タスク、その場で出すお知らせ */
+
+// 日報・勤怠の画面を、絞った状態で開く（staff/Reports・staff/Attendance が 1 回読む）
+const goTab = (go, screen, tab) => { try { sessionStorage.setItem(`lms.${screen}Tab`, tab); } catch { /* 絞らずに開く */ } go(screen); };
+
+function QuickAnn({ courseId, n, onSent, say }) {
+  const EMPTY = { title: "", body: "", client: false, imp: false };
+  const [v, setV] = useState(EMPTY);
+  const [check, setCheck] = useState(false); const [busy, setBusy] = useState(false); const [err, setErr] = useState("");
+  const f = (k, x) => setV(s => ({ ...s, [k]: x }));
+  const open = () => { if (!v.title.trim() || !v.body.trim()) { setErr("件名と本文を入れてください"); return; } setErr(""); setCheck(true); };
+  const send = async () => {
+    setBusy(true); setErr("");
+    const base = { title: v.title.trim(), body: v.body.trim(), importance: v.imp ? "important" : "normal", pinned: false, publishedAt: "", expiresAt: "" };
+    try {
+      await apiPost("/announcements", { audience: "trainee", courseId, ...base });
+      if (v.client) await apiPost("/announcements", { audience: "client", courseId: "", ...base });
+      say?.("お知らせを出しました"); setV(EMPTY); setCheck(false); onSent();
+    } catch (e) { setErr(errText(e, "出せませんでした")); setCheck(false); } finally { setBusy(false); }
+  };
+  return (
+    <div className="qcomp">
+      <div className="row"><Chip tone="mk">宛先：受講生 {n} 人</Chip><span className="row"><label className="st-ck"><input type="checkbox" checked={v.client} onChange={e => f("client", e.target.checked)} />企業担当者にも</label><label className="st-ck"><input type="checkbox" checked={v.imp} onChange={e => f("imp", e.target.checked)} />重要</label></span></div>
+      <input type="text" className="annt" aria-label="件名" value={v.title} placeholder="件名（例：明日の開始時間について）" onChange={e => f("title", e.target.value)} />
+      <textarea className="annb" aria-label="本文" value={v.body} placeholder="本文" onChange={e => f("body", e.target.value)} />
+      {err && <div className="lms-err" role="alert">{err}</div>}
+      <span className="row st-end"><Btn onClick={open}>確かめて出す</Btn></span>
+      {check && <Modal title="確かめて出す" width={500} onClose={() => setCheck(false)} footer={<><Btn kind="ghost" onClick={() => setCheck(false)}>直す</Btn><Btn disabled={busy} onClick={send}>{busy ? "出しています" : "出す"}</Btn></>}><dl className="kv"><div><dt>宛先</dt><dd>受講生 {n} 人{v.client ? "・企業担当者" : ""}</dd></div><div><dt>件名</dt><dd>{v.title}{v.imp ? "（重要）" : ""}</dd></div><div><dt>本文</dt><dd className="st-pre">{v.body}</dd></div></dl></Modal>}
+    </div>
+  );
+}
 
 export default function InstructorHome({ go, say }) {
   const today = todayStr();
@@ -21,6 +51,9 @@ export default function InstructorHome({ go, say }) {
   const [anns, setAnns] = useState(undefined);
   const [key, setKey] = useState(0);
   const tasks = useTasks(courseId);
+  const [taskNew, setTaskNew] = useState(false);
+  const [sys, setSys] = useState([]);
+  useEffect(() => { apiGet("/announcements/me").then(r => setSys(arr(r?.items))).catch(() => {}); }, []);
   useEffect(() => {
     let alive = true;
     Promise.all([apiGet(`/reports?date=${today}`), apiGet(`/attendance?date=${today}`)])
@@ -48,6 +81,7 @@ export default function InstructorHome({ go, say }) {
   const sent = arr(anns).filter(a => !a.courseId || a.courseId === courseId).slice(0, 3);
   return (
     <div className="th st">
+      <SysBanner items={sys} />
       <div className="th-top ih-top">
         <div className="th-date"><b className="num">{d.getDate()}</b><div><em>{d.getMonth() + 1} 月 ・ {weekday(d.getMonth() + 1, d.getDate(), d.getFullYear())}曜日</em><small>{isDay ? "" : "研修のない日 ・ "}{sc.course.name}</small></div></div>
         <div className="th-att"><span className="th-pill ok"><i aria-hidden="true" />受講生 <b className="num">{N}</b> 人</span><Btn kind="ghost sm" onClick={() => go("setting")}>コースの設定</Btn></div>
@@ -58,30 +92,32 @@ export default function InstructorHome({ go, say }) {
         ) : (
           <div className="ih-day">
             <section className="card ih-p">
-              <div className="ih-ph"><h2 className="h2">本日の日報</h2></div>
+              <div className="ih-ph"><h2 className="h2">本日の日報</h2>{sc.course.standardClockOut && <Chip>締め切り {sc.course.standardClockOut}</Chip>}</div>
               <div className="ih-pb"><PRing n={repN} of={N} /><div className="ih-pn"><span><b className="num">{repN}</b><small> / {N} 人</small></span><PSeg parts={[["コメント済み", nums.done, "mk"], ["コメント待ち", nums.wait, "warn"], ["まだ", nums.none, "no"]]} /></div></div>
-              <div className="ih-pf"><Btn onClick={() => go("report")}>本日の日報 →</Btn></div>
+              <div className="ih-pf"><Btn onClick={() => go("report")}>本日の日報 →</Btn><Btn kind="ghost" onClick={() => goTab(go, "report", "wait")}>コメント待ち {nums.wait}</Btn><Btn kind="ghost" onClick={() => goTab(go, "report", "none")}>まだ {nums.none}</Btn></div>
             </section>
             <section className="card ih-p">
-              <div className="ih-ph"><h2 className="h2">本日の勤怠</h2></div>
+              <div className="ih-ph"><h2 className="h2">本日の勤怠</h2>{sc.course.standardClockIn && sc.course.standardClockOut && <Chip>{sc.course.standardClockIn}〜{sc.course.standardClockOut}</Chip>}</div>
               <div className="ih-pb"><PRing n={attN} of={N} tone="ok" /><div className="ih-pn"><span><b className="num">{attN}</b><small> / {N} 人</small></span><PSeg parts={[["出勤", nums.ok, "ok"], ["遅刻", nums.late, "warn"], ["欠勤", nums.absent, "bad"], ["未打刻", nums.noin.length, "no"]]} /></div></div>
-              <div className="ih-pf"><Btn onClick={() => go("att")}>本日の勤怠 →</Btn><span className="ih-who">{nums.noin.slice(0, 4).map(p => <React.Fragment key={p.id}><span className="face sm">{p.name.slice(0, 1)}</span><small>{p.name}</small></React.Fragment>)}</span></div>
+              <div className="ih-pf"><Btn onClick={() => go("att")}>本日の勤怠 →</Btn><Btn kind="ghost" onClick={() => goTab(go, "att", "none")}>未打刻 {nums.noin.length}</Btn><span className="ih-who">{nums.noin.slice(0, 4).map(p => <React.Fragment key={p.id}><span className="face sm">{p.name.slice(0, 1)}</span><small>{p.name}</small></React.Fragment>)}</span></div>
             </section>
           </div>
         )}
       <div className="ih-cols">
         <Card className="pad ih-tasks">
-          <div className="head"><h2 className="h2">タスク</h2><span className="r"><Chip>まだ {tasks.open.length}</Chip><Btn kind="sm" onClick={() => go("task")}>タスク一覧</Btn></span></div>
+          <div className="head"><h2 className="h2">タスク</h2><span className="r"><Chip>まだ {tasks.open.length}</Chip><Btn kind="sm" onClick={() => setTaskNew(true)}>タスクを足す</Btn></span></div>
           <TaskList t={tasks} list={tasks.open.slice(0, 4)} today={today} say={say} />
+          <div className="more"><button type="button" className="lnk" onClick={() => go("task")}>タスク一覧（{tasks.open.length}）→</button></div>
         </Card>
         <Card className="pad">
-          <div className="head"><h2 className="h2">送信済みのお知らせ</h2><span className="r"><Btn kind="sm" onClick={() => go("ann")}>お知らせを出す</Btn></span></div>
+          <div className="head"><h2 className="h2">お知らせを出す</h2><span className="r"><Btn kind="ghost sm" onClick={() => go("ann")}>お知らせの一覧</Btn></span></div>
+          <QuickAnn courseId={courseId} n={N} say={say} onSent={() => setKey(k => k + 1)} />
           {anns === null && <div className="empty"><b>お知らせを確認できません</b><Btn kind="ghost sm" onClick={() => setKey(k => k + 1)}>再読み込み</Btn></div>}
           <div className="ih-sent">{sent.map(a => <button key={a.announcementId} type="button" className="ih-si" onClick={() => go("ann")}><span className="num">{md(a.publishedAt || a.createdAt)}</span><b>{a.title}</b>{a.importance === "important" && <Chip tone="bad">重要</Chip>}{a.targetCount != null && <span className="ih-rd num">既読 {a.readCount}/{a.targetCount}</span>}</button>)}</div>
-          {anns && !sent.length && <Chip>なし</Chip>}
         </Card>
       </div>
       <WeeklyCard courseId={courseId} say={say} />
+      {taskNew && <TaskModal t={tasks} onClose={() => setTaskNew(false)} say={say} />}
     </div>
   );
 }

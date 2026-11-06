@@ -117,7 +117,7 @@ export default function StaffAttendance({ role, say }) {
   const [month, setMonth] = useState(today.slice(0, 7));
   const wdays = useWorkdays(courseId, date.slice(0, 7));
   const [st, setSt] = useState({ state: "loading", rows: [] });
-  const [tab, setTab] = useState("all"); const [q, setQ] = useState(""); const [sort, setSort] = useState("status");
+  const [tab, setTab] = useState(() => { try { const v = sessionStorage.getItem("lms.attTab"); sessionStorage.removeItem("lms.attTab"); return v || "all"; } catch { return "all"; } }); const [q, setQ] = useState(""); const [sort, setSort] = useState("status");
   const [fix, setFix] = useState("");
   const load = useCallback(() => {
     let alive = true;

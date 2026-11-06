@@ -294,7 +294,7 @@ export default function InstructorPractice({ say }) {
             <div className="tp-now c-tst tu-now">
               <span className="tp-nl"><span className="eyebrow">今の単元</span><b>単元 {curIdx + 1} ・ {sections[curIdx].title}</b><small className="num">{(r => (r ? `${md(r.start)}〜${md(r.end)} ・ ` : ""))(rangeOf(sections[curIdx]))}練習問題 {rowsOf(sections[curIdx].id).reduce((a, x) => a + x.qn, 0)} 問</small></span>
               <span style={{ marginLeft: "auto" }} />
-              <Btn kind="ghost sm" onClick={() => document.getElementById(`tu-prac-${sections[curIdx].id}`)?.scrollIntoView({ behavior: "smooth", block: "start" })}>一覧で見る ↓</Btn>
+              <Btn kind="ghost sm" onClick={() => document.getElementById(`tu-prac-${sections[curIdx].id}`)?.scrollIntoView({ behavior: "smooth", block: "start" })}>一覧で見る</Btn>
             </div>
           )}
           <div className="tunits">

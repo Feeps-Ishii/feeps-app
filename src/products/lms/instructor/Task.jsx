@@ -35,7 +35,7 @@ export function useTasks(courseId) {
   return { ...st, sorted, open: sorted.filter(x => !x.done), nameOf, save, remove, reload: () => setKey(k => k + 1) };
 }
 
-function TaskModal({ t, task, onClose, say }) {
+export function TaskModal({ t, task, onClose, say }) {
   const [v, setV] = useState({ title: task?.title || "", note: task?.note || "", due: task?.due || todayStr(), importance: task?.importance || "中", assigneeId: task?.assigneeId || t.me });
   const [err, setErr] = useState("");
   const [busy, setBusy] = useState(false);

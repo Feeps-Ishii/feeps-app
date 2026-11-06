@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { apiGet } from "../../../api.js";
 import { todayStr } from "../../training/useTraining.js";
-import { Btn, Cal, Card, Chip, weekday } from "../parts/ui.jsx";
+import { Btn, Cal, Card, Chip, SysBanner, weekday } from "../parts/ui.jsx";
 import { Icon } from "../parts/icons.jsx";
 import { arr, md, setStaffFocus, usePins } from "../staff/common.js";
 import { PRing, PSeg } from "../staff/parts.jsx";
@@ -38,6 +38,7 @@ export default function ClientHome({ go }) {
   const unit = day[0]?.courseName || all[0]?.courseName || dash.company?.companyName || "";
   return (
     <div className="th st">
+      <SysBanner items={anns} />
       <div className="th-top ih-top">
         <div className="th-date"><b className="num">{d.getDate()}</b><div><em>{d.getMonth() + 1} 月 ・ {weekday(d.getMonth() + 1, d.getDate(), d.getFullYear())}曜日</em><small>{unit}</small></div></div>
         <div className="th-att"><span className="th-pill ok"><i aria-hidden="true" />受講生 <b className="num">{all.length}</b> 人</span><Btn kind="ghost sm" onClick={() => go("state")}>研修の様子</Btn></div>

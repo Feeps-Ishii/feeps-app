@@ -1,12 +1,12 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { apiGet, apiPost, apiPut } from "../../../api.js";
-import { Btn, Card, Chip } from "../parts/ui.jsx";
+import { Btn, Card, Chip, Modal } from "../parts/ui.jsx";
 import { arr, errText, md, useStaffCourse, useWorkdays } from "../staff/common.js";
 import { todayStr } from "../../training/useTraining.js";
 import CourseConfig from "../staff/CourseConfig.jsx";
 import { JP_HOLIDAYS } from "../parts/jpHolidays.js";
 
-/* コースの設定（モック settingX）：基本・研修日・日報の項目・担当。変えたら下の帯から保存する。
+/* コースの設定（モック settingX）：基本・研修日・日報の項目・担当。編集 → 確定で保存する。
    研修日を変えられるのは管理者だけ（API の決まり）。講師は見るだけ */
 
 const TABS = [["base", "基本"], ["days", "研修日"], ["rf", "日報の項目"], ["who", "担当"], ["notice", "リマインド"], ["ai", "AI"]];
@@ -79,6 +79,7 @@ export default function InstructorSetting({ role, manager, say }) {
   const [nf, setNf] = useState("");
   const [key, setKey] = useState(0);
   const [rfSug, setRfSug] = useState(null); const [rfBusy, setRfBusy] = useState(false);
+  const [ed, setEd] = useState(false); const [conf, setConf] = useState(false);
   const [ask, setAsk] = useState(""); const [askBusy, setAskBusy] = useState(false); const [prop, setProp] = useState(null);
   const load = useCallback(async () => {
     if (!courseId) return;
@@ -162,7 +163,7 @@ export default function InstructorSetting({ role, manager, say }) {
       const rems = use.filter(r => r.remind);
       if (rems.length) { const c = await apiGet(`/course-config?courseId=${encodeURIComponent(courseId)}`); await apiPut("/course-config", { courseId, features: c.features, remind: rems.reduce((a, r) => ({ ...a, ...r.remind }), c.remind) }); }
       setProp(null); setAsk("");
-      say?.(use.some(r => r.patch || r.field) ? "反映しました ・ 下の帯から保存してください" : "反映しました");
+      say?.(use.some(r => r.patch || r.field) ? "反映しました ・ 確定で保存します" : "反映しました");
     } catch (e) { setErr(errText(e, "反映できませんでした")); } finally { setAskBusy(false); }
   };
   const inTab = {
@@ -200,21 +201,23 @@ export default function InstructorSetting({ role, manager, say }) {
   };
   return (
     <div className="st">
-      <div className="head"><div><div className="eyebrow">{sc.course.name}</div><h1 className="h1">コースの設定</h1></div></div>
-      <div className="aip">
+      <div className="head"><div><div className="eyebrow">{sc.course.name}</div><h1 className="h1">コースの設定</h1></div><span className="r">{ed ? <><Btn kind="ghost sm" onClick={() => { setV(base); setEd(false); setProp(null); }}>やめる</Btn><Btn kind="sm" disabled={busy || !diff.labels.length} onClick={() => setConf(true)}>確定</Btn></> : <Btn kind="sm" onClick={() => setEd(true)}>編集</Btn>}</span></div>
+      <fieldset className="cfgfs" disabled={!ed}><div className="aip">
         <div className="row"><b>AI に頼んで変える</b></div>
         <div className="row sx-nw"><input type="text" value={ask} maxLength={1000} placeholder="例：11/24 を休みに。金曜は 17時まで" aria-label="AI に頼む" onChange={e => setAsk(e.target.value)} /><Btn kind="sm" disabled={askBusy || !ask.trim()} onClick={propose}>{askBusy ? "考えています" : "案を出す"}</Btn></div>
+        {!prop && !ask && <div className="row">{["祝日を休みにする", "金曜は 17時まで", "日報に「今日の調子」を足す", "リマインドを 17:30 に"].map(x => <button key={x} type="button" className="chip qk" onClick={() => setAsk(x)}>{x}</button>)}</div>}
         {prop && (prop.length ? <>
           {prop.map((r, i) => <label key={i} className="st-ck"><input type="checkbox" checked={r.on} onChange={e => setProp(l => l.map((x, j) => (j === i ? { ...x, on: e.target.checked } : x)))} /><b>{r.t}</b> → {r.to}</label>)}
           <span className="row st-end"><Btn kind="ghost sm" onClick={() => setProp(null)}>やめる</Btn><Btn kind="sm" disabled={askBusy || !prop.some(x => x.on)} onClick={applyProp}>{prop.filter(x => x.on).length} 件を反映する</Btn></span>
         </> : <Chip tone="warn">読み取れませんでした</Chip>)}
-      </div>
+      </div></fieldset>
       <div className="side">
         <div className="card pick">{TABS.map(([k, t]) => <button key={k} type="button" className="nf" aria-current={tab === k} onClick={() => setTab(k)}><span><b>{t}</b></span>{diff[k] && <Chip tone="warn">変更</Chip>}</button>)}</div>
-        <div className="st">{inTab[tab]}</div>
+        <fieldset className="st cfgfs cfgc" disabled={!ed}>{inTab[tab]}</fieldset>
       </div>
       {err && <div className="lms-err" role="alert">{err}</div>}
-      {diff.labels.length > 0 && <div className="savebar" role="status"><b>変えたところ {diff.labels.length}</b><small>{diff.labels.join("・")}</small><span style={{ marginLeft: "auto" }} /><Btn kind="ghost sm" onClick={() => setV(base)}>元に戻す</Btn><Btn kind="sm" disabled={busy} onClick={save}>{busy ? "保存しています" : "保存する"}</Btn></div>}
+      {diff.labels.length > 0 && <div className="savebar" role="status"><b>変えたところ {diff.labels.length}</b><small>{diff.labels.join("・")}</small><span style={{ marginLeft: "auto" }} /><Btn kind="ghost sm" onClick={() => setV(base)}>元に戻す</Btn><Btn kind="sm" disabled={busy} onClick={() => setConf(true)}>確定</Btn></div>}
+      {conf && <Modal title="コースの設定を確定" width={480} onClose={() => setConf(false)} footer={<><Btn kind="ghost" onClick={() => setConf(false)}>戻る</Btn><Btn disabled={busy} onClick={async () => { await save(); setConf(false); setEd(false); }}>{busy ? "保存しています" : "確定"}</Btn></>}><div className="list">{diff.labels.map(t => <div key={t} className="li"><span><b>{t}</b></span><Chip tone="warn">変更</Chip></div>)}</div></Modal>}
     </div>
   );
 }

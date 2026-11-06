@@ -112,7 +112,7 @@ export default function CourseCreate({ companies: companies0, courses, initial, 
   const fill = next => {
     const hit = companies.find(c => norm(c.name) === norm(next.companyName));
     const ids = (names, list) => list.filter(p => arr(names).some(n => norm(n) === norm(p.name))).map(p => p.userId);
-    setV({ ...EMPTY, ...next, companyId: next.companyId || hit?.companyId || "", instructorIds: next.instructorIds?.length ? next.instructorIds : ids(next.staffNames?.ins, people.ins), managerIds: next.managerIds?.length ? next.managerIds : ids(next.staffNames?.mgr, people.mgr) });
+    setV({ ...EMPTY, ...next, companyId: next.companyId || hit?.companyId || initial?.companyId || "", instructorIds: next.instructorIds?.length ? next.instructorIds : ids(next.staffNames?.ins, people.ins), managerIds: next.managerIds?.length ? next.managerIds : ids(next.staffNames?.mgr, people.mgr) });
     setOffText(arr(next.offDays).join(" "));
     setStep(2);
   };

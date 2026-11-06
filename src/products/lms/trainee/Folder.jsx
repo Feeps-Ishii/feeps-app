@@ -292,7 +292,6 @@ export default function TraineeFolder({ go, say }) {
           {units.map(u => navBtn(u.id, u.no, u.n, u === model.curUnit ? "今の単元" : !cnt(u) ? "まだ" : "", cnt(u), u === model.curUnit))}
           <span className="eyebrow fd-sec">自分の</span>
           {st.course && navBtn("dev", null, "個人開発の提出", "", devRows.length)}
-          {navBtn("me", null, "マイフォルダ", "", kids(meSp, ROOT).length)}
         </nav>
         {main}
       </div>

@@ -383,7 +383,7 @@ export default function StaffTests({ role, go, say }) {
         <div className="tp-now c-tst tu-now">
           <span className="tp-nl"><span className="eyebrow">今の単元</span><b>単元 {curIdx + 1} ・ {st.sections[curIdx].title}</b><small className="num">{(r => (r ? `${md(r.start)}〜${md(r.end)} ・ ` : ""))(rangeOf(st.sections[curIdx]))}テスト {st.tests.filter(t => t.sectionId === st.sections[curIdx].id).length}</small></span>
           <span style={{ marginLeft: "auto" }} />
-          <Btn kind="ghost sm" onClick={() => document.getElementById(`tu-test-${st.sections[curIdx].id}`)?.scrollIntoView({ behavior: "smooth", block: "start" })}>一覧で見る ↓</Btn>
+          <Btn kind="ghost sm" onClick={() => document.getElementById(`tu-test-${st.sections[curIdx].id}`)?.scrollIntoView({ behavior: "smooth", block: "start" })}>一覧で見る</Btn>
         </div>
       )}
       <div className="tunits">

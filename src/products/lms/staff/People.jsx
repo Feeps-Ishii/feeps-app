@@ -1,10 +1,12 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { Suspense, lazy, useEffect, useMemo, useState } from "react";
 import { apiGet, apiPost, apiPut, apiDelete } from "../../../api.js";
 import { kindOf } from "../trainee/useTraineeAttendance.js";
 import { todayStr } from "../../training/useTraining.js";
 import { Btn, Card, Cal, Chip, Hero, Kpi, ListTool, Modal, matchName } from "../parts/ui.jsx";
-import { arr, errText, md, saveXlsx, setStaffFocus, usePins, useRoster, useStaffCourse, useStats, useWorkdays } from "./common.js";
+import { arr, errText, md, setStaffFocus, usePins, useRoster, useStaffCourse, useStats, useWorkdays } from "./common.js";
 import { TestRow } from "./parts.jsx";
+
+const RosterImport = lazy(() => import("../../console/RosterImport.jsx"));
 
 /* 受講生（企業担当者・講師で共通。モック peopleC・karteC）：一覧は担当 ✓・絞り込み・探す・並べ替え、押すとひとりのページ。
    講師メモは企業担当者には出さない（API が見える範囲を決める）。評価表の点は /evaluations から */
@@ -160,7 +162,8 @@ function Karte({ person, stats, ro, pinned, onPin, onBack, go, say, today, evalS
   );
 }
 
-export default function StaffPeople({ role, go, say }) {
+export default function StaffPeople({ role, manager, go, say }) {
+  const [rosterOpen, setRosterOpen] = useState(false);
   const ro = role === "client";
   const today = todayStr();
   const sc = useStaffCourse();
@@ -205,28 +208,28 @@ export default function StaffPeople({ role, go, say }) {
   }[sort];
   const list = rows.filter(r => (tab === "all" || (tab === "pin" ? pins.has(r.id) : tab === "absent" ? issue(r) : low(r))) && matchName(r.name, r.kana, q)).sort(by);
   const days = stats.data?.period?.trainingDays || 0;
-  const xlsx = () => saveXlsx(`受講生_${sc.course.name}`, "受講生", [["受講生", "出席率", "日報", "テスト平均"], ...list.map(r => [r.name, r.stat?.attendanceRate ?? "", r.stat?.reportDays ?? "", r.stat?.testAverage ?? ""])]);
   return (
     <div className="st">
-      <div className="head"><div><div className="eyebrow">{sc.course.name}</div><h1 className="h1">受講生 ・ {rows.length} 人</h1></div><span className="r"><Btn kind="ghost sm" onClick={xlsx}>Excel で受け取る</Btn></span></div>
+      <div className="head"><div><div className="eyebrow">{sc.course.name}</div><h1 className="h1">受講生 ・ {rows.length} 人</h1></div>{manager && <span className="r"><Btn kind="sm" onClick={() => setRosterOpen(true)}>お客様の名簿で登録</Btn></span>}</div>
       {ro && pins.size === 0 && <div className="pinhint"><span className="pinc on" aria-hidden="true">✓</span><span><b>担当の受講生に ✓</b><small>一覧・日報・勤怠・ホームの上に表示</small></span></div>}
       <ListTool tabs={[["all", "すべて", rows.length], ...(ro ? [["pin", "担当", rows.filter(r => pins.has(r.id)).length, "ok"]] : []), ["absent", "欠席・遅刻", rows.filter(issue).length, "warn"], ["low", "点が低い", rows.filter(low).length, "bad"]]} tab={tab} onTab={setTab} q={q} onQ={setQ} placeholder="名前で探す"
         sorts={[...(ro ? [["pin", "担当を上に"]] : []), ["kana", "名前順"], ["att", "出席率の低い順"], ["tlo", "テスト平均の低い順"], ["thi", "テスト平均の高い順"]]} sort={sort} onSort={setSort} />
       {stats.state === "error" && <div className="lms-err" role="alert">集計を確認できません <Btn kind="ghost sm" onClick={stats.reload}>再読み込み</Btn></div>}
-      <Card className=""><div className="scroll"><table className="tbl"><thead><tr>{ro && <th>担当</th>}<th>受講生</th><th>出席率</th><th>日報</th><th>テスト平均</th><th>評価表</th><th /></tr></thead><tbody>
+      <Card className=""><div className="scroll"><table className="tbl"><thead><tr>{ro && <th>担当</th>}<th>受講生</th><th>出席率</th><th>テスト平均</th><th>日報</th>{ro && <th>評価表</th>}<th /></tr></thead><tbody>
         {list.map(r => (
           <tr key={r.id} className={ro && pins.has(r.id) ? "pinr" : ""}>
             {ro && <td><button type="button" className={`pinc${pins.has(r.id) ? " on" : ""}`} aria-pressed={pins.has(r.id)} aria-label={`${r.name} を担当にする`} onClick={() => pin(r.id)}>{pins.has(r.id) ? "✓" : ""}</button></td>}
             <td><span className="row st-nw"><span className="face">{r.name.slice(0, 1)}</span><b>{r.name}</b>{issue(r) && <Chip tone={r.kind === "欠勤" ? "bad" : "warn"}>{r.kind}</Chip>}</span></td>
             <td>{r.stat?.attendanceRate == null ? <span className="num">{stats.state === "loading" ? "…" : "—"}</span> : <span className="row st-nw st-bar"><span className="bar10"><i style={{ "--w": `${r.stat.attendanceRate}%` }} /></span><span className="num">{r.stat.attendanceRate}%</span></span>}</td>
-            <td className="num">{r.stat ? `${r.stat.reportDays}/${days}` : "—"}</td>
             <td className="num">{r.stat?.testAverage == null ? "—" : <><b className={low(r) ? "pt-ng" : ""}>{r.stat.testAverage}</b> 点</>}</td>
-            <td>{evals[r.id] ? <span className="num"><b>{evals[r.id].got}</b> / {evals[r.id].max}</span> : <Chip>まだ</Chip>}</td>
+            <td className="num">{r.stat ? `${r.stat.reportDays}/${days}` : "—"}</td>
+            {ro && <td>{evals[r.id] ? <span className="num"><b>{evals[r.id].got}</b> / {evals[r.id].max}</span> : <Chip>まだ</Chip>}</td>}
             <td><Btn kind="sm" onClick={() => setOpen(r.id)}>カルテ</Btn></td>
           </tr>
         ))}
         {!list.length && <tr><td colSpan={ro ? 7 : 6}><Chip>該当なし</Chip></td></tr>}
       </tbody></table></div></Card>
+      {rosterOpen && <Suspense fallback={null}><div className="lms-legacy"><RosterImport course={{ ...sc.course, id: sc.course.courseId }} onClose={() => setRosterOpen(false)} onDone={() => { setRosterOpen(false); reload(); }} /></div></Suspense>}
     </div>
   );
 }

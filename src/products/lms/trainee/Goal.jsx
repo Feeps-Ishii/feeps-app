@@ -171,7 +171,6 @@ export default function TraineeGoal({ go, tasks }) {
           </div>
         </section>
       </div>
-      <div><Btn kind="ghost sm" onClick={() => go("report")}>日報を開く</Btn></div>
 
       {dlg && (
         <Modal title={dlg.kind === "goal" ? "目標を直す" : dlg.kind === "task" ? "小目標を直す" : "目標を消す"} width={420} onClose={() => setDlg(null)} footer={<><Btn kind="ghost" onClick={() => setDlg(null)}>やめる</Btn><Btn onClick={confirm}>{dlg.kind === "delGoal" ? "消す" : "決める"}</Btn></>}>

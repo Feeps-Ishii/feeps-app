@@ -189,7 +189,7 @@ function StaffView({ initial, people, stats, courseId, course, say }) {
                 <div key={p.id} className={`evr${p.id === cur?.id ? " on" : ""}`}>
                   <button type="button" className="evn" onClick={() => setSel(p.id)}><span className="face">{p.name.slice(0, 1)}</span><b>{p.name}</b>{stChip(p)}</button>
                   <div className="evin">
-                    <label className="evta com"><span>{G.com}</span><textarea rows={3} value={x.com} placeholder="人柄・話し方・報連相など" onFocus={() => setSel(p.id)} onChange={e => setCell(p.id, { com: e.target.value })} /></label>
+                    <label className="evta com"><span>{G.com}</span><textarea rows={3} value={x.com} placeholder="人柄・話し方・報連相など、気づいたことを箇条書きで" onFocus={() => setSel(p.id)} onChange={e => setCell(p.id, { com: e.target.value })} /></label>
                     <label className="evta tech"><span>{G.tech}</span><textarea rows={3} value={x.tech} placeholder="正確さ・理解・つまずき方など" onFocus={() => setSel(p.id)} onChange={e => setCell(p.id, { tech: e.target.value })} /></label>
                   </div>
                 </div>

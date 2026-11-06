@@ -163,7 +163,7 @@ export default function StaffReports({ role, go, say }) {
   const [fields, setFields] = useState(null);
   const [me, setMe] = useState("");
   const [open, setOpen] = useState(focus?.id || "");
-  const [tab, setTab] = useState(ro ? "all" : "all"); const [q, setQ] = useState(""); const [sort, setSort] = useState("status");
+  const [tab, setTab] = useState(() => { try { const v = sessionStorage.getItem("lms.reportTab"); sessionStorage.removeItem("lms.reportTab"); return v || "all"; } catch { return "all"; } }); const [q, setQ] = useState(""); const [sort, setSort] = useState("status");
   const [remind, setRemind] = useState(null);
 
   useEffect(() => { if (ro) getCurrentUser().then(u => setMe(u?.userId || u?.username || "")).catch(() => {}); }, [ro]);

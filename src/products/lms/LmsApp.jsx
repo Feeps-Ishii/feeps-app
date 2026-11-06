@@ -57,6 +57,7 @@ export default function LmsApp({ role, manager = false, displayName, unread = 0,
   const [toast, setToast] = useState("");
   const [lastIn, setLastIn] = useState({});
   const [courseV, setCourseV] = useState(0);   // コースを切り替えたら画面を読み直す
+  const [mail, setMail] = useState("");
 
   const admin = role === "admin";
   const cur = groups.find(g => g[2].some(s => s[0] === screen)) || groups[0];
@@ -65,6 +66,8 @@ export default function LmsApp({ role, manager = false, displayName, unread = 0,
   // メニューの件数の印（モックと同じく講師・コース担当者だけ。数は今の画面のメニューと同じ通知から）
   const nOf = k => { if (role !== "instructor") return 0; const v = LMS_LEGACY[role]?.[k]; return (v && badges?.[v]) || 0; };
   useEffect(() => { const open = () => setHelp(""); window.addEventListener("lms:help", open); return () => window.removeEventListener("lms:help", open); }, []);
+  useEffect(() => { const open = () => { setExtra("notifications"); window.scrollTo?.(0, 0); }; window.addEventListener("lms:notifications", open); return () => window.removeEventListener("lms:notifications", open); }, []);
+  useEffect(() => { if (pop !== "me" || mail) return; apiGet("/profile/me").then(p => setMail(p?.email || p?.username || "")).catch(() => {}); }, [pop, mail]);
   useEffect(() => {
     if (role === "admin") return undefined;
     let alive = true;
@@ -130,6 +133,8 @@ export default function LmsApp({ role, manager = false, displayName, unread = 0,
             </button>
             {pop === "me" && (
               <div className="lms-pop" role="menu">
+                <div className="mh"><span className="face">{String(displayName || "?").slice(0, 1)}</span><span><b>{displayName}</b>{mail && <small>{mail}</small>}</span></div>
+                <div className="mrow"><span className="chip mk">{label}</span></div>
                 <button type="button" role="menuitem" onClick={() => { setExtra("profile"); setPop(""); }}>プロフィール</button>
                 <button type="button" role="menuitem" onClick={() => { setPwOpen(true); setPop(""); }}>パスワードを変える</button>
                 <button type="button" role="menuitem" onClick={() => { setHelp(""); setPop(""); }}>ヘルプ・使い方</button>

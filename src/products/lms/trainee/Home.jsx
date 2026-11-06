@@ -1,11 +1,11 @@
 import React, { useState } from "react";
 import { ackKeys } from "../../training/acks.js";
 import { useTraineeHome } from "./useTraineeHome.js";
-import { Btn, Cal, Card, Chip, Hero, Kpi, Modal, weekday } from "../parts/ui.jsx";
+import { Btn, Cal, Card, Chip, Hero, Kpi, Modal, SysBanner, weekday } from "../parts/ui.jsx";
 import { Icon } from "../parts/icons.jsx";
 
 /* 受講生のホーム（モック homeT）：上に日付と出勤・終わり、左に「次にやること」の色の面、右に今日の流れ、
-   下に締め切りとお知らせ。次にやることは 出勤 → 今日の目標 → 単元を学ぶ → 日報 → 退勤 の順 */
+   下に締め切りとお知らせ。次にやることは 出勤 → 今日の目標 → 講義 → 日報 → 退勤 の順 */
 
 const DONE_REPORT = s => !!s && !["not_submitted", "unknown", "not_applicable"].includes(s);
 const ymd = s => { const [y, m, d] = String(s || "").slice(0, 10).split("-").map(Number); return y ? { y, m, d } : null; };
@@ -22,7 +22,7 @@ function steps(d) {
   return [
     { k: "in", t: "出勤", sub: att.clockIn || `${sched.startTime || "9:00"} まで`, done: !!att.clockIn, go: "att", cat: "att", act: "出勤する" },
     { k: "goal", t: "今日の目標", sub: goalText || "日報の朝の欄", done: !!goalText, go: "report", cat: "rep", act: "目標を書く" },
-    { k: "lesson", t: "単元を学ぶ", sub: lesson || "今日の単元", done: repDone, go: "cur", cat: "cur", act: "カリキュラムを開く" },
+    { k: "lesson", t: "講義", sub: lesson || "今日の単元", done: repDone, go: "cur", cat: "cur", act: "スライドを開く" },
     { k: "rep", t: "日報", sub: repDone ? "提出済み" : `${sched.endTime || "18:00"} まで`, done: repDone, go: "report", cat: "rep", act: "日報を書く" },
     { k: "out", t: "退勤", sub: att.clockOut || "日報のあと", done: !!att.clockOut, go: "att", cat: "att", act: "退勤する" },
   ];
@@ -71,14 +71,14 @@ export default function TraineeHome({ go, say }) {
         <Hero cat={next.cat} art={next.cat} eyebrow="次にやること" step={`${nextI + 1} / ${list.length}`} title={next.t} sub={next.sub}>
           <div className="row">
             <Btn kind="big" onClick={() => go(next.go)}>{next.act}</Btn>
-            {next.k !== "lesson" ? <Btn kind="ghost big th-ghost" onClick={() => go("cur")}>今日の単元</Btn> : <Btn kind="ghost big th-ghost" onClick={() => go("doc")}>フォルダ</Btn>}
+            {next.k !== "lesson" ? <Btn kind="ghost big th-ghost" onClick={() => go("cur")}>今日の講義</Btn> : <Btn kind="ghost big th-ghost" onClick={() => go("doc")}>フォルダ</Btn>}
           </div>
           <div className="row th-chips">
             {course?.todayCurriculum?.title && next.sub !== course.todayCurriculum.title && <Chip>{course.todayCurriculum.title}</Chip>}
             {(sched.startTime || sched.endTime) && <Chip>{sched.startTime || ""}〜{sched.endTime || ""}</Chip>}
           </div>
           <Kpi items={[
-            { label: "未受験のテスト", value: unsub ?? "—", unit: unsub != null ? " 件" : "" },
+            { label: "テスト", value: unsub ?? "—", unit: unsub != null ? " 件 まだ" : "" },
             { label: "目標の進み", value: goalPct ?? "—", unit: goalPct != null ? "%" : "", pct: goalPct ?? undefined },
             { label: "次の締め切り", value: firstDl != null ? Math.max(firstDl, 0) : "—", unit: firstDl != null ? " 日" : "", note: dls[0]?.title },
           ]} />
@@ -87,6 +87,7 @@ export default function TraineeHome({ go, say }) {
 
   return (
     <div className="th">
+      <SysBanner items={d.anns} />
       <div className="th-top">
         <div className="th-date">
           <b className="num">{t?.d}</b>
@@ -112,7 +113,7 @@ export default function TraineeHome({ go, say }) {
                   <li key={s.k} className={`${st} c-${s.cat}`}>
                     <i>{s.done ? "✓" : i + 1}</i>
                     <span><b>{s.t}</b><small>{s.sub}</small></span>
-                    {i === nextI ? <em>次</em> : <span />}
+                    {i === nextI ? <em>いま</em> : <span />}
                   </li>
                 );
               })}
@@ -146,6 +147,7 @@ export default function TraineeHome({ go, say }) {
             ))}
             {d.devs !== null && dls.length === 0 && tests.length === 0 && <div className="th-none"><Chip tone="ok">なし</Chip></div>}
           </div>
+          {dls.length + tests.length > 4 && <div className="more"><button type="button" className="lnk" onClick={() => go("cur")}>すべての締め切り（{dls.length + tests.length}）→</button></div>}
         </Card>
 
         <Card className="pad">
@@ -159,7 +161,7 @@ export default function TraineeHome({ go, say }) {
                 <Btn kind="ghost sm" onClick={() => ack(`ntc#${n.id}`)}>確認</Btn>
               </div>
             ))}
-            {(d.anns || []).slice(0, 4).map(a => {
+            {(d.anns || []).filter(a => !(a.authorRole === "admin" && a.kind)).slice(0, 4).map(a => {
               const [label, tone, cat] = FROM[a.authorRole] || FROM.instructor;
               return (
                 <div key={a.announcementId} className="th-an">
@@ -175,6 +177,7 @@ export default function TraineeHome({ go, say }) {
             })}
             {d.anns && d.anns.length === 0 && <div className="th-none"><Chip>なし</Chip></div>}
           </div>
+          {d.anns?.length > 4 && <div className="more"><button type="button" className="lnk" onClick={() => window.dispatchEvent(new Event("lms:notifications"))}>すべてのお知らせ（{d.anns.length}）→</button></div>}
         </Card>
       </div>
     </div>

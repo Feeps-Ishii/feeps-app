@@ -1,19 +1,15 @@
 import React, { Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { apiDelete, apiGet, apiPost, apiPut } from "../../../api.js";
-import { addMaterialToCurriculumTarget, normalizeCurriculumSections, sessionsFromSections } from "../../training/TrainingComponents.jsx";
 import { fmtSize } from "../../training/DevReview.jsx";
 import { getActiveCourseId, setActiveCourseId, takeLibraryTarget } from "../../../utils/common/courseContext.js";
 import { Btn, Chip, FileIcon, Modal } from "../parts/ui.jsx";
-import { arr, copyText, errText, md } from "./common.js";
+import { arr, copyText, errText, hm, md } from "./common.js";
 
 const MaterialViewer = lazy(() => import("../../training/MaterialViewer.jsx"));
-const GroupsModal = lazy(() => import("../../training/LibraryView.jsx").then(m => ({ default: m.GroupsModal })));
-const UsageModal = lazy(() => import("../../training/LibraryView.jsx").then(m => ({ default: m.UsageModal })));
-const VisibilityOverview = lazy(() => import("../../training/LibraryView.jsx").then(m => ({ default: m.VisibilityOverview })));
+
 
 /* 講師・管理者のフォルダ（モック docS）：左に全コース共通とコース別、右に中身の表と行の操作。
-   公開範囲は今の決まりのまま「だれ（役割）とどの範囲（コース・グループ・全コース）」で決める（人ごとの指定は持っていない）。
-   見え方の一覧・グループの出し入れ・容量と費用は今の窓を中に出す */
+   公開範囲は今の決まりのまま「だれ（役割）とどの範囲（コース・グループ・全コース）」で決める（人ごとの指定は持っていない）。 */
 
 const ROOT = "root";
 const ROLES = [["trainee", "受講生"], ["instructor", "講師"], ["client", "企業担当者"]];
@@ -129,16 +125,13 @@ function StaffFolder({ role, say, view = "all" }) {
   const [cur, setCur] = useState(null);          // { sid, id }
   const [open, setOpen] = useState({});
   const [cq, setCq] = useState("");
-  const [q, setQ] = useState(""); const [sort, setSort] = useState("name");
+  const [q, setQ] = useState(""); const sort = "name";
   const [menu, setMenu] = useState("");
   const [dlg, setDlg] = useState(null);          // { kind, node? }
   const [text, setText] = useState("");
   const [busy, setBusy] = useState(""); const [err, setErr] = useState("");
   const [groups, setGroups] = useState([]);
-  const [units, setUnits] = useState([]); const [linkTo, setLinkTo] = useState("");
   const [viewing, setViewing] = useState(null);
-  const [overview, setOverview] = useState(false);
-  const [usage, setUsage] = useState(null);
   const [drop, setDrop] = useState(false);
   const fileRef = useRef(null);
 
@@ -173,11 +166,7 @@ function StaffFolder({ role, say, view = "all" }) {
     apiGet(`/library/groups?courseId=${encodeURIComponent(cid)}`).then(r => setGroups(arr(r?.groups))).catch(() => setGroups([]));
   }, [cid]);
   useEffect(() => {
-    loadGroups(); setLinkTo(""); setUnits([]);
-    if (!cid) return undefined;
-    let alive = true;
-    apiGet(`/courses/${encodeURIComponent(cid)}/curriculum`).then(d => { if (alive) setUnits(normalizeCurriculumSections(d)); }).catch(() => {});
-    return () => { alive = false; };
+    loadGroups();
   }, [cid, loadGroups]);
 
   // 行のメニューは外を押すと閉じる
@@ -205,9 +194,7 @@ function StaffFolder({ role, say, view = "all" }) {
     return [...base].sort((a, b) => (isDir(a) === isDir(b) ? SORTS[sort](a, b) : isDir(a) ? -1 : 1));
   }, [nodes, byId, here, q0, sort]);
 
-  const unitOpts = useMemo(() => units.flatMap(s => [{ v: `section:${s.id}`, t: s.title || "名称未設定" }, ...arr(s.chapters).flatMap(c => arr(c.lessons).map(l => ({ v: `lesson:${l.id}`, t: `　${c.title || "章"} / ${l.title || "名称未設定"}` })))]), [units]);
-
-  const go = (sid, id = ROOT) => { setCur({ sid, id }); setQ(""); setMenu(""); setErr(""); setOverview(false); const c = courseIdOf(sid); if (c) { setActiveCourseId(c); setOpen(o => ({ ...o, [c]: true })); } };
+  const go = (sid, id = ROOT) => { setCur({ sid, id }); setQ(""); setMenu(""); setErr(""); const c = courseIdOf(sid); if (c) { setActiveCourseId(c); setOpen(o => ({ ...o, [c]: true })); } };
   const openShortcut = n => go("shared", n.targetNodeId || ROOT);
   const enter = n => (n.type === "shortcut" ? openShortcut(n) : go(cur.sid, n.nodeId));
 
@@ -227,7 +214,6 @@ function StaffFolder({ role, say, view = "all" }) {
     } catch (e) { setErr(errText(e, `「${n.name}」を開けませんでした`)); }
   };
   const upload = files => run("upload", async () => {
-    let cu = units;
     for (const f of files) {
       // eslint-disable-next-line no-await-in-loop
       const got = await apiPost("/library/upload-url", { spaceId: cur.sid, parentId: here.nodeId, filename: f.name, contentType: f.type || "application/octet-stream", sizeBytes: f.size });
@@ -236,14 +222,8 @@ function StaffFolder({ role, say, view = "all" }) {
       if (!put.ok) throw new Error(`「${f.name}」を置けませんでした（${put.status}）`);
       // eslint-disable-next-line no-await-in-loop
       await apiPost("/library/files", { spaceId: cur.sid, parentId: here.nodeId, nodeId: got.nodeId, s3key: got.s3key, materialId: got.materialId, name: f.name, sizeBytes: f.size, contentType: got.contentType });
-      if (linkTo && got.materialId && cid) {
-        const next = addMaterialToCurriculumTarget(cu, linkTo, got.materialId);
-        // eslint-disable-next-line no-await-in-loop
-        try { await apiPut(`/courses/${encodeURIComponent(cid)}/curriculum`, { sections: next, sessions: sessionsFromSections(next) }); cu = next; setUnits(next); }
-        catch { setErr(`「${f.name}」は置きました。単元には付けられませんでした`); }
-      }
     }
-    say?.(`${files.length} ファイルを置きました`);
+    say?.(`${files.length} 件をアップロードしました`);
   });
   const confirmDlg = () => {
     const { kind, node } = dlg, name = text.trim();
@@ -270,7 +250,7 @@ function StaffFolder({ role, say, view = "all" }) {
     setDlg(null);
     say?.("外しました");
   });
-  const openUsage = async () => { setUsage({ open: true, data: null }); try { setUsage({ open: true, data: await apiGet("/library/usage") }); } catch (e) { setUsage({ open: true, data: { error: errText(e, "集計を確認できません") } }); } };
+
 
   // 左の一覧。開いている道の上だけ、下の階層も見せる
   const treeKids = (sid, parent) => {
@@ -299,14 +279,12 @@ function StaffFolder({ role, say, view = "all" }) {
 
   return (
     <div className="st">
-      <div className="head"><h1 className="h1">フォルダ</h1>
-        <span className="r">{showCourses && arr(courses).length > 0 && <Btn kind="ghost sm" onClick={() => setOverview(v => !v)}>{overview ? "フォルダへ戻る" : "見え方の一覧"}</Btn>}</span>
+      <div className="head"><div>{cur && <div className="eyebrow">{cid ? scopeName(cur.sid) : "全コース共通"}</div>}<h1 className="h1">{view === "common" ? "共有フォルダ" : view === "course" ? "コース別フォルダ" : "フォルダ"}</h1></div>
+        <span className="r">{canWriteHere && <><Btn kind="ghost sm" disabled={!!busy} onClick={() => fileRef.current?.click()}>{busy === "upload" ? "アップロードしています" : "アップロード"}</Btn><Btn kind="sm" disabled={!!busy} onClick={() => { setText(""); setDlg({ kind: "folder" }); }}>＋ 新しいフォルダ</Btn></>}</span>
       </div>
       {courses === null && <div className="lms-err" role="alert">コースを確認できません</div>}
       {err && <div className="lms-err" role="alert">{err}</div>}
-      {overview ? (
-        <div className="lms-legacy"><Suspense fallback={<div className="soon card">読み込み中</div>}><VisibilityOverview courses={arr(courses)} initialCourseId={cid} onOpen={(sid, nodeId) => { if (spaces[sid] === undefined) loadSpace(sid); go(sid, nodeId); }} /></Suspense></div>
-      ) : (
+      <input ref={fileRef} type="file" multiple className="lms-sr" aria-label="アップロードするファイル" onChange={e => { const fs = [...(e.target.files || [])]; e.target.value = ""; if (fs.length) upload(fs); }} />
         <div className="fsw">
           <nav className="card fs-tree" aria-label="フォルダ">
             {showCommon && <>
@@ -344,32 +322,20 @@ function StaffFolder({ role, say, view = "all" }) {
                       {chain.filter(c => c.nodeId !== ROOT).map((c, i, l) => <React.Fragment key={c.nodeId}><i aria-hidden="true">›</i>{i === l.length - 1 ? <b>{c.name}</b> : <button type="button" className="lnk" onClick={() => go(cur.sid, c.nodeId)}>{c.name}</button>}</React.Fragment>)}
                     </div>
                     <span className="row">
-                      <Chip tone={VIS[k][1]}>{VIS[k][0]}</Chip>
+                      <Chip tone={VIS[k][1]}>公開範囲：{VIS[k][0]}</Chip>
                       {here.canWrite && <Btn kind="ghost sm" onClick={() => setDlg({ kind: "acl", node: here })}>このフォルダの公開範囲</Btn>}
-                      {cid && <Btn kind="ghost sm" onClick={() => setDlg({ kind: "groups" })}>グループ</Btn>}
-                    </span>
-                  </div>
-                  <div className="fs-top fs-bar">
-                    <span className="row">
-                      {canWriteHere && <><Btn kind="sm" disabled={!!busy} onClick={() => fileRef.current?.click()}>{busy === "upload" ? "置いています" : "アップロード"}</Btn><Btn kind="ghost sm" disabled={!!busy} onClick={() => { setText(""); setDlg({ kind: "folder" }); }}>＋ 新しいフォルダ</Btn></>}
-                      {canWriteHere && cid && unitOpts.length > 0 && <label className="fsort">単元にも付ける<select className="in" value={linkTo} onChange={e => setLinkTo(e.target.value)}><option value="">付けない</option>{unitOpts.map(o => <option key={o.v} value={o.v}>{o.t}</option>)}</select></label>}
-                      <input ref={fileRef} type="file" multiple className="lms-sr" aria-label="置くファイル" onChange={e => { const fs = [...(e.target.files || [])]; e.target.value = ""; if (fs.length) upload(fs); }} />
-                    </span>
-                    <span className="row">
-                      {data.quotaBytes > 0 && <Chip><span className="num">{fmtSize(data.usedBytes || 0)} / {fmtSize(data.quotaBytes)}</span></Chip>}
-                      <label className="fsort">並べ替え<select className="in" value={sort} onChange={e => setSort(e.target.value)}><option value="name">名前順</option><option value="new">新しい順</option><option value="size">大きい順</option></select></label>
                       <span className="fsearch"><input type="search" value={q} placeholder="このフォルダで探す" aria-label="このフォルダで探す" onChange={e => setQ(e.target.value)} /></span>
                     </span>
                   </div>
-                  <div className="scroll"><table className="tbl fs-t"><thead><tr><th>名前</th><th>更新日</th><th>大きさ</th><th>公開範囲</th><th aria-label="操作" /></tr></thead><tbody>
+                  <div className="scroll"><table className="tbl fs-t"><thead><tr><th>名前</th><th>更新日時</th><th>更新者</th><th>公開範囲</th><th aria-label="操作" /></tr></thead><tbody>
                     {list.map(n => {
                       const v = nodeVis(n), used = cur.sid === "shared" ? (links?.[n.nodeId]?.shortcuts?.length || 0) + (links?.[n.nodeId]?.copies?.length || 0) : 0;
                       return (
                         <tr key={n.nodeId} className={menu === n.nodeId || cur.id === n.nodeId ? "on" : ""}>
-                          <td><button type="button" className="fs-name" onClick={() => (isDir(n) ? enter(n) : openFile(n))}>{isDir(n) ? <span className="folder" aria-hidden="true" /> : <FileIcon name={n.name} />}<span>{nameOf(n)}{q0 && pathOf(n) && <small className="fs-path">{pathOf(n)}</small>}<small className="fs-meta num">{md(n.updatedAt)}{n.sizeBytes ? ` ・ ${fmtSize(n.sizeBytes)}` : ""} ・ {VIS[v][0]}</small></span></button>{n.type === "shortcut" && <Chip tone="mk">共有</Chip>}{n.ownAcl && <Chip>専用の範囲</Chip>}{used > 0 && <Chip tone="blue">{used} コース</Chip>}</td>
-                          <td className="num">{md(n.updatedAt) || "—"}</td>
-                          <td className="num">{n.type === "file" ? fmtSize(n.sizeBytes) : "—"}</td>
-                          <td><Chip tone={VIS[v][1]}>{VIS[v][0]}</Chip></td>
+                          <td><button type="button" className="fs-name" onClick={() => (isDir(n) ? enter(n) : openFile(n))}>{isDir(n) ? <span className="folder" aria-hidden="true" /> : <FileIcon name={n.name} />}<span>{nameOf(n)}{q0 && pathOf(n) && <small className="fs-path">{pathOf(n)}</small>}<small className="fs-meta num">{md(n.updatedAt)}{n.sizeBytes ? ` ・ ${fmtSize(n.sizeBytes)}` : ""} ・ {VIS[v][0]}</small></span></button>{n.type === "shortcut" && <Chip tone="mk">共有</Chip>}{used > 0 && <Chip tone="blue">{used} コース</Chip>}</td>
+                          <td className="num">{n.updatedAt ? `${md(n.updatedAt)} ${hm(n.updatedAt)}` : "—"}</td>
+                          <td>{data.names?.[n.createdBy] || "—"}</td>
+                          <td>{n.ownAcl ? <Chip tone={VIS[v][1]}>{VIS[v][0]}</Chip> : <span className="fs-inh">フォルダと同じ</span>}</td>
                           <td className="fs-k">
                             <button type="button" className="kbtn" aria-label={`${nameOf(n)} の操作`} aria-expanded={menu === n.nodeId} onClick={() => setMenu(m => (m === n.nodeId ? "" : n.nodeId))}>…</button>
                             {menu === n.nodeId && (
@@ -382,9 +348,9 @@ function StaffFolder({ role, say, view = "all" }) {
                                 {n.canWrite && n.type !== "shortcut" && mi("名前を変更", () => { setText(n.name); setDlg({ kind: "rename", node: n }); })}
                                 {n.canWrite && n.type !== "shortcut" && mi("移動", () => setDlg({ kind: "move", node: n }))}
                                 {n.canWrite && n.type !== "shortcut" && mi("コピー", () => setDlg({ kind: "copy", node: n }))}
-                                {n.canWrite && mi("公開範囲", () => setDlg({ kind: "acl", node: n }))}
+                                {n.canWrite && mi("公開範囲を設定", () => setDlg({ kind: "acl", node: n }))}
                                 {n.canWrite && <hr />}
-                                {n.canWrite && mi(n.type === "shortcut" ? "外す" : "消す", () => setDlg({ kind: "delete", node: n }), "del")}
+                                {n.canWrite && mi(n.type === "shortcut" ? "外す" : "削除", () => setDlg({ kind: "delete", node: n }), "del")}
                               </div>
                             )}
                           </td>
@@ -393,12 +359,11 @@ function StaffFolder({ role, say, view = "all" }) {
                     })}
                     {!list.length && <tr><td colSpan={5}><Chip>なし</Chip></td></tr>}
                   </tbody></table></div>
-                  <div className="fs-drop">ここに落とす</div>
+                  <div className="fs-drop">ここにファイルを落とすとアップロード</div>
                 </>
               )}
           </section>
         </div>
-      )}
       {dlg?.kind === "acl" && (
         <AclModal node={{ ...dlg.node, parentAcl: byId.get(dlg.node.parentId)?.acl }} isRoot={dlg.node.nodeId === ROOT} sid={cur.sid} groups={groups}
           onCreateGroup={name => apiPost("/library/groups", { courseId: cid, name }).then(g => { loadGroups(); return g; })}
@@ -409,15 +374,13 @@ function StaffFolder({ role, say, view = "all" }) {
       {dlg?.kind === "copy" && <MoveModal copy node={dlg.node} nodes={nodes} onClose={() => setDlg(null)} onMove={async to => { await apiPost("/library/copy", { spaceId: cur.sid, nodeId: dlg.node.nodeId, parentId: to }); await loadSpace(cur.sid); say?.("コピーしました"); }} />}
       {dlg?.kind === "place" && <PlaceModal node={dlg.node} courses={arr(courses)} linked={links?.[dlg.node.nodeId]} onClose={() => setDlg(null)} onPlace={(mode, ids) => place(dlg.node, mode, ids)} onUnlink={unlink} />}
       {dlg && ["folder", "rename", "delete"].includes(dlg.kind) && (
-        <Modal title={dlg.kind === "folder" ? "新しいフォルダ" : dlg.kind === "rename" ? "名前を変更" : dlg.node.type === "shortcut" ? "外す" : "消す"} width={420} onClose={() => setDlg(null)}
-          footer={<><Btn kind="ghost" onClick={() => setDlg(null)}>やめる</Btn><Btn onClick={confirmDlg}>{dlg.kind === "delete" ? (dlg.node.type === "shortcut" ? "外す" : "消す") : "決める"}</Btn></>}>
+        <Modal title={dlg.kind === "folder" ? "新しいフォルダ" : dlg.kind === "rename" ? "名前を変更" : dlg.node.type === "shortcut" ? "外す" : "削除"} width={420} onClose={() => setDlg(null)}
+          footer={<><Btn kind="ghost" onClick={() => setDlg(null)}>やめる</Btn><Btn onClick={confirmDlg}>{dlg.kind === "delete" ? (dlg.node.type === "shortcut" ? "外す" : "削除") : "決める"}</Btn></>}>
           {dlg.kind === "delete"
             ? <b>{nameOf(dlg.node)}{dlg.node.type === "folder" && nodes.some(x => x.parentId === dlg.node.nodeId) ? "（中身ごと）" : ""}</b>
             : <input type="text" value={text} autoFocus aria-label="名前" onChange={e => setText(e.target.value)} onKeyDown={e => { if (e.key === "Enter") confirmDlg(); }} />}
         </Modal>
       )}
-      {dlg?.kind === "groups" && <div className="lms-legacy"><Suspense fallback={null}><GroupsModal courseId={cid} courseName={courseName(cid)} onClose={() => { setDlg(null); loadGroups(); }} /></Suspense></div>}
-      {usage?.open && usage.data && <div className="lms-legacy"><Suspense fallback={null}><UsageModal data={usage.data} onClose={() => setUsage(null)} /></Suspense></div>}
       {viewing && <Suspense fallback={null}><div className="lms-legacy"><MaterialViewer courseId={cid} material={{ materialId: viewing.materialId, title: viewing.name, mode: "view" }} onClose={() => setViewing(null)} canAnnotate /></div></Suspense>}
     </div>
   );

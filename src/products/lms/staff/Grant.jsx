@@ -1,15 +1,14 @@
-import React, { Suspense, lazy, useEffect, useMemo, useRef, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { apiGet, apiPost } from "../../../api.js";
 import {
-  APPLICATION_TYPE_OPTIONS, DOCUMENT_TYPE_SUGGESTIONS, EMPLOYMENT_TYPE_OPTIONS, EMPTY_GRANT_FORM, ENTERPRISE_SIZE_OPTIONS, FORM_TYPE_OPTIONS, GRADUATE_STATUS_OPTIONS,
-  GRANT_STATUS_OPTIONS, GRANT_TYPE_SUGGESTIONS, IT_EXPERIENCE_OPTIONS, applicationTypeLabel, documentStatusLabel, employmentTypeLabel, grantStatusLabel,
+  APPLICATION_TYPE_OPTIONS, EMPLOYMENT_TYPE_OPTIONS, EMPTY_GRANT_FORM, ENTERPRISE_SIZE_OPTIONS, GRADUATE_STATUS_OPTIONS,
+  GRANT_STATUS_OPTIONS, GRANT_TYPE_SUGGESTIONS, IT_EXPERIENCE_OPTIONS, applicationTypeLabel, documentStatusLabel, employmentTypeLabel,
 } from "../../grants/GrantsCatalog.js";
 import { useCompanyCourses, useCompanyProfile, useCompanyTrainees, useGrantCalculationDraft, useGrantCompanies, useGrantCoursesMap, useGrantDocuments, useGrantExports, useGrantsList } from "../../grants/useGrants.js";
-import { computeGrantStages, computeNextActions } from "../../grants/grantStages.js";
-import { Btn, Card, Chip, FileIcon, ListTool, Modal, matchName } from "../parts/ui.jsx";
+import { computeGrantStages } from "../../grants/grantStages.js";
+import { normalizeCurriculumSections } from "../../training/TrainingComponents.jsx";
+import { Btn, Card, Chip, ListTool, Modal, matchName } from "../parts/ui.jsx";
 import { arr, errText, md, saveBlob, zipStore } from "./common.js";
-
-const GrantRateMaster = lazy(() => import("../../grants/GrantsComponents.jsx").then(m => ({ default: m.GrantRateMaster })));
 
 /* 助成金（管理者・企業担当者。モック grantList・grantD）：管理者は一覧 → 申請ごと、企業担当者は自社の申請。
    書類・入力・受講状況・集計と出力。期限と段階は grantStages.js、計算は /grants/{id}/calculation-draft、帳票は /exports（今の決まりのまま）。
@@ -20,16 +19,66 @@ const THRESHOLD = 80;
 const verdict = r => (r == null ? ["確認できません", ""] : r < THRESHOLD ? ["要件外の可能性", "bad"] : r < 88 ? ["注意", "warn"] : ["OK", "ok"]);
 const docTone = s => ({ accepted: "ok", rejected: "bad", submitted: "blue" }[s] || "");
 
-function Steps({ stages }) {
-  return (
-    <div className="gsteps">
-      {stages.map(s => {
-        const done = ["accepted", "submitted", "under_review"].includes(s.state.value);
-        return <span key={s.key} className={done ? "done" : s.current ? "on" : ""}><b>{done ? "✓ " : ""}{s.label}</b><small>{s.state.label}{s.deadline ? ` ・ 〆 ${md(s.deadline.date)}` : ""}{s.deadline?.overdue && !done ? " 期限超過" : ""}</small></span>;
-      })}
-    </div>
-  );
+const PASSED = ["accepted", "submitted", "under_review"];
+function Steps({ grant, course, stages }) {
+  const plan = stages.find(s => s.key === "plan"), pay = stages.find(s => s.key === "shikyu"), today = new Date().toISOString().slice(0, 10);
+  const planOk = PASSED.includes(plan?.state.value), payOk = PASSED.includes(pay?.state.value), running = course?.startDate && course.startDate <= today && (!course.endDate || course.endDate >= today), paid = grant.status === "paid" || !!grant.paidAt;
+  const l = [
+    ["計画届", planOk ? "done" : "on", planOk ? `${md(grant.appliedAt)} 提出` : plan?.deadline ? `〆 ${md(plan.deadline.date)}` : ""],
+    ["研修中", course?.endDate && course.endDate < today ? "done" : running ? "on" : "", course?.startDate ? `${md(course.startDate)}〜${md(course.endDate)}` : ""],
+    ["支給申請", payOk ? "done" : "", grant.documentsSubmittedAt ? `${md(grant.documentsSubmittedAt)} 提出` : pay?.deadline ? `〆 ${md(pay.deadline.date)}` : ""],
+    ["入金", paid ? "done" : "", grant.paidAt ? md(grant.paidAt) : ""],
+  ];
+  return <div className="gsteps">{l.map(([t, k, sub]) => <span key={t} className={k}><b>{k === "done" ? "✓ " : ""}{t}</b><small>{sub}</small></span>)}</div>;
 }
+
+// そろえる書類（モック GD）。状態は申請・書類・企業の情報・受講者・勤怠から出す
+const GD = [
+  { t: "訓練計画の元データ（計画届に写す）", who: "Feeps", kind: "out", form: "plan", due: "plan" },
+  { t: "計画届の提出", who: "お客様", kind: "sub", stage: "plan", due: "plan" },
+  { t: "企業の情報", who: "お客様", kind: "co", due: "研修の終わりまで" },
+  { t: "受講者の情報（被保険者番号・雇用形態）", who: "お客様", kind: "pp", due: "研修の終わりまで" },
+  { t: "雇用契約書の写し", who: "お客様", kind: "up", type: "雇用契約書", re: /雇用契約/, due: "支給申請まで" },
+  { t: "出勤簿・タイムカード", who: "お客様", kind: "up", type: "出勤簿", re: /出勤簿|タイムカード/, due: "支給申請まで" },
+  { t: "賃金台帳", who: "お客様", kind: "up", type: "賃金台帳", re: /賃金台帳/, due: "支給申請まで" },
+  { t: "実施状況の集計（Off-JT 実施状況報告書の元）", who: "Feeps", kind: "out", form: "offjt", due: "研修の終わり" },
+  { t: "請求書・領収書（経費助成）", who: "Feeps", kind: "upf", type: "請求書・領収書", re: /請求書|領収書/, due: "研修の終わり" },
+  { t: "支給申請", who: "お客様", kind: "sub", stage: "shikyu", due: "shikyu" },
+];
+const gTone = { ok: "ok", warn: "warn", bad: "bad", no: "", auto: "mk", off: "", unk: "" };
+const NEEDED = ["name", "capitalAmount", "employeeCount", "enterpriseSize"];
+// facts: { docs, profile, trainees, stats }。undefined は読み込み中、null は読めなかった
+function grantRows(grant, stages, facts) {
+  const { docs, profile, trainees, stats } = facts;
+  const dl = k => stages.find(s => s.key === k)?.deadline;
+  const targets = arr(grant.targetTraineeIds);
+  const ppl = arr(trainees).filter(t => !targets.length || targets.includes(t.userId));
+  return GD.map(d => {
+    const doc = d.form ? arr(docs).find(x => x.source === "generated" && x.formType === d.form) : d.re ? arr(docs).find(x => x.source !== "generated" && d.re.test(x.documentType || "")) : null;
+    const due = d.due === "plan" || d.due === "shikyu" ? (dl(d.due === "plan" ? "plan" : "shikyu")?.date ? md(dl(d.due === "plan" ? "plan" : "shikyu").date) : "未定") : d.due;
+    const wait = docs === undefined ? ["unk", "読み込み中"] : docs === null ? ["unk", "確認できません"] : null;
+    let st;
+    if (d.kind === "sub") {
+      const s = stages.find(x => x.key === d.stage), left = s?.deadline;
+      st = PASSED.includes(s?.state.value) ? ["ok", d.stage === "plan" && grant.appliedAt ? `${md(grant.appliedAt)} 提出` : grant.documentsSubmittedAt ? `${md(grant.documentsSubmittedAt)} 提出` : "提出済み"]
+        : left?.overdue ? ["bad", "期限を過ぎました"] : left ? [left.daysRemaining <= 30 ? "bad" : d.stage === "plan" ? "warn" : "off", `まだ ・ あと ${left.daysRemaining} 日`] : ["off", "これから"];
+    } else if (d.kind === "co") {
+      st = profile === undefined ? ["unk", "読み込み中"] : profile === null ? ["unk", "確認できません"] : NEEDED.every(k => profile[k] !== undefined && profile[k] !== null && profile[k] !== "") ? ["ok", "入力済み"] : ["warn", "まだ"];
+    } else if (d.kind === "pp") {
+      const n = ppl.filter(t => t.employmentInsuranceNumber && t.employmentType).length;
+      st = trainees === undefined ? ["unk", "読み込み中"] : trainees === null ? ["unk", "確認できません"] : ppl.length && n === ppl.length ? ["ok", "全員分"] : ["warn", `${n} / ${ppl.length} 人`];
+    } else if (d.kind === "out") {
+      const p = stats?.period, on = (p?.trainingDays || 0) > 0;
+      st = wait || (doc ? ["ok", `${md(doc.uploadedAt)} に作りました`] : d.form === "offjt" && on ? ["auto", `自動で集計中（${p.trainingDays}${p.totalDays ? ` / ${p.totalDays}` : ""} 日）`] : d.form === "offjt" ? ["off", "これから"] : ["no", "まだ作っていません"]);
+    } else if (d.kind === "upf") {
+      st = wait || (doc ? ["ok", "アップロード済み"] : ["off", "研修後に発行"]);
+    } else {
+      st = wait || (doc ? ["ok", "アップロード済み"] : ["no", "まだ"]);
+    }
+    return { ...d, doc, due, tone: st[0], text: st[1] };
+  });
+}
+const matchedDoc = d => (d.source === "generated" ? ["plan", "offjt"].includes(d.formType) : GD.some(x => x.re && x.re.test(d.documentType || "")));
 
 // 様式の欄と LMS の項目の対応（見るだけ）
 function MapModal({ onClose }) {
@@ -53,82 +102,55 @@ function MapModal({ onClose }) {
   );
 }
 
-function DocsTab({ grant, isAdmin, docs, nextActions, say }) {
-  const [mapOpen, setMapOpen] = useState(false);
+function DocsTab({ grant, stages, facts, isAdmin, docs, setTab, onNotify, say }) {
   const { generate, generating, error: genErr, clearError, lastResult } = useGrantExports(grant.grantId);
-  const [formType, setFormType] = useState(FORM_TYPE_OPTIONS[0].value);
-  const [up, setUp] = useState({ type: DOCUMENT_TYPE_SUGGESTIONS[0], custom: "", due: "", note: "" });
   const [busy, setBusy] = useState(false); const [err, setErr] = useState("");
-  const [review, setReview] = useState(null); const [note, setNote] = useState(""); const [del, setDel] = useState(null);
+  const [del, setDel] = useState(null); const [upType, setUpType] = useState("");
   const fileRef = useRef(null);
+  const rows = grantRows(grant, stages, facts);
   const onFile = async e => {
     const file = e.target.files?.[0]; e.target.value = "";
     if (!file) return;
     setBusy(true); setErr("");
-    try { await docs.uploadDocument({ file, documentType: up.type === "その他" ? up.custom.trim() || "その他" : up.type, dueDate: up.due, note: up.note }); say?.("書類を置きました"); }
-    catch (x) { setErr(errText(x, "置けませんでした")); } finally { setBusy(false); }
+    try { await docs.uploadDocument({ file, documentType: upType, dueDate: "", note: "" }); say?.(`${upType} をアップロードしました`); }
+    catch (x) { setErr(errText(x, "アップロードできませんでした")); } finally { setBusy(false); }
   };
   const view = async d => { try { const url = await docs.viewDocument(d.documentId); if (url) window.open(url, "_blank", "noopener,noreferrer"); } catch { setErr("書類を開けませんでした"); } };
-  const make = async () => { clearError(); try { await generate(formType); await docs.reload(); } catch { /* genErr に出る */ } };
-  const zipAll = async () => {
-    setBusy(true); setErr("");
-    try {
-      const used = {}, files = [];
-      for (const d of docs.items) {
-        // eslint-disable-next-line no-await-in-loop
-        const url = await docs.viewDocument(d.documentId);
-        // eslint-disable-next-line no-await-in-loop
-        const r = await fetch(url);
-        if (!r.ok) throw new Error(`「${d.fileName}」を読めませんでした`);
-        const base = d.fileName || d.documentId, k = used[base] = (used[base] || 0) + 1;
-        // eslint-disable-next-line no-await-in-loop
-        files.push({ name: k > 1 ? `${k}_${base}` : base, data: new Uint8Array(await r.arrayBuffer()) });
-      }
-      saveBlob(zipStore(files), `助成金の書類_${grant.grantType || "申請"}.zip`);
-    } catch (e) { setErr(errText(e, "まとめられませんでした")); } finally { setBusy(false); }
+  const make = async form => { clearError(); try { await generate(form); await docs.reload(); say?.("作りました"); } catch { /* genErr に出る */ } };
+  const remove = async () => { setBusy(true); try { await docs.removeDocument(del.documentId); setDel(null); say?.("削除しました"); } catch (x) { setErr(errText(x, "削除できませんでした")); setDel(null); } finally { setBusy(false); } };
+  const pick = t => { setUpType(t); fileRef.current?.click(); };
+  const act = r => {
+    const open = r.doc && <Btn kind="ghost sm" onClick={() => view(r.doc)}>{r.kind === "up" ? "見る" : "受け取る"}</Btn>;
+    if (!isAdmin) {
+      if (r.who === "Feeps") return open || null;
+      if (r.tone === "ok") return r.kind === "up" ? open : null;
+      if (r.tone === "off" || r.tone === "unk") return null;
+      if (r.kind === "co" || r.kind === "pp") return <Btn kind="sm" onClick={() => setTab("in")}>入れる</Btn>;
+      if (r.kind === "up") return <Btn kind="sm" disabled={busy} onClick={() => pick(r.type)}>アップロード</Btn>;
+      return null;
+    }
+    if (r.kind === "out") return r.doc ? open : <Btn kind={r.tone === "no" ? "sm" : "ghost sm"} disabled={generating || r.tone === "off" || r.tone === "unk"} onClick={() => make(r.form)}>{generating ? "作っています" : r.tone === "auto" ? "受け取る" : "作る"}</Btn>;
+    if (r.kind === "upf") return r.doc ? <span className="row st-nw">{open}<Btn kind="ghost sm" onClick={() => setDel(r.doc)}>削除</Btn></span> : <Btn kind="ghost sm" disabled={busy} onClick={() => pick(r.type)}>アップロード</Btn>;
+    if (r.tone === "ok") return r.kind === "up" ? <span className="row st-nw">{open}<Btn kind="ghost sm" onClick={() => setDel(r.doc)}>削除</Btn></span> : null;
+    if (["warn", "no", "bad"].includes(r.tone)) return <Btn kind="ghost sm" onClick={() => onNotify(`${r.t} をお願いします`)}>お客様に知らせる</Btn>;
+    return null;
   };
-  const decide = async s => { setBusy(true); try { await docs.reviewDocument(review.documentId, s, note); setReview(null); setNote(""); say?.(s === "accepted" ? "受理しました" : "差し戻しました"); } catch (x) { setErr(errText(x, "保存できませんでした")); } finally { setBusy(false); } };
-  const remove = async () => { setBusy(true); try { await docs.removeDocument(del.documentId); setDel(null); say?.("消しました"); } catch (x) { setErr(errText(x, "消せませんでした")); setDel(null); } finally { setBusy(false); } };
+  const others = arr(docs.items).filter(d => !matchedDoc(d));
   return (
     <>
-      {nextActions.length > 0 && <Card className="pad st-g"><span className="eyebrow">次にやること</span>{nextActions.map(a => <span key={a} className="dr-block"><b>{a}</b></span>)}</Card>}
-      <Card className="pad st-g">
-        {mapOpen && <MapModal onClose={() => setMapOpen(false)} />}
-        <div className="head"><h2 className="h3">書類</h2><span className="r"><Chip>{docs.items.length} 件</Chip>{isAdmin && <Btn kind="ghost sm" onClick={() => setMapOpen(true)}>様式の対応表</Btn>}{docs.items.length > 0 && <Btn kind="ghost sm" disabled={busy} onClick={zipAll}>まとめて受け取る（zip）</Btn>}</span></div>
-        {docs.error ? <div className="empty"><b>書類を確認できません</b><Btn kind="ghost sm" onClick={docs.reload}>再読み込み</Btn></div> : docs.loading ? <div className="dv-mt">読み込み中</div> : (
-          <div className="fd-l">
-            {docs.items.map(d => (
-              <div key={d.documentId} className="fd-f">
-                <FileIcon name={d.fileName || ""} />
-                <span className="fd-fb"><b>{d.documentType || "種別未設定"}</b><small className="num">{d.fileName}{d.dueDate ? ` ・ 期限 ${md(d.dueDate)}` : ""}{d.uploadedAt ? ` ・ 提出 ${md(d.uploadedAt)}` : ""}{d.note ? ` ・ ${d.note}` : ""}</small></span>
-                <span className="row">{d.source === "generated" && <Chip tone="mk">自動生成</Chip>}<Chip tone={docTone(d.status)}>{documentStatusLabel(d.status)}</Chip></span>
-                <span className="fd-ac"><Btn kind="ghost sm" onClick={() => view(d)}>開く</Btn>{isAdmin && d.status === "submitted" && d.source !== "generated" && <Btn kind="sm" onClick={() => { setReview(d); setNote(""); }}>審査</Btn>}{isAdmin && <Btn kind="ghost sm" onClick={() => setDel(d)}>消す</Btn>}</span>
-              </div>
-            ))}
-            {!docs.items.length && <div><Chip>なし</Chip></div>}
-          </div>
-        )}
-        {err && <div className="lms-err" role="alert">{err}</div>}
-      </Card>
-      <div className="g2e">
-        <Card className="pad st-g">
-          <h2 className="h3">書類を置く</h2>
-          <div className="st-fg"><label className="field">種別<select className="in" value={up.type} onChange={e => setUp(u => ({ ...u, type: e.target.value }))}>{DOCUMENT_TYPE_SUGGESTIONS.map(t => <option key={t}>{t}</option>)}</select></label>{up.type === "その他" ? <label className="field">種別の名前<input type="text" value={up.custom} onChange={e => setUp(u => ({ ...u, custom: e.target.value }))} /></label> : <label className="field">期限<input type="date" value={up.due} onChange={e => setUp(u => ({ ...u, due: e.target.value }))} /></label>}</div>
-          <label className="field">メモ<input type="text" value={up.note} onChange={e => setUp(u => ({ ...u, note: e.target.value }))} /></label>
-          <input ref={fileRef} type="file" className="lms-sr" aria-label="置くファイル" onChange={onFile} />
-          <span className="row st-end"><Btn kind="sm" disabled={busy} onClick={() => fileRef.current?.click()}>{busy ? "置いています" : "ファイルを選ぶ"}</Btn></span>
-        </Card>
-        <Card className="pad st-g">
-          <h2 className="h3">Excel の帳票を作る</h2>
-          <label className="field">帳票<select className="in" value={formType} disabled={generating} onChange={e => setFormType(e.target.value)}>{FORM_TYPE_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}</select></label>
-          <span className="row st-end"><Btn kind="sm" disabled={generating} onClick={make}>{generating ? "作っています" : "作る"}</Btn></span>
-          {genErr && <div className="lms-err" role="alert">{genErr}</div>}
-          {lastResult && <div className="row"><Chip tone={lastResult.files.length ? "ok" : "warn"}>{lastResult.files.length ? `${lastResult.files.length} 件作成` : lastResult.missingFields?.[0]?.label || "作れませんでした"}</Chip>{lastResult.missingFields?.length > 0 && <Chip tone="warn">未入力 {lastResult.missingFields.length} 項目</Chip>}</div>}
-          {lastResult?.missingFields?.length > 0 && <small className="dv-mt">{lastResult.missingFields.slice(0, 8).map(f => f.label).join("、")}{lastResult.missingFields.length > 8 ? " ほか" : ""}</small>}
-        </Card>
-      </div>
-      {review && <Modal title={`書類の審査 ・ ${review.documentType}`} width={480} onClose={() => setReview(null)} footer={<><Btn kind="ghost" disabled={busy} onClick={() => setReview(null)}>やめる</Btn><Btn kind="ghost" disabled={busy} onClick={() => decide("rejected")}>差し戻す</Btn><Btn disabled={busy} onClick={() => decide("accepted")}>受理する</Btn></>}><label className="field">コメント<textarea rows={3} value={note} onChange={e => setNote(e.target.value)} /></label></Modal>}
-      {del && <Modal title="書類を消す" width={420} onClose={() => setDel(null)} footer={<><Btn kind="ghost" onClick={() => setDel(null)}>やめる</Btn><Btn disabled={busy} onClick={remove}>完全に消す</Btn></>}><b>{del.fileName || del.documentType}</b></Modal>}
+      {docs.error && <Card><div className="empty"><b>書類を確認できません</b><Btn kind="ghost sm" onClick={docs.reload}>再読み込み</Btn></div></Card>}
+      {err && <div className="lms-err" role="alert">{err}</div>}
+      {genErr && <div className="lms-err" role="alert">{genErr}</div>}
+      {lastResult && !lastResult.files?.length && <div className="row"><Chip tone="warn">未入力 {arr(lastResult.missingFields).length} 項目</Chip>{arr(lastResult.missingFields).slice(0, 8).map(f => <Chip key={f.label}>{f.label}</Chip>)}</div>}
+      <input ref={fileRef} type="file" className="lms-sr" aria-label="アップロードするファイル" onChange={onFile} />
+      <Card className=""><div className="scroll"><table className="tbl"><thead><tr><th>書類</th><th>担当</th><th>期限</th><th>状態</th><th /></tr></thead><tbody>
+        {rows.map(r => {
+          const mine = isAdmin ? r.who === "Feeps" : r.who === "お客様";
+          return <tr key={r.t} className={mine && !["ok", "off", "unk"].includes(r.tone) ? "gmine" : ""}><td><b>{r.t}</b></td><td><Chip tone={r.who === "Feeps" ? "mk" : "co"}>{r.who}</Chip></td><td className="num">{r.due}</td><td><Chip tone={gTone[r.tone]}>{r.text}</Chip></td><td>{act(r)}</td></tr>;
+        })}
+        {others.map(d => <tr key={d.documentId}><td><b>{d.documentType || "種別未設定"}</b><small className="adsm">{d.fileName}</small></td><td><Chip tone={d.source === "generated" ? "mk" : "co"}>{d.source === "generated" ? "Feeps" : "お客様"}</Chip></td><td className="num">{d.dueDate ? md(d.dueDate) : "—"}</td><td><Chip>{documentStatusLabel(d.status)}</Chip></td><td><span className="row st-nw"><Btn kind="ghost sm" onClick={() => view(d)}>見る</Btn>{isAdmin && <Btn kind="ghost sm" onClick={() => setDel(d)}>削除</Btn>}</span></td></tr>)}
+      </tbody></table></div></Card>
+      {del && <Modal title="書類を削除" width={420} onClose={() => setDel(null)} footer={<><Btn kind="ghost" onClick={() => setDel(null)}>やめる</Btn><Btn disabled={busy} onClick={remove}>削除</Btn></>}><b>{del.fileName || del.documentType}</b></Modal>}
     </>
   );
 }
@@ -165,7 +187,7 @@ async function readGrantExcel(file) {
   return { profile, list };
 }
 
-function InputTab({ grant, isAdmin, say }) {
+function InputTab({ grant, isAdmin, onNotify, say }) {
   const companyId = isAdmin ? grant.companyId : "";
   const pf = useCompanyProfile(companyId, true);
   const tr = useCompanyTrainees(companyId, true);
@@ -226,7 +248,7 @@ function InputTab({ grant, isAdmin, say }) {
         <span className="row st-end"><Btn kind="sm" disabled={busy} onClick={save}>{busy ? "保存しています" : "保存"}</Btn></span>
       </Card>
       <Card className="pad st-g">
-        <div className="head"><h2 className="h2">受講者 ・ {people.length} 人</h2><span className="r">{missNo ? <Chip tone="bad">被保険者番号がない {missNo} 人</Chip> : <Chip tone="ok">全員分</Chip>}<a className="btn ghost sm cw-a" href="/templates/grant-template.xlsx" download="助成金ひな形.xlsx">助成金ひな形</a><Btn kind="ghost sm" onClick={() => xlRef.current?.click()}>Excel で入れる</Btn></span></div>
+        <div className="head"><h2 className="h2">受講者 ・ {people.length} 人</h2><span className="r">{missNo ? <Chip tone="bad">被保険者番号がない {missNo} 人</Chip> : <Chip tone="ok">全員分</Chip>}{isAdmin ? <Btn kind="ghost sm" onClick={() => onNotify("受講者の情報を入れてください")}>お客様に知らせる</Btn> : <><a className="btn ghost sm cw-a" href="/templates/grant-template.xlsx" download="助成金ひな形.xlsx">助成金ひな形</a><Btn kind="sm" onClick={() => xlRef.current?.click()}>Excel で入れる</Btn></>}</span></div>
         <input ref={xlRef} type="file" accept=".xlsx,.xls" className="lms-sr" aria-label="助成金ひな形を選ぶ" onChange={onXl} />
         {tr.error ? <div className="empty"><b>受講者を確認できません</b><Btn kind="ghost sm" onClick={tr.reload}>再読み込み</Btn></div> : (
           <div className="scroll"><table className="tbl"><thead><tr><th>受講者</th><th>被保険者番号</th><th>雇用形態</th><th>対象</th><th>チェック</th><th /></tr></thead><tbody>
@@ -271,57 +293,135 @@ function AttendTab({ grant }) {
   );
 }
 
-function OutTab({ grant, isAdmin, onSave, say }) {
-  const { calculate, calculating, error, result } = useGrantCalculationDraft(grant.grantId);
+// 経費の実費と申請の記録（見込みの計算と段階の表示に要る。管理者だけ）
+function RecordModal({ grant, onSave, onDelete, onClose, say }) {
   const [cost, setCost] = useState({ perPersonEnrollmentFee: grant.expenseActualCosts?.perPersonEnrollmentFee ?? "", perPersonCertificationFee: grant.expenseActualCosts?.perPersonCertificationFee ?? "", inCompanyCostTotal: grant.expenseActualCosts?.inCompanyCostTotal ?? "", previousReceivedDeduction: grant.expenseActualCosts?.previousReceivedDeduction ?? "", note: grant.expenseActualCosts?.note || "" });
   const [adm, setAdm] = useState({ status: grant.status, appliedAt: grant.appliedAt || "", changeDate: grant.changeDate || "", documentsSubmittedAt: grant.documentsSubmittedAt || "", paidAt: grant.paidAt || "", amount: grant.amount ?? "", remarks: grant.remarks || "" });
-  const [busy, setBusy] = useState(false); const [err, setErr] = useState("");
+  const [busy, setBusy] = useState(false); const [err, setErr] = useState(""); const [del, setDel] = useState(false);
   const c = (k, v) => setCost(x => ({ ...x, [k]: v })); const a = (k, v) => setAdm(x => ({ ...x, [k]: v }));
   const num = k => (cost[k] === "" || cost[k] == null ? null : Number(cost[k]));
   const save = async () => {
     setBusy(true); setErr("");
-    const payload = { remarks: adm.remarks, expenseActualCosts: { perPersonEnrollmentFee: num("perPersonEnrollmentFee"), perPersonCertificationFee: num("perPersonCertificationFee"), inCompanyCostTotal: num("inCompanyCostTotal"), previousReceivedDeduction: num("previousReceivedDeduction"), note: cost.note } };
-    if (isAdmin) Object.assign(payload, { status: adm.status, appliedAt: adm.appliedAt || null, changeDate: adm.changeDate || null, documentsSubmittedAt: adm.documentsSubmittedAt || null, paidAt: adm.paidAt || null, amount: adm.amount === "" ? null : Number(adm.amount) });
-    try { await onSave(payload); say?.("保存しました"); } catch (e) { setErr(errText(e, "保存できませんでした")); } finally { setBusy(false); }
+    try {
+      await onSave({ remarks: adm.remarks, expenseActualCosts: { perPersonEnrollmentFee: num("perPersonEnrollmentFee"), perPersonCertificationFee: num("perPersonCertificationFee"), inCompanyCostTotal: num("inCompanyCostTotal"), previousReceivedDeduction: num("previousReceivedDeduction"), note: cost.note }, status: adm.status, appliedAt: adm.appliedAt || null, changeDate: adm.changeDate || null, documentsSubmittedAt: adm.documentsSubmittedAt || null, paidAt: adm.paidAt || null, amount: adm.amount === "" ? null : Number(adm.amount) });
+      say?.("保存しました"); onClose();
+    } catch (e) { setErr(errText(e, "保存できませんでした")); setBusy(false); }
   };
-  const w = result?.wageSubsidy, x = result?.expenseSubsidy;
   return (
-    <div className="g2e">
-      <Card className="pad st-g">
-        <div className="head"><h2 className="h3">見込み（目安）</h2><span className="r"><Btn kind="sm" disabled={calculating} onClick={() => calculate().catch(() => {})}>{calculating ? "計算しています" : "計算する"}</Btn></span></div>
-        {!result && grant.calculatedAmountDraft != null && <div className="row"><Chip>前回 {yen(grant.calculatedAmountDraft)}{grant.calculatedAmountDraftAt ? ` ・ ${md(grant.calculatedAmountDraftAt)}` : ""}</Chip></div>}
-        {error && <div className="lms-err" role="alert">{error}</div>}
-        {result && (
-          <div className="gest">
-            {result.canCalculateExpense && x ? <div><span>経費助成</span><b className="num">{yen(x.amount)}</b><small>正規等 {x.regularCount} 人 {x.rateRegular}% ・ 有期等 {x.fixedTermCount} 人 {x.rateFixedTerm}%</small></div> : <div><span>経費助成</span><b className="num">—</b><small>実費の入力が足りません</small></div>}
-            {result.canCalculateWage && w ? <div><span>賃金助成</span><b className="num">{yen(w.amount)}</b><small>約 {w.totalActualTrainingHoursDecimal} 時間 × {Number(w.hourlyRate).toLocaleString("ja-JP")} 円（{result.fiscalYear} 年度）</small></div> : <div><span>賃金助成</span><b className="num">—</b></div>}
-            {result.totalDraftAmount != null && <div className="t"><span>合計</span><b className="num">{yen(result.totalDraftAmount)}</b>{isAdmin && <Btn kind="ghost sm" onClick={() => a("amount", String(result.totalDraftAmount))}>金額へ反映</Btn>}</div>}
-          </div>
-        )}
-        {arr(result?.missingItems).length > 0 && <div className="st-g"><span className="eyebrow">足りないもの</span><div className="row">{result.missingItems.map(i => <Chip key={i.code} tone="warn">{i.label}</Chip>)}</div></div>}
-      </Card>
-      <Card className="pad st-g">
-        <h2 className="h3">経費の実費</h2>
-        <div className="st-fg"><label className="field">1 人あたり入学料等（円）<input type="number" min="0" value={cost.perPersonEnrollmentFee} onChange={e => c("perPersonEnrollmentFee", e.target.value)} /></label><label className="field">1 人あたり検定費用（円）<input type="number" min="0" value={cost.perPersonCertificationFee} onChange={e => c("perPersonCertificationFee", e.target.value)} /></label><label className="field">事業内訓練の経費（円）<input type="number" min="0" value={cost.inCompanyCostTotal} onChange={e => c("inCompanyCostTotal", e.target.value)} /></label><label className="field">既受給の控除（円）<input type="number" min="0" value={cost.previousReceivedDeduction} onChange={e => c("previousReceivedDeduction", e.target.value)} /></label></div>
-        <label className="field">根拠のメモ<input type="text" value={cost.note} onChange={e => c("note", e.target.value)} /></label>
-        <label className="field">備考<textarea rows={2} value={adm.remarks} onChange={e => a("remarks", e.target.value)} /></label>
-        {isAdmin && <>
-          <span className="eyebrow">申請の状態（管理者）</span>
-          <div className="st-fg"><label className="field">状態<select className="in" value={adm.status} onChange={e => a("status", e.target.value)}>{GRANT_STATUS_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}</select></label><label className="field">確定の金額（円）<input type="number" min="0" value={adm.amount} onChange={e => a("amount", e.target.value)} /></label><label className="field">計画申請の日<input type="date" value={adm.appliedAt} onChange={e => a("appliedAt", e.target.value)} /></label><label className="field">変更予定日<input type="date" value={adm.changeDate} onChange={e => a("changeDate", e.target.value)} /></label><label className="field">支給申請の提出日<input type="date" value={adm.documentsSubmittedAt} onChange={e => a("documentsSubmittedAt", e.target.value)} /></label><label className="field">支給日<input type="date" value={adm.paidAt} onChange={e => a("paidAt", e.target.value)} /></label></div>
-        </>}
-        {err && <div className="lms-err" role="alert">{err}</div>}
-        <span className="row st-end"><Btn kind="sm" disabled={busy} onClick={save}>{busy ? "保存しています" : "保存"}</Btn></span>
-      </Card>
-    </div>
+    <Modal title="申請の記録" width={620} onClose={onClose} footer={<>{!del ? <Btn kind="ghost" onClick={() => setDel(true)}>申請を消す</Btn> : <Btn onClick={onDelete}>本当に消す</Btn>}<Btn kind="ghost" onClick={onClose}>やめる</Btn><Btn disabled={busy} onClick={save}>{busy ? "保存しています" : "保存"}</Btn></>}>
+      <div className="st-fg"><label className="field">状態<select className="in" value={adm.status} onChange={e => a("status", e.target.value)}>{GRANT_STATUS_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}</select></label><label className="field">確定の金額（円）<input type="number" min="0" value={adm.amount} onChange={e => a("amount", e.target.value)} /></label><label className="field">計画届の提出日<input type="date" value={adm.appliedAt} onChange={e => a("appliedAt", e.target.value)} /></label><label className="field">変更予定日<input type="date" value={adm.changeDate} onChange={e => a("changeDate", e.target.value)} /></label><label className="field">支給申請の提出日<input type="date" value={adm.documentsSubmittedAt} onChange={e => a("documentsSubmittedAt", e.target.value)} /></label><label className="field">入金日<input type="date" value={adm.paidAt} onChange={e => a("paidAt", e.target.value)} /></label></div>
+      <div className="st-fg"><label className="field">1 人あたり入学料等（円）<input type="number" min="0" value={cost.perPersonEnrollmentFee} onChange={e => c("perPersonEnrollmentFee", e.target.value)} /></label><label className="field">1 人あたり検定費用（円）<input type="number" min="0" value={cost.perPersonCertificationFee} onChange={e => c("perPersonCertificationFee", e.target.value)} /></label><label className="field">事業内訓練の経費（円）<input type="number" min="0" value={cost.inCompanyCostTotal} onChange={e => c("inCompanyCostTotal", e.target.value)} /></label><label className="field">既受給の控除（円）<input type="number" min="0" value={cost.previousReceivedDeduction} onChange={e => c("previousReceivedDeduction", e.target.value)} /></label></div>
+      <label className="field">根拠のメモ<input type="text" value={cost.note} onChange={e => c("note", e.target.value)} /></label>
+      <label className="field">備考<textarea rows={2} value={adm.remarks} onChange={e => a("remarks", e.target.value)} /></label>
+      {err && <div className="lms-err" role="alert">{err}</div>}
+    </Modal>
   );
+}
+
+function OutTab({ grant, course, facts, isAdmin, docs, onSave, onDelete, say }) {
+  const { calculate, calculating, error, result } = useGrantCalculationDraft(grant.grantId);
+  const exp = useGrantExports(grant.grantId);
+  const [mapOpen, setMapOpen] = useState(false); const [rec, setRec] = useState(false);
+  const [busy, setBusy] = useState(false); const [err, setErr] = useState("");
+  const [lessons, setLessons] = useState({});
+  useEffect(() => { calculate().catch(() => {}); }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => {
+    if (!grant.courseId) return undefined;
+    let alive = true;
+    apiGet(`/courses/${encodeURIComponent(grant.courseId)}/curriculum`).then(d => {
+      if (!alive) return;
+      const m = {};
+      normalizeCurriculumSections(d).forEach(s => arr(s.chapters).forEach(c => arr(c.lessons).forEach(l => { const k = String(l.startDate || "").slice(0, 10); if (k && !m[k]) m[k] = l.title; })));
+      setLessons(m);
+    }).catch(() => {});
+    return () => { alive = false; };
+  }, [grant.courseId]);
+  const getForm = async form => {
+    setErr("");
+    const have = arr(docs.items).find(x => x.source === "generated" && x.formType === form);
+    try {
+      if (have) { const url = await docs.viewDocument(have.documentId); if (url) window.open(url, "_blank", "noopener,noreferrer"); return; }
+      const r = await exp.generate(form);
+      await docs.reload();
+      if (r?.files?.length) say?.("作りました ・ 書類から受け取れます");
+    } catch { /* exp.error に出る */ }
+  };
+  const zipAll = async () => {
+    setBusy(true); setErr("");
+    try {
+      const used = {}, files = [];
+      for (const d of docs.items) {
+        // eslint-disable-next-line no-await-in-loop
+        const url = await docs.viewDocument(d.documentId);
+        // eslint-disable-next-line no-await-in-loop
+        const r = await fetch(url);
+        if (!r.ok) throw new Error(`「${d.fileName}」を読めませんでした`);
+        const base = d.fileName || d.documentId, k = used[base] = (used[base] || 0) + 1;
+        // eslint-disable-next-line no-await-in-loop
+        files.push({ name: k > 1 ? `${k}_${base}` : base, data: new Uint8Array(await r.arrayBuffer()) });
+      }
+      saveBlob(zipStore(files), `助成金の書類_${grant.grantType || "申請"}.zip`);
+    } catch (e) { setErr(errText(e, "まとめられませんでした")); } finally { setBusy(false); }
+  };
+  const w = result?.wageSubsidy, x = result?.expenseSubsidy, p = facts.stats?.period;
+  const hours = course?.standardClockIn && course?.standardClockOut ? `${course.standardClockIn}〜${course.standardClockOut}` : "—";
+  const daily = arr(facts.stats?.daily).slice(-5);
+  return (
+    <>
+      {err && <div className="lms-err" role="alert">{err}</div>}
+      {exp.error && <div className="lms-err" role="alert">{exp.error}</div>}
+      {exp.lastResult && !exp.lastResult.files?.length && <div className="row"><Chip tone="warn">未入力 {arr(exp.lastResult.missingFields).length} 項目</Chip>{arr(exp.lastResult.missingFields).slice(0, 8).map(f => <Chip key={f.label}>{f.label}</Chip>)}</div>}
+      <div className="g2e">
+        <Card className="pad st-g">
+          <div className="head"><h2 className="h3">訓練計画の元データ</h2><span className="r"><Btn kind="ghost sm" disabled={exp.generating} onClick={() => getForm("plan")}>Excel で受け取る</Btn></span></div>
+          <div className="rowsx"><div><span>期間</span><b>{course?.startDate ? `${md(course.startDate)}〜${md(course.endDate)}` : "未定"}</b></div><div><span>訓練時間</span><b>{p?.totalDays ? `${p.totalDays} 日` : "—"}</b></div><div><span>コース</span><b>{course?.name || grant.courseId || "—"}</b></div></div>
+        </Card>
+        <Card className="pad st-g">
+          <div className="head"><h2 className="h3">見込み（目安）</h2>{isAdmin && <span className="r"><Btn kind="ghost sm" onClick={() => setRec(true)}>申請の記録</Btn></span>}</div>
+          {error && <div className="lms-err" role="alert">{error}</div>}
+          {calculating && !result && <div className="dv-mt">読み込み中</div>}
+          {result && (
+            <div className="gest">
+              {result.canCalculateExpense && x ? <div><span>経費助成</span><b className="num">{yen(x.amount)}</b><small>正規等 {x.regularCount} 人 {x.rateRegular}% ・ 有期等 {x.fixedTermCount} 人 {x.rateFixedTerm}%</small></div> : <div><span>経費助成</span><b className="num">—</b></div>}
+              {result.canCalculateWage && w ? <div><span>賃金助成</span><b className="num">{yen(w.amount)}</b><small>約 {w.totalActualTrainingHoursDecimal} 時間 × {Number(w.hourlyRate).toLocaleString("ja-JP")} 円</small></div> : <div><span>賃金助成</span><b className="num">—</b></div>}
+              {result.totalDraftAmount != null && <div className="t"><span>合計</span><b className="num">{yen(result.totalDraftAmount)}</b></div>}
+            </div>
+          )}
+          {arr(result?.missingItems).length > 0 && <div className="row">{result.missingItems.map(i => <Chip key={i.code} tone="warn">{i.label}</Chip>)}</div>}
+        </Card>
+      </div>
+      <Card className="pad st-g">
+        <div className="head"><h2 className="h3">実施状況の集計（日ごと・人ごと）</h2><span className="r">{p?.trainingDays > 0 && <Chip tone="mk">{p.trainingDays}{p.totalDays ? ` / ${p.totalDays}` : ""} 日</Chip>}<Btn kind="ghost sm" disabled={exp.generating} onClick={() => getForm("offjt")}>Excel で受け取る</Btn></span></div>
+        {facts.stats === null ? <Chip>確認できません</Chip> : daily.length ? <div className="scroll"><table className="tbl"><thead><tr><th>日付</th><th>訓練の内容</th><th>時間</th><th>出席</th></tr></thead><tbody>{daily.map(d => <tr key={d.date}><td className="num">{md(d.date)}</td><td>{lessons[d.date] || "—"}</td><td className="num">{hours}</td><td className="num">{d.present} / {d.total}</td></tr>)}</tbody></table></div> : <Chip>これから</Chip>}
+      </Card>
+      <Card className="pad st-g">
+        <div className="head"><h2 className="h3">書類をまとめて受け取る</h2><span className="r"><Btn kind="sm" disabled={busy || !arr(docs.items).length} onClick={zipAll}>まとめて受け取る（zip）</Btn></span></div>
+        {isAdmin && <div className="row"><Chip tone="mk">様式の対応表</Chip><Btn kind="ghost sm" onClick={() => setMapOpen(true)}>対応表を見る</Btn></div>}
+      </Card>
+      {mapOpen && <MapModal onClose={() => setMapOpen(false)} />}
+      {rec && <RecordModal grant={grant} onSave={onSave} onDelete={onDelete} onClose={() => setRec(false)} say={say} />}
+    </>
+  );
+}
+
+// 書類の状態の元（一覧でも使う）
+function loadFacts(grant, isAdmin) {
+  const cq = isAdmin && grant.companyId ? `?companyId=${encodeURIComponent(grant.companyId)}` : "";
+  return Promise.all([
+    apiGet(`/grants/${encodeURIComponent(grant.grantId)}/documents`).then(r => arr(r?.items || r)).catch(() => null),
+    apiGet(`/grants/company-profile${cq}`).catch(() => null),
+    apiGet(`/grants/company-trainees${cq}`).then(r => arr(r?.items || r?.trainees || r)).catch(() => null),
+    grant.courseId ? apiGet(`/completion-report/stats?courseId=${encodeURIComponent(grant.courseId)}`).catch(() => null) : Promise.resolve(null),
+  ]).then(([docs, profile, trainees, stats]) => ({ docs, profile, trainees, stats }));
 }
 
 function Detail({ grant, course, companyName, role, onBack, onSave, onDelete, say }) {
   const isAdmin = role === "admin";
   const docs = useGrantDocuments(grant.grantId, true);
-  const pf = useCompanyProfile(isAdmin ? grant.companyId : "", true);
   const [tab, setTab] = useState("doc");
-  const [del, setDel] = useState(false);
+  const [facts0, setFacts0] = useState({ profile: undefined, trainees: undefined, stats: undefined });
+  useEffect(() => { let alive = true; loadFacts(grant, isAdmin).then(f => { if (alive) setFacts0(f); }); return () => { alive = false; }; }, [grant, isAdmin, tab]);
+  const facts = { ...facts0, docs: docs.error ? null : docs.loading ? undefined : docs.items };
   const [note, setNote] = useState(null); const [noteErr, setNoteErr] = useState(""); const [noteBusy, setNoteBusy] = useState(false);
   const sendNote = async () => {
     setNoteBusy(true); setNoteErr("");
@@ -329,23 +429,22 @@ function Detail({ grant, course, companyName, role, onBack, onSave, onDelete, sa
     catch (e) { setNoteErr(errText(e, "送れませんでした")); } finally { setNoteBusy(false); }
   };
   const stages = useMemo(() => computeGrantStages(grant, course), [grant, course]);
-  const nextActions = useMemo(() => computeNextActions({ grant, stages, course, company: pf.profile, documents: docs.loading ? undefined : docs.items }), [grant, stages, course, pf.profile, docs.items, docs.loading]);
   const tabs = isAdmin ? [["doc", "書類"], ["in", "お客様の入力"], ["att", "受講状況"], ["out", "集計と出力"]] : [["doc", "やること"], ["in", "入力"], ["att", "受講状況"], ["out", "受け取る"]];
   const plan = stages.find(s => s.key === "plan"), pay = stages.find(s => s.key === "shikyu");
+  const planOk = PASSED.includes(plan?.state.value);
   return (
     <div className="st">
-      <div className="head"><div><div className="eyebrow">{[companyName, course?.name || grant.courseId].filter(Boolean).join(" ・ ")}</div><h1 className="h1">助成金</h1></div><span className="r">{onBack && <Btn kind="ghost sm" onClick={onBack}>← 助成金の一覧</Btn>}{isAdmin && <Btn kind="ghost sm" onClick={() => setNote(nextActions[0] || "")}>お客様に知らせる</Btn>}{isAdmin && <Btn kind="ghost sm" onClick={() => setDel(true)}>消す</Btn>}</span></div>
+      <div className="head"><div><div className="eyebrow">{[companyName, course?.name || grant.courseId].filter(Boolean).join(" ・ ")}</div><h1 className="h1">助成金</h1></div><span className="r">{onBack && <Btn kind="ghost sm" onClick={onBack}>← 助成金の一覧</Btn>}</span></div>
       <Card className="pad st-g">
-        <div className="head"><h2 className="h2">{grant.grantType || "助成金"} ・ {applicationTypeLabel(grant.applicationType)}</h2><span className="r"><Chip>{grantStatusLabel(grant.status)}</Chip>{plan?.deadline && !["accepted", "submitted", "under_review"].includes(plan.state.value) && <Chip tone={plan.deadline.overdue ? "bad" : plan.deadline.daysRemaining <= 30 ? "warn" : ""}>{plan.deadline.overdue ? "計画届の期限を過ぎました" : `計画届の期限まで あと ${plan.deadline.daysRemaining} 日`}</Chip>}{pay?.deadline && <Chip>支給申請の期限 {md(pay.deadline.date)}</Chip>}</span></div>
-        <Steps stages={stages} />
+        <div className="head"><h2 className="h2">{grant.grantType || "助成金"}{grant.applicationType ? ` ・ ${applicationTypeLabel(grant.applicationType)}` : ""}</h2><span className="r">{planOk ? <Chip tone="ok">計画届 提出済み</Chip> : plan?.deadline && <Chip tone={plan.deadline.overdue || plan.deadline.daysRemaining <= 30 ? "bad" : "warn"}>{plan.deadline.overdue ? "計画届の期限を過ぎました" : `計画届の期限まで あと ${plan.deadline.daysRemaining} 日`}</Chip>}{pay?.deadline && <Chip>支給申請の期限 {md(pay.deadline.date)}</Chip>}</span></div>
+        <Steps grant={grant} course={course} stages={stages} />
       </Card>
       <span className="seg">{tabs.map(([k, t]) => <button key={k} type="button" aria-pressed={tab === k} onClick={() => setTab(k)}>{t}</button>)}</span>
-      {tab === "doc" && <DocsTab grant={grant} isAdmin={isAdmin} docs={docs} nextActions={nextActions} say={say} />}
-      {tab === "in" && <InputTab grant={grant} isAdmin={isAdmin} say={say} />}
+      {tab === "doc" && <DocsTab grant={grant} stages={stages} facts={facts} isAdmin={isAdmin} docs={docs} setTab={setTab} onNotify={setNote} say={say} />}
+      {tab === "in" && <InputTab grant={grant} isAdmin={isAdmin} onNotify={setNote} say={say} />}
       {tab === "att" && <AttendTab grant={grant} />}
-      {tab === "out" && <OutTab grant={grant} isAdmin={isAdmin} onSave={onSave} say={say} />}
+      {tab === "out" && <OutTab grant={grant} course={course} facts={facts} isAdmin={isAdmin} docs={docs} onSave={onSave} onDelete={onDelete} say={say} />}
       {note !== null && <Modal title={`お客様に知らせる ・ ${companyName}`} width={480} onClose={() => setNote(null)} footer={<><Btn kind="ghost" onClick={() => setNote(null)}>やめる</Btn><Btn disabled={noteBusy || !note.trim()} onClick={sendNote}>確かめて送る</Btn></>}><label className="field">本文<textarea rows={4} maxLength={500} value={note} onChange={e => setNote(e.target.value)} /></label><Chip>企業担当者の通知に出る</Chip>{noteErr && <div className="lms-err" role="alert">{noteErr}</div>}</Modal>}
-      {del && <Modal title="申請を消す" width={420} onClose={() => setDel(false)} footer={<><Btn kind="ghost" onClick={() => setDel(false)}>やめる</Btn><Btn onClick={() => { setDel(false); onDelete(); }}>消す</Btn></>}><b>{grant.grantType} ・ {companyName}</b></Modal>}
     </div>
   );
 }
@@ -381,8 +480,14 @@ export default function StaffGrant({ role, say }) {
   const { coursesById } = useGrantCoursesMap(list.items, isAdmin, true);
   const [open, setOpen] = useState("");
   const [creating, setCreating] = useState(false);
-  const [master, setMaster] = useState(false);
-  const [tab, setTab] = useState("all"); const [q, setQ] = useState(""); const [sort, setSort] = useState("deadline");
+  const [facts, setFacts] = useState({});
+  const ids = list.items.map(g => g.grantId).join(",");
+  useEffect(() => {
+    if (!isAdmin) return undefined;
+    let alive = true;
+    list.items.forEach(g => loadFacts(g, true).then(f => { if (alive) setFacts(m => ({ ...m, [g.grantId]: f })); }));
+    return () => { alive = false; };
+  }, [ids, isAdmin]); // eslint-disable-line react-hooks/exhaustive-deps
   const coName = id => companies.find(c => c.companyId === id)?.name || "";
   const rows = useMemo(() => list.items.map(g => { const c = coursesById[g.courseId] || null; return { g, c, stages: computeGrantStages(g, c) }; }), [list.items, coursesById]);
   if (list.loading && !list.items.length) return <div className="soon card">読み込み中</div>;
@@ -391,31 +496,35 @@ export default function StaffGrant({ role, say }) {
   if (cur) {
     return <Detail key={cur.g.grantId} grant={cur.g} course={cur.c} companyName={isAdmin ? coName(cur.g.companyId) : ""} role={role} say={say} onBack={isAdmin || rows.length > 1 ? () => setOpen("") : null} onSave={p => list.updateGrant(cur.g.grantId, p)} onDelete={async () => { try { await list.deleteGrant(cur.g.grantId); setOpen(""); say?.("消しました"); } catch { say?.("消せませんでした"); } }} />;
   }
-  if (master) return <div className="st"><div><Btn kind="ghost sm" onClick={() => setMaster(false)}>← 助成金の一覧</Btn></div><div className="lms-legacy"><Suspense fallback={<div className="soon card">読み込み中</div>}><GrantRateMaster role={role} /></Suspense></div></div>;
-  const dl = r => r.stages.find(s => s.current)?.deadline;
-  const over = r => r.stages.some(s => s.deadline?.overdue && !["accepted", "submitted", "under_review", "not_applicable"].includes(s.state.value));
-  const hit = r => !q.trim() || [coName(r.g.companyId), r.c?.name, r.g.grantType].some(v => String(v || "").includes(q.trim()));
-  const shown = rows.filter(r => hit(r) && (tab === "all" || (tab === "over" ? over(r) : tab === "open" ? !["paid", "rejected", "cancelled"].includes(r.g.status) : r.g.status === tab)))
-    .sort({ deadline: (a, b) => String(dl(a)?.date || "9").localeCompare(String(dl(b)?.date || "9")), amount: (a, b) => (b.g.calculatedAmountDraft || 0) - (a.g.calculatedAmountDraft || 0), name: (a, b) => coName(a.g.companyId).localeCompare(coName(b.g.companyId), "ja") }[sort]);
-  const total = rows.reduce((a, r) => a + (Number(r.g.calculatedAmountDraft) || 0), 0);
+  const sight = f => {
+    if (!f) return <Chip>読み込み中</Chip>;
+    if (!f.stats) return <Chip>確認できません</Chip>;
+    if (!f.stats.period?.trainingDays) return <Chip>これから</Chip>;
+    const t = arr(f.stats.trainees), bad = t.filter(x => x.attendanceRate != null && x.attendanceRate < THRESHOLD).length, warn = t.filter(x => x.attendanceRate != null && x.attendanceRate >= THRESHOLD && x.attendanceRate < 88).length;
+    return bad || warn ? <span className="row">{bad > 0 && <Chip tone="bad">要件外の可能性 {bad}</Chip>}{warn > 0 && <Chip tone="warn">注意 {warn}</Chip>}</span> : <Chip tone="ok">全員 OK</Chip>;
+  };
   return (
     <div className="st">
-      <div className="head"><div><div className="eyebrow">{isAdmin ? "すべての企業" : ""}</div><h1 className="h1">助成金</h1></div><span className="r">{total > 0 && <Chip tone="mk">見込み合計 {yen(total)}</Chip>}{isAdmin && <Btn kind="ghost sm" onClick={() => setMaster(true)}>助成金マスタ</Btn>}{isAdmin && <Btn kind="sm" onClick={() => setCreating(true)}>申請を作る</Btn>}</span></div>
+      <div className="head"><div><div className="eyebrow">{isAdmin ? "すべての企業" : ""}</div><h1 className="h1">助成金</h1></div>{isAdmin && <span className="r"><Btn kind="sm" onClick={() => setCreating(true)}>申請を作る</Btn></span>}</div>
       {list.actionError && <div className="lms-err" role="alert">{list.actionError}</div>}
-      <ListTool tabs={[["all", "すべて", rows.length], ["open", "進行中", rows.filter(r => !["paid", "rejected", "cancelled"].includes(r.g.status)).length], ["over", "期限超過", rows.filter(over).length, "bad"], ["paid", "支給済み", rows.filter(r => r.g.status === "paid").length, "ok"]]} tab={tab} onTab={setTab} q={q} onQ={setQ} placeholder="企業・コースで探す" sorts={[["deadline", "期限の近い順"], ["amount", "見込みの多い順"], ["name", "企業の名前順"]]} sort={sort} onSort={setSort} />
-      <Card className=""><div className="scroll"><table className="tbl"><thead><tr><th>コース</th>{isAdmin && <th>企業</th>}<th>制度</th><th>今の段階</th><th>期限</th><th>状態</th><th>見込み（目安）</th><th /></tr></thead><tbody>
-        {shown.map(r => { const s = r.stages.find(x => x.current), d = s?.deadline; return (
-          <tr key={r.g.grantId} className={over(r) ? "on" : ""}>
-            <td><b>{r.c?.name || r.g.courseId}</b></td>{isAdmin && <td>{coName(r.g.companyId)}</td>}
-            <td>{r.g.grantType || "—"}<small className="adsm">{applicationTypeLabel(r.g.applicationType)}</small></td>
-            <td><Chip>{s?.label} ・ {s?.state.label}</Chip></td>
-            <td>{d ? <Chip tone={d.overdue ? "bad" : d.daysRemaining <= 30 ? "warn" : ""}>{md(d.date)}{d.overdue ? " 超過" : ` あと ${d.daysRemaining} 日`}</Chip> : <Chip>日程未設定</Chip>}</td>
-            <td>{grantStatusLabel(r.g.status)}</td>
-            <td className="num">{yen(r.g.calculatedAmountDraft)}</td>
-            <td><Btn kind="ghost sm" onClick={() => setOpen(r.g.grantId)}>開く</Btn></td>
-          </tr>
-        ); })}
-        {!shown.length && <tr><td colSpan={isAdmin ? 8 : 7}><Chip>なし</Chip></td></tr>}
+      <Card className=""><div className="scroll"><table className="tbl"><thead><tr><th>コース</th>{isAdmin && <th>企業</th>}<th>制度</th><th>計画届</th><th>支給申請</th><th>書類</th><th>受講率 8 割</th><th>見込み（目安）</th><th /></tr></thead><tbody>
+        {rows.map(r => {
+          const plan = r.stages.find(s => s.key === "plan"), pay = r.stages.find(s => s.key === "shikyu"), f = facts[r.g.grantId];
+          const ok = f ? grantRows(r.g, r.stages, f).filter(x => x.tone === "ok").length : null;
+          return (
+            <tr key={r.g.grantId}>
+              <td><button type="button" className="lnk adcn" onClick={() => setOpen(r.g.grantId)}>{r.c?.name || r.g.courseId}</button></td>{isAdmin && <td>{coName(r.g.companyId)}</td>}
+              <td>{r.g.grantType || "—"}</td>
+              <td>{PASSED.includes(plan?.state.value) ? <Chip tone="ok">{r.g.appliedAt ? `${md(r.g.appliedAt)} 提出` : "提出済み"}</Chip> : plan?.deadline ? <Chip tone={plan.deadline.overdue || plan.deadline.daysRemaining <= 30 ? "bad" : "warn"}>{plan.deadline.overdue ? "超過" : `あと ${plan.deadline.daysRemaining} 日`}</Chip> : <Chip>未定</Chip>}</td>
+              <td className="num">{pay?.deadline ? md(pay.deadline.date) : "—"}</td>
+              <td>{ok === null ? <Chip>読み込み中</Chip> : <span className="gr-dc"><span className="bar10"><i style={{ "--w": `${Math.round(ok / GD.length * 100)}%` }} /></span><span className="num">{ok} / {GD.length}</span></span>}</td>
+              <td>{sight(f)}</td>
+              <td className="num gr-y">{yen(r.g.calculatedAmountDraft)}</td>
+              <td><Btn kind="ghost sm" onClick={() => setOpen(r.g.grantId)}>開く</Btn></td>
+            </tr>
+          );
+        })}
+        {!rows.length && <tr><td colSpan={isAdmin ? 9 : 8}><Chip>なし</Chip></td></tr>}
       </tbody></table></div></Card>
       {creating && <CreateModal companies={companies} onClose={() => setCreating(false)} onCreate={p => list.createGrant(p).then(() => say?.("申請を作りました"))} />}
     </div>

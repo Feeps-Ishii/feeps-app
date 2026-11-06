@@ -8,6 +8,7 @@ import InstructorCurriculum from "../instructor/Curriculum.jsx";
 import InstructorPractice from "../instructor/Practice.jsx";
 import InstructorSetting from "../instructor/Setting.jsx";
 import StaffTests from "../staff/Tests.jsx";
+import { madeBox } from "./Companies.jsx";
 import CourseCreate from "./CourseCreate.jsx";
 import { COL, dayOf, setupOf, stateOf } from "./Home.jsx";
 
@@ -71,9 +72,9 @@ export default function AdminCourses({ go, say }) {
   const [companies, setCompanies] = useState([]);
   const [open, setOpen] = useState(() => { try { const v = sessionStorage.getItem("lms.courseOpen"); sessionStorage.removeItem("lms.courseOpen"); return v || ""; } catch { return ""; } });
   const [creating, setCreating] = useState(false);
-  const [made, setMade] = useState(null);
+  const [made, setMade] = useState(() => { const v = madeBox.v; madeBox.v = null; return v; });
   const [sel, setSel] = useState(""); const [copyFrom, setCopyFrom] = useState(""); const [rosterOpen, setRosterOpen] = useState(false); const [users, setUsers] = useState([]);
-  const [tab, setTab] = useState("all"); const [q, setQ] = useState(""); const [sort, setSort] = useState("issue");
+  const [tab, setTab] = useState(() => { try { const v = sessionStorage.getItem("lms.courseTab"); sessionStorage.removeItem("lms.courseTab"); return v || "all"; } catch { return "all"; } }); const [q, setQ] = useState(""); const [sort, setSort] = useState("issue");
   const load = useCallback(() => apiGet("/admin/course-overview").then(r => setSt({ state: "ready", courses: arr(r?.courses) })).catch(() => setSt({ state: "error", courses: [] })), []);
   useEffect(() => { load(); apiGet("/companies").then(l => setCompanies(arr(l))).catch(() => setCompanies([])); apiGet("/admin/users").then(l => setUsers(arr(l))).catch(() => setUsers([])); }, [load]);
   if (st.state === "loading") return <div className="soon card">読み込み中</div>;

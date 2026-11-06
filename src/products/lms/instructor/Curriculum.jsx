@@ -107,7 +107,7 @@ export default function InstructorCurriculum({ role, go, say }) {
   return (
     <div className="st">
       <div className="head"><div><div className="eyebrow">{sc.course.name}</div><h1 className="h1">カリキュラム</h1></div>
-        <span className="r">{st.sections.length > 0 && <Btn kind="ghost sm" onClick={() => setOpen(allOpen ? {} : Object.fromEntries(st.sections.map(s => [s.id, true])))}>{allOpen ? "すべて閉じる" : "すべて開く"}</Btn>}{st.sections.length > 0 && <Btn kind="ghost sm" onClick={() => setLay("move")}>日程を並べ直す</Btn>}{st.sections.length > 0 && <Btn kind="ghost sm" onClick={() => setLay("copy")}>別のコースに写す</Btn>}<Btn kind="sm" onClick={() => setEdit(true)}>✎ 編集する</Btn></span>
+        <span className="r">{st.sections.length > 0 && <Btn kind="ghost sm" onClick={() => setOpen(allOpen ? {} : Object.fromEntries(st.sections.map(s => [s.id, true])))}>{allOpen ? "すべて閉じる" : "すべて開く"}</Btn>}{st.sections.length > 0 && <Btn kind="ghost sm" onClick={() => setLay("copy")}>別のコースに写す</Btn>}<Btn kind="sm" onClick={() => setEdit(true)}>✎ 編集する</Btn></span>
       </div>
       {err && <div className="lms-err" role="alert">{err}</div>}
       {st.tests === null && <div className="lms-err" role="alert">テストを確認できません</div>}
@@ -151,7 +151,7 @@ export default function InstructorCurriculum({ role, go, say }) {
                           <li key={d.id} className={tdy ? "tdy" : past ? "past" : ""}>
                             <span className="cu-d">{isD(start) ? <><b className="num">{md(start)}</b><small>{wd(start)}</small></> : <small>未定</small>}</span>
                             <span className="cu-dt"><b>{d.title || "—"}</b>{tdy && <Chip tone="mk">今日</Chip>}{d.memo && <small className="cu-memo">講師メモ：{d.memo}</small>}</span>
-                            <span className="row">{matChips(list)}{testChips(dts)}</span>
+                            <span className="row">{testChips(dts)}{list.filter(id => mats[id]).length === 1 ? <Btn kind="ghost sm" onClick={() => openMat(list.find(id => mats[id]))}>スライド</Btn> : matChips(list)}</span>
                           </li>
                         );
                       })}

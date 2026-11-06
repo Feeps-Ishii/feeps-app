@@ -78,7 +78,7 @@ function Day({ d, no, today, onMat, mats }) {
       <span className="tc-da">
         {tdy && <em>今日</em>}
         {past && !tdy && <span className="tc-ok" aria-label="済">✓</span>}
-        {list.map((m, i) => <Btn key={m} kind={tdy && i === 0 ? "sm" : "ghost sm"} title={mats[m].title} onClick={() => onMat(m)}>{list.length > 1 ? mats[m].title : "資料を開く"}</Btn>)}
+        {list.map((m, i) => <Btn key={m} kind={tdy && i === 0 ? "sm" : "ghost sm"} title={mats[m].title} onClick={() => onMat(m)}>{list.length > 1 ? mats[m].title : tdy ? "スライドを開く" : "スライド"}</Btn>)}
       </span>
     </li>
   );
@@ -232,7 +232,7 @@ export default function TraineeCurriculum({ go }) {
             {unitTests.map(t => {
               const id = testIdOf(t), r = results?.[id];
               return (
-                <div key={id} className="tc-r c-tst"><span className="tc-ri"><Icon k="test" size={19} /></span><span className="tc-rb"><span className="eyebrow">テスト</span><b>{t.title || t.name}</b><span>{testChip(r, results !== null)}</span></span>
+                <div key={id} className="tc-r c-tst"><span className="tc-ri"><Icon k="test" size={19} /></span><span className="tc-rb"><span className="eyebrow">確認テスト</span><b>{t.title || t.name}</b><span>{testChip(r, results !== null)}</span></span>
                   <Btn kind={r ? "ghost sm" : "sm"} onClick={() => { setTestFocus({ courseId, testId: id }); go("test"); }}>{r ? "結果を見る" : "受ける"}</Btn></div>
               );
             })}

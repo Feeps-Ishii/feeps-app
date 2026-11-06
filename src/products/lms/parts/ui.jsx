@@ -156,3 +156,18 @@ export function Modal({ title, width, onClose, footer, children }) {
     </div>
   );
 }
+
+// 運営（管理者）からのお知らせの帯。閉じたものはこのブラウザでは出さない（モック sysBanner）
+const SYS_KEY = "lms.sysbClosed";
+export function SysBanner({ items }) {
+  const [closed, setClosed] = React.useState(() => { try { return JSON.parse(localStorage.getItem(SYS_KEY) || "[]"); } catch { return []; } });
+  const list = (Array.isArray(items) ? items : []).filter(a => a.authorRole === "admin" && a.kind && !closed.includes(a.announcementId));
+  const close = id => { const next = [...closed, id]; setClosed(next); try { localStorage.setItem(SYS_KEY, JSON.stringify(next)); } catch { /* 読み直すとまた出るだけ */ } };
+  return list.map(a => (
+    <div key={a.announcementId} className="sysb">
+      <Chip tone={a.kind === "重要" ? "bad" : a.kind === "メンテナンス" ? "warn" : ""}>運営から ・ {a.kind}</Chip>
+      <span><b>{a.title}</b><small>{a.body}</small></span>
+      <button type="button" className="x2" aria-label="閉じる" onClick={() => close(a.announcementId)}>×</button>
+    </div>
+  ));
+}
