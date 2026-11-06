@@ -1062,9 +1062,6 @@
 .lms .nrow i { width: 8px; height: 8px; border-radius: 50%; background: var(--marker) }
 .lms .nlist.big .nrow { padding: 14px 18px }
 .lms .nlist.big .empty { padding: 28px }
-/* 顔の写真 */
-.lms .face.ph { overflow: hidden; padding: 0 }
-.lms .face.ph img { width: 100%; height: 100%; object-fit: cover; display: block }
 .lms .pf-h .face { width: 48px; height: 48px; font-size: 18px }
 .lms .pf-h { align-items: center; gap: 12px }
 

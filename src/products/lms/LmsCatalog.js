@@ -47,7 +47,7 @@ export const LMS_BNAV = {
 export const LMS_ROLE_LABEL = { trainee: "受講生", instructor: "講師", manager: "コース担当者", client: "企業担当者", admin: "管理者" };
 
 // 標準で新しい画面にするロール（できたロールから true にする。2026-11-02 ユーザー指定）
-export const LMS_DEFAULT_ROLES = { trainee: false, instructor: false, client: false, admin: false };
+export const LMS_DEFAULT_ROLES = { trainee: true, instructor: true, client: true, admin: true };
 
 export const lmsGroups = role => LMS_GROUPS[role] || LMS_GROUPS.trainee;
 export const lmsScreens = role => lmsGroups(role).flatMap(g => g[2]);

@@ -56,10 +56,8 @@ export function NotifScreen({ items, loading, error, st, onOpen, onRetry }) {
   );
 }
 
-// 顔：写真があれば写真、なければ頭文字
-export function Face({ name, photo, size }) {
+// 顔：頭文字
+export function Face({ name, size }) {
   const style = size ? { width: size, height: size, fontSize: Math.round(size * 0.38) } : undefined;
-  return photo
-    ? <span className="face ph" style={style}><img src={photo} alt="" /></span>
-    : <span className="face" style={style}>{String(name || "?").slice(0, 1)}</span>;
+  return <span className="face" style={style}>{String(name || "?").slice(0, 1)}</span>;
 }

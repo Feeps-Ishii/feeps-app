@@ -1806,7 +1806,7 @@ export default function App() {
       <Suspense fallback={<PageLoading />}>
         <LmsApp role={role} manager={isManager && role === "instructor"} displayName={displayName} badges={navBadges} onLogout={logout}
           notifications={notifications} notifLoading={notifLoading} notifError={notifErr} notifDismissedAll={notifDismissedAll} onReadAll={markAllNotificationsRead} onRetryNotifs={refreshNotifications}
-          onOpenNotif={(n, g) => openNotificationTarget(n, { go: g, goProduct, goSub })} photoAt={userProfile?.photoAt || ""}
+          onOpenNotif={(n, g) => openNotificationTarget(n, { go: g, goProduct, goSub })}
           tasks={{ done: taskDone, goals, toggle, setGoals: handleSetGoals, saveState: taskSaveState, dataState: taskDataState, retry: () => setTaskReloadKey(value => value + 1) }}
           onLegacy={() => { storageSet("feeps.lms", "off"); setLmsPref("off"); }} renderLegacy={renderLmsLegacy} />
       </Suspense>
