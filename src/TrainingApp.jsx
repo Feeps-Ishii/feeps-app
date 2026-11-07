@@ -1008,12 +1008,6 @@ export default function App() {
   // 2026-10-20 ユーザー指定：標準は元の画面（サイドバー）。新しい画面は「新しい画面へ」を押した人だけ（feeps.console = on）
   const [consoleOn, setConsoleOn] = useState(() => storageGet("feeps.console", "off") === "on");
   const [legacyOnce, setLegacyOnce] = useState(false);
-  // 新しい LMS（セージ、2026-11-02 計画 docs/specs/lms-sage-plan.md）。"on"／"off"／""（ロールの標準 LMS_DEFAULT_ROLES に従う）。
-  // 試すときは URL に ?lms=on（戻すときは ?lms=off）
-  const [lmsPref, setLmsPref] = useState(() => {
-    try { const q = new URLSearchParams(window.location.search).get("lms"); if (q === "on" || q === "off") { storageSet("feeps.lms", q); return q; } } catch { /* URL が読めないときは保存値 */ }
-    return storageGet("feeps.lms", "");
-  });
   const [isManager, setIsManager] = useState(false);
   // 2026-09-30: 左の帯と一緒に総合ホームの入口もなくしたので、保存値が "home" でも研修から始める
   const [product, setProduct] = useState(() => { const saved = storageGet("feeps.product", "training"); return saved === "home" ? "training" : saved; });
@@ -1790,7 +1784,7 @@ export default function App() {
   const RAIL_SHORT = { training: "研修", analytics: "分析", grants: "助成金", company: "企業", learning: "学習", talent: "成長", matching: "案件" };
 
   // 新しい LMS：作り直していない画面は今の画面をそのまま中に出す（renderLegacy）
-  const useLms = viewMode === "training" && (lmsPref === "on" || (lmsPref !== "off" && !!LMS_DEFAULT_ROLES[role]));
+  const useLms = viewMode === "training" && !!LMS_DEFAULT_ROLES[role];
   if (useLms) {
     const renderLmsLegacy = (v, goLegacy) => {
       if (v === "notifications") return <NotificationCenter notifications={notifications} loading={notifLoading} error={notifErr} role={role} go={goLegacy} goProduct={goProduct} goSub={goSub} />;
@@ -1808,7 +1802,7 @@ export default function App() {
           notifications={notifications} notifLoading={notifLoading} notifError={notifErr} notifDismissedAll={notifDismissedAll} onReadAll={markAllNotificationsRead} onRetryNotifs={refreshNotifications}
           onOpenNotif={(n, g) => openNotificationTarget(n, { go: g, goProduct, goSub })}
           tasks={{ done: taskDone, goals, toggle, setGoals: handleSetGoals, saveState: taskSaveState, dataState: taskDataState, retry: () => setTaskReloadKey(value => value + 1) }}
-          onLegacy={() => { storageSet("feeps.lms", "off"); setLmsPref("off"); }} renderLegacy={renderLmsLegacy} />
+          renderLegacy={renderLmsLegacy} />
       </Suspense>
     );
   }

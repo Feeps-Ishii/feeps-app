@@ -46,7 +46,7 @@ const LOC_KEY = "feeps.lms.loc";
 const readLoc = () => { try { return window.sessionStorage.getItem(LOC_KEY) || "home"; } catch { return "home"; } };
 const saveLoc = s => { try { window.sessionStorage.setItem(LOC_KEY, s); } catch { /* 読み直すとホームに戻るだけ */ } };
 
-export default function LmsApp({ role, manager = false, displayName, badges = {}, tasks, onLogout, onLegacy, renderLegacy, notifications = [], notifLoading = false, notifError = "", notifDismissedAll = false, onReadAll, onRetryNotifs, onOpenNotif }) {
+export default function LmsApp({ role, manager = false, displayName, badges = {}, tasks, onLogout, renderLegacy, notifications = [], notifLoading = false, notifError = "", notifDismissedAll = false, onReadAll, onRetryNotifs, onOpenNotif }) {
   const [off, setOff] = useState([]);          // コースの設定で切った機能（読めないときは全部出す）
   const groups = useMemo(() => lmsGroups(role).map(g => [g[0], g[1], g[2].filter(s => !off.includes(s[0]))]).filter(g => g[2].length), [role, off]);
   const keys = groups.flatMap(g => g[2].map(s => s[0]));
@@ -147,7 +147,6 @@ export default function LmsApp({ role, manager = false, displayName, badges = {}
                 <button type="button" role="menuitem" onClick={() => { setExtra("profile"); setPop(""); }}>プロフィール</button>
                 <button type="button" role="menuitem" onClick={() => { setExtra("profile:pw"); setPop(""); }}>パスワードを変える</button>
                 <button type="button" role="menuitem" onClick={() => { setHelp(""); setPop(""); }}>ヘルプ・使い方</button>
-                <button type="button" role="menuitem" onClick={() => onLegacy()}>前の画面に戻す</button>
                 <button type="button" role="menuitem" onClick={onLogout}>ログアウト</button>
               </div>
             )}
