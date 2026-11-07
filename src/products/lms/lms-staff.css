@@ -1124,3 +1124,9 @@
 
 .lms .btn.danger { background: var(--red); color: #fff }
 .lms .btn.danger:hover { filter: brightness(.95) }
+
+/* 助成金マスタ・アカウント発行 */
+.lms .gm-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px }
+.lms .gm-add input { min-width: 0; width: 220px; max-width: 100% }
+.lms .iss-l { max-height: 320px; overflow: auto }
+@media (max-width: 860px) { .lms .gm-grid { grid-template-columns: minmax(0, 1fr) } .lms .gm-add { flex: 1 1 100% } .lms .gm-add input { width: 100% } }

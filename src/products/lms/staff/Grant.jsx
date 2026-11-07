@@ -9,6 +9,7 @@ import { computeGrantStages } from "../../grants/grantStages.js";
 import { normalizeCurriculumSections } from "../../training/TrainingComponents.jsx";
 import { Btn, Card, Chip, ListTool, Modal, matchName } from "../parts/ui.jsx";
 import { arr, errText, md, saveBlob, zipStore } from "./common.js";
+import GrantMaster from "./GrantMaster.jsx";
 
 /* 助成金（管理者・企業担当者。モック grantList・grantD）：管理者は一覧 → 申請ごと、企業担当者は自社の申請。
    書類・入力・受講状況・集計と出力。期限と段階は grantStages.js、計算は /grants/{id}/calculation-draft、帳票は /exports（今の決まりのまま）。
@@ -47,6 +48,9 @@ const GD = [
 ];
 const gTone = { ok: "ok", warn: "warn", bad: "bad", no: "", auto: "mk", off: "", unk: "" };
 const NEEDED = ["name", "capitalAmount", "employeeCount", "enterpriseSize"];
+const upState = d => (d.status === "rejected" ? ["bad", "差し戻し"] : d.status === "accepted" ? ["ok", "受理"] : ["ok", "アップロード済み"]);
+// 受講率は受講時間から（時刻が未設定のコースは出せない）
+const rateOf = (t, p) => (p?.scheduledMinutes > 0 ? Math.round((Number(t.trainedMinutes) || 0) / p.scheduledMinutes * 100) : null);
 // facts: { docs, profile, trainees, stats }。undefined は読み込み中、null は読めなかった
 function grantRows(grant, stages, facts) {
   const { docs, profile, trainees, stats } = facts;
@@ -74,9 +78,9 @@ function grantRows(grant, stages, facts) {
       const n = ppl.filter(t => arr(docs).some(x => x.source !== "generated" && (x.documentType === `雇用契約書（${t.name}）`))).length;
       st = wait || (trainees === undefined ? ["unk", "読み込み中"] : trainees === null ? ["unk", "確認できません"] : ppl.length && n === ppl.length ? ["ok", "全員分"] : n ? ["warn", `${n} / ${ppl.length} 人`] : doc ? ["ok", "アップロード済み"] : ["no", "まだ"]);
     } else if (d.kind === "upf") {
-      st = wait || (doc ? ["ok", "アップロード済み"] : ["off", "研修後に発行"]);
+      st = wait || (doc ? upState(doc) : ["off", "研修後に発行"]);
     } else {
-      st = wait || (doc ? ["ok", "アップロード済み"] : ["no", "まだ"]);
+      st = wait || (doc ? upState(doc) : ["no", "まだ"]);
     }
     return { ...d, doc, due, tone: st[0], text: st[1] };
   });
@@ -110,6 +114,7 @@ function DocsTab({ grant, stages, facts, isAdmin, docs, setTab, onNotify, say })
   const { generate, generating, error: genErr, clearError, lastResult } = useGrantExports(grant.grantId);
   const [busy, setBusy] = useState(false); const [err, setErr] = useState("");
   const [del, setDel] = useState(null); const [upType, setUpType] = useState("");
+  const [rev, setRev] = useState(null); const [revNote, setRevNote] = useState("");
   const fileRef = useRef(null);
   const rows = grantRows(grant, stages, facts);
   const onFile = async e => {
@@ -123,6 +128,8 @@ function DocsTab({ grant, stages, facts, isAdmin, docs, setTab, onNotify, say })
   const make = async form => { clearError(); try { await generate(form); await docs.reload(); say?.("作りました"); } catch { /* genErr に出る */ } };
   const remove = async () => { setBusy(true); try { await docs.removeDocument(del.documentId); setDel(null); say?.("削除しました"); } catch (x) { setErr(errText(x, "削除できませんでした")); setDel(null); } finally { setBusy(false); } };
   const pick = t => { setUpType(t); fileRef.current?.click(); };
+  const review = async status => { setBusy(true); try { await docs.reviewDocument(rev.documentId, status, revNote); say?.(status === "accepted" ? "受理しました" : "差し戻しました"); setRev(null); setRevNote(""); } catch (x) { setErr(errText(x, "保存できませんでした")); setRev(null); } finally { setBusy(false); } };
+  const reviewBtn = d => isAdmin && d?.source !== "generated" && d?.status === "submitted" && <Btn kind="sm" onClick={() => { setRevNote(""); setRev(d); }}>確かめる</Btn>;
   const act = r => {
     const open = r.doc && <Btn kind="ghost sm" onClick={() => view(r.doc)}>{r.kind === "up" ? "見る" : "受け取る"}</Btn>;
     if (!isAdmin) {
@@ -135,7 +142,8 @@ function DocsTab({ grant, stages, facts, isAdmin, docs, setTab, onNotify, say })
     }
     if (r.kind === "out") return r.doc ? open : <Btn kind={r.tone === "no" ? "sm" : "ghost sm"} disabled={generating || r.tone === "off" || r.tone === "unk"} onClick={() => make(r.form)}>{generating ? "作っています" : r.tone === "auto" ? "受け取る" : "作る"}</Btn>;
     if (r.kind === "upf") return r.doc ? <span className="row st-nw">{open}<Btn kind="ghost sm" onClick={() => setDel(r.doc)}>削除</Btn></span> : <Btn kind="ghost sm" disabled={busy} onClick={() => pick(r.type)}>アップロード</Btn>;
-    if (r.tone === "ok") return r.kind === "up" ? <span className="row st-nw">{open}<Btn kind="ghost sm" onClick={() => setDel(r.doc)}>削除</Btn></span> : null;
+    if (r.tone === "ok") return r.kind === "up" ? <span className="row st-nw">{open}{reviewBtn(r.doc)}<Btn kind="ghost sm" onClick={() => setDel(r.doc)}>削除</Btn></span> : null;
+    if (r.doc && r.doc.status === "rejected") return <span className="row st-nw">{open}<Btn kind="ghost sm" onClick={() => onNotify(`${r.t} を出し直してください`)}>お客様に知らせる</Btn></span>;
     if (["warn", "no", "bad"].includes(r.tone)) return <Btn kind="ghost sm" onClick={() => onNotify(`${r.t} をお願いします`)}>お客様に知らせる</Btn>;
     return null;
   };
@@ -150,10 +158,11 @@ function DocsTab({ grant, stages, facts, isAdmin, docs, setTab, onNotify, say })
       <Card className=""><div className="scroll"><table className="tbl"><thead><tr><th>書類</th><th>担当</th><th>期限</th><th>状態</th><th /></tr></thead><tbody>
         {rows.map(r => {
           const mine = isAdmin ? r.who === "Feeps" : r.who === "お客様";
-          return <tr key={r.t} className={mine && !["ok", "off", "unk"].includes(r.tone) ? "gmine" : ""}><td><b>{r.t}</b></td><td><Chip tone={r.who === "Feeps" ? "mk" : "co"}>{r.who}</Chip></td><td className="num">{r.due}</td><td><Chip tone={gTone[r.tone]}>{r.text}</Chip></td><td>{act(r)}</td></tr>;
+          return <tr key={r.t} className={mine && !["ok", "off", "unk"].includes(r.tone) ? "gmine" : ""}><td><b>{r.t}</b>{r.doc?.status === "rejected" && (r.doc.reviewNote || r.doc.note) && <small className="adsm">{r.doc.reviewNote || r.doc.note}</small>}</td><td><Chip tone={r.who === "Feeps" ? "mk" : "co"}>{r.who}</Chip></td><td className="num">{r.due}</td><td><Chip tone={gTone[r.tone]}>{r.text}</Chip></td><td>{act(r)}</td></tr>;
         })}
-        {others.map(d => <tr key={d.documentId}><td><b>{d.documentType || "種別未設定"}</b><small className="adsm">{d.fileName}</small></td><td><Chip tone={d.source === "generated" ? "mk" : "co"}>{d.source === "generated" ? "Feeps" : "お客様"}</Chip></td><td className="num">{d.dueDate ? md(d.dueDate) : "—"}</td><td><Chip>{documentStatusLabel(d.status)}</Chip></td><td><span className="row st-nw"><Btn kind="ghost sm" onClick={() => view(d)}>見る</Btn>{isAdmin && <Btn kind="ghost sm" onClick={() => setDel(d)}>削除</Btn>}</span></td></tr>)}
+        {others.map(d => <tr key={d.documentId}><td><b>{d.documentType || "種別未設定"}</b><small className="adsm">{d.fileName}</small></td><td><Chip tone={d.source === "generated" ? "mk" : "co"}>{d.source === "generated" ? "Feeps" : "お客様"}</Chip></td><td className="num">{d.dueDate ? md(d.dueDate) : "—"}</td><td><Chip>{documentStatusLabel(d.status)}</Chip></td><td><span className="row st-nw"><Btn kind="ghost sm" onClick={() => view(d)}>見る</Btn>{reviewBtn(d)}{isAdmin && <Btn kind="ghost sm" onClick={() => setDel(d)}>削除</Btn>}</span></td></tr>)}
       </tbody></table></div></Card>
+      {rev && <Modal title={`書類を確かめる ・ ${rev.documentType || rev.fileName}`} width={480} onClose={() => setRev(null)} footer={<><Btn kind="ghost" onClick={() => setRev(null)}>やめる</Btn><Btn kind="danger" disabled={busy} onClick={() => review("rejected")}>差し戻す</Btn><Btn disabled={busy} onClick={() => review("accepted")}>受理する</Btn></>}><div className="row"><Btn kind="ghost sm" onClick={() => view(rev)}>書類を開く ↗</Btn></div><label className="field">差し戻しの理由（お客様に見える）<textarea rows={3} maxLength={500} value={revNote} onChange={e => setRevNote(e.target.value)} /></label></Modal>}
       {del && <Modal title="書類を削除" width={420} onClose={() => setDel(null)} footer={<><Btn kind="ghost" onClick={() => setDel(null)}>やめる</Btn><Btn disabled={busy} onClick={remove}>削除</Btn></>}><b>{del.fileName || del.documentType}</b></Modal>}
     </>
   );
@@ -413,6 +422,12 @@ function OutTab({ grant, course, facts, isAdmin, docs, onSave, onDelete, say }) 
         <div className="head"><h2 className="h3">実施状況の集計（日ごと・人ごと）</h2><span className="r">{p?.trainingDays > 0 && <Chip tone="mk">{p.trainingDays}{p.totalDays ? ` / ${p.totalDays}` : ""} 日</Chip>}<Btn kind="ghost sm" disabled={exp.generating} onClick={() => getForm("offjt")}>Excel で受け取る</Btn></span></div>
         {facts.stats === null ? <Chip>確認できません</Chip> : daily.length ? <div className="scroll"><table className="tbl"><thead><tr><th>日付</th><th>訓練の内容</th><th>時間</th><th>出席</th></tr></thead><tbody>{daily.map(d => <tr key={d.date}><td className="num">{md(d.date)}</td><td>{lessons[d.date] || "—"}</td><td className="num">{hours}</td><td className="num">{d.present} / {d.total}</td></tr>)}</tbody></table></div> : <Chip>これから</Chip>}
       </Card>
+      {isAdmin && (
+        <Card className="pad st-g">
+          <div className="head"><h2 className="h3">申請の様式</h2></div>
+          <div className="list">{[["henkou", "変更申請（様式第 2-1 号）"], ["shikyu", "支給申請書類一式（様式 4-1 号・6-1 号・12 号・13 号）"]].map(([k, t]) => { const has = arr(docs.items).some(x => x.source === "generated" && x.formType === k); return <div key={k} className="li"><span>{t}</span><span className="row st-nw">{has && <Chip tone="ok">作りました</Chip>}<Btn kind="ghost sm" disabled={exp.generating} onClick={() => getForm(k)}>Excel で受け取る</Btn></span></div>; })}</div>
+        </Card>
+      )}
       <Card className="pad st-g">
         <div className="head"><h2 className="h3">書類をまとめて受け取る</h2><span className="r"><Btn kind="sm" disabled={busy || !arr(docs.items).length} onClick={zipAll}>まとめて受け取る（zip）</Btn></span></div>
         {isAdmin && <div className="row"><Chip tone="mk">様式の対応表</Chip><Btn kind="ghost sm" onClick={() => setMapOpen(true)}>対応表を見る</Btn></div>}
@@ -499,6 +514,7 @@ export default function StaffGrant({ role, say }) {
   const { coursesById } = useGrantCoursesMap(list.items, isAdmin, true);
   const [open, setOpen] = useState("");
   const [creating, setCreating] = useState(false);
+  const [master, setMaster] = useState(false);
   const [facts, setFacts] = useState({});
   const ids = list.items.map(g => g.grantId).join(",");
   useEffect(() => {
@@ -509,6 +525,7 @@ export default function StaffGrant({ role, say }) {
   }, [ids, isAdmin]); // eslint-disable-line react-hooks/exhaustive-deps
   const coName = id => companies.find(c => c.companyId === id)?.name || "";
   const rows = useMemo(() => list.items.map(g => { const c = coursesById[g.courseId] || null; return { g, c, stages: computeGrantStages(g, c) }; }), [list.items, coursesById]);
+  if (master && isAdmin) return <GrantMaster say={say} onBack={() => setMaster(false)} />;
   if (list.loading && !list.items.length) return <div className="soon card">読み込み中</div>;
   if (list.error) return <Card><div className="empty"><b>助成金を確認できません</b><Btn kind="ghost sm" onClick={list.reload}>再読み込み</Btn></div></Card>;
   const cur = rows.find(r => r.g.grantId === open) || (!isAdmin && rows.length === 1 ? rows[0] : null);
@@ -519,12 +536,13 @@ export default function StaffGrant({ role, say }) {
     if (!f) return <Chip>読み込み中</Chip>;
     if (!f.stats) return <Chip>確認できません</Chip>;
     if (!f.stats.period?.trainingDays) return <Chip>これから</Chip>;
-    const t = arr(f.stats.trainees), bad = t.filter(x => x.attendanceRate != null && x.attendanceRate < THRESHOLD).length, warn = t.filter(x => x.attendanceRate != null && x.attendanceRate >= THRESHOLD && x.attendanceRate < 88).length;
+    if (!(f.stats.period.scheduledMinutes > 0)) return <Chip>確認できません</Chip>;
+    const t = arr(f.stats.trainees).map(x => rateOf(x, f.stats.period)), bad = t.filter(r => r < THRESHOLD).length, warn = t.filter(r => r >= THRESHOLD && r < 88).length;
     return bad || warn ? <span className="row">{bad > 0 && <Chip tone="bad">要件外の可能性 {bad}</Chip>}{warn > 0 && <Chip tone="warn">注意 {warn}</Chip>}</span> : <Chip tone="ok">全員 OK</Chip>;
   };
   return (
     <div className="st">
-      <div className="head"><div><div className="eyebrow">{isAdmin ? "すべての企業" : ""}</div><h1 className="h1">助成金</h1></div>{isAdmin && <span className="r"><Btn kind="sm" onClick={() => setCreating(true)}>申請を作る</Btn></span>}</div>
+      <div className="head"><div><div className="eyebrow">{isAdmin ? "すべての企業" : ""}</div><h1 className="h1">助成金</h1></div>{isAdmin && <span className="r"><Btn kind="ghost sm" onClick={() => setMaster(true)}>助成金マスタ</Btn><Btn kind="sm" onClick={() => setCreating(true)}>申請を作る</Btn></span>}</div>
       {list.actionError && <div className="lms-err" role="alert">{list.actionError}</div>}
       <Card className=""><div className="scroll"><table className="tbl"><thead><tr><th>コース</th>{isAdmin && <th>企業</th>}<th>制度</th><th>計画届</th><th>支給申請</th><th>書類</th><th>受講率 8 割</th><th>見込み（目安）</th><th /></tr></thead><tbody>
         {rows.map(r => {

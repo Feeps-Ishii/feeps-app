@@ -1,17 +1,22 @@
-import React, { useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
+import { apiGet, apiPut } from "../../../api.js";
 import { Btn, Chip } from "./ui.jsx";
 
-/* 通知（モック bellPop・notif）。中身は今の通知（データから都度作る）。既読はこの端末の印と「すべて既読」の基準時刻 */
+/* 通知（モック bellPop・notif）。中身は今の通知（データから都度作る）。既読はプロフィールに持つ（どの端末でも同じ） */
 
-const KEY = "feeps.lms.read";
-export const readIds = () => { try { return new Set(JSON.parse(localStorage.getItem(KEY) || "[]")); } catch { return new Set(); } };
-const saveIds = s => { try { localStorage.setItem(KEY, JSON.stringify([...s].slice(-300))); } catch { /* 印だけ */ } };
-
-export function useNotifRead(items, dismissedAll, markAll) {
-  const [ids, setIds] = useState(readIds);
-  const isUnread = n => !dismissedAll && !ids.has(n.id);
-  const read = n => { const s = new Set(ids); s.add(n.id); saveIds(s); setIds(s); };
-  const readAll = () => { const s = new Set(ids); items.forEach(n => s.add(n.id)); saveIds(s); setIds(s); markAll?.(); };
+export function useNotifRead(items) {
+  const [ids, setIds] = useState(() => new Set());
+  const loaded = useRef(false);
+  useEffect(() => {
+    let alive = true;
+    // 読めなかったときは書かない（ほかの端末の既読を消さないため）
+    apiGet("/notifications/read-state").then(r => { if (alive) { loaded.current = true; setIds(new Set(Array.isArray(r?.readIds) ? r.readIds : [])); } }).catch(() => {});
+    return () => { alive = false; };
+  }, []);
+  const push = next => { setIds(next); if (loaded.current) apiPut("/notifications/read-state", { readIds: [...next] }).catch(() => {}); };
+  const isUnread = n => !ids.has(n.id);
+  const read = n => { if (ids.has(n.id)) return; const s = new Set(ids); s.add(n.id); push(s); };
+  const readAll = () => { const s = new Set(ids); items.forEach(n => s.add(n.id)); push(s); };
   return { isUnread, read, readAll, unread: items.filter(isUnread).length };
 }
 

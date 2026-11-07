@@ -46,7 +46,7 @@ const LOC_KEY = "feeps.lms.loc";
 const readLoc = () => { try { return window.sessionStorage.getItem(LOC_KEY) || "home"; } catch { return "home"; } };
 const saveLoc = s => { try { window.sessionStorage.setItem(LOC_KEY, s); } catch { /* 読み直すとホームに戻るだけ */ } };
 
-export default function LmsApp({ role, manager = false, displayName, badges = {}, tasks, onLogout, renderLegacy, notifications = [], notifLoading = false, notifError = "", notifDismissedAll = false, onReadAll, onRetryNotifs, onOpenNotif }) {
+export default function LmsApp({ role, manager = false, displayName, badges = {}, tasks, onLogout, renderLegacy, notifications = [], notifLoading = false, notifError = "", onRetryNotifs, onOpenNotif }) {
   const [off, setOff] = useState([]);          // コースの設定で切った機能（読めないときは全部出す）
   const groups = useMemo(() => lmsGroups(role).map(g => [g[0], g[1], g[2].filter(s => !off.includes(s[0]))]).filter(g => g[2].length), [role, off]);
   const keys = groups.flatMap(g => g[2].map(s => s[0]));
@@ -60,7 +60,7 @@ export default function LmsApp({ role, manager = false, displayName, badges = {}
   const [lastIn, setLastIn] = useState({});
   const [courseV, setCourseV] = useState(0);   // コースを切り替えたら画面を読み直す
   const [mail, setMail] = useState("");
-  const nst = useNotifRead(notifications, notifDismissedAll, onReadAll);
+  const nst = useNotifRead(notifications);
 
   const admin = role === "admin";
   const cur = groups.find(g => g[2].some(s => s[0] === screen)) || groups[0];

@@ -92,7 +92,7 @@ function AddToCourse({ ids, users, courses, onClose, onDone }) {
 }
 
 // お客様の名簿で登録：コースを選んでから名簿の窓へ
-function RosterPick({ courses, onClose, onDone }) {
+export function RosterPick({ courses, onClose, onDone }) {
   const [courseId, setCourseId] = useState(""); const [open, setOpen] = useState(false);
   const c = courses.find(x => x.courseId === courseId);
   if (open && c) return <Suspense fallback={null}><div className="lms-legacy"><RosterImport course={{ ...c, id: c.courseId }} onClose={onClose} onDone={onDone} /></div></Suspense>;

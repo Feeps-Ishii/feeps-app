@@ -6,7 +6,7 @@ import { Btn, Chip, Modal } from "../parts/ui.jsx";
 import { errText } from "./common.js";
 import { DropBox, readTestFiles } from "./TestFile.jsx";
 
-/* テストを直す（モック xtedit）：名前・実施する日・始める時刻・目安の時間・公開、問題と解答を直す・足す・Word で差し替える */
+/* テストを直す（モック xtedit）：名前・実施する日・目安の時間・公開、問題と解答を直す・足す・Word で差し替える */
 
 const KINDS = [["choice", "選ぶ"], ["descriptive", "書く"], ["code", "コード"]];
 const toRaw = q => ({
@@ -34,8 +34,7 @@ function QEdit({ q, i, onChange, onDelete, onClose }) {
 }
 
 export function TestEditModal({ test, unitName = "", courseId = "", onClose, onSaved }) {
-  const start = String(test.startAt || "");
-  const [v, setV] = useState({ title: test.title || "", date: String(test.dueDate || "").slice(0, 10), time: start.slice(11, 16), min: String(test.limitMinutes || 20), pub: test.status === "published", ai: test.aiGrade !== false });
+  const [v, setV] = useState({ title: test.title || "", date: String(test.dueDate || "").slice(0, 10), min: String(test.limitMinutes || 20), pub: test.status === "published", ai: test.aiGrade !== false });
   const [qs, setQs] = useState(() => testQuestionsOf(test));
   const [openQ, setOpenQ] = useState(-1);
   const [swap, setSwap] = useState(null); // { prob, ans, busy }
@@ -60,7 +59,7 @@ export function TestEditModal({ test, unitName = "", courseId = "", onClose, onS
     if (bad >= 0) { setOpenQ(bad); setErr(`問題 ${bad + 1} を入れてください`); return; }
     setBusy(true); setErr("");
     try {
-      await apiPut(`/tests/${encodeURIComponent(testIdOf(test))}`, { title: v.title.trim(), limitMinutes: Number(v.min) || 0, dueDate: v.date, startAt: v.date && v.time ? `${v.date}T${v.time}` : "", status: v.pub ? "published" : "draft", aiGrade: v.ai, questions: qs.map(q => toRaw({ ...q, a: q.type === "choice" ? q.a.filter(x => String(x).trim()) : q.a })) });
+      await apiPut(`/tests/${encodeURIComponent(testIdOf(test))}`, { title: v.title.trim(), limitMinutes: Number(v.min) || 0, dueDate: v.date, status: v.pub ? "published" : "draft", aiGrade: v.ai, questions: qs.map(q => toRaw({ ...q, a: q.type === "choice" ? q.a.filter(x => String(x).trim()) : q.a })) });
       onSaved();
     } catch (e) { setErr(errText(e, "保存できませんでした")); setBusy(false); }
   };
@@ -70,7 +69,7 @@ export function TestEditModal({ test, unitName = "", courseId = "", onClose, onS
       {err && <div className="lms-err" role="alert">{err}</div>}
       <label className="field">テストの名前<input type="text" maxLength={120} value={v.title} onChange={e => set({ title: e.target.value })} /></label>
       <div className="rowsx"><div><span>単元</span><b>{unitName || "コース全体"}</b></div><div><span>問題</span><b>{qs.length} 問</b></div></div>
-      <div className="g3"><label className="field">実施する日<input type="date" value={v.date} onChange={e => set({ date: e.target.value })} /></label><label className="field">始める時刻<input type="time" value={v.time} onChange={e => set({ time: e.target.value })} /></label><label className="field">目安の時間<select className="in" value={v.min} onChange={e => set({ min: e.target.value })}>{[...new Set([10, 15, 20, 30, 45, 60, Number(v.min) || 20])].sort((a, b) => a - b).map(m => <option key={m} value={m}>{m}分</option>)}</select></label></div>
+      <div className="g2e"><label className="field">実施する日<input type="date" value={v.date} onChange={e => set({ date: e.target.value })} /></label><label className="field">目安の時間<select className="in" value={v.min} onChange={e => set({ min: e.target.value })}>{[...new Set([10, 15, 20, 30, 45, 60, Number(v.min) || 20])].sort((a, b) => a - b).map(m => <option key={m} value={m}>{m}分</option>)}</select></label></div>
       <div className="field">公開<span className="stsel"><button type="button" aria-pressed={!v.pub} onClick={() => set({ pub: false })}>下書き</button><button type="button" aria-pressed={v.pub} onClick={() => set({ pub: true })}>公開する</button></span></div>
       {hasWrite && <span className="checks"><label className={v.ai ? "on" : ""}><input type="checkbox" checked={v.ai} onChange={e => set({ ai: e.target.checked })} />書く問題は AI で点をつける（解答例と照らす）</label></span>}
       <div className="field">問題と解答

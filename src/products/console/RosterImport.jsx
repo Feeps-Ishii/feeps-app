@@ -15,12 +15,12 @@ const FIELDS = [["name", "名前"], ["sei", "姓"], ["mei", "名"], ["kana", "�
 const norm = s => String(s || "").replace(/[\s　]/g, "").toLowerCase();
 const slug = s => String(s || "").toLowerCase().replace(/[^a-z0-9-]/g, "").replace(/^-+/, "").slice(0, 20);
 
-async function downloadExcel({ company, course, rows }) {
+export async function downloadAccountExcel({ company, course, rows }) {
   const XLSX = await import("xlsx");
   const today = new Date().toISOString().slice(0, 10);
   const aoa = [
     ["DevHub LMS　アカウントのご案内"], [],
-    ["企業名", company], ["コース", course], ["発行日", today], ["ログインの画面", window.location.origin + "/"], ["人数", `${rows.length}名`], [],
+    ["企業名", company], ...(course ? [["コース", course]] : []), ["発行日", today], ["ログインの画面", window.location.origin + "/"], ["人数", `${rows.length}名`], [],
     ["はじめてのログインのしかた"],
     ["1. ログインの画面で、下の「ログインID」と「仮パスワード」を入れます。"],
     ["2. 新しいパスワードを決めます（8文字以上・英大文字・英小文字・数字・記号を含む）。"],
@@ -138,7 +138,7 @@ export default function RosterImport({ course, admin = true, onClose, onDone, in
               {done.failed.length > 0 && <div className="dhc-err">{done.failed.map(f => `${f.name}：${f.error}`).join(" ／ ")}</div>}
               {done.made.length > 0 && (<>
                 <p className="dhc-note" style={{ margin: 0 }}>仮パスワードはこの画面にしか出ません。Excel を受け取って、お客様にお渡しください。</p>
-                <div><button type="button" className="dhc-btn ai" onClick={() => downloadExcel({ company: company?.name || "", course: course.name, rows: done.made })}>お客様に渡す Excel を受け取る</button></div>
+                <div><button type="button" className="dhc-btn ai" onClick={() => downloadAccountExcel({ company: company?.name || "", course: course.name, rows: done.made })}>お客様に渡す Excel を受け取る</button></div>
               </>)}
             </>
           ) : !rows ? (
