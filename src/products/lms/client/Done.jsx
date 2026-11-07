@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { apiGet } from "../../../api.js";
-import { Btn, Card, Chip, FileIcon, Kpi } from "../parts/ui.jsx";
+import { Btn, Card, Chip, FileIcon, Hero, Kpi } from "../parts/ui.jsx";
 import { arr, md, useStaffCourse } from "../staff/common.js";
 import { TestRow } from "../staff/parts.jsx";
 import { CertModal } from "../staff/Cert.jsx";
@@ -54,9 +54,7 @@ export default function ClientDone() {
       {err && <div className="lms-err" role="alert">{err}</div>}
       {files === null && <div className="lms-err" role="alert">ファイルを確認できません</div>}
       <div className="th sc">
-        <section className={`tc-hero c-${pub || conf ? "rep" : "gy"} dc-hero`}>
-          <div className="th-hh"><span className="eyebrow">修了レポート</span><span className="th-step">{pub || conf ? "公開済み" : sc.course.endDate ? `${md(sc.course.endDate)} 公開予定` : "公開予定"}</span></div>
-          <h2 className="th-t">{pub ? `ファイル ${list.length} 件` : conf ? d.courseName : "未公開"}</h2>
+        <Hero cat={pub || conf ? "rep" : "gy"} className="dc-hero" eyebrow="修了レポート" step={pub || conf ? "公開済み" : sc.course.endDate ? `${md(sc.course.endDate)} 公開予定` : "公開予定"} title={pub ? `ファイル ${list.length} 件` : conf ? d.courseName : "未公開"}>
           {pub && <div className="dc-files">{list.map(f => <div key={f.nodeId} className="dc-f"><FileIcon name={f.name} /><span className="dc-fb"><b>{f.name}</b><small className="num">{md(f.updatedAt)}</small></span><Btn kind="ghost sm" onClick={() => get(f)}>ダウンロード</Btn></div>)}</div>}
           {conf && <div className="dc-f"><span className="dc-fb"><b>修了証</b><small>{arr(d.trainees).length} 人分</small></span><Btn kind="ghost sm" onClick={() => setCert(true)}>修了証</Btn></div>}
           {conf && <Kpi items={[
@@ -65,7 +63,7 @@ export default function ClientDone() {
             { label: "テストの平均", value: o.testAverage ?? "—", unit: o.testAverage != null ? "点" : "", pct: o.testAverage ?? undefined },
             { label: "満足度", value: sat ?? "—", unit: sat != null ? "/ 5" : "", pct: sat != null ? Math.round(sat / 5 * 100) : undefined },
           ]} />}
-        </section>
+        </Hero>
         {conf && <div className="g2e">
           <Card className="pad sc-c">
             <div className="head"><h2 className="h2">テストの平均</h2><span className="r"><Chip>合格 70 点</Chip></span></div>

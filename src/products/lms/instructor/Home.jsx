@@ -41,6 +41,28 @@ function QuickAnn({ courseId, n, onSent, say }) {
   );
 }
 
+// 研修のない日の絵（モック illo rest）
+const RestArt = () => (
+  <span className="il" aria-hidden="true"><svg viewBox="0 0 240 160" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <ellipse cx="120" cy="146" rx="96" ry="8" fill="var(--il-soft)" stroke="none" /><path d="M28 134h184" />
+    <path d="M78 34a24 24 0 1 0 26 32 20 20 0 1 1-26-32z" fill="var(--il-soft)" /><path d="M150 30v6M147 33h6M176 52v4M174 54h4M128 22v4M126 24h4" stroke="var(--il-acc)" />
+    <rect x="62" y="118" width="104" height="12" rx="4" fill="var(--il-card)" /><path d="M70 124h20" stroke="var(--il-acc)" />
+    <path d="M180 108h18v20a6 6 0 0 1-6 6h-6a6 6 0 0 1-6-6z" fill="var(--il-card)" /><path d="M198 112h4a5 5 0 0 1 0 10h-4" /><path d="M185 99c0-4 4-4 4-8M193 99c0-4 4-4 4-8" />
+  </svg></span>
+);
+// これからの平日で研修のない日（お休み）。研修日の一覧の最後の日まで
+const offDays = (dates, today) => {
+  const last = dates[dates.length - 1], set = new Set(dates), out = [];
+  if (!last) return out;
+  for (let t = new Date(`${today}T00:00:00Z`); out.length < 3; ) {
+    t.setUTCDate(t.getUTCDate() + 1);
+    const iso = t.toISOString().slice(0, 10);
+    if (iso > last) break;
+    if (![0, 6].includes(t.getUTCDay()) && !set.has(iso)) out.push(iso);
+  }
+  return out;
+};
+
 export default function InstructorHome({ go, say }) {
   const today = todayStr();
   const sc = useStaffCourse();
@@ -77,6 +99,7 @@ export default function InstructorHome({ go, say }) {
   const isDay = wd.state === "ready" ? wd.dates.includes(today) : true;
   const next = wd.dates.find(x => x > today);
   const prev = [...wd.dates].reverse().find(x => x < today);
+  const dow = iso => { const [y, m, dd] = iso.split("-").map(Number); return weekday(m, dd, y); };
   const { N } = nums, repN = N - nums.none, attN = N - nums.noin.length - nums.absent;
   const sent = arr(anns).filter(a => !a.courseId || a.courseId === courseId).slice(0, 3);
   return (
@@ -88,7 +111,7 @@ export default function InstructorHome({ go, say }) {
       </div>
       {roster === null || day.state === "error" ? <Card><div className="empty"><b>今日の様子を確認できません</b><Btn kind="ghost sm" onClick={() => { reload(); setKey(k => k + 1); }}>再読み込み</Btn></div></Card>
         : !isDay ? (
-          <Card className="ih-off pad"><div><h2 className="h2">今日は研修日ではありません</h2><span className="row">{next && <Chip tone="mk">次の研修日 {md(next)}</Chip>}{prev && <Btn kind="ghost sm" onClick={() => go("report")}>前の研修日の日報</Btn>}<Btn kind="ghost sm" onClick={() => go("att")}>勤怠</Btn></span></div></Card>
+          <Card className="ih-off"><RestArt /><div><h2 className="h2">今日は研修日ではありません</h2>{(next || offDays(wd.dates, today).length > 0) && <span className="row">{next && <Chip tone="mk">次の研修日 {md(next)}（{dow(next)}）</Chip>}{offDays(wd.dates, today).length > 0 && <Chip>お休み {offDays(wd.dates, today).map(md).join("・")}</Chip>}</span>}<span className="row">{prev && <Btn kind="ghost sm" onClick={() => go("report")}>前の研修日（{md(prev)} {dow(prev)}）の日報</Btn>}<Btn kind="ghost sm" onClick={() => go("att")}>勤怠</Btn></span></div></Card>
         ) : (
           <div className="ih-day">
             <section className="card ih-p">

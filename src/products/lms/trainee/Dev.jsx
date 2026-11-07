@@ -219,8 +219,8 @@ export default function TraineeDev({ go, say }) {
             title={d.title} sub={`課題 ${n}${d.deadline ? ` ・ ${md(d.deadline)} まで` : ""}`}>
             {item.summary && <p className="dv-bd">{item.summary}</p>}
             <div className="row">
-              {d.state === "resubmit" && <><Btn kind="big" onClick={() => jump("dv-drop")}>出し直す</Btn><Btn kind="ghost big th-ghost" onClick={() => jump("dv-rv")}>レビューを見る</Btn></>}
-              {d.state === "done" && <Btn kind="ghost big th-ghost" onClick={() => jump("dv-rv")}>レビューを見る</Btn>}
+              {d.state === "resubmit" && <><Btn kind="big" onClick={() => jump("dv-drop")}>出し直す</Btn><Btn kind="ghost th-ghost" onClick={() => jump("dv-rv")}>レビューを見る</Btn></>}
+              {d.state === "done" && <Btn kind="ghost th-ghost" onClick={() => jump("dv-rv")}>レビューを見る</Btn>}
               {(d.state === "none" || d.state === "submitted") && <Btn kind="big" onClick={() => jump("dv-drop")}>{d.state === "none" ? "フォルダを出す" : "もう一度出す"}</Btn>}
             </div>
             {(item.scope || []).length > 0 && <div className="row">{item.scope.map(s => <Chip key={s}>{s}</Chip>)}</div>}

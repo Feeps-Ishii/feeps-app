@@ -382,7 +382,7 @@ export default function StaffTests({ role, go, say }) {
   const curIdx = st.sections.findIndex(s => { const r = rangeOf(s); return r && r.start <= today && today <= r.end; });
   return (
     <div className="st">
-      <div className="head"><div><div className="eyebrow">{sc.course?.name}</div><h1 className="h1">テスト</h1></div><span className="r"><Btn kind="ghost sm" onClick={() => setAdding(true)}>共通から足す</Btn><Btn kind="sm" onClick={() => setFileNew({})}>テストを作る</Btn></span></div>
+      <div className="head"><div><div className="eyebrow eb-c">{sc.course?.name}</div><h1 className="h1">テスト</h1></div><span className="r"><Btn kind="ghost sm" onClick={() => setAdding(true)}>共通から足す</Btn><Btn kind="sm" onClick={() => setFileNew({})}>テストを作る</Btn></span></div>
       {err && <div className="lms-err" role="alert">{err}</div>}
       {roster === null && <div className="lms-err" role="alert">受講生を確認できません</div>}
       <div className={`fdrop${dropOn ? " dropon" : ""}`} onDragOver={e => { e.preventDefault(); setDropOn(true); }} onDragLeave={() => setDropOn(false)} onDrop={e => { e.preventDefault(); setDropOn(false); if (e.dataTransfer.files.length) setFileNew(takeTestFiles(e.dataTransfer.files)); }}>

@@ -195,7 +195,7 @@
 .lms .tkb small { font-size: 12.5px; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap }
 .lms .tkd { font-size: 12.5px; color: var(--ink2); white-space: nowrap }
 .lms .tkd .late { color: var(--red) }
-.lms .tkd .soon { color: var(--amber) }
+.lms .tkd .tk-soon { color: var(--amber) }
 .lms .tkw { display: inline-flex; align-items: center; gap: 6px; white-space: nowrap }
 .lms .tkw small { font-size: 12px; color: var(--muted) }
 .lms .tk.done { background: var(--soft) }
@@ -651,7 +651,7 @@
 .lms .tkc:hover { border-color: var(--rep-d) }
 .lms .tkc[aria-pressed="true"] { background: var(--rep-d); border-color: var(--rep-d) }
 .lms .tkd .late { color: var(--dev-i) }
-.lms .tkd .soon { color: var(--att-i) }
+.lms .tkd .tk-soon { color: var(--att-i) }
 .lms .tk.done { background: var(--soft); box-shadow: none }
 .lms .ih-si { border-top-color: var(--line2) }
 .lms .ih-si:hover { background: var(--paper); border-radius: 10px }
@@ -1130,3 +1130,25 @@
 .lms .gm-add input { min-width: 0; width: 220px; max-width: 100% }
 .lms .iss-l { max-height: 320px; overflow: auto }
 @media (max-width: 860px) { .lms .gm-grid { grid-template-columns: minmax(0, 1fr) } .lms .gm-add { flex: 1 1 100% } .lms .gm-add input { width: 100% } }
+
+/* 研修のない日のカード（モック ih-off・illo） */
+.lms .ih-off { padding: 22px 24px; display: grid; grid-template-columns: 180px minmax(0, 1fr); gap: 22px; align-items: center }
+.lms .ih-off > div { display: grid; gap: 10px }
+.lms .il { display: block; color: var(--mk-ink); --il-acc: var(--marker); --il-soft: var(--marker-soft); --il-card: var(--card) }
+.lms .il svg { width: 100%; height: auto; display: block }
+@media (max-width: 860px) { .lms .ih-off { grid-template-columns: minmax(0, 1fr) } .lms .ih-off .il { max-width: 160px } }
+
+/* 管理者ホームの入口（モック aNav） */
+.lms .an-g { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 12px }
+.lms .an-c { display: grid; align-content: start; gap: 10px; padding: 14px; border-radius: 22px; background: var(--c) }
+.lms .an-h { display: flex; align-items: center; gap: 10px; border: 0; background: none; padding: 0; font: inherit; color: var(--ci); cursor: pointer; text-align: left }
+.lms .an-h b { font-size: 15px }
+.lms .an-ic { width: 34px; height: 34px; border-radius: 50%; display: grid; place-items: center; flex: none; background: var(--cd); color: #fff }
+.lms .an-l { display: grid; gap: 4px }
+.lms .an-l button { display: flex; align-items: center; gap: 8px; border: 0; border-radius: 12px; padding: 8px 10px; background: rgba(255, 255, 255, .72); font: inherit; font-size: 13.5px; font-weight: 600; color: var(--ink); cursor: pointer; text-align: left }
+.lms .an-l button:hover { background: #fff }
+.lms .an-l span { flex: 1; min-width: 0 }
+.lms .an-l em { font-style: normal; font-size: 12px; color: var(--muted) }
+.lms .an-l i { font-style: normal; color: var(--ci) }
+@media (max-width: 1100px) { .lms .an-g { grid-template-columns: repeat(3, minmax(0, 1fr)) } }
+@media (max-width: 760px) { .lms .an-g { grid-template-columns: minmax(0, 1fr) } }

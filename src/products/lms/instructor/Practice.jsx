@@ -283,7 +283,7 @@ export default function InstructorPractice({ say }) {
   const whole = rowsOf("");
   return (
     <div className="st">
-      <div className="head"><div><div className="eyebrow">{sc.course?.name}</div><h1 className="h1">練習問題</h1></div><span className="r"><Btn kind="ghost sm" onClick={() => setAdding(true)}>共通から足す</Btn><Btn kind="sm" onClick={() => setMaking({})}>練習問題を作る</Btn></span></div>
+      <div className="head"><div><div className="eyebrow eb-c">{sc.course?.name}</div><h1 className="h1">練習問題</h1></div><span className="r"><Btn kind="ghost sm" onClick={() => setAdding(true)}>共通から足す</Btn><Btn kind="sm" onClick={() => setMaking({})}>練習問題を作る</Btn></span></div>
       {sets === null ? <Card><div className="empty"><b>練習問題を確認できません</b><Btn kind="ghost sm" onClick={() => setKey(k => k + 1)}>再読み込み</Btn></div></Card> : sets === undefined ? <div className="soon card">読み込み中</div> : (
         <>
           <div className={`fdrop${dropOn ? " dropon" : ""}`} onDragOver={e => { e.preventDefault(); setDropOn(true); }} onDragLeave={() => setDropOn(false)} onDrop={e => { e.preventDefault(); setDropOn(false); if (e.dataTransfer.files.length) setMaking(takeFiles(e.dataTransfer.files)); }}>

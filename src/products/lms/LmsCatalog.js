@@ -31,9 +31,9 @@ export const LMS_GROUPS = {
 // まだ作り直していない画面は、今の画面（TrainingProduct などの view）をそのまま中に出す。null は今の画面にも無いもの
 export const LMS_LEGACY = {
   trainee: { home: "home", report: "reports", att: "attendance", cur: "curriculum", test: "tests", prac: "practice", dev: "devreview", doc: "materials", team: "teams", note: "notes", goal: "goals" },
-  instructor: { home: "home", resv: "reservations", task: null, report: "reports", att: "attendance", cur: "curriculum", test: "tests", prac: "practice", doc: "materials", dev: "devreview", ann: "announcements", team: "teams", seat: "seating", people: "trainees", eval: null, done: "completion", setting: null },
-  client: { home: "home", resv: "reservations", report: "reports", att: "state", state: "state", people: "trainees", eval: "evaluation", done: "completion", ann: "announcements", grant: "grants" },
-  admin: { home: "home", resv: "reservations", cos: "companies", users: "users", sann: "announcements", course: "courses", lcur: "curriculum", ltest: "tests", lprac: "practice", cdoc: "materials", doc: "materials", ana: "analytics", grant: "grants" },
+  instructor: { home: "home", task: null, report: "reports", att: "attendance", cur: "curriculum", test: "tests", prac: "practice", doc: "materials", dev: "devreview", ann: "announcements", team: "teams", seat: "seating", people: "trainees", eval: null, done: "completion", setting: null },
+  client: { home: "home", report: "reports", att: "state", state: "state", people: "trainees", eval: "evaluation", done: "completion", ann: "announcements", grant: "grants" },
+  admin: { home: "home", cos: "companies", users: "users", sann: "announcements", course: "courses", lcur: "curriculum", ltest: "tests", lprac: "practice", cdoc: "materials", doc: "materials", ana: "analytics", grant: "grants" },
 };
 
 // スマホの下のメニュー（最後に「メニュー」が付く。受講生は 4 つだけ）

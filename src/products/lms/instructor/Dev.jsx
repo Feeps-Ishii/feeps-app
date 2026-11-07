@@ -103,7 +103,7 @@ function Board({ courseId, course, initial, openSetup, say }) {
 
   return (
     <div className="st">
-      <div className="head"><div><div className="eyebrow">{course.name}</div><h1 className="h1">個人開発</h1></div><span className="r"><Btn kind="sm" onClick={() => { setCreating({ title: "", deadline: "" }); setErr(""); }}>課題を作る</Btn></span></div>
+      <div className="head"><div><div className="eyebrow eb-c">{course.name}</div><h1 className="h1">個人開発</h1></div><span className="r"><Btn kind="sm" onClick={() => { setCreating({ title: "", deadline: "" }); setErr(""); }}>課題を作る</Btn></span></div>
       {ls.state === "loading" ? <div className="soon card">読み込み中</div> : ls.state === "error" ? <Card><div className="empty"><b>課題を確認できません</b><Btn kind="ghost sm" onClick={loadList}>再読み込み</Btn></div></Card> : !ls.items.length ? <Card><div className="empty"><Chip>なし</Chip></div></Card> : (
         <>
           <div className="row">

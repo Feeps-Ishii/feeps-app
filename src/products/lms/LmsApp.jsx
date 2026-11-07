@@ -105,7 +105,7 @@ export default function LmsApp({ role, manager = false, displayName, badges = {}
 
   const bnav = (LMS_BNAV[role] || LMS_BNAV.trainee).filter(k => !off.includes(k));
   return (
-    <div className="lms">
+    <div className="lms" data-role={role}>
       <header className={`lms-bar${admin ? " admin" : ""}`}>
         <div className="lms-wrap">
           <button type="button" className="lms-logo" onClick={() => go("home")} aria-label="DevHub LMS のホーム">

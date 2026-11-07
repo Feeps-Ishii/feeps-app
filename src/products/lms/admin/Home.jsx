@@ -3,11 +3,21 @@ import { apiGet } from "../../../api.js";
 import { setActiveCourseId } from "../../../utils/common/courseContext.js";
 import { todayStr } from "../../training/useTraining.js";
 import { Btn, Card, Chip, weekday } from "../parts/ui.jsx";
+import { Icon } from "../parts/icons.jsx";
 import { arr, md } from "../staff/common.js";
 import { AddCompany, afterMade } from "./Companies.jsx";
 import CourseCreate from "./CourseCreate.jsx";
 
-/* 管理者のホーム（モック homeA）：コースの札（準備中・研修中）。企業を足す・コースを作るはここからも */
+/* 管理者のホーム（モック homeA）：各機能への入口（モック aNav）とコースの札（準備中・研修中）。企業を足す・コースを作るはここからも */
+
+// [見出し, 色, 絵, [[画面, 名前, 数の名前]]]
+const A_NAV = [
+  ["準備", "tm", "cos", [["cos", "企業", "cos"], ["users", "ユーザー", "users"], ["sann", "お知らせ", "sann"]]],
+  ["コース管理", "cur", "course", [["course", "コース一覧", "course"]]],
+  ["カリキュラム管理", "tst", "cur", [["lcur", "カリキュラム"], ["ltest", "テスト"], ["lprac", "練習問題"]]],
+  ["フォルダ管理", "att", "doc", [["cdoc", "コース別フォルダ"], ["doc", "共有フォルダ"]]],
+  ["分析・助成金", "rep", "ana", [["ana", "分析"], ["grant", "助成金"]]],
+];
 
 export const COL = ["var(--tm-d)", "var(--tst-d)", "var(--att-d)", "var(--cur-d)", "var(--rep-d)", "var(--dev-d)"];
 
@@ -35,12 +45,15 @@ export default function AdminHome({ go, say }) {
   const today = todayStr();
   const [st, setSt] = useState({ state: "loading", courses: [] });
   const [companies, setCompanies] = useState(null);
+  const [counts, setCounts] = useState({});
   const [adding, setAdding] = useState(false); const [making, setMaking] = useState(null);
   const [key, setKey] = useState(0);
   useEffect(() => {
     let alive = true;
     apiGet("/admin/course-overview").then(r => { if (alive) setSt({ state: "ready", courses: arr(r?.courses) }); }).catch(() => { if (alive) setSt({ state: "error", courses: [] }); });
     apiGet("/companies").then(l => { if (alive) setCompanies(arr(l)); }).catch(() => { if (alive) setCompanies(null); });
+    apiGet("/admin/users").then(l => { if (alive) setCounts(c => ({ ...c, users: arr(l).length })); }).catch(() => {});
+    apiGet("/announcements").then(r => { if (alive) setCounts(c => ({ ...c, sann: arr(r?.items).length })); }).catch(() => {});
     return () => { alive = false; };
   }, [key]);
   const d = new Date(`${today}T00:00:00`);
@@ -52,6 +65,14 @@ export default function AdminHome({ go, say }) {
       <div className="th-top ih-top">
         <div className="th-date"><b className="num">{d.getDate()}</b><div><em>{d.getMonth() + 1} 月 ・ {weekday(d.getMonth() + 1, d.getDate(), d.getFullYear())}曜日</em><small>管理{st.state === "ready" ? ` ・ コース ${st.courses.length}` : ""}{companies ? ` ・ 企業 ${companies.length}` : ""}</small></div></div>
         <div className="th-att"><span className="th-pill ok"><i aria-hidden="true" />研修中 <b className="num">{run.length}</b></span><span className="th-pill"><i aria-hidden="true" />準備中 <b className="num">{prep.length}</b></span><Btn kind="ghost sm" onClick={() => setAdding(true)}>企業を足す</Btn><Btn kind="sm" onClick={() => setMaking("")}>コースを作る</Btn></div>
+      </div>
+      <div className="an-g">
+        {A_NAV.map(([t, c, art, l]) => (
+          <section key={t} className={`an-c c-${c}`}>
+            <button type="button" className="an-h" onClick={() => go(l[0][0])}><span className="an-ic"><Icon k={art} size={16} /></span><b>{t}</b></button>
+            <div className="an-l">{l.map(([k, n, f]) => { const v = f === "cos" ? companies?.filter(x => !x.deleted).length : f === "course" ? (st.state === "ready" ? st.courses.length : undefined) : counts[f]; return <button key={k} type="button" onClick={() => go(k)}><span>{n}</span>{f && v != null && <em className="num">{v}</em>}<i aria-hidden="true">→</i></button>; })}</div>
+          </section>
+        ))}
       </div>
       {st.state === "error" ? <Card><div className="empty"><b>コースを確認できません</b><Btn kind="ghost sm" onClick={() => setKey(k => k + 1)}>再読み込み</Btn></div></Card> : st.state === "loading" ? <div className="soon card">読み込み中</div> : (
         <>

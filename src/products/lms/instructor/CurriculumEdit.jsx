@@ -379,7 +379,7 @@ export default function CurriculumEdit({ course, go, keys, onClose, say }) {
 
   return (
     <div className="st">
-      <div className="head"><div><div className="eyebrow">{course.name}</div><h1 className="h1">カリキュラム</h1></div>
+      <div className="head"><div><div className="eyebrow eb-c">{course.name}</div><h1 className="h1">カリキュラム</h1></div>
         <span className="r"><Chip tone="warn">編集中</Chip><Btn kind="ghost sm" disabled={busy} onClick={() => leaveTo(onClose)}>やめる</Btn><Btn kind="sm" disabled={busy} onClick={save}>{busy ? "確定しています" : "確定する"}</Btn></span>
       </div>
       <input ref={fileRef} type="file" accept=".xlsx,.xls" className="lms-sr" aria-label="Excel を選ぶ" onChange={e => { const f = e.target.files?.[0]; e.target.value = ""; if (f) readExcel(f); }} />

@@ -57,21 +57,21 @@ export default function TraineeHome({ go, say }) {
 
   const hero = !isDay
     ? (
-      <Hero cat="gy" art="gy" eyebrow="今日" title="研修のない日" sub={dash.nextTrainingDay ? `次の研修日 ${dash.nextTrainingDay.date.slice(5).replace("-", "/")}${dash.nextTrainingDay.lessonTitle ? ` ・ ${dash.nextTrainingDay.lessonTitle}` : ""}` : undefined}>
+      <Hero className="hero-home" cat="gy" art="gy" eyebrow="今日" title="研修のない日" sub={dash.nextTrainingDay ? `次の研修日 ${dash.nextTrainingDay.date.slice(5).replace("-", "/")}${dash.nextTrainingDay.lessonTitle ? ` ・ ${dash.nextTrainingDay.lessonTitle}` : ""}` : undefined}>
         <div className="row"><Btn kind="ghost" onClick={() => go("cur")}>カリキュラム</Btn><Btn kind="ghost" onClick={() => go("note")}>ノート</Btn></div>
       </Hero>
     )
     : allDone
       ? (
-        <Hero cat="gy" art="gy" eyebrow="今日" step={`${list.length} / ${list.length}`} title="おつかれさまでした">
+        <Hero className="hero-home" cat="gy" art="gy" eyebrow="今日" step={`${list.length} / ${list.length}`} title="おつかれさまでした">
           <div className="row th-chips"><Chip>出勤 {att.clockIn}</Chip><Chip>退勤 {att.clockOut}</Chip><Chip tone="ok">日報 提出済み</Chip></div>
         </Hero>
       )
       : (
-        <Hero cat={next.cat} art={next.cat} eyebrow="次にやること" step={`${nextI + 1} / ${list.length}`} title={next.t} sub={next.sub}>
+        <Hero className="hero-home" cat={next.cat} art={next.cat} eyebrow="次にやること" step={`${nextI + 1} / ${list.length}`} title={next.t} sub={next.sub}>
           <div className="row">
             <Btn kind="big" onClick={() => go(next.go)}>{next.act}</Btn>
-            {next.k !== "lesson" ? <Btn kind="ghost big th-ghost" onClick={() => go("cur")}>今日の講義</Btn> : <Btn kind="ghost big th-ghost" onClick={() => go("doc")}>フォルダ</Btn>}
+            {next.k !== "lesson" ? <Btn kind="ghost th-ghost" onClick={() => go("cur")}>今日の講義</Btn> : <Btn kind="ghost th-ghost" onClick={() => go("doc")}>フォルダ</Btn>}
           </div>
           <div className="row th-chips">
             {course?.todayCurriculum?.title && next.sub !== course.todayCurriculum.title && <Chip>{course.todayCurriculum.title}</Chip>}

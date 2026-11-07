@@ -26,7 +26,7 @@ function ClientView({ doc, people, pins, course }) {
   const xlsx = () => saveXlsx(`評価表_${course.name}`, "評価表", [["受講生", ...pub.map(r => r.name)], ...list.map(p => [p.name, ...pub.map(r => { const s = sumOf(doc.cells[r.id]?.[p.id], doc.items); return s.n ? `${s.got}/${s.max}` : ""; })])]);
   return (
     <div className="st">
-      <div className="head"><div><div className="eyebrow">{course.name}</div><h1 className="h1">評価表</h1></div><span className="r"><Btn kind="ghost sm" disabled={!pub.length} onClick={xlsx}>Excel で受け取る</Btn></span></div>
+      <div className="head"><div><div className="eyebrow eb-c">{course.name}</div><h1 className="h1">評価表</h1></div><span className="r"><Btn kind="ghost sm" disabled={!pub.length} onClick={xlsx}>Excel で受け取る</Btn></span></div>
       <div className="evrd">
         {doc.rounds.map(r => <button key={r.id} type="button" className={`card evrdc${r.id === round?.id ? " on" : ""}`} onClick={() => setSel(r.id)}><span className="eyebrow">{r.from ? `${md(r.from)}〜${md(r.to)}` : ""}</span><b>{r.name}</b>{r.publishedAt ? <Chip tone="ok">公開 {md(r.publishedAt)}</Chip> : <Chip>公開待ち</Chip>}</button>)}
       </div>
@@ -164,7 +164,7 @@ function StaffView({ initial, people, stats, courseId, course, say }) {
   return (
     <div className="st">
       <div className="head">
-        <div><div className="eyebrow">{course.name}</div><h1 className="h1">評価表</h1></div>
+        <div><div className="eyebrow eb-c">{course.name}</div><h1 className="h1">評価表</h1></div>
         <span className="r">
           <span className="seg">{doc.rounds.map(r => <button key={r.id} type="button" aria-pressed={r.id === round?.id} onClick={() => { flush(); setRid(r.id); }}>{r.name}</button>)}</span>
           <Btn kind="ghost sm" onClick={() => setSetting(true)}>回と項目の設定</Btn>

@@ -130,7 +130,7 @@ export default function InstructorDone({ say }) {
   return (
     <div className="st">
       <div className="head">
-        <div><div className="eyebrow">{sc.course.name}</div><h1 className="h1">修了レポート</h1></div>
+        <div><div className="eyebrow eb-c">{sc.course.name}</div><h1 className="h1">修了レポート</h1></div>
         <span className="r">{confirmed && <Btn kind="ghost sm" onClick={() => setCert(true)}>修了証</Btn>}<Btn kind="ghost sm" onClick={xlsx}>まとめを Excel で受け取る</Btn>{confirmed ? <Btn kind="ghost sm" disabled={!!busy} onClick={() => save("unconfirm")}>確定を取り消す</Btn> : <Btn kind="sm" disabled={!!busy} onClick={() => setConf(true)}>確定する</Btn>}</span>
       </div>
       {err && <div className="lms-err" role="alert">{err}</div>}

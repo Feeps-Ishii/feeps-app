@@ -671,7 +671,7 @@
 /* ===== 講師（手で足したもの） ===== */
 .lms .an-ai { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 8px; align-items: center }
 .lms .st-lk { border: 0; background: none; padding: 0; cursor: pointer; text-decoration: underline; text-underline-offset: 3px } .lms .st-lk:disabled { text-decoration: none; cursor: default }
-.lms .tkd .late { color: var(--dev-i) } .lms .tkd .soon { color: var(--att-i) }
+.lms .tkd .late { color: var(--dev-i) } .lms .tkd .tk-soon { color: var(--att-i) }
 .lms .ev-sr { display: grid; grid-template-columns: minmax(0, 1fr) 140px 140px auto; gap: 6px; align-items: center } .lms .ev-si { display: grid; grid-template-columns: minmax(0, 1fr) 170px 84px auto; gap: 6px; align-items: center }
 @media (max-width: 640px) { .lms .ev-sr, .lms .ev-si { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) } .lms .ev-sr > :first-child, .lms .ev-si > :first-child { grid-column: 1 / -1 } }
 
@@ -996,3 +996,11 @@
 .lms .acl-ic { width: 30px; height: 30px; border-radius: 50%; display: grid; place-items: center; font-weight: 700; font-size: 12px; background: var(--soft) }
 .lms .acl-ic.g { border-radius: 8px; background: var(--blue-soft); color: var(--blue) }
 .lms .acl-s { display: flex; flex-wrap: wrap; gap: 6px }
+
+/* 2026-11-07 モックと値をそろえる（並べて測った結果） */
+.lms-wrap { padding-inline: 28px }
+@media (max-width: 760px) { .lms-wrap { padding-inline: 16px } }
+.lms .btn.sm { padding: 4px 11px }
+.lms .hero-t { font-size: clamp(26px, 3vw, 34px) }
+.lms .hero.hero-home .hero-t { font-size: clamp(28px, 3.4vw, 40px) }
+.lms[data-role="instructor"] .eb-c { display: none }

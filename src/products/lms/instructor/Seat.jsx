@@ -43,7 +43,7 @@ export default function InstructorSeat({ say }) {
   const name = courses.find(c => c.courseId === courseId)?.name || "";
   return (
     <div className="st">
-      <div className="head"><div><div className="eyebrow">{name}</div><h1 className="h1">席替え</h1></div>
+      <div className="head"><div><div className="eyebrow eb-c">{name}</div><h1 className="h1">席替え</h1></div>
         <span className="r"><span className="seg"><button type="button" aria-pressed={tab === "seats"} onClick={() => setTab("seats")}>席替え</button><button type="button" aria-pressed={tab === "people"} onClick={() => setTab("people")}>受講生の情報</button></span></span>
       </div>
       {/* 受講生の情報へ切り替えても保存前の席が消えないよう、席替えは隠すだけにする */}
@@ -373,14 +373,16 @@ function SeatingBoard({ data, courseId, setData, say }) {
       <Card className="pad st-g">
         <div className="head">
           <span className="row">
-            {rounds.length ? <select className="in sx-round" aria-label="回" value={roundId} onChange={e => pickRound(e.target.value)}>{rounds.map(r => <option key={r.roundId} value={r.roundId}>{r.title}{r.status === "confirmed" ? "（確定）" : "（下書き）"}</option>)}</select> : <Chip>回なし</Chip>}
-            <Btn kind="ghost sm" disabled={!!busy} onClick={() => newRound(false)}>＋ 新しい回</Btn>
-            {round?.status === "confirmed" && <Btn kind="ghost sm" disabled={!!busy} onClick={() => newRound(false, true)}>この並びを写して第{rounds.length + 1}回へ</Btn>}
-            <Chip>席 {seatCount} ・ 教室 {people.length - online.length} 人</Chip>
+            <h2 className="h3">{round ? round.title : "席替え"}</h2>
+            {round && <Chip tone={round.status === "confirmed" ? "ok" : "warn"}>{round.status === "confirmed" ? "確定" : "下書き"}</Chip>}
+            <Chip tone="mk">席 {seatCount} ・ 教室 {people.length - online.length} 人</Chip>
             {layout.desks.length > 0 && <Chip tone={totAgain ? "bad" : "ok"}>前回と同じ机 {totAgain} 人</Chip>}
             {(dirty.layout || dirty.round) && <Chip tone="warn">保存していない変更</Chip>}
           </span>
           <span className="r">
+            {rounds.length > 0 && <span className="seg" aria-label="回">{rounds.map(r => <button key={r.roundId} type="button" aria-pressed={r.roundId === roundId} onClick={() => pickRound(r.roundId)}>{r.title}</button>)}</span>}
+            <Btn kind="ghost sm" disabled={!!busy} onClick={() => newRound(false)}>＋ 新しい回</Btn>
+            {round?.status === "confirmed" && <Btn kind="ghost sm" disabled={!!busy} onClick={() => newRound(false, true)}>この並びを写して第{rounds.length + 1}回へ</Btn>}
             <Btn kind="ghost sm" onClick={async () => { if (edit && dirty.layout) await saveLayout(); setEdit(v => !v); setSel(null); }}>{edit ? "編集を終える" : "レイアウトを編集"}</Btn>
             <Btn kind="ghost sm" disabled={!history.length} onClick={undo}>戻す</Btn>
             <Btn kind="ghost sm" onClick={() => window.print()}>PDF で出力</Btn>

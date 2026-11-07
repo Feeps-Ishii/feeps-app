@@ -77,7 +77,7 @@ export function TaskList({ t, list, today, say }) {
           <div key={k.id} className={`tk${k.done ? " done" : ""} imp-${IMP[k.importance] ?? 1}`}>
             <button type="button" className="tkc" aria-pressed={k.done} aria-label={k.done ? "済みを取り消す" : "済みにする"} onClick={() => toggle(k)}>{k.done ? "✓" : ""}</button>
             <span className="tkb"><span className="row" style={{ gap: 6 }}><Chip tone={k.importance === "高" ? "bad" : k.importance === "中" ? "warn" : ""}>{k.importance}</Chip><b>{k.title}</b></span>{k.note && <small>{k.note}</small>}</span>
-            <span className="tkd num">{k.due ? <>{md(k.due)}（{wd(k.due)}）{!k.done && (n < 0 ? <b className="late"> ・ {-n} 日過ぎ</b> : n === 0 ? <b className="soon"> ・ 今日まで</b> : n <= 3 ? <b className="soon"> ・ あと {n} 日</b> : ` ・ あと ${n} 日`)}</> : "期限なし"}</span>
+            <span className="tkd num">{k.due ? <>{md(k.due)}（{wd(k.due)}）{!k.done && (n < 0 ? <b className="late"> ・ {-n} 日過ぎ</b> : n === 0 ? <b className="tk-soon"> ・ 今日まで</b> : n <= 3 ? <b className="tk-soon"> ・ あと {n} 日</b> : ` ・ あと ${n} 日`)}</> : "期限なし"}</span>
             <span className="tkw">{who && <><span className="face sm">{who.slice(0, 1)}</span><small>{who}</small></>}</span>
             <Btn kind="ghost sm" onClick={() => setEdit(k)}>直す</Btn>
           </div>
@@ -107,7 +107,7 @@ export default function InstructorTask({ say }) {
   const groups = tab === "done" ? [["済み", list]] : [["期限切れ", list.filter(x => x.due && left(x.due, today) < 0)], ["今週", list.filter(in7)], ["来週から", list.filter(x => !x.due || left(x.due, today) > 7)]];
   return (
     <div className="st">
-      <div className="head"><div><div className="eyebrow">{sc.course.name}</div><h1 className="h1">タスク</h1></div><span className="r"><Btn kind="sm" onClick={() => setAdding(true)}>タスクを足す</Btn></span></div>
+      <div className="head"><div><div className="eyebrow eb-c">{sc.course.name}</div><h1 className="h1">タスク</h1></div><span className="r"><Btn kind="sm" onClick={() => setAdding(true)}>タスクを足す</Btn></span></div>
       <ListTool tabs={[["open", "まだ", n.open], ["me", "自分", n.me, "ok"], ["imp", "重要度 高", n.imp, "bad"], ["done", "済み", n.done]]} tab={tab} onTab={setTab} q={q} onQ={setQ} placeholder="タスクを探す" />
       {t.staff.length > 0 && <div className="row">{t.staff.map(p => <Chip key={p.id}>{p.name}</Chip>)}</div>}
       {t.state !== "ready" ? <Card className="pad"><TaskList t={t} list={[]} today={today} say={say} /></Card>

@@ -83,7 +83,7 @@ export default function StaffAnn({ role, say }) {
   const to = [v.toTrainee && (ro ? `${coName || "自社"}の受講生${n != null ? ` ${n} 人` : ""}` : `受講生${n != null ? ` ${n} 人` : ""}`), !ro && v.toClient && "企業担当者"].filter(Boolean).join("・");
   return (
     <div className="st">
-      <div className="head"><div>{sc.course && <div className="eyebrow">{sc.course.name}</div>}<h1 className="h1">お知らせ</h1></div></div>
+      <div className="head"><div>{sc.course && <div className="eyebrow eb-c">{sc.course.name}</div>}<h1 className="h1">お知らせ</h1></div></div>
       <div className="g2">
         <Card className="pad hc-c">
           <div className="head"><h2 className="h2">{v.announcementId ? "お知らせを直す" : ro ? "自社の受講生へ出す" : "お知らせを出す"}</h2>{v.announcementId && <span className="r"><Btn kind="ghost sm" onClick={() => setV(EMPTY)}>直すのをやめる</Btn><Btn kind="ghost sm" onClick={() => setDel(list.find(a => a.announcementId === v.announcementId))}>消す</Btn></span>}</div>

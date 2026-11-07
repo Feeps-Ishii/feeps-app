@@ -210,7 +210,7 @@ export default function StaffPeople({ role, manager, go, say }) {
   const days = stats.data?.period?.trainingDays || 0;
   return (
     <div className="st">
-      <div className="head"><div><div className="eyebrow">{sc.course.name}</div><h1 className="h1">受講生 ・ {rows.length} 人</h1></div>{manager && <span className="r"><Btn kind="sm" onClick={() => setRosterOpen(true)}>お客様の名簿で登録</Btn></span>}</div>
+      <div className="head"><div><div className="eyebrow eb-c">{sc.course.name}</div><h1 className="h1">受講生 ・ {rows.length} 人</h1></div>{manager && <span className="r"><Btn kind="sm" onClick={() => setRosterOpen(true)}>お客様の名簿で登録</Btn></span>}</div>
       {ro && pins.size === 0 && <div className="pinhint"><span className="pinc on" aria-hidden="true">✓</span><span><b>担当の受講生に ✓</b><small>一覧・日報・勤怠・ホームの上に表示</small></span></div>}
       <ListTool tabs={[["all", "すべて", rows.length], ...(ro ? [["pin", "担当", rows.filter(r => pins.has(r.id)).length, "ok"]] : []), ["absent", "欠席・遅刻", rows.filter(issue).length, "warn"], ["low", "点が低い", rows.filter(low).length, "bad"]]} tab={tab} onTab={setTab} q={q} onQ={setQ} placeholder="名前で探す"
         sorts={[...(ro ? [["pin", "担当を上に"]] : []), ["kana", "名前順"], ["att", "出席率の低い順"], ["tlo", "テスト平均の低い順"], ["thi", "テスト平均の高い順"]]} sort={sort} onSort={setSort} />

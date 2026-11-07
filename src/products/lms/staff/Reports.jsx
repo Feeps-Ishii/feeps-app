@@ -216,7 +216,7 @@ export default function StaffReports({ role, go, say }) {
   return (
     <div className="st">
       <div className="head">
-        <div><div className="eyebrow">{sc.course.name}</div><h1 className="h1">日報 ・ {dayLabel(date)}</h1></div>
+        <div><div className="eyebrow eb-c">{sc.course.name}</div><h1 className="h1">日報 ・ {dayLabel(date)}</h1></div>
         <span className="r">{sw}<span className="seg"><button type="button" aria-label="前の研修日" onClick={() => setDate(stepDate(date, -1, wdays.dates))}>‹</button><button type="button" aria-pressed={date === today} onClick={() => setDate(today)}>今日</button><button type="button" aria-label="次の研修日" disabled={date >= today} onClick={() => { const n = stepDate(date, 1, wdays.dates); if (n <= today) setDate(n); }}>›</button></span></span>
       </div>
       {st.state === "error" ? <Card><div className="empty"><b>日報を確認できません</b><Btn kind="ghost sm" onClick={load}>再読み込み</Btn></div></Card> : (
