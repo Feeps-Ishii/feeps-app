@@ -13,6 +13,8 @@ const GroupsModal = lazy(() => import("../../training/LibraryView.jsx").then(m =
    公開範囲はフォルダとファイルごとに、ユーザー・グループを足して「見る／編集できる」を決める（モック xfsacl）。判定は API の libraryAcl.mjs */
 
 const ROOT = "root";
+// 全体の置き場の根：[作ったときの名前, 画面に出す名前]
+const ROOT_NAMES = { shared: ["共有ライブラリ", "共有（全社）"], ops: ["運営だけ", "運営だけ"] };
 const VIS = { all: ["受講生に見える", "ok"], client: ["企業担当者にも見える", "blue"], group: ["チームだけ", "blue"], staff: ["講師・運営だけ", "warn"] };
 const VIS_ORDER = ["all", "client", "group", "staff"];
 const visKey = acl => { const r = acl?.roles || {}; return r.trainee && acl?.scope === "groups" ? "group" : r.client ? "client" : r.trainee ? "all" : "staff"; };
@@ -234,7 +236,9 @@ function StaffFolder({ role, say, view = "all" }) {
   const here = here0?.type === "file" ? byId.get(here0.parentId) || byId.get(ROOT) : here0;  // ファイルへのリンクは入っているフォルダを開く
   const chain = useMemo(() => { const out = []; let c = here; const seen = new Set(); while (c && !seen.has(c.nodeId)) { out.unshift(c); seen.add(c.nodeId); c = byId.get(c.parentId); } return out; }, [here, byId]);
   const courseName = id => arr(courses).find(c => c.courseId === id)?.name || "コース";
-  const scopeName = sid => (sid === "shared" ? "共有（全社）" : sid === "ops" ? "運営だけ" : courseName(courseIdOf(sid)));
+  // 全体の置き場（共有・運営だけ）の名前は管理者が変えられる（根のフォルダの名前。作ったときの名前のままなら決まった名前を出す）
+  const rootName = sid => { const n = arr(spaces[sid]?.nodes).find(x => x.nodeId === ROOT), d = ROOT_NAMES[sid]; return n?.name && d && n.name !== d[0] && n.name !== ROOT ? n.name : d ? d[1] : ""; };
+  const scopeName = sid => (sid === "shared" || sid === "ops" ? rootName(sid) : courseName(courseIdOf(sid)));
   const pathOf = n => { const out = []; let c = byId.get(n.parentId); const seen = new Set(); while (c && c.nodeId !== ROOT && !seen.has(c.nodeId)) { out.unshift(c.name); seen.add(c.nodeId); c = byId.get(c.parentId); } return out.join(" / "); };
 
   const q0 = q.trim().toLowerCase();
@@ -340,9 +344,9 @@ function StaffFolder({ role, say, view = "all" }) {
           <nav className="card fs-tree" aria-label="フォルダ">
             {showCommon && <>
               <div className="fs-sec"><span className="eyebrow">全コース共通</span></div>
-              {rootBtn("shared", "共有（全社）")}
+              {rootBtn("shared", rootName("shared"))}
               {cur?.sid === "shared" && <div className="fs-kids">{treeKids("shared", ROOT)}</div>}
-              {rootBtn("ops", "運営だけ")}
+              {rootBtn("ops", rootName("ops"))}
               {cur?.sid === "ops" && <div className="fs-kids">{treeKids("ops", ROOT)}</div>}
             </>}
             {showCourses && <>
@@ -374,6 +378,7 @@ function StaffFolder({ role, say, view = "all" }) {
                     </div>
                     <span className="row">
                       <Chip tone={cid ? "mk" : ""}>公開範囲：{aclText(nearestAcl(here), groups, data.names)}</Chip>
+                      {here.canWrite && here.nodeId === ROOT && ROOT_NAMES[cur.sid] && <Btn kind="ghost sm" onClick={() => { setText(rootName(cur.sid)); setDlg({ kind: "rename", node: here }); }}>名前を変更</Btn>}
                       {here.canWrite && <Btn kind="ghost sm" onClick={() => setDlg({ kind: "acl", node: here })}>このフォルダの公開範囲</Btn>}
                       <span className="fsearch"><input type="search" value={q} placeholder="このフォルダで探す" aria-label="このフォルダで探す" onChange={e => setQ(e.target.value)} /></span>
                     </span>
