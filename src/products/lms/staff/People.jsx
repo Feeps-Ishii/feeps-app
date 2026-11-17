@@ -23,6 +23,7 @@ function Karte({ person, stats, ro, pinned, onPin, onBack, go, say, today, evalS
   const [talk, setTalk] = useState(null); // 声をかける文
   const [talkBusy, setTalkBusy] = useState("");
   const [memoBusy, setMemoBusy] = useState(false);
+  const [pw, setPw] = useState(null); // null：閉じる ・ {}：確かめる ・ { password }：出した
   const courseId = stats?.courseId;
   const wd = useWorkdays(courseId, today.slice(0, 7));
   const id = person.id;
@@ -65,6 +66,11 @@ function Karte({ person, stats, ro, pinned, onPin, onBack, go, say, today, evalS
     try { await apiPost(`/karte/${id}`, { text: memoText.trim(), visibility: memoShare }); setMemoText(""); setMemoShare("staff"); await loadMemos(); say?.("メモを残しました"); }
     catch (e) { setErr(errText(e, "保存できませんでした")); } finally { setBusy(false); }
   };
+  const issuePw = async () => {
+    setPw(p => ({ ...p, busy: true }));
+    try { const r = await apiPost(`/admin/users/${encodeURIComponent(id)}/temp-password`, {}); setPw({ password: r.password, loginId: r.loginId || "" }); }
+    catch (e) { setPw({ err: errText(e, "出せませんでした") }); }
+  };
   const delMemo = async m => {
     try { await apiDelete(`/karte/${id}/${encodeURIComponent(m.memoId || m.id)}`); await loadMemos(); }
     catch (e) { setErr(errText(e, "消せませんでした")); }
@@ -91,7 +97,7 @@ function Karte({ person, stats, ro, pinned, onPin, onBack, go, say, today, evalS
               {k?.testAverage != null && k.testAverage < LOW && <Chip tone="bad">点が低い</Chip>}
             </span>
           </div>
-          <span className="kt-act">{ro ? <Btn kind="ghost" onClick={onPin}>{pinned ? "担当から外す" : "担当にする"}</Btn> : <Btn kind="ghost" onClick={() => setTalk("")}>声をかける</Btn>}<Btn kind="ghost" onClick={onBack}>一覧へ</Btn></span>
+          <span className="kt-act">{ro ? <Btn kind="ghost" onClick={onPin}>{pinned ? "担当から外す" : "担当にする"}</Btn> : <><Btn kind="ghost" onClick={() => setTalk("")}>声をかける</Btn><Btn kind="ghost" onClick={() => setPw({})}>仮パスワードを出す</Btn></>}<Btn kind="ghost" onClick={onBack}>一覧へ</Btn></span>
         </div>
         <Kpi items={[
           { label: "出席率", value: k?.attendanceRate ?? "—", unit: k?.attendanceRate != null ? "%" : "", pct: k?.attendanceRate ?? undefined },
@@ -151,6 +157,17 @@ function Karte({ person, stats, ro, pinned, onPin, onBack, go, say, today, evalS
           )}
         </div>
       </div>
+      {pw && (
+        <Modal title={`${person.name} さんの仮パスワード`} width={460} onClose={() => setPw(null)} footer={pw.password || pw.err ? <Btn onClick={() => setPw(null)}>閉じる</Btn> : <><Btn kind="ghost" onClick={() => setPw(null)}>やめる</Btn><Btn disabled={!!pw.busy} onClick={issuePw}>{pw.busy ? "出しています" : "出す"}</Btn></>}>
+          {pw.password ? (
+            <>
+              <div className="mgoal"><span className="eyebrow">仮パスワード ・ 今だけ表示</span><b className="dv-mono">{pw.password}</b></div>
+              {pw.loginId && <div className="rowsx"><div><span>ログイン ID</span><b className="dv-mono">{pw.loginId}</b></div></div>}
+              <div className="row"><Chip>次のログインで本人が新しいパスワードを決める</Chip></div>
+            </>
+          ) : pw.err ? <div className="lms-err" role="alert">{pw.err}</div> : <div className="row"><Chip tone="warn">今のパスワードは使えなくなる</Chip></div>}
+        </Modal>
+      )}
       {talk != null && (
         <Modal title={`${person.name} さんに声をかける`} width={480} onClose={() => setTalk(null)} footer={<><Btn kind="ghost" onClick={() => setTalk(null)}>やめる</Btn><Btn disabled={!!talkBusy || !talk.trim()} onClick={talkSend}>{talkBusy === "send" ? "送っています" : "送る"}</Btn></>}>
           <div className="row"><Chip>本人の通知だけに届く</Chip></div>

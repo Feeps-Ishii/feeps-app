@@ -17,7 +17,7 @@ const errText = e => {
   return e?.message || "うまくいきませんでした。もう一度お試しください。";
 };
 
-export default function FirstSetup({ name: initialName, onDone }) {
+export default function FirstSetup({ name: initialName, onDone, noCode = false }) {
   const [step, setStep] = useState("loading");
   const [name, setName] = useState(/^受講者\d*$/.test(initialName || "") ? "" : initialName || "");
   const [email, setEmail] = useState("");
@@ -28,7 +28,7 @@ export default function FirstSetup({ name: initialName, onDone }) {
   // メールアドレスを変えたあと確認コードを入れずにやめた人は、コードの画面から
   useEffect(() => {
     fetchUserAttributes().then(a => {
-      if (a?.email && !PLACEHOLDER.test(a.email) && a.email_verified !== "true") { setEmail(a.email); setStep("code"); }
+      if (!noCode && a?.email && !PLACEHOLDER.test(a.email) && a.email_verified !== "true") { setEmail(a.email); setStep("code"); }
       else setStep("form");
     }).catch(() => setStep("form"));
   }, []);
@@ -39,6 +39,15 @@ export default function FirstSetup({ name: initialName, onDone }) {
     if (!n) { setMsg({ kind: "ng", text: "お名前を入れてください。" }); return; }
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(m) || PLACEHOLDER.test(m)) { setMsg({ kind: "ng", text: "ふだん使うメールアドレスを入れてください。" }); return; }
     setBusy(true); setMsg({ kind: "", text: "" });
+    // LMS（2026-11-17）：確認コードなしで登録する。管理者がメールを直せて、仮パスワードも出せるため
+    if (noCode) {
+      try {
+        await apiPut("/profile/me/email", { email: m, name: n });
+        await fetchAuthSession({ forceRefresh: true });
+        onDone?.();
+      } catch (er) { setMsg({ kind: "ng", text: er?.errorMessage || er?.message || errText(er) }); setBusy(false); }
+      return;
+    }
     try {
       await apiPut("/profile/me", { name: n }).catch(() => {});
       await updateUserAttributes({ userAttributes: { email: m } });
@@ -74,7 +83,7 @@ export default function FirstSetup({ name: initialName, onDone }) {
         <form onSubmit={sendForm} style={{ display: "grid", gap: 12 }}>
           <label className="mfield"><span>お名前</span><input id="fs-name" value={name} onChange={e => setName(e.target.value.slice(0, 40))} autoComplete="name" placeholder="山田 太郎" /></label>
           <label className="mfield"><span>メールアドレス（次からのログインに使います）</span><input id="fs-email" type="email" value={email} onChange={e => setEmail(e.target.value)} autoComplete="email" placeholder="name@example.co.jp" /></label>
-          <button type="submit" className="btn" disabled={busy} style={{ justifySelf: "end" }}>{busy ? "送っています…" : "確認コードを送る"}</button>
+          <button type="submit" className="btn" disabled={busy} style={{ justifySelf: "end" }}>{busy ? (noCode ? "登録しています…" : "送っています…") : noCode ? "登録する" : "確認コードを送る"}</button>
         </form>
       )}
       {step === "code" && (

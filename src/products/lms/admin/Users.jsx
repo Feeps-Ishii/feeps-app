@@ -129,13 +129,14 @@ function AdminPerm({ u, courses, say, onDone }) {
 function EditUser({ u, companies, courses, isSuper, onClose, onDone, say }) {
   const [mine, setMine] = useState(null);
   useEffect(() => { if (u.role === "trainee" || u.role === "instructor") apiGet(`/admin/users/${u.userId}/courses`).then(l => setMine(arr(l?.courseIds || l).map(x => x.courseId || x))).catch(() => setMine(undefined)); }, [u.userId, u.role]);
-  const [v, setV] = useState({ name: u.name || "", role: u.role, company: u.company || "" });
+  const [v, setV] = useState({ name: u.name || "", email: u.email || "", role: u.role, company: u.company || "" });
   const [busy, setBusy] = useState(false); const [err, setErr] = useState(""); const [temp, setTemp] = useState(""); const [del, setDel] = useState(false);
   const f = (k, x) => setV(s => ({ ...s, [k]: x }));
   const run = async fn => { setBusy(true); setErr(""); try { await fn(); } catch (e) { setErr(errText(e, "うまくいきませんでした")); } finally { setBusy(false); } };
   return (
-    <Modal title={`${u.name || "名前未設定"} を直す`} width={480} onClose={onClose} footer={<>{!del ? <Btn kind="ghost" disabled={busy} onClick={() => setDel(true)}>消す</Btn> : <Btn disabled={busy} onClick={() => run(async () => { await apiDelete(`/admin/users/${u.userId}`); say?.("消しました"); onDone(); })}>本当に消す</Btn>}<Btn kind="ghost" onClick={onClose}>閉じる</Btn><Btn disabled={busy} onClick={() => run(async () => { await apiPut(`/admin/users/${u.userId}`, { name: v.name.trim(), company: v.company, role: v.role }); say?.("直しました"); onDone(); })}>保存</Btn></>}>
+    <Modal title={`${u.name || "名前未設定"} を直す`} width={480} onClose={onClose} footer={<>{!del ? <Btn kind="ghost" disabled={busy} onClick={() => setDel(true)}>消す</Btn> : <Btn disabled={busy} onClick={() => run(async () => { await apiDelete(`/admin/users/${u.userId}`); say?.("消しました"); onDone(); })}>本当に消す</Btn>}<Btn kind="ghost" onClick={onClose}>閉じる</Btn><Btn disabled={busy} onClick={() => run(async () => { await apiPut(`/admin/users/${u.userId}`, { name: v.name.trim(), ...(v.email.trim() && v.email.trim().toLowerCase() !== String(u.email || "").toLowerCase() ? { email: v.email.trim() } : {}), company: v.company, role: v.role }); say?.("直しました"); onDone(); })}>保存</Btn></>}>
       <label className="field">名前<input type="text" value={v.name} onChange={e => f("name", e.target.value)} /></label>
+      <label className="field">メールアドレス（ログインに使う）<input type="email" value={v.email} onChange={e => f("email", e.target.value)} /></label>
       <div className="st-fg">
         <label className="field">ロール<select className="in" value={v.role} onChange={e => f("role", e.target.value)}>{ROLES.map(([k, t]) => <option key={k} value={k}>{t}</option>)}</select></label>
         <label className="field">企業<select className="in" value={v.company} onChange={e => f("company", e.target.value)}><option value="">なし</option>{companies.map(c => <option key={c.companyId} value={c.companyId}>{c.name}</option>)}</select></label>
