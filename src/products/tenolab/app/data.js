@@ -111,6 +111,9 @@ export const admin = {
   overview: month => apiGet(`/tenolab/admin/overview${month ? `?month=${encodeURIComponent(month)}` : ""}`),
   saveCompany: (companyId, body) => apiPut(`/tenolab/admin/companies/${encodeURIComponent(companyId)}`, body),
   inquiries: () => apiGet("/tenolab/admin/inquiries"),
+  // 企業ごとの使える教材（2026-11-18）
+  scope: companyId => apiGet(`/tenolab/admin/companies/${encodeURIComponent(companyId)}/scope`),
+  saveScope: (companyId, scope) => apiPut(`/tenolab/admin/companies/${encodeURIComponent(companyId)}/scope`, { scope }),
 };
 
 /* 企業担当者の画面・管理者の受講状況（ADR 0025 §5） */

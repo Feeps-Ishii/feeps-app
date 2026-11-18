@@ -18,7 +18,7 @@ export function courseModels(lrn, topics, cases, premium) {
     return {
       id: c.id, title: c.title, level: c.level || "", duration: c.duration || "", topic: c.topic || OTHER_TOPIC.id, topicObj,
       lessons: Number(c.lessons ?? c.lessonCount ?? 0) || 0, progress: done ? 100 : prog, completed: done,
-      premium: isPremium, locked: isPremium && !premium, raw: c,
+      premium: isPremium, locked: (isPremium && !premium) || !!c.scopeLocked, scopeLocked: !!c.scopeLocked, raw: c,
       nextCase: (cases || []).find(x => x.needCourseId === c.id) || null,
     };
   });
@@ -31,7 +31,7 @@ export function drillModels(drills, topics, progress, premium) {
     const isPremium = !!(d.premium || topicObj.premium);
     const rec = progress?.drill?.(d.id);
     return {
-      ...d, topicObj, premium: isPremium, locked: isPremium && !premium,
+      ...d, topicObj, premium: isPremium, locked: (isPremium && !premium) || !!d.scopeLocked,
       cleared: rec?.status === "cleared", start: START_OF[d.aws?.scenario] || "",
       thumb: d.thumb || (d.runtime === "aws" ? { kind: "aws", aws: AWS_THUMB[d.aws?.scenario] || {} } : null),
     };
@@ -49,7 +49,7 @@ export function caseModels(cases, topics, courses, premium) {
     const need = (courses || []).find(c => c.id === x.needCourseId);
     // API の locked は「前提のコースが未修了」。画面の locked は「Premium の鍵」に使う
     return {
-      ...x, topicObj, premium: isPremium, locked: !!x.premiumLocked || (isPremium && !premium),
+      ...x, topicObj, premium: isPremium, locked: !!x.premiumLocked || (isPremium && !premium) || !!x.scopeLocked,
       open: x.open ?? (x.locked === false || !!need?.completed),
       status: x.progress?.status || "",
       needTitle: need?.title || "",

@@ -14,7 +14,7 @@ import { GroupHead, PublishResult, confirmPublish, groupByTopic, needsPublish, p
 
 /* 管理の画面（#/manage/…、管理者だけ。モック tenolab-admin.html、2026-10-06〜）
      #/manage                         ホーム
-     #/manage/companies[/{companyId}] 企業と契約
+     #/manage/companies[/{companyId}[/scope]] 企業と契約（scope＝使える教材、2026-11-18）
      #/manage/accounts[/{companyId}]  アカウントを発行する（依頼→案→一覧→発行→Excel）
      #/manage/learners[/{userId}]     受講状況（企業担当者の画面と同じ部品）
      #/manage/courses|drills|cases[/{id}|/_new]  教材（コースは一覧とプレビュー。#/manage/courses/legacy は元の管理画面＝細かく直す）
@@ -40,7 +40,7 @@ export default function ManagePage({ ctx, rest }) {
   const section = adminSection(rest);
   if (section === "home") return <AdminHome go={go} />;
   if (section === "learners") return <AdminLearners rest={rest} go={go} />;
-  if (section === "companies") return <Companies go={go} companyId={id ? decodeURIComponent(id) : ""} />;
+  if (section === "companies") return <Companies go={go} companyId={id ? decodeURIComponent(id) : ""} tab={rest[2] || ""} topics={topics} />;
   if (section === "accounts") return <AccountIssue key={id || ""} go={go} companyId={id ? decodeURIComponent(id) : ""} />;
   if (section === "grading") return <Grading go={go} caseId={tab === "grading" ? id || "" : ""} />;
   if (section === "topics") return <><Title eyebrow="TOPICS" title="単元" /><TopicsEditor topics={topics} /></>;

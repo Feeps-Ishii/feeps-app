@@ -34,7 +34,7 @@ export default function CasePage({ ctx, id }) {
         {listItem && <h1 className="h1" style={{ marginBottom: 8 }}>{listItem.title}</h1>}
         {listItem?.summary && <p style={{ margin: 0, color: "var(--ink2)", maxWidth: "66ch" }}>{listItem.summary}</p>}
         <div className="card flat" style={{ padding: 18, marginTop: 14, display: "grid", gap: 8, justifyItems: "start" }}>
-          <b><Ic id="lock" /> {listItem?.locked ? `この案件体験は${planLabel()}プランで利用できます` : `${listItem?.needTitle || "前提のコース"}を修了すると挑戦できます`}</b>{listItem?.locked && <> <PlanLink /></>}
+          <b><Ic id="lock" /> {listItem?.scopeLocked ? "この案件体験は、ご利用の範囲に含まれていません" : listItem?.locked ? `この案件体験は${planLabel()}プランで利用できます` : `${listItem?.needTitle || "前提のコース"}を修了すると挑戦できます`}</b>{listItem?.locked && !listItem?.scopeLocked && <> <PlanLink /></>}
           {listItem?.needCourseId && !listItem?.locked && <button type="button" className="btn ghost" onClick={() => go(`#/courses/${listItem.needCourseId}`)}>コースへ</button>}
         </div>
       </>

@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useState } from "react";
 import { admin } from "../data.js";
+import MaterialScope from "./MaterialScope.jsx";
 import { Title, yen, usdToYen, PLAN_LABEL, fmtTime } from "./parts.jsx";
 
 /* 企業と契約（モック tenolab-admin.html の companies・company。ADR 0025 §5）
@@ -51,7 +52,7 @@ export function CompanyTable({ list, rate, go, compact }) {
   );
 }
 
-export default function Companies({ go, companyId }) {
+export default function Companies({ go, companyId, tab = "", topics }) {
   const ov = useOverview();
   const [filter, setFilter] = useState("all");
   if (ov.state === "loading" && !ov.data) return <><Title eyebrow="COMPANIES" title="企業と契約" /><p className="muted">読み込んでいます…</p></>;
@@ -60,7 +61,7 @@ export default function Companies({ go, companyId }) {
   if (companyId) {
     const c = d.companies.find(x => x.companyId === companyId);
     if (!c) return <><button type="button" className="back" onClick={() => go("#/manage/companies")}>← 企業と契約</button><p className="muted">この企業は見つかりませんでした。</p></>;
-    return <Company key={`${c.companyId}/${c.contractMode}/${JSON.stringify(c.contract)}`} c={c} d={d} go={go} onSaved={ov.reload} />;
+    return <Company key={`${c.companyId}/${c.contractMode}/${JSON.stringify(c.contract)}`} c={c} d={d} go={go} onSaved={ov.reload} tab={tab} topics={topics} />;
   }
   const list = { all: d.companies, lms: d.companies.filter(c => c.lms), el: d.companies.filter(c => c.elearning), off: d.companies.filter(c => !c.elearning) }[filter] || [];
   return (
@@ -78,7 +79,7 @@ export default function Companies({ go, companyId }) {
   );
 }
 
-function Company({ c, d, go, onSaved }) {
+function Company({ c, d, go, onSaved, tab, topics }) {
   const [f, setF] = useState(() => ({
     elearning: c.elearning,
     learningPlan: c.learningPlan || "standard",
@@ -116,8 +117,13 @@ function Company({ c, d, go, onSaved }) {
           <button type="button" className="back" onClick={() => go("#/manage/companies")}>← 企業と契約</button>
           <h1 className="h1" style={{ marginTop: 6 }}>{c.name} {c.lms && <LmsTag />}</h1>
         </div>
-        <div className="r"><button type="button" className="btn ghost" onClick={() => go(`#/manage/accounts/${encodeURIComponent(c.companyId)}`)}>アカウントを発行</button><button type="button" className="btn" onClick={save} disabled={busy}>{busy ? "保存しています…" : "保存"}</button></div>
+        <div className="r"><button type="button" className="btn ghost" onClick={() => go(`#/manage/accounts/${encodeURIComponent(c.companyId)}`)}>アカウントを発行</button>{tab !== "scope" && <button type="button" className="btn" onClick={save} disabled={busy}>{busy ? "保存しています…" : "保存"}</button>}</div>
       </div>
+      <div className="tabs-h" role="tablist" style={{ marginBottom: 14 }}>
+        <button type="button" role="tab" aria-selected={tab !== "scope"} onClick={() => go(`#/manage/companies/${encodeURIComponent(c.companyId)}`)}>契約</button>
+        <button type="button" role="tab" aria-selected={tab === "scope"} onClick={() => go(`#/manage/companies/${encodeURIComponent(c.companyId)}/scope`)}>使える教材</button>
+      </div>
+      {tab === "scope" ? <MaterialScope companyId={c.companyId} topics={topics} /> : <>
       {msg.text && <div className={`verdict ${msg.kind}`} role={msg.kind === "ng" ? "alert" : "status"} style={{ marginBottom: 12 }}>{msg.text}</div>}
       <div className="mtwo" style={{ marginTop: 0 }}>
         <div style={{ display: "grid", gap: 16, alignContent: "start" }}>
@@ -173,6 +179,7 @@ function Company({ c, d, go, onSaved }) {
           </section>
         </div>
       </div>
+      </>}
     </>
   );
 }

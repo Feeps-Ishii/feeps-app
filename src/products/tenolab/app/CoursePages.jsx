@@ -16,12 +16,12 @@ function useCourseLessons(lrn, courseId) {
   return { lessons: lrn.lessonsForCourse(courseId), state: lrn.lessonCatalogState(courseId) };
 }
 
-function NotAvailable({ ctx, course, premiumLocked }) {
+function NotAvailable({ ctx, course, premiumLocked, scopeLocked }) {
   return (
     <>
       <Back onClick={() => ctx.back("#/courses")} />
       <div className="card flat" style={{ padding: 18, marginTop: 12 }}>
-        <b>{premiumLocked ? <><Ic id="lock" /> {course?.title || "このコース"}は{planLabel()}プランで利用できます</> : "このコースは見つかりませんでした"}</b>{premiumLocked && <> <PlanLink /></>}
+        <b>{scopeLocked ? <><Ic id="lock" /> {course?.title || "このコース"}は、ご利用の範囲に含まれていません</> : premiumLocked ? <><Ic id="lock" /> {course?.title || "このコース"}は{planLabel()}プランで利用できます</> : "このコースは見つかりませんでした"}</b>{premiumLocked && <> <PlanLink /></>}
       </div>
     </>
   );
@@ -43,13 +43,15 @@ export function CourseDetail({ ctx, courseId }) {
   }, [courseId, finalTestEnabled, !!course]); // eslint-disable-line react-hooks/exhaustive-deps
 
   if (!course) return lrn.courseCatalogState === "loading" ? <Loading /> : <NotAvailable ctx={ctx} />;
-  if (model?.locked) return <NotAvailable ctx={ctx} course={course} premiumLocked />;
+  if (model?.locked) return <NotAvailable ctx={ctx} course={course} premiumLocked={!model.scopeLocked} scopeLocked={model.scopeLocked} />;
   const topic = topics.find(t => t.id === course.topic) || model?.topicObj;
   const done = lrn.getLessonsDone(courseId);
   const st = lrn.getCourseState(courseId);
   const isCompleted = st.status === "completed";
   const doneCnt = lessons.filter(l => done[l.id]?.completed).length;
-  const next = lessons.find(l => !done[l.id]?.completed);
+  // 範囲外（鍵つき）のレッスンは開けない（2026-11-18）
+  const next = lessons.find(l => !done[l.id]?.completed && !l.scopeLocked);
+  const firstOpen = lessons.find(l => !l.scopeLocked);
   const pct = isCompleted ? 100 : (st.progress ?? 0);
   const exerciseCount = lessons.reduce((a, l) => a + countExercises(l), 0);
   const totalMin = Math.round(durationHours(course.duration) * 60);
@@ -63,7 +65,7 @@ export function CourseDetail({ ctx, courseId }) {
   const openLesson = ls => { lrn.startCourse(courseId); lrn.touchLesson(courseId, ls.id); go(`#/courses/${courseId}/lessons/${ls.id}`); };
   let primary = null, hint = "";
   if (!lessons.length) primary = null;
-  else if (isCompleted) primary = { label: "もう一度見る", onClick: () => openLesson(lessons[0]) };
+  else if (isCompleted && firstOpen) primary = { label: "もう一度見る", onClick: () => openLesson(firstOpen) };
   else if (canTest) { primary = { label: st.status === "final_test_failed" ? "総合テストに再挑戦" : "総合テストを受ける", onClick: () => go(`#/courses/${courseId}/test`) }; hint = `${summary.questionCount}問 ・ ${summary.passLine}点で合格`; }
   else if (next) { primary = { label: lrn.progress?.[courseId]?.status ? "続きから学習する" : "受講を開始する", onClick: () => openLesson(next) }; hint = `次は ${next.title}`; }
 
@@ -124,6 +126,12 @@ export function CourseDetail({ ctx, courseId }) {
                     const d = !!done[ls.id]?.completed, now = !d && next?.id === ls.id && !isCompleted;
                     const rv = lrn.getLessonReview(courseId, ls.id);
                     const slides = Array.isArray(ls.slides) ? ls.slides.length : 0, ex = countExercises(ls);
+                    if (ls.scopeLocked) return (
+                      <div key={ls.id} className="lrow locked" aria-disabled="true">
+                        <span className="n"><Ic id="lock" /></span>
+                        <span style={{ flex: 1, minWidth: 0 }}><b style={{ fontWeight: 500, color: "var(--muted)" }}>{ls.title}</b></span>
+                      </div>
+                    );
                     return (
                       <button key={ls.id} type="button" className={`lrow ${d ? "done" : now ? "now" : ""}`} onClick={() => openLesson(ls)}>
                         <span className="n">{d ? <Ic id="check" /> : now ? <Ic id="play" /> : i + 1}</span>
@@ -178,12 +186,13 @@ export function LessonPage({ ctx, courseId, lessonId, slideId }) {
   const course = lrn.courseById(courseId);
   const { lessons, state } = useCourseLessons(lrn, courseId);
   if (!course) return lrn.courseCatalogState === "loading" ? <Loading /> : <NotAvailable ctx={ctx} />;
-  if (model?.locked) return <NotAvailable ctx={ctx} course={course} premiumLocked />;
+  if (model?.locked) return <NotAvailable ctx={ctx} course={course} premiumLocked={!model.scopeLocked} scopeLocked={model.scopeLocked} />;
   const lesson = lessons.find(l => l.id === lessonId);
   if (!lesson) {
     if (state === "loading") return <Loading what="レッスンを読み込んでいます…" />;
     return <><Back onClick={() => go(`#/courses/${courseId}`)}>← コース詳細へ</Back><LoadError onRetry={() => lrn.refreshCourseLessons(courseId)} what="レッスンを読み込めませんでした" /></>;
   }
+  if (lesson.scopeLocked) return <NotAvailable ctx={ctx} course={{ title: lesson.title }} scopeLocked />;
   return <LessonView ctx={ctx} course={course} lesson={lesson} lessons={lessons} slideId={slideId || null} />;
 }
 
@@ -194,7 +203,7 @@ export function FinalTestPage({ ctx, courseId, mode }) {
   const course = lrn.courseById(courseId);
   const { lessons } = useCourseLessons(lrn, courseId);
   if (!course) return lrn.courseCatalogState === "loading" ? <Loading /> : <NotAvailable ctx={ctx} />;
-  if (model?.locked) return <NotAvailable ctx={ctx} course={course} premiumLocked />;
+  if (model?.locked) return <NotAvailable ctx={ctx} course={course} premiumLocked={!model.scopeLocked} scopeLocked={model.scopeLocked} />;
   return (
     <div className="tl-legacy">
       <ElFinalTestView course={course} lrn={lrn} lessons={lessons} initialMode={mode}

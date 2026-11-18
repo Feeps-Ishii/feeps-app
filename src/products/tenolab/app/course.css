@@ -361,3 +361,6 @@
 .tl-course .envplan{display:grid; gap:2px; padding:10px 12px; border-radius:12px; background:var(--marker-soft); border:1px solid var(--marker-deep); font-size:13px}
 .tl-course .envplan b{font-size:14px}
 .tl-course .envplan span{color:var(--ink2); font-size:12.5px}
+/* 範囲外（鍵つき）のレッスン（2026-11-18） */
+.tl-course .lrow.locked{background:var(--soft); cursor:default}
+.tl-course .lrow.locked:hover{border-color:var(--line)}

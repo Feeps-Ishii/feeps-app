@@ -50,6 +50,8 @@ export function useLearning(role = "trainee") {
       topic: course.topic || "",
       thumb: course.thumb || null,
       premium: course.premium === true,
+      // 企業ごとの教材の範囲で鍵つき（2026-11-18）
+      scopeLocked: course.scopeLocked === true,
     };
   }
   function getLearnerCatalog() {
