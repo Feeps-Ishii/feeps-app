@@ -577,3 +577,18 @@
     .tl-course .rec-act { justify-items: start; }
   }
 }
+
+/* 管理・企業担当者の画面：ヘッダーと外側の余白をなくし、横いっぱいに使う（2026-11-18 ユーザー指定） */
+@layer tenolab {
+  body:has(.tl-course) { margin: 0; }
+  .tl-course.is-admin .wrap { max-width: none; padding-inline: 32px; }
+  .tl-course.is-admin .bar .wrap { gap: 16px; }
+  .tl-course.is-admin .bar .logo, .tl-course.is-admin .bar .mode { flex: none; }
+  .tl-course.is-admin .bar .nav { flex: 1 1 auto; min-width: 0; overflow-x: auto; scrollbar-width: none; margin-left: 4px; }
+  .tl-course.is-admin .bar .nav::-webkit-scrollbar { display: none; }
+  .tl-course.is-admin .bar .me { flex: none; }
+  .tl-course .um-name b, .tl-course .um-name small { white-space: nowrap; }
+  .tl-course.is-admin .bar .um-btn { padding: 6px 10px 6px 12px; }
+  .tl-course.is-admin .tl-foot { display: none; }
+  @media (max-width: 700px) { .tl-course.is-admin .wrap { padding-inline: 16px; } }
+}
