@@ -42,11 +42,9 @@
     .tl-course .mtest, .tl-course .mtest:has(input:nth-of-type(3)) { grid-template-columns: 1fr; }
     .tl-course .mtopic { grid-template-columns: 1fr; }
   }
-  /* 中身が短い画面でも、方眼の背景が下まで続くように。いちばん下にはコピーライトだけ */
+  /* 中身が短い画面でも、方眼の背景が下まで続くように（フッターは出さない。2026-11-18 LMS にそろえる） */
   .tl-course { min-height: 100vh; display: flex; flex-direction: column; }
   .tl-course > main { flex: 1 0 auto; width: 100%; }
-  .tl-foot { border-top: 1px solid var(--line); background: var(--card); color: var(--muted); font-size: 12.5px; }
-  .tl-foot .wrap { display: flex; align-items: center; gap: 16px; padding-block: 16px; }
   /* 管理の画面（モック tenolab-admin.html）。帯を黒にして受講生の画面と見分ける */
   .tl-course .bar.admin { background: var(--ink); color: var(--paper); border-bottom-color: var(--ink); backdrop-filter: none; }
   .tl-course .bar.admin .logo b { color: var(--ink); background: var(--marker); padding: 0 2px; border-radius: 2px; }
@@ -589,6 +587,5 @@
   .tl-course.is-admin .bar .me { flex: none; }
   .tl-course .um-name b, .tl-course .um-name small { white-space: nowrap; }
   .tl-course.is-admin .bar .um-btn { padding: 6px 10px 6px 12px; }
-  .tl-course.is-admin .tl-foot { display: none; }
   @media (max-width: 700px) { .tl-course.is-admin .wrap { padding-inline: 16px; } }
 }

@@ -65,7 +65,6 @@ export default function Shell({ section, name, email, role, switchLink, onLogout
         </div>
       </header>
       <main className="wrap" id="app">{children}</main>
-      <footer className="tl-foot"><div className="wrap"><DevHubLogo product="lrn" size={22} /><span>© {new Date().getFullYear()} Feeps</span></div></footer>
     </div>
   );
 }
