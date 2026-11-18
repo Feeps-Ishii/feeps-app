@@ -1,0 +1,51 @@
+/* 教材 › 単元ごと（MaterialsByTopic.jsx、2026-11-18） */
+.tl-course .mbt { display: grid; grid-template-columns: 260px minmax(0, 1fr); gap: 18px; align-items: start; }
+.tl-course .mbt-rail { padding: 8px; display: grid; gap: 2px; position: sticky; top: 76px; }
+.tl-course .mbt-rail button { display: grid; grid-template-columns: 30px minmax(0, 1fr) auto; gap: 10px; align-items: center; border: 0; background: none; text-align: left; padding: 8px 10px; border-radius: 10px; font: inherit; color: inherit; cursor: pointer; }
+.tl-course .mbt-rail button:hover { background: var(--soft); }
+.tl-course .mbt-rail button[aria-current="true"] { background: var(--ink); color: var(--paper); }
+.tl-course .mbt-rail button[aria-current="true"] small { color: #AEB3BF; }
+.tl-course .mbt-rail .ti { border-radius: 9px; }
+.tl-course .mbt-rail .nm { min-width: 0; }
+.tl-course .mbt-rail b { font-size: 14px; display: block; line-height: 1.25; }
+.tl-course .mbt-rail small { font-size: 11.5px; color: var(--muted); display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.tl-course .mbt-rail .n { font-family: var(--mono); font-size: 12px; white-space: nowrap; }
+.tl-course .mbt-rail .dr { display: inline-block; min-width: 18px; text-align: center; background: var(--marker); color: #15171C; border-radius: 999px; font-size: 11px; font-weight: 700; padding: 0 5px; margin-left: 4px; }
+.tl-course .mbt-rail .add { grid-template-columns: 30px 1fr; color: var(--ink2); font-size: 13px; font-weight: 700; border-top: 1px solid var(--line); border-radius: 0 0 10px 10px; margin-top: 4px; }
+.tl-course .mbt-rail .add .plus { text-align: center; }
+
+.tl-course .mbt-main { min-width: 0; display: grid; gap: 12px; align-content: start; }
+.tl-course .mbt-head { display: flex; align-items: center; gap: 14px; }
+.tl-course .mbt-head .ti { border-radius: 14px; }
+.tl-course .mbt-head h2 { font-size: 22px; line-height: 1.25; margin: 0; }
+.tl-course .mbt-tools { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
+.tl-course .mbt-search { flex: 1 1 260px; max-width: 360px; border: 1px solid #CDD1C7; border-radius: 10px; padding: 7px 12px; background: var(--card); font: inherit; }
+.tl-course .mbt-opt { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; color: var(--ink2); white-space: nowrap; }
+
+.tl-course .mbt-sec { padding: 6px 8px 10px; }
+.tl-course .mbt-sech { display: flex; align-items: center; gap: 10px; padding: 10px 10px 8px; }
+.tl-course .mbt-sech h3 { font-size: 15px; margin: 0; }
+.tl-course .mbt-sech .n { font-family: var(--mono); font-size: 12px; color: var(--muted); }
+.tl-course .mbt-sech .btn { margin-left: auto; }
+.tl-course .mbt-list { display: grid; }
+.tl-course .mbt-row { display: grid; grid-template-columns: 22px 28px minmax(0, 1fr) auto auto auto; gap: 12px; align-items: center; padding: 8px 10px; border-top: 1px solid var(--line); background: var(--card); }
+.tl-course .mbt-list .mbt-row:first-child { border-top-color: transparent; }
+.tl-course .mbt-row:hover { background: #FCFCF9; }
+.tl-course .mbt-row.dragging { opacity: .4; }
+.tl-course .mbt-row.over { box-shadow: inset 0 3px 0 var(--blue); }
+.tl-course .mbt-grip { cursor: grab; color: #AEB4A8; display: grid; place-items: center; }
+.tl-course .mbt-row .ord { font-size: 12px; color: var(--muted); text-align: right; }
+.tl-course .mbt-row .tt { min-width: 0; }
+.tl-course .mbt-row .tt b { font-weight: 600; font-size: 14px; display: block; overflow-wrap: anywhere; }
+.tl-course .mbt-row .tt small { font-size: 12px; color: var(--muted); }
+.tl-course .mbt-move { border: 1px solid #CDD1C7; border-radius: 8px; padding: 3px 8px; font: inherit; font-size: 12.5px; background: var(--card); max-width: 150px; }
+.tl-course .mbt-empty { font-size: 12.5px; color: var(--muted); padding: 4px 10px 8px; margin: 0; }
+
+@media (max-width: 860px) {
+  .tl-course .mbt { grid-template-columns: 1fr; }
+  .tl-course .mbt-rail { position: static; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); }
+  .tl-course .mbt-rail .add { border-top: 0; }
+  .tl-course .mbt-row { grid-template-columns: minmax(0, 1fr) auto; }
+  .tl-course .mbt-row > :nth-child(1), .tl-course .mbt-row > :nth-child(2) { display: none; }
+  .tl-course .mbt-row .mbt-move { grid-column: 1; justify-self: start; }
+}

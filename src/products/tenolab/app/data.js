@@ -93,6 +93,8 @@ export const manage = {
   get: (kind, id) => apiGet(`/tenolab/manage/${kind}/${encodeURIComponent(id)}`),
   save: (kind, id, body) => apiPut(`/tenolab/manage/${kind}/${encodeURIComponent(id)}`, body),
   publish: (kind, id) => apiPost(`/tenolab/manage/${kind}/${encodeURIComponent(id)}/publish`, {}),
+  // 単元と並び順だけを書きかえる（公開し直さなくても受講生の一覧に効く。2026-11-18）
+  arrange: (kind, items) => apiPut("/tenolab/manage/arrange", { kind, items }),
   remove: (kind, id) => apiDelete(`/tenolab/manage/${kind}/${encodeURIComponent(id)}`),
   submissions: ({ status = "all", caseId = "" } = {}) => apiGet(`/tenolab/manage/submissions?status=${encodeURIComponent(status)}${caseId ? `&caseId=${encodeURIComponent(caseId)}` : ""}`),
   review: (userId, caseId, body) => apiPut(`/tenolab/manage/submissions/${encodeURIComponent(userId)}/${encodeURIComponent(caseId)}`, body),

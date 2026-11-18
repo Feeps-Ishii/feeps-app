@@ -8,6 +8,7 @@ import Companies from "./Companies.jsx";
 import AccountIssue from "./AccountIssue.jsx";
 import { AdminLearners } from "../company/CompanyPages.jsx";
 import CourseList from "./CourseList.jsx";
+import MaterialsByTopic from "./MaterialsByTopic.jsx";
 import { Title } from "./parts.jsx";
 import NoticesAdmin from "./NoticesAdmin.jsx";
 import { GroupHead, PublishResult, confirmPublish, groupByTopic, needsPublish, publishMany } from "./publishParts.jsx";
@@ -17,17 +18,18 @@ import { GroupHead, PublishResult, confirmPublish, groupByTopic, needsPublish, p
      #/manage/companies[/{companyId}[/scope]] 企業と契約（scope＝使える教材、2026-11-18）
      #/manage/accounts[/{companyId}]  アカウントを発行する（依頼→案→一覧→発行→Excel）
      #/manage/learners[/{userId}]     受講状況（企業担当者の画面と同じ部品）
+     #/manage/bytopic                 教材 › 単元ごと（単元で整理・並べかえ・単元の付けかえ、2026-11-18）
      #/manage/courses|drills|cases[/{id}|/_new]  教材（コースは一覧とプレビュー。#/manage/courses/legacy は元の管理画面＝細かく直す）
      #/manage/grading[/{caseId}]      AI採点（旧 #/manage/submissions もここ）
      #/manage/topics                  単元
    外枠（黒い帯のヘッダー）は TenolabApp が Shell variant="admin" で付ける */
-export const ADMIN_NAV = [["home", "ホーム", "#/manage"], ["companies", "企業と契約", "#/manage/companies"], ["accounts", "アカウント発行", "#/manage/accounts"], ["learners", "受講状況", "#/manage/learners"], ["materials", "教材", "#/manage/courses"], ["grading", "AI採点", "#/manage/grading"], ["notices", "お知らせ", "#/manage/notices"], ["topics", "単元", "#/manage/topics"]];
-const MATERIAL_TABS = [["courses", "コース"], ["drills", "演習"], ["cases", "案件体験"]];
+export const ADMIN_NAV = [["home", "ホーム", "#/manage"], ["companies", "企業と契約", "#/manage/companies"], ["accounts", "アカウント発行", "#/manage/accounts"], ["learners", "受講状況", "#/manage/learners"], ["materials", "教材", "#/manage/bytopic"], ["grading", "AI採点", "#/manage/grading"], ["notices", "お知らせ", "#/manage/notices"], ["topics", "単元", "#/manage/topics"]];
+const MATERIAL_TABS = [["bytopic", "単元ごと"], ["courses", "コース"], ["drills", "演習"], ["cases", "案件体験"]];
 
 export function adminSection(rest) {
   const t = rest[0] || "";
   if (!t) return "home";
-  if (t === "courses" || t === "drills" || t === "cases") return "materials";
+  if (t === "bytopic" || t === "courses" || t === "drills" || t === "cases") return "materials";
   if (t === "grading" || t === "submissions") return "grading";
   return t;
 }
@@ -47,7 +49,8 @@ export default function ManagePage({ ctx, rest }) {
   if (section === "notices") return <NoticesAdmin courses={courses} />;
   if (section !== "materials") return <p className="muted">この画面はありません。</p>;
   let body;
-  if (tab === "courses") body = id === "legacy" ? <CourseAdmin go={go} /> : <CourseList topics={topics} go={go} />;
+  if (tab === "bytopic") body = <MaterialsByTopic topics={topics} go={go} />;
+  else if (tab === "courses") body = id === "legacy" ? <CourseAdmin go={go} /> : <CourseList topics={topics} go={go} />;
   else if (id) body = <ItemEditor key={`${tab}/${id}`} kind={tab} id={id === "_new" ? "" : id} isNew={id === "_new"} topics={topics} courses={courses} go={go} lrn={lrn} />;
   else body = <ItemList kind={tab} topics={topics} go={go} />;
   return (
