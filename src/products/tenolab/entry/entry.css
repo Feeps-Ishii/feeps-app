@@ -1502,3 +1502,43 @@
 .signup-soon p { margin: 0; color: #4E5754 }
 .signup-soon .row { display: flex; gap: 10px; flex-wrap: wrap }
 .is-soon [data-sstep] { display: none !important }
+
+/* ログイン画面を大きく（2026-11-18 ユーザー決定：モック login-size.html の A「同じ形で大きく」） */
+.tl-entry .login h1{font-size:26px}
+.tl-entry .login .lstep{gap:18px}
+.tl-entry .login .field{font-size:14px; gap:7px}
+.tl-entry .login .field input{font-size:16px; padding:15px 16px; border-radius:12px}
+.tl-entry .login .pw input{padding-right:76px}
+.tl-entry .login .pw-t{font-size:13px; padding:5px 11px; right:8px}
+.tl-entry .login .form .btn.lg{padding:17px 24px; font-size:17px; border-radius:12px}
+.tl-entry .login .lnk{font-size:14px}
+.tl-entry .login .alt, .tl-entry #sform .alt{font-size:14px; padding-top:18px; gap:10px 16px}
+@media (min-width:901px){
+.tl-entry .login{grid-template-columns:minmax(0,540px) minmax(0,700px); width:min(1240px,100%); border-radius:22px; box-shadow:0 16px 50px rgba(21,23,28,.09)}
+.tl-entry .login .form{padding:52px 60px 46px}
+.tl-entry .login-logo.dh{font-size:34px; margin-bottom:30px}
+.tl-entry .login h1{font-size:32px}
+.tl-entry .login .lstep{gap:20px}
+.tl-entry .login .field{font-size:15px}
+.tl-entry .login .field input{font-size:17px; padding:16px 16px}
+.tl-entry .login .form .btn.lg{padding:19px 24px; font-size:18px}
+.tl-entry .login .lnk{font-size:15px}
+.tl-entry .login .alt, .tl-entry #sform .alt{font-size:15px; display:grid; gap:10px}
+.tl-entry .lside{padding:46px 48px; gap:16px}
+.tl-entry .lside-h{font-size:27px}
+.tl-entry .lside .demo-body{height:400px}
+.tl-entry .lside .demo-bar{padding:12px 16px}
+.tl-entry .lside .demo-bar .url{font-size:13px; padding:4px 12px}
+.tl-entry .lside .ed-tabs{font-size:13.5px; padding:9px 12px 9px 16px}
+.tl-entry .lside .run{font-size:13px; padding:4px 12px}
+.tl-entry .lside .ed pre{font-size:16px; padding:16px 20px}
+.tl-entry .lside .ed pre .cur{width:9px; height:18px}
+.tl-entry .lside .console{font-size:14.5px; padding:14px 20px 16px; gap:8px}
+.tl-entry .lside .console .lbl{font-size:12px}
+.tl-entry .lside .console .t i{width:18px; height:18px; font-size:12px}
+.tl-entry .lside .demo-tabs button{font-size:15.5px; padding:14px 8px 15px}
+}
+@media (max-width:900px){
+.tl-entry .login{grid-template-columns:minmax(0,1fr)}
+.tl-entry .login .form .btn.lg{padding:15px 22px}
+}
