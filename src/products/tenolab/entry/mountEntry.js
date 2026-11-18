@@ -535,5 +535,25 @@ if (OPTS.auth.googleEnabled) {
 
 if (OPTS.loginError && !loginView.hidden) fail(stepEl("login"), OPTS.loginError);
 
+/* ---------- 個人のアカウント作成は準備中（2026-11-18 ユーザー決定：法人向けを先に。紹介はそのまま） ---------- */
+const SIGNUP_OPEN = false;
+if (!SIGNUP_OPEN) {
+  root.querySelectorAll('a[href="#/signup"]').forEach(a => {
+    const p = a.parentElement;
+    // 「〜でない方は 無料で始める」のような文の中は、文ごと置きかえる
+    if (p && /でない方は/.test(p.textContent) && p.textContent.trim() !== a.textContent.trim()) { p.textContent = "個人向けのアカウント作成は準備中です"; p.classList.add("soon-note"); return; }
+    a.textContent = "個人は準備中";
+    a.removeAttribute("href"); a.removeAttribute("data-view");
+    a.setAttribute("aria-disabled", "true"); a.setAttribute("role", "link");
+    a.classList.add("soon-cta");
+  });
+  // #/signup を直接開いた人には準備中の案内だけを出す
+  SF.classList.add("is-soon");   // 登録の手順は CSS で隠す（ログインの途中で呼ばれても壊れないよう、要素は残す）
+  const soon = document.createElement("div");
+  soon.className = "signup-soon";
+  soon.innerHTML = '<h1>個人向けは準備中です</h1><p>法人でのご利用は、お見積りからご相談ください。</p><div class="row"><a class="btn lg go" href="#/quote" data-view="quote">お見積りを依頼する</a><a class="btn lg ghost" href="#/login" data-view="login">ログイン</a></div>';
+  SF.appendChild(soon);
+}
+
 return () => { CLEANUP.forEach(f => { try { f(); } catch (e) { /* 片付けの失敗は無視 */ } }); };
 }

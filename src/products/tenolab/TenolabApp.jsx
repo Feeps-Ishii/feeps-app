@@ -17,7 +17,7 @@ import ClientPages, { CLIENT_NAV, clientSection } from "./app/company/CompanyPag
 import StudioPage from "./app/studio/StudioPage.jsx";
 import AccountPlan from "./app/AccountPlan.jsx";
 import RecordPage from "./app/RecordPage.jsx";
-import { LoadError, Loading, setViewerRole } from "./app/ui.jsx";
+import { LoadError, Loading, setViewerRole, INDIVIDUAL_OPEN } from "./app/ui.jsx";
 import { submitInquiry, useCases, useDrills, useLabProgress, useMe, useTopics, useNotices, markNoticeRead } from "./app/data.js";
 import { NoticeDrawer } from "./app/notices/Notices.jsx";
 import { caseModels, courseModels, drillModels } from "./app/model.js";
@@ -319,7 +319,7 @@ function App({ route, auth, onLogout }) {
   else if (route.page === "drill") page = <DrillPage ctx={ctx} id={route.id} />;
   else if (route.page === "case") page = <CasePage ctx={ctx} id={route.id} />;
   else if (route.page === "record") page = <RecordPage ctx={ctx} name={auth.name} email={auth.email} />;
-  else if (route.page === "account") page = auth.role === "individual" ? <AccountPlan />
+  else if (route.page === "account") page = INDIVIDUAL_OPEN && auth.role === "individual" ? <AccountPlan />
     : <p className="muted" style={{ paddingTop: 24 }}>契約は、お勤め先の研修のご担当者が管理しています。</p>;
 
   return (

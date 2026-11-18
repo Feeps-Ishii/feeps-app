@@ -81,9 +81,11 @@ export function Thumb({ item }) {
 let viewerRole = "";
 export function setViewerRole(role) { viewerRole = role || ""; }
 export const planLabel = () => (viewerRole === "individual" ? "Pro" : "Premium");
+// 個人向け（プラン・支払い）を出すか。2026-11-18 ユーザー決定：法人向けを先に進めるので、個人は準備中として隠す
+export const INDIVIDUAL_OPEN = false;
 // 個人だけ、鍵の案内の横に「プランを見る」（#/account）
 export function PlanLink() {
-  return viewerRole === "individual" ? <a className="planlink" href="#/account">プランを見る →</a> : null;
+  return INDIVIDUAL_OPEN && viewerRole === "individual" ? <a className="planlink" href="#/account">プランを見る →</a> : null;
 }
 
 export function PremTag({ item, premium }) {

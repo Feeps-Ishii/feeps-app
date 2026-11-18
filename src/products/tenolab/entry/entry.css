@@ -1493,3 +1493,12 @@
 }
 
 .tl-entry .free{display:inline-flex; align-items:center; border-radius:6px; padding:0 8px; font-size:11px; font-weight:700; background:var(--mint-soft); color:#0B6B4F; border:1px solid #9FD9C3; line-height:1.8; white-space:nowrap}
+
+/* 個人のアカウント作成は準備中（2026-11-18） */
+.soon-cta { opacity: .5; cursor: default; pointer-events: none }
+.soon-note { color: #646D69 }
+.signup-soon { display: grid; gap: 14px; text-align: left }
+.signup-soon h1 { margin: 6px 0 0; font-size: 24px }
+.signup-soon p { margin: 0; color: #4E5754 }
+.signup-soon .row { display: flex; gap: 10px; flex-wrap: wrap }
+.is-soon [data-sstep] { display: none !important }
