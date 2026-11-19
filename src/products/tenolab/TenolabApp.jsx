@@ -8,7 +8,8 @@ import { entryAuth } from "./entry/entryAuth.js";
 import { useLearning } from "../learning/useLearning.js";
 import Shell, { LEARNER_NAV, AWS_NAV } from "./app/Shell.jsx";
 import FirstSetup from "./app/FirstSetup.jsx";
-import { Home, ListPage, TopicPage } from "./app/Browse.jsx";
+import { ListPage, TopicPage } from "./app/Browse.jsx";
+import Home from "./app/home/Home.jsx";
 import { CourseDetail, FinalTestPage, LessonPage } from "./app/CoursePages.jsx";
 import DrillPage from "./app/DrillPage.jsx";
 import DrillList from "./app/drills/DrillList.jsx";
@@ -310,7 +311,7 @@ function App({ route, auth, onLogout }) {
   else if (failed) page = <LoadError onRetry={() => { topicsQ.reload(); me.reload(); }} />;
   else if (loading) page = <Loading />;
   else if (lrn.courseCatalogState === "error" && ["home", "topic", "list", "course"].includes(route.page) && route.kind !== "drills" && route.kind !== "cases") page = <LoadError onRetry={() => window.location.reload()} what="コースを読み込めませんでした" />;
-  else if (route.page === "home") page = <><Home ctx={ctx} />{(drillsQ.state === "error" || casesQ.state === "error" || progress.state === "error") && <LoadError onRetry={() => { drillsQ.reload(); casesQ.reload(); progress.reload(); }} what="演習・案件体験を読み込めませんでした" />}</>;
+  else if (route.page === "home") page = <Home ctx={ctx} alert={(drillsQ.state === "error" || casesQ.state === "error" || progress.state === "error") && <LoadError onRetry={() => { drillsQ.reload(); casesQ.reload(); progress.reload(); }} what="演習・案件体験を読み込めませんでした" />} />;
   else if (route.page === "topic") page = <TopicPage ctx={ctx} topicId={route.id} />;
   else if (route.page === "list") {
     const q = route.kind === "drills" ? drillsQ : route.kind === "cases" ? casesQ : null;

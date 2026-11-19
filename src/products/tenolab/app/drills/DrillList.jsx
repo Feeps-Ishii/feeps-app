@@ -26,7 +26,7 @@ function ActBtn({ s, onClick }) {
 }
 
 /* 演習・単元・レッスンの並びと、自分の状態をまとめる */
-function useDrillData(ctx) {
+export function useDrillData(ctx) {
   const { drills, topics, progress, lrn } = ctx;
   const ds = useMemo(() => (drills || []).filter(d => d.runtime !== "aws"), [drills]);
   // 紐づいたレッスンの並び順を使うので、まだ読んでいないコースのレッスンを読む
@@ -80,7 +80,7 @@ function useDrillData(ctx) {
 }
 
 /* 次にやる：挑戦中 → 習い終えた・習っているレッスンの未着手（単元をばらす）→ 最初の1問 */
-function nextPicks({ ds, st, learned, seq, recent }) {
+export function nextPicks({ ds, st, learned, seq, recent }) {
   const out = [];
   const has = d => out.some(([x]) => x === d);
   for (const id of recent) { const d = ds.find(x => x.id === id); if (d && st(d) === "try" && out.length < 3) out.push([d, "try"]); }

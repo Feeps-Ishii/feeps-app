@@ -1,76 +1,19 @@
 import React, { useState } from "react";
 import { Back, Carousel, Ic, PlanLink, PremTag, TopicIcon, planLabel } from "./ui.jsx";
 import { ActiveCases, CaseCard, CourseCard, DrillCard, CourseRow } from "./cards.jsx";
-import { NoticeBanner, NoticeCard } from "./notices/Notices.jsx";
 import { byTopic } from "./model.js";
 import { OTHER_TOPIC } from "./ui.jsx";
 import { CasesBand, CoursesBand } from "./steps/Bands.jsx";
 import { NextStep } from "./steps/Steps.jsx";
 
-/* ホーム（まず単元を選ぶ）・単元ページ・一覧（モックの home / topicPage / listPage） */
+/* 単元ページ・一覧（モックの topicPage / listPage）。ホームは home/Home.jsx（2026-11-20） */
 
 // 単元の並び。コース・演習・案件体験のどれかがある単元だけ。単元の決まっていないものは「その他」
-// ホーム：登録した単元はすべて（まだ中身が無くても）。単元の決まっていないものがあれば「その他」も
-function topicsWithOther(topics, ...lists) {
-  const known = new Set(topics.map(t => t.id));
-  return lists.flat().some(x => !known.has(x.topic)) ? [...topics, OTHER_TOPIC] : topics;
-}
 function topicsWith(topics, ...lists) {
   const ids = new Set(lists.flat().map(x => x.topic));
   const out = topics.filter(t => ids.has(t.id));
   if ([...ids].some(id => !topics.some(t => t.id === id))) out.push(OTHER_TOPIC);
   return out;
-}
-
-export function Home({ ctx }) {
-  const { topics, courses, drills, cases, premium, go, resume, notices } = ctx;
-  return (
-    <>
-      <NoticeBanner notices={notices} />
-      {resume && (
-        <section className="card resume">
-          <div style={{ display: "grid", gap: 8 }}>
-            <div className="eyebrow">続きから</div>
-            <div className="h2">{resume.course.title}{resume.lesson ? ` ・ ${resume.lesson.title}` : ""}</div>
-            <div className="row"><span className="chip"><Ic id="slide" />{resume.label}</span></div>
-          </div>
-          <button className="btn" type="button" onClick={() => go(resume.href)}><Ic id="play" />続きから学ぶ</button>
-        </section>
-      )}
-      <ActiveCases cases={cases} go={go} limit={2} />
-      <div className="sec-h"><h2 className="h2">単元から選ぶ</h2></div>
-      <div className="topics">
-        {topicsWithOther(topics, courses, drills, cases).map(t => {
-          const other = t.id === OTHER_TOPIC.id, known = new Set(topics.map(x => x.id));
-          const pickT = list => (other ? list.filter(x => !known.has(x.topic)) : byTopic(list, t.id));
-          const cs = pickT(courses), ds = pickT(drills), xs = pickT(cases);
-          const lk = !!t.premium && !premium;
-          const done = cs.filter(c => c.completed).length;
-          const avg = cs.length ? Math.round(cs.reduce((a, c) => a + c.progress, 0) / cs.length) : 0;
-          const Tag = lk ? "div" : "button";
-          return (
-            <Tag key={t.id} className={`card tile ${lk ? "locked" : ""}`} {...(lk ? { "aria-disabled": "true" } : { type: "button", onClick: () => go(`#/topics/${t.id}`) })}>
-              <TopicIcon topic={t} />
-              <span style={{ display: "grid", gap: 4, minWidth: 0 }}>
-                <span className="row" style={{ gap: 6 }}><span className="eyebrow">{t.sub}</span><PremTag item={t} premium={premium} /></span>
-                <h3>{t.name}</h3>
-                <span className="counts"><span>コース <b>{cs.length}</b></span><span>演習 <b>{ds.length}</b></span><span>案件 <b>{xs.length}</b></span></span>
-                {lk && <span className="lockline"><Ic id="lock" />{planLabel()}プランで利用できます</span>}
-                {cs.some(c => c.progress) && <span className="row" style={{ gap: 8 }}><span className="bar-p" style={{ flex: 1, maxWidth: 160 }}><i style={{ width: `${avg}%` }} /></span><span className="muted num" style={{ fontSize: 12 }}>修了 {done} / {cs.length}</span></span>}
-              </span>
-            </Tag>
-          );
-        })}
-      </div>
-      <div className="sec-h"><h2 className="h2">すべてを見る</h2></div>
-      <div className="shortcuts">
-        <button type="button" className="card shortcut" onClick={() => go("#/courses")}><Ic id="slide" /><span><b>コース一覧</b><div className="muted" style={{ fontSize: 12 }}>{courses.length}コース</div></span><span className="go">→</span></button>
-        <button type="button" className="card shortcut" onClick={() => go("#/drills")}><Ic id="code" /><span><b>演習一覧</b><div className="muted" style={{ fontSize: 12 }}>{drills.filter(d => d.runtime !== "aws").length}問</div></span><span className="go">→</span></button>
-        <button type="button" className="card shortcut" onClick={() => go("#/cases")}><Ic id="case" /><span><b>案件体験</b><div className="muted" style={{ fontSize: 12 }}>{cases.length}件</div></span><span className="go">→</span></button>
-      </div>
-      <NoticeCard notices={notices} className="at-bottom" />
-    </>
-  );
 }
 
 const AWS_LEVELS = [["all", "すべて"], ["基礎", "基礎"], ["応用", "応用"], ["運用", "運用"]];

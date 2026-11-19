@@ -1,0 +1,198 @@
+/* ホーム（Home.jsx、2026-11-20。モック tenolab-home.html の案B）。クラス名はほかの画面とぶつからないよう hm- で始める */
+.tl-course .hm { font-size: 14px; line-height: 1.6; }
+.tl-course .hm h2 { margin: 0; text-wrap: balance; }
+.tl-course .hm button { font: inherit; color: inherit; cursor: pointer; border: 0; background: none; padding: 0; text-align: left; }
+
+/* ── 上の帯：続きから ＋ 次にやる ── */
+.tl-course .hm-top { position: relative; border-bottom: 1px solid var(--line); background: linear-gradient(110deg, #EEF0EA 0%, rgba(255,255,255,.6) 55%, rgba(255,255,255,0) 100%); }
+.tl-course .hm-in { max-width: 1180px; margin: 0 auto; padding: 24px 20px 26px; display: grid; gap: 14px; }
+.tl-course .hm-in > .ntc-banner { margin: 0; }
+.tl-course .hm-grid { display: grid; grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr); gap: 18px; align-items: stretch; }
+
+.tl-course .hm-player { background: var(--card); border: 1px solid var(--line); border-radius: 18px; overflow: hidden; display: grid; align-content: start; box-shadow: 0 1px 2px rgba(21,23,28,.05), 0 18px 40px -16px rgba(36,87,230,.35); }
+.tl-course .hm-player.empty { align-content: center; }
+.tl-course .hm .hm-stage { position: relative; display: grid; place-items: center; height: 206px; padding: 16px 18px; background: linear-gradient(160deg, #EEF2FD, #F7F8FC); text-align: left; }
+.tl-course .hm-slide { position: relative; height: 100%; max-width: 100%; aspect-ratio: 16 / 9; overflow: hidden; background: #fff; border: 1px solid #DCE3F5; border-radius: 10px; box-shadow: 0 6px 18px rgba(36,87,230,.12); padding: 14px 18px 10px; display: grid; grid-template-rows: auto 1fr auto auto; gap: 2px; transition: transform .2s; }
+.tl-course .hm-stage:hover .hm-slide { transform: translateY(-2px); }
+.tl-course .hm-slide .k { font-family: var(--mono); font-size: 10px; color: var(--s1); font-weight: 600; letter-spacing: .1em; }
+.tl-course .hm-slide .t { position: relative; z-index: 1; align-self: center; font-size: 17px; font-weight: 700; line-height: 1.35; text-wrap: balance; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+.tl-course .hm-slide .cn { position: relative; z-index: 1; font-size: 11px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.tl-course .hm-slide .pd { position: relative; z-index: 1; display: flex; gap: 3px; align-items: center; min-height: 12px; font-family: var(--mono); font-size: 10px; color: var(--muted); }
+.tl-course .hm-slide .pd i { width: 5px; height: 5px; border-radius: 50%; background: #D5DCEC; }
+.tl-course .hm-slide .pd i.past { background: #A9BCEE; }
+.tl-course .hm-slide .pd i.on { width: 12px; border-radius: 3px; background: var(--s1); }
+.tl-course .hm-slide .pd span { margin-left: auto; }
+.tl-course .hm-slide .big { position: absolute; right: 10px; bottom: -12px; font-family: var(--mono); font-weight: 700; font-size: 84px; line-height: 1; color: rgba(36,87,230,.07); }
+.tl-course .hm-slide.cover { background: linear-gradient(135deg, #15171C, #262A34); border-color: #15171C; color: #FBFBF7; grid-template-rows: auto 1fr auto; }
+.tl-course .hm-slide.cover .k { color: var(--marker); }
+.tl-course .hm-slide.cover .t { font-size: 20px; }
+.tl-course .hm-slide.cover .rule { width: 34px; height: 4px; border-radius: 2px; background: var(--marker); }
+.tl-course .hm-slide.cover .big { font-family: var(--display, sans-serif); font-weight: 400; font-size: 96px; color: rgba(255,225,77,.12); bottom: -16px; }
+.tl-course .hm-stage .play { position: absolute; right: 22px; bottom: 20px; width: 44px; height: 44px; border-radius: 50%; background: var(--ink); color: var(--marker); display: grid; place-items: center; box-shadow: 0 6px 16px rgba(21,23,28,.3); }
+.tl-course .hm-stage .play svg { width: 14px; height: 14px; margin-left: 2px; }
+.tl-course .hm-player .pinfo { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 4px 16px; align-items: center; padding: 14px 18px 16px; }
+.tl-course .hm-player .lab { grid-column: 1 / -1; display: flex; align-items: center; gap: 8px; min-width: 0; font-size: 11.5px; font-weight: 700; color: var(--s1); }
+.tl-course .hm-player .lab::before { content: ""; flex: none; width: 6px; height: 6px; border-radius: 50%; background: var(--s1); box-shadow: 0 0 0 3px var(--s1-soft); }
+.tl-course .hm-player .lab span { color: var(--muted); font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.tl-course .hm-player .pinfo h2 { font-size: 18px; line-height: 1.35; font-weight: 700; }
+.tl-course .hm-player .pr { grid-column: 1; display: flex; align-items: center; gap: 8px; font-family: var(--mono); font-size: 11.5px; color: var(--muted); white-space: nowrap; }
+.tl-course .hm-bar { flex: 1; max-width: 220px; height: 5px; border-radius: 3px; background: var(--soft); overflow: hidden; }
+.tl-course .hm-bar i { display: block; height: 100%; background: var(--s1); border-radius: 3px; }
+.tl-course .hm .go { display: inline-flex; align-items: center; justify-content: center; gap: 6px; border: 1px solid var(--ink); border-radius: 10px; background: var(--marker); padding: 10px 20px; font-weight: 700; font-size: 15px; white-space: nowrap; color: var(--ink); transition: background .15s; }
+.tl-course .hm .go:hover { background: var(--marker-deep); }
+.tl-course .hm-player .pinfo .go { grid-column: 2; grid-row: 2 / span 2; }
+.tl-course .hm-player.empty .pinfo .go { grid-row: auto; }
+/* ほかの受講中のコース */
+.tl-course .hm-player .others { border-top: 1px solid var(--line); padding: 8px 10px 10px; display: grid; gap: 2px; }
+.tl-course .hm-player .oh { display: flex; align-items: baseline; gap: 8px; padding: 2px 8px 4px; font-size: 11.5px; font-weight: 700; color: var(--ink2); }
+.tl-course .hm-player .oh small { font-weight: 500; color: var(--muted); }
+.tl-course .hm .oc { display: grid; grid-template-columns: minmax(0, 1fr) 120px auto; gap: 14px; align-items: center; padding: 8px; border-radius: 10px; transition: background .15s; }
+.tl-course .hm .oc:hover { background: var(--s1-soft); }
+.tl-course .hm .oc .n { display: grid; min-width: 0; line-height: 1.35; }
+.tl-course .hm .oc .n b { font-size: 13.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.tl-course .hm .oc .n small { font-size: 11.5px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.tl-course .hm .oc .p { display: flex; align-items: center; gap: 8px; font-family: var(--mono); font-size: 11px; color: var(--muted); }
+.tl-course .hm .oc .g { font-size: 12.5px; font-weight: 700; color: var(--s1); white-space: nowrap; }
+
+.tl-course .hm-meter { display: block; flex: 1; height: 5px; margin: 0; border-radius: 99px; background: var(--soft); overflow: hidden; }
+.tl-course .hm-meter i { display: block; height: 100%; background: var(--c, var(--s1)); border-radius: 99px; }
+.tl-course .hm .s2 .hm-meter i { background: var(--marker-deep); }
+
+/* 次にやる */
+.tl-course .hm-queue { background: var(--card); border: 1px solid var(--line); border-radius: 18px; box-shadow: 0 1px 2px rgba(21,23,28,.04), 0 6px 20px rgba(21,23,28,.05); display: grid; grid-template-rows: auto 1fr; overflow: hidden; min-width: 0; }
+.tl-course .hm-queue .qh { display: flex; align-items: baseline; gap: 10px; padding: 14px 18px 10px; }
+.tl-course .hm-queue .qh b { font-size: 16px; }
+.tl-course .hm-queue .qh small { font-size: 12px; color: var(--muted); }
+.tl-course .hm-queue ol { list-style: none; margin: 0; padding: 0 10px 10px; display: grid; gap: 6px; grid-auto-rows: 1fr; }
+.tl-course .hm-queue li { display: grid; }
+.tl-course .hm-queue .qe { margin: 0; padding: 20px 18px; color: var(--muted); font-size: 13px; }
+.tl-course .hm .qi { display: grid; grid-template-columns: 4px minmax(0, 1fr) auto; gap: 3px 12px; align-items: center; align-content: center; height: 100%; padding: 11px 12px 11px 10px; border-radius: 12px; border: 1px solid var(--line); background: linear-gradient(90deg, color-mix(in srgb, var(--cs) 55%, #fff), #fff 60%); transition: border-color .15s, transform .15s; }
+.tl-course .hm .qi:hover { border-color: color-mix(in srgb, var(--c) 45%, var(--line)); transform: translateX(2px); }
+.tl-course .hm .qi .rl { grid-row: 1 / span 3; align-self: stretch; border-radius: 3px; background: var(--c); }
+.tl-course .hm .qi.s2 .rl { background: var(--marker-deep); }
+.tl-course .hm .qi .k { grid-column: 2; display: flex; align-items: center; gap: 6px; font-size: 11px; font-weight: 700; color: var(--c); white-space: nowrap; }
+.tl-course .hm .qi.s2 .k { color: #9A7300; }
+.tl-course .hm-chip { font-size: 10.5px; color: var(--ink2); background: #fff; border: 1px solid var(--line); border-radius: 5px; padding: 0 6px; font-weight: 700; line-height: 1.6; }
+.tl-course .hm-chip.warn { background: #FFF4E5; color: #9A5B00; border-color: #F5C77E; }
+.tl-course .hm .qi .tt { grid-column: 2; font-size: 14.5px; font-weight: 700; line-height: 1.35; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.tl-course .hm .qi .mt { grid-column: 2; font-size: 11.5px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.tl-course .hm .qi .ar { grid-column: 3; grid-row: 1 / span 3; width: 30px; height: 30px; border-radius: 9px; display: grid; place-items: center; background: var(--ink); color: var(--marker); font-weight: 700; }
+.tl-course .hm .qi.s4 { background: linear-gradient(120deg, #1C1F28, #2B2519); border-color: #2B2519; }
+.tl-course .hm .qi.s4 .k { color: var(--s-gold); }
+.tl-course .hm .qi.s4 .tt { color: #fff; }
+.tl-course .hm .qi.s4 .mt { color: #A9A493; }
+.tl-course .hm .qi.s4 .hm-chip { background: rgba(242,154,56,.16); color: var(--s-gold); border-color: rgba(242,203,138,.35); }
+.tl-course .hm .qi.s4 .rl { background: linear-gradient(180deg, var(--s4), var(--s-gold)); }
+.tl-course .hm .qi.s4 .ar { background: linear-gradient(135deg, var(--s4), var(--s-gold)); color: var(--s-night); }
+
+.tl-course .hm-alert { margin-bottom: 20px; }
+
+/* ── 見出し ── */
+.tl-course .hm-sec { display: flex; align-items: baseline; gap: 12px; margin-bottom: 14px; }
+.tl-course .hm-sec h2 { font-size: 18px; font-weight: 700; }
+.tl-course .hm-sec .r { margin-left: auto; font-size: 13px; color: var(--muted); }
+
+/* ── 道のり：1本の帯 ── */
+.tl-course .hm-strip { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); background: var(--card); border: 1px solid var(--line); border-radius: 16px; box-shadow: 0 1px 2px rgba(21,23,28,.04), 0 6px 20px rgba(21,23,28,.05); overflow: hidden; }
+.tl-course .hm-strip.n3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.tl-course .hm .sc { position: relative; display: grid; grid-template-columns: 36px minmax(0, 1fr); gap: 4px 12px; align-items: center; padding: 14px 18px; transition: background .15s; }
+.tl-course .hm .sc:hover { background: color-mix(in srgb, var(--cs) 50%, transparent); }
+.tl-course .hm .sc + .sc { border-left: 1px solid var(--line); }
+.tl-course .hm .sc + .sc::before { content: "›"; position: absolute; left: -8px; top: 50%; transform: translateY(-50%); width: 15px; height: 22px; display: grid; place-items: center; background: var(--card); border: 1px solid var(--line); color: #B7BCB0; font-size: 14px; border-radius: 4px; z-index: 1; }
+.tl-course .hm .sc .node { grid-row: 1 / span 2; width: 36px; height: 36px; border-radius: 11px; display: grid; place-items: center; background: var(--cs); color: var(--c); box-shadow: 0 0 0 1px color-mix(in srgb, var(--c) 30%, transparent); }
+.tl-course .hm .sc .node svg { width: 16px; height: 16px; }
+.tl-course .hm .sc .node.on { background: var(--c); color: #fff; box-shadow: 0 6px 14px -4px color-mix(in srgb, var(--c) 60%, transparent); }
+.tl-course .hm .sc.s2 .node.on { background: var(--marker); color: var(--ink); }
+.tl-course .hm .sc .nm { display: flex; align-items: baseline; gap: 6px; font-size: 13px; font-weight: 700; white-space: nowrap; }
+.tl-course .hm .sc .nm small { font-size: 11px; color: var(--c); }
+.tl-course .hm .sc.s2 .nm small { color: #9A7300; }
+.tl-course .hm-row { display: flex; align-items: center; gap: 10px; min-width: 0; }
+.tl-course .hm-row em { flex: none; font-style: normal; font-family: var(--mono); font-size: 11.5px; color: var(--muted); white-space: nowrap; }
+.tl-course .hm-row em b { font-size: 16px; color: var(--ink); }
+.tl-course .hm .sc.s4 { background: linear-gradient(120deg, #1C1F28, #2B2519); color: #E8E2D2; }
+.tl-course .hm .sc.s4 .node { background: linear-gradient(135deg, #1C1F28, #2B2519); color: var(--s4); box-shadow: 0 0 0 1px rgba(242,154,56,.4); }
+.tl-course .hm .sc.s4 .node.on { color: var(--s-gold); box-shadow: 0 0 0 1.5px var(--s-gold), 0 6px 14px -4px rgba(242,154,56,.5); }
+.tl-course .hm .sc.s4 .nm { color: #fff; }
+.tl-course .hm .sc.s4 .nm small { color: var(--s-gold); }
+.tl-course .hm .sc.s4 .hm-row em { color: #A9A493; }
+.tl-course .hm .sc.s4 .hm-row em b { color: #fff; }
+.tl-course .hm .sc.s4 .hm-meter { background: rgba(255,255,255,.12); }
+.tl-course .hm .sc.s4 .hm-meter i { background: linear-gradient(90deg, var(--s4), var(--s-gold)); }
+
+/* ── 下の段：上の段と同じ列の幅。右の列の下の端を左にそろえる ── */
+.tl-course .hm-low { display: grid; grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr); gap: 18px; align-items: stretch; margin-top: 30px; }
+.tl-course .hm-topics { display: flex; flex-direction: column; min-width: 0; }
+.tl-course .hm .trows { flex: 1; display: flex; flex-direction: column; background: var(--card); border: 1px solid var(--line); border-radius: 14px; box-shadow: 0 1px 2px rgba(21,23,28,.04), 0 6px 20px rgba(21,23,28,.05); overflow: hidden; }
+.tl-course .hm .hm-tr { display: grid; grid-template-columns: 40px minmax(110px, 1fr) minmax(0, 2.2fr) 20px; gap: 14px; align-items: center; width: 100%; padding: 12px 16px; border-bottom: 1px solid var(--line); transition: background .15s; }
+.tl-course .hm .hm-tr:last-child { border-bottom: 0; }
+/* 単元が少なくて右の列より短いときは、行を均等に伸ばして下の端をそろえる */
+.tl-course .hm .trows > .hm-tr:not(.more) { flex: 1 0 auto; }
+.tl-course .hm .hm-tr:hover { background: var(--soft); }
+.tl-course .hm .hm-tr .ti { border-radius: 11px; display: grid; place-items: center; flex: none; }
+.tl-course .hm .hm-tr .ti svg { width: 60%; height: 60%; }
+.tl-course .hm .hm-tr .hd { display: grid; line-height: 1.3; min-width: 0; }
+.tl-course .hm .hm-tr .hd small { font-size: 11px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.tl-course .hm .hm-tr .hd b { font-size: 15px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.tl-course .hm .ms3 { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; }
+.tl-course .hm .m1 { display: grid; gap: 4px; font-size: 11px; color: var(--ink2); }
+.tl-course .hm .m1.s1 { --c: var(--s1); } .tl-course .hm .m1.s3 { --c: var(--s3); }
+.tl-course .hm .m1 > span:first-child { display: flex; justify-content: space-between; gap: 6px; white-space: nowrap; }
+.tl-course .hm .m1 b { font-weight: 700; }
+.tl-course .hm .m1 em { font-style: normal; font-family: var(--mono); color: var(--muted); }
+.tl-course .hm .m1.none { opacity: .45; }
+.tl-course .hm .hm-tr .gt { color: var(--muted); font-weight: 700; }
+.tl-course .hm .hm-tr.locked { background: linear-gradient(120deg, #1C1F28, #2B2519); color: #E8E2D2; }
+.tl-course .hm .hm-tr.locked .hd b { color: #fff; }
+.tl-course .hm .hm-tr.locked .hd small { color: #A9A493; }
+.tl-course .hm .hm-tr.locked .lk { display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--s-gold); font-weight: 700; min-width: 0; }
+.tl-course .hm .hm-tr.locked .lk svg { width: 14px; height: 14px; flex: none; }
+.tl-course .hm .hm-tr.locked .gt { color: var(--s-gold); }
+.tl-course .hm .hm-tr.more { grid-template-columns: 1fr; justify-items: center; margin-top: auto; padding: 11px 16px; font-size: 13px; font-weight: 700; color: var(--ink2); border-top: 1px solid var(--line); border-bottom: 0; }
+.tl-course .hm .hm-tr.more:hover { color: var(--ink); }
+
+.tl-course .hm-side { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+.tl-course .hm-side .hm-sec { margin-bottom: 2px; }
+.tl-course .hm-notes { flex: 1; display: flex; flex-direction: column; background: var(--card); border: 1px solid var(--line); border-radius: 14px; box-shadow: 0 1px 2px rgba(21,23,28,.04), 0 6px 20px rgba(21,23,28,.05); overflow: hidden; }
+.tl-course .hm-notes .nh { display: flex; align-items: center; gap: 8px; padding: 12px 16px; border-bottom: 1px solid var(--line); font-weight: 700; }
+.tl-course .hm-notes .nh .dot { min-width: 18px; height: 18px; border-radius: 9px; background: var(--marker); font-family: var(--mono); font-size: 11px; display: grid; place-items: center; padding: 0 5px; }
+.tl-course .hm-notes .nh .r { margin-left: auto; font-size: 12px; color: var(--ink2); font-weight: 700; }
+.tl-course .hm-notes .nt { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 2px 10px; padding: 11px 16px; border-bottom: 1px solid var(--line); transition: background .15s; }
+.tl-course .hm-notes .nt:hover { background: var(--soft); }
+.tl-course .hm-notes .nt .tg { grid-row: 1 / span 2; align-self: start; margin-top: 2px; font-size: 10.5px; font-weight: 700; border-radius: 5px; padding: 0 6px; background: var(--soft); color: var(--ink2); border: 1px solid var(--line); white-space: nowrap; }
+.tl-course .hm-notes .nt .tg.new { background: var(--marker); border-color: var(--marker-deep); color: var(--ink); }
+.tl-course .hm-notes .nt b { font-size: 13.5px; line-height: 1.45; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.tl-course .hm-notes .nt small { font-family: var(--mono); font-size: 11px; color: var(--muted); }
+.tl-course .hm-notes .ne { margin: 0; padding: 18px 16px; color: var(--muted); font-size: 13px; }
+.tl-course .hm-notes .nmore { margin-top: auto; padding: 10px 16px; font-size: 12.5px; font-weight: 700; color: var(--ink2); text-align: center; }
+.tl-course .hm-notes .nmore:hover { color: var(--ink); }
+.tl-course .hm .hm-rec { display: flex; align-items: center; gap: 12px; background: var(--card); border: 1px solid var(--line); border-radius: 14px; box-shadow: 0 1px 2px rgba(21,23,28,.04), 0 6px 20px rgba(21,23,28,.05); padding: 12px 16px; transition: border-color .15s; }
+.tl-course .hm .hm-rec:hover { border-color: #CBD0C4; }
+.tl-course .hm .hm-rec .ri { width: 36px; height: 36px; border-radius: 10px; background: var(--soft); display: grid; place-items: center; color: var(--ink2); flex: none; }
+.tl-course .hm .hm-rec .ri svg { width: 18px; height: 18px; }
+.tl-course .hm .hm-rec b { display: block; font-size: 14px; }
+.tl-course .hm .hm-rec small { font-size: 11.5px; color: var(--muted); }
+.tl-course .hm .hm-rec .gt { margin-left: auto; color: var(--ink2); font-weight: 700; }
+
+@media (max-width: 900px) {
+  .tl-course .hm-in { padding: 18px 16px 20px; }
+  .tl-course .hm-grid, .tl-course .hm-low { grid-template-columns: minmax(0, 1fr); }
+  .tl-course .hm .hm-stage { height: 170px; }
+  .tl-course .hm-slide .t { font-size: 14px; }
+  .tl-course .hm-player .pinfo { grid-template-columns: minmax(0, 1fr); }
+  .tl-course .hm-player .pinfo .go { grid-column: 1; grid-row: auto; justify-self: start; }
+  .tl-course .hm .oc { grid-template-columns: minmax(0, 1fr) auto; gap: 4px 10px; }
+  .tl-course .hm .oc .p { grid-column: 1; grid-row: 2; }
+  .tl-course .hm .oc .g { grid-row: 1 / span 2; grid-column: 2; }
+  .tl-course .hm-strip, .tl-course .hm-strip.n3 { grid-template-columns: 1fr 1fr; }
+  .tl-course .hm .sc { padding: 12px; }
+  .tl-course .hm .sc::before { display: none; }
+  .tl-course .hm .sc:nth-child(odd) { border-left: 0; }
+  .tl-course .hm .sc:nth-child(n+3) { border-top: 1px solid var(--line); }
+  .tl-course .hm-row { flex-wrap: wrap; gap: 4px; }
+  .tl-course .hm-row .hm-meter { flex: 1 0 100%; }
+  .tl-course .hm .hm-tr { grid-template-columns: 40px minmax(0, 1fr) 16px; gap: 8px 12px; }
+  .tl-course .hm .hm-tr .ms3, .tl-course .hm .hm-tr.locked .lk { grid-column: 1 / -1; grid-row: 2; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .tl-course .hm * { transition: none !important; }
+}
