@@ -12,7 +12,7 @@ export default function DrillPage({ ctx, id }) {
   const d = useDrill(id);
   if (d.state === "loading") return <Loading />;
   if (d.state === "error" && d.status === 403) {
-    return <><Back onClick={() => back("#/drills")} /><div className="card flat" style={{ padding: 18, marginTop: 12 }}><b><Ic id="lock" /> この実習は{planLabel()}プランで利用できます</b> <PlanLink /></div></>;
+    return <><Back onClick={() => back(ctx.drills?.find(x => x.id === id)?.runtime === "aws" ? "#/aws" : "#/drills")} /><div className="card flat" style={{ padding: 18, marginTop: 12 }}><b><Ic id="lock" /> この実習は{planLabel()}プランで利用できます</b> <PlanLink /></div></>;
   }
   if (d.state === "error" && d.status === 404) return <><Back onClick={() => back("#/drills")} /><p className="muted">この演習は見つかりませんでした。</p></>;
   if (d.state === "error" || !d.data) return <><Back onClick={() => back("#/drills")} /><LoadError onRetry={d.reload} what="演習を読み込めませんでした" /></>;
@@ -134,7 +134,7 @@ function DrillAsk({ item, code, last, askRef }) {
 }
 
 /* ---------- AWS の実習（本物の環境） ---------- */
-const AWS_CHECK_NAMES = {
+export const AWS_CHECK_NAMES = {
   vpc: ["VPC（10.0.0.0/16）がある", "パブリックサブネットが2つ、別のAZにある", "インターネットゲートウェイがつながっている", "ルートテーブルに 0.0.0.0/0 の経路がある"],
   vpcec2: ["VPCとサブネットがある", "EC2が起動している", "セキュリティグループで80番だけ開いている", "ブラウザでページが表示される"],
   elb: ["ALBが2つのAZにある", "ターゲットグループに2台が登録され、正常", "ALBのURLでページが表示される", "EC2へ直接アクセスできない"],
@@ -171,7 +171,7 @@ function AwsDrill({ item, premium, back, rec, progress }) {
   const cleared = rec?.status === "cleared";
   return (
     <>
-      <Back onClick={() => back("#/drills")} />
+      <Back onClick={() => back("#/aws")} />
       <div style={{ display: "grid", gap: 8, marginBottom: 16 }}>
         <div className="row"><PremTag item={item} premium={premium} />{item.level && <span className="chip">{item.level}</span>}{item.minutes ? <span className="chip">約{item.minutes}分</span> : null}<StartTag start={start} />{cleared && <span className="chip done"><Ic id="check" />クリア済み</span>}</div>
         <h1 className="h1">{item.title}</h1>

@@ -6,11 +6,13 @@ import { ENTRY_HTML } from "./entry/entryMarkup.js";
 import { mountEntry } from "./entry/mountEntry.js";
 import { entryAuth } from "./entry/entryAuth.js";
 import { useLearning } from "../learning/useLearning.js";
-import Shell from "./app/Shell.jsx";
+import Shell, { LEARNER_NAV, AWS_NAV } from "./app/Shell.jsx";
 import FirstSetup from "./app/FirstSetup.jsx";
 import { Home, ListPage, TopicPage } from "./app/Browse.jsx";
 import { CourseDetail, FinalTestPage, LessonPage } from "./app/CoursePages.jsx";
 import DrillPage from "./app/DrillPage.jsx";
+import DrillList from "./app/drills/DrillList.jsx";
+import AwsLabs from "./app/aws/AwsLabs.jsx";
 import CasePage from "./app/CasePage.jsx";
 import ManagePage, { ADMIN_NAV, adminSection } from "./app/manage/ManagePage.jsx";
 import ClientPages, { CLIENT_NAV, clientSection } from "./app/company/CompanyPages.jsx";
@@ -28,6 +30,7 @@ import "./app/app.css";
      #/  #/login  #/try  #/quote          入口（モック tenolab-entry.html をそのまま載せる）
      #/home  #/topics/{id}                 ホーム・単元
      #/courses  #/drills  #/cases          一覧
+     #/aws                                 AWS実習（本物の環境の演習。2026-11-19）
      #/courses/{id}[/lessons/{lid}[/{slide}] | /test | /result]
      #/drills/{id}  #/cases/{id}
      #/manage/…                            管理の画面（管理者だけ。ログインすると、管理者はここから始まる）
@@ -53,6 +56,7 @@ function parseHash() {
   if (p[0] === "courses") return { page: "course", id: p[1] };
   if (p[0] === "drills" && p[1]) return { page: "drill", id: p[1] };
   if (p[0] === "drills") return { page: "list", kind: "drills" };
+  if (p[0] === "aws") return { page: "aws" };
   if (p[0] === "cases" && p[1]) return { page: "case", id: p[1] };
   if (p[0] === "cases") return { page: "list", kind: "cases" };
   if (p[0] === "manage") return { page: "manage", rest: p.slice(1) };
@@ -62,7 +66,7 @@ function parseHash() {
 }
 const NO_ELEARNING = "DevHub Learning を使える契約がありません。研修のご担当者にお問い合わせください。";
 const startHash = role => (role === "admin" ? "#/manage" : role === "client" ? "#/company" : "#/home");
-const SECTION = { home: "home", topic: "home", list: null, course: "courses", lesson: "courses", test: "courses", drill: "drills", case: "cases" };
+const SECTION = { home: "home", topic: "home", list: null, course: "courses", lesson: "courses", test: "courses", drill: "drills", case: "cases", aws: "aws" };
 
 export default function TenolabApp() {
   const [route, setRoute] = useState(parseHash);
@@ -217,7 +221,7 @@ function App({ route, auth, onLogout }) {
     },
     close: () => setNoticeDrawer(null),
   }), [noticeItems, noticeDrawer]); // eslint-disable-line react-hooks/exhaustive-deps
-  const [views, setViews] = useState({ courses: {}, drills: { mode: "flat" }, cases: {} }); // 演習は絞り込みバーのある「すべて」から（2026-10-15）
+  const [views, setViews] = useState({ courses: {}, drills: { screen: "home" }, cases: {} }); // 演習は単元別（次にやる・単元ごとの進み）から（2026-11-19）
   // 「戻る」用に、アプリの中で開いた画面を覚えておく（外から直接来たときは、決まった画面へ戻す）
   const prevHashes = useRef([]);
   const lastHash = useRef(window.location.hash);
@@ -237,6 +241,7 @@ function App({ route, auth, onLogout }) {
   const rawCases = casesQ.data || [];
   const courses = useMemo(() => courseModels(lrn, topics, rawCases, premium), [lrn, topics, rawCases, premium]);
   const drills = useMemo(() => drillModels(drillsQ.data, topics, progress, premium), [drillsQ.data, topics, progress, premium]);
+  const hasAws = drills.some(d => d.runtime === "aws");
   const cases = useMemo(() => caseModels(rawCases, topics, courses, premium), [rawCases, topics, courses, premium]);
 
   // 続きから：最後に開いたレッスン（修了していないコース）
@@ -259,8 +264,8 @@ function App({ route, auth, onLogout }) {
   // レッスンの最後の「演習へ」（2026-10-15）。演習一覧で、このレッスンに紐づいた演習を先頭に並べる
   const openLessonDrills = useCallback((course, lesson, nextLesson) => {
     const base = `#/courses/${encodeURIComponent(course.id)}`;
-    // 紐づいた演習が無いときは、コースの単元で絞る（一覧の側で「このレッスンの演習」が空なら単元の演習だけになる）
-    setViews(s => ({ ...s, drills: { ...s.drills, mode: "flat", filter: course.topic || "all", tags: [], lesson: {
+    // 演習一覧の単元の道のりを開き、このレッスンの段に印を付ける（単元に演習が無ければ単元別の画面になる）
+    setViews(s => ({ ...s, drills: { ...s.drills, screen: "topic", topic: course.topic || "", q: "", lesson: {
       courseId: course.id, lessonId: lesson.id, title: `${course.title} ${lesson.title}`,
       back: `${base}/lessons/${encodeURIComponent(lesson.id)}`,
       next: nextLesson ? `${base}/lessons/${encodeURIComponent(nextLesson.id)}` : base, nextLabel: nextLesson ? "次のレッスンへ" : "コースへ戻る",
@@ -311,19 +316,21 @@ function App({ route, auth, onLogout }) {
     const q = route.kind === "drills" ? drillsQ : route.kind === "cases" ? casesQ : null;
     page = q?.state === "error" ? <LoadError onRetry={q.reload} />
       : q?.state === "loading" && !q.data ? <Loading />
-        : <ListPage ctx={ctx} kind={route.kind} view={views[route.kind]} setView={v => setViews(s => ({ ...s, [route.kind]: v }))} />;
+        : route.kind === "drills" ? <DrillList ctx={ctx} view={views.drills} setView={v => setViews(s => ({ ...s, drills: v }))} />
+          : <ListPage ctx={ctx} kind={route.kind} view={views[route.kind]} setView={v => setViews(s => ({ ...s, [route.kind]: v }))} />;
   }
   else if (route.page === "course") page = <CourseDetail ctx={ctx} courseId={route.id} />;
   else if (route.page === "lesson") page = <LessonPage ctx={ctx} courseId={route.id} lessonId={route.lessonId} slideId={route.slideId} />;
   else if (route.page === "test") page = <FinalTestPage ctx={ctx} courseId={route.id} mode={route.mode} />;
   else if (route.page === "drill") page = <DrillPage ctx={ctx} id={route.id} />;
+  else if (route.page === "aws") page = drillsQ.state === "error" ? <LoadError onRetry={drillsQ.reload} /> : drillsQ.state === "loading" && !drillsQ.data ? <Loading /> : <AwsLabs ctx={ctx} />;
   else if (route.page === "case") page = <CasePage ctx={ctx} id={route.id} />;
   else if (route.page === "record") page = <RecordPage ctx={ctx} name={auth.name} email={auth.email} />;
   else if (route.page === "account") page = INDIVIDUAL_OPEN && auth.role === "individual" ? <AccountPlan />
     : <p className="muted" style={{ paddingTop: 24 }}>契約は、お勤め先の研修のご担当者が管理しています。</p>;
 
   return (
-    <Shell section={route.page === "list" ? route.kind : SECTION[route.page]} name={auth.name} email={auth.email} role={auth.role} switchLink={admin ? ["#/manage", "管理の画面"] : client ? ["#/company", "企業の画面"] : null} onLogout={() => onLogout()} onRename={auth.rename} notices={notices}>
+    <Shell nav={hasAws ? AWS_NAV : LEARNER_NAV} section={route.page === "list" ? route.kind : route.page === "drill" && drills.find(d => d.id === route.id)?.runtime === "aws" ? "aws" : SECTION[route.page]} name={auth.name} email={auth.email} role={auth.role} switchLink={admin ? ["#/manage", "管理の画面"] : client ? ["#/company", "企業の画面"] : null} onLogout={() => onLogout()} onRename={auth.rename} notices={notices}>
       {page}
       {noticeDrawerEl}
     </Shell>

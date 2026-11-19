@@ -63,7 +63,7 @@ export function Home({ ctx }) {
       <div className="sec-h"><h2 className="h2">すべてを見る</h2></div>
       <div className="shortcuts">
         <button type="button" className="card shortcut" onClick={() => go("#/courses")}><Ic id="slide" /><span><b>コース一覧</b><div className="muted" style={{ fontSize: 12 }}>{courses.length}コース</div></span><span className="go">→</span></button>
-        <button type="button" className="card shortcut" onClick={() => go("#/drills")}><Ic id="code" /><span><b>演習一覧</b><div className="muted" style={{ fontSize: 12 }}>{drills.length}問</div></span><span className="go">→</span></button>
+        <button type="button" className="card shortcut" onClick={() => go("#/drills")}><Ic id="code" /><span><b>演習一覧</b><div className="muted" style={{ fontSize: 12 }}>{drills.filter(d => d.runtime !== "aws").length}問</div></span><span className="go">→</span></button>
         <button type="button" className="card shortcut" onClick={() => go("#/cases")}><Ic id="case" /><span><b>案件体験</b><div className="muted" style={{ fontSize: 12 }}>{cases.length}件</div></span><span className="go">→</span></button>
       </div>
       <NoticeCard notices={notices} className="at-bottom" />

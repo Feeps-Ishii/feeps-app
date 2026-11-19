@@ -1,0 +1,177 @@
+/* 演習一覧（DrillList.jsx、2026-11-19。モック tenolab-drills.html） */
+.tl-course .dl { font-size: 14px; line-height: 1.6; }
+.tl-course .dl .ptitle { display: flex; align-items: flex-end; gap: 16px; flex-wrap: wrap; margin-bottom: 18px; }
+.tl-course .dl .ptitle .h1 { font-size: 28px; line-height: 1.2; margin: 0; }
+.tl-course .dl .ptitle .r { margin-left: auto; display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.tl-course .dl .sec-h { display: flex; align-items: baseline; gap: 12px; margin: 28px 0 12px; flex-wrap: wrap; }
+.tl-course .dl .sec-h h2 { font-size: 18px; font-weight: 700; margin: 0; }
+.tl-course .dl .sec-h .r { margin-left: auto; }
+.tl-course .dl h1, .tl-course .dl h2, .tl-course .dl h3 { margin: 0; text-wrap: balance; }
+.tl-course .dl .btn.sm { padding: 3px 11px; font-size: 12.5px; border-radius: 8px; }
+.tl-course .dl .chip { line-height: 1.8; padding: 0 8px; }
+.tl-course .dl .chip.prem { background: #FFF6E8; border-color: #E4B46A; color: #8A5A10; font-weight: 700; }
+
+/* 状態の印：未着手・挑戦中・クリア・利用できない */
+.tl-course .dl .mk { width: 22px; height: 22px; border-radius: 50%; flex: none; display: inline-grid; place-items: center; border: 2px solid #C3C8BD; background: var(--card); box-sizing: border-box; }
+.tl-course .dl .mk.try { border-color: var(--marker-deep); background: linear-gradient(90deg, var(--marker) 50%, var(--card) 50%); }
+.tl-course .dl .mk.done { border-color: var(--mint); background: var(--mint); }
+.tl-course .dl .mk.done::after { content: ""; width: 9px; height: 5px; border: 2.5px solid #fff; border-top: 0; border-right: 0; transform: translateY(-1px) rotate(-45deg); }
+.tl-course .dl .mk.lock { border-style: dashed; border-color: #D3D7CC; background: var(--soft); }
+.tl-course .dl .mk.sm, .tl-course .dl .legend .mk { width: 14px; height: 14px; border-width: 1.5px; }
+.tl-course .dl .mk.sm.done::after, .tl-course .dl .legend .mk.done::after { width: 6px; height: 3px; border-width: 2px; }
+.tl-course .dl .legend { display: flex; gap: 14px; flex-wrap: wrap; font-size: 12px; color: var(--muted); }
+.tl-course .dl .legend span { display: inline-flex; align-items: center; gap: 6px; }
+.tl-course .dl .lvd { display: inline-flex; gap: 2px; margin-right: 4px; vertical-align: middle; }
+.tl-course .dl .lvd i { width: 5px; height: 10px; border-radius: 2px; background: #D9DCD3; }
+.tl-course .dl .lvd i.on { background: var(--ink2); }
+
+/* 次にやる */
+.tl-course .dl .next { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; }
+.tl-course .dl .ncard { padding: 16px 16px 14px; display: grid; gap: 10px; align-content: start; position: relative; overflow: hidden; }
+.tl-course .dl .ncard::before { content: ""; position: absolute; inset: 0 0 auto 0; height: 4px; background: var(--tc); }
+.tl-course .dl .ncard .top { display: flex; align-items: center; gap: 8px; }
+.tl-course .dl .ncard .top .ti { border-radius: 8px; }
+.tl-course .dl .ncard .top .eyebrow { letter-spacing: .08em; }
+.tl-course .dl .why { display: inline-block; margin-left: auto; font-size: 11.5px; font-weight: 700; border-radius: 999px; padding: 1px 9px; white-space: nowrap; }
+.tl-course .dl .why.try { background: var(--marker-soft); color: #7A5A00; }
+.tl-course .dl .why.new { background: var(--blue-soft); color: var(--blue); }
+.tl-course .dl .ncard h3 { font-size: 16.5px; font-weight: 700; line-height: 1.35; }
+.tl-course .dl .ncard .ls { font-size: 12px; color: var(--muted); display: flex; gap: 6px; align-items: center; min-width: 0; }
+.tl-course .dl .ncard .ls .ico { width: 13px; height: 13px; flex: none; }
+.tl-course .dl .ncard .ls span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.tl-course .dl .ncard .foot { display: flex; align-items: center; gap: 6px; margin-top: 2px; flex-wrap: wrap; }
+.tl-course .dl .ncard .foot .btn { margin-left: auto; }
+
+/* 単元ごとの進み */
+.tl-course .dl .tgrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 14px; }
+.tl-course .dl .tcard { padding: 16px; display: grid; gap: 12px; text-align: left; font: inherit; color: inherit; cursor: pointer; transition: border-color .15s, transform .15s; }
+.tl-course .dl .tcard:hover { border-color: #B8BDB2; transform: translateY(-1px); }
+.tl-course .dl .tcard.locked { cursor: default; background: #FCFBF6; }
+.tl-course .dl .tcard.locked:hover { transform: none; border-color: var(--line); }
+.tl-course .dl .tcard .hd { display: flex; align-items: center; gap: 12px; }
+.tl-course .dl .tcard .hd .ti { border-radius: 11px; }
+.tl-course .dl .tcard .hd b { font-size: 16px; display: block; line-height: 1.3; }
+.tl-course .dl .tcard .hd small { font-size: 12px; color: var(--muted); }
+.tl-course .dl .tcard .hd .cnt { margin-left: auto; text-align: right; white-space: nowrap; }
+.tl-course .dl .tcard .hd .cnt b { font-family: var(--mono); font-size: 20px; display: inline; }
+.tl-course .dl .tcard .hd .cnt small { font-family: var(--mono); }
+.tl-course .dl .dots { display: flex; flex-wrap: wrap; gap: 4px; }
+.tl-course .dl .dots i { width: 14px; height: 14px; border-radius: 4px; background: #E4E7DF; }
+.tl-course .dl .dots i.done { background: var(--mint); }
+.tl-course .dl .dots i.try { background: var(--marker); }
+.tl-course .dl .dots i.lock { background: transparent; border: 1.5px dashed #D3D7CC; }
+.tl-course .dl .tcard .nx { display: flex; align-items: center; gap: 8px; font-size: 13px; border-top: 1px solid var(--line); padding-top: 10px; min-width: 0; }
+.tl-course .dl .tcard .nx small { color: var(--muted); white-space: nowrap; }
+.tl-course .dl .tcard .nx b { font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+.tl-course .dl .tcard .nx .go { margin-left: auto; color: var(--blue); font-weight: 700; white-space: nowrap; }
+.tl-course .dl .tcard .nx.lk { color: #8A5A10; font-weight: 700; }
+.tl-course .dl .tcard .nx.lk .ico { width: 13px; height: 13px; }
+
+/* 単元の道のり */
+.tl-course .dl .back { margin-bottom: 12px; color: var(--ink2); font-size: 13px; }
+.tl-course .dl .dl-thead { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: 18px; align-items: center; padding: 20px 22px; margin-bottom: 18px; }
+.tl-course .dl .dl-thead .ti { border-radius: 16px; }
+.tl-course .dl .dl-thead h1 { font-size: 26px; font-weight: 700; line-height: 1.2; }
+.tl-course .dl .dl-thead .sub { font-size: 13px; color: var(--muted); }
+.tl-course .dl .prog { display: grid; gap: 6px; min-width: 220px; }
+.tl-course .dl .prog .t { display: flex; align-items: baseline; gap: 6px; justify-content: flex-end; font-size: 12px; color: var(--muted); }
+.tl-course .dl .prog .t b { font-family: var(--mono); font-size: 24px; color: var(--ink); }
+.tl-course .dl .pbar { height: 8px; border-radius: 999px; background: var(--soft); overflow: hidden; display: flex; }
+.tl-course .dl .pbar i { display: block; height: 100%; }
+.tl-course .dl .pbar i.done { background: var(--mint); }
+.tl-course .dl .pbar i.try { background: var(--marker); }
+.tl-course .dl .ttools { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; margin-bottom: 12px; }
+.tl-course .dl .ttools .legend { margin-left: auto; }
+.tl-course .dl .sw { font-weight: 400; display: inline-flex; align-items: center; gap: 8px; font-size: 13px; color: var(--ink2); white-space: nowrap; cursor: pointer; }
+.tl-course .dl .sw input { appearance: none; width: 34px; height: 20px; border-radius: 999px; background: #D3D7CC; position: relative; margin: 0; cursor: pointer; transition: background .15s; }
+.tl-course .dl .sw input::after { content: ""; position: absolute; top: 2px; left: 2px; width: 16px; height: 16px; border-radius: 50%; background: #fff; transition: left .15s; }
+.tl-course .dl .sw input:checked { background: var(--mint); }
+.tl-course .dl .sw input:checked::after { left: 16px; }
+
+.tl-course .dl .path { display: grid; gap: 0; }
+.tl-course .dl .dstage { display: grid; grid-template-columns: 44px minmax(0, 1fr); gap: 0 14px; }
+.tl-course .dl .rail { display: flex; flex-direction: column; align-items: center; }
+.tl-course .dl .node { width: 36px; height: 36px; border-radius: 50%; display: grid; place-items: center; font-family: var(--mono); font-weight: 600; font-size: 13px; border: 2px solid #C3C8BD; background: var(--card); color: var(--ink2); flex: none; margin-top: 12px; box-sizing: border-box; }
+.tl-course .dl .node.done { background: var(--mint); border-color: var(--mint); color: #fff; }
+.tl-course .dl .node.now { background: var(--marker); border-color: var(--ink); color: var(--ink); }
+.tl-course .dl .node.yet { border-style: dashed; color: var(--muted); }
+.tl-course .dl .line { flex: 1 1 auto; width: 2px; background: #D9DCD3; min-height: 16px; }
+.tl-course .dl .dstage:last-child .line { display: none; }
+.tl-course .dl .sbox { margin-bottom: 14px; overflow: hidden; }
+.tl-course .dl .dstage.focus .sbox { border-color: #3D6BF0; box-shadow: 0 0 0 1px #3D6BF0, 0 6px 20px rgba(21,23,28,.05); }
+.tl-course .dl .sh { display: flex; align-items: center; gap: 10px; padding: 12px 16px; flex-wrap: wrap; border-bottom: 1px solid var(--line); }
+.tl-course .dl .sh h3 { font-size: 15.5px; font-weight: 700; }
+.tl-course .dl .sh .cs { font-size: 12px; color: var(--muted); }
+.tl-course .dl .sh .r { margin-left: auto; display: flex; gap: 8px; align-items: center; }
+.tl-course .dl .sh .tally { font-family: var(--mono); font-size: 12.5px; color: var(--muted); white-space: nowrap; }
+.tl-course .dl .sh .tally b { color: var(--mint); font-size: 14px; }
+.tl-course .dl .st { font-size: 11.5px; font-weight: 700; border-radius: 999px; padding: 1px 9px; white-space: nowrap; }
+.tl-course .dl .st.done { background: var(--mint-soft); color: #0B6B50; }
+.tl-course .dl .st.now { background: var(--marker-soft); color: #7A5A00; }
+.tl-course .dl .st.yet { background: var(--soft); color: var(--muted); }
+.tl-course .dl .dstage.yet .sbox { background: #FCFCF9; box-shadow: none; }
+.tl-course .dl .dstage.yet .dl-row .tt b { color: var(--ink2); }
+.tl-course .dl .allclear { padding: 10px 16px; font-size: 13px; color: #0B6B50; font-weight: 700; display: flex; gap: 8px; align-items: center; }
+
+.tl-course .dl .dl-row { display: grid; grid-template-columns: 22px minmax(0, 1fr) auto auto auto; gap: 14px; align-items: center; padding: 10px 16px; border-top: 1px solid var(--line); }
+.tl-course .dl .sh + .dl-row { border-top: 0; }
+.tl-course .dl .dl-row:hover { background: #FCFCF9; }
+.tl-course .dl .dl-row .tt { min-width: 0; }
+.tl-course .dl .dl-row .tt b { font-weight: 700; font-size: 14.5px; display: block; line-height: 1.4; }
+.tl-course .dl .dl-row .tt small { font-size: 12px; color: var(--muted); display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
+.tl-course .dl .dl-row .tt small .tg { font-family: var(--mono); font-size: 11px; color: var(--ink2); background: var(--soft); border-radius: 4px; padding: 0 5px; }
+.tl-course .dl .dl-row .tt small .also { color: var(--blue); }
+.tl-course .dl .dl-row .dl-lv, .tl-course .dl .dl-lrow .dl-lv { font-size: 12px; color: var(--ink2); white-space: nowrap; }
+.tl-course .dl .dl-row .mn { font-family: var(--mono); font-size: 12px; color: var(--muted); white-space: nowrap; text-align: right; min-width: 44px; }
+.tl-course .dl .dl-row .act { min-width: 92px; text-align: right; }
+.tl-course .dl .dl-row.cleared .tt b { color: var(--ink2); }
+
+/* 一覧（行で並べる） */
+.tl-course .dl .lbar { padding: 12px 14px; display: grid; gap: 10px; margin-bottom: 12px; }
+.tl-course .dl .frow { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
+.tl-course .dl .frow .lbl { font-size: 12px; color: var(--muted); font-weight: 700; width: 44px; }
+.tl-course .dl .f { border: 1px solid var(--line); background: var(--card); border-radius: 999px; padding: 2px 12px; font-size: 13px; font-weight: 700; color: var(--ink2); display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; cursor: pointer; }
+.tl-course .dl .f i { width: 8px; height: 8px; border-radius: 50%; }
+.tl-course .dl .f small { font-family: var(--mono); font-size: 11px; color: var(--muted); font-weight: 400; }
+.tl-course .dl .f[aria-pressed="true"] { background: var(--ink); color: var(--paper); border-color: var(--ink); }
+.tl-course .dl .f[aria-pressed="true"] small { color: #AEB3BF; }
+.tl-course .dl .frow .sp { flex: 1 1 auto; }
+.tl-course .dl .sort { border: 1px solid #CDD1C7; border-radius: 8px; padding: 3px 8px; background: var(--card); font: inherit; font-size: 13px; }
+.tl-course .dl .count { font-size: 13px; color: var(--muted); }
+.tl-course .dl .count b { font-family: var(--mono); color: var(--ink); font-size: 15px; }
+.tl-course .dl .ltable { overflow: hidden; }
+.tl-course .dl .lhead, .tl-course .dl .dl-lrow { display: grid; grid-template-columns: 22px minmax(0, 1fr) 150px 90px 54px 100px; gap: 14px; align-items: center; padding: 9px 16px; }
+.tl-course .dl .lhead { font-size: 11.5px; color: var(--muted); font-weight: 700; border-bottom: 1px solid var(--line); background: #FCFCF9; }
+.tl-course .dl .dl-lrow { border-top: 1px solid var(--line); }
+.tl-course .dl .lhead + .dl-lrow { border-top: 0; }
+.tl-course .dl .dl-lrow:hover { background: #FCFCF9; }
+.tl-course .dl .dl-lrow .tt { min-width: 0; }
+.tl-course .dl .dl-lrow .tt b { font-weight: 700; font-size: 14px; display: block; line-height: 1.4; }
+.tl-course .dl .dl-lrow .tt small { font-size: 12px; color: var(--muted); display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.tl-course .dl .dl-lrow .tp { display: flex; align-items: center; gap: 6px; font-size: 12.5px; white-space: nowrap; min-width: 0; }
+.tl-course .dl .dl-lrow .tp i { width: 8px; height: 8px; border-radius: 50%; flex: none; }
+.tl-course .dl .dl-lrow .mn { font-family: var(--mono); font-size: 12px; color: var(--muted); text-align: right; white-space: nowrap; }
+.tl-course .dl .dl-lrow .act { text-align: right; }
+.tl-course .dl .empty { padding: 28px 16px; text-align: center; color: var(--muted); }
+
+@media (max-width: 900px) {
+  .tl-course .dl .next { grid-template-columns: 1fr; }
+  .tl-course .dl .dl-thead { grid-template-columns: auto minmax(0, 1fr); }
+  .tl-course .dl .dl-thead .prog { grid-column: 1 / -1; min-width: 0; }
+  .tl-course .dl .prog .t { justify-content: flex-start; }
+  .tl-course .dl .ttools .legend { margin-left: 0; }
+  .tl-course .dl .dstage { grid-template-columns: 30px minmax(0, 1fr); gap: 0 10px; }
+  .tl-course .dl .node { width: 28px; height: 28px; font-size: 11px; }
+  .tl-course .dl .dl-row { grid-template-columns: 22px minmax(0, 1fr) auto; gap: 4px 12px; }
+  .tl-course .dl .dl-row .dl-lv { grid-column: 2; grid-row: 2; justify-self: start; }
+  .tl-course .dl .dl-row .mn { grid-column: 2; grid-row: 2; justify-self: end; }
+  .tl-course .dl .dl-row .act { grid-column: 3; grid-row: 1 / span 2; min-width: 0; }
+  .tl-course .dl .lhead { display: none; }
+  .tl-course .dl .dl-lrow { grid-template-columns: 22px minmax(0, 1fr) auto; gap: 4px 12px; }
+  .tl-course .dl .dl-lrow .tp { grid-column: 2; grid-row: 2; }
+  .tl-course .dl .dl-lrow .dl-lv, .tl-course .dl .dl-lrow .mn { display: none; }
+  .tl-course .dl .dl-lrow .act { grid-column: 3; grid-row: 1 / span 2; }
+  .tl-course .dl .ptitle .r { margin-left: 0; width: 100%; }
+  .tl-course .dl .lsearch { flex: 1 1 auto; }
+}
+@media (prefers-reduced-motion: reduce) { .tl-course .dl * { transition: none !important; } }

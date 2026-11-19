@@ -8,6 +8,8 @@ import { NoticeBell } from "./notices/Notices.jsx";
    管理の画面（variant "admin"、モック tenolab-admin.html）：帯を黒にして受講生の画面と見分ける。
    企業担当者の画面（variant "client"）も黒い帯。右上のリンク（switchLink）で受講生の画面と行き来できる */
 export const LEARNER_NAV = [["home", "ホーム", "#/home"], ["courses", "コース一覧", "#/courses"], ["drills", "演習一覧", "#/drills"], ["cases", "案件体験", "#/cases"]];
+// AWS の実習があるときは「AWS実習」を演習一覧の隣に（2026-11-19、モック tenolab-drills.html）
+export const AWS_NAV = [...LEARNER_NAV.slice(0, 3), ["aws", "AWS実習", "#/aws"], ...LEARNER_NAV.slice(3)];
 const ROLE_LABEL = { admin: "管理者", instructor: "講師", client: "企業担当者", trainee: "受講生", individual: "個人" };
 
 export default function Shell({ section, name, email, role, switchLink, onLogout, onRename, children, variant = "learner", nav = LEARNER_NAV, notices }) {
@@ -41,7 +43,7 @@ export default function Shell({ section, name, email, role, switchLink, onLogout
           <a className="logo" href={variant === "admin" ? "#/manage" : variant === "client" ? "#/company" : "#/home"} style={{ textDecoration: "none", color: "inherit" }}><DevHubLogo product="lrn" size={30} dark={isAdminView} /></a>
           {isAdminView && <span className="mode">{variant === "client" ? "CLIENT" : "ADMIN"}</span>}
           <nav className="nav" aria-label="画面">
-            {nav.map(([k, label, href, count]) => <a key={k} href={href} aria-current={section === k ? "page" : undefined} className="navlink">{label}{count ? <span className="n">{count}</span> : null}</a>)}
+            {nav.map(([k, label, href, count]) => <a key={k} href={href} aria-current={section === k ? "page" : undefined} className={`navlink ${k === "aws" ? "navaws" : ""}`}>{k === "aws" && <i aria-hidden="true" />}{label}{count ? <span className="n">{count}</span> : null}</a>)}
           </nav>
           <div className="me">
             {switchLink && <a className="switch" href={switchLink[0]}>{switchLink[1]}</a>}
