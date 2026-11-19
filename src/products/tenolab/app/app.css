@@ -438,7 +438,8 @@
 @layer tenolab {
   .tl-course .lsn-practice { container-type: inline-size; border: 0; color: #FBFBF7; background: #15171C; place-items: center start; align-content: center; justify-items: start; gap: 1.6cqw; padding: 6cqw 7cqw; }
   .tl-course .lsn-practice .no { font-family: var(--mono); font-size: 1.7cqw; letter-spacing: .24em; color: var(--marker, #FFE14D); font-weight: 600; }
-  .tl-course .lsn-practice h2 { margin: 0; font-family: var(--display, sans-serif); font-weight: 400; font-size: 5.4cqw; line-height: 1.3; color: #FBFBF7; position: relative; }
+  /* 見出しはタイトルのページと同じ本文の書体（Dela Gothic One は太く角ばって浮いていた。2026-11-20 ユーザー指摘） */
+  .tl-course .lsn-practice h2 { margin: 0; font-family: var(--body); font-weight: 700; font-size: 5.4cqw; line-height: 1.35; letter-spacing: .02em; color: #FBFBF7; position: relative; text-wrap: balance; }
   .tl-course .lsn-practice .rule { width: 8cqw; height: .8cqw; border-radius: 99px; background: var(--marker, #FFE14D); }
   .tl-course .lsn-practice ul { list-style: none; margin: .6cqw 0 0; padding: 0; display: grid; gap: 1cqw; width: min(44cqw, 100%); position: relative; }
   .tl-course .lsn-practice li { display: flex; align-items: center; gap: 1.4cqw; font-size: 2.1cqw; color: #E6E9F1; }
