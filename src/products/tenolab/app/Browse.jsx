@@ -281,7 +281,7 @@ export function ListPage({ ctx, kind, view, setView }) {
           <div className="tabs-h" role="tablist" aria-label="並べ方">{[["topic", "単元別"], ["flat", "すべて"]].map(([k, l]) => <button key={k} type="button" role="tab" aria-selected={(view.mode || "topic") === k} onClick={() => setView({ ...view, mode: k })}>{l}</button>)}</div>
         </span>
       </div>
-      {kind === "cases" && <ActiveCases cases={all} go={go} />}
+      {kind === "cases" && <ActiveCases cases={all} go={go} limit={2} expandable />}
       {flat && kind === "drills" ? (
         <DrillFilter all={all} groups={groups} view={view} setView={setView} premium={premium} go={go} />
       ) : flat ? (

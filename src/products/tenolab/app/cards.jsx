@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useState } from "react";
 import { Ic, PremTag, StartTag, Thumb, TopicIcon, durationLabel, planLabel } from "./ui.jsx";
 import "./case/preview.css";
 import { CASE_PREVIEWS } from "./case/CasePreviews.jsx";
@@ -136,14 +136,17 @@ export function activeCases(cases) {
     });
 }
 // limit を渡すと、その件数だけ出して残りは「ほか N 件」で案件体験の一覧へ（ホーム用。2026-10-13）
-export function ActiveCases({ cases, go, title = "対応中の案件", limit = 0 }) {
+// expandable のときは一覧へ移らず、その場で「もっと見る」で開く（案件体験の画面用。2026-11-19 ユーザー指摘）
+export function ActiveCases({ cases, go, title = "対応中の案件", limit = 0, expandable = false }) {
+  const [open, setOpen] = useState(false);
   const all = activeCases(cases);
   if (!all.length) return null;
-  const list = limit ? all.slice(0, limit) : all;
+  const list = limit && !open ? all.slice(0, limit) : all;
   const rest = all.length - list.length;
+  const more = expandable ? () => setOpen(true) : () => go("#/cases");
   return (
     <section className="ac-wrap" aria-label={title}>
-      <div className="sec-h" style={{ marginTop: 0 }}><h2 className="h2">{title}</h2><span className="tally">{all.length}件</span>{rest > 0 && <button type="button" className="ac-all" onClick={() => go("#/cases")}>すべて見る →</button>}</div>
+      <div className="sec-h" style={{ marginTop: 0 }}><h2 className="h2">{title}</h2><span className="tally">{all.length}件</span>{rest > 0 && !expandable && <button type="button" className="ac-all" onClick={more}>すべて見る →</button>}</div>
       <div className="ac-list">
         {list.map(x => {
           const st = ACTIVE[x.status] || ["割り当て", "warn"];
@@ -157,7 +160,8 @@ export function ActiveCases({ cases, go, title = "対応中の案件", limit = 0
             </button>
           );
         })}
-        {rest > 0 && <button type="button" className="ac-more" onClick={() => go("#/cases")}>ほか {rest} 件の対応中の案件 →</button>}
+        {rest > 0 && <button type="button" className="ac-more" aria-expanded={expandable ? false : undefined} onClick={more}>{expandable ? `もっと見る（ほか ${rest} 件）` : `ほか ${rest} 件の対応中の案件 →`}</button>}
+        {expandable && open && limit > 0 && all.length > limit && <button type="button" className="ac-more" aria-expanded="true" onClick={() => setOpen(false)}>閉じる</button>}
       </div>
     </section>
   );
