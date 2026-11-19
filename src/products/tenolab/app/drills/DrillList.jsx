@@ -1,6 +1,8 @@
 import React, { useEffect, useMemo, useRef } from "react";
 import { Ic, TopicIcon, OTHER_TOPIC, planLabel } from "../ui.jsx";
 import "./drillList.css";
+import { DrillsBand } from "../steps/Bands.jsx";
+import { NextStep } from "../steps/Steps.jsx";
 
 /* 演習一覧（2026-11-19、モック docs/design/mockups/tenolab-2026-09/tenolab-drills.html）
    単元別：次にやる（3問）＋ 単元ごとの進み → 単元を開くとレッスン順の道のり。
@@ -95,10 +97,10 @@ function nextPicks({ ds, st, learned, seq, recent }) {
   return out;
 }
 
+// 見出しは上の帯にあるので、ここは探す・並べ方だけ
 function Header({ view, set, screen }) {
   return (
     <div className="ptitle">
-      <div><span className="eyebrow">Drills</span><h1 className="h1">演習一覧</h1></div>
       <div className="r">
         <label className="lsearch"><Ic id="search" /><input id="dl-q" type="search" placeholder="キーワードで探す" aria-label="演習をキーワードで探す" value={view.q || ""} onChange={e => set({ q: e.target.value, screen: "list" })} /></label>
         <div className="tabs-h" role="tablist" aria-label="並べ方">
@@ -294,13 +296,23 @@ export default function DrillList({ ctx, view, setView }) {
   const data = useDrillData(ctx);
   const set = patch => setView({ ...view, ...patch });
   const screen = view.screen === "topic" && view.topic ? "topic" : view.screen === "list" ? "list" : "home";
+  // 一番上の帯（単元別・一覧のとき。単元の道のりでは出さない）
+  const { ds, st, learned } = data;
+  const band = screen !== "topic" && (
+    <DrillsBand go={ctx.go} total={ds.length} done={ds.filter(d => st(d) === "done").length} trying={ds.filter(d => st(d) === "try").length}
+      learned={ds.filter(d => !st(d) && learned((d.lessons || [])[0])).length} next={nextPicks(data)[0]} progressError={ctx.progress?.state === "error"} />
+  );
   return (
-    <div className="dl">
-      {screen !== "topic" && <Header view={view} set={set} screen={screen} />}
-      {!data.ds.length ? <p className="muted">まだありません</p>
-        : screen === "topic" ? <TopicScreen data={data} view={view} set={set} go={ctx.go} />
-          : screen === "list" ? <ListScreen data={data} view={view} set={set} go={ctx.go} />
-            : <HomeScreen data={data} set={set} go={ctx.go} />}
+    <div className="stp">
+      {band}
+      <div className="stp-body dl">
+        {screen !== "topic" && <Header view={view} set={set} screen={screen} />}
+        {!data.ds.length ? <p className="muted">まだありません</p>
+          : screen === "topic" ? <TopicScreen data={data} view={view} set={set} go={ctx.go} />
+            : screen === "list" ? <ListScreen data={data} view={view} set={set} go={ctx.go} />
+              : <HomeScreen data={data} set={set} go={ctx.go} />}
+        {screen === "home" && <NextStep k="drills" hasAws={(ctx.drills || []).some(d => d.runtime === "aws")} go={ctx.go} />}
+      </div>
     </div>
   );
 }

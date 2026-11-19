@@ -4,6 +4,8 @@ import { ActiveCases, CaseCard, CourseCard, DrillCard, CourseRow } from "./cards
 import { NoticeBanner, NoticeCard } from "./notices/Notices.jsx";
 import { byTopic } from "./model.js";
 import { OTHER_TOPIC } from "./ui.jsx";
+import { CasesBand, CoursesBand } from "./steps/Bands.jsx";
+import { NextStep } from "./steps/Steps.jsx";
 
 /* ホーム（まず単元を選ぶ）・単元ページ・一覧（モックの home / topicPage / listPage） */
 
@@ -266,11 +268,13 @@ export function ListPage({ ctx, kind, view, setView }) {
       : <span className="tally">{items.length}件</span>;
   const filtered = view.filter && view.filter !== "all" ? all.filter(x => x.topic === view.filter) : all;
   const groups = topicsWith(topics, all);
+  const band = kind === "courses" ? <CoursesBand ctx={ctx} /> : kind === "cases" ? <CasesBand ctx={ctx} /> : null;
   return (
-    <>
+    <div className="stp">
+      {band}
+      <div className="stp-body">
       <div className="sec-h" style={{ marginTop: 0, alignItems: "flex-end" }}>
-        <div className="ptitle"><span className="eyebrow">{K.eyebrow}</span><h1 className="h1">{K.title}</h1></div>
-        {K.sub && <span className="muted" style={{ fontSize: 13, paddingBottom: 6 }}>{K.sub}</span>}
+        {!band && <div className="ptitle"><span className="eyebrow">{K.eyebrow}</span><h1 className="h1">{K.title}</h1></div>}
         <span style={{ marginLeft: "auto", display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
           <label className="lsearch"><Ic id="search" /><input type="search" value={q} onChange={e => setQ(e.target.value)} placeholder="キーワードで探す" aria-label={`${K.title}をキーワードで探す`} /></label>
           {kind === "courses" && <div className="tabs-h" role="tablist" aria-label="受講の状態">{COURSE_TABS.map(([k, l]) => <button key={k} type="button" role="tab" aria-selected={tab === k} onClick={() => setTab(k)}>{l}</button>)}</div>}
@@ -310,6 +314,8 @@ export function ListPage({ ctx, kind, view, setView }) {
           );
         }) : <p className="muted">{q ? "該当するものはありません" : "まだありません"}</p>
       )}
-    </>
+      {band && <NextStep k={kind} hasAws={(ctx.drills || []).some(d => d.runtime === "aws")} go={go} />}
+      </div>
+    </div>
   );
 }

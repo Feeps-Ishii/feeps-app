@@ -6,11 +6,11 @@ import { awsDiagram } from "./awsDiagram.js";
 import "./awsLabs.css";
 
 /* AWS実習（2026-11-19、モック tenolab-drills.html「AWS実習」。宣伝ページの AWS の部分と同じ作り）
-   上：黒い帯（見出し・作る/足す/直す・今月の残り）と、選んだ実習の構成図。
+   上：黒い帯（4つ目の段「本物の環境」。見出し・作る/足す/直す・今月の残り）と、選んだ実習の構成図の小さなカード（2026-11-19 小さく）。
    動いている環境があれば帯の下に残り時間。下：作る・足す・直すの段ごとに実習のカード。
    始めると演習の画面（#/drills/{id}）へ移り、手順・採点はそちらで行う */
 
-const TRACKS = [["基礎", "作る", "blank", "まっさらな環境から"], ["応用", "足す", "ready", "用意済みの環境に"], ["運用", "直す", "trouble", "障害が起きた環境を"]];
+const TRACKS = [["基礎", "作る", "blank", "まっさらな環境から", "まっさら"], ["応用", "足す", "ready", "用意済みの環境に", "用意済み"], ["運用", "直す", "trouble", "障害が起きた環境を", "障害あり"]];
 const LV_OF_START = { blank: "基礎", ready: "応用", trouble: "運用" };
 const scenarioOf = d => d.aws?.scenario || d.id;
 const stepsOf = d => (d.aws?.steps || []).map(s => s?.title || "").filter(t => t && !/コンソールを開く/.test(t));
@@ -117,16 +117,15 @@ export default function AwsLabs({ ctx }) {
       <section className="aws-dark">
         <div className="awl-wrap aws2">
           <div>
-            <span className="prem">{planLabel().toUpperCase()}</span><span className="ey">AWS実習</span>
-            <h1 className="aws-h"><span className="ln"><span className="mark">本物の環境</span>で、</span><span className="ln">作る・足す・直す。</span></h1>
+            <div className="aws-ey"><span className="stp-badge s4"><span className="no">4</span>本物の環境</span><span className="pg">AWS実習</span><span className="prem">{planLabel().toUpperCase()}</span></div>
+            <h1 className="aws-h"><span className="mark">本物の環境</span>で、作る・足す・直す。</h1>
             <div className="starts">
-              {TRACKS.map(([lv, verb, cls, from]) => {
+              {TRACKS.map(([lv, verb, cls, , short]) => {
                 const items = labs.filter(d => trackOf(d)[0] === lv);
                 if (!items.length) return null;
                 return (
-                  <button key={lv} type="button" onClick={() => document.getElementById(`awl-tr-${lv}`)?.scrollIntoView({ behavior: "smooth", block: "start" })}>
-                    <span className={`start ${cls}`}>{from}</span>
-                    <span className="vb">{verb}<small>{items.map(d => d.title).join(" ／ ")}</small></span>
+                  <button key={lv} type="button" title={items.map(d => d.title).join(" ／ ")} onClick={() => document.getElementById(`awl-tr-${lv}`)?.scrollIntoView({ behavior: "smooth", block: "start" })}>
+                    <b>{verb}</b><span className={`start ${cls}`}>{short}</span>
                     {premium ? <span className="tc"><b>{items.filter(d => st(d) === "done").length}</b> / {items.length}</span> : <span className="tc">{items.length}</span>}
                   </button>
                 );
@@ -137,6 +136,7 @@ export default function AwsLabs({ ctx }) {
                 <span>クリア <b>{done}</b> / {labs.length}</span>
                 {quota && <span>今月の残り <b>{fmtHM(quota.left)}</b><i className="meter"><i style={{ width: `${Math.min(100, (quota.left / (quota.limit + quota.extra)) * 100)}%` }} /></i>{Math.round((quota.limit + quota.extra) / 60)}時間</span>}
                 {range && <span>1回 <b>{range}</b> 分</span>}
+                <span>終わったら自動で片付け</span>
               </div>
             ) : (
               <div className="aws-lock"><Ic id="lock" />{planLabel()}プランで利用できます</div>
@@ -144,13 +144,12 @@ export default function AwsLabs({ ctx }) {
           </div>
           <div className="arch-card" ref={archRef}>
             <div className="arch-top">
-              <div><span className="eyebrow">{tr[3]} ・ {tr[1]}</span><h2>{selected.title}</h2></div>
+              <h2 title={`${tr[3]} ・ ${tr[1]}`}>{selected.title}</h2>
               {ss === "done" ? <span className="score ok">採点 {checks} / {checks}</span> : ss === "try" ? <span className="score try">挑戦中</span> : checks ? <span className="score no">採点 {checks}項目</span> : null}
             </div>
-            <div className="arch-diagram"><Diagram d={selected} uid="hero" /></div>
-            {steps.length > 0 && <ol className="arch-steps">{steps.map((s, k) => <li key={k} className={ss === "done" ? "ok" : ""}>{s}</li>)}</ol>}
+            <div className="arch-diagram"><Diagram d={selected} uid="hero" crop /></div>
             <div className="arch-act">
-              <span className="mt">{selected.minutes ? <span>約<b>{selected.minutes}</b>分</span> : null}<span>終わったら自動で片付け</span></span>
+              <span className="mt">{ss === "try" && left != null && !preparing ? <span>のこり <b>{fmtLeft(left)}</b></span> : selected.minutes ? <span>約<b>{selected.minutes}</b>分</span> : null}{steps.length > 0 && <span>手順 <b>{steps.length}</b></span>}</span>
               {mainBtn}
             </div>
             {err && <div className="arch-err" role="alert">{err}</div>}
