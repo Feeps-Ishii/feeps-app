@@ -1,10 +1,11 @@
 import React, { useCallback, useEffect, useState } from "react";
+import { apiPost } from "../../../../api.js";
 import { admin } from "../data.js";
 import MaterialScope from "./MaterialScope.jsx";
 import { Title, yen, usdToYen, PLAN_LABEL, fmtTime } from "./parts.jsx";
 
 /* 企業と契約（モック tenolab-admin.html の companies・company。ADR 0025 §5）
-   企業そのものは LMS の企業管理で作る。ここでは契約（Eラーニングの有効・無効、プラン、受講枠、金額・期間）と使用料を見る・直す。
+   企業はここの「企業を追加」（2026-11-20）・アカウント発行・LMS の企業管理で作る。ここでは契約（Eラーニングの有効・無効、プラン、受講枠、金額・期間）と使用料を見る・直す。
    研修でLMSを使っている企業は青い点線の枠「研修LMS」で見分ける */
 const FILTERS = [["all", "すべて"], ["lms", "研修でLMS利用"], ["el", "Eラーニング契約"], ["off", "Eラーニングなし"], ["inq", "お見積り依頼"]];
 
@@ -12,7 +13,7 @@ export function useOverview() {
   const [st, setSt] = useState({ state: "loading" });
   const load = useCallback(() => {
     setSt(s => ({ ...s, state: "loading" }));
-    admin.overview().then(d => setSt({ state: "ready", data: d })).catch(() => setSt({ state: "error" }));
+    return admin.overview().then(d => setSt({ state: "ready", data: d })).catch(() => setSt({ state: "error" }));
   }, []);
   useEffect(() => { load(); }, [load]);
   return { ...st, reload: load };
@@ -55,6 +56,7 @@ export function CompanyTable({ list, rate, go, compact }) {
 export default function Companies({ go, companyId, tab = "", topics }) {
   const ov = useOverview();
   const [filter, setFilter] = useState("all");
+  const [adding, setAdding] = useState(false);
   if (ov.state === "loading" && !ov.data) return <><Title eyebrow="COMPANIES" title="企業と契約" /><p className="muted">読み込んでいます…</p></>;
   if (ov.state === "error") return <><Title eyebrow="COMPANIES" title="企業と契約" /><div className="card flat" style={{ padding: 16 }} role="alert">読み込めませんでした。 <button type="button" className="btn ghost" onClick={ov.reload}>もう一度</button></div></>;
   const d = ov.data;
@@ -66,7 +68,11 @@ export default function Companies({ go, companyId, tab = "", topics }) {
   const list = { all: d.companies, lms: d.companies.filter(c => c.lms), el: d.companies.filter(c => c.elearning), off: d.companies.filter(c => !c.elearning) }[filter] || [];
   return (
     <>
-      <Title eyebrow="COMPANIES" title="企業と契約" />
+      <Title eyebrow="COMPANIES" title="企業と契約">
+        {!adding && <button type="button" className="btn" onClick={() => setAdding(true)}>企業を追加</button>}
+      </Title>
+      {adding && <AddCompany names={d.companies.map(c => c.name)} onCancel={() => setAdding(false)}
+        onDone={id => ov.reload().then(() => { setAdding(false); go(`#/manage/companies/${encodeURIComponent(id)}`); })} />}
       <div className="tabs-h" role="tablist" style={{ marginBottom: 14 }}>
         {FILTERS.map(([k, l]) => <button key={k} type="button" role="tab" aria-selected={filter === k} onClick={() => setFilter(k)}>{l}</button>)}
       </div>
@@ -76,6 +82,53 @@ export default function Companies({ go, companyId, tab = "", topics }) {
         </section>
       )}
     </>
+  );
+}
+
+/* 企業を追加（2026-11-20）：企業を登録して、Eラーニングを有効にした契約を作る。金額・期間・受講枠の数は作ったあとの企業の画面で入れる */
+function AddCompany({ names, onCancel, onDone }) {
+  const [f, setF] = useState({ name: "", learningPlan: "standard", billingMode: "company" });
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState("");
+  const set = (k, v) => setF(x => ({ ...x, [k]: v }));
+  const name = f.name.trim();
+  const dup = name && names.some(n => String(n).trim() === name);
+  async function submit(e) {
+    e.preventDefault();
+    if (!name || busy) return;
+    setBusy(true); setErr("");
+    try {
+      const r = await apiPost("/companies", { name });
+      const id = r?.companyId;
+      if (!id) throw new Error("企業を登録できませんでした。");
+      try {
+        await admin.saveCompany(id, { elearning: true, learningPlan: f.learningPlan, billingMode: f.billingMode,
+          seats: f.billingMode === "seat" ? { standard: 0, premium: 0 } : undefined,
+          contract: { feeMonthly: 0, startMonth: "", endMonth: "", awsCapMonthly: 0 } });
+      } catch (e2) { console.warn("company contract save failed", e2); }
+      onDone(id);
+    } catch (e2) {
+      setErr(e2?.errorMessage || e2?.message || "企業を登録できませんでした。");
+      setBusy(false);
+    }
+  }
+  return (
+    <form className="card msec" style={{ marginBottom: 14 }} onSubmit={submit}>
+      <h2>企業を追加</h2>
+      <div className="mgrid">
+        <label className="mfield"><span>企業名</span><input id="newco-name" value={f.name} autoFocus placeholder="株式会社〇〇" onChange={e => set("name", e.target.value)} /></label>
+        <label className="mfield"><span>プラン</span>
+          <select id="newco-plan" value={f.learningPlan} onChange={e => set("learningPlan", e.target.value)}>{Object.entries(PLAN_LABEL).map(([k, l]) => <option key={k} value={k}>{l}</option>)}</select></label>
+        <label className="mfield"><span>受講枠</span>
+          <select id="newco-bm" value={f.billingMode} onChange={e => set("billingMode", e.target.value)}><option value="company">枠なし（企業の全員）</option><option value="seat">人数で決める</option></select></label>
+      </div>
+      {dup && <p className="muted" style={{ margin: 0, fontSize: 13 }}>同じ名前の企業がもうあります。</p>}
+      {err && <div className="verdict ng" role="alert">{err}</div>}
+      <div className="row" style={{ gap: 8 }}>
+        <button type="submit" className="btn" disabled={!name || busy}>{busy ? "登録しています…" : "登録する"}</button>
+        <button type="button" className="btn ghost" onClick={onCancel} disabled={busy}>やめる</button>
+      </div>
+    </form>
   );
 }
 
