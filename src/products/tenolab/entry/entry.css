@@ -1557,6 +1557,16 @@
 /* ログイン・登録の画面では、ページの外側の余白（body の 8px）をなくして左右いっぱいにする */
 body:has(.tl-entry #login-view:not([hidden])), body:has(.tl-entry #signup-view:not([hidden])){margin:0}
 /* 高さの低いノートPC（1366×768 など）でもスクロールなしで収める */
+/* iPhone の Safari で入力欄が右にはみ出す（2026-11-20）。Safari は入力欄の初期の幅を日本語の書体で広く見積もり、
+   フォームの列を押し広げていた。入力欄は列の幅に合わせ、列は中身に押し広げられないようにする */
+.tl-entry .field input{width:100%; min-width:0}
+.tl-entry .lstep{grid-template-columns:minmax(0,1fr)}
+@media (max-width:900px){
+.tl-entry .login .form{grid-template-columns:minmax(0,1fr)}
+}
+@media (max-width:360px){
+.tl-entry .login-logo.dh{font-size:21px}
+}
 @media (min-width:901px) and (max-height:820px){
 .tl-entry .login .form{padding:36px 48px 80px}
 .tl-entry .login-logo.dh{margin-bottom:22px}
