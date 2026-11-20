@@ -103,8 +103,15 @@ function DrillAsk({ item, code, last, askRef }) {
     setBusy(true); setText("");
     setMsgs(m => [...m, { who: "me", text: v }]);
     try {
-      const output = last ? (last.error || (last.out || []).join("\n")) : "";
-      const res = await apiPost(`/tenolab/drills/${encodeURIComponent(item.id)}/ask`, { question: v, source: code, output, compiled: !!last && !last.error, history: hist.current.slice(-4) });
+      // チェックの結果も渡す。未達は先頭の1つだけ（2026-11-20：HTMLで未達なのに「全部できています」と答えていた）
+      const checks = last?.results || [];
+      const passed = checks.length > 0 && checks.every(x => x.ok);
+      const miss = checks.filter(x => !x.ok).slice(0, 1).map(x => `未達: ${x.name}`).join("\n");
+      const web = item.runtime === "web";
+      const ran = last ? (last.error || (last.out || []).join("\n")) : "";
+      const output = !last ? "まだ実行していません" : web ? miss : [ran, !last.error && miss].filter(Boolean).join("\n");
+      const compiled = web ? passed : !!last && !last.error;
+      const res = await apiPost(`/tenolab/drills/${encodeURIComponent(item.id)}/ask`, { question: v, source: code, output, compiled, history: hist.current.slice(-4) });
       const a = res?.answer || "うまく答えられませんでした。聞き方を変えてみてください。";
       hist.current.push({ role: "user", text: v }, { role: "assistant", text: a });
       setMsgs(m => [...m, { who: "ai", text: a }]);
