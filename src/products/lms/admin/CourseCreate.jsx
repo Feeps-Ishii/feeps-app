@@ -6,6 +6,7 @@ import { extractPdfPageTexts } from "../../training/pdfText.js";
 import { Btn, Chip, Modal } from "../parts/ui.jsx";
 import { arr, errText } from "../staff/common.js";
 import { JP_HOLIDAYS } from "../parts/jpHolidays.js";
+import { ShelfPicker, markUnitsUsed } from "./unitShelf.jsx";
 
 /* コースを作る（モック cwModal）：白紙・ひな形 Excel・研修計画書・文で伝える・前のコースを写す → 確かめて作る。
    Excel はモックのひな形（public/templates/training-template.xlsx）。計画書と文は AI が読むだけで、作るのは確かめたあと。
@@ -100,6 +101,7 @@ export default function CourseCreate({ companies: companies0, courses, initial, 
   const [people, setPeople] = useState({ ins: [], mgr: [] });
   const [busy, setBusy] = useState(""); const [err, setErr] = useState(""); const [note, setNote] = useState("");
   const [offText, setOffText] = useState("");
+  const [picking, setPicking] = useState(false);
   useEffect(() => {
     apiGet("/admin/instructors").then(l => setPeople(p => ({ ...p, ins: arr(l) }))).catch(() => {});
     apiGet("/admin/users").then(l => setPeople(p => ({ ...p, mgr: arr(l).filter(u => u.role === "manager") }))).catch(() => {});
@@ -190,6 +192,7 @@ export default function CourseCreate({ companies: companies0, courses, initial, 
         const nodes = [...new Set(v.units.flatMap(u => arr(u.files).map(f => f.nodeId)))];
         await Promise.all(nodes.map(nodeId => apiPost("/library/link-to-course", { spaceId: "shared", nodeId, courseIds: [id] })));
       });
+      await markUnitsUsed(id, v.units.map(u => u.unitId));
     }
     setBusy("");
     onDone(id, { warn, roster: v.trainees.length ? [["氏名", "ふりがな", "メールアドレス"], ...v.trainees] : null });
@@ -227,7 +230,7 @@ export default function CourseCreate({ companies: companies0, courses, initial, 
       <div className="field">講師<span className="row">{people.ins.map(p => <label key={p.userId} className="st-ck"><input type="checkbox" checked={v.instructorIds.includes(p.userId)} onChange={e => toggle("instructorIds", p.userId, e.target.checked)} />{p.name || "名前未設定"}</label>)}{!people.ins.length && <Chip>なし</Chip>}</span>{arr(v.staffNames?.ins).filter(n => !people.ins.some(p => norm(p.name) === norm(n))).map(n => <Chip key={n} tone="warn">「{n}」が見つかりません</Chip>)}</div>
       {people.mgr.length > 0 && <div className="field">コース担当者<span className="row">{people.mgr.map(p => <label key={p.userId} className="st-ck"><input type="checkbox" checked={v.managerIds.includes(p.userId)} onChange={e => toggle("managerIds", p.userId, e.target.checked)} />{p.name || "名前未設定"}</label>)}</span></div>}
       {src !== "copy" && (
-        <div className="field">単元<span className="row"><Chip tone={v.units.length && unitDays !== days.length ? "warn" : ""}>日数の合計 {unitDays} / 研修日 {days.length}</Chip><Btn kind="ghost sm" onClick={() => set({ units: [...v.units, { title: "", days: 1, goal: "", note: "" }] })}>＋ 単元</Btn></span>
+        <div className="field">単元<span className="row"><Chip tone={v.units.length && unitDays !== days.length ? "warn" : ""}>日数の合計 {unitDays} / 研修日 {days.length}</Chip><Btn kind="ghost sm" onClick={() => setPicking(true)}>単元から足す</Btn><Btn kind="ghost sm" onClick={() => set({ units: [...v.units, { title: "", days: 1, goal: "", note: "" }] })}>＋ 空の単元</Btn></span>
           {v.units.map((u, i) => <div key={i} className="cw-u"><span className="num">{i + 1}</span><input type="text" value={u.title} placeholder="単元名" aria-label="単元名" onChange={e => setUnit(i, { title: e.target.value })} /><input type="number" min="1" value={u.days} aria-label="日数" onChange={e => setUnit(i, { days: e.target.value })} /><button type="button" className="x2" aria-label={`単元 ${i + 1} を消す`} onClick={() => set({ units: v.units.filter((_, j) => j !== i) })}>×</button></div>)}
         </div>
       )}
@@ -237,6 +240,7 @@ export default function CourseCreate({ companies: companies0, courses, initial, 
         {v.later.length > 0 && <Chip>テスト・練習問題の名前 {v.later.length} 件 ・ あとでつなぐ</Chip>}
       </div>
       {err && <div className="lms-err" role="alert">{err}</div>}
+      {picking && <ShelfPicker has={v.units.map(u => u.unitId).filter(Boolean)} onClose={() => setPicking(false)} onPick={sel => { set({ units: [...v.units, ...sel.map(u => ({ title: u.title, days: u.days, goal: arr(u.goals)[0] || "", note: "", testIds: arr(u.testIds), pracIds: arr(u.pracIds), files: arr(u.files), unitId: u.id }))] }); setPicking(false); }} />}
     </Modal>
   );
 }

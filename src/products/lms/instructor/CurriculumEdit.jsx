@@ -10,7 +10,7 @@ import { Btn, Card, Chip, Modal, weekday } from "../parts/ui.jsx";
 import { Icon } from "../parts/icons.jsx";
 import { arr, errText, md } from "../staff/common.js";
 import { TestEditModal } from "../staff/TestEdit.jsx";
-import { useShelf } from "../admin/CurriculumShelf.jsx";
+import { UnitKinds, markUnitsUsed, useShelf } from "../admin/unitShelf.jsx";
 
 /* カリキュラムの編集（モック curS の編集）：その場で単元名・目標・日の内容を直し、共通の教材をドラッグか「＋」で付ける。
    「確定する」で受講生に反映（テスト・練習問題のつなぎ替えもそのときに送る）。データの形・保存先は /courses/{id}/curriculum のまま。
@@ -78,20 +78,22 @@ function Attach({ ids, mats, folders, links, onIds, onLinks, onUpload, uploading
 }
 
 // 共通の教材（モック cuShelf）
-function Shelf({ lib, onDrag }) {
-  const [f, setF] = useState("test");
+// 単元のタブは「＋ 足す」でも最後に足せる。入っている単元（同じ名前）は印を出す
+function Shelf({ lib, onDrag, onAddUnit, hasTitle }) {
+  const [f, setF] = useState("unit");
   const [q, setQ] = useState("");
   const list = lib[f].filter(x => !q.trim() || x.t.includes(q.trim()));
   return (
     <aside className="card cu-shelf" aria-label="共通の教材">
       <div className="head"><h2 className="h3">共通の教材</h2><span className="r"><Chip tone="mk">ドラッグで付ける</Chip></span></div>
-      <span className="seg">{[["test", "テスト"], ["prac", "練習問題"], ["unit", "単元"]].map(([k, t]) => <button key={k} type="button" aria-pressed={f === k} onClick={() => setF(k)}>{t} <span className="num">{lib[k].length}</span></button>)}</span>
+      <span className="seg">{[["unit", "単元"], ["test", "テスト"], ["prac", "練習問題"]].map(([k, t]) => <button key={k} type="button" aria-pressed={f === k} onClick={() => setF(k)}>{t} <span className="num">{lib[k].length}</span></button>)}</span>
       <input type="search" className="in" value={q} placeholder="名前で探す" aria-label="共通の教材を探す" onChange={e => setQ(e.target.value)} />
       <div className="sh-l">
         {lib.state === "error" ? <Chip tone="bad">確認できません</Chip> : list.map(x => (
           <div key={x.id} className={`sh-i ${f}`} draggable onDragStart={e => { e.dataTransfer.setData("text/plain", `${f}|${x.id}`); e.dataTransfer.effectAllowed = "copy"; onDrag(true); }} onDragEnd={() => onDrag(false)}>
             <span className="sh-g" aria-hidden="true">⠿</span><span className="sh-ic"><Icon k={f === "test" ? "test" : f === "prac" ? "prac" : "cur"} size={16} /></span>
-            <span className="sh-t"><b>{x.t}</b><small>{x.sub}</small></span>
+            <span className="sh-t"><b>{x.t}</b><small>{x.sub}</small>{f === "unit" && <UnitKinds u={x.raw} small />}</span>
+            {f === "unit" && (hasTitle(x.t) ? <Chip tone="mk">入っています</Chip> : <Btn kind="ghost sm" onClick={() => onAddUnit(x.raw)}>＋ 足す</Btn>)}
           </div>
         ))}
         {lib.state === "ready" && !list.length && <Chip>なし</Chip>}
@@ -109,6 +111,7 @@ export default function CurriculumEdit({ course, go, keys, onClose, say }) {
   const [pracs, setPracs] = useState([]);       // このコースの練習問題
   const [addPrac, setAddPrac] = useState([]);   // 確定で足す共通の練習問題 { id, t, sectionId }
   const [dropPrac, setDropPrac] = useState([]); // 確定で外す練習問題 { setId, sectionId }
+  const [addedUnits, setAddedUnits] = useState([]); // 共通の単元から足したもの（確定のあと「使っているコース」に書く）
   const [folders, setFolders] = useState([]);
   const [common, setCommon] = useState({ state: "loading", test: [], prac: [], raw: [] });
   const [busy, setBusy] = useState(false); const [err, setErr] = useState("");
@@ -159,9 +162,9 @@ export default function CurriculumEdit({ course, go, keys, onClose, say }) {
   }, [courseId]);
 
   const lib = useMemo(() => {
-    const units = shelf.items.flatMap(c => arr(c.units).map(u => ({ id: u.id, t: u.title, sub: `${Number(u.days) || 0} 日 ・ ${c.name}`, raw: u })));
+    const units = shelf.units.map(u => ({ id: u.id, t: u.title || "名前なし", sub: `${Number(u.days) || 0} 日`, raw: u }));
     return { state: common.state === "error" || shelf.state === "error" ? "error" : common.state === "ready" && shelf.state !== "loading" ? "ready" : "loading", test: common.test, prac: common.prac, unit: units };
-  }, [common, shelf.items, shelf.state]);
+  }, [common, shelf.units, shelf.state]);
 
   const mats = useMemo(() => Object.fromEntries(materials.map(m => [m.materialId, m])), [materials]);
   const liveTests = tests.filter(t => !t._gone);
@@ -221,6 +224,7 @@ export default function CurriculumEdit({ course, go, keys, onClose, say }) {
     const fields = curriculumUnitScope(made, null, null, "section").fields;
     arr(u.testIds).forEach(id => { const raw = common.raw.find(t => testIdOf(t) === id) || fromCourse(id); if (raw) attachTest(raw, fields); });
     setAddPrac(l => [...l, ...arr(u.pracIds).map(id => ({ id, t: lib.prac.find(p => p.id === id)?.t || "練習問題", sectionId: made.id }))]);
+    if (u.id) setAddedUnits(l => [...new Set([...l, u.id])]);
     say?.(`単元「${made.title}」を足しました`);
   };
   const zone = target => ({
@@ -254,6 +258,7 @@ export default function CurriculumEdit({ course, go, keys, onClose, say }) {
       await apiPut(`/courses/${encodeURIComponent(courseId)}/curriculum`, { sections: out, sessions: sessionsFromSections(out) });
       saved.current = JSON.stringify(sections);
     } catch (e) { setErr(errText(e, "保存できませんでした")); setBusy(false); return; }
+    if (addedUnits.length) { const ids = addedUnits; setAddedUnits([]); markUnitsUsed(courseId, ids); }
     // テストのつなぎ替え
     for (const t of tests) {
       const id = testIdOf(t), was = savedTests.current[id];
@@ -428,7 +433,7 @@ export default function CurriculumEdit({ course, go, keys, onClose, say }) {
           <div className="cu-end" {...zone("end")}><span>共通の単元をここへ</span><Btn kind="ghost sm" onClick={addEmptyUnit}>空の単元を足す</Btn></div>
           <div className="row st-end"><Btn kind="ghost sm" onClick={exportTemplate}>Excel ひな形</Btn><Btn kind="ghost sm" disabled={impBusy} onClick={() => fileRef.current?.click()}>{impBusy ? "読んでいます" : "Excel 読み込み"}</Btn></div>
         </div>
-        <Shelf lib={lib} onDrag={setDragging} />
+        <Shelf lib={lib} onDrag={setDragging} onAddUnit={addShelfUnit} hasTitle={t => sections.some(s => s.title === t)} />
       </div>
 
       {editT && <TestEditModal test={normalizeTest(editT)} unitName={editT.lessonTitle || editT.sectionTitle || ""} courseId={courseId} onClose={() => setEditT(null)} onSaved={() => { setEditT(null); say?.("テストを直しました"); apiGet(`/tests?courseId=${encodeURIComponent(courseId)}`).then(l => setTests(cur => { const fresh = new Map(arr(l).map(t => [testIdOf(t), t])); return cur.map(t => { const f = fresh.get(testIdOf(t)); return f ? { ...f, ...Object.fromEntries(TEST_SCOPE_KEYS.map(k => [k, t[k] || ""])), courseIds: testCourseIdList(t), _gone: t._gone } : t; }); })).catch(() => {}); }} />}

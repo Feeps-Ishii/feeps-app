@@ -14,7 +14,7 @@ import CourseCreate from "./CourseCreate.jsx";
 const A_NAV = [
   ["準備", "tm", "cos", [["cos", "企業", "cos"], ["users", "ユーザー", "users"], ["sann", "お知らせ", "sann"]]],
   ["コース管理", "cur", "course", [["course", "コース一覧", "course"]]],
-  ["カリキュラム管理", "tst", "cur", [["lcur", "カリキュラム"], ["ltest", "テスト"], ["lprac", "練習問題"]]],
+  ["カリキュラム管理", "tst", "cur", [["lcur", "単元"], ["ltest", "テスト"], ["lprac", "練習問題"]]],
   ["フォルダ管理", "att", "doc", [["cdoc", "コース別フォルダ"], ["doc", "共有フォルダ"]]],
   ["分析・助成金", "rep", "ana", [["ana", "分析"], ["grant", "助成金"]]],
 ];

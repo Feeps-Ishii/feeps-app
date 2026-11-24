@@ -1155,3 +1155,81 @@
 
 /* 左の選ぶ一覧は上から詰める（となりのカードに合わせて伸びても、ボタンは伸ばさない） */
 .lms .pick { align-content: start }
+
+/* ===== 単元（2026-11-24 作り直し、モック lms-units.html）：単元だけの一覧・単元の中身・消す ===== */
+.lms .lu-ks { display: flex; gap: 6px; flex-wrap: wrap; justify-content: flex-end }
+.lms .lu-k { display: inline-flex; align-items: center; gap: 5px; border-radius: 8px; padding: 2px 9px; font-size: 13px; font-weight: 700; white-space: nowrap }
+.lms .lu-k i { width: 7px; height: 7px; border-radius: 50%; background: currentColor }
+.lms .lu-k.doc { background: var(--cur); color: var(--cur-i) } .lms .lu-k.tst { background: var(--tst); color: var(--tst-i) } .lms .lu-k.prc { background: var(--rep); color: var(--rep-i) }
+.lms .lu-k.zero { background: var(--soft); color: #9AA19D }
+.lms .lu-ks.sm .lu-k { font-size: 12px; padding: 1px 7px }
+.lms .lu-list { padding: 0; overflow: hidden }
+.lms .lu-tools { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; padding: 14px 18px; border-bottom: 1px solid var(--line2) }
+.lms .lu-tools.pk { padding: 0 0 12px }
+.lms .lu-q { max-width: none }
+.lms .lu-tools select.lu-sort { width: auto; flex: none; margin-left: auto; min-width: 0 }
+.lms .lu-ck { width: 17px; height: 17px; accent-color: var(--mark); flex: none; margin: 0 }
+.lms .lu-bulk { display: flex; gap: 10px; align-items: center; padding: 10px 18px; background: var(--ink); color: #fff; font-weight: 700; font-size: 14px }
+.lms .lu-bulk .sp { flex: 1 }
+.lms .lu-bulk .btn.ghost { background: transparent; color: #fff; border-color: rgba(255, 255, 255, .4) }
+.lms .lu-r { display: grid; grid-template-columns: 17px minmax(0, 1fr) auto auto; gap: 14px; align-items: center; padding: 13px 18px; border-top: 1px solid var(--line2) }
+.lms .lu-tools + .lu-r, .lms .lu-bulk + .lu-r { border-top: 0 }
+.lms .lu-r:hover { background: #FAFBF8 }
+.lms .lu-n { border: 0; background: none; padding: 0; text-align: left; min-width: 0; display: grid }
+.lms .lu-n b { font-size: 15.5px; line-height: 1.4 }
+.lms .lu-n:hover b { color: var(--mark) }
+.lms .lu-n small { color: var(--muted); font-size: 12.5px }
+.lms .lu-a { display: flex; gap: 4px; opacity: .4; transition: opacity .15s }
+.lms .lu-r:hover .lu-a, .lms .lu-r:focus-within .lu-a { opacity: 1 }
+.lms .lu-ic { border: 1px solid transparent; background: none; border-radius: 9px; padding: 4px 9px; font-size: 13px; font-weight: 700; color: var(--ink2) }
+.lms .lu-ic:hover { border-color: var(--line); background: var(--card) }
+.lms .lu-ic.del { color: #A8402F }
+.lms .btn.lu-danger { background: #A8402F; border-color: #A8402F; color: #fff }
+.lms .btn.lu-danger.ghost { background: var(--card); border-color: #E3B9AF; color: #A8402F }
+.lms .lu-bulk .btn.lu-danger { background: transparent; border-color: rgba(255, 182, 166, .6); color: #FFB6A6 }
+.lms .lu-back { border: 0; background: none; padding: 0; color: var(--mark); font-weight: 700; font-size: 14px; justify-self: start }
+.lms .lu-meta { display: grid; grid-template-columns: minmax(0, .6fr) minmax(0, 1fr) minmax(0, 1.4fr); padding: 4px 6px }
+.lms .lu-meta > div { padding: 12px 16px; border-right: 1px solid var(--line2); min-width: 0; display: grid; gap: 4px; align-content: start }
+.lms .lu-meta > div:last-child { border-right: 0 }
+.lms .lu-meta > div > span:first-child, .lms .lu-goal span { font-size: 12.5px; font-weight: 700; color: var(--muted) }
+.lms .lu-meta .lu-ks { justify-content: flex-start }
+.lms .lu-goal { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 20px; padding: 16px 20px }
+.lms .lu-goal p { margin: 2px 0 0 } .lms .lu-goal ul { margin: 4px 0 0; padding-left: 1.2em }
+.lms .lu-three { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; align-items: start }
+.lms .lu-box { padding: 0; overflow: hidden; border-top: 5px solid var(--c) }
+.lms .lu-box.doc { --c: var(--cur-i); --s: var(--cur) } .lms .lu-box.tst { --c: var(--tst-i); --s: var(--tst) } .lms .lu-box.prc { --c: var(--rep-i); --s: var(--rep) }
+.lms .lu-box.on { box-shadow: 0 0 0 3px var(--cur-d) }
+.lms .lu-bh { padding: 14px 18px 10px }
+.lms .lu-bh h3 { display: flex; align-items: center; gap: 8px; color: var(--c) }
+.lms .lu-bh em { font-style: normal; background: var(--s); border-radius: 999px; padding: 0 9px; font-size: 13px }
+.lms .lu-it { display: grid; grid-template-columns: 34px minmax(0, 1fr) auto; gap: 10px; align-items: center; padding: 10px 18px; border-top: 1px solid var(--line2) }
+.lms .lu-fi { width: 34px; height: 34px; border-radius: 9px; background: var(--s); color: var(--c); display: grid; place-items: center }
+.lms .lu-nm { border: 0; background: none; padding: 0; text-align: left; min-width: 0; display: grid }
+.lms .lu-nm b { font-size: 14.5px; line-height: 1.4 } .lms .lu-nm small { color: var(--muted); font-size: 12.5px }
+.lms .lu-nm:not(:disabled):hover b { color: var(--c) }
+.lms .lu-it .x2 { font-size: 18px; padding: 0 4px }
+.lms .lu-none { padding: 10px 18px; border-top: 1px solid var(--line2); color: var(--muted); font-size: 13.5px }
+.lms .lu-adds { display: flex; gap: 8px; flex-wrap: wrap; padding: 12px 18px 16px; border-top: 1px solid var(--line2) }
+.lms .lu-drop { flex: 1 1 100%; border: 1.5px dashed #BFCBD9; border-radius: 12px; padding: 12px; text-align: center; color: var(--cur-i); font-weight: 700; font-size: 13.5px; background: #F7F9FC; cursor: pointer }
+.lms .lu-drop.off { opacity: .6; cursor: progress }
+.lms .lu-cl { display: grid; gap: 6px; background: var(--soft); border-radius: 14px; padding: 12px 14px }
+.lms .lu-cl div { display: flex; justify-content: space-between; gap: 12px; font-size: 14px } .lms .lu-cl span { color: var(--muted); font-weight: 700; flex: none }
+.lms .lu-cl b { text-align: right }
+.lms .lu-warn { background: #F6E3DE; color: #A8402F; border-radius: 12px; padding: 9px 12px; font-weight: 700; font-size: 13.5px }
+.lms .lu-pl { display: grid; max-height: 50vh; overflow: auto; border-top: 1px solid var(--line2) }
+.lms .lu-pr { display: grid; grid-template-columns: 17px minmax(0, 1fr) auto; gap: 12px; align-items: center; padding: 10px 4px; border-bottom: 1px solid var(--line2); cursor: pointer }
+.lms .lu-pr input { width: 17px; height: 17px; accent-color: var(--mark); margin: 0 }
+.lms .lu-pr.has { cursor: default } .lms .lu-pr.has b { color: var(--muted) }
+.lms .lu-pt { display: grid; min-width: 0 } .lms .lu-pt small { color: var(--muted); font-size: 12.5px }
+@media (max-width: 1000px) { .lms .lu-three { grid-template-columns: minmax(0, 1fr) } }
+@media (max-width: 640px) {
+  .lms .lu-r { grid-template-columns: 17px minmax(0, 1fr); row-gap: 8px }
+  .lms .lu-r .lu-ks, .lms .lu-r .lu-a { grid-column: 2; justify-content: flex-start }
+  .lms .lu-a { opacity: 1 }
+  .lms .lu-meta, .lms .lu-goal { grid-template-columns: minmax(0, 1fr) } .lms .lu-meta > div { border-right: 0; border-bottom: 1px solid var(--line2) }
+  .lms .lu-pr { grid-template-columns: 17px minmax(0, 1fr) } .lms .lu-pr > :last-child { grid-column: 2 }
+}
+
+/* コースの編集の棚：単元は「＋ 足す」と中身の印を出す（2026-11-24） */
+.lms .sh-i.unit { grid-template-columns: auto 30px minmax(0, 1fr) auto }
+.lms .sh-i.unit .lu-ks { justify-content: flex-start; margin-top: 4px }
