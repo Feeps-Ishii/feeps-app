@@ -240,7 +240,7 @@ export default function CourseCreate({ companies: companies0, courses, initial, 
         {v.later.length > 0 && <Chip>テスト・練習問題の名前 {v.later.length} 件 ・ あとでつなぐ</Chip>}
       </div>
       {err && <div className="lms-err" role="alert">{err}</div>}
-      {picking && <ShelfPicker has={v.units.map(u => u.unitId).filter(Boolean)} onClose={() => setPicking(false)} onPick={sel => { set({ units: [...v.units, ...sel.map(u => ({ title: u.title, days: u.days, goal: arr(u.goals)[0] || "", note: "", testIds: arr(u.testIds), pracIds: arr(u.pracIds), files: arr(u.files), unitId: u.id }))] }); setPicking(false); }} />}
+      {picking && <ShelfPicker has={v.units.map(u => u.unitId).filter(Boolean)} onClose={() => setPicking(false)} onPick={sel => { set({ units: [...v.units, ...sel.map(u => ({ title: u.title, days: 1, goal: arr(u.goals)[0] || "", note: "", testIds: arr(u.testIds), pracIds: arr(u.pracIds), files: arr(u.files), unitId: u.id }))] }); setPicking(false); }} />}
     </Modal>
   );
 }

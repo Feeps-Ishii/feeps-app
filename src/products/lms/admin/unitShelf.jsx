@@ -57,7 +57,7 @@ export function ShelfPicker({ onClose, onPick, has = [] }) {
               return (
                 <label key={u.id} className={`lu-pr${on ? " has" : ""}`}>
                   <input type="checkbox" disabled={on} checked={on || !!picked[u.id]} onChange={e => setPicked(p => ({ ...p, [u.id]: e.target.checked }))} />
-                  <span className="lu-pt"><b>{u.title || "名前なし"}</b><small className="num">{u.days} 日</small></span>
+                  <span className="lu-pt"><b>{u.title || "名前なし"}</b><small>{arr(u.usedIn).length ? `${arr(u.usedIn).length} コースで使用` : "未使用"}</small></span>
                   {on ? <Chip tone="mk">入っています</Chip> : <UnitKinds u={u} small />}
                 </label>
               );

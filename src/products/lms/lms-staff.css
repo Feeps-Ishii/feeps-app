@@ -1188,7 +1188,7 @@
 .lms .btn.lu-danger.ghost { background: var(--card); border-color: #E3B9AF; color: #A8402F }
 .lms .lu-bulk .btn.lu-danger { background: transparent; border-color: rgba(255, 182, 166, .6); color: #FFB6A6 }
 .lms .lu-back { border: 0; background: none; padding: 0; color: var(--mark); font-weight: 700; font-size: 14px; justify-self: start }
-.lms .lu-meta { display: grid; grid-template-columns: minmax(0, .6fr) minmax(0, 1fr) minmax(0, 1.4fr); padding: 4px 6px }
+.lms .lu-meta { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.4fr); padding: 4px 6px }
 .lms .lu-meta > div { padding: 12px 16px; border-right: 1px solid var(--line2); min-width: 0; display: grid; gap: 4px; align-content: start }
 .lms .lu-meta > div:last-child { border-right: 0 }
 .lms .lu-meta > div > span:first-child, .lms .lu-goal span { font-size: 12.5px; font-weight: 700; color: var(--muted) }

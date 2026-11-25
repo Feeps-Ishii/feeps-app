@@ -162,7 +162,7 @@ export default function CurriculumEdit({ course, go, keys, onClose, say }) {
   }, [courseId]);
 
   const lib = useMemo(() => {
-    const units = shelf.units.map(u => ({ id: u.id, t: u.title || "名前なし", sub: `${Number(u.days) || 0} 日`, raw: u }));
+    const units = shelf.units.map(u => ({ id: u.id, t: u.title || "名前なし", sub: arr(u.usedIn).length ? `${arr(u.usedIn).length} コースで使用` : "未使用", raw: u }));
     return { state: common.state === "error" || shelf.state === "error" ? "error" : common.state === "ready" && shelf.state !== "loading" ? "ready" : "loading", test: common.test, prac: common.prac, unit: units };
   }, [common, shelf.units, shelf.state]);
 
@@ -214,12 +214,12 @@ export default function CurriculumEdit({ course, go, keys, onClose, say }) {
       say?.(`「${x.t}」を単元「${s.title}」に付けました`);
     }
   };
-  // 棚の単元：日数ぶんの日を、最後の日の次の平日から並べる。テスト・練習問題もつなぐ
+  // 棚の単元：日数はコースで決めるので 1 日だけ、最後の日の次の平日に置く。テスト・練習問題もつなぐ
   const addShelfUnit = u => {
     if (!u) return;
     const made = { ...newUnit(), title: u.title || "新しい単元", content: u.content || "", learningGoals: arr(u.goals), exercises: arr(u.exercises).map(x => ({ ...x, id: makeLocalId("exercise") })) };
-    let d = lastDate();
-    made.chapters[0].lessons = Array.from({ length: Math.max(0, Number(u.days) || 0) }, () => { d = d ? nextWeekday(d) : ""; return newDay("", d); });
+    const d = lastDate();
+    made.chapters[0].lessons = [newDay("", d ? nextWeekday(d) : "")];
     setSections(xs => [...xs, made]);
     const fields = curriculumUnitScope(made, null, null, "section").fields;
     arr(u.testIds).forEach(id => { const raw = common.raw.find(t => testIdOf(t) === id) || fromCourse(id); if (raw) attachTest(raw, fields); });

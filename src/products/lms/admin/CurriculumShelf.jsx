@@ -17,7 +17,7 @@ import { SORTS, UnitKinds, matches, sortUnits, useShelf } from "./unitShelf.jsx"
    変えたらすぐ保存する。API は /curriculum-library。資料の実体は共有フォルダの「カリキュラムの資料」（講師まで）に置く */
 
 const FOLDER = "カリキュラムの資料";
-const newUnit = () => ({ id: makeLocalId("su"), title: "新しい単元", days: 3, goals: [], content: "", exercises: [], testIds: [], pracIds: [], files: [], at: todayStr() });
+const newUnit = () => ({ id: makeLocalId("su"), title: "新しい単元", goals: [], content: "", exercises: [], testIds: [], pracIds: [], files: [], at: todayStr() });
 const lines = t => String(t || "").split("\n").map(v => v.trim()).filter(Boolean);
 
 // 一覧から足す（テスト・練習問題）
@@ -115,10 +115,10 @@ export default function CurriculumShelf({ say, go }) {
   const saveEdit = () => {
     const d = dlg, name = String(d.name || "").trim();
     if (!name) return;
-    setU({ title: name, days: Math.max(1, Number(d.days) || 1), content: d.content || "", goals: lines(d.goals) });
+    setU({ title: name, content: d.content || "", goals: lines(d.goals) });
     setDlg(null);
   };
-  const exportXlsx = () => saveXlsx("単元", "単元", [["単元", "日数", "資料", "テスト", "練習問題", "使っているコース"], ...sortUnits(units, sort).map(u => [u.title, u.days, arr(u.files).map(f => f.name).join(" / "), arr(u.testIds).map(id => nameOf("test", id)).join(" / "), arr(u.pracIds).map(id => nameOf("prac", id)).join(" / "), courseNames(u).join(" / ")])]);
+  const exportXlsx = () => saveXlsx("単元", "単元", [["単元", "資料", "テスト", "練習問題", "使っているコース"], ...sortUnits(units, sort).map(u => [u.title, arr(u.files).map(f => f.name).join(" / "), arr(u.testIds).map(id => nameOf("test", id)).join(" / "), arr(u.pracIds).map(id => nameOf("prac", id)).join(" / "), courseNames(u).join(" / ")])]);
 
   const box = (cls, kind, title, n, body, adds, drop) => (
     <section className={`card lu-box ${cls}${drop && dropOn ? " on" : ""}`}
@@ -155,7 +155,7 @@ export default function CurriculumShelf({ say, go }) {
       )}
       {dlg?.kind === "uedit" && (
         <Modal title="単元を直す" width={520} onClose={() => setDlg(null)} footer={<><Btn kind="ghost" onClick={() => setDlg(null)}>やめる</Btn><Btn onClick={saveEdit}>保存</Btn></>}>
-          <div className="g2e"><label className="field">単元名<input type="text" maxLength={100} value={dlg.name} onChange={e => setDlg(d => ({ ...d, name: e.target.value }))} /></label><label className="field">日数<input type="number" min="1" value={dlg.days} onChange={e => setDlg(d => ({ ...d, days: e.target.value }))} /></label></div>
+          <label className="field">単元名<input type="text" maxLength={100} value={dlg.name} onChange={e => setDlg(d => ({ ...d, name: e.target.value }))} /></label>
           <label className="field">この単元で学ぶ内容<textarea rows={2} value={dlg.content} onChange={e => setDlg(d => ({ ...d, content: e.target.value }))} /></label>
           <label className="field">目標（1 行に 1 つ）<textarea rows={3} value={dlg.goals} onChange={e => setDlg(d => ({ ...d, goals: e.target.value }))} /></label>
         </Modal>
@@ -175,14 +175,13 @@ export default function CurriculumShelf({ say, go }) {
         <button type="button" className="lu-back" onClick={() => setUnitId("")}>← 単元</button>
         <div className="head"><h1 className="h1">{U.title || "名前なし"}</h1>
           <span className="r">
-            <Btn kind="ghost sm" onClick={() => setDlg({ kind: "uedit", name: U.title, days: U.days, content: U.content || "", goals: arr(U.goals).join("\n") })}>名前・日数を直す</Btn>
+            <Btn kind="ghost sm" onClick={() => setDlg({ kind: "uedit", name: U.title, content: U.content || "", goals: arr(U.goals).join("\n") })}>名前・内容を直す</Btn>
             <Btn kind="ghost sm" onClick={() => setUnitId(copyUnit(U).id)}>写す</Btn>
             <Btn kind="sm lu-danger ghost" onClick={() => setDlg({ kind: "del", ids: [U.id] })}>消す</Btn>
           </span>
         </div>
         {err && <div className="lms-err" role="alert">{err}</div>}
         <section className="card lu-meta">
-          <div><span>日数</span><b className="num">{U.days} 日</b></div>
           <div><span>中身</span><UnitKinds u={U} /></div>
           <div><span>使っているコース</span><span className="row">{used.length ? used.map(n => <Chip key={n}>{n}</Chip>) : <b>まだ</b>}</span></div>
         </section>
@@ -230,7 +229,7 @@ export default function CurriculumShelf({ say, go }) {
           return (
             <div key={u.id} className="lu-r">
               <input type="checkbox" className="lu-ck" checked={picked.includes(u.id)} aria-label={`${u.title} を選ぶ`} onChange={e => setPicked(p => (e.target.checked ? [...p, u.id] : p.filter(id => id !== u.id)))} />
-              <button type="button" className="lu-n" onClick={() => setUnitId(u.id)}><b>{u.title || "名前なし"}</b><small><span className="num">{u.days}</span> 日 ・ {n ? <><span className="num">{n}</span> コースで使用</> : "未使用"}</small></button>
+              <button type="button" className="lu-n" onClick={() => setUnitId(u.id)}><b>{u.title || "名前なし"}</b><small>{n ? <><span className="num">{n}</span> コースで使用</> : "未使用"}</small></button>
               <UnitKinds u={u} />
               <span className="lu-a"><button type="button" className="lu-ic" onClick={() => copyUnit(u)}>写す</button><button type="button" className="lu-ic del" onClick={() => setDlg({ kind: "del", ids: [u.id] })}>消す</button></span>
             </div>
