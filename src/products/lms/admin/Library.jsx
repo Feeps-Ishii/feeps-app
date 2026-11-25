@@ -116,7 +116,7 @@ function Lib({ kind, say }) {
       {lit && <LitModal kind={kind} row={lit} courses={lib.courses} cats={cats} say={say} onClose={() => setLit(null)} onEdit={r => { setLit(null); setEdit(r); }} onChanged={lib.reload} />}
       {newCat !== null && <Modal title="分類を足す" width={420} onClose={() => setNewCat(null)} footer={<><Btn kind="ghost" onClick={() => setNewCat(null)}>やめる</Btn><Btn onClick={addCat}>足す</Btn></>}><label className="field">分類の名前<input type="text" autoFocus maxLength={40} value={newCat} onChange={e => setNewCat(e.target.value)} /></label></Modal>}
       {making && kind === "test" && <TestFileModal onClose={() => setMaking(false)} onSaved={(t, s) => { setMaking(false); say?.(s === "published" ? `「${t.title}」を公開しました` : `「${t.title}」を下書きで保存しました`); lib.reload(); }} />}
-      {making && kind === "prac" && <CreateModal courseId="common" onClose={() => setMaking(false)} onMade={id => { setMaking(false); setEdit({ id }); }} />}
+      {making && kind === "prac" && <CreateModal courseId="common" onClose={() => setMaking(false)} onMade={(id, s) => { setMaking(false); say?.(s === "published" ? "練習問題を公開しました" : "練習問題を下書きで保存しました"); lib.reload(); }} />}
     </div>
   );
 }

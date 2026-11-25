@@ -1,8 +1,9 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { apiDelete, apiGet, apiPost, apiPut } from "../../../api.js";
 import { CodeBlock, Items, Sheet, Style } from "../../training/PracticeView.jsx";
 import { normalizeCurriculumSections } from "../../training/TrainingComponents.jsx";
 import { Btn, Card, Chip, Modal } from "../parts/ui.jsx";
+import { DropBox } from "../staff/TestFile.jsx";
 import { arr, errText, md, useRoster, useStaffCourse } from "../staff/common.js";
 import { todayStr } from "../../training/useTraining.js";
 
@@ -30,38 +31,75 @@ async function putFile(url, file, contentType) {
   if (!r.ok) throw new Error(`「${file.name}」を送れませんでした（${r.status}）`);
 }
 
+// 練習問題を作る（テストを作る窓と同じ形）：① 問題と解答を選ぶ → ② 読み取る（AI が問題集にする）→ ③ 確かめて保存。
+// ② が終わった時点で下書きができている。onMade(id, "draft" | "published")
 export function CreateModal({ courseId, initial, onClose, onMade }) {
-  const [title, setTitle] = useState("");
+  const [step, setStep] = useState(1);
+  const [title, setTitle] = useState(""); const [show, setShow] = useState(true);
   const [prob, setProb] = useState(initial?.prob || null); const [ans, setAns] = useState(initial?.ans || null);
-  const [busy, setBusy] = useState(""); const [err, setErr] = useState("");
+  const [made, setMade] = useState(null); const [sec, setSec] = useState(0);
+  const [busy, setBusy] = useState(false); const [err, setErr] = useState("");
+  const alive = useRef(true);
+  useEffect(() => { alive.current = true; return () => { alive.current = false; }; }, []);
   const isDocx = f => !f || /\.docx$/i.test(f.name);
-  const make = async () => {
-    if (!prob) { setErr("問題の Word を選んでください"); return; }
-    if (!isDocx(prob) || !isDocx(ans)) { setErr("Word（.docx）を選んでください"); return; }
-    setErr(""); setBusy("Word を送っています");
+  const read = async () => {
+    if (!prob) { setErr("問題の Word を入れてください"); return; }
+    if (!isDocx(prob) || !isDocx(ans)) { setErr("Word（.docx）を入れてください"); return; }
+    setErr(""); setStep(2); setSec(0);
     try {
       const c = await apiPost("/practice", { courseId, title: title.trim() });
       await putFile(c.uploads.problem, prob, c.uploads.contentType);
       if (ans) await putFile(c.uploads.answer, ans, c.uploads.contentType);
-      setBusy("AI が問題集にしています");
       const { jobId } = await apiPost(`/practice/${pid(c.item.id)}/build${q(courseId)}`, { hasAnswer: !!ans, problemName: prob.name, answerName: ans?.name || "" });
-      await waitJob(courseId, c.item.id, jobId, i => setBusy(`AI が問題集にしています（${(i + 1) * 5} 秒）`));
-      // 単元から作ったときは、その単元に結ぶ
-      if (initial?.sectionId) {
-        const g = await apiGet(`/practice/${pid(c.item.id)}${q(courseId)}`);
-        await apiPut(`/practice/${pid(c.item.id)}${q(courseId)}`, { title: g.set.title, lessons: g.set.lessons.map(l => ({ ...l, sectionId: initial.sectionId })), warnings: g.set.warnings || [], showAnswers: g.item.showAnswers !== false, dueDate: g.item.dueDate || "" });
-      }
-      onMade(c.item.id);
-    } catch (e) { setErr(errText(e, "作れませんでした")); setBusy(""); }
+      await waitJob(courseId, c.item.id, jobId, i => { if (alive.current) setSec((i + 1) * 5); });
+      const g = await apiGet(`/practice/${pid(c.item.id)}${q(courseId)}`);
+      if (alive.current) { setMade({ id: c.item.id, item: g.item, set: g.set }); setStep(3); }
+    } catch (e) { if (alive.current) { setErr(errText(e, "読み取れませんでした")); setStep(1); } }
   };
+  const save = async status => {
+    setBusy(true); setErr("");
+    const { id, item, set } = made;
+    try {
+      // 単元から作ったとき・解答を見せないときは、中身ごと保存し直す
+      if (initial?.sectionId || !show) await apiPut(`/practice/${pid(id)}${q(courseId)}`, { title: set.title, lessons: set.lessons.map(l => (initial?.sectionId ? { ...l, sectionId: initial.sectionId } : l)), warnings: set.warnings || [], showAnswers: show, dueDate: item.dueDate || "" });
+      if (status === "published") await apiPost(`/practice/${pid(id)}/publish${q(courseId)}`, {});
+      onMade(id, status);
+    } catch (e) { setErr(errText(e, "保存できませんでした")); setBusy(false); }
+  };
+  const qs = made ? arr(made.set?.lessons).flatMap(l => arr(l.questions)) : [];
+  const answered = qs.filter(x => x.answer).length;
+  const foot = step === 1 ? <><Btn kind="ghost" onClick={onClose}>やめる</Btn><Btn onClick={read}>読み取る</Btn></>
+    : step === 2 ? <Btn kind="ghost" onClick={onClose}>やめる</Btn>
+      : <><Btn kind="ghost" disabled={busy} onClick={() => save("draft")}>下書きで保存</Btn><Btn disabled={busy || !qs.length} onClick={() => save("published")}>公開する</Btn></>;
   return (
-    <Modal title="練習問題を作る" width={520} onClose={() => !busy && onClose()} footer={<><Btn kind="ghost" disabled={!!busy} onClick={onClose}>やめる</Btn><Btn disabled={!!busy} onClick={make}>問題集を作る</Btn></>}>
-      {initial?.sectionTitle && <span><Chip tone="mk">単元：{initial.sectionTitle}</Chip></span>}
-      <label className="field">問題の Word（必須）<input type="file" accept=".docx" disabled={!!busy} onChange={e => setProb(e.target.files?.[0] || null)} />{prob && <small className="adsm">{prob.name}</small>}</label>
-      <label className="field">解答の Word<input type="file" accept=".docx" disabled={!!busy} onChange={e => setAns(e.target.files?.[0] || null)} />{ans && <small className="adsm">{ans.name}</small>}</label>
-      <label className="field">題名（空なら Word から）<input type="text" maxLength={120} value={title} disabled={!!busy} onChange={e => setTitle(e.target.value)} /></label>
-      {busy && <Chip tone="mk">{busy}</Chip>}
+    <Modal title="練習問題を作る" width={720} onClose={() => (step === 3 ? !busy && save("draft") : onClose())} footer={foot}>
+      <div className="steps">{["① 問題と解答を選ぶ", "② 読み取る", "③ 確かめて保存"].map((x, i) => <span key={x} className={step === i + 1 ? "on" : step > i + 1 ? "done" : ""}>{x}</span>)}</div>
       {err && <div className="lms-err" role="alert">{err}</div>}
+      {step === 1 && (
+        <>
+          {initial?.sectionTitle && <span><Chip tone="mk">単元：{initial.sectionTitle}</Chip></span>}
+          <label className="field">練習問題の名前<input type="text" maxLength={120} value={title} placeholder="空なら Word の題名" onChange={e => setTitle(e.target.value)} /></label>
+          <div className="g2e"><DropBox label="問題の Word" file={prob} onFile={setProb} accept=".docx" /><DropBox label="解答の Word" file={ans} onFile={setAns} accept=".docx" /></div>
+          <div className="rowsx"><div><span>作り方</span><b>AI が Word を読んで問題集にする</b></div></div>
+          <span className="checks"><label className={show ? "on" : ""}><input type="checkbox" checked={show} onChange={e => setShow(e.target.checked)} />解き終わったら解答を見せる</label></span>
+        </>
+      )}
+      {step === 2 && <><div className="empty">問題と解答を読み取っています…{sec ? `（${sec} 秒）` : ""}</div><span className="bar10"><i style={{ "--w": `${Math.min(92, 20 + sec)}%` }} /></span></>}
+      {step === 3 && made && (
+        <>
+          <div className="okmsg">{qs.length} 問・解答 {answered} を読み取りました（下書き）</div>
+          {arr(made.set?.warnings).map(w => <span key={w}><Chip tone="warn">{w}</Chip></span>)}
+          <div className="scroll"><table className="tbl"><thead><tr><th>#</th><th>問題</th><th>解答</th><th>ヒント</th></tr></thead><tbody>
+            {qs.map((x, i) => (
+              <tr key={x.id || i}>
+                <td className="num">{i + 1}</td><td>{x.title || `問題${x.n || i + 1}`}</td>
+                <td><Chip tone={x.answer ? "mk" : "warn"}>{x.answer ? "あり" : "解答なし"}</Chip></td>
+                <td className="num">{arr(x.hints).length}</td>
+              </tr>
+            ))}
+          </tbody></table></div>
+        </>
+      )}
     </Modal>
   );
 }
@@ -314,7 +352,7 @@ export default function InstructorPractice({ say }) {
       )}
       {adding && <AddCommon courseId={courseId} sections={sections} onClose={() => setAdding(false)} onDone={x => { setAdding(false); say?.(`${x?.title || "練習問題"} を下書きで足しました`); setKey(k => k + 1); }} />}
       {up && <LibUp set={up.s} courseId={courseId} qn={up.qn} onClose={() => setUp(null)} onDone={() => { setUp(null); say?.("全コース共通にしました"); setKey(k => k + 1); }} />}
-      {making && <CreateModal courseId={courseId} initial={making} onClose={() => setMaking(null)} onMade={id => { setMaking(null); setEditing(id); }} />}
+      {making && <CreateModal courseId={courseId} initial={making} onClose={() => setMaking(null)} onMade={(id, s) => { setMaking(null); say?.(s === "published" ? "練習問題を公開しました" : "練習問題を下書きで保存しました"); setKey(k => k + 1); }} />}
     </div>
   );
 }

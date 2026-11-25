@@ -162,7 +162,7 @@ export default function CurriculumShelf({ say, go }) {
       )}
       {dlg?.kind === "pick" && U && <PickModal kind={dlg.pick} lib={libOf(dlg.pick)} has={arr(U[dlg.pick === "test" ? "testIds" : "pracIds"])} onClose={() => setDlg(null)} onPick={ids => { const key = dlg.pick === "test" ? "testIds" : "pracIds"; setU({ [key]: [...arr(U[key]), ...ids] }); setDlg(null); }} />}
       {dlg?.kind === "tnew" && U && <TestFileModal onClose={() => setDlg(null)} onSaved={(t, s) => { setDlg(null); setU({ testIds: [...arr(U.testIds), t.testId] }); tests.reload(); say?.(s === "published" ? `「${t.title}」を公開しました` : `「${t.title}」を下書きで保存しました`); }} />}
-      {dlg?.kind === "pnew" && U && <CreateModal courseId="common" onClose={() => setDlg(null)} onMade={id => { setDlg(null); setU({ pracIds: [...arr(U.pracIds), id] }); pracs.reload(); setEditPrac(id); }} />}
+      {dlg?.kind === "pnew" && U && <CreateModal courseId="common" onClose={() => setDlg(null)} onMade={(id, s) => { setDlg(null); setU({ pracIds: [...arr(U.pracIds), id] }); pracs.reload(); say?.(s === "published" ? "練習問題を公開しました" : "練習問題を下書きで保存しました"); }} />}
       {lit && <LitModal kind={lit.kind} row={lit.row} courses={libOf(lit.kind).courses} cats={[...new Set(libOf(lit.kind).rows.map(x => x.cat).filter(Boolean))]} say={say} onClose={() => setLit(null)} onChanged={libOf(lit.kind).reload} onEdit={r => { setLit(null); if (lit.kind === "prac") setEditPrac(r.id); else go?.("ltest"); }} />}
     </>
   );

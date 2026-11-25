@@ -14,11 +14,11 @@ export const takeTestFiles = files => {
   return { ans, prob: list.find(f => f !== ans) || null };
 };
 
-export function DropBox({ label, file, onFile, disabled }) {
+export function DropBox({ label, file, onFile, disabled, accept = ".docx,.xlsx,.xls,.csv" }) {
   return (
     <label className={`drop${file ? " on" : ""}`} onDragOver={e => e.preventDefault()} onDrop={e => { e.preventDefault(); const f = e.dataTransfer.files?.[0]; if (f && !disabled) onFile(f); }}>
       <b>{label}</b><span>{file?.name || "ここに落とす"}</span>
-      <input type="file" accept=".docx,.xlsx,.xls,.csv" className="lms-sr" disabled={disabled} aria-label={label} onChange={e => { const f = e.target.files?.[0]; e.target.value = ""; if (f) onFile(f); }} />
+      <input type="file" accept={accept} className="lms-sr" disabled={disabled} aria-label={label} onChange={e => { const f = e.target.files?.[0]; e.target.value = ""; if (f) onFile(f); }} />
     </label>
   );
 }
