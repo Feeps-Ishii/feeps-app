@@ -76,7 +76,7 @@ function CodeDrill({ item, topic, back, go, rec, progress }) {
           onAnswer={item.hasAnswer ? onAnswer : null} answerState={answerState} onAsk={canAsk ? q => askRef.current?.(q) : null} />
         {saveErr && <div className="verdict ng" role="alert">{saveErr}</div>}
       </div>
-      {canAsk && <DrillAsk item={item} code={code} last={last} askRef={askRef} />}
+      {canAsk && <DrillAsk item={item} code={code} last={last} askRef={askRef} ai={ctx.ai} onSpent={ctx.spendAi} />}
       {topic && (
         <div className="card flat" style={{ marginTop: 14, padding: "14px 18px", display: "flex", flexWrap: "wrap", gap: 12, alignItems: "center" }}>
           <span className="muted" style={{ fontSize: 13 }}>この演習の単元</span><button type="button" className="btn ghost" onClick={() => go(`#/topics/${topic.id}`)}>{topic.name}</button>
@@ -86,9 +86,15 @@ function CodeDrill({ item, topic, back, go, rec, progress }) {
   );
 }
 
+// AI の今月の残り（企業の人だけ）。少なくなったら黄色・なくなったら赤
+export function AiLeft({ ai }) {
+  const tone = ai.left <= 0 ? "ng" : ai.left <= 10 ? "warn" : "";
+  return <span className={`chip ${tone} num`} style={{ marginLeft: "auto" }} title={`今月 ${ai.usedMonth} / ${ai.perMonth} 回 ・ 今日 ${ai.usedDay} / ${ai.perDay} 回`}>残り {ai.left} 回</span>;
+}
+
 /* 演習のコードについて AI に聞く（2026-10-13）。いまのコードと最後の実行結果を一緒に送る。答えのコードは返さない */
 const ASK_SUGG = { java: ["ヒントだけほしい", "この書き方で合ってる？", "エラーの意味は？"], web: ["ヒントだけほしい", "どこを見ればいい？", "思ったとおりに見えないのはなぜ？"] };
-function DrillAsk({ item, code, last, askRef }) {
+function DrillAsk({ item, code, last, askRef, ai, onSpent }) {
   const [msgs, setMsgs] = useState([]);
   const [sugg, setSugg] = useState(ASK_SUGG[item.runtime] || ASK_SUGG.java);
   const [text, setText] = useState("");
@@ -115,6 +121,7 @@ function DrillAsk({ item, code, last, askRef }) {
       const a = res?.answer || "うまく答えられませんでした。聞き方を変えてみてください。";
       hist.current.push({ role: "user", text: v }, { role: "assistant", text: a });
       setMsgs(m => [...m, { who: "ai", text: a }]);
+      onSpent?.();
       if (Array.isArray(res?.followUps) && res.followUps.length) setSugg(res.followUps);
     } catch (e) {
       setMsgs(m => [...m, { who: "ai", text: e?.errorMessage || "回答を作れませんでした。時間をおいてお試しください。" }]);
@@ -123,7 +130,7 @@ function DrillAsk({ item, code, last, askRef }) {
   useEffect(() => { if (askRef) askRef.current = q => { box.current?.scrollIntoView({ behavior: "smooth", block: "center" }); ask(q); }; });
   return (
     <section className="card drill-ask" ref={box} aria-label="AIに聞く">
-      <div className="row"><b>AIに聞く</b><span className="sees"><span>課題</span><span>コード</span><span>実行結果</span></span></div>
+      <div className="row"><b>AIに聞く</b><span className="sees"><span>課題</span><span>コード</span><span>実行結果</span></span>{ai && <AiLeft ai={ai} />}</div>
       {msgs.length > 0 && (
         <div className="log" ref={logRef} aria-live="polite">
           {msgs.map((m, k) => <div key={k} className={`msg ${m.who === "me" ? "me" : ""}`}>{m.who !== "me" && <span className="who">AI</span>}<div className="b">{String(m.text).split(/(`[^`\n]+`)/).map((t, j) => (/^`[^`\n]+`$/.test(t) ?<code key={j}>{t.slice(1, -1)}</code> : <React.Fragment key={j}>{t}</React.Fragment>))}</div></div>)}

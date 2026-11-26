@@ -69,6 +69,18 @@ const NO_ELEARNING = "DevHub Learning を使える契約がありません。研
 const startHash = role => (role === "admin" ? "#/manage" : role === "client" ? "#/company" : "#/home");
 const SECTION = { home: "home", topic: "home", list: null, course: "courses", lesson: "courses", test: "courses", drill: "drills", case: "cases", aws: "aws" };
 
+// 契約と公開の期間の外（2026-11-26）。始まる前・終わったあと
+function GateClosed({ gate }) {
+  const d = v => (v ? v.replaceAll("-", "/") : "");
+  const before = gate.phase === "before" || (gate.openFrom && gate.phase === "active");
+  return (
+    <div className="card flat" style={{ padding: 24, marginTop: 24, display: "grid", gap: 8, maxWidth: 560 }} role="status">
+      <b style={{ fontSize: 17 }}>{before ? "まだ始まっていません" : "ご利用の期間が終わりました"}</b>
+      <span className="muted">{before ? `${d(gate.openFrom || gate.startDate) || "開始日"} から使えます。` : "続けて使うときは、お勤め先の研修のご担当者に聞いてください。"}</span>
+    </div>
+  );
+}
+
 export default function TenolabApp() {
   const [route, setRoute] = useState(parseHash);
   const [auth, setAuth] = useState({ state: "loading", name: "", email: "", role: "" }); // loading | in | out
@@ -273,7 +285,10 @@ function App({ route, auth, onLogout }) {
     } } }));
     go("#/drills");
   }, [go]);
-  const ctx = { lrn, topics, courses, drills, cases, premium, staff, go, back, progress, resume, reloadCases: casesQ.reload, notices, openLessonDrills };
+  // AI の今月の残り（企業の人だけ。答えが返るたびに画面で 1 減らす。2026-11-26）
+  const ai = !staff ? me.data?.ai || null : null;
+  const spendAi = useCallback(() => me.setData(d => (d?.ai ? { ...d, ai: { ...d.ai, left: Math.max(0, d.ai.left - 1), usedMonth: d.ai.usedMonth + 1, usedDay: d.ai.usedDay + 1 } } : d)), []); // eslint-disable-line react-hooks/exhaustive-deps
+  const ctx = { lrn, topics, courses, drills, cases, premium, staff, go, back, progress, resume, reloadCases: casesQ.reload, notices, openLessonDrills, ai, spendAi };
   const noticeDrawerEl = <NoticeDrawer notices={notices} courseTitle={id => lrn.courseById?.(id)?.title || ""} onCourse={id => go(`#/courses/${id}`)} />;
   const loading = [topicsQ, me].some(q => q.state === "loading") || lrn.courseCatalogState === "loading";
   // 「研修のみ」の契約の人は入れない（ログイン済みのまま開いたときもここで戻す）
@@ -305,8 +320,16 @@ function App({ route, auth, onLogout }) {
     );
   }
 
+  // 企業ごとの設定（2026-11-26）：契約と公開の期間の外は入れない。公開していない機能はメニューから外し、開いたら止める
+  const gate = !staff ? me.data?.gate : null;
+  const feat = !staff ? me.data?.features : null;
+  const featOff = { courses: feat && !feat.lesson, drills: feat && !feat.drill, cases: feat && !feat.case, aws: feat && !feat.aws };
+  const navList = (hasAws && !featOff.aws ? AWS_NAV : LEARNER_NAV).filter(([k]) => !featOff[k]);
+  const pageKind = route.page === "list" ? route.kind : SECTION[route.page];
   let page;
-  if (route.page === "company") page = <p className="muted" style={{ paddingTop: 24 }}>この画面は企業担当者だけが使えます。</p>;
+  if (gate && !gate.view && !["account", "record"].includes(route.page)) page = <GateClosed gate={gate} />;
+  else if (pageKind && featOff[pageKind]) page = <p className="muted" style={{ paddingTop: 24 }}>この機能は、お勤め先の契約では使えません。</p>;
+  else if (route.page === "company") page = <p className="muted" style={{ paddingTop: 24 }}>この画面は企業担当者だけが使えます。</p>;
   else if (route.page === "manage") page = <p className="muted" style={{ paddingTop: 24 }}>この画面は管理者だけが使えます。</p>;
   else if (failed) page = <LoadError onRetry={() => { topicsQ.reload(); me.reload(); }} />;
   else if (loading) page = <Loading />;
@@ -331,7 +354,7 @@ function App({ route, auth, onLogout }) {
     : <p className="muted" style={{ paddingTop: 24 }}>契約は、お勤め先の研修のご担当者が管理しています。</p>;
 
   return (
-    <Shell nav={hasAws ? AWS_NAV : LEARNER_NAV} section={route.page === "list" ? route.kind : route.page === "drill" && drills.find(d => d.id === route.id)?.runtime === "aws" ? "aws" : SECTION[route.page]} name={auth.name} email={auth.email} role={auth.role} switchLink={admin ? ["#/manage", "管理の画面"] : client ? ["#/company", "企業の画面"] : null} onLogout={() => onLogout()} onRename={auth.rename} notices={notices}>
+    <Shell nav={navList} section={route.page === "list" ? route.kind : route.page === "drill" && drills.find(d => d.id === route.id)?.runtime === "aws" ? "aws" : SECTION[route.page]} name={auth.name} email={auth.email} role={auth.role} switchLink={admin ? ["#/manage", "管理の画面"] : client ? ["#/company", "企業の画面"] : null} onLogout={() => onLogout()} onRename={auth.rename} notices={notices}>
       {page}
       {noticeDrawerEl}
     </Shell>

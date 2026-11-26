@@ -27,6 +27,18 @@ const ERROR_TEXT = {
   case_limit: "Pro プランで参画できる本格案件は2本までです。もっと参画するには Pro+ にしてください。",
   plan_plus_required: "AWS の案件は Pro+ プランで利用できます。",
   ai_limit_reached: "今月の AI コーチの回数を使い切りました。来月になると、また使えます。",
+  // 企業ごとの上限・契約と公開の期間（2026-11-26、utils/aiQuota.mjs・companySettings.mjs）
+  ai_day_limit: "今日の AI の回数を使い切りました。明日になると、また使えます。",
+  ai_company: "今月の AI は、お勤め先の上限に達しました。研修のご担当者に聞いてください。",
+  ai_global: "AI は今、使えません。しばらくしてからお試しください。",
+  ai_off: "AI は、お勤め先の契約では使えません。",
+  feature_off: "この機能は、お勤め先の契約では使えません。",
+  not_open: "まだ使える期間になっていません。",
+  contract_readonly: "契約が終わったので、見るだけになっています。これまでの記録は見られます。",
+  contract_closed: "ご利用の期間が終わりました。研修のご担当者に聞いてください。",
+  aws_day_exceeded: "今日の本物の AWS の時間を使い切りました。明日になると、また使えます。",
+  aws_company_exceeded: "今月の本物の AWS は、お勤め先の上限に達しました。研修のご担当者に聞いてください。",
+  aws_off: "本物の AWS の実習は、お勤め先の契約では使えません。",
 };
 
 async function throwApiError(res, path, method) {

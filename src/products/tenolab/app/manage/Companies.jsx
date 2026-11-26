@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useState } from "react";
 import { apiPost } from "../../../../api.js";
 import { admin } from "../data.js";
 import MaterialScope from "./MaterialScope.jsx";
+import { ContractExtra, LimitTab, PublishTab, useCompanySettings } from "./CompanyLimits.jsx";
 import { Title, yen, usdToYen, PLAN_LABEL, fmtTime } from "./parts.jsx";
 
 /* 企業と契約（モック tenolab-admin.html の companies・company。ADR 0025 §5）
@@ -31,6 +32,16 @@ export function seatText(c) {
   return `${used} / ${total}`;
 }
 
+// 契約の終わりが 30 日以内なら「あと n 日」、過ぎていたら「終了」（2026-11-26）
+function EndSoon({ end }) {
+  if (!end) return null;
+  const today = new Date(Date.now() + 9 * 3600e3).toISOString().slice(0, 10);
+  const days = Math.round((Date.parse(end) - Date.parse(today)) / 864e5);
+  if (days < 0) return <> <span className="chip">終了</span></>;
+  if (days <= 30) return <> <span className="chip warn">あと {days} 日</span></>;
+  return null;
+}
+
 export function CompanyTable({ list, rate, go, compact }) {
   return (
     <div className="tblwrap"><table className="mtbl" style={{ minWidth: compact ? 520 : 760 }}>
@@ -45,7 +56,7 @@ export function CompanyTable({ list, rate, go, compact }) {
             <td className="rt num">{c.elearning && c.contract.feeMonthly ? yen(c.contract.feeMonthly) : "—"}</td>
             <td className="rt num">{c.elearning ? yen(usdToYen(c.usage.aiUsd, rate)) : "—"}</td>
             <td className="rt num">{c.elearning && c.learningPlan === "premium" ? yen(usdToYen(c.usage.awsUsd, rate)) : "—"}</td>
-            {!compact && <td className="num" style={{ whiteSpace: "nowrap" }}>{c.elearning && (c.contract.startMonth || c.contract.endMonth) ? `${c.contract.startMonth || "?"}〜${c.contract.endMonth || ""}` : "—"}</td>}
+            {!compact && <td className="num" style={{ whiteSpace: "nowrap" }}>{c.elearning && (c.contract.startDate || c.contract.endDate) ? <>{`${(c.contract.startDate || "?").replaceAll("-", "/")}〜${(c.contract.endDate || "").replaceAll("-", "/")}`}<EndSoon end={c.contract.endDate} /></> : "—"}</td>}
           </tr>
         ))}
       </tbody>
@@ -104,7 +115,7 @@ function AddCompany({ names, onCancel, onDone }) {
       try {
         await admin.saveCompany(id, { elearning: true, learningPlan: f.learningPlan, billingMode: f.billingMode,
           seats: f.billingMode === "seat" ? { standard: 0, premium: 0 } : undefined,
-          contract: { feeMonthly: 0, startMonth: "", endMonth: "", awsCapMonthly: 0 } });
+          contract: { feeMonthly: 0, startDate: "", endDate: "", startMonth: "", endMonth: "", awsCapMonthly: 0 } });
       } catch (e2) { console.warn("company contract save failed", e2); }
       onDone(id);
     } catch (e2) {
@@ -132,6 +143,8 @@ function AddCompany({ names, onCancel, onDone }) {
   );
 }
 
+const CO_TABS = [["", "契約"], ["pub", "公開"], ["scope", "使える教材"], ["ai", "AI の上限"], ["aws", "AWS の上限"]];
+
 function Company({ c, d, go, onSaved, tab, topics }) {
   const [f, setF] = useState(() => ({
     elearning: c.elearning,
@@ -140,6 +153,7 @@ function Company({ c, d, go, onSaved, tab, topics }) {
     seats: { standard: c.seats.standard.total, premium: c.seats.premium.total },
     contract: { ...c.contract },
   }));
+  const st = useCompanySettings(c.companyId);
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState({ kind: "", text: "" });
   const set = (k, v) => setF(x => ({ ...x, [k]: v }));
@@ -147,21 +161,31 @@ function Company({ c, d, go, onSaved, tab, topics }) {
   const off = !f.elearning;
   const aiYen = usdToYen(c.usage.aiUsd, d.rate), awsYen = usdToYen(c.usage.awsUsd, d.rate);
   const learningOnly = c.contractMode === "learning";
+  const t = CO_TABS.some(([k]) => k === tab) ? tab : "";
+  const base = `#/manage/companies/${encodeURIComponent(c.companyId)}`;
 
+  // 契約のタブは契約（CURRENT）と期間の効き方（設定）、ほかのタブは設定（公開・上限、2026-11-26）だけを保存する
   async function save() {
     setBusy(true); setMsg({ kind: "", text: "" });
     try {
-      await admin.saveCompany(c.companyId, {
-        elearning: f.elearning, learningPlan: f.learningPlan, billingMode: f.billingMode,
-        seats: f.billingMode === "seat" ? { standard: Number(f.seats.standard) || 0, premium: Number(f.seats.premium) || 0 } : undefined,
-        contract: { feeMonthly: Number(f.contract.feeMonthly) || 0, startMonth: f.contract.startMonth, endMonth: f.contract.endMonth, awsCapMonthly: Number(f.contract.awsCapMonthly) || 0 },
-      });
+      if (t === "") {
+        await admin.saveCompany(c.companyId, {
+          elearning: f.elearning, learningPlan: f.learningPlan, billingMode: f.billingMode,
+          seats: f.billingMode === "seat" ? { standard: Number(f.seats.standard) || 0, premium: Number(f.seats.premium) || 0 } : undefined,
+          contract: { feeMonthly: Number(f.contract.feeMonthly) || 0, startDate: f.contract.startDate || "", endDate: f.contract.endDate || "", startMonth: f.contract.startMonth || "", endMonth: f.contract.endMonth || "", awsCapMonthly: Number(f.contract.awsCapMonthly) || 0 },
+        });
+      }
+      if (st.dirty) await st.save();
       setMsg({ kind: "ok", text: "保存しました。" });
-      onSaved();
+      if (t === "") onSaved();
     } catch (e) {
       setMsg({ kind: "ng", text: e?.errorMessage || "保存できませんでした。" });
     } finally { setBusy(false); }
   }
+
+  const settingsWait = st.state === "error"
+    ? <div className="card flat" style={{ padding: 16 }} role="alert">設定を読み込めませんでした。 <button type="button" className="btn ghost" onClick={st.reload}>もう一度</button></div>
+    : st.state === "loading" ? <p className="muted">読み込んでいます…</p> : null;
 
   return (
     <>
@@ -170,14 +194,17 @@ function Company({ c, d, go, onSaved, tab, topics }) {
           <button type="button" className="back" onClick={() => go("#/manage/companies")}>← 企業と契約</button>
           <h1 className="h1" style={{ marginTop: 6 }}>{c.name} {c.lms && <LmsTag />}</h1>
         </div>
-        <div className="r"><button type="button" className="btn ghost" onClick={() => go(`#/manage/accounts/${encodeURIComponent(c.companyId)}`)}>アカウントを発行</button>{tab !== "scope" && <button type="button" className="btn" onClick={save} disabled={busy}>{busy ? "保存しています…" : "保存"}</button>}</div>
+        <div className="r"><button type="button" className="btn ghost" onClick={() => go(`#/manage/accounts/${encodeURIComponent(c.companyId)}`)}>アカウントを発行</button>{t !== "scope" && <button type="button" className="btn" onClick={save} disabled={busy}>{busy ? "保存しています…" : st.dirty ? "保存（未保存の変更あり）" : "保存"}</button>}</div>
       </div>
       <div className="tabs-h" role="tablist" style={{ marginBottom: 14 }}>
-        <button type="button" role="tab" aria-selected={tab !== "scope"} onClick={() => go(`#/manage/companies/${encodeURIComponent(c.companyId)}`)}>契約</button>
-        <button type="button" role="tab" aria-selected={tab === "scope"} onClick={() => go(`#/manage/companies/${encodeURIComponent(c.companyId)}/scope`)}>使える教材</button>
+        {CO_TABS.map(([k, l]) => <button key={k || "contract"} type="button" role="tab" aria-selected={t === k} onClick={() => go(k ? `${base}/${k}` : base)}>{l}</button>)}
       </div>
-      {tab === "scope" ? <MaterialScope companyId={c.companyId} topics={topics} /> : <>
       {msg.text && <div className={`verdict ${msg.kind}`} role={msg.kind === "ng" ? "alert" : "status"} style={{ marginBottom: 12 }}>{msg.text}</div>}
+      {t === "scope" && <MaterialScope companyId={c.companyId} topics={topics} />}
+      {(t === "pub" || t === "ai" || t === "aws") && (settingsWait || (t === "pub"
+        ? <PublishTab st={st} contract={{ startDate: f.contract.startDate, endDate: f.contract.endDate }} topics={topics} companyId={c.companyId} />
+        : <LimitTab st={st} kind={t} companyId={c.companyId} />))}
+      {t === "" && <>
       <div className="mtwo" style={{ marginTop: 0 }}>
         <div style={{ display: "grid", gap: 16, alignContent: "start" }}>
           <section className="card msec">
@@ -194,12 +221,12 @@ function Company({ c, d, go, onSaved, tab, topics }) {
                 <label className="mfield"><span>スタンダードの枠（使用 {c.seats.standard.used}）</span><input id={`ss-${c.companyId}`} type="number" min={c.seats.standard.used} value={f.seats.standard} disabled={off} onChange={e => set("seats", { ...f.seats, standard: e.target.value })} /></label>
                 <label className="mfield"><span>Premiumの枠（使用 {c.seats.premium.used}）</span><input id={`sp-${c.companyId}`} type="number" min={c.seats.premium.used} value={f.seats.premium} disabled={off} onChange={e => set("seats", { ...f.seats, premium: e.target.value })} /></label>
               </>}
-              <label className="mfield"><span>開始</span><input id={`from-${c.companyId}`} type="month" value={f.contract.startMonth} disabled={off} onChange={e => setC("startMonth", e.target.value)} /></label>
-              <label className="mfield"><span>終了</span><input id={`to-${c.companyId}`} type="month" value={f.contract.endMonth} disabled={off} onChange={e => setC("endMonth", e.target.value)} /></label>
+              <label className="mfield"><span>契約の始まり</span><input id={`from-${c.companyId}`} type="date" value={f.contract.startDate || ""} disabled={off} onChange={e => setC("startDate", e.target.value)} /></label>
+              <label className="mfield"><span>契約の終わり</span><input id={`to-${c.companyId}`} type="date" value={f.contract.endDate || ""} disabled={off} onChange={e => setC("endDate", e.target.value)} /></label>
               <label className="mfield"><span>月の契約金額（円）</span><input id={`fee-${c.companyId}`} type="number" min="0" step="1000" value={f.contract.feeMonthly} disabled={off} onChange={e => setC("feeMonthly", e.target.value)} /></label>
-              <label className="mfield"><span>AWSの使用料の上限/月（円）</span><input id={`cap-${c.companyId}`} type="number" min="0" step="1000" value={f.contract.awsCapMonthly} disabled={off || f.learningPlan !== "premium"} onChange={e => setC("awsCapMonthly", e.target.value)} /></label>
             </div>
           </section>
+          {!off && (settingsWait || <ContractExtra st={st} contract={{ startDate: f.contract.startDate, endDate: f.contract.endDate }} go={go} companyId={c.companyId} />)}
           <section className="card msec">
             <h2>企業担当者</h2>
             {c.clients.length ? <ul className="todo">{c.clients.map((n, i) => <li key={i}><span>{n}</span></li>)}</ul> : <p className="muted" style={{ margin: 0 }}>いません。</p>}
@@ -214,9 +241,6 @@ function Company({ c, d, go, onSaved, tab, topics }) {
                 <div><span>AWSの演習の環境{c.usage.awsMinutes ? `（${Math.round(c.usage.awsMinutes / 6) / 10}時間）` : ""}</span><span className="num">{c.learningPlan === "premium" ? yen(awsYen) : "—"}</span></div>
                 <div className="total"><span>合計</span><span className="num">{yen(aiYen + awsYen)}</span></div>
               </div>
-              {c.contract.awsCapMonthly > 0 && c.learningPlan === "premium" && (
-                <div><span className="muted" style={{ fontSize: 12 }}>AWS {yen(awsYen)} / 上限 {yen(c.contract.awsCapMonthly)}</span><span className="meter"><i style={{ width: `${Math.min(100, awsYen / c.contract.awsCapMonthly * 100)}%`, background: "var(--aws, #F29A38)" }} /></span></div>
-              )}
               <span className="muted" style={{ fontSize: 12 }}>概算 ・ 1ドル{d.rate}円 ・ AWSは{d.awsCost?.through || "—"}まで</span>
             </> : <p className="muted" style={{ margin: 0 }}>Eラーニングなし</p>}
           </section>

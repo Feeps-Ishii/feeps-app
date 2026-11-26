@@ -25,7 +25,9 @@ function useGet(path, { enabled = true, pick = x => x } = {}) {
 // 自分の契約（Premium かどうか）とロール
 export function useMe(enabled) {
   // elearning：false は「研修のみ」の契約の企業の人（テノラボには入れない）。返ってこないときは入れる
-  return useGet("/tenolab/me", { enabled, pick: r => ({ plan: r?.plan || "basic", premium: !!r?.premium, role: r?.role || "trainee", elearning: r?.elearning !== false }) });
+  // gate（契約と公開の期間）・features（公開する機能）・ai（今月の残り）・lockedTopics / unitDates（公開日の前の単元）は企業の人だけ（2026-11-26）
+  return useGet("/tenolab/me", { enabled, pick: r => ({ plan: r?.plan || "basic", premium: !!r?.premium, role: r?.role || "trainee", elearning: r?.elearning !== false,
+    gate: r?.gate || null, features: r?.features || null, ai: r?.ai || null, lockedTopics: Array.isArray(r?.lockedTopics) ? r.lockedTopics : [], unitDates: r?.unitDates || {} }) });
 }
 
 export function useTopics(enabled) {
@@ -116,6 +118,12 @@ export const admin = {
   // 企業ごとの使える教材（2026-11-18）
   scope: companyId => apiGet(`/tenolab/admin/companies/${encodeURIComponent(companyId)}/scope`),
   saveScope: (companyId, scope) => apiPut(`/tenolab/admin/companies/${encodeURIComponent(companyId)}/scope`, { scope }),
+  // 企業ごとの上限・公開と、全体の上限（2026-11-26、routes/tenolabLimits.mjs）
+  settings: companyId => apiGet(`/tenolab/admin/companies/${encodeURIComponent(companyId)}/settings`),
+  saveSettings: (companyId, settings) => apiPut(`/tenolab/admin/companies/${encodeURIComponent(companyId)}/settings`, { settings }),
+  addExtra: (companyId, body) => apiPost(`/tenolab/admin/companies/${encodeURIComponent(companyId)}/extra`, body),
+  limits: () => apiGet("/tenolab/admin/limits"),
+  saveLimits: global => apiPut("/tenolab/admin/limits", { global }),
 };
 
 /* 企業担当者の画面・管理者の受講状況（ADR 0025 §5） */

@@ -5,6 +5,7 @@ import ItemEditor from "./ItemEditor.jsx";
 import AdminHome from "./AdminHome.jsx";
 import Grading from "./Grading.jsx";
 import Companies from "./Companies.jsx";
+import { AiCostPage } from "./CompanyLimits.jsx";
 import AccountIssue from "./AccountIssue.jsx";
 import { AdminLearners } from "../company/CompanyPages.jsx";
 import CourseList from "./CourseList.jsx";
@@ -15,7 +16,8 @@ import { GroupHead, PublishResult, confirmPublish, groupByTopic, needsPublish, p
 
 /* 管理の画面（#/manage/…、管理者だけ。モック tenolab-admin.html、2026-10-06〜）
      #/manage                         ホーム
-     #/manage/companies[/{companyId}[/scope]] 企業と契約（scope＝使える教材、2026-11-18）
+     #/manage/companies[/{companyId}[/pub|scope|ai|aws]] 企業と契約（scope＝使える教材 2026-11-18、pub＝公開・ai・aws＝上限 2026-11-26）
+     #/manage/cost                    AI と費用（全体の上限と企業ごとの今月、2026-11-26）
      #/manage/accounts[/{companyId}]  アカウントを発行する（依頼→案→一覧→発行→Excel）
      #/manage/learners[/{userId}]     受講状況（企業担当者の画面と同じ部品）
      #/manage/bytopic                 教材 › 単元ごと（単元で整理・並べかえ・単元の付けかえ、2026-11-18）
@@ -23,7 +25,7 @@ import { GroupHead, PublishResult, confirmPublish, groupByTopic, needsPublish, p
      #/manage/grading[/{caseId}]      AI採点（旧 #/manage/submissions もここ）
      #/manage/topics                  単元
    外枠（黒い帯のヘッダー）は TenolabApp が Shell variant="admin" で付ける */
-export const ADMIN_NAV = [["home", "ホーム", "#/manage"], ["companies", "企業と契約", "#/manage/companies"], ["accounts", "アカウント発行", "#/manage/accounts"], ["learners", "受講状況", "#/manage/learners"], ["materials", "教材", "#/manage/bytopic"], ["grading", "AI採点", "#/manage/grading"], ["notices", "お知らせ", "#/manage/notices"], ["topics", "単元", "#/manage/topics"]];
+export const ADMIN_NAV = [["home", "ホーム", "#/manage"], ["companies", "企業と契約", "#/manage/companies"], ["cost", "AI と費用", "#/manage/cost"], ["accounts", "アカウント発行", "#/manage/accounts"], ["learners", "受講状況", "#/manage/learners"], ["materials", "教材", "#/manage/bytopic"], ["grading", "AI採点", "#/manage/grading"], ["notices", "お知らせ", "#/manage/notices"], ["topics", "単元", "#/manage/topics"]];
 const MATERIAL_TABS = [["bytopic", "単元ごと"], ["courses", "コース"], ["drills", "演習"], ["cases", "案件体験"]];
 
 export function adminSection(rest) {
@@ -43,6 +45,7 @@ export default function ManagePage({ ctx, rest }) {
   if (section === "home") return <AdminHome go={go} />;
   if (section === "learners") return <AdminLearners rest={rest} go={go} />;
   if (section === "companies") return <Companies go={go} companyId={id ? decodeURIComponent(id) : ""} tab={rest[2] || ""} topics={topics} />;
+  if (section === "cost") return <AiCostPage go={go} />;
   if (section === "accounts") return <AccountIssue key={id || ""} go={go} companyId={id ? decodeURIComponent(id) : ""} />;
   if (section === "grading") return <Grading go={go} caseId={tab === "grading" ? id || "" : ""} />;
   if (section === "topics") return <><Title eyebrow="TOPICS" title="単元" /><TopicsEditor topics={topics} /></>;

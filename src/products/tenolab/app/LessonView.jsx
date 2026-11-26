@@ -4,6 +4,7 @@ import { SlideRenderer } from "../../learning/ElSlideLessonView.jsx";
 import ExerciseBench, { BENCH_KINDS, isSampleSlide } from "./exercise/Bench.jsx";
 import { ChoiceQuiz, CodeQuiz } from "./exercise/Quiz.jsx";
 import Tour, { tourEnvOf, tourSeen } from "./exercise/Tour.jsx";
+import { AiLeft } from "./DrillPage.jsx";
 
 /* レッスン画面（モック tenolab-lesson.html、2026-10-08）
    パワポ＋PDFから作ったコースを、資料のページそのままで見せる。足したスライド（表紙・中扉・自動のまとめ）は出さない。
@@ -264,7 +265,7 @@ export default function LessonView({ ctx, course, lesson, lessons, slideId }) {
             {caption && <div className="lsn-cap">{caption}</div>}
           </section>
         )}
-        {chatOpen && <LessonChat course={course} lesson={lesson} slide={slide.chatSlide ? { ...slide.chatSlide, title: slide.navLabel } : slide} index={i} onClose={() => setChatOpen(false)} exCtx={bench ? exCtx : null} sees={bench ? exSees : ""} askRef={chatAsk} />}
+        {chatOpen && <LessonChat course={course} lesson={lesson} slide={slide.chatSlide ? { ...slide.chatSlide, title: slide.navLabel } : slide} index={i} onClose={() => setChatOpen(false)} exCtx={bench ? exCtx : null} sees={bench ? exSees : ""} askRef={chatAsk} ai={ctx.ai} onSpent={ctx.spendAi} />}
       </div>
 
       <div className="lsn-dock" role="toolbar" aria-label="ページの操作">
@@ -287,7 +288,7 @@ const EX_SUGG = { java: ["この書き方で合ってる？", "ヒントだけ�
 
 /* いつも横にいるAIチャット。今のページについて答える（既存の POST /learning/slides/ask）。
    コードの演習のページでは、書いているコードと結果も一緒に送る（既存の POST /learning/exercises/{java|web}/ask。答えのコードは返さない） */
-function LessonChat({ course, lesson, slide, index, onClose, exCtx, sees, askRef }) {
+function LessonChat({ course, lesson, slide, index, onClose, exCtx, sees, askRef, ai, onSpent }) {
   const [msgs, setMsgs] = useState([{ who: "ai", text: "このページで分からないところがあれば、いつでも聞いてください。" }]);
   const [sugg, setSugg] = useState(FIRST_SUGG);
   const [text, setText] = useState("");
@@ -313,6 +314,7 @@ function LessonChat({ course, lesson, slide, index, onClose, exCtx, sees, askRef
       const a = res?.answer || "うまく答えられませんでした。聞き方を変えてみてください。";
       hist.current.push({ role: "user", text: v }, { role: "assistant", text: a });
       setMsgs(m => [...m, { who: "ai", text: a }]);
+      onSpent?.();
       setSugg(Array.isArray(res?.followUps) && res.followUps.length ? res.followUps : sees ? EX_SUGG[sees] || FIRST_SUGG : FIRST_SUGG);
     } catch (e) {
       setMsgs(m => [...m, { who: "ai", text: e?.errorMessage || "回答を作れませんでした。時間をおいてお試しください。" }]);
@@ -320,7 +322,7 @@ function LessonChat({ course, lesson, slide, index, onClose, exCtx, sees, askRef
   }
   return (
     <aside className={`lsn-chat ${sees && SEES[sees] ? "has-sees" : ""}`} aria-label="AIに聞く">
-      <div className="ch"><b>AIに聞く</b><span className="ctx">p.{index + 1}「{decode(slide.title || slide.navLabel || "")}」について</span><button type="button" onClick={onClose} aria-label="閉じる">×</button></div>
+      <div className="ch"><b>AIに聞く</b><span className="ctx">p.{index + 1}「{decode(slide.title || slide.navLabel || "")}」について</span>{ai && <AiLeft ai={ai} />}<button type="button" onClick={onClose} aria-label="閉じる">×</button></div>
       {sees && SEES[sees] && <div className="sees" aria-label="AIが見ているもの">{SEES[sees].map(s => <span key={s}>{s}</span>)}</div>}
       <div className="log" ref={logRef} aria-live="polite">
         {msgs.map((m, k) => (
