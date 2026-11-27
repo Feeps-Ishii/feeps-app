@@ -9,26 +9,26 @@
 .tl-course .hm-in > .ntc-banner { margin: 0; }
 .tl-course .hm-grid { display: grid; grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr); gap: 18px; align-items: stretch; }
 
-.tl-course .hm-player { background: var(--card); border: 1px solid var(--line); border-radius: 18px; overflow: hidden; display: grid; align-content: start; box-shadow: 0 1px 2px rgba(21,23,28,.05), 0 18px 40px -16px rgba(36,87,230,.35); }
+.tl-course .hm-player { background: var(--card); border: 1px solid var(--line); border-radius: 18px; overflow: hidden; display: grid; align-content: start; box-shadow: 0 1px 2px rgba(16,36,26,.05), 0 18px 40px -16px rgba(31,122,76,.35); }
 .tl-course .hm-player.empty { align-content: center; }
 .tl-course .hm .hm-stage { position: relative; display: grid; place-items: center; height: 206px; padding: 16px 18px; background: linear-gradient(160deg, #EEF2FD, #F7F8FC); text-align: left; }
-.tl-course .hm-slide { position: relative; height: 100%; max-width: 100%; aspect-ratio: 16 / 9; overflow: hidden; background: #fff; border: 1px solid #DCE3F5; border-radius: 10px; box-shadow: 0 6px 18px rgba(36,87,230,.12); padding: 14px 18px 10px; display: grid; grid-template-rows: auto 1fr auto auto; gap: 2px; transition: transform .2s; }
+.tl-course .hm-slide { position: relative; height: 100%; max-width: 100%; aspect-ratio: 16 / 9; overflow: hidden; background: #fff; border: 1px solid #D3E8D9; border-radius: 10px; box-shadow: 0 6px 18px rgba(31,122,76,.12); padding: 14px 18px 10px; display: grid; grid-template-rows: auto 1fr auto auto; gap: 2px; transition: transform .2s; }
 .tl-course .hm-stage:hover .hm-slide { transform: translateY(-2px); }
 .tl-course .hm-slide .k { font-family: var(--mono); font-size: 10px; color: var(--s1); font-weight: 600; letter-spacing: .1em; }
 .tl-course .hm-slide .t { position: relative; z-index: 1; align-self: center; font-size: 17px; font-weight: 700; line-height: 1.35; text-wrap: balance; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
 .tl-course .hm-slide .cn { position: relative; z-index: 1; font-size: 11px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .tl-course .hm-slide .pd { position: relative; z-index: 1; display: flex; gap: 3px; align-items: center; min-height: 12px; font-family: var(--mono); font-size: 10px; color: var(--muted); }
-.tl-course .hm-slide .pd i { width: 5px; height: 5px; border-radius: 50%; background: #D5DCEC; }
+.tl-course .hm-slide .pd i { width: 5px; height: 5px; border-radius: 50%; background: #CFE3D4; }
 .tl-course .hm-slide .pd i.past { background: #A9BCEE; }
 .tl-course .hm-slide .pd i.on { width: 12px; border-radius: 3px; background: var(--s1); }
 .tl-course .hm-slide .pd span { margin-left: auto; }
-.tl-course .hm-slide .big { position: absolute; right: 10px; bottom: -12px; font-family: var(--mono); font-weight: 700; font-size: 84px; line-height: 1; color: rgba(36,87,230,.07); }
-.tl-course .hm-slide.cover { background: linear-gradient(135deg, #15171C, #262A34); border-color: #15171C; color: #FBFBF7; grid-template-rows: auto 1fr auto; }
+.tl-course .hm-slide .big { position: absolute; right: 10px; bottom: -12px; font-family: var(--mono); font-weight: 700; font-size: 84px; line-height: 1; color: rgba(31,122,76,.07); }
+.tl-course .hm-slide.cover { background: linear-gradient(135deg, #10241A, #262A34); border-color: #10241A; color: #F6F9F4; grid-template-rows: auto 1fr auto; }
 .tl-course .hm-slide.cover .k { color: var(--marker); }
 .tl-course .hm-slide.cover .t { font-size: 20px; }
 .tl-course .hm-slide.cover .rule { width: 34px; height: 4px; border-radius: 2px; background: var(--marker); }
-.tl-course .hm-slide.cover .big { font-family: var(--display, sans-serif); font-weight: 400; font-size: 96px; color: rgba(255,225,77,.12); bottom: -16px; }
-.tl-course .hm-stage .play { position: absolute; right: 22px; bottom: 20px; width: 44px; height: 44px; border-radius: 50%; background: var(--ink); color: var(--marker); display: grid; place-items: center; box-shadow: 0 6px 16px rgba(21,23,28,.3); }
+.tl-course .hm-slide.cover .big { font-family: var(--display, sans-serif); font-weight: 400; font-size: 96px; color: rgba(201,238,91,.12); bottom: -16px; }
+.tl-course .hm-stage .play { position: absolute; right: 22px; bottom: 20px; width: 44px; height: 44px; border-radius: 50%; background: var(--ink); color: var(--marker); display: grid; place-items: center; box-shadow: 0 6px 16px rgba(16,36,26,.3); }
 .tl-course .hm-stage .play svg { width: 14px; height: 14px; margin-left: 2px; }
 .tl-course .hm-player .pinfo { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 4px 16px; align-items: center; padding: 14px 18px 16px; }
 .tl-course .hm-player .lab { grid-column: 1 / -1; display: flex; align-items: center; gap: 8px; min-width: 0; font-size: 11.5px; font-weight: 700; color: var(--s1); }
@@ -59,7 +59,7 @@
 .tl-course .hm .s2 .hm-meter i { background: var(--marker-deep); }
 
 /* 次にやる */
-.tl-course .hm-queue { background: var(--card); border: 1px solid var(--line); border-radius: 18px; box-shadow: 0 1px 2px rgba(21,23,28,.04), 0 6px 20px rgba(21,23,28,.05); display: grid; grid-template-rows: auto 1fr; overflow: hidden; min-width: 0; }
+.tl-course .hm-queue { background: var(--card); border: 1px solid var(--line); border-radius: 18px; box-shadow: 0 1px 2px rgba(16,36,26,.04), 0 6px 20px rgba(16,36,26,.05); display: grid; grid-template-rows: auto 1fr; overflow: hidden; min-width: 0; }
 .tl-course .hm-queue .qh { display: flex; align-items: baseline; gap: 10px; padding: 14px 18px 10px; }
 .tl-course .hm-queue .qh b { font-size: 16px; }
 .tl-course .hm-queue .qh small { font-size: 12px; color: var(--muted); }
@@ -77,7 +77,7 @@
 .tl-course .hm .qi .tt { grid-column: 2; font-size: 14.5px; font-weight: 700; line-height: 1.35; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .tl-course .hm .qi .mt { grid-column: 2; font-size: 11.5px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .tl-course .hm .qi .ar { grid-column: 3; grid-row: 1 / span 3; width: 30px; height: 30px; border-radius: 9px; display: grid; place-items: center; background: var(--ink); color: var(--marker); font-weight: 700; }
-.tl-course .hm .qi.s4 { background: linear-gradient(120deg, #1C1F28, #2B2519); border-color: #2B2519; }
+.tl-course .hm .qi.s4 { background: linear-gradient(120deg, #123A2A, #1E3A22); border-color: #1E3A22; }
 .tl-course .hm .qi.s4 .k { color: var(--s-gold); }
 .tl-course .hm .qi.s4 .tt { color: #fff; }
 .tl-course .hm .qi.s4 .mt { color: #A9A493; }
@@ -93,7 +93,7 @@
 .tl-course .hm-sec .r { margin-left: auto; font-size: 13px; color: var(--muted); }
 
 /* ── 道のり：1本の帯 ── */
-.tl-course .hm-strip { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); background: var(--card); border: 1px solid var(--line); border-radius: 16px; box-shadow: 0 1px 2px rgba(21,23,28,.04), 0 6px 20px rgba(21,23,28,.05); overflow: hidden; }
+.tl-course .hm-strip { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); background: var(--card); border: 1px solid var(--line); border-radius: 16px; box-shadow: 0 1px 2px rgba(16,36,26,.04), 0 6px 20px rgba(16,36,26,.05); overflow: hidden; }
 .tl-course .hm-strip.n3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 .tl-course .hm .sc { position: relative; display: grid; grid-template-columns: 36px minmax(0, 1fr); gap: 4px 12px; align-items: center; padding: 14px 18px; transition: background .15s; }
 .tl-course .hm .sc:hover { background: color-mix(in srgb, var(--cs) 50%, transparent); }
@@ -109,8 +109,8 @@
 .tl-course .hm-row { display: flex; align-items: center; gap: 10px; min-width: 0; }
 .tl-course .hm-row em { flex: none; font-style: normal; font-family: var(--mono); font-size: 11.5px; color: var(--muted); white-space: nowrap; }
 .tl-course .hm-row em b { font-size: 16px; color: var(--ink); }
-.tl-course .hm .sc.s4 { background: linear-gradient(120deg, #1C1F28, #2B2519); color: #E8E2D2; }
-.tl-course .hm .sc.s4 .node { background: linear-gradient(135deg, #1C1F28, #2B2519); color: var(--s4); box-shadow: 0 0 0 1px rgba(242,154,56,.4); }
+.tl-course .hm .sc.s4 { background: linear-gradient(120deg, #123A2A, #1E3A22); color: #E8E2D2; }
+.tl-course .hm .sc.s4 .node { background: linear-gradient(135deg, #123A2A, #1E3A22); color: var(--s4); box-shadow: 0 0 0 1px rgba(242,154,56,.4); }
 .tl-course .hm .sc.s4 .node.on { color: var(--s-gold); box-shadow: 0 0 0 1.5px var(--s-gold), 0 6px 14px -4px rgba(242,154,56,.5); }
 .tl-course .hm .sc.s4 .nm { color: #fff; }
 .tl-course .hm .sc.s4 .nm small { color: var(--s-gold); }
@@ -122,7 +122,7 @@
 /* ── 下の段：上の段と同じ列の幅。右の列の下の端を左にそろえる ── */
 .tl-course .hm-low { display: grid; grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr); gap: 18px; align-items: stretch; margin-top: 30px; }
 .tl-course .hm-topics { display: flex; flex-direction: column; min-width: 0; }
-.tl-course .hm .trows { flex: 1; display: flex; flex-direction: column; background: var(--card); border: 1px solid var(--line); border-radius: 14px; box-shadow: 0 1px 2px rgba(21,23,28,.04), 0 6px 20px rgba(21,23,28,.05); overflow: hidden; }
+.tl-course .hm .trows { flex: 1; display: flex; flex-direction: column; background: var(--card); border: 1px solid var(--line); border-radius: 14px; box-shadow: 0 1px 2px rgba(16,36,26,.04), 0 6px 20px rgba(16,36,26,.05); overflow: hidden; }
 .tl-course .hm .hm-tr { display: grid; grid-template-columns: 40px minmax(110px, 1fr) minmax(0, 2.2fr) 20px; gap: 14px; align-items: center; width: 100%; padding: 12px 16px; border-bottom: 1px solid var(--line); transition: background .15s; }
 .tl-course .hm .hm-tr:last-child { border-bottom: 0; }
 /* 単元が少なくて右の列より短いときは、行を均等に伸ばして下の端をそろえる */
@@ -141,7 +141,7 @@
 .tl-course .hm .m1 em { font-style: normal; font-family: var(--mono); color: var(--muted); }
 .tl-course .hm .m1.none { opacity: .45; }
 .tl-course .hm .hm-tr .gt { color: var(--muted); font-weight: 700; }
-.tl-course .hm .hm-tr.locked { background: linear-gradient(120deg, #1C1F28, #2B2519); color: #E8E2D2; }
+.tl-course .hm .hm-tr.locked { background: linear-gradient(120deg, #123A2A, #1E3A22); color: #E8E2D2; }
 .tl-course .hm .hm-tr.locked .hd b { color: #fff; }
 .tl-course .hm .hm-tr.locked .hd small { color: #A9A493; }
 .tl-course .hm .hm-tr.locked .lk { display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--s-gold); font-weight: 700; min-width: 0; }
@@ -152,7 +152,7 @@
 
 .tl-course .hm-side { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
 .tl-course .hm-side .hm-sec { margin-bottom: 2px; }
-.tl-course .hm-notes { flex: 1; display: flex; flex-direction: column; background: var(--card); border: 1px solid var(--line); border-radius: 14px; box-shadow: 0 1px 2px rgba(21,23,28,.04), 0 6px 20px rgba(21,23,28,.05); overflow: hidden; }
+.tl-course .hm-notes { flex: 1; display: flex; flex-direction: column; background: var(--card); border: 1px solid var(--line); border-radius: 14px; box-shadow: 0 1px 2px rgba(16,36,26,.04), 0 6px 20px rgba(16,36,26,.05); overflow: hidden; }
 .tl-course .hm-notes .nh { display: flex; align-items: center; gap: 8px; padding: 12px 16px; border-bottom: 1px solid var(--line); font-weight: 700; }
 .tl-course .hm-notes .nh .dot { min-width: 18px; height: 18px; border-radius: 9px; background: var(--marker); font-family: var(--mono); font-size: 11px; display: grid; place-items: center; padding: 0 5px; }
 .tl-course .hm-notes .nh .r { margin-left: auto; font-size: 12px; color: var(--ink2); font-weight: 700; }
@@ -165,7 +165,7 @@
 .tl-course .hm-notes .ne { margin: 0; padding: 18px 16px; color: var(--muted); font-size: 13px; }
 .tl-course .hm-notes .nmore { margin-top: auto; padding: 10px 16px; font-size: 12.5px; font-weight: 700; color: var(--ink2); text-align: center; }
 .tl-course .hm-notes .nmore:hover { color: var(--ink); }
-.tl-course .hm .hm-rec { display: flex; align-items: center; gap: 12px; background: var(--card); border: 1px solid var(--line); border-radius: 14px; box-shadow: 0 1px 2px rgba(21,23,28,.04), 0 6px 20px rgba(21,23,28,.05); padding: 12px 16px; transition: border-color .15s; }
+.tl-course .hm .hm-rec { display: flex; align-items: center; gap: 12px; background: var(--card); border: 1px solid var(--line); border-radius: 14px; box-shadow: 0 1px 2px rgba(16,36,26,.04), 0 6px 20px rgba(16,36,26,.05); padding: 12px 16px; transition: border-color .15s; }
 .tl-course .hm .hm-rec:hover { border-color: #CBD0C4; }
 .tl-course .hm .hm-rec .ri { width: 36px; height: 36px; border-radius: 10px; background: var(--soft); display: grid; place-items: center; color: var(--ink2); flex: none; }
 .tl-course .hm .hm-rec .ri svg { width: 18px; height: 18px; }

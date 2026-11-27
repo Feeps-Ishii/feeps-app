@@ -28,4 +28,4 @@
 .try-db { margin-top: 10px; border: 1px solid var(--line); border-radius: 10px; overflow: hidden; }
 .try-db .xb-db { border-left: 0; }
 .try-db .xb-grid.light { max-height: 240px; overflow: auto; }
-.console .xb-grid { padding: 0; max-height: 300px; border: 1px solid #262B38; border-radius: 8px; }
+.console .xb-grid { padding: 0; max-height: 300px; border: 1px solid #1F4434; border-radius: 8px; }

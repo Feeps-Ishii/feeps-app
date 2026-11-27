@@ -5,6 +5,7 @@ import { Back, Ic, LoadError, Loading, PlanLink, PremTag, StartTag, planLabel } 
 import { TryPanel } from "./Workbench.jsx";
 import { cloud, getDrillAnswer, useDrill } from "./data.js";
 import { START_OF } from "./model.js";
+import { LeafAvatar } from "./brand.jsx";
 
 /* 演習1問（モックの drillPage / awsDrillPage） */
 export default function DrillPage({ ctx, id }) {
@@ -133,8 +134,8 @@ function DrillAsk({ item, code, last, askRef, ai, onSpent }) {
       <div className="row"><b>AIに聞く</b><span className="sees"><span>課題</span><span>コード</span><span>実行結果</span></span>{ai && <AiLeft ai={ai} />}</div>
       {msgs.length > 0 && (
         <div className="log" ref={logRef} aria-live="polite">
-          {msgs.map((m, k) => <div key={k} className={`msg ${m.who === "me" ? "me" : ""}`}>{m.who !== "me" && <span className="who">AI</span>}<div className="b">{String(m.text).split(/(`[^`\n]+`)/).map((t, j) => (/^`[^`\n]+`$/.test(t) ?<code key={j}>{t.slice(1, -1)}</code> : <React.Fragment key={j}>{t}</React.Fragment>))}</div></div>)}
-          {busy && <div className="msg"><span className="who">AI</span><div className="b typing"><i /><i /><i /></div></div>}
+          {msgs.map((m, k) => <div key={k} className={`msg ${m.who === "me" ? "me" : ""}`}>{m.who !== "me" && <span className="who"><LeafAvatar /></span>}<div className="b">{String(m.text).split(/(`[^`\n]+`)/).map((t, j) => (/^`[^`\n]+`$/.test(t) ?<code key={j}>{t.slice(1, -1)}</code> : <React.Fragment key={j}>{t}</React.Fragment>))}</div></div>)}
+          {busy && <div className="msg"><span className="who"><LeafAvatar /></span><div className="b typing"><i /><i /><i /></div></div>}
         </div>
       )}
       <div className="sugg">{sugg.map(s => <button key={s} type="button" disabled={busy} onClick={() => ask(s)}>{s}</button>)}</div>

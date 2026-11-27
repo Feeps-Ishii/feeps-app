@@ -5,6 +5,8 @@ import ExerciseBench, { BENCH_KINDS, isSampleSlide } from "./exercise/Bench.jsx"
 import { ChoiceQuiz, CodeQuiz } from "./exercise/Quiz.jsx";
 import Tour, { tourEnvOf, tourSeen } from "./exercise/Tour.jsx";
 import { AiLeft } from "./DrillPage.jsx";
+import { LeafAvatar } from "./brand.jsx";
+import { softColor } from "./data.js";
 
 /* レッスン画面（モック tenolab-lesson.html、2026-10-08）
    パワポ＋PDFから作ったコースを、資料のページそのままで見せる。足したスライド（表紙・中扉・自動のまとめ）は出さない。
@@ -97,7 +99,7 @@ function Page({ lrn, slide, course, lesson, index, total, lastRatio, onRatio }) 
   return (
     <div className={`lsn-frame free ${isExercise(slide) ? "ex" : ""}`}>
       <div className="tl-legacy lsn-legacy">
-        <SlideRenderer slide={slide} accent={course.color || "#2457E6"} lrn={lrn} courseId={course.id} lessonId={lesson.id} index={index} total={total} />
+        <SlideRenderer slide={slide} accent={softColor(course.color) || "#6F8FD8"} lrn={lrn} courseId={course.id} lessonId={lesson.id} index={index} total={total} />
       </div>
     </div>
   );
@@ -118,7 +120,7 @@ function TitlePage({ lrn, slide, lastRatio }) {
   return (
     <div className={`lsn-frame lsn-title tt-${slide.variant}`} style={{ "--r": ratio, "--c": slide.color }}>
       {slide.variant === "course"
-        ? <><h1>{slide.title}</h1><i className="rule" aria-hidden="true" /><span className="brand"><b>DevHub</b> Learning</span></>
+        ? <><h1>{slide.title}</h1><i className="rule" aria-hidden="true" /><span className="brand"><b>LEAFIT</b> リーフィット</span></>
         : <><span className="big" aria-hidden="true">{/^\d+$/.test(slide.no) ? slide.no.padStart(2, "0") : slide.no}</span><span className="no">LESSON {slide.no}</span><h2>{slide.title}</h2></>}
     </div>
   );
@@ -149,7 +151,7 @@ export default function LessonView({ ctx, course, lesson, lessons, slideId }) {
       .sort((a, b) => Number(a.order || 0) - Number(b.order || 0));
     if (!real.length) return real;
     const ratioFrom = real.find(s => s.kind === "image")?.content?.materialId || "";
-    const color = (ctx.topics || []).find(t => t.id === course.topic)?.color || "#2457E6";
+    const color = (ctx.topics || []).find(t => t.id === course.topic)?.color || "#6F8FD8";
     const no = String(lesson.title || "").match(/^\s*Lesson\s*\.?\s*([\d-]+)/i)?.[1] || String(li + 1);
     const head = { id: "_lesson", kind: "_title", variant: "lesson", no, color, ratioFrom, chatSlide: real[0],
       title: String(lesson.title || "").replace(/^\s*Lesson\s*\.?\s*[\d-]+\s*[.:：、]?\s*/i, "") || lesson.title, navLabel: `Lesson.${no}` };
@@ -327,10 +329,10 @@ function LessonChat({ course, lesson, slide, index, onClose, exCtx, sees, askRef
       <div className="log" ref={logRef} aria-live="polite">
         {msgs.map((m, k) => (
           <div key={k} className={`msg ${m.who === "me" ? "me" : ""}`}>
-            {m.who === "me" ? <div className="b">{m.text}</div> : <><div className="who">テ</div><div className="b">{m.text}</div></>}
+            {m.who === "me" ? <div className="b">{m.text}</div> : <><div className="who"><LeafAvatar /></div><div className="b">{m.text}</div></>}
           </div>
         ))}
-        {busy && <div className="msg"><div className="who">テ</div><div className="b typing"><i /><i /><i /></div></div>}
+        {busy && <div className="msg"><div className="who"><LeafAvatar /></div><div className="b typing"><i /><i /><i /></div></div>}
       </div>
       <div className="sugg">{sugg.map(s => <button key={s} type="button" disabled={busy} onClick={() => ask(s)}>{s}</button>)}</div>
       <form className="compose" onSubmit={e => { e.preventDefault(); ask(text); }}>

@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from "react";
 import { ICON_SPRITE, INDIVIDUAL_OPEN } from "./ui.jsx";
-import { DevHubLogo } from "../../../components/common/DevHubMark.jsx";
+import { LeafitLogo } from "./brand.jsx";
 import { NoticeBell } from "./notices/Notices.jsx";
 import { StepTabs } from "./steps/Steps.jsx";
 
@@ -41,7 +41,7 @@ export default function Shell({ section, name, email, role, switchLink, onLogout
       <span dangerouslySetInnerHTML={{ __html: ICON_SPRITE }} />
       <header className={`bar ${isAdminView ? "admin" : ""}`}>
         <div className="wrap">
-          <a className="logo" href={variant === "admin" ? "#/manage" : variant === "client" ? "#/company" : "#/home"} style={{ textDecoration: "none", color: "inherit" }}><DevHubLogo product="lrn" size={30} dark={isAdminView} /></a>
+          <a className="logo" href={variant === "admin" ? "#/manage" : variant === "client" ? "#/company" : "#/home"} style={{ textDecoration: "none", color: "inherit" }}><LeafitLogo size={30} dark={isAdminView} /></a>
           {isAdminView && <span className="mode">{variant === "client" ? "CLIENT" : "ADMIN"}</span>}
           {variant === "learner" ? (nav.length > 0 && <StepTabs nav={nav} section={section} />) : (
             <nav className="nav" aria-label="画面">

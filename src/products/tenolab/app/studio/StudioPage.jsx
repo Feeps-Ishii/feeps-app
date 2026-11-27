@@ -5,7 +5,7 @@ import { readPptxSlides } from "./pptx.js";
 import { initialMapping, rowStatus, shiftSuggestion, shifted, autoSkip } from "./align.js";
 import * as A from "./api.js";
 import { SlideRenderer } from "../../../learning/ElSlideLessonView.jsx";
-import { DevHubLogo } from "../../../../components/common/DevHubMark.jsx";
+import { LeafitLogo, LeafAvatar } from "../brand.jsx";
 import "./studio.css";
 import "./studio-extra.css";
 
@@ -579,7 +579,7 @@ export default function StudioPage({ ctx, rest }) {
   return (
     <div className="tl-studio">
       <header className="bar"><div className="in">
-        <a className="logo" href="#/manage" style={{ textDecoration: "none", color: "inherit" }}><DevHubLogo product="lrn" size={28} /></a>
+        <a className="logo" href="#/manage" style={{ textDecoration: "none", color: "inherit" }}><LeafitLogo size={28} /></a>
         <span className="crumb">教材づくり</span>
         <span className="me"><a href="#/manage/courses" style={{ color: "inherit" }}>管理の画面</a>　管理者　<button className="btn ghost sm" type="button" onClick={restart}>最初から</button></span>
       </div></header>
@@ -589,14 +589,14 @@ export default function StudioPage({ ctx, rest }) {
             {msgs.map(m => (
               <React.Fragment key={m.id}>
                 <div className={`msg ${m.who === "me" ? "me" : ""}`}>
-                  {m.who === "me" ? <div className="b">{m.body}</div> : <><div className="who">テ</div><div className="b">{rich(m.body)}</div></>}
+                  {m.who === "me" ? <div className="b">{m.body}</div> : <><div className="who"><LeafAvatar /></div><div className="b">{rich(m.body)}</div></>}
                 </div>
                 {m.quick?.length > 0 && (
                   <div className="quick">{m.quick.map(([label, act, pri]) => <button key={label} type="button" className={pri ? "pri" : ""} disabled={m.used || !!s.busy} onClick={() => onQuick(m.id, label, act)}>{label}</button>)}</div>
                 )}
               </React.Fragment>
             ))}
-            {typing && <div className="msg"><div className="who">テ</div><div className="b typing"><i /><i /><i /></div></div>}
+            {typing && <div className="msg"><div className="who"><LeafAvatar /></div><div className="b typing"><i /><i /><i /></div></div>}
           </div>
           <form className="compose" onSubmit={onSend}>
             <textarea id="studio-say" rows={1} value={text} placeholder="AIに指示する" aria-label="AIへの指示" onChange={e => setText(e.target.value)} onKeyDown={e => { if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) { e.preventDefault(); onSend(e); } }} />

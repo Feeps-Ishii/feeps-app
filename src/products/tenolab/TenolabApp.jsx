@@ -21,10 +21,11 @@ import StudioPage from "./app/studio/StudioPage.jsx";
 import AccountPlan from "./app/AccountPlan.jsx";
 import RecordPage from "./app/RecordPage.jsx";
 import { LoadError, Loading, setViewerRole, INDIVIDUAL_OPEN } from "./app/ui.jsx";
-import { submitInquiry, useCases, useDrills, useLabProgress, useMe, useTopics, useNotices, markNoticeRead } from "./app/data.js";
+import { softTopic, submitInquiry, useCases, useDrills, useLabProgress, useMe, useTopics, useNotices, markNoticeRead } from "./app/data.js";
 import { NoticeDrawer } from "./app/notices/Notices.jsx";
 import { caseModels, courseModels, drillModels } from "./app/model.js";
 import "./app/app.css";
+import "./app/leafit.css";
 
 /* テノラボ（コース型、ADR 0024）の本体。LMS（TrainingApp）とは別の入口 lab.html で開く。
    CloudFront に SPA のフォールバックが無いので、画面は URL の # の後ろで切り替える。
@@ -250,7 +251,7 @@ function App({ route, auth, onLogout }) {
   }, []);
 
   const premium = !!me.data?.premium || staff;
-  const topics = topicsQ.data || [];
+  const rawTopics = topicsQ.data || [];
   const rawCases = casesQ.data || [];
   const courses = useMemo(() => courseModels(lrn, topics, rawCases, premium), [lrn, topics, rawCases, premium]);
   const drills = useMemo(() => drillModels(drillsQ.data, topics, progress, premium), [drillsQ.data, topics, progress, premium]);
@@ -301,14 +302,14 @@ function App({ route, auth, onLogout }) {
   if (route.page === "manage" && admin) {
     return (
       <Shell variant="admin" nav={ADMIN_NAV} section={adminSection(route.rest)} name={auth.name} email={auth.email} role={auth.role} switchLink={["#/home", "受講生の画面で見る"]} onLogout={onLogout}>
-        {failed ? <LoadError onRetry={() => { topicsQ.reload(); me.reload(); }} /> : loading ? <Loading /> : <ManagePage ctx={ctx} rest={route.rest} />}
+        {failed ? <LoadError onRetry={() => { topicsQ.reload(); me.reload(); }} /> : loading ? <Loading /> : <ManagePage ctx={{ ...ctx, topics: rawTopics }} rest={route.rest} />}
       </Shell>
     );
   }
 
   // 教材づくり（管理者だけ）。外枠（ヘッダー）は画面の中に持つ
   if (route.page === "studio" && admin) {
-    return failed ? <LoadError onRetry={() => { topicsQ.reload(); me.reload(); }} /> : loading ? <div className="tl-boot" role="status">読み込んでいます…</div> : <StudioPage key={route.rest.join("/")} ctx={ctx} rest={route.rest} />;
+    return failed ? <LoadError onRetry={() => { topicsQ.reload(); me.reload(); }} /> : loading ? <div className="tl-boot" role="status">読み込んでいます…</div> : <StudioPage key={route.rest.join("/")} ctx={{ ...ctx, topics: rawTopics }} rest={route.rest} />;
   }
   // 企業担当者の画面（企業担当者と、確かめたい管理者）
   if (route.page === "company" && (client || admin)) {

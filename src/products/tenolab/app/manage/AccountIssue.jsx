@@ -24,7 +24,7 @@ const PLAN_NAME = { standard: "スタンダード", premium: "Premium", basic: "
 async function downloadExcel({ company, start, rows }) {
   const XLSX = await import("xlsx");
   const aoa = [
-    ["DevHub Learning　アカウントのご案内"],
+    ["リーフィット　アカウントのご案内"],
     [],
     ["企業名", company],
     ["発行日", slashDate(todayYmd())],
@@ -48,7 +48,7 @@ async function downloadExcel({ company, start, rows }) {
   ws["!merges"] = [0, head, head + 1, head + 2, head + 3, head + 4, head + 5].map(r => ({ s: { r, c: 0 }, e: { r, c: 5 } }));
   const wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, ws, "アカウント");
-  XLSX.writeFile(wb, `DevHub Learning アカウント_${company}_${todayYmd().replace(/-/g, "")}.xlsx`);
+  XLSX.writeFile(wb, `リーフィット アカウント_${company}_${todayYmd().replace(/-/g, "")}.xlsx`);
 }
 
 export default function AccountIssue({ go, companyId: presetId }) {

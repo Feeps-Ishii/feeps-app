@@ -35,7 +35,7 @@ export default function RecordPage({ ctx, name, email }) {
 
       <article id="record-print" className="card rec-sheet">
         <header className="rec-head">
-          <div><b className="rec-title">DevHub Learning 学習の記録</b><span className="rec-who">{name || "—"}{email ? `（${email}）` : ""}</span></div>
+          <div><b className="rec-title">リーフィット 学習の記録</b><span className="rec-who">{name || "—"}{email ? `（${email}）` : ""}</span></div>
           <span className="rec-date">出力日 {day(new Date().toISOString())}</span>
         </header>
         <div className="rec-sum">
@@ -68,7 +68,7 @@ export default function RecordPage({ ctx, name, email }) {
             <tbody>{myCases.map(c => { const [label, cls] = CASE_STATUS[c.status] || ["進めている", ""]; return <tr key={c.id}><td>{c.title}</td><td><span className={`rec-st ${cls}`}>{label}</span></td></tr>; })}</tbody></table>
         ) : <p className="muted">まだありません</p>}
 
-        <footer className="rec-foot">DevHub Learning（運営：Feeps）・この記録は本人の学習の記録から作りました</footer>
+        <footer className="rec-foot">リーフィット（運営：Feeps）・この記録は本人の学習の記録から作りました</footer>
       </article>
     </div>
   );

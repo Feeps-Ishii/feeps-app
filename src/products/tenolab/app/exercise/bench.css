@@ -1,6 +1,6 @@
 /* 演習の作業台（モック tenolab-exercise.html）。色はテノラボの変数（--ide など）を使う。クラスは xb- で始め、course.css とぶつけない */
-.xb { --xb-ide: var(--ide, #151923); --xb-ide2: var(--ide2, #0E1118); --xb-ide3: #1C2230; --xb-line: #2A3142; --xb-ink: var(--ide-ink, #E6E9F1); --xb-mute: var(--ide-mute, #808AA1);
-  --xb-java: #D9483B; --xb-web: #F2C200; display: grid; gap: 12px; min-width: 0; }
+.xb { --xb-ide: var(--ide, #0F2E22); --xb-ide2: var(--ide2, #0A2419); --xb-ide3: #163D2D; --xb-line: #24493A; --xb-ink: var(--ide-ink, #E6F2EA); --xb-mute: var(--ide-mute, #8FAF9B);
+  --xb-java: #D9483B; --xb-web: #2E9A5E; display: grid; gap: 12px; min-width: 0; }
 .xb-task { background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 14px 18px; display: grid; gap: 8px; }
 .xb-task .tt { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
 .xb-task .lang { display: inline-flex; align-items: center; gap: 6px; font-family: var(--mono); font-size: 12px; font-weight: 600; border-radius: 6px; padding: 1px 8px; background: var(--ink); color: #fff; }
@@ -20,14 +20,14 @@
 .xb-wbar { display: flex; align-items: center; gap: 2px; background: var(--xb-ide2); border-bottom: 1px solid var(--xb-line); padding: 0 6px; min-height: 42px; overflow-x: auto; }
 .xb-wbar .ftab { border: 0; background: none; color: var(--xb-mute); font-family: var(--mono); font-size: 12.5px; padding: 10px 12px; border-bottom: 2px solid transparent; white-space: nowrap; display: inline-flex; gap: 6px; align-items: center; cursor: pointer; }
 .xb-wbar .ftab i { width: 7px; height: 7px; border-radius: 2px; background: var(--xb-java); }
-.xb-wbar .ftab.html i { background: #E66A3B; } .xb-wbar .ftab.css i { background: #2457E6; }
+.xb-wbar .ftab.html i { background: #E66A3B; } .xb-wbar .ftab.css i { background: #1F7A4C; }
 .xb-wbar .ftab small { font-family: var(--body); font-size: 10.5px; color: var(--xb-mute); }
 .xb-wbar .ftab[aria-selected="true"] { color: var(--xb-ink); background: var(--xb-ide); border-bottom-color: var(--xb-java); }
 .xb-ws.web .xb-wbar .ftab[aria-selected="true"] { border-bottom-color: var(--xb-web); }
 .xb-wbar .sp { flex: 1; }
 .xb-btn { border: 0; border-radius: 8px; padding: 5px 12px; margin-left: 4px; font: inherit; font-weight: 700; font-size: 13px; display: inline-flex; gap: 6px; align-items: center; white-space: nowrap; cursor: pointer; }
 .xb-btn.go { background: var(--marker); color: var(--ink); }
-.xb-btn.sub { background: #2A3142; color: var(--xb-ink); }
+.xb-btn.sub { background: #24493A; color: var(--xb-ink); }
 .xb-btn:disabled { opacity: .6; cursor: default; }
 .xb-btn kbd { font-family: var(--mono); font-size: 10.5px; opacity: .65; }
 .xb-ed { min-width: 0; }
@@ -43,7 +43,7 @@
 .xb-out .pr { color: var(--xb-mute); }
 .xb-out .e { color: #FF8A7A; }
 .xb-out .g { color: #7EE2A8; }
-.xb-askai { display: inline-flex; align-items: center; gap: 6px; margin-top: 8px; border: 1px solid #3A4256; background: var(--xb-ide3); color: var(--marker); border-radius: 8px; padding: 3px 10px; font-family: var(--body); font-size: 12.5px; font-weight: 700; cursor: pointer; }
+.xb-askai { display: inline-flex; align-items: center; gap: 6px; margin-top: 8px; border: 1px solid #2E5544; background: var(--xb-ide3); color: var(--marker); border-radius: 8px; padding: 3px 10px; font-family: var(--body); font-size: 12.5px; font-weight: 700; cursor: pointer; }
 .xb-diff { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 10px; padding: 10px 14px; }
 .xb-diff > div { border: 1px solid var(--xb-line); border-radius: 8px; overflow: hidden; min-width: 0; }
 .xb-diff h4 { margin: 0; font-size: 11.5px; font-weight: 700; color: var(--xb-mute); padding: 5px 10px; background: var(--xb-ide3); }
@@ -59,7 +59,7 @@
 .xb-pv .dev button { border: 0; background: none; font: inherit; font-size: 12px; font-weight: 700; padding: 2px 9px; color: var(--ink2); cursor: pointer; }
 .xb-pv .dev button[aria-pressed="true"] { background: var(--ink); color: #fff; }
 .xb-pv .stagep { display: grid; justify-items: center; align-content: start; padding: 12px; overflow: auto; }
-.xb-pv .stagep iframe { border: 0; background: #fff; width: 100%; border-radius: 6px; box-shadow: 0 2px 10px rgba(21, 23, 28, .08); transition: width .2s; display: block; }
+.xb-pv .stagep iframe { border: 0; background: #fff; width: 100%; border-radius: 6px; box-shadow: 0 2px 10px rgba(16, 36, 26, .08); transition: width .2s; display: block; }
 .xb-pv.phone .stagep iframe { width: 390px; max-width: 100%; }
 .xb-narrow { position: absolute; left: -10000px; top: 0; height: 600px; border: 0; visibility: hidden; }
 
@@ -75,11 +75,11 @@
 @media (prefers-reduced-motion: reduce) { .xb-pv .stagep iframe { transition: none; } }
 
 /* JavaScript（JsBench） */
-.xb-wbar .ftab.js i { background: #F2C200; }
-.xb-ws.js .xb-wbar .ftab[aria-selected="true"] { border-bottom-color: #F2C200; }
+.xb-wbar .ftab.js i { background: #2E9A5E; }
+.xb-ws.js .xb-wbar .ftab[aria-selected="true"] { border-bottom-color: #2E9A5E; }
 .xb-out .term .e { color: #FF8A7A; }
-.xb-out .term .a { color: #FFE14D; }
-.xb-task.js .lang i { background: #F2C200; }
+.xb-out .term .a { color: #C9EE5B; }
+.xb-task.js .lang i { background: #2E9A5E; }
 .xb-sbar.js { background: #5E4B00; }
 
 /* SQL（SqlBench・SqlParts。2026-10-13） */
@@ -87,18 +87,18 @@
 .xb-ws.sql .xb-wbar .ftab[aria-selected="true"] { border-bottom-color: #22A6B3; }
 .xb-task.sql .lang i { background: #22A6B3; }
 .xb-sbar.sql { background: #0F5961; color: #E3F7F8; }
-.xb-db { display: grid; grid-template-rows: auto minmax(0, 1fr); background: #F6F7FA; border-left: 1px solid var(--xb-line); min-width: 0; color: var(--ink, #15171C); }
+.xb-db { display: grid; grid-template-rows: auto minmax(0, 1fr); background: #F6F7FA; border-left: 1px solid var(--xb-line); min-width: 0; color: var(--ink, #10241A); }
 .xb-db .tabs { display: flex; align-items: center; gap: 2px; padding: 0 8px; border-bottom: 1px solid #DDE1E8; overflow-x: auto; background: #EEF0F4; }
 .xb-db .tabs button { border: 0; background: none; font-family: var(--mono); font-size: 12px; font-weight: 600; color: var(--ink2, #3A3F4B); padding: 8px 10px; border-bottom: 2px solid transparent; cursor: pointer; white-space: nowrap; display: inline-flex; gap: 5px; align-items: baseline; }
 .xb-db .tabs button small { font-size: 10.5px; color: var(--muted, #6B7280); font-weight: 400; }
-.xb-db .tabs button[aria-selected="true"] { color: var(--ink, #15171C); border-bottom-color: #22A6B3; background: #F6F7FA; }
+.xb-db .tabs button[aria-selected="true"] { color: var(--ink, #10241A); border-bottom-color: #22A6B3; background: #F6F7FA; }
 .xb-db .tabs .after { margin-left: auto; font-size: 11px; font-weight: 700; color: #0F5961; background: #D5F1F3; border-radius: 999px; padding: 1px 8px; white-space: nowrap; }
 .xb-grid { overflow: auto; max-height: 300px; padding: 8px 12px 12px; }
 .xb-grid table { border-collapse: collapse; font-family: var(--mono); font-size: 12.5px; width: max-content; }
-.xb-grid th, .xb-grid td { padding: 4px 10px; text-align: left; white-space: nowrap; border-bottom: 1px solid var(--xb-line, #2A3142); }
-.xb-grid th { position: sticky; top: 0; background: var(--xb-ide2, #0E1118); color: var(--xb-mute, #808AA1); font-weight: 600; font-size: 11.5px; }
+.xb-grid th, .xb-grid td { padding: 4px 10px; text-align: left; white-space: nowrap; border-bottom: 1px solid var(--xb-line, #24493A); }
+.xb-grid th { position: sticky; top: 0; background: var(--xb-ide2, #0A2419); color: var(--xb-mute, #8FAF9B); font-weight: 600; font-size: 11.5px; }
 .xb-grid td.num { text-align: right; font-variant-numeric: tabular-nums; }
-.xb-grid td.null { color: var(--xb-mute, #808AA1); font-style: italic; }
+.xb-grid td.null { color: var(--xb-mute, #8FAF9B); font-style: italic; }
 .xb-grid.light { max-height: none; padding: 0; }
 .xb-grid.light th, .xb-grid.light td { border-bottom-color: #E3E6EC; }
 .xb-grid.light th { background: #F6F7FA; color: var(--muted, #6B7280); }

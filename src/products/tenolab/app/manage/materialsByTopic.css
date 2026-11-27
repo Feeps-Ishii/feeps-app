@@ -10,7 +10,7 @@
 .tl-course .mbt-rail b { font-size: 14px; display: block; line-height: 1.25; }
 .tl-course .mbt-rail small { font-size: 11.5px; color: var(--muted); display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .tl-course .mbt-rail .n { font-family: var(--mono); font-size: 12px; white-space: nowrap; }
-.tl-course .mbt-rail .dr { display: inline-block; min-width: 18px; text-align: center; background: var(--marker); color: #15171C; border-radius: 999px; font-size: 11px; font-weight: 700; padding: 0 5px; margin-left: 4px; }
+.tl-course .mbt-rail .dr { display: inline-block; min-width: 18px; text-align: center; background: var(--marker); color: #10241A; border-radius: 999px; font-size: 11px; font-weight: 700; padding: 0 5px; margin-left: 4px; }
 .tl-course .mbt-rail .add { grid-template-columns: 30px 1fr; color: var(--ink2); font-size: 13px; font-weight: 700; border-top: 1px solid var(--line); border-radius: 0 0 10px 10px; margin-top: 4px; }
 .tl-course .mbt-rail .add .plus { text-align: center; }
 

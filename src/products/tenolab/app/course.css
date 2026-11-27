@@ -1,10 +1,10 @@
 /* 自動生成（docs/design/mockups/tenolab-2026-09/src/gen_course_css.py）。アプリのモック tenolab-course.html の見た目を .tl-course に閉じ込めたもの。 */
 .tl-course{color-scheme: light;
-    --paper:#FBFBF7; --grid:#F0F1EB; --card:#FFFFFF; --soft:#F2F3EE;
-    --ink:#15171C; --ink2:#454B57; --muted:#767D8C; --line:#E2E5DD;
-    --marker:#FFE14D; --marker-soft:#FFF7C2; --marker-deep:#F2C200;
-    --blue:#2457E6; --blue-soft:#E8EEFD; --mint:#11966F; --mint-soft:#E3F5EE; --red:#D9483B; --red-soft:#FBE9E7;
-    --ide:#151923; --ide-ink:#E6E9F1; --ide-mute:#808AA1;
+    --paper:#F6F9F4; --grid:#F0F1EB; --card:#FFFFFF; --soft:#EEF4EC;
+    --ink:#10241A; --ink2:#3D5246; --muted:#6A7D71; --line:#DCE7DA;
+    --marker:#C9EE5B; --marker-soft:#F1FAD6; --marker-deep:#2E9A5E;
+    --blue:#1F7A4C; --blue-soft:#E2F2E7; --mint:#11966F; --mint-soft:#E3F5EE; --red:#D9483B; --red-soft:#FBE9E7;
+    --ide:#0F2E22; --ide-ink:#E6F2EA; --ide-mute:#8FAF9B;
     --display:"Dela Gothic One","Zen Kaku Gothic New","Hiragino Kaku Gothic ProN",sans-serif;
     --body:"Zen Kaku Gothic New","Hiragino Kaku Gothic ProN","Yu Gothic UI",Meiryo,system-ui,sans-serif;
     --mono:"JetBrains Mono","Zen Kaku Gothic New",ui-monospace,monospace;}
@@ -37,7 +37,7 @@
 .tl-course .um-name{display:grid; line-height:1.25; text-align:left}
 .tl-course .um-name b{font-size:13px; color:var(--ink)}
 .tl-course .um-name small{font-size:11px; color:var(--muted)}
-.tl-course .um-menu{position:absolute; right:0; top:calc(100% + 6px); width:240px; background:var(--card); border:1px solid var(--line); border-radius:12px; box-shadow:0 10px 30px rgba(21,23,28,.12); padding:6px; display:grid; z-index:20}
+.tl-course .um-menu{position:absolute; right:0; top:calc(100% + 6px); width:240px; background:var(--card); border:1px solid var(--line); border-radius:12px; box-shadow:0 10px 30px rgba(16,36,26,.12); padding:6px; display:grid; z-index:20}
 .tl-course .um-menu[hidden]{display:none}
 .tl-course .um-head{padding:8px 10px 10px; border-bottom:1px solid var(--line); margin-bottom:4px; display:grid}
 .tl-course .um-head small{color:var(--muted); font-size:11.5px}
@@ -50,7 +50,7 @@
 .tl-course .h1{font-family:var(--body); font-weight:700; font-size:clamp(24px,3.4vw,30px); line-height:1.35; letter-spacing:-.01em}
 .tl-course .h2{font-family:var(--body); font-weight:700; font-size:19px; line-height:1.4}
 .tl-course .hl{background:none}
-.tl-course .card{background:var(--card); border:1px solid var(--line); border-radius:12px; box-shadow:0 1px 2px rgba(21,23,28,.04), 0 6px 20px rgba(21,23,28,.05)}
+.tl-course .card{background:var(--card); border:1px solid var(--line); border-radius:12px; box-shadow:0 1px 2px rgba(16,36,26,.04), 0 6px 20px rgba(16,36,26,.05)}
 .tl-course .card.flat{box-shadow:none; border-width:1px; border-color:var(--line)}
 .tl-course .btn{display:inline-flex; align-items:center; gap:8px; border:1px solid var(--ink); border-radius:10px; background:var(--marker); padding:8px 16px; font-weight:700; font-size:14px; white-space:nowrap}
 .tl-course .btn:hover{filter:brightness(.97)}
@@ -119,11 +119,11 @@
 .tl-course table.cmp th{background:var(--marker-soft)}
 .tl-course .try{display:grid; grid-template-columns:minmax(0,1.2fr) minmax(0,1fr); gap:14px}
 .tl-course .ed{display:flex; flex-direction:column; background:var(--ide); border:1px solid var(--ink); border-radius:10px; overflow:hidden}
-.tl-course .ed .tabs{display:flex; gap:2px; padding:6px 8px 0; background:#0E1118}
+.tl-course .ed .tabs{display:flex; gap:2px; padding:6px 8px 0; background:#0A2419}
 .tl-course .ed .tabs span{font-family:var(--mono); font-size:12px; color:var(--ide-mute); padding:4px 12px; border-radius:8px 8px 0 0}
 .tl-course .ed .tabs span.on{background:var(--ide); color:var(--ide-ink)}
 .tl-course .ed textarea{flex:1; min-height:230px; border:0; resize:vertical; background:var(--ide); color:var(--ide-ink); font-family:var(--mono); font-size:13.5px; line-height:1.7; padding:12px 14px; outline:none; tab-size:2}
-.tl-course .ed .run{display:flex; gap:8px; padding:8px; border-top:1px solid #262B38; background:#0E1118}
+.tl-course .ed .run{display:flex; gap:8px; padding:8px; border-top:1px solid #1F4434; background:#0A2419}
 .tl-course .console{background:var(--card); border:1px solid var(--line); border-radius:10px; padding:12px 14px; display:flex; flex-direction:column; gap:8px; min-height:200px}
 .tl-course .console pre{margin:0; font-family:var(--mono); font-size:13px; white-space:pre-wrap; color:var(--ink2); flex:1}
 .tl-course .verdict{border-radius:10px; padding:8px 12px; font-weight:700; font-size:14px}
@@ -182,7 +182,7 @@
 .tl-course .ghead .tally b{color:var(--mint)}
 .tl-course .stamp{position:absolute; top:14px; right:12px; display:inline-flex; align-items:center; gap:4px; border-radius:999px; padding:1px 10px; font-size:11.5px; font-weight:700; white-space:nowrap; z-index:1}
 .tl-course .stamp.done{background:var(--mint); color:#fff}
-.tl-course .stamp.now{background:var(--blue-soft); color:#1D47BD; border:1px solid #C4D3F8}
+.tl-course .stamp.now{background:var(--blue-soft); color:#1A6B43; border:1px solid #BFE0CB}
 .tl-course .ccard.split{position:relative}
 .tl-course .ccard.is-done .bar-p i{background:var(--mint)}
 .tl-course .thumb-wrap.cleared::after{content:""; position:absolute; inset:0; background:rgba(17,150,111,.16)}
@@ -193,7 +193,7 @@
 .tl-course .car-track{display:grid; grid-auto-flow:column; grid-auto-columns:calc((100% - 3 * 16px) / 4); gap:16px; overflow-x:auto; scroll-snap-type:x mandatory; scrollbar-width:none; padding:4px 2px 10px}
 .tl-course .car-track::-webkit-scrollbar{display:none}
 .tl-course .car-track > *{scroll-snap-align:start}
-.tl-course .car-btn{position:absolute; top:calc(50% - 26px); width:40px; height:40px; border-radius:50%; border:1px solid var(--line); background:var(--card); box-shadow:0 4px 14px rgba(21,23,28,.14); display:grid; place-items:center; font-size:20px; font-weight:700; color:var(--ink); z-index:2}
+.tl-course .car-btn{position:absolute; top:calc(50% - 26px); width:40px; height:40px; border-radius:50%; border:1px solid var(--line); background:var(--card); box-shadow:0 4px 14px rgba(16,36,26,.14); display:grid; place-items:center; font-size:20px; font-weight:700; color:var(--ink); z-index:2}
 .tl-course .car-btn.prev{left:-14px}
 .tl-course .car-btn.next{right:-14px}
 .tl-course .car-btn[hidden]{display:none}
@@ -252,7 +252,7 @@
 .tl-course .sells div{padding:14px 16px; display:grid; gap:4px}
 .tl-course .sells b{font-size:15px}
 .tl-course .start{display:inline-flex; align-items:center; gap:4px; border-radius:6px; padding:1px 8px; font-size:11.5px; font-weight:700; border:1px solid var(--line); background:var(--soft); color:var(--ink2); white-space:nowrap}
-.tl-course .start.blank{background:#E8EEFD; border-color:#C4D3F8; color:#1D47BD}
+.tl-course .start.blank{background:#E2F2E7; border-color:#BFE0CB; color:#1A6B43}
 .tl-course .start.ready{background:var(--mint-soft); border-color:#B9E3D3; color:#0B6B50}
 .tl-course .start.trouble{background:var(--red-soft); border-color:#F1C4BE; color:#A2342A}
 .tl-course .env{display:grid; grid-template-columns:minmax(0,1fr) 300px; gap:18px; align-items:start}
@@ -260,7 +260,7 @@
 .tl-course .console-aws .ok{color:#7DDBB3}
 .tl-course .console-aws .mute{color:var(--ide-mute)}
 .tl-course .back{border:0; background:none; color:var(--muted); font-weight:700; padding:0; margin-bottom:14px}
-.tl-course .hero{display:grid; grid-template-columns:minmax(0,1fr) 270px; gap:24px; padding:26px 28px; border:1px solid var(--line); border-top:4px solid var(--blue); border-radius:14px; background:#EEF3FD; box-shadow:0 1px 2px rgba(21,23,28,.04), 0 6px 20px rgba(21,23,28,.05)}
+.tl-course .hero{display:grid; grid-template-columns:minmax(0,1fr) 270px; gap:24px; padding:26px 28px; border:1px solid var(--line); border-top:4px solid var(--blue); border-radius:14px; background:#EEF3FD; box-shadow:0 1px 2px rgba(16,36,26,.04), 0 6px 20px rgba(16,36,26,.05)}
 .tl-course .htag{display:inline-flex; align-items:center; gap:4px; border:1px solid var(--line); border-radius:6px; padding:1px 9px; font-size:12px; font-weight:600; background:var(--card)}
 .tl-course .htag.on{background:var(--marker-soft); border-color:var(--marker-deep)}
 .tl-course .htag.off{background:transparent; border-style:dashed; color:var(--ink2)}

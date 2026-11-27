@@ -21,17 +21,17 @@ export function VModel({ phases }) {
   const mine = PHASES.filter(([k]) => ph[k] === "me");
   return (
     <svg className="cfo-v" viewBox="0 0 640 290" role="img" aria-label={`V字モデル。あなたの担当：${mine.map(m => m[1]).join("・") || "なし"}`}>
-      <path d="M70 40 L250 250 L390 250 L570 40" fill="none" stroke="#E2E5DD" strokeWidth="10" strokeLinecap="round" strokeLinejoin="round" />
+      <path d="M70 40 L250 250 L390 250 L570 40" fill="none" stroke="#DCE7DA" strokeWidth="10" strokeLinecap="round" strokeLinejoin="round" />
       {PAIRS.map(([a, b]) => <path key={a} d={`M${POS[a][0] + 52} ${POS[a][1]} H${POS[b][0] - 52}`} stroke="#D6D9D0" strokeDasharray="3 5" />)}
-      {mine.length > 1 && <polyline points={mine.map(([k]) => POS[k].join(",")).join(" ")} fill="none" stroke="#FFE14D" strokeWidth="22" strokeLinecap="round" strokeLinejoin="round" opacity=".9" />}
+      {mine.length > 1 && <polyline points={mine.map(([k]) => POS[k].join(",")).join(" ")} fill="none" stroke="#C9EE5B" strokeWidth="22" strokeLinecap="round" strokeLinejoin="round" opacity=".9" />}
       {PHASES.map(([k, name]) => {
         const st = ph[k], me = st === "me", done = st === "done";
         const [x, y] = POS[k];
         return (
           <g key={k}>
-            <rect x={x - 50} y={y - 19} width="100" height="38" rx="10" fill={me ? "#FFE14D" : done ? "#F2F3EE" : "#fff"} stroke={me ? "#15171C" : "#CDD1C7"} strokeWidth={me ? 2 : 1.5} strokeDasharray={!me && !done ? "4 3" : undefined} />
-            <text x={x} y={y - 1} textAnchor="middle" fontSize="13" fontWeight="700" fill={done ? "#767D8C" : "#15171C"}>{name}</text>
-            <text x={x} y={y + 13} textAnchor="middle" fontSize="10" fill={me ? "#5E4700" : "#767D8C"}>{WHO[st] || ""}</text>
+            <rect x={x - 50} y={y - 19} width="100" height="38" rx="10" fill={me ? "#C9EE5B" : done ? "#EEF4EC" : "#fff"} stroke={me ? "#10241A" : "#CDD1C7"} strokeWidth={me ? 2 : 1.5} strokeDasharray={!me && !done ? "4 3" : undefined} />
+            <text x={x} y={y - 1} textAnchor="middle" fontSize="13" fontWeight="700" fill={done ? "#6A7D71" : "#10241A"}>{name}</text>
+            <text x={x} y={y + 13} textAnchor="middle" fontSize="10" fill={me ? "#5E4700" : "#6A7D71"}>{WHO[st] || ""}</text>
           </g>
         );
       })}

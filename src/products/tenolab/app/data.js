@@ -30,6 +30,18 @@ export function useMe(enabled) {
     gate: r?.gate || null, features: r?.features || null, ai: r?.ai || null, lockedTopics: Array.isArray(r?.lockedTopics) ? r.lockedTopics : [], unitDates: r?.unitDates || {} }) });
 }
 
+/* 単元の色を、受講生の画面では淡くやわらかく見せる（リーフィット、2026-11-27。モック leafit-drills-v2.html）。
+   保存している色は変えない（管理の画面では元の色のまま） */
+const SOFT = {
+  "#F2C200": ["#5BAE7C", "#EAF5EE"], "#2457E6": ["#6F8FD8", "#EEF2FB"], "#D9483B": ["#DB7F72", "#FBF0EE"],
+  "#11966F": ["#4FA893", "#E9F5F1"], "#7454C7": ["#9A85D6", "#F3F0FB"], "#F29A38": ["#E9AC68", "#FFF5EA"],
+};
+export function softColor(c) { return SOFT[String(c || "").toUpperCase()]?.[0] || c; }
+export function softTopic(t) {
+  const s = SOFT[String(t?.color || "").toUpperCase()];
+  return s ? { ...t, color: s[0], soft: s[1] } : t;
+}
+
 export function useTopics(enabled) {
   return useGet("/tenolab/topics", { enabled, pick: r => (Array.isArray(r?.topics) ? r.topics : []).slice().sort((a, b) => (a.order ?? 0) - (b.order ?? 0)) });
 }

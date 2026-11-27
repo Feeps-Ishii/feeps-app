@@ -5,7 +5,7 @@
 .bf-pg { border: 1px solid var(--line); background: var(--card); border-radius: 8px; padding: 2px 10px; font: inherit; font-size: 12.5px; font-weight: 700; color: var(--ink2); cursor: pointer; white-space: nowrap; }
 .bf-pg.go { background: var(--marker); border-color: var(--ink); color: var(--ink); }
 .bf-pg:disabled { opacity: .35; cursor: default; }
-.bf { display: grid; grid-template-columns: 230px minmax(0, 1fr); background: var(--card); border: 1px solid var(--line); border-radius: 18px; box-shadow: var(--shadow, 0 6px 20px rgba(21,23,28,.05)); overflow: hidden; min-height: 640px; scroll-margin-top: 80px; }
+.bf { display: grid; grid-template-columns: 230px minmax(0, 1fr); background: var(--card); border: 1px solid var(--line); border-radius: 18px; box-shadow: var(--shadow, 0 6px 20px rgba(16,36,26,.05)); overflow: hidden; min-height: 640px; scroll-margin-top: 80px; }
 .bf-nav { background: var(--soft); border-right: 1px solid var(--line); padding: 16px 10px; display: grid; gap: 2px; align-content: start; }
 .bf-nav .ttl { padding: 0 8px 10px; display: grid; gap: 2px; }
 .bf-nav .ttl small { font-family: var(--mono); font-size: 11px; color: var(--muted); letter-spacing: .1em; }
@@ -14,7 +14,7 @@
 .bf-nav button { border: 0; background: none; text-align: left; display: grid; grid-template-columns: 24px 1fr; gap: 8px; align-items: center; padding: 6px 8px; border-radius: 10px; font-size: 13px; color: var(--ink2); cursor: pointer; }
 .bf-nav button .n { width: 24px; height: 24px; border-radius: 50%; display: grid; place-items: center; font-family: var(--mono); font-size: 11px; font-weight: 700; background: var(--card); border: 1.5px solid var(--line); }
 .bf-nav button.done .n { background: var(--mint); border-color: var(--mint); color: #fff; }
-.bf-nav button[aria-current="step"] { background: var(--card); color: var(--ink); font-weight: 700; box-shadow: 0 2px 8px rgba(21,23,28,.08); }
+.bf-nav button[aria-current="step"] { background: var(--card); color: var(--ink); font-weight: 700; box-shadow: 0 2px 8px rgba(16,36,26,.08); }
 .bf-nav button[aria-current="step"] .n { background: var(--marker); border-color: var(--ink); color: var(--ink); }
 .bf-page { container: bfp / inline-size; display: grid; grid-template-rows: auto 1fr auto; min-width: 0; }
 .bf-prog { display: flex; align-items: center; gap: 12px; padding: 12px 24px; border-bottom: 1px solid var(--line); }
@@ -37,21 +37,21 @@
 .bf-say.say-lead .bub { background: var(--mint-soft); } .bf-say.say-client .bub { background: #FFF1E2; }
 
 /* 動く図の枠 */
-.bf-demo { position: relative; background: var(--card); border: 1px solid #D9DCD3; border-radius: 16px; box-shadow: 0 2px 4px rgba(21,23,28,.04), 0 24px 50px -24px rgba(21,23,28,.28); overflow: hidden; }
+.bf-demo { position: relative; background: var(--card); border: 1px solid #D9DCD3; border-radius: 16px; box-shadow: 0 2px 4px rgba(16,36,26,.04), 0 24px 50px -24px rgba(16,36,26,.28); overflow: hidden; }
 .bf-bar { display: flex; align-items: center; gap: 6px; padding: 9px 14px; border-bottom: 1px solid var(--line); background: #FAFAF6; }
-.bf-bar > i { width: 9px; height: 9px; border-radius: 50%; background: #E2E5DD; }
+.bf-bar > i { width: 9px; height: 9px; border-radius: 50%; background: #DCE7DA; }
 .bf-bar .url { margin-left: 10px; flex: 1; min-width: 0; font-family: var(--mono); font-size: 11px; color: var(--muted); background: var(--soft); border-radius: 6px; padding: 2px 10px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .bf-replay { border: 1px solid var(--line); background: var(--card); border-radius: 999px; padding: 0 10px; font-size: 11.5px; color: var(--muted); cursor: pointer; }
 .bf-replay.solo { position: absolute; right: 10px; bottom: 10px; }
 .bf-body { position: relative; background: var(--paper); background-image: linear-gradient(var(--grid) 1px, transparent 1px), linear-gradient(90deg, var(--grid) 1px, transparent 1px); background-size: 24px 24px; padding: 22px 24px 64px; }
-.bf-float { position: absolute; z-index: 2; display: flex; align-items: center; gap: 8px; background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 7px 12px; font-size: 12.5px; font-weight: 700; box-shadow: 0 14px 34px rgba(21,23,28,.14); white-space: nowrap; max-width: calc(100% - 32px); overflow: hidden; text-overflow: ellipsis; opacity: 0; transform: translateY(8px) scale(.96); transition: opacity .45s, transform .45s cubic-bezier(.2,.8,.2,1); }
+.bf-float { position: absolute; z-index: 2; display: flex; align-items: center; gap: 8px; background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 7px 12px; font-size: 12.5px; font-weight: 700; box-shadow: 0 14px 34px rgba(16,36,26,.14); white-space: nowrap; max-width: calc(100% - 32px); overflow: hidden; text-overflow: ellipsis; opacity: 0; transform: translateY(8px) scale(.96); transition: opacity .45s, transform .45s cubic-bezier(.2,.8,.2,1); }
 .bf-float .bf-av { width: 22px; height: 22px; border-radius: 7px; font-size: 10px; }
 .bf-float.on { opacity: 1; transform: none; }
 .fl-bl { left: 24px; bottom: 14px; } .fl-br { right: 24px; bottom: 14px; } .fl-bc { left: 50%; bottom: 14px; transform: translate(-50%, 8px); } .fl-bc.on { transform: translate(-50%, 0); }
 
 /* 会社：数字の箱 */
 .bf-tiles { display: grid; grid-template-columns: repeat(var(--n), minmax(0, 1fr)); gap: 14px; }
-.bf-tile { background: var(--card); border: 1.5px solid #454B57; border-radius: 12px; padding: 12px 14px; display: grid; gap: 6px; align-content: start; transform: scale(.7); opacity: 0; transition: transform .5s cubic-bezier(.3,1.6,.5,1), opacity .3s; }
+.bf-tile { background: var(--card); border: 1.5px solid #3D5246; border-radius: 12px; padding: 12px 14px; display: grid; gap: 6px; align-content: start; transform: scale(.7); opacity: 0; transition: transform .5s cubic-bezier(.3,1.6,.5,1), opacity .3s; }
 .bf-tile.on { transform: none; opacity: 1; }
 .bf-tile small { font-size: 12px; font-weight: 700; color: var(--muted); }
 .bf-tile b { font-family: var(--mono); font-size: 30px; line-height: 1; } .bf-tile b em { font-style: normal; font-size: 14px; margin-left: 4px; color: var(--ink2); }
@@ -72,14 +72,14 @@
 .bf-lane .nodes { display: flex; align-items: center; min-width: 0; padding: 6px 8px; }
 .bf-lane .nd { flex: 1; min-width: 0; background: var(--card); border: 1.5px solid #CDD1C7; border-radius: 12px; padding: 10px 12px; display: grid; grid-template-columns: auto 1fr; gap: 0 10px; align-items: center; color: var(--muted); transition: border-color .35s, color .35s, box-shadow .35s, transform .45s cubic-bezier(.3,1.6,.5,1), background-color .35s; }
 .bf-lane .nd .bf-ico { grid-row: span 2; } .bf-lane .nd b { font-size: 13.5px; color: var(--ink); } .bf-lane .nd small { font-size: 11.5px; }
-.bf-lane .nd.on { border-color: var(--ink); color: var(--ink); background: #fff; box-shadow: 0 6px 16px -10px rgba(21,23,28,.4); }
-.bf-lane .nd.key { background: var(--marker); transform: scale(1.04); box-shadow: 0 0 0 5px rgba(255,225,77,.45); }
-.bf-lane .ln { flex: 0 0 34px; height: 2px; margin: 0 4px; background: #E2E5DD; position: relative; } .bf-lane .ln i { position: absolute; inset: 0; background: var(--ink2); transform-origin: 0 50%; transform: scaleX(0); transition: transform .5s cubic-bezier(.6,.1,.2,1); } .bf-lane .ln.on i { transform: none; }
+.bf-lane .nd.on { border-color: var(--ink); color: var(--ink); background: #fff; box-shadow: 0 6px 16px -10px rgba(16,36,26,.4); }
+.bf-lane .nd.key { background: var(--marker); transform: scale(1.04); box-shadow: 0 0 0 5px rgba(201,238,91,.45); }
+.bf-lane .ln { flex: 0 0 34px; height: 2px; margin: 0 4px; background: #DCE7DA; position: relative; } .bf-lane .ln i { position: absolute; inset: 0; background: var(--ink2); transform-origin: 0 50%; transform: scaleX(0); transition: transform .5s cubic-bezier(.6,.1,.2,1); } .bf-lane .ln.on i { transform: none; }
 .bf-lane .ln::after { content: ""; position: absolute; right: -2px; top: -4px; border: 5px solid transparent; border-left: 7px solid #CDD1C7; }
 
 /* 経緯：年表 */
 .bf-tl { position: relative; height: 200px; }
-.bf-tl .track { position: absolute; left: 4%; right: 4%; top: 72px; height: 4px; border-radius: 99px; background: #E2E5DD; }
+.bf-tl .track { position: absolute; left: 4%; right: 4%; top: 72px; height: 4px; border-radius: 99px; background: #DCE7DA; }
 .bf-tl .track i { position: absolute; inset: 0; background: var(--ink2); border-radius: 99px; transform-origin: 0 50%; transition: transform .6s cubic-bezier(.6,.1,.2,1); }
 .bf-tl .ms { position: absolute; top: 0; width: calc(92% / var(--n)); display: grid; justify-items: center; text-align: center; gap: 2px; opacity: 0; transition: opacity .4s; }
 .bf-tl .ms:nth-child(2) { left: 4%; } .bf-tl .ms:nth-child(3) { left: calc(4% + 92% / var(--n) * 1); } .bf-tl .ms:nth-child(4) { left: calc(4% + 92% / var(--n) * 2); } .bf-tl .ms:nth-child(5) { left: calc(4% + 92% / var(--n) * 3); } .bf-tl .ms:nth-child(6) { left: calc(4% + 92% / var(--n) * 4); } .bf-tl .ms:nth-child(7) { left: calc(4% + 92% / var(--n) * 5); } .bf-tl .ms:nth-child(8) { left: calc(4% + 92% / var(--n) * 6); }
@@ -143,7 +143,7 @@
 .bf-want .mc.good { background: linear-gradient(135deg, #FBE7A1, #E3B83F); color: #4A3A06; }
 .bf-want .flip { display: grid; width: 180px; max-width: 100%; perspective: 600px; }
 .bf-want .flip .mc { grid-area: 1 / 1; width: auto; backface-visibility: hidden; transition: transform .8s cubic-bezier(.3,.9,.4,1); }
-.bf-want .flip .ff { transform: rotateY(180deg); } .bf-want.p3 .flip .fb { transform: rotateY(-180deg); } .bf-want.p3 .flip .ff { transform: none; box-shadow: 0 0 0 5px rgba(255,225,77,.5); }
+.bf-want .flip .ff { transform: rotateY(180deg); } .bf-want.p3 .flip .fb { transform: rotateY(-180deg); } .bf-want.p3 .flip .ff { transform: none; box-shadow: 0 0 0 5px rgba(201,238,91,.5); }
 .bf-reqs { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; }
 .bf-reqs .rq { border: 1px solid color-mix(in srgb, var(--red) 35%, var(--line)); border-radius: 14px; padding: 12px; display: grid; gap: 4px; justify-items: start; background: var(--card); color: var(--ink2); }
 .bf-reqs .rq b { font-size: 13.5px; line-height: 1.45; color: var(--ink); } .bf-reqs .rq.other { opacity: .65; border-style: dashed; border-color: var(--line); }
@@ -161,7 +161,7 @@
 .bf-v .vs { background: var(--card); border: 1.5px solid #CDD1C7; border-radius: 10px; display: grid; place-content: center; text-align: center; color: var(--muted); opacity: .4; transition: all .35s; }
 .bf-v .vs b { font-size: 12px; color: var(--ink); } .bf-v .vs small { font-size: 10.5px; }
 .bf-v .vs.on { opacity: 1; border-color: var(--ink2); } .bf-v .vs.v-done.on { background: var(--soft); }
-.bf-v .vs.v-me.on { background: var(--marker); border-color: var(--ink); box-shadow: 0 0 0 5px rgba(255,225,77,.45); transform: scale(1.04); }
+.bf-v .vs.v-me.on { background: var(--marker); border-color: var(--ink); box-shadow: 0 0 0 5px rgba(201,238,91,.45); transform: scale(1.04); }
 .bf-roles { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; }
 .bf-roles > div { border: 1px solid var(--line); border-radius: 12px; padding: 12px; background: var(--card); display: grid; gap: 3px; color: var(--ink2); }
 .bf-roles b { font-size: 14px; color: var(--ink); } .bf-roles small { font-size: 12.5px; color: var(--ink2); line-height: 1.5; }

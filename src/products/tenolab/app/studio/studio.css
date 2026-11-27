@@ -1,14 +1,14 @@
 /* 自動生成（docs/design/mockups/tenolab-2026-09/src/gen_studio_css.py）。教材づくりのモック tenolab-studio.html の見た目を .tl-studio に閉じ込めたもの。 */
 .tl-studio{color-scheme: light;
-    --paper:#FBFBF7; --grid:#F0F1EB; --card:#FFFFFF; --soft:#F2F3EE;
-    --ink:#15171C; --ink2:#454B57; --muted:#767D8C; --line:#E2E5DD;
-    --marker:#FFE14D; --marker-soft:#FFF7C2; --marker-deep:#F2C200;
-    --blue:#2457E6; --blue-soft:#E8EEFD; --mint:#11966F; --mint-soft:#E3F5EE; --red:#D9483B; --red-soft:#FBE9E7;
-    --ide:#151923; --ide2:#0E1118; --ide-ink:#E6E9F1; --ide-mute:#808AA1;
+    --paper:#F6F9F4; --grid:#F0F1EB; --card:#FFFFFF; --soft:#EEF4EC;
+    --ink:#10241A; --ink2:#3D5246; --muted:#6A7D71; --line:#DCE7DA;
+    --marker:#C9EE5B; --marker-soft:#F1FAD6; --marker-deep:#2E9A5E;
+    --blue:#1F7A4C; --blue-soft:#E2F2E7; --mint:#11966F; --mint-soft:#E3F5EE; --red:#D9483B; --red-soft:#FBE9E7;
+    --ide:#0F2E22; --ide2:#0A2419; --ide-ink:#E6F2EA; --ide-mute:#8FAF9B;
     --display:"Dela Gothic One","Zen Kaku Gothic New",sans-serif;
     --body:"Zen Kaku Gothic New","Hiragino Kaku Gothic ProN","Yu Gothic UI",Meiryo,system-ui,sans-serif;
     --mono:"JetBrains Mono",ui-monospace,monospace;
-    --shadow:0 1px 2px rgba(21,23,28,.04), 0 6px 20px rgba(21,23,28,.05);}
+    --shadow:0 1px 2px rgba(16,36,26,.04), 0 6px 20px rgba(16,36,26,.05);}
 .tl-studio *, .tl-studio{box-sizing:border-box}
 .tl-studio, .tl-studio{height:100%}
 .tl-studio{margin:0; background-color:var(--paper); background-image:linear-gradient(var(--grid) 1px, transparent 1px), linear-gradient(90deg, var(--grid) 1px, transparent 1px); background-size:32px 32px; color:var(--ink); font-family:var(--body); font-size:15px; line-height:1.7; -webkit-font-smoothing:antialiased; word-break:auto-phrase; line-break:strict; overflow-wrap:anywhere; display:flex; flex-direction:column}
@@ -24,7 +24,7 @@
 .tl-studio .btn.sm{padding:4px 12px; font-size:13px; border-radius:8px}
 .tl-studio .chip{display:inline-flex; align-items:center; gap:4px; border:1px solid var(--line); background:var(--card); border-radius:6px; padding:0 8px; font-size:12px; color:var(--ink2); white-space:nowrap}
 .tl-studio .chip.ok{background:var(--mint-soft); border-color:#9FD9C3; color:#0B6B50}
-.tl-studio .chip.warn{background:var(--marker-soft); border-color:var(--marker-deep); color:#7A5A00}
+.tl-studio .chip.warn{background:var(--marker-soft); border-color:var(--marker-deep); color:#3F6B12}
 .tl-studio .chip.ng{background:var(--red-soft); border-color:#F1C4BE; color:#A2342A}
 .tl-studio .mark{background:linear-gradient(transparent 60%, var(--marker) 60%, var(--marker) 90%, transparent 90%)}
 .tl-studio .bar{background:rgba(251,251,247,.95); border-bottom:1px solid var(--line); flex:none}
@@ -74,7 +74,7 @@
 .tl-studio .drop small{color:var(--muted); font-size:12px}
 .tl-studio .align{display:grid; gap:8px}
 .tl-studio .arow{display:grid; grid-template-columns:44px 168px minmax(0,1fr) 96px; gap:12px; align-items:center; border:1px solid var(--line); border-radius:10px; padding:8px 10px; background:var(--card)}
-.tl-studio .arow.bad{border-color:var(--marker-deep); background:#FFFDF0}
+.tl-studio .arow.bad{border-color:var(--marker-deep); background:#F3FBF5}
 .tl-studio .arow.skip{opacity:.6}
 .tl-studio .arow .pn{font-family:var(--mono); font-size:12px; color:var(--muted); text-align:center}
 .tl-studio .slide{aspect-ratio:16/9; border-radius:6px; border:1px solid var(--line); background:#fff; padding:7px 8px; display:grid; align-content:start; gap:4px; overflow:hidden}
@@ -100,8 +100,8 @@
 .tl-studio .strip .s small{display:block; font-family:var(--mono); font-size:10px; color:var(--muted); text-align:center; margin-top:2px}
 .tl-studio .strip .ex{flex:none; width:96px; border-radius:6px; border:1.5px solid var(--ink); background:var(--marker-soft); display:grid; place-items:center; text-align:center; font-size:11px; font-weight:700; padding:6px; aspect-ratio:16/9; align-self:start}
 .tl-studio .strip .ex.code{background:var(--ide); color:var(--marker); border-color:var(--ink)}
-.tl-studio .strip .ex.new{animation:pop .3s ease both; box-shadow:0 0 0 4px rgba(255,225,77,.45)}
-.tl-studio .strip .ins{flex:none; width:96px; border-radius:6px; border:2px dashed var(--marker-deep); display:grid; place-items:center; text-align:center; font-size:11px; font-weight:700; color:#7A5A00; aspect-ratio:16/9; align-self:start; background:#FFFDF0}
+.tl-studio .strip .ex.new{animation:pop .3s ease both; box-shadow:0 0 0 4px rgba(201,238,91,.45)}
+.tl-studio .strip .ins{flex:none; width:96px; border-radius:6px; border:2px dashed var(--marker-deep); display:grid; place-items:center; text-align:center; font-size:11px; font-weight:700; color:#3F6B12; aspect-ratio:16/9; align-self:start; background:#F3FBF5}
 .tl-studio .prop{border:1.5px solid var(--marker-deep); border-radius:14px; overflow:hidden; background:var(--card)}
 .tl-studio .prop .top{padding:12px 16px; background:var(--marker-soft); display:flex; gap:10px; align-items:center; flex-wrap:wrap}
 .tl-studio .prop .top b{font-size:15px}
