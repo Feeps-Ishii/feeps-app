@@ -6,6 +6,8 @@
    - ログインのあとで入れない人（研修のみの契約）には、onLoggedIn が文言を返し、ログインの画面に出す。
      はじめから出す文言は OPTS.loginError
    OPTS = { auth, onLoggedIn, submitInquiry, loginError } */
+import { mountLeafitLp } from "./leafitLp.js";
+
 export function mountEntry(root, OPTS) {
 OPTS = OPTS || {};
 const CLEANUP = [];
@@ -41,6 +43,14 @@ document.getElementById("topic-grid").innerHTML = TOPICS.map(t => `
 /* ---------- 画面の切り替え（紹介 ⇄ ログイン） ---------- */
 const signupView = document.getElementById("signup-view"), bizView = document.getElementById("biz-view"), legalView = document.getElementById("legal-view");
 const lp = document.getElementById("lp"), loginView = document.getElementById("login-view"), trialView = document.getElementById("trial-view"), quoteView = document.getElementById("quote-view");
+// 紹介ページはリーフィットのもの（2026-11-27）。前の紹介ページは動きが他の画面とつながっているので残し、見せない
+{
+  const lfHost = document.createElement("div");
+  lfHost.id = "leafit-lp";
+  [...lp.children].forEach(el => { el.style.display = "none"; });
+  lp.prepend(lfHost);
+  CLEANUP.push(mountLeafitLp(lfHost));
+}
 function show(view) {
   // 紹介 ⇄ 法人のページは横にすべらせる（2026-10-19）
   const prevView = lp.hidden ? (bizView.hidden ? "" : "business") : "lp";
@@ -55,7 +65,7 @@ function show(view) {
     legalView.querySelectorAll("[data-doc]").forEach(a => { a.hidden = a.dataset.doc !== doc; });
     legalView.querySelectorAll(".lg-tabs a").forEach(a => { if (a.getAttribute("href") === "#/" + doc) a.setAttribute("aria-current", "page"); else a.removeAttribute("aria-current"); });
   }
-  document.querySelector(".bar").hidden = view === "login" || view === "signup";   // ログインは1ページで完結（上の枠は出さない）
+  document.querySelector(".bar").hidden = view === "login" || view === "signup" || view === "lp";   // ログインは1ページで完結（上の枠は出さない）。紹介ページは自分のヘッダーを持つ
   document.getElementById("lp-nav").style.visibility = view === "lp" || view === "business" ? "visible" : "hidden";
   document.getElementById("cta-login").hidden = view === "login";
   window.scrollTo({ top: 0 });

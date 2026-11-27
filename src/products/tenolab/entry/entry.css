@@ -1574,3 +1574,8 @@ body:has(.tl-entry #login-view:not([hidden])), body:has(.tl-entry #signup-view:n
 .tl-entry .lside{padding:40px 56px; gap:14px}
 .tl-entry .lside .demo-body{height:360px}
 }
+
+/* リーフィットのロゴ（2026-11-27）：折り紙の葉＋LEAFIT＋リーフィット。上の枠・ログイン・無料登録の .dh に入れる */
+.tl-entry .dh .lf-w{display:grid; line-height:1; letter-spacing:0}
+.tl-entry .dh .lf-w b{font-family:"Josefin Sans","Zen Kaku Gothic New",sans-serif; font-weight:600; letter-spacing:.18em; font-size:.92em; color:var(--ink); background:none; animation:none; padding:0}
+.tl-entry .dh .lf-w small, .tl-entry .login-logo.dh .lf-w small{display:block; font-family:"Zen Kaku Gothic New",sans-serif; font-weight:700; font-size:.42em; letter-spacing:.36em; color:#2E9A5E; margin:.45em 0 0}
