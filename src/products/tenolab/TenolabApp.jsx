@@ -251,7 +251,8 @@ function App({ route, auth, onLogout }) {
   }, []);
 
   const premium = !!me.data?.premium || staff;
-  const rawTopics = topicsQ.data || [];
+  const rawTopics = useMemo(() => topicsQ.data || [], [topicsQ.data]);
+  const topics = useMemo(() => rawTopics.map(softTopic), [rawTopics]);   // 受講生の画面は淡い色（管理・教材づくりは rawTopics）
   const rawCases = casesQ.data || [];
   const courses = useMemo(() => courseModels(lrn, topics, rawCases, premium), [lrn, topics, rawCases, premium]);
   const drills = useMemo(() => drillModels(drillsQ.data, topics, progress, premium), [drillsQ.data, topics, progress, premium]);
