@@ -1579,3 +1579,25 @@ body:has(.tl-entry #login-view:not([hidden])), body:has(.tl-entry #signup-view:n
 .tl-entry .dh .lf-w{display:grid; line-height:1; letter-spacing:0}
 .tl-entry .dh .lf-w b{font-family:"Josefin Sans","Zen Kaku Gothic New",sans-serif; font-weight:600; letter-spacing:.18em; font-size:.92em; color:var(--ink); background:none; animation:none; padding:0}
 .tl-entry .dh .lf-w small, .tl-entry .login-logo.dh .lf-w small{display:block; font-family:"Zen Kaku Gothic New",sans-serif; font-weight:700; font-size:.42em; letter-spacing:.36em; color:#2E9A5E; margin:.45em 0 0}
+/* ログインの見た目（リーフィット、2026-11-27。モック docs/design/mockups/leafit-2026-11/leafit-login.html）。並びはそのまま、色・文字・角・影だけ。#login-view の中だけに効かせる */
+.tl-entry #login-view{--paper:#F6F9F4; --grid:transparent; --soft:#EEF4EC; --ink:#10241A; --ink2:#3D5246; --muted:#6A7D71; --line:#DCE7DA;
+  --marker:#C9EE5B; --marker-soft:#F1FAD6; --marker-deep:#2E9A5E; --blue:#1F7A4C; --blue-soft:#E2F2E7;
+  --ide:#0F2E22; --ide2:#0A2419; --ide-ink:#E6F2EA; --ide-mute:#8FAF9B; color:var(--ink)}
+.tl-entry #login-view .login-page{background-color:#F6F9F4; background-image:radial-gradient(50% 50% at 80% 20%, rgba(139,211,155,.26), transparent 70%), radial-gradient(40% 40% at 5% 95%, rgba(201,238,91,.14), transparent 70%); background-repeat:no-repeat}
+.tl-entry #login-view .spot{background:radial-gradient(520px circle at var(--mx,72%) var(--my,40%), rgba(139,211,155,.22), transparent 62%)}
+.tl-entry #login-view .login h1{font-weight:900; letter-spacing:.01em}
+.tl-entry #login-view .btn{border:0; border-radius:999px; background:#0F2E22; color:#fff; box-shadow:0 8px 20px rgba(15,46,34,.20)}
+.tl-entry #login-view .btn:hover{filter:none; background:#1F7A4C}
+.tl-entry #login-view .btn.ghost{background:transparent; color:var(--ink); box-shadow:inset 0 0 0 1.5px var(--ink)}
+.tl-entry #login-view .eyebrow{font-family:"Josefin Sans","Zen Kaku Gothic New",sans-serif; font-weight:600; letter-spacing:.28em; color:#2E9A5E}
+.tl-entry #login-view .field input{border-color:#CFDCCD; border-radius:12px; background:#FBFDFA}
+.tl-entry #login-view .field input:focus{outline:3px solid rgba(46,154,94,.22); border-color:#2E9A5E}
+.tl-entry #login-view .pw-t{border-radius:999px; background:#E8F2E6}
+.tl-entry #login-view .login .gbtn{border-radius:999px; border-color:#CFDCCD}
+.tl-entry #login-view .lside{position:relative; background:linear-gradient(140deg,#E3F3E6 0%,#CBEAD3 55%,#B7E2C3 100%); border-left:0}
+.tl-entry #login-view .lside::before{content:""; position:absolute; inset:0; background-image:radial-gradient(rgba(31,122,76,.14) 1.2px, transparent 1.2px); background-size:18px 18px; -webkit-mask-image:linear-gradient(180deg,#000,transparent 80%); mask-image:linear-gradient(180deg,#000,transparent 80%); pointer-events:none}
+.tl-entry #login-view .lside > *{position:relative}
+.tl-entry #login-view .lside-h{font-weight:900; line-height:1.35; letter-spacing:.01em}
+.tl-entry #login-view .lside-h .tech{color:#2E9A5E}
+.tl-entry #login-view .lside .demo{border-radius:18px; box-shadow:0 14px 32px rgba(16,36,26,.14)}
+.tl-entry #login-view .done-mark{background:#2E9A5E}
