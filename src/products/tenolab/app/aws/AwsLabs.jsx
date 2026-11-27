@@ -1,5 +1,5 @@
 import React, { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
-import { Ic, planLabel } from "../ui.jsx";
+import { GoArrow, Ic, planLabel } from "../ui.jsx";
 import { cloud } from "../data.js";
 import { AWS_CHECK_NAMES } from "../DrillPage.jsx";
 import { awsDiagram } from "./awsDiagram.js";
@@ -194,8 +194,9 @@ export default function AwsLabs({ ctx }) {
                     const pick = () => { setSel(d.id); if (window.innerWidth < 980) archRef.current?.scrollIntoView({ behavior: "smooth", block: "center" }); };
                     return (
                       <article key={d.id} className={`card lab ${s === "lock" ? "locked" : ""}`} tabIndex={0} aria-current={d.id === selected.id}
-                        onClick={e => { if (!e.target.closest("button")) pick(); }}
-                        onKeyDown={e => { if ((e.key === "Enter" || e.key === " ") && e.target === e.currentTarget) { e.preventDefault(); pick(); } }}>
+                        onClick={e => { if (!e.target.closest("button")) (s === "lock" ? pick() : open(d)); }}
+                        onMouseEnter={() => setSel(d.id)} onFocus={() => setSel(d.id)} role={s === "lock" ? undefined : "link"} aria-label={s === "lock" ? undefined : `${d.title}（${s === "try" ? "つづきから" : s === "done" ? "もう一度" : "開く"}）`}
+                        onKeyDown={e => { if ((e.key === "Enter" || e.key === " ") && e.target === e.currentTarget) { e.preventDefault(); s === "lock" ? pick() : open(d); } }}>
                         <div className="lab-dg"><Diagram d={d} uid={`t${i}${j}`} crop />
                           {s === "done" ? <span className="lbadge ok">✓ クリア</span> : s === "try" ? <span className="lbadge try">挑戦中</span> : null}</div>
                         <div className="lab-bd"><h3>{d.title}</h3>
@@ -203,7 +204,7 @@ export default function AwsLabs({ ctx }) {
                         <div className="lab-ft">
                           <span className="last">{s === "done" && rec?.clearedAt ? `${md(rec.clearedAt)} クリア` : ""}</span>
                           {s === "lock" ? <span className="chip prem">{planLabel()}</span>
-                            : <button type="button" className={`btn sm ${s === "try" ? "" : "ghost"}`} onClick={() => open(d)}>{s === "try" ? "つづきから" : s === "done" ? "もう一度" : "開く"}</button>}
+                            : <GoArrow />}
                         </div>
                       </article>
                     );

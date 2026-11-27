@@ -100,6 +100,18 @@ export function StartTag({ start }) {
 export function Back({ onClick, children = "← 戻る" }) {
   return <button type="button" className="back" onClick={onClick}>{children}</button>;
 }
+/* 枠のどこを押しても開く（演習・案件体験・AWS実習の一覧、2026-11-27）。中にボタンがあるときは、そのボタンの押下を優先 */
+export function rowLink(fn, label) {
+  return {
+    role: "link", tabIndex: 0, "aria-label": label,
+    onClick: e => { if (!e.target.closest("button, a, input, select, textarea")) fn(); },
+    onKeyDown: e => { if ((e.key === "Enter" || e.key === " ") && e.target === e.currentTarget) { e.preventDefault(); fn(); } },
+  };
+}
+// 枠の右の「→」（ホームの次にやると同じ）
+export function GoArrow() {
+  return <span className="go-arrow" aria-hidden="true">→</span>;
+}
 
 // 読み込み中・失敗（0件として出さない）
 export function Loading({ what = "読み込んでいます…" }) {

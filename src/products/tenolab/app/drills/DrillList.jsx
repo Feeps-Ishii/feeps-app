@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef } from "react";
-import { Ic, TopicIcon, OTHER_TOPIC, planLabel } from "../ui.jsx";
+import { GoArrow, Ic, TopicIcon, OTHER_TOPIC, planLabel, rowLink } from "../ui.jsx";
 import "./drillList.css";
 import { DrillsBand } from "../steps/Bands.jsx";
 import { NextStep } from "../steps/Steps.jsx";
@@ -20,10 +20,11 @@ const MK_LABEL = { done: "クリア", try: "挑戦中", lock: "利用できま�
 function Mk({ s }) { return <span className={`mk ${s}`} role="img" aria-label={MK_LABEL[s] || "未着手"} />; }
 function Lvd({ level }) { return <span className="lvd" aria-hidden="true">{[1, 2, 3].map(n => <i key={n} className={n <= (LV[level] || 0) ? "on" : ""} />)}</span>; }
 function Legend() { return <div className="legend"><span><span className="mk done" />クリア</span><span><span className="mk try" />挑戦中</span><span><span className="mk" />未着手</span></div>; }
-function ActBtn({ s, onClick }) {
+function ActBtn({ s }) {
   if (s === "lock") return <span className="chip prem">{planLabel()}</span>;
-  return <button type="button" className={`btn sm ${s === "try" ? "" : "ghost"}`} onClick={onClick}>{s === "try" ? "つづきから" : s === "done" ? "もう一度" : "始める"}</button>;
+  return <GoArrow />;
 }
+const ACT_LABEL = { try: "つづきから", done: "もう一度" };
 
 /* 演習・単元・レッスンの並びと、自分の状態をまとめる */
 export function useDrillData(ctx) {
@@ -124,13 +125,13 @@ function HomeScreen({ data, set, go }) {
             {picks.map(([d, why]) => {
               const t = d.topicObj || OTHER_TOPIC, s = st(d), l = (d.lessons || [])[0];
               return (
-                <article key={d.id} className="card ncard" style={{ "--tc": t.color }}>
+                <article key={d.id} className="card ncard is-link" style={{ "--tc": t.color }} {...rowLink(() => go(`#/drills/${encodeURIComponent(d.id)}`), `${d.title}（${s === "try" ? "つづきから" : "始める"}）`)}>
                   <div className="top"><TopicIcon topic={t} size={26} /><span className="eyebrow" style={{ color: t.color }}>{t.name}</span>
                     <span className={`why ${why === "try" ? "try" : "new"}`}>{why === "try" ? "挑戦中" : why === "first" ? "最初の1問" : "習ったところ"}</span></div>
                   <h3>{d.title}</h3>
                   {l?.lessonTitle && <div className="ls"><Ic id="slide" /><span>{[l.courseTitle, l.lessonTitle].filter(Boolean).join(" ・ ")}</span></div>}
                   <div className="foot">{d.level && <span className="chip"><Lvd level={d.level} />{d.level}</span>}{d.minutes ? <span className="chip">約{d.minutes}分</span> : null}
-                    <button type="button" className="btn" onClick={() => go(`#/drills/${encodeURIComponent(d.id)}`)}>{s === "try" ? "つづきから" : "始める"}</button></div>
+                    <GoArrow /></div>
                 </article>
               );
             })}
@@ -216,12 +217,12 @@ function TopicScreen({ data, view, set, go }) {
                 {shown.length ? shown.map(d => {
                   const ds = st(d);
                   return (
-                    <div key={d.id} className={`dl-row ${ds === "done" ? "cleared" : ""}`}>
+                    <div key={d.id} className={`dl-row ${ds === "done" ? "cleared" : ""} ${ds === "lock" ? "" : "is-link"}`} {...(ds === "lock" ? {} : rowLink(() => open(d), `${d.title}（${ACT_LABEL[ds] || "始める"}）`))}>
                       <Mk s={ds} />
                       <span className="tt"><b>{d.title}</b><small>{(d.tags || []).slice(0, 3).map(x => <span key={x} className="tg">{x}</span>)}{(d.lessons || []).slice(1).map(l => <span key={`${l.courseId}/${l.lessonId}`} className="also">＋{shortLesson(l)}</span>)}</small></span>
                       <span className="dl-lv">{d.level && <><Lvd level={d.level} />{d.level}</>}</span>
                       <span className="mn">{d.minutes ? `約${d.minutes}分` : ""}</span>
-                      <span className="act"><ActBtn s={ds} onClick={() => open(d)} /></span>
+                      <span className="act"><ActBtn s={ds} /></span>
                     </div>
                   );
                 }) : <div className="allclear"><span className="mk done" />すべてクリア</div>}
@@ -277,13 +278,13 @@ function ListScreen({ data, view, set, go }) {
         {rows.length ? rows.map(d => {
           const t = d.topicObj || OTHER_TOPIC, s = st(d), l = (d.lessons || [])[0];
           return (
-            <div key={d.id} className="dl-lrow">
+            <div key={d.id} className={`dl-lrow ${s === "lock" ? "" : "is-link"}`} {...(s === "lock" ? {} : rowLink(() => go(`#/drills/${encodeURIComponent(d.id)}`), `${d.title}（${ACT_LABEL[s] || "始める"}）`))}>
               <Mk s={s} />
               <span className="tt"><b>{d.title}</b><small>{l?.lessonTitle ? [l.courseTitle, l.lessonTitle].filter(Boolean).join(" ・ ") : (d.tags || []).slice(0, 2).join(" ・ ")}</small></span>
               <span className="tp"><i style={{ background: t.color }} />{t.name}</span>
               <span className="dl-lv">{d.level && <><Lvd level={d.level} />{d.level}</>}</span>
               <span className="mn">{d.minutes ? `約${d.minutes}分` : ""}</span>
-              <span className="act"><ActBtn s={s} onClick={() => go(`#/drills/${encodeURIComponent(d.id)}`)} /></span>
+              <span className="act"><ActBtn s={s} /></span>
             </div>
           );
         }) : <div className="empty">当てはまる演習はありません</div>}
