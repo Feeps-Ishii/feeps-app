@@ -16,8 +16,16 @@
 }
 /* 上の帯（受講生）。管理の画面（.admin）は黒い帯のまま */
 :root .tl-course .bar:not(.admin) { background: rgba(246, 249, 244, .9); backdrop-filter: saturate(1.4) blur(10px); }
+/* ロゴは帯の高さの真ん中に（文字の行の高さで上に寄っていた） */
+:root .tl-course .bar .logo { display: flex; align-items: center; line-height: 1; }
 :root .tl-course .nav a { border-radius: 999px; }
 :root .tl-course .nav a[aria-current="page"] { background: var(--lf-forest); color: #fff; }
+/* 受講生のタブ（学ぶ・試す・実践・本物の環境）：選んでいるタブは濃い地なので、文字を明るく。AWS は金色 */
+:root .tl-course .nav.stp-nav a.stp-tab[aria-current="page"] { background: var(--lf-forest); border-radius: 999px; }
+:root .tl-course .nav a.stp-tab[aria-current="page"] .lb small { color: #C9EE5B; }
+:root .tl-course .nav a.stp-tab[aria-current="page"] .lb b { color: #fff; }
+:root .tl-course .nav a.stp-tab.s4[aria-current="page"] .lb small { color: #F2CB8A; }
+:root .tl-course .nav a.stp-tab.s4[aria-current="page"] .lb b { background: linear-gradient(90deg, #FFE9BF, #F5BE6A); -webkit-background-clip: text; background-clip: text; color: transparent; }
 
 /* 見出しは紹介ページと同じ太い文字 */
 :root .tl-course .h1, :root .tl-course h1 { font-weight: 900; letter-spacing: .01em; }
@@ -43,6 +51,17 @@
 :root .tl-course .tabs-h button[aria-selected="true"] { background: var(--lf-forest); color: #fff; }
 :root .tl-course .chip { border-radius: 999px; }
 :root .tl-course .me { border-radius: 999px; }
+
+/* 右上の名前のメニュー：線は名前の下とログアウトの上だけ。項目はふつうの文字、ログアウトだけ赤 */
+:root .tl-course .um-btn { border-radius: 999px; }
+:root .tl-course .um-menu { width: 248px; border-radius: 16px; padding: 8px; gap: 2px; box-shadow: 0 16px 36px rgba(16, 36, 26, .14); }
+:root .tl-course .um-head { padding: 10px 12px 12px; margin-bottom: 4px; gap: 2px; }
+:root .tl-course .um-head b { font-size: 14px; }
+:root .tl-course .um-menu .um-item { display: block; width: 100%; border: 0; background: none; text-align: left; padding: 9px 12px; border-radius: 10px; font: inherit; font-size: 14px; font-weight: 500; color: var(--ink); text-decoration: none; cursor: pointer; }
+:root .tl-course .um-menu .um-item:hover { background: var(--lf-mist); }
+:root .tl-course .um-menu .um-out { position: relative; margin-top: 9px; padding: 9px 12px; border: 0; border-radius: 10px; font-weight: 500; color: #B4483D; }
+:root .tl-course .um-menu .um-out::before { content: ""; position: absolute; left: 4px; right: 4px; top: -5px; border-top: 1px solid var(--line); }
+:root .tl-course .um-menu .um-out:hover { background: #FBF0EE; }
 
 /* AI コーチの印：淡い緑の地にリーフィットの葉（brand.jsx の LeafAvatar） */
 :root .tl-course .msg .who { background: var(--lf-mist); border-radius: 9px; }
