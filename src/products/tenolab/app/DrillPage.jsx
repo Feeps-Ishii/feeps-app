@@ -20,10 +20,10 @@ export default function DrillPage({ ctx, id }) {
   const topic = topics.find(t => t.id === item.topic);
   const rec = progress.drill(item.id);
   if (item.runtime === "aws") return <AwsDrill item={{ ...item, premium: true }} premium={premium} back={back} rec={rec} progress={progress} />;
-  return <CodeDrill item={item} topic={topic} back={back} go={go} rec={rec} progress={progress} />;
+  return <CodeDrill item={item} topic={topic} back={back} go={go} rec={rec} progress={progress} ai={ctx.ai} onSpent={ctx.spendAi} />;
 }
 
-function CodeDrill({ item, topic, back, go, rec, progress }) {
+function CodeDrill({ item, topic, back, go, rec, progress, ai, onSpent }) {
   const [code, setCode] = useState(rec?.code ?? item.starterCode ?? "");
   const [hint, setHint] = useState(false);
   const [answerState, setAnswerState] = useState("");
@@ -76,7 +76,7 @@ function CodeDrill({ item, topic, back, go, rec, progress }) {
           onAnswer={item.hasAnswer ? onAnswer : null} answerState={answerState} onAsk={canAsk ? q => askRef.current?.(q) : null} />
         {saveErr && <div className="verdict ng" role="alert">{saveErr}</div>}
       </div>
-      {canAsk && <DrillAsk item={item} code={code} last={last} askRef={askRef} ai={ctx.ai} onSpent={ctx.spendAi} />}
+      {canAsk && <DrillAsk item={item} code={code} last={last} askRef={askRef} ai={ai} onSpent={onSpent} />}
       {topic && (
         <div className="card flat" style={{ marginTop: 14, padding: "14px 18px", display: "flex", flexWrap: "wrap", gap: 12, alignItems: "center" }}>
           <span className="muted" style={{ fontSize: 13 }}>この演習の単元</span><button type="button" className="btn ghost" onClick={() => go(`#/topics/${topic.id}`)}>{topic.name}</button>
