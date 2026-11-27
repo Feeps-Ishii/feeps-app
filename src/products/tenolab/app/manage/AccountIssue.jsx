@@ -21,14 +21,14 @@ const slashDate = s => (s ? s.replace(/-/g, "/").replace(/\/0(\d)/g, "/$1") : ""
 const daysUntil = s => (s ? Math.round((Date.parse(`${s}T00:00:00`) - Date.parse(`${todayYmd()}T00:00:00`)) / 86400000) : 0);
 const PLAN_NAME = { standard: "スタンダード", premium: "Premium", basic: "ベーシック" };
 
-async function downloadExcel({ company, start, rows }) {
+async function downloadExcel({ company, start, end, rows }) {
   const XLSX = await import("xlsx");
   const aoa = [
     ["リーフィット　アカウントのご案内"],
     [],
     ["企業名", company],
     ["発行日", slashDate(todayYmd())],
-    ...(start ? [["使い始め", slashDate(start)]] : []),
+    ...(start || end ? [["使える期間", `${start ? slashDate(start) : ""} 〜 ${end ? slashDate(end) : ""}`]] : []),
     ["ログインの画面", LOGIN_URL],
     ["人数", `${rows.length}名`],
     [],
@@ -67,7 +67,7 @@ export default function AccountIssue({ go, companyId: presetId }) {
     loadOv().then(list => {
       if (!presetId) return;
       const c = list.find(x => x.companyId === presetId);
-      setP({ companyId: presetId, newName: "", count: 10, premium: 0, prefix: slug(presetId).slice(0, 12) || "user", namePrefix: "受講者", start: "", notes: [], quote: c ? `${c.name} のアカウント` : "" });
+      setP({ companyId: presetId, newName: "", count: 10, premium: 0, prefix: slug(presetId).slice(0, 12) || "user", namePrefix: "受講者", start: "", end: c?.contract?.endDate || "", notes: [], quote: c ? `${c.name} のアカウント` : "" });
     });
   }, [presetId]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -88,6 +88,9 @@ export default function AccountIssue({ go, companyId: presetId }) {
   if (co && (addStd || addPrem)) questions.push(["seats", `受講枠が足りません（${addStd ? `スタンダード +${addStd}` : ""}${addStd && addPrem ? " ・ " : ""}${addPrem ? `Premium +${addPrem}` : ""}）。`, [["add", "枠を増やして発行する"], ["fit", "枠の中だけ発行する"]], "add"]);
   if (co && !seatBilling && prem) questions.push(["premflat", `${co.name} は枠なし（企業のプラン：${PLAN_NAME[co.learningPlan] || "—"}）なので、Premium の人数は使いません。`, [["ok", "わかった"]], "ok"]);
   if (p?.start && daysUntil(p.start) > 30) questions.push(["early", `使い始め（${slashDate(p.start)}）まで30日より先です。仮パスワードは発行から30日で使えなくなります。`, [["now", "今すぐ発行する"], ["later", "近くなってから発行する"]], "later"]);
+  // 使える期間を変えたか（登録済みの企業）。変えたら契約の日付も直す
+  const periodChanged = !!(co && ((p?.end && p.end !== (co.contract?.endDate || "")) || (p?.start && p.start !== (co.contract?.startDate || ""))));
+  const badPeriod = !!(p?.start && p?.end && p.end < p.start);
   const open = questions.filter(([k]) => answers[k] == null).length;
   const stop = answers.elearning === "stop" || answers.early === "later" || (answers.company === "pick" && !p?.companyId);
   // 枠の中だけ発行するときの人数
@@ -102,7 +105,7 @@ export default function AccountIssue({ go, companyId: presetId }) {
       const list = ov?.length ? ov : await loadOv();
       const id = r?.company?.exists ? r.company.id : "";
       const base = id ? list.find(c => c.companyId === id) : null;
-      setP({ companyId: id, newName: id ? "" : r?.company?.name || "", count: r?.count || 10, premium: r?.premium || 0, prefix: slug(r?.prefix || (base ? base.companyId : "")).slice(0, 24) || "user", prefixReused: !!r?.prefixReused, namePrefix: r?.namePrefix || "受講者", start: r?.start || "", notes: r?.notes || [], quote: t });
+      setP({ companyId: id, newName: id ? "" : r?.company?.name || "", count: r?.count || 10, premium: r?.premium || 0, prefix: slug(r?.prefix || (base ? base.companyId : "")).slice(0, 24) || "user", prefixReused: !!r?.prefixReused, namePrefix: r?.namePrefix || "受講者", start: r?.start || "", end: r?.end || base?.contract?.endDate || "", notes: r?.notes || [], quote: t });
       setStep(2);
     } catch (e) {
       setMsg({ kind: "ng", text: e?.errorMessage || "依頼を読み取れませんでした。もう一度お試しください。" });
@@ -135,13 +138,13 @@ export default function AccountIssue({ go, companyId: presetId }) {
         companyId = r?.companyId;
         if (!companyId) throw new Error("企業を登録できませんでした。");
         const s = rows.filter(r => r.seatPlan === "standard").length, pm = rows.filter(r => r.seatPlan === "premium").length;
-        await admin.saveCompany(companyId, { elearning: true, learningPlan: pm ? "premium" : "standard", billingMode: "seat", seats: { standard: s, premium: pm }, contract: { feeMonthly: 0, startMonth: "", endMonth: "", awsCapMonthly: 0 } });
+        await admin.saveCompany(companyId, { elearning: true, learningPlan: pm ? "premium" : "standard", billingMode: "seat", seats: { standard: s, premium: pm }, contract: { feeMonthly: 0, startDate: p.start || todayYmd(), endDate: p.end || "", awsCapMonthly: 0 } });
         setP(x => ({ ...x, companyId }));
-      } else if (co && (answers.elearning === "on" || answers.seats === "add")) {
+      } else if (co && (answers.elearning === "on" || answers.seats === "add" || periodChanged)) {
         await admin.saveCompany(companyId, {
           elearning: true, learningPlan: co.learningPlan || "standard", billingMode: co.billingMode,
           seats: co.billingMode === "seat" ? { standard: co.seats.standard.total + addStd, premium: co.seats.premium.total + addPrem } : undefined,
-          contract: { feeMonthly: co.contract?.feeMonthly || 0, startMonth: co.contract?.startMonth || "", endMonth: co.contract?.endMonth || "", awsCapMonthly: co.contract?.awsCapMonthly || 0 },
+          contract: { feeMonthly: co.contract?.feeMonthly || 0, startDate: periodChanged && p.start ? p.start : co.contract?.startDate || "", endDate: periodChanged && p.end ? p.end : co.contract?.endDate || "", awsCapMonthly: co.contract?.awsCapMonthly || 0 },
         });
       }
     } catch (e) {
@@ -206,7 +209,7 @@ export default function AccountIssue({ go, companyId: presetId }) {
               </div><span /></div>}
               <div className="it"><span>ログインID</span><div className="v"><input id="ai-prefix" className="id" value={p.prefix} onChange={e => setP(x => ({ ...x, prefix: slug(e.target.value) }))} /><span className="mono">-001〜@id.devhub-lms.com</span></div><small className="muted">{p.prefixReused ? "前に使った頭の続き" : "使っていない番号から"}</small></div>
               <div className="it"><span>仮の名前</span><div className="v"><input id="ai-name" className="id" value={p.namePrefix} onChange={e => setP(x => ({ ...x, namePrefix: e.target.value.slice(0, 10) }))} /><span className="mono">01〜</span></div><span /></div>
-              <div className="it"><span>使い始め</span><div className="v"><input id="ai-start" type="date" value={p.start} onChange={e => setP(x => ({ ...x, start: e.target.value }))} /></div><small className="muted">仮パスワードの期限 30日</small></div>
+              <div className="it"><span>使える期間</span><div className="v"><input id="ai-start" type="date" aria-label="使い始め" value={p.start} onChange={e => setP(x => ({ ...x, start: e.target.value }))} /> 〜 <input id="ai-end" type="date" aria-label="使える期間の終わり" value={p.end || ""} min={p.start || undefined} onChange={e => setP(x => ({ ...x, end: e.target.value }))} /></div><small className="muted" style={badPeriod ? { color: "var(--red)" } : undefined}>{badPeriod ? "終わりが始まりより前です" : "企業の契約の期間になります ・ 仮パスワードの期限 30日"}</small></div>
             </div>
             {p.notes?.length > 0 && <ul className="notes">{p.notes.map((x, i) => <li key={i}>{x}</li>)}</ul>}
           </section>
@@ -223,7 +226,7 @@ export default function AccountIssue({ go, companyId: presetId }) {
               {(addStd || addPrem) > 0 && answers.seats === "add" && <div><span>受講枠を増やす</span><b>+{addStd + addPrem}</b></div>}
               {stop && <p className="verdict ng" style={{ margin: 0 }}>{answers.early === "later" ? "使い始めが近くなってから、もう一度依頼してください。" : answers.elearning === "stop" ? "発行をやめました。" : "上の「企業」で登録済みの企業を選んでください。"}</p>}
             </section>
-            <div className="ai-row">{!presetId && <button type="button" className="btn ghost" onClick={() => { setStep(1); setP(null); }}>依頼を書き直す</button>}<span className="sp" /><button type="button" className="btn" disabled={!!open || stop || !fitN || !p.prefix || (!p.companyId && !p.newName.trim()) || busy === "list"} onClick={toList}>{busy === "list" ? "作っています…" : "一覧を見る"}</button></div>
+            <div className="ai-row">{!presetId && <button type="button" className="btn ghost" onClick={() => { setStep(1); setP(null); }}>依頼を書き直す</button>}<span className="sp" /><button type="button" className="btn" disabled={!!open || stop || badPeriod || !fitN || !p.prefix || (!p.companyId && !p.newName.trim()) || busy === "list"} onClick={toList}>{busy === "list" ? "作っています…" : "一覧を見る"}</button></div>
           </div>
         </div>
       )}
@@ -233,7 +236,7 @@ export default function AccountIssue({ go, companyId: presetId }) {
           <div className="ai-row hd"><b>{companyName} ・ {rows.length}名</b>{okRows.length === rows.length && <span className="chip done">発行済み</span>}<span className="sp" />
             {!okRows.length && <button type="button" className="btn ghost" disabled={!!busy} onClick={() => { setStep(2); setRows(null); }}>案に戻る</button>}
             {okRows.length < rows.length && <button type="button" className="btn" disabled={!!busy} onClick={issue}>{busy === "issue" ? `発行しています…（${okRows.length} / ${rows.length}）` : `${rows.length - okRows.length}件を発行する`}</button>}
-            {okRows.length > 0 && <button type="button" className="btn" disabled={busy === "issue"} onClick={() => { downloadExcel({ company: companyName, start: p.start, rows: okRows }); setStep(5); }}>Excelで受け取る（{okRows.length}件）</button>}
+            {okRows.length > 0 && <button type="button" className="btn" disabled={busy === "issue"} onClick={() => { downloadExcel({ company: companyName, start: p.start, end: p.end, rows: okRows }); setStep(5); }}>Excelで受け取る（{okRows.length}件）</button>}
           </div>
           <div className="tblwrap" style={{ maxHeight: 460, overflow: "auto" }}>
             <table className="mtbl">

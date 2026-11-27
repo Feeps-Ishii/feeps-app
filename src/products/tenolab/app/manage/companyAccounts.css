@@ -1,0 +1,20 @@
+/* 企業のアカウント（CompanyAccounts.jsx、2026-11-27） */
+.tl-course .cac { padding: 16px 18px; display: grid; gap: 12px; }
+.tl-course .cac-hd { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 10px; }
+.tl-course .cac-hd .sp { flex: 1; }
+.tl-course .cac-sum { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 8px; font-size: 13px; color: var(--ink2); }
+.tl-course .cac-sum b { font-size: 18px; color: var(--ink); }
+.tl-course .cac-q { font: inherit; font-size: 13.5px; border: 1px solid #CFDCCD; border-radius: 999px; padding: 6px 14px; width: 220px; max-width: 100%; background: #fff; }
+.tl-course .cac-sort { font: inherit; font-size: 13px; border: 1px solid #CFDCCD; border-radius: 999px; padding: 6px 10px; background: #fff; }
+.tl-course .cac-tbl td { vertical-align: middle; }
+.tl-course .cac-tbl tr.is-off td { color: var(--muted); }
+.tl-course .cac-tbl .mono { font-family: var(--mono); font-size: 12.5px; }
+.tl-course .cac-act { display: inline-flex; flex-wrap: wrap; justify-content: flex-end; gap: 6px; }
+.tl-course .cac-del { color: #B4483D; }
+.tl-course .cac-sub td { background: #F6FAF5; }
+.tl-course .cac-pw, .tl-course .cac-confirm { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 12px; font-size: 13.5px; }
+.tl-course .cac-confirm .sp { flex: 1; }
+.tl-course .cac-pw code { font-family: var(--mono); font-size: 15px; font-weight: 600; letter-spacing: .06em; background: #fff; border: 1px solid var(--line); border-radius: 8px; padding: 3px 10px; }
+.tl-course .cac-empty { display: grid; justify-items: start; gap: 10px; padding: 8px 4px; }
+.tl-course .cac-empty p { margin: 0; color: var(--ink2); }
+@media (max-width: 760px) { .tl-course .cac-q { width: 100%; } }

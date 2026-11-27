@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useState } from "react";
 import { apiPost } from "../../../../api.js";
 import { admin } from "../data.js";
 import MaterialScope from "./MaterialScope.jsx";
+import CompanyAccounts from "./CompanyAccounts.jsx";
 import { ContractExtra, LimitTab, PublishTab, useCompanySettings } from "./CompanyLimits.jsx";
 import { Title, yen, usdToYen, PLAN_LABEL, fmtTime } from "./parts.jsx";
 
@@ -143,7 +144,7 @@ function AddCompany({ names, onCancel, onDone }) {
   );
 }
 
-const CO_TABS = [["", "契約"], ["pub", "公開"], ["scope", "使える教材"], ["ai", "AI の上限"], ["aws", "AWS の上限"]];
+const CO_TABS = [["", "契約"], ["accounts", "アカウント"], ["pub", "公開"], ["scope", "使える教材"], ["ai", "AI の上限"], ["aws", "AWS の上限"]];
 
 function Company({ c, d, go, onSaved, tab, topics }) {
   const [f, setF] = useState(() => ({
@@ -194,13 +195,14 @@ function Company({ c, d, go, onSaved, tab, topics }) {
           <button type="button" className="back" onClick={() => go("#/manage/companies")}>← 企業と契約</button>
           <h1 className="h1" style={{ marginTop: 6 }}>{c.name} {c.lms && <LmsTag />}</h1>
         </div>
-        <div className="r"><button type="button" className="btn ghost" onClick={() => go(`#/manage/accounts/${encodeURIComponent(c.companyId)}`)}>アカウントを発行</button>{t !== "scope" && <button type="button" className="btn" onClick={save} disabled={busy}>{busy ? "保存しています…" : st.dirty ? "保存（未保存の変更あり）" : "保存"}</button>}</div>
+        <div className="r"><button type="button" className="btn ghost" onClick={() => go(`#/manage/accounts/${encodeURIComponent(c.companyId)}`)}>アカウントを発行</button>{t !== "scope" && t !== "accounts" && <button type="button" className="btn" onClick={save} disabled={busy}>{busy ? "保存しています…" : st.dirty ? "保存（未保存の変更あり）" : "保存"}</button>}</div>
       </div>
       <div className="tabs-h" role="tablist" style={{ marginBottom: 14 }}>
         {CO_TABS.map(([k, l]) => <button key={k || "contract"} type="button" role="tab" aria-selected={t === k} onClick={() => go(k ? `${base}/${k}` : base)}>{l}</button>)}
       </div>
       {msg.text && <div className={`verdict ${msg.kind}`} role={msg.kind === "ng" ? "alert" : "status"} style={{ marginBottom: 12 }}>{msg.text}</div>}
       {t === "scope" && <MaterialScope companyId={c.companyId} topics={topics} />}
+      {t === "accounts" && <CompanyAccounts companyId={c.companyId} go={go} />}
       {(t === "pub" || t === "ai" || t === "aws") && (settingsWait || (t === "pub"
         ? <PublishTab st={st} contract={{ startDate: f.contract.startDate, endDate: f.contract.endDate }} topics={topics} companyId={c.companyId} />
         : <LimitTab st={st} kind={t} companyId={c.companyId} />))}
